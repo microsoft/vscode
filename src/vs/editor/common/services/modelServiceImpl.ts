@@ -11,7 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
-import { DefaultEndOfLine, EndOfLinePreference, EndOfLineSequence, IIdentifiedSingleEditOperation, ITextBuffer, ITextBufferFactory, ITextModel, ITextModelCreationOptions } from 'vs/editor/common/model';
+import { DefaultEndOfLine, EndOfLinePreference, EndOfLineSequence, IIdentifiedSingleEditOperation, ITextBuffer, ITextBufferFactory, ITextModel, ITextModelCreationOptions, IValidEditOperation } from 'vs/editor/common/model';
 import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
 import { IModelLanguageChangedEvent, IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { LanguageIdentifier, DocumentSemanticTokensProviderRegistry, DocumentSemanticTokensProvider, SemanticTokensLegend, SemanticTokens, SemanticTokensEdits, TokenMetadata, FontStyle, MetadataConsts } from 'vs/editor/common/modes';
@@ -25,6 +25,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { SparseEncodedTokens, MultilineTokens2 } from 'vs/editor/common/model/tokensStore';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
+import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 
 export interface IEditorSemanticHighlightingOptions {
 	enabled?: boolean;
@@ -103,6 +104,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 	private readonly _configurationService: IConfigurationService;
 	private readonly _configurationServiceSubscription: IDisposable;
 	private readonly _resourcePropertiesService: ITextResourcePropertiesService;
+	private readonly _undoRedoService: IUndoRedoService;
 
 	private readonly _onModelAdded: Emitter<ITextModel> = this._register(new Emitter<ITextModel>());
 	public readonly onModelAdded: Event<ITextModel> = this._onModelAdded.event;
@@ -126,11 +128,13 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITextResourcePropertiesService resourcePropertiesService: ITextResourcePropertiesService,
 		@IThemeService themeService: IThemeService,
-		@ILogService logService: ILogService
+		@ILogService logService: ILogService,
+		@IUndoRedoService undoRedoService: IUndoRedoService
 	) {
 		super();
 		this._configurationService = configurationService;
 		this._resourcePropertiesService = resourcePropertiesService;
+		this._undoRedoService = undoRedoService;
 		this._models = {};
 		this._modelCreationOptionsByLanguageAndResource = Object.create(null);
 
@@ -272,7 +276,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 	private _createModelData(value: string | ITextBufferFactory, languageIdentifier: LanguageIdentifier, resource: URI | undefined, isForSimpleWidget: boolean): ModelData {
 		// create & save the model
 		const options = this.getCreationOptions(languageIdentifier.language, resource, isForSimpleWidget);
-		const model: TextModel = new TextModel(value, options, languageIdentifier, resource);
+		const model: TextModel = new TextModel(value, options, languageIdentifier, resource, this._undoRedoService);
 		const modelId = MODEL_ID(model.uri);
 
 		if (this._models[modelId]) {
@@ -305,7 +309,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		model.pushEditOperations(
 			[],
 			ModelServiceImpl._computeEdits(model, textBuffer),
-			(inverseEditOperations: IIdentifiedSingleEditOperation[]) => []
+			(inverseEditOperations: IValidEditOperation[]) => []
 		);
 		model.pushStackElement();
 	}

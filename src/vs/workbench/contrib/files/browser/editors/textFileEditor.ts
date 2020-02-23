@@ -10,13 +10,13 @@ import { isValidBasename } from 'vs/base/common/extpath';
 import { basename } from 'vs/base/common/resources';
 import { Action } from 'vs/base/common/actions';
 import { VIEWLET_ID, TEXT_FILE_EDITOR_ID, IExplorerService } from 'vs/workbench/contrib/files/common/files';
-import { ITextFileEditorModel, ITextFileService, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
 import { BaseTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
 import { EditorOptions, TextEditorOptions, IEditorCloseEvent } from 'vs/workbench/common/editor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { FileOperationError, FileOperationResult, FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
+import { FileOperationError, FileOperationResult, FileChangesEvent, IFileService, FileOperationEvent, FileOperation } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -61,13 +61,22 @@ export class TextFileEditor extends BaseTextEditor {
 		this.updateRestoreViewStateConfiguration();
 
 		// Clear view state for deleted files
-		this._register(this.fileService.onFileChanges(e => this.onFilesChanged(e)));
+		this._register(this.fileService.onDidFilesChange(e => this.onDidFilesChange(e)));
+
+		// Move view state for moved files
+		this._register(this.fileService.onDidRunOperation(e => this.onDidRunOperation(e)));
 	}
 
-	private onFilesChanged(e: FileChangesEvent): void {
+	private onDidFilesChange(e: FileChangesEvent): void {
 		const deleted = e.getDeleted();
 		if (deleted?.length) {
 			this.clearTextEditorViewState(deleted.map(d => d.resource));
+		}
+	}
+
+	private onDidRunOperation(e: FileOperationEvent): void {
+		if (e.operation === FileOperation.MOVE && e.target) {
+			this.moveTextEditorViewState(e.resource, e.target.resource);
 		}
 	}
 
@@ -135,14 +144,14 @@ export class TextFileEditor extends BaseTextEditor {
 				return this.openAsBinary(input, options);
 			}
 
-			const textFileModel = <ITextFileEditorModel>resolvedModel;
+			const textFileModel = resolvedModel;
 
 			// Editor
 			const textEditor = assertIsDefined(this.getControl());
 			textEditor.setModel(textFileModel.textEditorModel);
 
 			// Always restore View State if any associated
-			const editorViewState = this.loadTextEditorViewState(input.getResource());
+			const editorViewState = this.loadTextEditorViewState(input.resource);
 			if (editorViewState) {
 				textEditor.restoreViewState(editorViewState);
 			}
@@ -180,14 +189,14 @@ export class TextFileEditor extends BaseTextEditor {
 		}
 
 		// Offer to create a file from the error if we have a file not found and the name is valid
-		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND && isValidBasename(basename(input.getResource()))) {
+		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND && isValidBasename(basename(input.resource))) {
 			throw createErrorWithActions(toErrorMessage(error), {
 				actions: [
 					new Action('workbench.files.action.createMissingFile', nls.localize('createFile', "Create File"), undefined, true, async () => {
-						await this.textFileService.create(input.getResource());
+						await this.textFileService.create(input.resource);
 
 						return this.editorService.openEditor({
-							resource: input.getResource(),
+							resource: input.resource,
 							options: {
 								pinned: true // new file gets pinned by default
 							}
@@ -227,10 +236,10 @@ export class TextFileEditor extends BaseTextEditor {
 		await this.group.closeEditor(this.input);
 
 		// Best we can do is to reveal the folder in the explorer
-		if (this.contextService.isInsideWorkspace(input.getResource())) {
+		if (this.contextService.isInsideWorkspace(input.resource)) {
 			await this.viewletService.openViewlet(VIEWLET_ID);
 
-			this.explorerService.select(input.getResource(), true);
+			this.explorerService.select(input.resource, true);
 		}
 	}
 
@@ -278,12 +287,12 @@ export class TextFileEditor extends BaseTextEditor {
 		// If the user configured to not restore view state, we clear the view
 		// state unless the editor is still opened in the group.
 		if (!this.restoreViewState && (!this.group || !this.group.isOpened(input))) {
-			this.clearTextEditorViewState([input.getResource()], this.group);
+			this.clearTextEditorViewState([input.resource], this.group);
 		}
 
 		// Otherwise we save the view state to restore it later
 		else if (!input.isDisposed()) {
-			this.saveTextEditorViewState(input.getResource());
+			this.saveTextEditorViewState(input.resource);
 		}
 	}
 }

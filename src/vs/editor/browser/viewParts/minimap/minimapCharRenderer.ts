@@ -34,11 +34,13 @@ export class MinimapCharRenderer {
 		color: RGBA8,
 		backgroundColor: RGBA8,
 		fontScale: number,
-		useLighterFont: boolean
+		useLighterFont: boolean,
+		force1pxHeight: boolean
 	): void {
 		const charWidth = Constants.BASE_CHAR_WIDTH * this.scale;
 		const charHeight = Constants.BASE_CHAR_HEIGHT * this.scale;
-		if (dx + charWidth > target.width || dy + charHeight > target.height) {
+		const renderHeight = (force1pxHeight ? 1 : charHeight);
+		if (dx + charWidth > target.width || dy + renderHeight > target.height) {
 			console.warn('bad render request outside image data');
 			return;
 		}
@@ -60,7 +62,7 @@ export class MinimapCharRenderer {
 		let sourceOffset = charIndex * charWidth * charHeight;
 
 		let row = dy * destWidth + dx * Constants.RGBA_CHANNELS_CNT;
-		for (let y = 0; y < charHeight; y++) {
+		for (let y = 0; y < renderHeight; y++) {
 			let column = row;
 			for (let x = 0; x < charWidth; x++) {
 				const c = charData[sourceOffset++] / 255;
@@ -80,11 +82,13 @@ export class MinimapCharRenderer {
 		dy: number,
 		color: RGBA8,
 		backgroundColor: RGBA8,
-		useLighterFont: boolean
+		useLighterFont: boolean,
+		force1pxHeight: boolean
 	): void {
 		const charWidth = Constants.BASE_CHAR_WIDTH * this.scale;
 		const charHeight = Constants.BASE_CHAR_HEIGHT * this.scale;
-		if (dx + charWidth > target.width || dy + charHeight > target.height) {
+		const renderHeight = (force1pxHeight ? 1 : charHeight);
+		if (dx + charWidth > target.width || dy + renderHeight > target.height) {
 			console.warn('bad render request outside image data');
 			return;
 		}
@@ -108,7 +112,7 @@ export class MinimapCharRenderer {
 		const dest = target.data;
 
 		let row = dy * destWidth + dx * Constants.RGBA_CHANNELS_CNT;
-		for (let y = 0; y < charHeight; y++) {
+		for (let y = 0; y < renderHeight; y++) {
 			let column = row;
 			for (let x = 0; x < charWidth; x++) {
 				dest[column++] = colorR;

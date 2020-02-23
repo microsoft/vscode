@@ -171,7 +171,7 @@ export class TextFileContentProvider extends Disposable implements ITextModelCon
 
 		// Make sure to keep contents up to date when it changes
 		if (!this.fileWatcherDisposable.value) {
-			this.fileWatcherDisposable.value = this.fileService.onFileChanges(changes => {
+			this.fileWatcherDisposable.value = this.fileService.onDidFilesChange(changes => {
 				if (changes.contains(savedFileResource, FileChangeType.UPDATED)) {
 					this.resolveEditorModel(resource, false /* do not create if missing */); // update model when resource changes
 				}

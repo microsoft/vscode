@@ -59,6 +59,8 @@ export interface IssueReporterData extends WindowData {
 	enabledExtensions: IssueReporterExtensionData[];
 	issueType?: IssueType;
 	extensionId?: string;
+	readonly issueTitle?: string;
+	readonly issueBody?: string;
 }
 
 export interface ISettingSearchResult {

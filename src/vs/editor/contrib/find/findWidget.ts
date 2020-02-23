@@ -419,8 +419,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		}
 		if (currentMatch) {
 			const ariaLabel = nls.localize('ariaSearchNoResultWithLineNum', "{0} found for '{1}', at {2}", label, searchString, currentMatch.startLineNumber + ':' + currentMatch.startColumn);
-			const lineContent = this._codeEditor.getModel()?.getLineContent(currentMatch.startLineNumber);
-			if (lineContent) {
+			const model = this._codeEditor.getModel();
+			if (model && (currentMatch.startLineNumber <= model.getLineCount()) && (currentMatch.startLineNumber >= 1)) {
+				const lineContent = model.getLineContent(currentMatch.startLineNumber);
 				return `${lineContent}, ${ariaLabel}`;
 			}
 
@@ -611,7 +612,14 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 				return;
 			} else {
-				const scrollAdjustment = this._getHeight();
+				let scrollAdjustment = this._getHeight();
+
+				// if the editor has top padding, factor that into the zone height
+				scrollAdjustment -= this._codeEditor.getOption(EditorOption.padding).top;
+				if (scrollAdjustment <= 0) {
+					return;
+				}
+
 				viewZone.heightInPx = scrollAdjustment;
 				this._viewZoneId = accessor.addZone(viewZone);
 

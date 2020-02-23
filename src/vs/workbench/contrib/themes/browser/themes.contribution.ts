@@ -228,7 +228,7 @@ function isItem(i: QuickPickInput<ThemeItem>): i is ThemeItem {
 }
 
 function toEntries(themes: Array<IColorTheme | IFileIconTheme>, label?: string): QuickPickInput<ThemeItem>[] {
-	const toEntry = (theme: IColorTheme): ThemeItem => ({ id: theme.id, label: theme.label, description: theme.description });
+	const toEntry = (theme: IColorTheme | IFileIconTheme): ThemeItem => ({ id: theme.id, label: theme.label, description: theme.description });
 	const sorter = (t1: ThemeItem, t2: ThemeItem) => t1.label.localeCompare(t2.label);
 	let entries: QuickPickInput<ThemeItem>[] = themes.map(toEntry).sort(sorter);
 	if (entries.length > 0 && label) {

@@ -141,8 +141,8 @@ export class ItemRegistry {
 	readonly onDidCollapseItem: Event<IItemCollapseEvent> = this._onDidCollapseItem.event;
 	private _onDidAddTraitItem = new EventMultiplexer<IItemTraitEvent>();
 	readonly onDidAddTraitItem: Event<IItemTraitEvent> = this._onDidAddTraitItem.event;
-	private _onDidRemoveTraitItem = new EventMultiplexer<IItemCollapseEvent>();
-	readonly onDidRemoveTraitItem: Event<IItemCollapseEvent> = this._onDidRemoveTraitItem.event;
+	private _onDidRemoveTraitItem = new EventMultiplexer<IItemTraitEvent>();
+	readonly onDidRemoveTraitItem: Event<IItemTraitEvent> = this._onDidRemoveTraitItem.event;
 	private _onDidRefreshItem = new EventMultiplexer<Item>();
 	readonly onDidRefreshItem: Event<Item> = this._onDidRefreshItem.event;
 	private _onRefreshItemChildren = new EventMultiplexer<IItemChildrenRefreshEvent>();
@@ -273,8 +273,8 @@ export class Item {
 	readonly onDidCollapse: Event<IItemCollapseEvent> = this._onDidCollapse.event;
 	private readonly _onDidAddTrait = new Emitter<IItemTraitEvent>();
 	readonly onDidAddTrait: Event<IItemTraitEvent> = this._onDidAddTrait.event;
-	private readonly _onDidRemoveTrait = new Emitter<IItemCollapseEvent>();
-	readonly onDidRemoveTrait: Event<IItemCollapseEvent> = this._onDidRemoveTrait.event;
+	private readonly _onDidRemoveTrait = new Emitter<IItemTraitEvent>();
+	readonly onDidRemoveTrait: Event<IItemTraitEvent> = this._onDidRemoveTrait.event;
 	private readonly _onDidRefresh = new Emitter<Item>();
 	readonly onDidRefresh: Event<Item> = this._onDidRefresh.event;
 	private readonly _onRefreshChildren = new Emitter<IItemChildrenRefreshEvent>();
@@ -895,8 +895,8 @@ export class TreeModel {
 	readonly onDidCollapseItem: Event<IItemCollapseEvent> = this._onDidCollapseItem.event;
 	private _onDidAddTraitItem = new Relay<IItemTraitEvent>();
 	readonly onDidAddTraitItem: Event<IItemTraitEvent> = this._onDidAddTraitItem.event;
-	private _onDidRemoveTraitItem = new Relay<IItemCollapseEvent>();
-	readonly onDidRemoveTraitItem: Event<IItemCollapseEvent> = this._onDidRemoveTraitItem.event;
+	private _onDidRemoveTraitItem = new Relay<IItemTraitEvent>();
+	readonly onDidRemoveTraitItem: Event<IItemTraitEvent> = this._onDidRemoveTraitItem.event;
 	private _onDidRefreshItem = new Relay<Item>();
 	readonly onDidRefreshItem: Event<Item> = this._onDidRefreshItem.event;
 	private _onRefreshItemChildren = new Relay<IItemChildrenRefreshEvent>();

@@ -12,7 +12,7 @@ import { areFunctions, withNullAsUndefined, withUndefinedAsNull } from 'vs/base/
 import { URI } from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
 import { Language } from 'vs/base/common/platform';
-import { UntitledTextEditorInput } from 'vs/workbench/common/editor/untitledTextEditorInput';
+import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { IFileEditorInput, EncodingMode, IEncodingSupport, toResource, SideBySideEditorInput, IEditor as IBaseEditor, IEditorInput, SideBySideEditor, IModeSupport } from 'vs/workbench/common/editor';
 import { Disposable, MutableDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorAction } from 'vs/editor/common/editorCommon';
@@ -314,8 +314,8 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 
 	private registerListeners(): void {
 		this._register(this.editorService.onDidActiveEditorChange(() => this.updateStatusBar()));
-		this._register(this.textFileService.untitled.onDidChangeEncoding(r => this.onResourceEncodingChange(r)));
-		this._register(this.textFileService.files.onDidChangeEncoding(m => this.onResourceEncodingChange((m.resource))));
+		this._register(this.textFileService.untitled.onDidChangeEncoding(model => this.onResourceEncodingChange(model.resource)));
+		this._register(this.textFileService.files.onDidChangeEncoding(model => this.onResourceEncodingChange((model.resource))));
 		this._register(TabFocus.onDidChangeTabFocus(e => this.onTabFocusModeChange()));
 	}
 
@@ -1010,7 +1010,7 @@ export class ChangeModeAction extends Action {
 		const resource = this.editorService.activeEditor ? toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER }) : null;
 
 		let hasLanguageSupport = !!resource;
-		if (resource?.scheme === Schemas.untitled && !this.textFileService.untitled.hasAssociatedFilePath(resource)) {
+		if (resource?.scheme === Schemas.untitled && !this.textFileService.untitled.get(resource)?.hasAssociatedFilePath) {
 			hasLanguageSupport = false; // no configuration for untitled resources (e.g. "Untitled-1")
 		}
 
@@ -1224,7 +1224,9 @@ export class ChangeEOLAction extends Action {
 			const activeCodeEditor = getCodeEditor(this.editorService.activeTextEditorWidget);
 			if (activeCodeEditor?.hasModel() && !this.editorService.activeEditor?.isReadonly()) {
 				textModel = activeCodeEditor.getModel();
+				textModel.pushStackElement();
 				textModel.pushEOL(eol.eol);
+				textModel.pushStackElement();
 			}
 		}
 	}

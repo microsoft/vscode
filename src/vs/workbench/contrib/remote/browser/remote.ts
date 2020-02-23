@@ -368,16 +368,20 @@ class HelpPanel extends ViewPane {
 		@IConfigurationService protected configurationService: IConfigurationService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IOpenerService protected openerService: IOpenerService,
+		@IOpenerService openerService: IOpenerService,
 		@IQuickInputService protected quickInputService: IQuickInputService,
 		@ICommandService protected commandService: ICommandService,
 		@IRemoteExplorerService protected readonly remoteExplorerService: IRemoteExplorerService,
-		@IWorkbenchEnvironmentService protected readonly workbenchEnvironmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService protected readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IThemeService themeService: IThemeService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 	}
 
 	protected renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+
 		dom.addClass(container, 'remote-help');
 		const treeContainer = document.createElement('div');
 		dom.addClass(treeContainer, 'remote-help-content');

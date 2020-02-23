@@ -51,6 +51,9 @@ import { TestWindowConfiguration, TestTextFileService } from 'vs/workbench/test/
 import { ILabelService } from 'vs/platform/label/common/label';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { IFilesConfigurationService, FilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { WorkingCopyFileService, IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
+import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
+import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 
 class TestEnvironmentService extends NativeWorkbenchEnvironmentService {
 
@@ -102,12 +105,15 @@ suite('KeybindingsEditing', () => {
 			instantiationService.stub(ILabelService, instantiationService.createInstance(LabelService));
 			instantiationService.stub(IFilesConfigurationService, instantiationService.createInstance(FilesConfigurationService));
 			instantiationService.stub(ITextResourcePropertiesService, new TestTextResourcePropertiesService(instantiationService.get(IConfigurationService)));
+			instantiationService.stub(IUndoRedoService, instantiationService.createInstance(UndoRedoService));
 			instantiationService.stub(IModelService, instantiationService.createInstance(ModelServiceImpl));
 			const fileService = new FileService(new NullLogService());
 			const diskFileSystemProvider = new DiskFileSystemProvider(new NullLogService());
 			fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 			fileService.registerProvider(Schemas.userData, new FileUserDataProvider(environmentService.appSettingsHome, environmentService.backupHome, diskFileSystemProvider, environmentService));
 			instantiationService.stub(IFileService, fileService);
+			instantiationService.stub(IWorkingCopyService, new TestWorkingCopyService());
+			instantiationService.stub(IWorkingCopyFileService, instantiationService.createInstance(WorkingCopyFileService));
 			instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 			instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
 			instantiationService.stub(IBackupFileService, new TestBackupFileService());

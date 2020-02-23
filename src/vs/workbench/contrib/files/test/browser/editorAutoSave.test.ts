@@ -7,9 +7,8 @@ import * as assert from 'assert';
 import { Event } from 'vs/base/common/event';
 import { toResource } from 'vs/base/test/common/utils';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { TestFileService, TestFilesConfigurationService, TestEnvironmentService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { ITextFileService, IResolvedTextFileEditorModel, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
-import { IFileService } from 'vs/platform/files/common/files';
+import { TestFilesConfigurationService, TestEnvironmentService, workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/browser/workbenchTestServices';
+import { IResolvedTextFileEditorModel, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
@@ -27,17 +26,6 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-
-class ServiceAccessor {
-	constructor(
-		@IEditorService public editorService: IEditorService,
-		@IEditorGroupsService public editorGroupService: IEditorGroupsService,
-		@ITextFileService public textFileService: ITextFileService,
-		@IFileService public fileService: TestFileService,
-		@IConfigurationService public configurationService: TestConfigurationService
-	) {
-	}
-}
 
 suite('EditorAutoSave', () => {
 
@@ -81,7 +69,7 @@ suite('EditorAutoSave', () => {
 		const editorService: EditorService = instantiationService.createInstance(EditorService);
 		instantiationService.stub(IEditorService, editorService);
 
-		const accessor = instantiationService.createInstance(ServiceAccessor);
+		const accessor = instantiationService.createInstance(TestServiceAccessor);
 
 		const editorAutoSave = instantiationService.createInstance(EditorAutoSave);
 

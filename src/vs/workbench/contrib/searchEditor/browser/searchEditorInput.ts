@@ -6,28 +6,28 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import * as network from 'vs/base/common/network';
 import { basename } from 'vs/base/common/path';
-import { isEqual, joinPath } from 'vs/base/common/resources';
+import { isEqual, joinPath, extname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/searchEditor';
-import type { ICodeEditorViewState } from 'vs/editor/common/editorCommon';
-import { IModelDeltaDecoration, ITextModel, DefaultEndOfLine } from 'vs/editor/common/model';
+import { Range } from 'vs/editor/common/core/range';
+import { DefaultEndOfLine, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { localize } from 'vs/nls';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { EditorInput, GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
+import { EditorInput, GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, IMoveResult } from 'vs/workbench/common/editor';
+import { SearchEditorFindMatchClass, SearchEditorScheme } from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { extractSearchQuery, serializeSearchConfiguration } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
 import { ITextFileSaveOptions, ITextFileService, snapshotToString, stringToSnapshot } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkingCopy, IWorkingCopyBackup, IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { SearchEditorScheme } from 'vs/workbench/contrib/searchEditor/browser/constants';
-import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
 
 
 export type SearchConfiguration = {
@@ -42,9 +42,7 @@ export type SearchConfiguration = {
 	showIncludesExcludes: boolean,
 };
 
-type SearchEditorViewState =
-	| { focused: 'input' }
-	| { focused: 'editor', state: ICodeEditorViewState };
+const SEARCH_EDITOR_EXT = '.code-search';
 
 export class SearchEditorInput extends EditorInput {
 	static readonly ID: string = 'workbench.editorinputs.searchEditorInput';
@@ -52,14 +50,12 @@ export class SearchEditorInput extends EditorInput {
 	private dirty: boolean = false;
 	private readonly contentsModel: Promise<ITextModel>;
 	private readonly headerModel: Promise<ITextModel>;
+	private _cachedContentsModel: ITextModel | undefined;
 	private _cachedConfig?: SearchConfiguration;
 
 	private readonly _onDidChangeContent = new Emitter<void>();
 	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 
-	viewState: SearchEditorViewState = { focused: 'input' };
-
-	private _highlights: IModelDeltaDecoration[] | undefined;
 	private oldDecorationsIDs: string[] = [];
 
 	constructor(
@@ -93,9 +89,11 @@ export class SearchEditorInput extends EditorInput {
 				}));
 
 				this._cachedConfig = extractSearchQuery(headerModel);
+				this._cachedContentsModel = contentsModel;
 
 				this._register(contentsModel);
 				this._register(headerModel);
+				this._onDidChangeLabel.fire();
 
 				return { contentsModel, headerModel };
 			});
@@ -106,7 +104,7 @@ export class SearchEditorInput extends EditorInput {
 
 		const input = this;
 		const workingCopyAdapter = new class implements IWorkingCopy {
-			readonly resource = input.getResource();
+			readonly resource = input.resource;
 			get name() { return input.getName(); }
 			readonly capabilities = input.isUntitled() ? WorkingCopyCapabilities.Untitled : 0;
 			readonly onDidChangeDirty = input.onDidChangeDirty;
@@ -118,10 +116,6 @@ export class SearchEditorInput extends EditorInput {
 		};
 
 		this.workingCopyService.registerWorkingCopy(workingCopyAdapter);
-	}
-
-	getResource() {
-		return this.resource;
 	}
 
 	async save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IEditorInput | undefined> {
@@ -154,7 +148,7 @@ export class SearchEditorInput extends EditorInput {
 				this.setDirty(false);
 				if (!isEqual(path, this.resource)) {
 					const input = this.instantiationService.invokeFunction(getOrMakeSearchEditorInput, { uri: path });
-					input.setHighlights(this.highlights);
+					input.setMatchRanges(this.getMatchRanges());
 					return input;
 				}
 				return this;
@@ -178,7 +172,7 @@ export class SearchEditorInput extends EditorInput {
 			return localize('searchTitle', "Search");
 		}
 
-		return localize('searchTitle.withQuery', "Search: {0}", basename(this.resource.path, '.code-search'));
+		return localize('searchTitle.withQuery', "Search: {0}", basename(this.resource.path, SEARCH_EDITOR_EXT));
 	}
 
 	getConfigSync() {
@@ -222,6 +216,17 @@ export class SearchEditorInput extends EditorInput {
 		return this.resource.scheme === SearchEditorScheme;
 	}
 
+	move(group: GroupIdentifier, target: URI): IMoveResult | undefined {
+		if (extname(target) === SEARCH_EDITOR_EXT) {
+			return {
+				editor: this.instantiationService.invokeFunction(getOrMakeSearchEditorInput, { uri: target })
+			};
+		}
+
+		// Ignore move if editor was renamed to a different file extension
+		return undefined;
+	}
+
 	dispose() {
 		this.modelService.destroyModel(this.resource);
 		super.dispose();
@@ -241,14 +246,15 @@ export class SearchEditorInput extends EditorInput {
 		return false;
 	}
 
-	public get highlights(): IModelDeltaDecoration[] {
-		return (this._highlights ?? []).map(({ range, options }) => ({ range, options }));
+	public getMatchRanges(): Range[] {
+		return (this._cachedContentsModel?.getAllDecorations() ?? [])
+			.filter(decoration => decoration.options.className === SearchEditorFindMatchClass)
+			.map(({ range }) => range);
 	}
 
-	public async setHighlights(value: IModelDeltaDecoration[]) {
-		if (!value) { return; }
-		this.oldDecorationsIDs = (await this.contentsModel).deltaDecorations(this.oldDecorationsIDs, value);
-		this._highlights = value;
+	public async setMatchRanges(ranges: Range[]) {
+		this.oldDecorationsIDs = (await this.contentsModel).deltaDecorations(this.oldDecorationsIDs, ranges.map(range =>
+			({ range, options: { className: SearchEditorFindMatchClass, stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges } })));
 	}
 
 	async revert(group: GroupIdentifier, options?: IRevertOptions) {
@@ -268,7 +274,7 @@ export class SearchEditorInput extends EditorInput {
 	private async suggestFileName(): Promise<URI> {
 		const query = extractSearchQuery(await this.headerModel).query;
 
-		const searchFileName = (query.replace(/[^\w \-_]+/g, '_') || 'Search') + '.code-search';
+		const searchFileName = (query.replace(/[^\w \-_]+/g, '_') || 'Search') + SEARCH_EDITOR_EXT;
 
 		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
 		const schemeFilter = remoteAuthority ? network.Schemas.vscodeRemote : network.Schemas.file;

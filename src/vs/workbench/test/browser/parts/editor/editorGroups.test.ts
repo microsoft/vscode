@@ -73,6 +73,9 @@ function groupListener(group: EditorGroup): GroupEvents {
 
 let index = 0;
 class TestEditorInput extends EditorInput {
+
+	readonly resource = undefined;
+
 	constructor(public id: string) {
 		super();
 	}
@@ -93,6 +96,9 @@ class TestEditorInput extends EditorInput {
 }
 
 class NonSerializableTestEditorInput extends EditorInput {
+
+	readonly resource = undefined;
+
 	constructor(public id: string) {
 		super();
 	}
@@ -106,7 +112,7 @@ class NonSerializableTestEditorInput extends EditorInput {
 
 class TestFileEditorInput extends EditorInput implements IFileEditorInput {
 
-	constructor(public id: string, private resource: URI) {
+	constructor(public id: string, public resource: URI) {
 		super();
 	}
 	getTypeId() { return 'testFileEditorInputForGroups'; }
@@ -114,10 +120,10 @@ class TestFileEditorInput extends EditorInput implements IFileEditorInput {
 	setEncoding(encoding: string) { }
 	getEncoding() { return undefined; }
 	setPreferredEncoding(encoding: string) { }
-	getResource(): URI { return this.resource; }
 	setForceOpenAsBinary(): void { }
 	setMode(mode: string) { }
 	setPreferredMode(mode: string) { }
+	isResolved(): boolean { return false; }
 
 	matches(other: TestFileEditorInput): boolean {
 		return other && this.id === other.id && other instanceof TestFileEditorInput;

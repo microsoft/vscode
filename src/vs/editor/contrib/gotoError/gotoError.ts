@@ -304,7 +304,7 @@ export class MarkerController implements IEditorContribution {
 		model.currentMarker = marker;
 	}
 
-	private _onMarkerChanged(changedResources: URI[]): void {
+	private _onMarkerChanged(changedResources: readonly URI[]): void {
 		const editorModel = this._editor.getModel();
 		if (!editorModel) {
 			return;
@@ -397,7 +397,7 @@ class MarkerNavigationAction extends EditorAction {
 
 		return editorService.openCodeEditor({
 			resource: newMarker.resource,
-			options: { pinned: false, revealIfOpened: true, selectionRevealType: TextEditorSelectionRevealType.CenterIfOutsideViewport, selection: newMarker }
+			options: { pinned: false, revealIfOpened: true, selectionRevealType: TextEditorSelectionRevealType.NearTop, selection: newMarker }
 		}, editor).then(editor => {
 			if (!editor) {
 				return undefined;

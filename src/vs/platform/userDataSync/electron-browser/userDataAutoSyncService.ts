@@ -3,23 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, IUserDataSyncLogService, IUserDataAuthTokenService, IUserDataSyncUtilService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, IUserDataSyncLogService, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { Event } from 'vs/base/common/event';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { UserDataAutoSyncService as BaseUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IAuthenticationTokenService } from 'vs/platform/authentication/common/authentication';
 
 export class UserDataAutoSyncService extends BaseUserDataAutoSyncService {
 
 	constructor(
+		@IUserDataSyncEnablementService userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@IUserDataSyncService userDataSyncService: IUserDataSyncService,
 		@IElectronService electronService: IElectronService,
-		@IConfigurationService configurationService: IConfigurationService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
-		@IUserDataAuthTokenService authTokenService: IUserDataAuthTokenService,
-		@IUserDataSyncUtilService userDataSyncUtilService: IUserDataSyncUtilService,
+		@IAuthenticationTokenService authTokenService: IAuthenticationTokenService,
 	) {
-		super(configurationService, userDataSyncService, logService, authTokenService, userDataSyncUtilService);
+		super(userDataSyncEnablementService, userDataSyncService, logService, authTokenService);
 
 		// Sync immediately if there is a local change.
 		this._register(Event.debounce(Event.any<any>(

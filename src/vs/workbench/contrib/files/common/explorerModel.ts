@@ -77,7 +77,7 @@ export class ExplorerModel implements IDisposable {
 }
 
 export class ExplorerItem {
-	private _isDirectoryResolved: boolean;
+	protected _isDirectoryResolved: boolean;
 	private _isDisposed: boolean;
 	public isError = false;
 
@@ -402,5 +402,6 @@ export class ExplorerItem {
 export class NewExplorerItem extends ExplorerItem {
 	constructor(fileService: IFileService, parent: ExplorerItem, isDirectory: boolean) {
 		super(URI.file(''), fileService, parent, isDirectory);
+		this._isDirectoryResolved = true;
 	}
 }

@@ -49,6 +49,7 @@ import { ExcludeSettingWidget, IListChangeEvent, IListDataItem, ListSettingWidge
 import { SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ISetting, ISettingsGroup, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
+import { IUserDataSyncEnablementService, getDefaultIgnoredSettings } from 'vs/platform/userDataSync/common/userDataSync';
 
 const $ = DOM.$;
 
@@ -1191,7 +1192,7 @@ export class SettingTreeRenderers {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
-		@IConfigurationService private readonly _configService: IConfigurationService,
+		@IUserDataSyncEnablementService private readonly _userDataSyncEnablementService: IUserDataSyncEnablementService,
 	) {
 		this.settingActions = [
 			new Action('settings.resetSetting', localize('resetSettingLabel', "Reset Setting"), undefined, undefined, (context: SettingsTreeSettingElement) => {
@@ -1235,9 +1236,9 @@ export class SettingTreeRenderers {
 	}
 
 	private getActionsForSetting(setting: ISetting): IAction[] {
-		const enableSync = this._configService.getValue<boolean>('sync.enable');
-		return enableSync ?
-			[this._instantiationService.createInstance(StopSyncingSettingAction, setting)] :
+		const enableSync = this._userDataSyncEnablementService.isEnabled();
+		return enableSync && !setting.disallowSyncIgnore ?
+			[this._instantiationService.createInstance(SyncSettingAction, setting)] :
 			[];
 	}
 
@@ -1621,31 +1622,46 @@ class CopySettingAsJSONAction extends Action {
 	}
 }
 
-class StopSyncingSettingAction extends Action {
+class SyncSettingAction extends Action {
 	static readonly ID = 'settings.stopSyncingSetting';
-	static readonly LABEL = localize('stopSyncingSetting', "Don't Sync This Setting");
+	static readonly LABEL = localize('stopSyncingSetting', "Sync This Setting");
 
 	constructor(
 		private readonly setting: ISetting,
 		@IConfigurationService private readonly configService: IConfigurationService,
 	) {
-		super(StopSyncingSettingAction.ID, StopSyncingSettingAction.LABEL);
+		super(SyncSettingAction.ID, SyncSettingAction.LABEL);
+		this._register(Event.filter(configService.onDidChangeConfiguration, e => e.affectsConfiguration('sync.ignoredSettings'))(() => this.update()));
 		this.update();
 	}
 
-	update() {
-		const ignoredSettings = getIgnoredSettings(this.configService);
-		this.checked = ignoredSettings.includes(this.setting.key);
+	async update() {
+		const ignoredSettings = getIgnoredSettings(getDefaultIgnoredSettings(), this.configService);
+		this.checked = !ignoredSettings.includes(this.setting.key);
 	}
 
 	async run(): Promise<void> {
-		const currentValue = this.configService.getValue<string[]>('sync.ignoredSettings');
-		if (this.checked) {
-			this.configService.updateValue('sync.ignoredSettings', currentValue.filter(v => v !== this.setting.key));
-		} else {
-			this.configService.updateValue('sync.ignoredSettings', [...currentValue, this.setting.key]);
+		// first remove the current setting completely from ignored settings
+		let currentValue = [...this.configService.getValue<string[]>('sync.ignoredSettings')];
+		currentValue = currentValue.filter(v => v !== this.setting.key && v !== `-${this.setting.key}`);
+
+		const defaultIgnoredSettings = getDefaultIgnoredSettings();
+		const isDefaultIgnored = defaultIgnoredSettings.includes(this.setting.key);
+		const askedToSync = !this.checked;
+
+		// If asked to sync, then add only if it is ignored by default
+		if (askedToSync && isDefaultIgnored) {
+			currentValue.push(`-${this.setting.key}`);
 		}
+
+		// If asked not to sync, then add only if it is not ignored by default
+		if (!askedToSync && !isDefaultIgnored) {
+			currentValue.push(this.setting.key);
+		}
+
+		this.configService.updateValue('sync.ignoredSettings', currentValue.length ? currentValue : undefined, ConfigurationTarget.USER);
 
 		return Promise.resolve(undefined);
 	}
+
 }

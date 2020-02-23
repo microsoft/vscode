@@ -10,7 +10,7 @@ import { ConfigurationChangedEvent, IComputedEditorOptions, IEditorOptions } fro
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
-import { IIdentifiedSingleEditOperation, IModelDecorationsChangeAccessor, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { IModelDecorationsChangeAccessor, ITextModel, OverviewRulerLane, TrackedRangeStickiness, IValidEditOperation } from 'vs/editor/common/model';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 
 /**
@@ -22,7 +22,7 @@ export interface IEditOperationBuilder {
 	 * @param range The range to replace (delete). May be empty to represent a simple insert.
 	 * @param text The text to replace with. May be null to represent a simple delete.
 	 */
-	addEditOperation(range: Range, text: string | null, forceMoveMarkers?: boolean): void;
+	addEditOperation(range: IRange, text: string | null, forceMoveMarkers?: boolean): void;
 
 	/**
 	 * Add a new edit operation (a replace operation).
@@ -30,7 +30,7 @@ export interface IEditOperationBuilder {
 	 * @param range The range to replace (delete). May be empty to represent a simple insert.
 	 * @param text The text to replace with. May be null to represent a simple delete.
 	 */
-	addTrackedEditOperation(range: Range, text: string | null, forceMoveMarkers?: boolean): void;
+	addTrackedEditOperation(range: IRange, text: string | null, forceMoveMarkers?: boolean): void;
 
 	/**
 	 * Track `selection` when applying edit operations.
@@ -51,7 +51,7 @@ export interface ICursorStateComputerData {
 	/**
 	 * Get the inverse edit operations of the added edit operations.
 	 */
-	getInverseEditOperations(): IIdentifiedSingleEditOperation[];
+	getInverseEditOperations(): IValidEditOperation[];
 	/**
 	 * Get a previously tracked selection.
 	 * @param id The unique identifier returned by `trackSelection`.
@@ -154,6 +154,7 @@ export interface IConfiguration extends IDisposable {
 	readonly options: IComputedEditorOptions;
 
 	setMaxLineNumber(maxLineNumber: number): void;
+	setViewLineCount(viewLineCount: number): void;
 	updateOptions(newOptions: IEditorOptions): void;
 	getRawOptions(): IEditorOptions;
 	observeReferenceElement(dimension?: IDimension): void;
@@ -467,6 +468,12 @@ export interface IEditor {
 	revealRangeNearTop(range: IRange, scrollType?: ScrollType): void;
 
 	/**
+	 * Scroll vertically or horizontally as necessary and reveal a range close to the top of the viewport,
+	 * optimized for viewing a code definition. Only if it lies outside the viewport.
+	 */
+	revealRangeNearTopIfOutsideViewport(range: IRange, scrollType?: ScrollType): void;
+
+	/**
 	 * Directly trigger a handler or an editor action.
 	 * @param source The source of the call.
 	 * @param handlerId The id of the handler or the id of a contribution.
@@ -671,9 +678,5 @@ export const Handler = {
 	CompositionStart: 'compositionStart',
 	CompositionEnd: 'compositionEnd',
 	Paste: 'paste',
-
 	Cut: 'cut',
-
-	Undo: 'undo',
-	Redo: 'redo',
 };

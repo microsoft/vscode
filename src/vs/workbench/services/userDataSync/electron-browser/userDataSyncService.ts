@@ -24,8 +24,18 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 	get onDidChangeLocal(): Event<void> { return this.channel.listen('onDidChangeLocal'); }
 
-	private _conflictsSource: SyncSource | null = null;
-	get conflictsSource(): SyncSource | null { return this._conflictsSource; }
+	private _conflictsSources: SyncSource[] = [];
+	get conflictsSources(): SyncSource[] { return this._conflictsSources; }
+	private _onDidChangeConflicts: Emitter<SyncSource[]> = this._register(new Emitter<SyncSource[]>());
+	readonly onDidChangeConflicts: Event<SyncSource[]> = this._onDidChangeConflicts.event;
+
+	private _lastSyncTime: number | undefined = undefined;
+	get lastSyncTime(): number | undefined { return this._lastSyncTime; }
+	private _onDidChangeLastSyncTime: Emitter<number> = this._register(new Emitter<number>());
+	readonly onDidChangeLastSyncTime: Event<number> = this._onDidChangeLastSyncTime.event;
+
+	private _onSyncErrors: Emitter<[SyncSource, UserDataSyncError][]> = this._register(new Emitter<[SyncSource, UserDataSyncError][]>());
+	readonly onSyncErrors: Event<[SyncSource, UserDataSyncError][]> = this._onSyncErrors.event;
 
 	constructor(
 		@ISharedProcessService sharedProcessService: ISharedProcessService
@@ -41,18 +51,21 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				return userDataSyncChannel.listen(event, arg);
 			}
 		};
-		this.channel.call<SyncStatus>('_getInitialStatus').then(status => {
+		this.channel.call<[SyncStatus, SyncSource[], number | undefined]>('_getInitialData').then(([status, conflicts, lastSyncTime]) => {
 			this.updateStatus(status);
+			this.updateConflicts(conflicts);
+			if (lastSyncTime) {
+				this.updateLastSyncTime(lastSyncTime);
+			}
 			this._register(this.channel.listen<SyncStatus>('onDidChangeStatus')(status => this.updateStatus(status)));
+			this._register(this.channel.listen<number>('onDidChangeLastSyncTime')(lastSyncTime => this.updateLastSyncTime(lastSyncTime)));
 		});
+		this._register(this.channel.listen<SyncSource[]>('onDidChangeConflicts')(conflicts => this.updateConflicts(conflicts)));
+		this._register(this.channel.listen<[SyncSource, Error][]>('onSyncErrors')(errors => this._onSyncErrors.fire(errors.map(([source, error]) => ([source, UserDataSyncError.toUserDataSyncError(error)])))));
 	}
 
 	pull(): Promise<void> {
 		return this.channel.call('pull');
-	}
-
-	push(): Promise<void> {
-		return this.channel.call('push');
 	}
 
 	sync(): Promise<void> {
@@ -75,37 +88,30 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return this.channel.call('stop');
 	}
 
-	async restart(): Promise<void> {
-		const status = await this.channel.call<SyncStatus>('restart');
-		await this.updateStatus(status);
-	}
-
-	hasPreviouslySynced(): Promise<boolean> {
-		return this.channel.call('hasPreviouslySynced');
-	}
-
-	hasRemoteData(): Promise<boolean> {
-		return this.channel.call('hasRemoteData');
-	}
-
-	hasLocalData(): Promise<boolean> {
-		return this.channel.call('hasLocalData');
-	}
-
 	getRemoteContent(source: SyncSource, preview: boolean): Promise<string | null> {
 		return this.channel.call('getRemoteContent', [source, preview]);
 	}
 
-	isFirstTimeSyncAndHasUserData(): Promise<boolean> {
-		return this.channel.call('isFirstTimeSyncAndHasUserData');
+	isFirstTimeSyncWithMerge(): Promise<boolean> {
+		return this.channel.call('isFirstTimeSyncWithMerge');
 	}
 
 	private async updateStatus(status: SyncStatus): Promise<void> {
-		this._conflictsSource = await this.channel.call<SyncSource>('getConflictsSource');
 		this._status = status;
 		this._onDidChangeStatus.fire(status);
 	}
 
+	private async updateConflicts(conflicts: SyncSource[]): Promise<void> {
+		this._conflictsSources = conflicts;
+		this._onDidChangeConflicts.fire(conflicts);
+	}
+
+	private updateLastSyncTime(lastSyncTime: number): void {
+		if (this._lastSyncTime !== lastSyncTime) {
+			this._lastSyncTime = lastSyncTime;
+			this._onDidChangeLastSyncTime.fire(lastSyncTime);
+		}
+	}
 }
 
 registerSingleton(IUserDataSyncService, UserDataSyncService);

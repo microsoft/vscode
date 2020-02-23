@@ -4,11 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Action } from 'vs/base/common/actions';
-import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/searchEditor';
 import { ICodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { TrackedRangeStickiness } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -63,7 +61,6 @@ export class OpenSearchEditorAction extends Action {
 	static readonly LABEL = localize('search.openNewEditor', "Open New Search Editor");
 
 	constructor(id: string, label: string,
-		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super(id, label, 'codicon-new-file');
@@ -78,9 +75,7 @@ export class OpenSearchEditorAction extends Action {
 	}
 
 	async run() {
-		if (this.configurationService.getValue<ISearchConfigurationProperties>('search').enableSearchEditorPreview) {
-			await this.instantiationService.invokeFunction(openNewSearchEditor);
-		}
+		await this.instantiationService.invokeFunction(openNewSearchEditor);
 	}
 }
 
@@ -91,7 +86,6 @@ export class OpenResultsInEditorAction extends Action {
 
 	constructor(id: string, label: string,
 		@IViewsService private viewsService: IViewsService,
-		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super(id, label, 'codicon-go-to-file');
@@ -108,27 +102,8 @@ export class OpenResultsInEditorAction extends Action {
 
 	async run() {
 		const searchView = getSearchView(this.viewsService);
-		if (searchView && this.configurationService.getValue<ISearchConfigurationProperties>('search').enableSearchEditorPreview) {
+		if (searchView) {
 			await this.instantiationService.invokeFunction(createEditorFromSearchResult, searchView.searchResult, searchView.searchIncludePattern.getValue(), searchView.searchExcludePattern.getValue());
-		}
-	}
-}
-
-
-export class ReRunSearchEditorSearchAction extends Action {
-
-	static readonly ID = 'searchEditor.rerunSerach';
-	static readonly LABEL = localize('search.rerunSearch', "Rerun Search in Editor");
-
-	constructor(id: string, label: string,
-		@IEditorService private readonly editorService: IEditorService) {
-		super(id, label);
-	}
-
-	async run() {
-		const input = this.editorService.activeEditor;
-		if (input instanceof SearchEditorInput) {
-			await (this.editorService.activeControl as SearchEditor).runSearch(false, true);
 		}
 	}
 }
@@ -138,6 +113,7 @@ const openNewSearchEditor =
 		const editorService = accessor.get(IEditorService);
 		const telemetryService = accessor.get(ITelemetryService);
 		const instantiationService = accessor.get(IInstantiationService);
+		const configurationService = accessor.get(IConfigurationService);
 
 		const activeEditor = editorService.activeTextEditorWidget;
 		let activeModel: ICodeEditor | undefined;
@@ -164,7 +140,11 @@ const openNewSearchEditor =
 		telemetryService.publicLog2('searchEditor/openNewSearchEditor');
 
 		const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { config: { query: selected } });
-		await editorService.openEditor(input, { pinned: true });
+		const editor = await editorService.openEditor(input, { pinned: true }) as SearchEditor;
+
+		if (selected && configurationService.getValue<ISearchConfigurationProperties>('search').searchOnType) {
+			editor.triggerSearch();
+		}
 	};
 
 export const createEditorFromSearchResult =
@@ -187,7 +167,6 @@ export const createEditorFromSearchResult =
 		const { text, matchRanges } = serializeSearchResultForEditor(searchResult, rawIncludePattern, rawExcludePattern, 0, labelFormatter, true);
 
 		const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { text });
-		const editor = await editorService.openEditor(input, { pinned: true }) as SearchEditor;
-		const model = assertIsDefined(editor.getModel());
-		model.deltaDecorations([], matchRanges.map(range => ({ range, options: { className: 'searchEditorFindMatch', stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges } })));
+		await editorService.openEditor(input, { pinned: true });
+		input.setMatchRanges(matchRanges);
 	};

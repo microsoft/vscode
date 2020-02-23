@@ -40,6 +40,7 @@ suite('viewLineRenderer.renderLine', () => {
 			0,
 			0,
 			0,
+			0,
 			-1,
 			'none',
 			false,
@@ -89,6 +90,7 @@ suite('viewLineRenderer.renderLine', () => {
 			createViewLineTokens(parts),
 			[],
 			tabSize,
+			0,
 			0,
 			0,
 			0,
@@ -145,6 +147,7 @@ suite('viewLineRenderer.renderLine', () => {
 			[],
 			4,
 			0,
+			10,
 			10,
 			10,
 			6,
@@ -241,6 +244,7 @@ suite('viewLineRenderer.renderLine', () => {
 			0,
 			10,
 			10,
+			10,
 			-1,
 			'boundary',
 			false,
@@ -304,6 +308,7 @@ suite('viewLineRenderer.renderLine', () => {
 			[],
 			4,
 			0,
+			10,
 			10,
 			10,
 			-1,
@@ -371,6 +376,7 @@ suite('viewLineRenderer.renderLine', () => {
 			0,
 			10,
 			10,
+			10,
 			-1,
 			'none',
 			false,
@@ -380,6 +386,66 @@ suite('viewLineRenderer.renderLine', () => {
 
 		assert.equal(_actual.html, '<span>' + expectedOutput + '</span>');
 		assertCharacterMapping(_actual.characterMapping, expectedOffsetsArr, [12, 12, 24, 1, 21, 2, 1, 20, 1, 1]);
+	});
+
+	test('issue #91178: after decoration type shown before cursor', () => {
+		const lineText = '//just a comment';
+		const lineParts = createViewLineTokens([
+			createPart(16, 1)
+		]);
+		const expectedOutput = [
+			'<span class="mtk1">//just\u00a0a\u00a0com</span>',
+			'<span class="mtk1 dec2"></span>',
+			'<span class="mtk1 dec1"></span>',
+			'<span class="mtk1">ment</span>',
+		].join('');
+
+		const expectedCharacterMapping = new CharacterMapping(17, 4);
+		expectedCharacterMapping.setPartData(0, 0, 0, 0);
+		expectedCharacterMapping.setPartData(1, 0, 1, 0);
+		expectedCharacterMapping.setPartData(2, 0, 2, 0);
+		expectedCharacterMapping.setPartData(3, 0, 3, 0);
+		expectedCharacterMapping.setPartData(4, 0, 4, 0);
+		expectedCharacterMapping.setPartData(5, 0, 5, 0);
+		expectedCharacterMapping.setPartData(6, 0, 6, 0);
+		expectedCharacterMapping.setPartData(7, 0, 7, 0);
+		expectedCharacterMapping.setPartData(8, 0, 8, 0);
+		expectedCharacterMapping.setPartData(9, 0, 9, 0);
+		expectedCharacterMapping.setPartData(10, 0, 10, 0);
+		expectedCharacterMapping.setPartData(11, 0, 11, 0);
+		expectedCharacterMapping.setPartData(12, 2, 0, 12);
+		expectedCharacterMapping.setPartData(13, 3, 1, 12);
+		expectedCharacterMapping.setPartData(14, 3, 2, 12);
+		expectedCharacterMapping.setPartData(15, 3, 3, 12);
+		expectedCharacterMapping.setPartData(16, 3, 4, 12);
+
+		const actual = renderViewLine(new RenderLineInput(
+			true,
+			false,
+			lineText,
+			false,
+			true,
+			false,
+			0,
+			lineParts,
+			[
+				new LineDecoration(13, 13, 'dec1', InlineDecorationType.After),
+				new LineDecoration(13, 13, 'dec2', InlineDecorationType.Before),
+			],
+			4,
+			0,
+			10,
+			10,
+			10,
+			-1,
+			'none',
+			false,
+			false,
+			null
+		));
+
+		assert.equal(actual.html, '<span>' + expectedOutput + '</span>');
+		assertCharacterMapping2(actual.characterMapping, expectedCharacterMapping);
 	});
 
 	test('issue Microsoft/monaco-editor#280: Improved source code rendering for RTL languages', () => {
@@ -413,6 +479,7 @@ suite('viewLineRenderer.renderLine', () => {
 			0,
 			10,
 			10,
+			10,
 			-1,
 			'none',
 			false,
@@ -444,6 +511,7 @@ suite('viewLineRenderer.renderLine', () => {
 				[],
 				4,
 				0,
+				10,
 				10,
 				10,
 				-1,
@@ -549,6 +617,7 @@ suite('viewLineRenderer.renderLine', () => {
 				0,
 				10,
 				10,
+				10,
 				-1,
 				'none',
 				false,
@@ -590,6 +659,7 @@ suite('viewLineRenderer.renderLine', () => {
 			0,
 			10,
 			10,
+			10,
 			-1,
 			'none',
 			false,
@@ -620,6 +690,7 @@ suite('viewLineRenderer.renderLine', () => {
 			[],
 			4,
 			0,
+			10,
 			10,
 			10,
 			-1,
@@ -671,6 +742,7 @@ suite('viewLineRenderer.renderLine', () => {
 			0,
 			10,
 			10,
+			10,
 			-1,
 			'none',
 			false,
@@ -680,6 +752,33 @@ suite('viewLineRenderer.renderLine', () => {
 
 		assert.equal(_actual.html, '<span>' + expectedOutput + '</span>');
 	});
+
+	interface ICharMappingData {
+		charOffset: number;
+		partIndex: number;
+		charIndex: number;
+	}
+
+	function decodeCharacterMapping(source: CharacterMapping) {
+		const mapping: ICharMappingData[] = [];
+		for (let charOffset = 0; charOffset < source.length; charOffset++) {
+			const partData = source.charOffsetToPartData(charOffset);
+			const partIndex = CharacterMapping.getPartIndex(partData);
+			const charIndex = CharacterMapping.getCharIndex(partData);
+			mapping.push({ charOffset, partIndex, charIndex });
+		}
+		const absoluteOffsets: number[] = [];
+		for (const absoluteOffset of source.getAbsoluteOffsets()) {
+			absoluteOffsets.push(absoluteOffset);
+		}
+		return { mapping, absoluteOffsets };
+	}
+
+	function assertCharacterMapping2(actual: CharacterMapping, expected: CharacterMapping): void {
+		const _actual = decodeCharacterMapping(actual);
+		const _expected = decodeCharacterMapping(expected);
+		assert.deepEqual(_actual, _expected);
+	}
 
 	function assertCharacterMapping(actual: CharacterMapping, expectedCharPartOffsets: number[][], expectedPartLengths: number[]): void {
 
@@ -755,6 +854,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			0,
 			10,
 			10,
+			10,
 			-1,
 			renderWhitespace,
 			false,
@@ -781,6 +881,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			[new LineDecoration(1, 22, 'link', InlineDecorationType.Regular)],
 			4,
 			0,
+			10,
 			10,
 			10,
 			-1,
@@ -823,6 +924,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			],
 			4,
 			0,
+			10,
 			10,
 			10,
 			-1,
@@ -1242,6 +1344,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			0,
 			10,
 			10,
+			10,
 			-1,
 			'none',
 			false,
@@ -1285,6 +1388,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			0,
 			10,
 			10,
+			10,
 			-1,
 			'all',
 			false,
@@ -1318,6 +1422,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			[new LineDecoration(2, 3, 'before', InlineDecorationType.Before)],
 			4,
 			0,
+			10,
 			10,
 			10,
 			-1,
@@ -1356,6 +1461,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			0,
 			10,
 			10,
+			10,
 			-1,
 			'all',
 			false,
@@ -1386,6 +1492,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			[new LineDecoration(7, 8, 'inline-folded', InlineDecorationType.After)],
 			2,
 			0,
+			10,
 			10,
 			10,
 			10000,
@@ -1424,6 +1531,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			0,
 			10,
 			10,
+			10,
 			10000,
 			'none',
 			false,
@@ -1460,6 +1568,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			0,
 			10,
 			10,
+			10,
 			10000,
 			'none',
 			false,
@@ -1493,6 +1602,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			0,
 			10,
 			10,
+			10,
 			10000,
 			'none',
 			false,
@@ -1523,6 +1633,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			[],
 			4,
 			0,
+			10,
 			10,
 			10,
 			10000,
@@ -1563,6 +1674,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			0,
 			10,
 			10,
+			10,
 			10000,
 			'none',
 			false,
@@ -1593,6 +1705,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			[],
 			4,
 			0,
+			10,
 			10,
 			10,
 			10000,
@@ -1629,6 +1742,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			0,
 			10,
 			10,
+			10,
 			10000,
 			'none',
 			false,
@@ -1662,6 +1776,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			0,
 			10,
 			10,
+			10,
 			10000,
 			'boundary',
 			false,
@@ -1691,6 +1806,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			[],
 			4,
 			0,
+			10,
 			10,
 			10,
 			10000,
@@ -1728,6 +1844,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			0,
 			10,
 			10,
+			10,
 			10000,
 			'none',
 			false,
@@ -1757,6 +1874,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			[],
 			tabSize,
 			0,
+			10,
 			10,
 			10,
 			-1,
