@@ -62,14 +62,16 @@ CommandsRegistry.registerCommand({
 						query: resource.query,
 						path: paths.dirname(resource.path)
 					});
-				}).forEach(cwd => {
+				}).forEach(async cwd => {
 					if (opened[cwd.path]) {
 						return;
 					}
 					opened[cwd.path] = true;
 					const instance = integratedTerminalService.createTerminal({ cwd });
 					if (instance && (resources.length === 1 || !resource || cwd.path === resource.path || cwd.path === paths.dirname(resource.path))) {
-						integratedTerminalService.setActiveInstance(instance);
+						// TODO await shouldn't interfere with flow because this function returns void
+						// and is asynchronous to begin with
+						await integratedTerminalService.setActiveInstance(instance);
 						integratedTerminalService.showPanel(true);
 					}
 				});
@@ -88,7 +90,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C,
 	when: KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED,
 	weight: KeybindingWeight.WorkbenchContrib,
-	handler: (accessor) => {
+	handler: async accessor => {
 		const remoteAgentService = accessor.get(IRemoteAgentService);
 		const historyService = accessor.get(IHistoryService);
 
@@ -107,7 +109,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			}
 			if (cwd) {
 				const instance = integratedTerminalService.createTerminal({ cwd });
-				integratedTerminalService.setActiveInstance(instance);
+				// TODO await shouldn't interfere with flow because this function returns void
+				// and is asynchronous to begin with
+				await integratedTerminalService.setActiveInstance(instance);
 				integratedTerminalService.showPanel(true);
 			}
 			return;

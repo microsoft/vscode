@@ -103,10 +103,11 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		});
 	}
 
-	public $show(terminalId: number, preserveFocus: boolean): void {
+	// TODO: The only usage of this function is when it is queued -> the asynchronous await shouldn't affect result
+	public async $show(terminalId: number, preserveFocus: boolean): Promise<void> {
 		const terminalInstance = this._terminalService.getInstanceFromId(terminalId);
 		if (terminalInstance) {
-			this._terminalService.setActiveInstance(terminalInstance);
+			await this._terminalService.setActiveInstance(terminalInstance);
 			this._terminalService.showPanel(!preserveFocus);
 		}
 	}
