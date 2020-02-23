@@ -309,7 +309,7 @@ export class TerminalService implements ITerminalService {
 		return this.terminalInstances[terminalIndex];
 	}
 
-	// TODO whoever uses this might now encounter trouble
+	// TODO API changed should adapter users
 	public async setActiveInstance(terminalInstance: ITerminalInstance): Promise<void> {
 		// If this was a hideFromUser terminal created by the API this was triggered by show,
 		// in which case we need to create the terminal tab
