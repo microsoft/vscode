@@ -235,7 +235,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 
 		this.updateBadge();
-		this.registerSyncStatusAction();
 	}
 
 	private async onDidChangeSessions(providerId: string): Promise<void> {
@@ -746,7 +745,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private registerSignInAction(): void {
 		const that = this;
-		registerAction2(class StopSyncAction extends Action2 {
+		this._register(registerAction2(class StopSyncAction extends Action2 {
 			constructor() {
 				super({
 					id: signInCommand.id,
@@ -766,7 +765,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					that.notificationService.error(e);
 				}
 			}
-		});
+		}));
 	}
 
 	private registerShowSettingsConflictsAction(): void {
@@ -824,17 +823,14 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	}
 
-	private readonly _syncStatusActionDisposable = this._register(new MutableDisposable());
 	private registerSyncStatusAction(): void {
 		const that = this;
 		const when = ContextKeyExpr.and(CONTEXT_SYNC_ENABLEMENT, CONTEXT_AUTH_TOKEN_STATE.isEqualTo(AuthStatus.SignedIn), CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized));
-		this._syncStatusActionDisposable.value = registerAction2(class SyncStatusAction extends Action2 {
+		this._register(registerAction2(class SyncStatusAction extends Action2 {
 			constructor() {
 				super({
 					id: 'workbench.userData.actions.syncStatus',
-					get title() {
-						return getIdentityTitle(localize('sync is on', "Sync is on"), that.activeAccount);
-					},
+					title: localize('sync is on', "Sync is on"),
 					menu: [
 						{
 							id: MenuId.GlobalActivity,
@@ -890,12 +886,12 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					quickPick.show();
 				});
 			}
-		});
+		}));
 	}
 
 	private registerTurnOffSyncAction(): void {
 		const that = this;
-		registerAction2(class StopSyncAction extends Action2 {
+		this._register(registerAction2(class StopSyncAction extends Action2 {
 			constructor() {
 				super({
 					id: stopSyncCommand.id,
@@ -915,12 +911,12 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					}
 				}
 			}
-		});
+		}));
 	}
 
 	private registerConfigureSyncAction(): void {
 		const that = this;
-		registerAction2(class ShowSyncActivityAction extends Action2 {
+		this._register(registerAction2(class ShowSyncActivityAction extends Action2 {
 			constructor() {
 				super({
 					id: configureSyncCommand.id,
@@ -932,12 +928,12 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				});
 			}
 			run(): any { return that.configureSyncOptions(); }
-		});
+		}));
 	}
 
 	private registerShowActivityAction(): void {
 		const that = this;
-		registerAction2(class ShowSyncActivityAction extends Action2 {
+		this._register(registerAction2(class ShowSyncActivityAction extends Action2 {
 			constructor() {
 				super({
 					id: showSyncActivityCommand.id,
@@ -949,11 +945,11 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				});
 			}
 			run(): any { return that.showSyncActivity(); }
-		});
+		}));
 	}
 
 	private registerShowSettingsAction(): void {
-		registerAction2(class ShowSyncSettingsAction extends Action2 {
+		this._register(registerAction2(class ShowSyncSettingsAction extends Action2 {
 			constructor() {
 				super({
 					id: showSyncSettingsCommand.id,
@@ -967,7 +963,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			run(accessor: ServicesAccessor): any {
 				accessor.get(IPreferencesService).openGlobalSettings(false, { query: '@tag:sync' });
 			}
-		});
+		}));
 	}
 
 }
