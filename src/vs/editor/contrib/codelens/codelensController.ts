@@ -3,23 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, RunOnceScheduler, createCancelablePromise, disposableTimeout } from 'vs/base/common/async';
+import * as dom from 'vs/base/browser/dom';
+import { CancelablePromise, createCancelablePromise, disposableTimeout, RunOnceScheduler } from 'vs/base/common/async';
 import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
-import { toDisposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
+import { hash } from 'vs/base/common/hash';
+import { DisposableStore, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { StableEditorScrollState } from 'vs/editor/browser/core/editorState';
-import { ICodeEditor, MouseTargetType, IViewZoneChangeAccessor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IActiveCodeEditor, ICodeEditor, IViewZoneChangeAccessor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
-import { CodeLensProviderRegistry, CodeLens } from 'vs/editor/common/modes';
-import { CodeLensModel, getCodeLensData, CodeLensItem } from 'vs/editor/contrib/codelens/codelens';
-import { CodeLensWidget, CodeLensHelper } from 'vs/editor/contrib/codelens/codelensWidget';
+import { CodeLens, CodeLensProviderRegistry } from 'vs/editor/common/modes';
+import { CodeLensItem, CodeLensModel, getCodeLensData } from 'vs/editor/contrib/codelens/codelens';
+import { ICodeLensCache } from 'vs/editor/contrib/codelens/codeLensCache';
+import { ShowLensesInCurrentLineCommand } from 'vs/editor/contrib/codelens/codelensCommands';
+import { CodeLensHelper, CodeLensWidget } from 'vs/editor/contrib/codelens/codelensWidget';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ICodeLensCache } from 'vs/editor/contrib/codelens/codeLensCache';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import * as dom from 'vs/base/browser/dom';
-import { hash } from 'vs/base/common/hash';
 
 export class CodeLensContribution implements IEditorContribution {
 
@@ -402,6 +403,13 @@ export class CodeLensContribution implements IEditorContribution {
 			}
 		});
 	}
+
+	public getLenses(): CodeLensWidget[] {
+		return this._lenses;
+	}
 }
 
 registerEditorContribution(CodeLensContribution.ID, CodeLensContribution);
+
+const showLensesInCurrentLineCommand = new ShowLensesInCurrentLineCommand({ id: 'codelens.showLensesInCurrentLine', precondition: undefined });
+showLensesInCurrentLineCommand.register();
