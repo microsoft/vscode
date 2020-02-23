@@ -47,6 +47,8 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { IAuthenticationTokenService } from 'vs/platform/authentication/common/authentication';
 import { fromNow } from 'vs/base/common/date';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 const enum AuthStatus {
 	Initializing = 'Initializing',
@@ -135,6 +137,8 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IFileService private readonly fileService: IFileService,
 		@IProductService private readonly productService: IProductService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super();
 		this.userDataSyncStore = getUserDataSyncStore(productService, configurationService);
@@ -483,6 +487,24 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private async turnOn(): Promise<void> {
+		if (!this.storageService.getBoolean('sync.donotAskPreviewConfirmation', StorageScope.GLOBAL, false)) {
+			const result = await this.dialogService.show(
+				Severity.Info,
+				localize('sync preview message', "Synchronising your preferences is a preview feature and please read the documentation before turnin on."),
+				[
+					localize('open doc', "Open Documentation"),
+					localize('confirm', "Continue"),
+					localize('cancel', "Cancel"),
+				],
+				{
+					cancelId: 2
+				}
+			);
+			switch (result.choice) {
+				case 0: this.openerService.open(URI.parse('https://go.microsoft.com/fwlink/?LinkId=827846')); return;
+				case 2: return;
+			}
+		}
 		return new Promise((c, e) => {
 			const disposables: DisposableStore = new DisposableStore();
 			const quickPick = this.quickInputService.createQuickPick<ConfigureSyncQuickPickItem>();
@@ -522,6 +544,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		await this.handleFirstTimeSync();
 		this.userDataSyncEnablementService.setEnablement(true);
 		this.notificationService.info(localize('sync turned on', "Sync will happen automatically from now on."));
+		this.storageService.store('sync.donotAskPreviewConfirmation', true, StorageScope.GLOBAL);
 	}
 
 	private getConfigureSyncQuickPickItems(): ConfigureSyncQuickPickItem[] {
