@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+
 import * as dom from 'vs/base/browser/dom';
 import { CancelablePromise, createCancelablePromise, disposableTimeout, RunOnceScheduler } from 'vs/base/common/async';
 import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
@@ -10,17 +11,18 @@ import { hash } from 'vs/base/common/hash';
 import { DisposableStore, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { StableEditorScrollState } from 'vs/editor/browser/core/editorState';
 import { IActiveCodeEditor, ICodeEditor, IViewZoneChangeAccessor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { Command, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
 import { CodeLens, CodeLensProviderRegistry } from 'vs/editor/common/modes';
 import { CodeLensItem, CodeLensModel, getCodeLensData } from 'vs/editor/contrib/codelens/codelens';
 import { ICodeLensCache } from 'vs/editor/contrib/codelens/codeLensCache';
-import { ShowLensesInCurrentLineCommand } from 'vs/editor/contrib/codelens/codelensCommands';
 import { CodeLensHelper, CodeLensWidget } from 'vs/editor/contrib/codelens/codelensWidget';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 
 export class CodeLensContribution implements IEditorContribution {
 
@@ -407,6 +409,59 @@ export class CodeLensContribution implements IEditorContribution {
 	public getLenses(): CodeLensWidget[] {
 		return this._lenses;
 	}
+}
+
+export class ShowLensesInCurrentLineCommand extends Command {
+	public runCommand(accessor: ServicesAccessor, args: any): void | Promise<void> {
+		const quickInputService = accessor.get(IQuickInputService);
+		const commandService = accessor.get(ICommandService);
+		const notificationService = accessor.get(INotificationService);
+
+		const focusedEditor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
+		if (!focusedEditor?.getSelection()?.isEmpty()) {
+			return;
+		}
+		const lineNumber = focusedEditor.getSelection()?.positionLineNumber;
+		const codelensController = focusedEditor.getContribution(CodeLensContribution.ID) as CodeLensContribution;
+
+		const activeLensesWidgets = codelensController.getLenses().filter(lens => lens.getLineNumber() === lineNumber);
+
+		const commandArguments: Map<string, any[] | undefined> = new Map();
+
+		const picker = quickInputService.createQuickPick();
+		const items: (IQuickPickItem | IQuickPickSeparator)[] = [];
+
+		activeLensesWidgets.forEach(widget => {
+			widget.getItems().forEach(codelens => {
+				const command = codelens.symbol.command;
+				if (!command) {
+					return;
+				}
+				items.push({ id: command.id, label: command.title });
+
+				commandArguments.set(command.id, command.arguments);
+			});
+		});
+
+		picker.items = items;
+		picker.canSelectMany = false;
+		picker.onDidAccept(_ => {
+			const selectedItems = picker.selectedItems;
+			if (selectedItems.length === 1) {
+				const id = selectedItems[0].id!;
+
+				if (!id) {
+					picker.hide();
+					return;
+				}
+
+				commandService.executeCommand(id, ...(commandArguments.get(id) || [])).catch(err => notificationService.error(err));
+			}
+			picker.hide();
+		});
+		picker.show();
+	}
+
 }
 
 registerEditorContribution(CodeLensContribution.ID, CodeLensContribution);

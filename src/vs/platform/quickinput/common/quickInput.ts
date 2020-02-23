@@ -7,7 +7,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IQuickPickItem, IPickOptions, IInputOptions, IQuickNavigateConfiguration, IQuickPick, IQuickInputButton, IInputBox, QuickPickInput } from 'vs/base/parts/quickinput/common/quickInput';
 
-export { IQuickPickItem, IPickOptions, IInputOptions, IQuickNavigateConfiguration, IQuickPick, IQuickInput, IQuickInputButton, IInputBox, IQuickPickItemButtonEvent, QuickPickInput, IQuickPickSeparator, IKeyMods } from 'vs/base/parts/quickinput/common/quickInput';
+export * from 'vs/base/parts/quickinput/common/quickInput';
 
 export const IQuickInputService = createDecorator<IQuickInputService>('quickInputService');
 
