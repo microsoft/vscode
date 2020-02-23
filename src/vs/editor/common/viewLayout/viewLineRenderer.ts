@@ -809,6 +809,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 	let visibleColumn = startVisibleColumn;
 	let charOffsetInPart = 0;
 
+	let partDisplacement = 0;
 	let prevPartContentCnt = 0;
 	let partAbsoluteOffset = 0;
 
@@ -822,6 +823,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 		const partType = part.type;
 		const partRendersWhitespace = (renderWhitespace !== RenderWhitespace.None && part.isWhitespace());
 		const partRendersWhitespaceWithWidth = partRendersWhitespace && !fontIsMonospace && (partType === 'mtkw'/*only whitespace*/ || !containsForeignElements);
+		const partIsEmptyAndHasPseudoAfter = (charIndex === partEndIndex && part.metadata === LinePartMetadata.PSEUDO_AFTER);
 		charOffsetInPart = 0;
 
 		sb.appendASCIIString('<span class="');
@@ -853,7 +855,8 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 			sb.appendASCII(CharCode.GreaterThan);
 
 			for (; charIndex < partEndIndex; charIndex++) {
-				characterMapping.setPartData(charIndex, partIndex, charOffsetInPart, partAbsoluteOffset);
+				characterMapping.setPartData(charIndex, partIndex - partDisplacement, charOffsetInPart, partAbsoluteOffset);
+				partDisplacement = 0;
 				const charCode = lineContent.charCodeAt(charIndex);
 				let charWidth: number;
 
@@ -893,7 +896,8 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 			sb.appendASCII(CharCode.GreaterThan);
 
 			for (; charIndex < partEndIndex; charIndex++) {
-				characterMapping.setPartData(charIndex, partIndex, charOffsetInPart, partAbsoluteOffset);
+				characterMapping.setPartData(charIndex, partIndex - partDisplacement, charOffsetInPart, partAbsoluteOffset);
+				partDisplacement = 0;
 				const charCode = lineContent.charCodeAt(charIndex);
 
 				let producedCharacters = 1;
@@ -952,6 +956,12 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 			}
 
 			prevPartContentCnt = partContentCnt;
+		}
+
+		if (partIsEmptyAndHasPseudoAfter) {
+			partDisplacement++;
+		} else {
+			partDisplacement = 0;
 		}
 
 		sb.appendASCIIString('</span>');

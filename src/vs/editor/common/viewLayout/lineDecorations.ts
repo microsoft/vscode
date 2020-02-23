@@ -72,16 +72,25 @@ export class LineDecoration {
 		return result;
 	}
 
+	private static _typeCompare(a: InlineDecorationType, b: InlineDecorationType): number {
+		const ORDER = [2, 0, 1, 3];
+		return ORDER[a] - ORDER[b];
+	}
+
 	public static compare(a: LineDecoration, b: LineDecoration): number {
 		if (a.startColumn === b.startColumn) {
 			if (a.endColumn === b.endColumn) {
-				if (a.className < b.className) {
-					return -1;
+				const typeCmp = LineDecoration._typeCompare(a.type, b.type);
+				if (typeCmp === 0) {
+					if (a.className < b.className) {
+						return -1;
+					}
+					if (a.className > b.className) {
+						return 1;
+					}
+					return 0;
 				}
-				if (a.className > b.className) {
-					return 1;
-				}
-				return 0;
+				return typeCmp;
 			}
 			return a.endColumn - b.endColumn;
 		}
