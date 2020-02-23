@@ -48,6 +48,16 @@
 					"type": "string",
 					"description": "The user VS Code Server will be started with. The default is the same user as the container."
 				},
+				"initializeCommand": {
+					"type": [
+						"string",
+						"array"
+					],
+					"description": "A command to run locally before anything else. If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell.",
+					"items": {
+						"type": "string"
+					}
+				},
 				"postCreateCommand": {
 					"type": [
 						"string",
