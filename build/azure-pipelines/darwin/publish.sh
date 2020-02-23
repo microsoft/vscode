@@ -24,4 +24,4 @@ node build/azure-pipelines/common/createAsset.js \
 # https://github.com/microsoft/vscode/issues/90491
 
 # upload configuration
-yarn gulp upload-vscode-configuration
+# yarn gulp upload-vscode-configuration
