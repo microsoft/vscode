@@ -396,7 +396,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					severity: Severity.Info,
 					message: localize('turned off', "Sync was turned off from another device."),
 					actions: {
-						primary: [new Action('turn on sync', localize('Turn sync back on', "Turn Sync Back On"), undefined, true, () => this.turnOn())]
+						primary: [new Action('turn on sync', localize('turn on sync', "Turn on Sync"), undefined, true, () => this.turnOn())]
 					}
 				});
 				return;
