@@ -132,7 +132,7 @@
 				}
 			}
 		},
-		"dockerFileContainer": {
+		"dockerFileAndContext": {
 			"type": "object",
 			"properties": {
 				"dockerFile": {
@@ -147,6 +147,64 @@
 			"required": [
 				"dockerFile"
 			]
+		},
+		"dockerFileContainer": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"build": {
+							"type": "object",
+							"description": "Docker build-related options.",
+							"allOf": [
+								{
+									"$ref": "#/definitions/dockerFileAndContext"
+								},
+								{
+									"$ref": "#/definitions/buildOptions"
+								}
+							]
+					}
+					},
+					"required": [
+						"build"
+					]
+				},
+				{
+					"allOf": [
+						{
+							"$ref": "#/definitions/dockerFileAndContext"
+						},
+						{
+							"type": "object",
+							"properties": {
+								"build": {
+									"description": "Docker build-related options.",
+									"$ref": "#/definitions/buildOptions"
+								}
+							}
+						}
+					]
+				}
+			]
+		},
+		"buildOptions": {
+			"type": "object",
+			"properties": {
+				"target": {
+					"type": "string",
+					"description": "Target stage in a multi-stage build."
+				},
+				"args": {
+					"type": "object",
+					"additionalProperties": {
+						"type": [
+							"string"
+						]
+					},
+					"description": "Build arguments."
+				}
+			}
 		},
 		"imageContainer": {
 			"type": "object",
