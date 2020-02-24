@@ -59,6 +59,7 @@ import { IViewsService, IViewDescriptorService } from 'vs/workbench/common/views
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ReplGroup } from 'vs/workbench/contrib/debug/common/replModel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 
 const $ = dom.$;
 
@@ -76,7 +77,6 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 	_serviceBrand: undefined;
 
 	private static readonly REFRESH_DELAY = 100; // delay in ms to refresh the repl for new elements to show
-	private static readonly REPL_INPUT_LINE_HEIGHT = 19;
 
 	private history: HistoryNavigator<string>;
 	private tree!: WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>;
@@ -278,6 +278,16 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			`;
 
 			this.tree.rerender();
+
+			this.replInput.updateOptions({
+				fontSize,
+				lineHeight: debugConsole.lineHeight,
+				fontFamily: debugConsole.fontFamily === 'default' ? EDITOR_FONT_DEFAULTS.fontFamily : debugConsole.fontFamily
+			});
+
+			if (this.dimension) {
+				this.layoutBody(this.dimension.height, this.dimension.width);
+			}
 		}
 	}
 
@@ -369,7 +379,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 	protected layoutBody(height: number, width: number): void {
 		this.dimension = new dom.Dimension(width, height);
-		const replInputHeight = Repl.REPL_INPUT_LINE_HEIGHT * this.replInputLineCount;
+		const replInputHeight = this.replInput.getContentHeight();
 		if (this.tree) {
 			const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight;
 			const treeHeight = height - replInputHeight;
