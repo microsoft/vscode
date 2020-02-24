@@ -44,15 +44,12 @@ configurationRegistry.registerConfiguration({
 		'timeline.showView': {
 			type: 'boolean',
 			description: localize('timeline.showView', "Experimental: When enabled, shows a Timeline view in the Explorer sidebar."),
-			default: false //product.quality !== 'stable'
+			default: product.quality !== 'stable'
 		},
 	}
 });
 
-if (product.quality !== 'stable') {
-	Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([new TimelinePaneDescriptor()], VIEW_CONTAINER);
-}
-
+Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([new TimelinePaneDescriptor()], VIEW_CONTAINER);
 
 namespace TimelineViewRefreshAction {
 
