@@ -52,11 +52,11 @@ class MessageWidget {
 
 		const domNode = document.createElement('div');
 		domNode.className = 'descriptioncontainer';
-		domNode.setAttribute('aria-live', 'assertive');
-		domNode.setAttribute('role', 'alert');
 
 		this._messageBlock = document.createElement('div');
 		dom.addClass(this._messageBlock, 'message');
+		this._messageBlock.setAttribute('aria-live', 'assertive');
+		this._messageBlock.setAttribute('role', 'alert');
 		domNode.appendChild(this._messageBlock);
 
 		this._relatedBlock = document.createElement('div');
@@ -88,7 +88,8 @@ class MessageWidget {
 		dispose(this._disposables);
 	}
 
-	update({ source, message, relatedInformation, code }: IMarker): void {
+	update(marker: IMarker): void {
+		const { source, message, relatedInformation, code } = marker;
 		let sourceAndCodeLength = (source?.length || 0) + '()'.length;
 		if (code) {
 			if (typeof code === 'string') {
@@ -106,6 +107,7 @@ class MessageWidget {
 		}
 
 		dom.clearNode(this._messageBlock);
+		this._messageBlock.setAttribute('aria-label', this.getAriaLabel(marker));
 		this._editor.applyFontInfo(this._messageBlock);
 		let lastLineElement = this._messageBlock;
 		for (const line of lines) {
@@ -191,6 +193,32 @@ class MessageWidget {
 
 	getHeightInLines(): number {
 		return Math.min(17, this._lines);
+	}
+
+	private getAriaLabel(marker: IMarker): string {
+		let severityLabel = '';
+		switch (marker.severity) {
+			case MarkerSeverity.Error:
+				severityLabel = nls.localize('Error', "Error");
+				break;
+			case MarkerSeverity.Warning:
+				severityLabel = nls.localize('Warning', "Warning");
+				break;
+			case MarkerSeverity.Info:
+				severityLabel = nls.localize('Info', "Info");
+				break;
+			case MarkerSeverity.Hint:
+				severityLabel = nls.localize('Hint', "Hint");
+				break;
+		}
+
+		let ariaLabel = nls.localize('marker aria', "{0} at {1}. ", severityLabel, marker.startLineNumber + ':' + marker.startColumn);
+		const model = this._editor.getModel();
+		if (model && (marker.startLineNumber <= model.getLineCount()) && (marker.startLineNumber >= 1)) {
+			const lineContent = model.getLineContent(marker.startLineNumber);
+			ariaLabel = `${lineContent}, ${ariaLabel}`;
+		}
+		return ariaLabel;
 	}
 }
 
@@ -316,7 +344,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 		}
 		this._icon.className = `codicon ${SeverityIcon.className(MarkerSeverity.toSeverity(this._severity))}`;
 
-		this.editor.revealPositionInCenter(position, ScrollType.Smooth);
+		this.editor.revealPositionNearTop(position, ScrollType.Smooth);
 		this.editor.focus();
 	}
 

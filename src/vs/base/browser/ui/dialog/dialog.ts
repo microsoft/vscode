@@ -268,6 +268,11 @@ export class Dialog extends Disposable {
 					this.checkbox.style(style);
 				}
 			}
+
+			if (this.messageDetailElement && fgColor && bgColor) {
+				const messageDetailColor = Color.fromHex(fgColor).transparent(.9);
+				this.messageDetailElement.style.color = messageDetailColor.makeOpaque(Color.fromHex(bgColor)).toString();
+			}
 		}
 	}
 
