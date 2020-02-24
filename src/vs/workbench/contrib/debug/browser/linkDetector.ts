@@ -13,6 +13,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const CONTROL_CODES = '\\u0000-\\u0020\\u007f-\\u009f';
 const WEB_LINK_REGEX = new RegExp('(?:[a-zA-Z][a-zA-Z0-9+.-]{2,}:\\/\\/|data:|www\\.)[^\\s' + CONTROL_CODES + '"]{2,}[^\\s' + CONTROL_CODES + '"\')}\\],:;.!?]', 'ug');
@@ -39,7 +40,8 @@ export class LinkDetector {
 		@IFileService private readonly fileService: IFileService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		// noop
 	}
@@ -143,17 +145,33 @@ export class LinkDetector {
 		return link;
 	}
 
+	private _getLinkHoverString(modifierKey: 'alt' | 'meta' | 'ctrl'): string {
+		const tooltipLabel = nls.localize('followLink', 'Follow link');
+
+		const tooltipKeybinding = modifierKey === 'ctrl'
+			? nls.localize('followLink.kb.ctrl', 'ctrl + click')
+			: modifierKey === 'meta'
+				? nls.localize('followLink.kb.Mac.cmd', 'cmd + click')
+				: platform.isMacintosh ? nls.localize('followLink.kb.Mac.option', 'option + click') : nls.localize('followLink.kb.alt', 'alt + click');
+
+		return `${tooltipLabel} (${tooltipKeybinding})`;
+	}
+
 	private decorateLink(link: HTMLElement, onclick: () => void) {
 		link.classList.add('link');
-		link.title = platform.isMacintosh ? nls.localize('fileLinkMac', "Cmd + click to follow link") : nls.localize('fileLink', "Ctrl + click to follow link");
-		link.onmousemove = (event) => { link.classList.toggle('pointer', platform.isMacintosh ? event.metaKey : event.ctrlKey); };
+		const multiCursorModifer = this._configurationService.getValue<'ctrlCmd' | 'alt'>('editor.multiCursorModifier');
+		const modifierKey = multiCursorModifer === 'ctrlCmd' ? 'alt' : platform.isMacintosh ? 'meta' : 'ctrl';
+		link.title = this._getLinkHoverString(modifierKey);
+		link.onmousemove = (event) => {
+			link.classList.toggle('pointer', modifierKey === 'meta' ? event.metaKey : modifierKey === 'ctrl' ? event.ctrlKey : event.altKey);
+		};
 		link.onmouseleave = () => link.classList.remove('pointer');
 		link.onclick = (event) => {
 			const selection = window.getSelection();
 			if (!selection || selection.type === 'Range') {
 				return; // do not navigate when user is selecting
 			}
-			if (!(platform.isMacintosh ? event.metaKey : event.ctrlKey)) {
+			if (!((modifierKey === 'meta' && event.metaKey) || (modifierKey === 'ctrl' && event.ctrlKey) || (modifierKey === 'alt' && event.altKey))) {
 				return;
 			}
 			event.preventDefault();
