@@ -126,7 +126,7 @@ export class CellViewModel extends Disposable {
 		this._html = null;
 	}
 	save() {
-		if (this._textModel && (this.cell.isDirty || this.isEditing)) {
+		if (this._textModel && !this._textModel.isDisposed() && (this.cell.isDirty || this.isEditing)) {
 			let cnt = this._textModel.getLineCount();
 			this.cell.source = this._textModel.getLinesContent().map((str, index) => str + (index !== cnt - 1 ? '\n' : ''));
 		}

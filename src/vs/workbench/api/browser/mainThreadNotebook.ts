@@ -9,7 +9,7 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { INotebookService, IMainNotebookController } from 'vs/workbench/contrib/notebook/browser/notebookService';
 import { Emitter, Event } from 'vs/base/common/event';
-import { ICell, IOutput, INotebook, INotebookMimeTypeSelector, NOTEBOOK_DISPLAY_ORDER, NotebookCellsSplice, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICell, IOutput, INotebook, INotebookMimeTypeSelector, NOTEBOOK_DISPLAY_ORDER, NotebookCellsSplice, NotebookCellOutputsSplice, generateCellPath } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class MainThreadCell implements ICell {
@@ -50,7 +50,7 @@ export class MainThreadCell implements ICell {
 		this.uri = URI.from({
 			scheme: 'vscode-notebook',
 			authority: parent.viewType,
-			path: `/cell_${handle}.${cell_type === 'markdown' ? 'md' : 'py'}`,
+			path: generateCellPath(cell_type, handle),
 			query: parent.uri.toString()
 		});
 	}

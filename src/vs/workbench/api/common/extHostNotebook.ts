@@ -151,7 +151,7 @@ export class ExtHostCell implements vscode.NotebookCell {
 }
 
 
-export class ExtHostNotebookDocument implements vscode.NotebookDocument {
+export class ExtHostNotebookDocument implements vscode.NotebookDocument, vscode.Disposable {
 	private static _handlePool: number = 0;
 	readonly handle = ExtHostNotebookDocument._handlePool++;
 
@@ -220,6 +220,9 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 		public renderingHandler: ExtHostNotebookOutputRenderingHandler
 	) {
 
+	}
+	dispose() {
+		this._cellDisposableMapping.forEach(cell => cell.dispose());
 	}
 
 	get fileName() { return this.uri.fsPath; }
@@ -425,8 +428,9 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument {
 	}
 }
 
-export class ExtHostNotebookEditor implements vscode.NotebookEditor {
+export class ExtHostNotebookEditor implements vscode.NotebookEditor, vscode.Disposable {
 	private _viewColumn: vscode.ViewColumn | undefined;
+	private _disposableStore = new DisposableStore();
 
 	constructor(
 		viewType: string,
@@ -435,7 +439,7 @@ export class ExtHostNotebookEditor implements vscode.NotebookEditor {
 		public document: ExtHostNotebookDocument,
 		private _documentsAndEditors: ExtHostDocumentsAndEditors
 	) {
-		this._documentsAndEditors.onDidAddDocuments(documents => {
+		this._disposableStore.add(this._documentsAndEditors.onDidAddDocuments(documents => {
 			for (const data of documents) {
 				let textDocument = data.document;
 				let parsedCellUri = parseCellUri(textDocument.uri);
@@ -455,9 +459,9 @@ export class ExtHostNotebookEditor implements vscode.NotebookEditor {
 					}
 				}
 			}
-		});
+		}));
 
-		this._documentsAndEditors.onDidRemoveDocuments(documents => {
+		this._disposableStore.add(this._documentsAndEditors.onDidRemoveDocuments(documents => {
 			for (const data of documents) {
 				let textDocument = data.document;
 				let parsedCellUri = parseCellUri(textDocument.uri);
@@ -477,7 +481,11 @@ export class ExtHostNotebookEditor implements vscode.NotebookEditor {
 					}
 				}
 			}
-		});
+		}));
+	}
+
+	dispose() {
+		this._disposableStore.dispose();
 	}
 
 	createCell(content: string, language: string, type: 'markdown' | 'code', outputs: vscode.CellOutput[]): vscode.NotebookCell {
@@ -739,12 +747,14 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 			let document = this._documents.get(URI.revive(uri).toString());
 
 			if (document) {
+				document.dispose();
 				this._documents.delete(URI.revive(uri).toString());
 			}
 
 			let editor = this._editors.get(URI.revive(uri).toString());
 
 			if (editor) {
+				editor.dispose();
 				this._editors.delete(URI.revive(uri).toString());
 			}
 
