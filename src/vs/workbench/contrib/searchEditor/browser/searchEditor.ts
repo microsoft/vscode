@@ -48,6 +48,7 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/tex
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Position } from 'vs/editor/common/core/position';
+import { Selection } from 'vs/editor/common/core/selection';
 
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(:| )(\s+)(.*)$/;
 const FILE_LINE_REGEX = /^(\S.*):$/;
@@ -327,6 +328,13 @@ export class SearchEditor extends BaseTextEditor {
 
 	focusPreviousResult() {
 		this.iterateThroughMatches(true);
+	}
+
+	focusAllResults() {
+		this.searchResultEditor
+			.setSelections((this.getInput()?.getMatchRanges() ?? []).map(
+				range => new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn)));
+		this.searchResultEditor.focus();
 	}
 
 	async triggerSearch(_options?: { resetCursor?: boolean; delay?: number; }) {

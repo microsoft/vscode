@@ -25,7 +25,7 @@ import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileE
 import * as SearchConstants from 'vs/workbench/contrib/search/common/constants';
 import * as SearchEditorConstants from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditor';
-import { OpenResultsInEditorAction, OpenSearchEditorAction, toggleSearchEditorCaseSensitiveCommand, toggleSearchEditorContextLinesCommand, toggleSearchEditorRegexCommand, toggleSearchEditorWholeWordCommand } from 'vs/workbench/contrib/searchEditor/browser/searchEditorActions';
+import { OpenResultsInEditorAction, OpenSearchEditorAction, toggleSearchEditorCaseSensitiveCommand, toggleSearchEditorContextLinesCommand, toggleSearchEditorRegexCommand, toggleSearchEditorWholeWordCommand, selectAllSearchEditorMatchesCommand } from 'vs/workbench/contrib/searchEditor/browser/searchEditorActions';
 import { getOrMakeSearchEditorInput, SearchEditorInput } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -144,6 +144,14 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: toggleSearchEditorContextLinesCommand,
 	primary: KeyMod.Alt | KeyCode.KEY_L,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_L }
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: SearchEditorConstants.SelectAllSearchEditorMatchesCommandId,
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeyExpr.and(SearchEditorConstants.InSearchEditor),
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_L,
+	handler: selectAllSearchEditorMatchesCommand
 });
 
 CommandsRegistry.registerCommand(
