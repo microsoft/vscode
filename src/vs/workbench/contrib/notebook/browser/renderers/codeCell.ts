@@ -232,7 +232,7 @@ export class CodeCell extends Disposable {
 			}
 		}
 
-		let result = this.notebookEditor.getOutputRenderer().render(transformedOutput!, outputItemDiv, currOutput.pickedMimeType);
+		let result = this.notebookEditor.getOutputRenderer().render(transformedOutput!, outputItemDiv, transformedMimeType!);
 
 		if (!result) {
 			this.viewCell.updateOutputHeight(index, 0);

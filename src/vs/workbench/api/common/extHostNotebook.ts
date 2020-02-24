@@ -258,7 +258,8 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument, vscode.
 
 								output.pickedRenderer = handler[0].handle;
 								// output.transformedOutput = transformedOutput;
-								output.transformedOutput = { richestMimeType: transformedOutput };
+								output.transformedOutput = {};
+								output.transformedOutput[richestMimeType] = transformedOutput;
 							}
 						}
 
@@ -310,7 +311,8 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument, vscode.
 
 						transformedOutput = pickedHandler.render(this, cell, output);
 						(<IGenericOutput>output).pickedRenderer = pickedHandler.handle;
-						(<IGenericOutput>output).transformedOutput = { richestMimeType: transformedOutput };
+						(<IGenericOutput>output).transformedOutput = {};
+						(<IGenericOutput>output).transformedOutput![richestMimeType] = transformedOutput;
 
 					}
 				}
