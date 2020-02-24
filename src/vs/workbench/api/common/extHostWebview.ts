@@ -389,7 +389,7 @@ class WebviewDocumentStore {
 	}
 
 	private key(viewType: string, resource: vscode.Uri): string {
-		return `${viewType}@@@${resource.toString}`;
+		return `${viewType}@@@${resource}`;
 	}
 }
 
