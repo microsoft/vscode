@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { posix } from 'vs/base/common/path';
 import { dirname, isEqual, basenameOrAuthority } from 'vs/base/common/resources';
 import { IconLabel, IIconLabelValueOptions, IIconLabelCreationOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -365,8 +364,8 @@ class ResourceLabelWidget extends IconLabel {
 					let untitledDescription = untitledModel.resource.path;
 					if (label.name !== untitledDescription) {
 						label.description = untitledDescription;
-					} else if (label.description === posix.sep) {
-						label.description = undefined; // unset showing just "/" for untitled without associated resource
+					} else {
+						label.description = undefined;
 					}
 				}
 

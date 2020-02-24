@@ -47,6 +47,8 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { IAuthenticationTokenService } from 'vs/platform/authentication/common/authentication';
 import { fromNow } from 'vs/base/common/date';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 const enum AuthStatus {
 	Initializing = 'Initializing',
@@ -135,9 +137,11 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IFileService private readonly fileService: IFileService,
 		@IProductService private readonly productService: IProductService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super();
-		this.userDataSyncStore = getUserDataSyncStore(configurationService);
+		this.userDataSyncStore = getUserDataSyncStore(productService, configurationService);
 		this.syncEnablementContext = CONTEXT_SYNC_ENABLEMENT.bindTo(contextKeyService);
 		this.syncStatusContext = CONTEXT_SYNC_STATE.bindTo(contextKeyService);
 		this.authenticationState = CONTEXT_AUTH_TOKEN_STATE.bindTo(contextKeyService);
@@ -235,7 +239,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 
 		this.updateBadge();
-		this.registerSyncStatusAction();
 	}
 
 	private async onDidChangeSessions(providerId: string): Promise<void> {
@@ -396,7 +399,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					severity: Severity.Info,
 					message: localize('turned off', "Sync was turned off from another device."),
 					actions: {
-						primary: [new Action('turn on sync', localize('Turn sync back on', "Turn Sync Back On"), undefined, true, () => this.turnOn())]
+						primary: [new Action('turn on sync', localize('turn on sync', "Turn on Sync"), undefined, true, () => this.turnOn())]
 					}
 				});
 				return;
@@ -484,6 +487,24 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private async turnOn(): Promise<void> {
+		if (!this.storageService.getBoolean('sync.donotAskPreviewConfirmation', StorageScope.GLOBAL, false)) {
+			const result = await this.dialogService.show(
+				Severity.Info,
+				localize('sync preview message', "Synchronising your preferences is a preview feature and please read the documentation before turnin on."),
+				[
+					localize('open doc', "Open Documentation"),
+					localize('confirm', "Continue"),
+					localize('cancel', "Cancel"),
+				],
+				{
+					cancelId: 2
+				}
+			);
+			switch (result.choice) {
+				case 0: this.openerService.open(URI.parse('https://go.microsoft.com/fwlink/?LinkId=827846')); return;
+				case 2: return;
+			}
+		}
 		return new Promise((c, e) => {
 			const disposables: DisposableStore = new DisposableStore();
 			const quickPick = this.quickInputService.createQuickPick<ConfigureSyncQuickPickItem>();
@@ -495,7 +516,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				quickPick.customLabel = localize('turn on', "Turn on");
 			} else {
 				const displayName = this.authenticationService.getDisplayName(this.userDataSyncStore!.authenticationProviderId);
-				quickPick.description = localize('sign in and turn on sync detail', "Please sign in with your {0} account to synchronize your following data across all your devices.", displayName);
+				quickPick.description = localize('sign in and turn on sync detail', "Sign in with your {0} account to synchronize your data across devices.", displayName);
 				quickPick.customLabel = localize('sign in and turn on sync', "Sign in & Turn on");
 			}
 			quickPick.placeholder = localize('configure sync placeholder', "Choose what to sync");
@@ -523,6 +544,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		await this.handleFirstTimeSync();
 		this.userDataSyncEnablementService.setEnablement(true);
 		this.notificationService.info(localize('sync turned on', "Sync will happen automatically from now on."));
+		this.storageService.store('sync.donotAskPreviewConfirmation', true, StorageScope.GLOBAL);
 	}
 
 	private getConfigureSyncQuickPickItems(): ConfigureSyncQuickPickItem[] {
@@ -746,7 +768,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private registerSignInAction(): void {
 		const that = this;
-		registerAction2(class StopSyncAction extends Action2 {
+		this._register(registerAction2(class StopSyncAction extends Action2 {
 			constructor() {
 				super({
 					id: signInCommand.id,
@@ -766,7 +788,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					that.notificationService.error(e);
 				}
 			}
-		});
+		}));
 	}
 
 	private registerShowSettingsConflictsAction(): void {
@@ -824,17 +846,14 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	}
 
-	private readonly _syncStatusActionDisposable = this._register(new MutableDisposable());
 	private registerSyncStatusAction(): void {
 		const that = this;
 		const when = ContextKeyExpr.and(CONTEXT_SYNC_ENABLEMENT, CONTEXT_AUTH_TOKEN_STATE.isEqualTo(AuthStatus.SignedIn), CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized));
-		this._syncStatusActionDisposable.value = registerAction2(class SyncStatusAction extends Action2 {
+		this._register(registerAction2(class SyncStatusAction extends Action2 {
 			constructor() {
 				super({
 					id: 'workbench.userData.actions.syncStatus',
-					get title() {
-						return getIdentityTitle(localize('sync is on', "Sync is on"), that.activeAccount);
-					},
+					title: localize('sync is on', "Sync is on"),
 					menu: [
 						{
 							id: MenuId.GlobalActivity,
@@ -890,12 +909,12 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					quickPick.show();
 				});
 			}
-		});
+		}));
 	}
 
 	private registerTurnOffSyncAction(): void {
 		const that = this;
-		registerAction2(class StopSyncAction extends Action2 {
+		this._register(registerAction2(class StopSyncAction extends Action2 {
 			constructor() {
 				super({
 					id: stopSyncCommand.id,
@@ -915,12 +934,12 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					}
 				}
 			}
-		});
+		}));
 	}
 
 	private registerConfigureSyncAction(): void {
 		const that = this;
-		registerAction2(class ShowSyncActivityAction extends Action2 {
+		this._register(registerAction2(class ShowSyncActivityAction extends Action2 {
 			constructor() {
 				super({
 					id: configureSyncCommand.id,
@@ -932,12 +951,12 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				});
 			}
 			run(): any { return that.configureSyncOptions(); }
-		});
+		}));
 	}
 
 	private registerShowActivityAction(): void {
 		const that = this;
-		registerAction2(class ShowSyncActivityAction extends Action2 {
+		this._register(registerAction2(class ShowSyncActivityAction extends Action2 {
 			constructor() {
 				super({
 					id: showSyncActivityCommand.id,
@@ -949,11 +968,11 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				});
 			}
 			run(): any { return that.showSyncActivity(); }
-		});
+		}));
 	}
 
 	private registerShowSettingsAction(): void {
-		registerAction2(class ShowSyncSettingsAction extends Action2 {
+		this._register(registerAction2(class ShowSyncSettingsAction extends Action2 {
 			constructor() {
 				super({
 					id: showSyncSettingsCommand.id,
@@ -967,7 +986,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			run(accessor: ServicesAccessor): any {
 				accessor.get(IPreferencesService).openGlobalSettings(false, { query: '@tag:sync' });
 			}
-		});
+		}));
 	}
 
 }

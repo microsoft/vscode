@@ -90,9 +90,9 @@ export class Gesture extends Disposable {
 		this.targets = [];
 		this.ignoreTargets = [];
 		this._lastSetTapCountTime = 0;
-		this._register(DomUtils.addDisposableListener(document, 'touchstart', (e: TouchEvent) => this.onTouchStart(e)));
+		this._register(DomUtils.addDisposableListener(document, 'touchstart', (e: TouchEvent) => this.onTouchStart(e), { passive: false }));
 		this._register(DomUtils.addDisposableListener(document, 'touchend', (e: TouchEvent) => this.onTouchEnd(e)));
-		this._register(DomUtils.addDisposableListener(document, 'touchmove', (e: TouchEvent) => this.onTouchMove(e)));
+		this._register(DomUtils.addDisposableListener(document, 'touchmove', (e: TouchEvent) => this.onTouchMove(e), { passive: false }));
 	}
 
 	public static addTarget(element: HTMLElement): IDisposable {

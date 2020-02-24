@@ -1149,15 +1149,15 @@ class InnerMinimap extends Disposable {
 				this._gestureInProgress = true;
 				this.scrollDueToTouchEvent(e);
 			}
-		});
+		}, { passive: false });
 
-		this._sliderTouchMoveListener = dom.addStandardDisposableListener(this._domNode.domNode, EventType.Change, (e: GestureEvent) => {
+		this._sliderTouchMoveListener = dom.addDisposableListener(this._domNode.domNode, EventType.Change, (e: GestureEvent) => {
 			e.preventDefault();
 			e.stopPropagation();
 			if (this._lastRenderData && this._gestureInProgress) {
 				this.scrollDueToTouchEvent(e);
 			}
-		});
+		}, { passive: false });
 
 		this._sliderTouchEndListener = dom.addStandardDisposableListener(this._domNode.domNode, EventType.End, (e: GestureEvent) => {
 			e.preventDefault();

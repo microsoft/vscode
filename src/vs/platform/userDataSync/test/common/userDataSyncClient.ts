@@ -34,6 +34,8 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
 import { Emitter } from 'vs/base/common/event';
 import { IAuthenticationTokenService } from 'vs/platform/authentication/common/authentication';
+import product from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 export class UserDataSyncClient extends Disposable {
 
@@ -58,6 +60,8 @@ export class UserDataSyncClient extends Disposable {
 
 		const logService = new NullLogService();
 		this.instantiationService.stub(ILogService, logService);
+
+		this.instantiationService.stub(IProductService, { _serviceBrand: undefined, ...product });
 
 		const fileService = this._register(new FileService(logService));
 		fileService.registerProvider(Schemas.inMemory, new InMemoryFileSystemProvider());

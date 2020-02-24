@@ -11,6 +11,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IHeaders, IRequestOptions, IRequestContext } from 'vs/base/parts/request/common/request';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IAuthenticationTokenService } from 'vs/platform/authentication/common/authentication';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 export class UserDataSyncStoreService extends Disposable implements IUserDataSyncStoreService {
 
@@ -19,13 +20,14 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 	readonly userDataSyncStore: IUserDataSyncStore | undefined;
 
 	constructor(
+		@IProductService productService: IProductService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IRequestService private readonly requestService: IRequestService,
 		@IAuthenticationTokenService private readonly authTokenService: IAuthenticationTokenService,
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
 	) {
 		super();
-		this.userDataSyncStore = getUserDataSyncStore(configurationService);
+		this.userDataSyncStore = getUserDataSyncStore(productService, configurationService);
 	}
 
 	async read(key: string, oldValue: IUserData | null, source?: SyncSource): Promise<IUserData> {
