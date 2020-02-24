@@ -257,7 +257,9 @@ export class DefineKeybindingWidget extends Widget {
 		}));
 
 		this._register(this._updateKeybindingAction.onDidChange(e => {
-			this.hide();
+			if (this._updateKeybindingAction.checked) {
+				this.hide();
+			}
 		}));
 
 		actionBar.push([this._disableEnterAction, this._updateKeybindingAction], { label: false, icon: true });
