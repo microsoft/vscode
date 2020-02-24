@@ -390,6 +390,11 @@ export class TimelinePane extends ViewPane {
 		}
 
 		if (!changed) {
+			// If there are no items at all and no pending requests, make sure to refresh (to show the no timeline info message)
+			if (this._items.length === 0 && this._pendingRequests.size === 0) {
+				this.refresh();
+			}
+
 			return;
 		}
 
