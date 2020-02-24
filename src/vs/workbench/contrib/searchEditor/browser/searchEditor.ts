@@ -47,6 +47,7 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { Position } from 'vs/editor/common/core/position';
 
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(:| )(\s+)(.*)$/;
 const FILE_LINE_REGEX = /^(\S.*):$/;
@@ -299,6 +300,35 @@ export class SearchEditor extends BaseTextEditor {
 		return this.configurationService.getValue<ISearchConfigurationProperties>('search');
 	}
 
+	private iterateThroughMatches(reverse: boolean) {
+		const model = this.searchResultEditor.getModel();
+		if (!model) { return; }
+
+		const lastLine = model.getLineCount() ?? 1;
+		const lastColumn = model.getLineLength(lastLine);
+
+		const fallbackStart = reverse ? new Position(lastLine, lastColumn) : new Position(1, 1);
+
+		const currentPosition = this.searchResultEditor.getSelection()?.getStartPosition() ?? fallbackStart;
+
+		const matchRanges = this.getInput()?.getMatchRanges();
+		if (!matchRanges) { return; }
+
+		const matchRange = (reverse ? findPrevRange : findNextRange)(matchRanges, currentPosition);
+
+		this.searchResultEditor.setSelection(matchRange);
+		this.searchResultEditor.revealLineInCenterIfOutsideViewport(matchRange.startLineNumber);
+		this.searchResultEditor.focus();
+	}
+
+	focusNextResult() {
+		this.iterateThroughMatches(false);
+	}
+
+	focusPreviousResult() {
+		this.iterateThroughMatches(true);
+	}
+
 	async triggerSearch(_options?: { resetCursor?: boolean; delay?: number; }) {
 		const options = { resetCursor: true, delay: 0, ..._options };
 
@@ -307,7 +337,7 @@ export class SearchEditor extends BaseTextEditor {
 				await this.doRunSearch();
 				this.toggleRunAgainMessage(false);
 				if (options.resetCursor) {
-					this.searchResultEditor.setSelection(new Range(1, 1, 1, 1));
+					this.searchResultEditor.setPosition(new Position(1, 1));
 					this.searchResultEditor.setScrollPosition({ scrollTop: 0, scrollLeft: 0 });
 				}
 			}, options.delay);
@@ -523,3 +553,24 @@ registerThemingParticipant((theme, collector) => {
 });
 
 export const searchEditorTextInputBorder = registerColor('searchEditor.textInputBorder', { dark: inputBorder, light: inputBorder, hc: inputBorder }, localize('textInputBoxBorder', "Search editor text input box border."));
+
+function findNextRange(matchRanges: Range[], currentPosition: Position) {
+	for (const matchRange of matchRanges) {
+		if (Position.isBefore(currentPosition, matchRange.getStartPosition())) {
+			return matchRange;
+		}
+	}
+	return matchRanges[0];
+}
+
+function findPrevRange(matchRanges: Range[], currentPosition: Position) {
+	for (let i = matchRanges.length - 1; i >= 0; i--) {
+		const matchRange = matchRanges[i];
+		if (Position.isBefore(matchRange.getStartPosition(), currentPosition)) {
+			{
+				return matchRange;
+			}
+		}
+	}
+	return matchRanges[matchRanges.length - 1];
+}

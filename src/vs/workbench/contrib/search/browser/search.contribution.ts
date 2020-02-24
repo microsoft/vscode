@@ -556,8 +556,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarEditMenu, {
 	order: 1
 });
 
-registry.registerWorkbenchAction(SyncActionDescriptor.create(FocusNextSearchResultAction, FocusNextSearchResultAction.ID, FocusNextSearchResultAction.LABEL, { primary: KeyCode.F4 }, ContextKeyExpr.and(Constants.HasSearchResults)), 'Focus Next Search Result', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.create(FocusPreviousSearchResultAction, FocusPreviousSearchResultAction.ID, FocusPreviousSearchResultAction.LABEL, { primary: KeyMod.Shift | KeyCode.F4 }, ContextKeyExpr.and(Constants.HasSearchResults)), 'Focus Previous Search Result', category);
+registry.registerWorkbenchAction(SyncActionDescriptor.create(FocusNextSearchResultAction, FocusNextSearchResultAction.ID, FocusNextSearchResultAction.LABEL, { primary: KeyCode.F4 }, ContextKeyExpr.or(Constants.HasSearchResults, SearchEditorConstants.InSearchEditor)), 'Focus Next Search Result', category);
+registry.registerWorkbenchAction(SyncActionDescriptor.create(FocusPreviousSearchResultAction, FocusPreviousSearchResultAction.ID, FocusPreviousSearchResultAction.LABEL, { primary: KeyMod.Shift | KeyCode.F4 }, ContextKeyExpr.or(Constants.HasSearchResults, SearchEditorConstants.InSearchEditor)), 'Focus Previous Search Result', category);
 
 registry.registerWorkbenchAction(SyncActionDescriptor.create(ReplaceInFilesAction, ReplaceInFilesAction.ID, ReplaceInFilesAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_H }), 'Replace in Files', category);
 MenuRegistry.appendMenuItem(MenuId.MenubarEditMenu, {
