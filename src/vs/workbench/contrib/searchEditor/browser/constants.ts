@@ -13,6 +13,7 @@ export const ToggleSearchEditorWholeWordCommandId = 'toggleSearchEditorWholeWord
 export const ToggleSearchEditorRegexCommandId = 'toggleSearchEditorRegex';
 export const ToggleSearchEditorContextLinesCommandId = 'toggleSearchEditorContextLines';
 export const RerunSearchEditorSearchCommandId = 'rerunSearchEditorSearch';
+export const SelectAllSearchEditorMatchesCommandId = 'selectAllSearchEditorMatches';
 
 export const InSearchEditor = new RawContextKey<boolean>('inSearchEditor', false);
 

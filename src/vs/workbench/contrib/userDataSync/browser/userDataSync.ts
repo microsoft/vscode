@@ -490,7 +490,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		if (!this.storageService.getBoolean('sync.donotAskPreviewConfirmation', StorageScope.GLOBAL, false)) {
 			const result = await this.dialogService.show(
 				Severity.Info,
-				localize('sync preview message', "Synchronising your preferences is a preview feature and please read the documentation before turnin on."),
+				localize('sync preview message', "Synchronizing your preferences is a preview feature, please read the documentation before turning it on."),
 				[
 					localize('open doc', "Open Documentation"),
 					localize('confirm', "Continue"),

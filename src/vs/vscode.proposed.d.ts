@@ -1558,12 +1558,9 @@ declare module 'vscode' {
 		label: string;
 
 		/**
-		 * Optional id for the timeline item.
-		 */
-		/**
-		 * Optional id for the timeline item that has to be unique across your timeline source.
+		 * Optional id for the timeline item. It must be unique across all the timeline items provided by this source.
 		 *
-		 * If not provided, an id is generated using the timeline item's label.
+		 * If not provided, an id is generated using the timeline item's timestamp.
 		 */
 		id?: string;
 
@@ -1620,40 +1617,50 @@ declare module 'vscode' {
 		 * If the [uri](#Uri) is `undefined` that signals that the timeline source for all resources changed.
 		 */
 		uri?: Uri;
-	}
-
-	export interface TimelineCursor {
-		/**
-		 * A provider-defined cursor specifing the range of timeline items to be returned. Must be serializable.
-		 */
-		cursor?: any;
 
 		/**
-		 * A flag to specify whether the timeline items requested are before or after (default) the provided cursor.
+		 * A flag which indicates whether the entire timeline should be reset.
 		 */
-		before?: boolean;
-
-		/**
-		 * The maximum number of timeline items that should be returned.
-		 */
-		limit?: number;
+		reset?: boolean;
 	}
 
 	export interface Timeline {
-		/**
-		 * A provider-defined cursor specifing the range of timeline items returned. Must be serializable.
-		 */
-		cursor?: any;
+		readonly paging?: {
+			/**
+			 * A set of provider-defined cursors specifing the range of timeline items returned.
+			 */
+			readonly cursors: {
+				readonly before: string;
+				readonly after?: string
+			};
 
-		/**
-		 * A flag which indicates whether there are any more items that weren't returned.
-		 */
-		more?: boolean;
+			/**
+			 * A flag which indicates whether there are more items that weren't returned.
+			 */
+			readonly more?: boolean;
+		}
 
 		/**
 		 * An array of [timeline items](#TimelineItem).
 		 */
-		items: TimelineItem[];
+		readonly items: readonly TimelineItem[];
+	}
+
+	export interface TimelineOptions {
+		/**
+		 * A provider-defined cursor specifing the range of timeline items that should be returned.
+		 */
+		cursor?: string;
+
+		/**
+		 * A flag to specify whether the timeline items being requested should be before or after (default) the provided cursor.
+		 */
+		before?: boolean;
+
+		/**
+		 * The maximum number or the ending cursor of timeline items that should be returned.
+		 */
+		limit?: number | string;
 	}
 
 	export interface TimelineProvider {
@@ -1666,23 +1673,23 @@ declare module 'vscode' {
 		/**
 		 * An identifier of the source of the timeline items. This can be used to filter sources.
 		 */
-		id: string;
+		readonly id: string;
 
 		/**
 		 * A human-readable string describing the source of the timeline items. This can be used as the display label when filtering sources.
 		 */
-		label: string;
+		readonly label: string;
 
 		/**
 		 * Provide [timeline items](#TimelineItem) for a [Uri](#Uri).
 		 *
 		 * @param uri The [uri](#Uri) of the file to provide the timeline for.
+		 * @param options A set of options to determine how results should be returned.
 		 * @param token A cancellation token.
-		 * @param cursor TBD
 		 * @return The [timeline result](#TimelineResult) or a thenable that resolves to such. The lack of a result
 		 * can be signaled by returning `undefined`, `null`, or an empty array.
 		 */
-		provideTimeline(uri: Uri, cursor: TimelineCursor, token: CancellationToken): ProviderResult<Timeline>;
+		provideTimeline(uri: Uri, options: TimelineOptions, token: CancellationToken): ProviderResult<Timeline>;
 	}
 
 	export namespace workspace {

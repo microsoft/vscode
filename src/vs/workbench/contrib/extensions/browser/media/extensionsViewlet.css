@@ -154,6 +154,7 @@
 
 .extensions-viewlet > .extensions .monaco-list-row > .extension > .details > .header-container > .header .extension-remote-badge > .codicon {
 	font-size: 12px;
+	color: currentColor;
 }
 
 .extensions-viewlet.narrow > .extensions .extension > .icon-container,

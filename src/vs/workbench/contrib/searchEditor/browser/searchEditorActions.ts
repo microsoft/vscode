@@ -54,6 +54,14 @@ export const toggleSearchEditorContextLinesCommand = (accessor: ServicesAccessor
 	}
 };
 
+export const selectAllSearchEditorMatchesCommand = (accessor: ServicesAccessor) => {
+	const editorService = accessor.get(IEditorService);
+	const input = editorService.activeEditor;
+	if (input instanceof SearchEditorInput) {
+		(editorService.activeControl as SearchEditor).focusAllResults();
+	}
+};
+
 
 export class OpenSearchEditorAction extends Action {
 

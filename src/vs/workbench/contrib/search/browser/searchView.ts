@@ -181,25 +181,26 @@ export class SearchView extends ViewPane {
 
 		this.container = dom.$('.search-view');
 
+		// globals
+		this.viewletVisible = Constants.SearchViewVisibleKey.bindTo(this.contextKeyService);
+		this.firstMatchFocused = Constants.FirstMatchFocusKey.bindTo(this.contextKeyService);
+		this.fileMatchOrMatchFocused = Constants.FileMatchOrMatchFocusKey.bindTo(this.contextKeyService);
+		this.fileMatchOrFolderMatchFocus = Constants.FileMatchOrFolderMatchFocusKey.bindTo(this.contextKeyService);
+		this.fileMatchOrFolderMatchWithResourceFocus = Constants.FileMatchOrFolderMatchWithResourceFocusKey.bindTo(this.contextKeyService);
+		this.fileMatchFocused = Constants.FileFocusKey.bindTo(this.contextKeyService);
+		this.folderMatchFocused = Constants.FolderFocusKey.bindTo(this.contextKeyService);
+		this.hasSearchResultsKey = Constants.HasSearchResults.bindTo(this.contextKeyService);
+		this.matchFocused = Constants.MatchFocusKey.bindTo(this.contextKeyService);
+
+		// scoped
 		this.contextKeyService = this._register(this.contextKeyService.createScoped(this.container));
-		const viewletFocused = Constants.SearchViewFocusedKey.bindTo(this.contextKeyService);
-		viewletFocused.set(true);
-
-		this.instantiationService = this.instantiationService.createChild(
-			new ServiceCollection([IContextKeyService, this.contextKeyService]));
-
-		this.viewletVisible = Constants.SearchViewVisibleKey.bindTo(contextKeyService);
+		Constants.SearchViewFocusedKey.bindTo(this.contextKeyService).set(true);
 		this.inputBoxFocused = Constants.InputBoxFocusedKey.bindTo(this.contextKeyService);
 		this.inputPatternIncludesFocused = Constants.PatternIncludesFocusedKey.bindTo(this.contextKeyService);
 		this.inputPatternExclusionsFocused = Constants.PatternExcludesFocusedKey.bindTo(this.contextKeyService);
-		this.firstMatchFocused = Constants.FirstMatchFocusKey.bindTo(contextKeyService);
-		this.fileMatchOrMatchFocused = Constants.FileMatchOrMatchFocusKey.bindTo(contextKeyService);
-		this.fileMatchOrFolderMatchFocus = Constants.FileMatchOrFolderMatchFocusKey.bindTo(contextKeyService);
-		this.fileMatchOrFolderMatchWithResourceFocus = Constants.FileMatchOrFolderMatchWithResourceFocusKey.bindTo(contextKeyService);
-		this.fileMatchFocused = Constants.FileFocusKey.bindTo(contextKeyService);
-		this.folderMatchFocused = Constants.FolderFocusKey.bindTo(contextKeyService);
-		this.matchFocused = Constants.MatchFocusKey.bindTo(this.contextKeyService);
-		this.hasSearchResultsKey = Constants.HasSearchResults.bindTo(this.contextKeyService);
+
+		this.instantiationService = this.instantiationService.createChild(
+			new ServiceCollection([IContextKeyService, this.contextKeyService]));
 
 		this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('search.sortOrder')) {
