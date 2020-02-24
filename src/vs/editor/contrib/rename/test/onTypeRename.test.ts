@@ -404,14 +404,6 @@ suite('Synced regions', () => {
 	// }, 'oo></ooo>');
 
 	/**
-	 * Paste
-	 */
-
-	/**
-	 * Cut
-	 */
-
-	/**
 	 * Undo / redo
 	 */
 	testCase('Undo/redo - simple undo', state, async (editor, ontypeRenameContribution) => {
