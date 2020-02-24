@@ -13,7 +13,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { readonly } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { INotebookDisplayOrder, IGenericOutput, parseCellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookDisplayOrder, IGenericOutput, parseCellUri, parseCellHandle } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ISplice } from 'vs/base/common/sequence';
 
 interface ExtHostOutputDisplayOrder {
@@ -435,7 +435,6 @@ export class ExtHostNotebookEditor implements vscode.NotebookEditor {
 		public document: ExtHostNotebookDocument,
 		private _documentsAndEditors: ExtHostDocumentsAndEditors
 	) {
-		const regex = new RegExp(/cell_(\d*)\./g);
 		this._documentsAndEditors.onDidAddDocuments(documents => {
 			for (const data of documents) {
 				let textDocument = data.document;
@@ -448,10 +447,9 @@ export class ExtHostNotebookEditor implements vscode.NotebookEditor {
 				let notebookUri = parsedCellUri.notebook;
 				let cellFsPath = textDocument.uri.fsPath;
 
-				let matches = regex.exec(cellFsPath);
+				const cellHandle = parseCellHandle(cellFsPath);
 
-				if (matches) {
-					const cellHandle = matches[1];
+				if (cellHandle !== undefined) {
 					if (this.document.uri.fsPath === notebookUri.fsPath) {
 						document.attachCellTextDocument(Number(cellHandle), textDocument);
 					}
@@ -471,10 +469,9 @@ export class ExtHostNotebookEditor implements vscode.NotebookEditor {
 				let notebookUri = parsedCellUri.notebook;
 				let cellFsPath = textDocument.uri.fsPath;
 
-				let matches = regex.exec(cellFsPath);
+				const cellHandle = parseCellHandle(cellFsPath);
 
-				if (matches) {
-					const cellHandle = matches[1];
+				if (cellHandle !== undefined) {
 					if (this.document.uri.fsPath === notebookUri.fsPath) {
 						document.detachCellTextDocument(Number(cellHandle), textDocument);
 					}
@@ -663,6 +660,29 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 			let rawCell = editor?.createCell('', language, type, []) as ExtHostCell;
 			document?.insertCell(index, rawCell!);
+
+			let allDocuments = this._documentsAndEditors.allDocuments();
+			for (let i = 0; i < allDocuments.length; i++) {
+				let textDocument = allDocuments[i].document;
+				let parsedCellUri = parseCellUri(textDocument.uri);
+
+				if (!parsedCellUri) {
+					continue;
+				}
+
+				let notebookUri = parsedCellUri.notebook;
+				let cellFsPath = textDocument.uri.fsPath;
+				const cellHandle = parseCellHandle(cellFsPath);
+
+				if (cellHandle !== undefined) {
+					if (uri.fsPath === notebookUri.fsPath && Number(cellHandle) === rawCell.handle) {
+						rawCell.attachTextDocument(textDocument);
+					}
+
+				}
+			}
+
+
 			return {
 				handle: rawCell.handle,
 				source: rawCell.source,

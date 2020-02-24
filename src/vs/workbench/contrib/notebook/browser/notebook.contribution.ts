@@ -163,7 +163,7 @@ class CellContentProvider implements ITextModelContentProvider {
 			if (cell.uri.toString() === resource.toString()) {
 				return this._modelService.createModel(
 					cell.source.join('\n'),
-					this._modeService.createByFilepathOrFirstLine(resource, cell.source[0]),
+					cell.language ? this._modeService.create(cell.language) : this._modeService.createByFilepathOrFirstLine(resource, cell.source[0]),
 					resource
 				);
 			}
