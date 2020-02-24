@@ -477,7 +477,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.bufferSyncSupport.reset();
 
 		const watchOptions = this.apiVersion.gte(API.v380)
-			? vscode.workspace.getConfiguration('typescript').get<Proto.WatchOptions | undefined>('tsserver.watchOptions')
+			? this.configuration.watchOptions
 			: undefined;
 
 		const configureOptions: Proto.ConfigureRequestArguments = {
