@@ -181,8 +181,8 @@ export function generateCellPath(cell_type: string, cellHandle: number): string 
 	return `/cell_${cellHandle}${cell_type === 'markdown' ? '.md' : ''}`;
 }
 
-const regex = new RegExp(/cell_(\d*)(\.)?/g);
 export function parseCellHandle(path: string): number | undefined {
+	const regex = new RegExp(/cell_(\d*)(\.)?/g);
 	let matches = regex.exec(path);
 
 	if (matches && matches.length > 1) {
