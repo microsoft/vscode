@@ -71,7 +71,7 @@ export class GitHubServer {
 		Logger.info('Logging in...');
 		const state = uuid();
 		const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/did-authenticate`));
-		const clientDetails = ClientRegistrar.getClientDetails(callbackUri.scheme);
+		const clientDetails = ClientRegistrar.getClientDetails(callbackUri);
 		const uri = vscode.Uri.parse(`https://github.com/login/oauth/authorize?redirect_uri=${encodeURIComponent(callbackUri.toString())}&scope=${scopes}&state=${state}&client_id=${clientDetails.id}`);
 
 		vscode.env.openExternal(uri);
