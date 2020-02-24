@@ -46,6 +46,11 @@ configurationRegistry.registerConfiguration({
 			description: localize('timeline.showView', "Experimental: When enabled, shows a Timeline view in the Explorer sidebar."),
 			default: product.quality !== 'stable'
 		},
+		'timeline.excludeSources': {
+			type: 'array',
+			description: localize('timeline.excludeSources', "Experimental: An array of Timeline sources that should be excluded from the Timeline view"),
+			default: null
+		},
 	}
 });
 

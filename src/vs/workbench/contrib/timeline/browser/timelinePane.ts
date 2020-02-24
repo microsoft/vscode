@@ -19,7 +19,7 @@ import { TreeResourceNavigator, WorkbenchObjectTree } from 'vs/platform/list/bro
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITimelineService, TimelineChangeEvent, TimelineItem, TimelineOptions, TimelineProvidersChangeEvent, TimelineRequest, Timeline } from 'vs/workbench/contrib/timeline/common/timeline';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -99,7 +99,7 @@ export class TimelinePane extends ViewPane {
 	private _menus: TimelineMenus;
 	private _visibilityDisposables: DisposableStore | undefined;
 
-	// private _excludedSources: Set<string> | undefined;
+	private _excludedSources: Set<string>;
 	private _cursorsByProvider: Map<string, TimelineCursors> = new Map();
 	private _items: { element: TreeElement }[] = [];
 	private _loadingMessageTimer: any | undefined;
@@ -128,6 +128,18 @@ export class TimelinePane extends ViewPane {
 
 		const scopedContextKeyService = this._register(this.contextKeyService.createScoped());
 		scopedContextKeyService.createKey('view', TimelinePane.ID);
+
+		this._excludedSources = new Set(configurationService.getValue('timeline.excludeSources'));
+		configurationService.onDidChangeConfiguration(this.onConfigurationChanged, this);
+	}
+
+	private onConfigurationChanged(e: IConfigurationChangeEvent) {
+		if (!e.affectsConfiguration('timeline.excludeSources')) {
+			return;
+		}
+
+		this._excludedSources = new Set(this.configurationService.getValue('timeline.excludeSources'));
+		this.loadTimeline(true);
 	}
 
 	private onActiveEditorChanged() {
@@ -250,6 +262,15 @@ export class TimelinePane extends ViewPane {
 			return;
 		}
 
+		const filteredSources = (sources ?? this.timelineService.getSources()).filter(s => !this._excludedSources.has(s));
+		if (filteredSources.length === 0) {
+			if (reset) {
+				this.refresh();
+			}
+
+			return;
+		}
+
 		let lastIndex = this._items.length - 1;
 		let lastItem = this._items[lastIndex]?.element;
 		if (isLoadMoreCommandItem(lastItem)) {
@@ -265,7 +286,7 @@ export class TimelinePane extends ViewPane {
 			}
 		}
 
-		for (const source of sources ?? this.timelineService.getSources()) {
+		for (const source of filteredSources) {
 			let request = this._pendingRequests.get(source);
 
 			const cursors = this._cursorsByProvider.get(source);
