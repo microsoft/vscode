@@ -21,6 +21,7 @@ import { CodeCell } from 'vs/workbench/contrib/notebook/browser/renderers/codeCe
 import { StatefullMarkdownCell } from 'vs/workbench/contrib/notebook/browser/renderers/markdownCell';
 import { CellViewModel } from './cellViewModel';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EDITOR_TOP_PADDING, EDITOR_BOTTOM_PADDING } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class NotebookCellListDelegate implements IListVirtualDelegate<CellViewModel> {
 	private _lineHeight: number;
@@ -64,6 +65,10 @@ class AbstractCellRenderer {
 		const editorOptions = deepClone(this.configurationService.getValue<IEditorOptions>('editor', { overrideIdentifier: language }));
 		this.editorOptions = {
 			...editorOptions,
+			padding: {
+				top: EDITOR_TOP_PADDING,
+				bottom: EDITOR_BOTTOM_PADDING
+			},
 			scrollBeyondLastLine: false,
 			scrollbar: {
 				verticalScrollbarSize: 14,

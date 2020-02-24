@@ -9,7 +9,7 @@ import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/renderers/c
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/renderers/sizeObserver';
-import { CELL_MARGIN } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CELL_MARGIN, EDITOR_TOP_PADDING, EDITOR_BOTTOM_PADDING } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookEditor, CellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { raceCancellation } from 'vs/base/common/async';
@@ -48,7 +48,7 @@ export class StatefullMarkdownCell extends Disposable {
 
 				const lineNum = viewCell.lineCount;
 				const lineHeight = notebookEditor.getFontInfo()?.lineHeight ?? 18;
-				const totalHeight = Math.max(lineNum, 1) * lineHeight;
+				const totalHeight = Math.max(lineNum, 1) * lineHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING;
 
 				if (this.editor) {
 					// not first time, we don't need to create editor or bind listeners

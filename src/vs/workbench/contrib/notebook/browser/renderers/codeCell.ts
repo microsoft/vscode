@@ -8,7 +8,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/renderers/cellViewModel';
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/renderers/sizeObserver';
-import { CELL_MARGIN, IOutput, IDisplayOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CELL_MARGIN, IOutput, IDisplayOutput, EDITOR_TOP_PADDING, EDITOR_BOTTOM_PADDING } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellRenderTemplate, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -35,7 +35,7 @@ export class CodeCell extends Disposable {
 
 		const lineNum = viewCell.lineCount;
 		const lineHeight = notebookEditor.getFontInfo()?.lineHeight ?? 18;
-		const totalHeight = lineNum * lineHeight;
+		const totalHeight = lineNum * lineHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING;
 		templateData.editor?.layout(
 			{
 				width: width,

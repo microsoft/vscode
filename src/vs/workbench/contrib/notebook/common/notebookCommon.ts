@@ -153,6 +153,9 @@ export interface IOutputTransformContribution {
 
 export const CELL_MARGIN = 24;
 
+export const EDITOR_TOP_PADDING = 8;
+export const EDITOR_BOTTOM_PADDING = 8;
+
 
 export type NotebookCellsSplice = [
 	number /* start */,
