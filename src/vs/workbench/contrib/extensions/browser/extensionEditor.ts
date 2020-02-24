@@ -517,12 +517,6 @@ export class ExtensionEditor extends BaseEditor {
 		super.clearInput();
 	}
 
-	focus(): void {
-		if (this.activeElement) {
-			this.activeElement.focus();
-		}
-	}
-
 	showFind(): void {
 		if (this.activeElement && (<Webview>this.activeElement).showFind) {
 			(<Webview>this.activeElement).showFind();
