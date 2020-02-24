@@ -1617,9 +1617,10 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	// --- on type rename
 
-	registerOnTypeRenameProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.OnTypeRenameProvider): vscode.Disposable {
+	registerOnTypeRenameProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.OnTypeRenameProvider, stopPattern?: RegExp): vscode.Disposable {
 		const handle = this._addNewAdapter(new OnTypeRenameAdapter(this._documents, provider), extension);
-		this._proxy.$registerOnTypeRenameProvider(handle, this._transformDocumentSelector(selector));
+		const serializedStopPattern = stopPattern ? ExtHostLanguageFeatures._serializeRegExp(stopPattern) : undefined;
+		this._proxy.$registerOnTypeRenameProvider(handle, this._transformDocumentSelector(selector), serializedStopPattern);
 		return this._createDisposable(handle);
 	}
 

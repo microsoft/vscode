@@ -44,12 +44,14 @@ suite('Synced regions', () => {
 
 	function testCase(
 		name: string,
-		initialState: { text: string | string[], ranges: Range[] },
+		initialState: { text: string | string[], ranges: Range[], stopPattern?: RegExp },
 		operations: (editor: TestCodeEditor, contrib: OnTypeRenameContribution) => Promise<void>,
 		expectedEndText: string | string[]
 	) {
 		test(name, async () => {
-			disposables.add(modes.OnTypeRenameProviderRegistry.register(mockFileSelector, new class implements modes.OnTypeRenameProvider {
+			disposables.add(modes.OnTypeRenameProviderRegistry.register(mockFileSelector, {
+				stopPattern: initialState.stopPattern || /^\s/,
+
 				provideOnTypeRenameRanges() {
 					return initialState.ranges;
 				}
@@ -277,6 +279,50 @@ suite('Synced regions', () => {
 		await ontypeRenameContribution.run(pos, true);
 		editor.trigger('keyboard', Handler.Paste, { text: ' i' });
 	}, '<oo io></ooo>');
+
+	/**
+	 * Break out with custom stopPattern
+	 */
+
+	const state3 = {
+		...state,
+		stopPattern: /^s/
+	};
+
+	testCase('Breakout with stop pattern - insert', state3, async (editor, ontypeRenameContribution) => {
+		const pos = new Position(1, 2);
+		editor.setPosition(pos);
+		await ontypeRenameContribution.run(pos, true);
+		editor.trigger('keyboard', Handler.Type, { text: 'i' });
+	}, '<iooo></iooo>');
+
+	testCase('Breakout with stop pattern - insert stop char', state3, async (editor, ontypeRenameContribution) => {
+		const pos = new Position(1, 2);
+		editor.setPosition(pos);
+		await ontypeRenameContribution.run(pos, true);
+		editor.trigger('keyboard', Handler.Type, { text: 's' });
+	}, '<sooo></ooo>');
+
+	testCase('Breakout with stop pattern - paste char', state3, async (editor, ontypeRenameContribution) => {
+		const pos = new Position(1, 2);
+		editor.setPosition(pos);
+		await ontypeRenameContribution.run(pos, true);
+		editor.trigger('keyboard', Handler.Paste, { text: 's' });
+	}, '<sooo></ooo>');
+
+	testCase('Breakout with stop pattern - paste string', state3, async (editor, ontypeRenameContribution) => {
+		const pos = new Position(1, 2);
+		editor.setPosition(pos);
+		await ontypeRenameContribution.run(pos, true);
+		editor.trigger('keyboard', Handler.Paste, { text: 'so' });
+	}, '<soooo></ooo>');
+
+	testCase('Breakout with stop pattern - insert at end', state3, async (editor, ontypeRenameContribution) => {
+		const pos = new Position(1, 5);
+		editor.setPosition(pos);
+		await ontypeRenameContribution.run(pos, true);
+		editor.trigger('keyboard', Handler.Type, { text: 's' });
+	}, '<ooos></ooo>');
 
 	/**
 	 * Delete

@@ -24,7 +24,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
 
 export const CONTEXT_ONTYPE_RENAME_INPUT_VISIBLE = new RawContextKey<boolean>('onTypeRenameInputVisible', false);
@@ -47,8 +47,12 @@ export class OnTypeRenameContribution extends Disposable implements IEditorContr
 
 	private readonly _visibleContextKey: IContextKey<boolean>;
 
-	private _currentRequest: CancelablePromise<IRange[] | null | undefined> | null;
+	private _currentRequest: CancelablePromise<{
+		ranges: IRange[],
+		stopPattern?: RegExp
+	} | null | undefined> | null;
 	private _currentDecorations: string[]; // The one at index 0 is the reference one
+	private _stopPattern: RegExp;
 	private _ignoreChangeEvent: boolean;
 	private _updateMirrors: RunOnceScheduler;
 
@@ -62,6 +66,7 @@ export class OnTypeRenameContribution extends Disposable implements IEditorContr
 		this._visibleContextKey = CONTEXT_ONTYPE_RENAME_INPUT_VISIBLE.bindTo(contextKeyService);
 		this._currentRequest = null;
 		this._currentDecorations = [];
+		this._stopPattern = /^\s/;
 		this._ignoreChangeEvent = false;
 		this._updateMirrors = this._register(new RunOnceScheduler(() => this._doUpdateMirrors(), 0));
 
@@ -119,6 +124,10 @@ export class OnTypeRenameContribution extends Disposable implements IEditorContr
 				return;
 			}
 			if (e.isUndoing || e.isRedoing) {
+				return;
+			}
+			if (e.changes[0] && this._stopPattern.test(e.changes[0].text)) {
+				this.stopAll();
 				return;
 			}
 			this._updateMirrors.schedule();
@@ -226,10 +235,14 @@ export class OnTypeRenameContribution extends Disposable implements IEditorContr
 
 		this._currentRequest = createCancelablePromise(token => getOnTypeRenameRanges(model, position, token));
 		try {
-			let ranges = await this._currentRequest;
+			const response = await this._currentRequest;
 
-			if (!ranges) {
-				ranges = [];
+			let ranges: IRange[] = [];
+			if (response?.ranges) {
+				ranges = response.ranges;
+			}
+			if (response?.stopPattern) {
+				this._stopPattern = response.stopPattern;
 			}
 
 			let foundReferenceRange = false;
@@ -319,20 +332,36 @@ registerEditorCommand(new OnTypeRenameCommand({
 }));
 
 
-export function getOnTypeRenameRanges(model: ITextModel, position: Position, token: CancellationToken): Promise<IRange[] | null | undefined> {
+export function getOnTypeRenameRanges(model: ITextModel, position: Position, token: CancellationToken): Promise<{
+	ranges: IRange[],
+	stopPattern?: RegExp
+} | undefined | null> {
 	const orderedByScore = OnTypeRenameProviderRegistry.ordered(model);
 
 	// in order of score ask the occurrences provider
 	// until someone response with a good result
 	// (good = none empty array)
-	return first<IRange[] | null | undefined>(orderedByScore.map(provider => () => {
-		return Promise.resolve(provider.provideOnTypeRenameRanges(model, position, token))
-			.then(undefined, (err) => {
+	return first<{
+		ranges: IRange[],
+		stopPattern?: RegExp
+	} | undefined>(orderedByScore.map(provider => () => {
+		return Promise.resolve(provider.provideOnTypeRenameRanges(model, position, token)).then((ranges) => {
+			if (!ranges) {
 				return undefined;
-				// onUnexpectedExternalError(err);
-			});
-	}), arrays.isNonEmptyArray);
+			}
+
+			return {
+				ranges,
+				stopPattern: provider.stopPattern
+			};
+		}, (err) => {
+			onUnexpectedExternalError(err);
+			return undefined;
+		});
+
+	}), result => !!result && arrays.isNonEmptyArray(result?.ranges));
 }
+
 
 registerModelAndPositionCommand('_executeRenameOnTypeProvider', (model, position) => getOnTypeRenameRanges(model, position, CancellationToken.None));
 

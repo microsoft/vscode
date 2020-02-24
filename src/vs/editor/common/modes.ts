@@ -790,9 +790,16 @@ export interface DocumentHighlightProvider {
 }
 
 /**
- * Returns the ranges that should be linked/modified on type together.
+ * The rename provider interface defines the contract between extensions and
+ * the live-rename feature.
  */
 export interface OnTypeRenameProvider {
+
+	stopPattern?: RegExp;
+
+	/**
+	 * Provide a list of ranges that can be live-renamed together.
+	 */
 	provideOnTypeRenameRanges(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<IRange[]>;
 }
 
