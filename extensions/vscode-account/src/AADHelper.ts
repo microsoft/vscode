@@ -295,8 +295,8 @@ export class AzureActiveDirectoryService {
 
 	private getCallbackEnvironment(callbackUri: vscode.Uri): string {
 		switch (callbackUri.authority) {
-			case 'online.visualstudio.com,':
-				return 'vso';
+			case 'online.visualstudio.com':
+				return 'vso,';
 			case 'online-ppe.core.vsengsaas.visualstudio.com':
 				return 'vsoppe,';
 			case 'online.dev.core.vsengsaas.visualstudio.com':
@@ -397,7 +397,7 @@ export class AzureActiveDirectoryService {
 		const claims = this.getTokenClaims(json.access_token);
 		return {
 			expiresIn: json.expires_in,
-			expiresAt: Date.now() + json.expires_in * 1000,
+			expiresAt: json.expires_in ? Date.now() + json.expires_in * 1000 : undefined,
 			accessToken: json.access_token,
 			refreshToken: json.refresh_token,
 			scope,
