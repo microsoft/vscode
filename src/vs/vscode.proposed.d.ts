@@ -1188,22 +1188,21 @@ declare module 'vscode' {
 	//#region Custom editors: https://github.com/microsoft/vscode/issues/77131
 
 	// TODO:
-	// - Naming!
 	// - Think about where a rename would live.
-	// - Think about handling go to line?
+	// - Think about handling go to line? (add other editor options? reveal?)
 	// - Should we expose edits?
 	// - More properties from `TextDocument`?
 
 	/**
 	 * Defines the capabilities of a custom webview editor.
 	 */
-	interface WebviewCustomEditorCapabilities {
+	interface CustomEditorCapabilities {
 		/**
 		 * Defines the editing capability of a custom webview document.
 		 *
 		 * When not provided, the document is considered readonly.
 		 */
-		readonly editing?: WebviewCustomEditorEditingCapability;
+		readonly editing?: CustomEditorEditingCapability;
 	}
 
 	/**
@@ -1212,7 +1211,7 @@ declare module 'vscode' {
 	 *
 	 * @param EditType Type of edits.
 	 */
-	interface WebviewCustomEditorEditingCapability<EditType = unknown> {
+	interface CustomEditorEditingCapability<EditType = unknown> {
 		/**
 		 * Save the resource.
 		 *
@@ -1286,7 +1285,7 @@ declare module 'vscode' {
 	 *
 	 * @param UserDataType Type of custom object that extensions can store on the document.
 	 */
-	interface WebviewEditorCustomDocument<UserDataType = unknown> {
+	interface CustomDocument<UserDataType = unknown> {
 		/**
 		 * The associated viewType for this document.
 		 */
@@ -1305,7 +1304,7 @@ declare module 'vscode' {
 		/**
 		 * Custom data that an extension can store on the document.
 		 */
-		readonly userData: UserDataType;
+		userData?: UserDataType;
 
 		// TODO: Should we expose edits here?
 		// This could be helpful for tracking the life cycle of edits
@@ -1320,13 +1319,13 @@ declare module 'vscode' {
 	 * You should use custom text based editors when dealing with binary files or more complex scenarios. For simple text
 	 * based documents, use [`WebviewTextEditorProvider`](#WebviewTextEditorProvider) instead.
 	 */
-	export interface WebviewCustomEditorProvider {
+	export interface CustomEditorProvider {
 		/**
 		 * Create the model for a given
 		 *
 		 * @param document Resource being resolved.
 		 */
-		provideWebviewCustomEditorDocument(resource: Uri): Thenable<WebviewEditorCustomDocument>;
+		resolveCustomDocument(document: CustomDocument): Thenable<CustomEditorCapabilities>;
 
 		/**
 		 * Resolve a webview editor for a given resource.
@@ -1339,7 +1338,7 @@ declare module 'vscode' {
 		 *
 		 * @return Thenable indicating that the webview editor has been resolved.
 		 */
-		resolveWebviewCustomEditor(document: WebviewEditorCustomDocument, webview: WebviewPanel): Thenable<void>;
+		resolveCustomEditor(document: CustomDocument, webview: WebviewPanel): Thenable<void>;
 	}
 
 	/**
@@ -1352,7 +1351,7 @@ declare module 'vscode' {
 	 * You should use text based webview editors when dealing with text based file formats, such as `xml` or `json`.
 	 * For binary files or more specialized use cases, see [WebviewCustomEditorProvider](#WebviewCustomEditorProvider).
 	 */
-	export interface WebviewTextEditorProvider {
+	export interface CustomTextEditorProvider {
 		/**
 		 * Resolve a webview editor for a given resource.
 		 *
@@ -1364,64 +1363,25 @@ declare module 'vscode' {
 		 *
 		 * @return Thenable indicating that the webview editor has been resolved.
 		 */
-		resolveWebviewTextEditor(document: TextDocument, webview: WebviewPanel): Thenable<void>;
+		resolveCustomTextEditor(document: TextDocument, webview: WebviewPanel): Thenable<void>;
 	}
 
 	namespace window {
 		/**
-		 * Register a new provider for text based webview editors.
-		 *
-		 * @param viewType Type of the webview editor provider. This should match the `viewType` from the
-		 *   `package.json` contributions
-		 * @param provider Provider that resolves webview editors.
-		 * @param webviewOptions Content settings for the webview panels that provider is given.
-		 *
-		 * @return Disposable that unregisters the `WebviewTextEditorProvider`.
-		 */
-		export function registerWebviewTextEditorProvider(
-			viewType: string,
-			provider: WebviewTextEditorProvider,
-			webviewOptions?: WebviewPanelOptions,
-		): Disposable;
-
-		/**
-		 * Register a new provider for custom webview editors.
+		 * Register a new provider for a custom editor.
 		 *
 		 * @param viewType Type of the webview editor provider. This should match the `viewType` from the
 		 *   `package.json` contributions.
-		 * @param provider Provider that resolves webview editors.
-		 * @param webviewOptions Content settings for the webview panels that provider is given.
+		 * @param provider Provider that resolves editors.
+		 * @param webviewOptions Content settings for the webview panels that the provider is given.
 		 *
-		 * @return Disposable that unregisters the `WebviewCustomEditorProvider`.
+		 * @return Disposable that unregisters the provider.
 		 */
-		export function registerWebviewCustomEditorProvider(
+		export function registerCustomEditorProvider(
 			viewType: string,
-			provider: WebviewCustomEditorProvider,
+			provider: CustomEditorProvider | CustomTextEditorProvider,
 			webviewOptions?: WebviewPanelOptions,
 		): Disposable;
-
-		/**
-		 * Create a new `WebviewEditorCustomDocument`.
-		 *
-		 * Note that this method only creates a custom document object. To have it be registered with VS Code, you
-		 * must return the document from `WebviewCustomEditorProvider.provideWebviewCustomEditorDocument`.
-		 *
-		 * @param viewType Type of the webview editor provider. This should match the `viewType` from the
-		 *   `package.json` contributions.
-		 * @param uri The document's resource.
-		 * @param userData Custom data attached to the document.
-		 * @param capabilities Controls the editing functionality of a webview editor. This allows the webview
-		 * editor to hook into standard editor events such as `undo` or `save`.
-		 *
-		 * WebviewEditors that do not have `editingCapability` are considered to be readonly. Users can still interact
-		 * with readonly editors, but these editors will not integrate with VS Code's standard editor functionality.
-		 */
-		export function createWebviewEditorCustomDocument<UserDataType>(
-			viewType: string,
-			uri: Uri,
-			userData: UserDataType,
-			capabilities: WebviewCustomEditorCapabilities
-		): WebviewEditorCustomDocument<UserDataType>;
 	}
 
 	//#endregion

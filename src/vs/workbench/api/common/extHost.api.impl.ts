@@ -561,17 +561,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerWebviewPanelSerializer: (viewType: string, serializer: vscode.WebviewPanelSerializer) => {
 				return extHostWebviews.registerWebviewPanelSerializer(extension, viewType, serializer);
 			},
-			registerWebviewTextEditorProvider: (viewType: string, provider: vscode.WebviewTextEditorProvider, options?: vscode.WebviewPanelOptions) => {
+			registerCustomEditorProvider: (viewType: string, provider: vscode.CustomEditorProvider | vscode.CustomTextEditorProvider, options?: vscode.WebviewPanelOptions) => {
 				checkProposedApiEnabled(extension);
-				return extHostWebviews.registerWebviewTextEditorProvider(extension, viewType, provider, options);
-			},
-			registerWebviewCustomEditorProvider: (viewType: string, provider: vscode.WebviewCustomEditorProvider, options?: vscode.WebviewPanelOptions) => {
-				checkProposedApiEnabled(extension);
-				return extHostWebviews.registerWebviewCustomEditorProvider(extension, viewType, provider, options);
-			},
-			createWebviewEditorCustomDocument: <UserDataType>(viewType: string, resource: vscode.Uri, userData: UserDataType, capabilities: vscode.WebviewCustomEditorCapabilities) => {
-				checkProposedApiEnabled(extension);
-				return extHostWebviews.createWebviewEditorCustomDocument<UserDataType>(viewType, resource, userData, capabilities);
+				return extHostWebviews.registerCustomEditorProvider(extension, viewType, provider, options);
 			},
 			registerDecorationProvider(provider: vscode.DecorationProvider) {
 				checkProposedApiEnabled(extension);
