@@ -642,14 +642,13 @@ export abstract class BaseCloseAllAction extends Action {
 			return;
 		}
 
-		let saveOrRevert: boolean;
 		if (confirm === ConfirmResult.DONT_SAVE) {
-			saveOrRevert = await this.editorService.revertAll({ soft: true, includeUntitled: true });
+			await this.editorService.revertAll({ soft: true, includeUntitled: true });
 		} else {
-			saveOrRevert = await this.editorService.saveAll({ reason: SaveReason.EXPLICIT, includeUntitled: true });
+			await this.editorService.saveAll({ reason: SaveReason.EXPLICIT, includeUntitled: true });
 		}
 
-		if (saveOrRevert) {
+		if (!this.workingCopyService.hasDirty) {
 			return this.doCloseAll();
 		}
 	}

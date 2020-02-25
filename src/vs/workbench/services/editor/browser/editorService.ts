@@ -1034,10 +1034,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				return true; // might have been disposed from from the revert already
 			}
 
-			if (!editor.isDirty() && !options?.force) {
-				return true; // skip over non-dirty editors unless we force to revert
-			}
-
 			// Use revert as a hint to pin the editor
 			this.editorGroupService.getGroup(groupId)?.pinEditor(editor);
 
