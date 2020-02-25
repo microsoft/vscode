@@ -111,9 +111,9 @@ export class CodeCell extends Disposable {
 
 					if (viewCell.outputs.length) {
 						let outputHeight = viewCell.getOutputTotalHeight();
-						notebookEditor.layoutNotebookCell(viewCell, e.contentHeight + 32 + outputHeight);
+						notebookEditor.layoutNotebookCell(viewCell, viewCell.editorHeight + 32 + outputHeight);
 					} else {
-						notebookEditor.layoutNotebookCell(viewCell, e.contentHeight + 32);
+						notebookEditor.layoutNotebookCell(viewCell, viewCell.editorHeight + 32);
 					}
 				}
 			}
@@ -171,8 +171,9 @@ export class CodeCell extends Disposable {
 			});
 
 			let editorHeight = templateData.editor!.getContentHeight();
+			viewCell.editorHeight = editorHeight;
 			let totalOutputHeight = viewCell.getOutputTotalHeight();
-			notebookEditor.layoutNotebookCell(viewCell, editorHeight + 32 + totalOutputHeight);
+			notebookEditor.layoutNotebookCell(viewCell, viewCell.editorHeight + 32 + totalOutputHeight);
 		}));
 
 		if (viewCell.outputs.length > 0) {
@@ -187,7 +188,8 @@ export class CodeCell extends Disposable {
 			}
 
 			let totalOutputHeight = viewCell.getOutputTotalHeight();
-			this.notebookEditor.layoutNotebookCell(viewCell, totalHeight + 32 + totalOutputHeight);
+			viewCell.editorHeight = totalHeight;
+			this.notebookEditor.layoutNotebookCell(viewCell, viewCell.editorHeight + 32 + totalOutputHeight);
 		} else {
 			// noop
 			this.templateData.outputContainer!.style.display = 'none';
@@ -352,9 +354,8 @@ export class CodeCell extends Disposable {
 
 			this.renderOutput(output, index, nextElement);
 
-			let editorHeight = this.viewCell.editorHeight;
 			let totalOutputHeight = this.viewCell.getOutputTotalHeight();
-			this.notebookEditor.layoutNotebookCell(this.viewCell, editorHeight + 32 + totalOutputHeight);
+			this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.editorHeight + 32 + totalOutputHeight);
 		}
 	}
 
