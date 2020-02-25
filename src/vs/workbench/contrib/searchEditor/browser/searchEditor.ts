@@ -297,6 +297,10 @@ export class SearchEditor extends BaseTextEditor {
 		this.toggleIncludesExcludes();
 	}
 
+	cleanState() {
+		this.getInput()?.setDirty(false);
+	}
+
 	private get searchConfig(): ISearchConfigurationProperties {
 		return this.configurationService.getValue<ISearchConfigurationProperties>('search');
 	}

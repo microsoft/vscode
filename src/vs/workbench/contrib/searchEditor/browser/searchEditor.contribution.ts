@@ -162,6 +162,15 @@ CommandsRegistry.registerCommand(
 			activeControl.triggerSearch({ resetCursor: false });
 		}
 	});
+
+CommandsRegistry.registerCommand(
+	SearchEditorConstants.CleanSearchEditorStateCommandId,
+	(accessor: ServicesAccessor) => {
+		const activeControl = accessor.get(IEditorService).activeControl;
+		if (activeControl instanceof SearchEditor) {
+			activeControl.cleanState();
+		}
+	});
 //#endregion
 
 //#region Actions
