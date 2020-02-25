@@ -89,7 +89,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		title: REOPEN_WITH_TITLE,
 		category: viewCategory,
 	},
-	group: '3_open',
+	group: '6_reopen',
 	order: 20,
 	when: CONTEXT_HAS_CUSTOM_EDITORS,
 });
