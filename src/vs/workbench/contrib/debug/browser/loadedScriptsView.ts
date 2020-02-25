@@ -39,6 +39,7 @@ import type { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTr
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 const NEW_STYLE_COMPRESS = true;
 
@@ -427,14 +428,16 @@ export class LoadedScriptsView extends ViewPane {
 		@ILabelService private readonly labelService: ILabelService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: nls.localize('loadedScriptsSection', "Loaded Scripts Section") }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService);
+		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: nls.localize('loadedScriptsSection', "Loaded Scripts Section") }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		this.loadedScriptsItemType = CONTEXT_LOADED_SCRIPTS_ITEM_TYPE.bindTo(contextKeyService);
 	}
 
 	renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
+		dom.addClass(this.element, 'debug-pane');
 		dom.addClass(container, 'debug-loaded-scripts');
 		dom.addClass(container, 'show-file-icons');
 
@@ -570,12 +573,6 @@ export class LoadedScriptsView extends ViewPane {
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible && this.treeNeedsRefreshOnVisible) {
 				this.changeScheduler.schedule();
-			}
-		}));
-
-		this._register(this.viewDescriptorService.onDidChangeLocation(({ views, from, to }) => {
-			if (views.some(v => v.id === this.id)) {
-				this.tree.updateOptions({ overrideStyles: { listBackground: this.getBackgroundColor() } });
 			}
 		}));
 

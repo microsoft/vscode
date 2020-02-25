@@ -314,8 +314,8 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 
 	private registerListeners(): void {
 		this._register(this.editorService.onDidActiveEditorChange(() => this.updateStatusBar()));
-		this._register(this.textFileService.untitled.onDidChangeEncoding(r => this.onResourceEncodingChange(r)));
-		this._register(this.textFileService.files.onDidChangeEncoding(m => this.onResourceEncodingChange((m.resource))));
+		this._register(this.textFileService.untitled.onDidChangeEncoding(model => this.onResourceEncodingChange(model.resource)));
+		this._register(this.textFileService.files.onDidChangeEncoding(model => this.onResourceEncodingChange((model.resource))));
 		this._register(TabFocus.onDidChangeTabFocus(e => this.onTabFocusModeChange()));
 	}
 
@@ -1224,7 +1224,9 @@ export class ChangeEOLAction extends Action {
 			const activeCodeEditor = getCodeEditor(this.editorService.activeTextEditorWidget);
 			if (activeCodeEditor?.hasModel() && !this.editorService.activeEditor?.isReadonly()) {
 				textModel = activeCodeEditor.getModel();
+				textModel.pushStackElement();
 				textModel.pushEOL(eol.eol);
+				textModel.pushStackElement();
 			}
 		}
 	}

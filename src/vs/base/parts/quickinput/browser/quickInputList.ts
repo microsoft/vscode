@@ -453,8 +453,7 @@ export class QuickInputList {
 		if ((what === 'Previous' || what === 'PreviousPage') && this.list.getFocus()[0] === 0) {
 			what = 'Last';
 		}
-
-		(this.list as any)['focus' + what]();
+		this.list['focus' + what as 'focusFirst' | 'focusLast' | 'focusNext' | 'focusPrevious' | 'focusNextPage' | 'focusPreviousPage']();
 		this.list.reveal(this.list.getFocus()[0]);
 	}
 

@@ -51,12 +51,14 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
-import { ReplDelegate, ReplVariablesRenderer, ReplSimpleElementsRenderer, ReplEvaluationInputsRenderer, ReplEvaluationResultsRenderer, ReplRawObjectsRenderer, ReplDataSource, ReplAccessibilityProvider } from 'vs/workbench/contrib/debug/browser/replViewer';
+import { ReplDelegate, ReplVariablesRenderer, ReplSimpleElementsRenderer, ReplEvaluationInputsRenderer, ReplEvaluationResultsRenderer, ReplRawObjectsRenderer, ReplDataSource, ReplAccessibilityProvider, ReplGroupRenderer } from 'vs/workbench/contrib/debug/browser/replViewer';
 import { localize } from 'vs/nls';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { ReplGroup } from 'vs/workbench/contrib/debug/common/replModel';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 const $ = dom.$;
 
@@ -99,7 +101,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		@IStorageService private readonly storageService: IStorageService,
 		@IThemeService themeService: IThemeService,
 		@IModelService private readonly modelService: IModelService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -109,8 +111,9 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		@IEditorService private readonly editorService: IEditorService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IOpenerService openerService: IOpenerService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super({ ...(options as IViewPaneOptions), id: REPL_VIEW_ID, ariaHeaderLabel: localize('debugConsole', "Debug Console") }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService);
+		super({ ...(options as IViewPaneOptions), id: REPL_VIEW_ID, ariaHeaderLabel: localize('debugConsole', "Debug Console") }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
 		this.history = new HistoryNavigator(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')), 50);
 		codeEditorService.registerDecorationType(DECORATION_KEY, {});
@@ -157,14 +160,16 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 									});
 								}
 
-								const history = this.history.getHistory();
-								history.forEach(h => suggestions.push({
-									label: h,
-									insertText: h,
-									kind: CompletionItemKind.Text,
-									range: computeRange(h.length),
-									sortText: 'ZZZ'
-								}));
+								if (this.configurationService.getValue<IDebugConfiguration>('debug').console.historySuggestions) {
+									const history = this.history.getHistory();
+									history.forEach(h => suggestions.push({
+										label: h,
+										insertText: h,
+										kind: CompletionItemKind.Text,
+										range: computeRange(h.length),
+										sortText: 'ZZZ'
+									}));
+								}
 
 								return { suggestions };
 							}
@@ -423,6 +428,16 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 			const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight;
 			await this.tree.updateChildren();
+
+			const session = this.tree.getInput();
+			if (session) {
+				const replElements = session.getReplElements();
+				const lastElement = replElements.length ? replElements[replElements.length - 1] : undefined;
+				if (lastElement instanceof ReplGroup && lastElement.autoExpand) {
+					await this.tree.expand(lastElement);
+				}
+			}
+
 			if (lastElementVisible) {
 				// Only scroll if we were scrolled all the way down before tree refreshed #10486
 				revealLastElement(this.tree);
@@ -452,6 +467,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 				this.instantiationService.createInstance(ReplVariablesRenderer, linkDetector),
 				this.instantiationService.createInstance(ReplSimpleElementsRenderer, linkDetector),
 				new ReplEvaluationInputsRenderer(),
+				new ReplGroupRenderer(),
 				new ReplEvaluationResultsRenderer(linkDetector),
 				new ReplRawObjectsRenderer(linkDetector),
 			],

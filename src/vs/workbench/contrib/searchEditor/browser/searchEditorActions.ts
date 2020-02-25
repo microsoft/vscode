@@ -54,6 +54,14 @@ export const toggleSearchEditorContextLinesCommand = (accessor: ServicesAccessor
 	}
 };
 
+export const selectAllSearchEditorMatchesCommand = (accessor: ServicesAccessor) => {
+	const editorService = accessor.get(IEditorService);
+	const input = editorService.activeEditor;
+	if (input instanceof SearchEditorInput) {
+		(editorService.activeControl as SearchEditor).focusAllResults();
+	}
+};
+
 
 export class OpenSearchEditorAction extends Action {
 
@@ -61,7 +69,6 @@ export class OpenSearchEditorAction extends Action {
 	static readonly LABEL = localize('search.openNewEditor', "Open New Search Editor");
 
 	constructor(id: string, label: string,
-		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super(id, label, 'codicon-new-file');
@@ -76,9 +83,7 @@ export class OpenSearchEditorAction extends Action {
 	}
 
 	async run() {
-		if (this.configurationService.getValue<ISearchConfigurationProperties>('search').enableSearchEditorPreview) {
-			await this.instantiationService.invokeFunction(openNewSearchEditor);
-		}
+		await this.instantiationService.invokeFunction(openNewSearchEditor);
 	}
 }
 
@@ -89,7 +94,6 @@ export class OpenResultsInEditorAction extends Action {
 
 	constructor(id: string, label: string,
 		@IViewsService private viewsService: IViewsService,
-		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super(id, label, 'codicon-go-to-file');
@@ -106,27 +110,8 @@ export class OpenResultsInEditorAction extends Action {
 
 	async run() {
 		const searchView = getSearchView(this.viewsService);
-		if (searchView && this.configurationService.getValue<ISearchConfigurationProperties>('search').enableSearchEditorPreview) {
+		if (searchView) {
 			await this.instantiationService.invokeFunction(createEditorFromSearchResult, searchView.searchResult, searchView.searchIncludePattern.getValue(), searchView.searchExcludePattern.getValue());
-		}
-	}
-}
-
-
-export class ReRunSearchEditorSearchAction extends Action {
-
-	static readonly ID = 'searchEditor.rerunSerach';
-	static readonly LABEL = localize('search.rerunSearch', "Rerun Search in Editor");
-
-	constructor(id: string, label: string,
-		@IEditorService private readonly editorService: IEditorService) {
-		super(id, label);
-	}
-
-	async run() {
-		const input = this.editorService.activeEditor;
-		if (input instanceof SearchEditorInput) {
-			await (this.editorService.activeControl as SearchEditor).runSearch(false, true);
 		}
 	}
 }
@@ -166,7 +151,7 @@ const openNewSearchEditor =
 		const editor = await editorService.openEditor(input, { pinned: true }) as SearchEditor;
 
 		if (selected && configurationService.getValue<ISearchConfigurationProperties>('search').searchOnType) {
-			editor.runSearch(true, true);
+			editor.triggerSearch();
 		}
 	};
 

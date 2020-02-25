@@ -8,7 +8,7 @@ import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker
 import { mock } from 'vs/editor/contrib/suggest/test/suggestModel.test';
 import { EditorWorkerHost, EditorWorkerServiceImpl } from 'vs/editor/common/services/editorWorkerServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { TextModel } from 'vs/editor/common/model/textModel';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { URI } from 'vs/base/common/uri';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -48,7 +48,7 @@ suite('suggest, word distance', function () {
 
 		disposables.clear();
 		let mode = new BracketMode();
-		let model = TextModel.createFromString('function abc(aa, ab){\na\n}', undefined, mode.getLanguageIdentifier(), URI.parse('test:///some.path'));
+		let model = createTextModel('function abc(aa, ab){\na\n}', undefined, mode.getLanguageIdentifier(), URI.parse('test:///some.path'));
 		let editor = createTestCodeEditor({ model: model });
 		editor.updateOptions({ suggest: { localityBonus: true } });
 		editor.setPosition({ lineNumber: 2, column: 2 });
@@ -105,8 +105,6 @@ suite('suggest, word distance', function () {
 	}
 
 	test('Suggest locality bonus can boost current word #90515', function () {
-		this.skip();
-
 		const pos = { lineNumber: 2, column: 2 };
 		const d1 = distance.distance(pos, createSuggestItem('a', 1, pos).completion);
 		const d2 = distance.distance(pos, createSuggestItem('aa', 1, pos).completion);

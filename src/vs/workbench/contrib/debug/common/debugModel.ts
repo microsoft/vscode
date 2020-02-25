@@ -6,7 +6,6 @@
 import * as nls from 'vs/nls';
 import { URI as uri } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
-import * as lifecycle from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { generateUuid } from 'vs/base/common/uuid';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -819,7 +818,6 @@ export class ThreadAndSessionIds implements ITreeElement {
 export class DebugModel implements IDebugModel {
 
 	private sessions: IDebugSession[];
-	private toDispose: lifecycle.IDisposable[];
 	private schedulers = new Map<string, RunOnceScheduler>();
 	private breakpointsActivated = true;
 	private readonly _onDidChangeBreakpoints = new Emitter<IBreakpointsChangeEvent | undefined>();
@@ -835,7 +833,6 @@ export class DebugModel implements IDebugModel {
 		private textFileService: ITextFileService
 	) {
 		this.sessions = [];
-		this.toDispose = [];
 	}
 
 	getId(): string {
@@ -1226,11 +1223,5 @@ export class DebugModel implements IDebugModel {
 			}
 		});
 		this._onDidChangeCallStack.fire(undefined);
-	}
-
-	dispose(): void {
-		// Make sure to shutdown each session, such that no debugged process is left laying around
-		this.sessions.forEach(s => s.shutdown());
-		this.toDispose = lifecycle.dispose(this.toDispose);
 	}
 }

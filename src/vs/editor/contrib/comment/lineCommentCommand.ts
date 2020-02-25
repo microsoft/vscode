@@ -205,7 +205,7 @@ export class LineCommentCommand implements ICommand {
 
 		for (let i = 0, len = ops.length; i < len; i++) {
 			builder.addEditOperation(ops[i].range, ops[i].text);
-			if (ops[i].range.isEmpty() && ops[i].range.getStartPosition().equals(cursorPosition)) {
+			if (Range.isEmpty(ops[i].range) && Range.getStartPosition(ops[i].range).equals(cursorPosition)) {
 				const lineContent = model.getLineContent(cursorPosition.lineNumber);
 				if (lineContent.length + 1 === cursorPosition.column) {
 					this._deltaColumn = (ops[i].text || '').length;

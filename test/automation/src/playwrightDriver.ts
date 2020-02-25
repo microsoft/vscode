@@ -141,10 +141,12 @@ export function connect(engine: 'chromium' | 'webkit' | 'firefox' = 'chromium'):
 	return new Promise(async (c) => {
 		const browser = await playwright[engine].launch({
 			// Run in Edge dev on macOS
-			// executablePath: '/Applications/Microsoft\ Edge\ Dev.app/Contents/MacOS/Microsoft\ Edge\ Dev'
+			// executablePath: '/Applications/Microsoft\ Edge\ Dev.app/Contents/MacOS/Microsoft\ Edge\ Dev',
+			headless: false
 		});
-		const page = (await browser.defaultContext().pages())[0];
-		await page.setViewport({ width, height });
+		const context = await browser.newContext();
+		const page = await context.newPage();
+		await page.setViewportSize({ width, height });
 		await page.goto(`${endpoint}&folder=vscode-remote://localhost:9888${URI.file(workspacePath!).path}`);
 		const result = {
 			client: { dispose: () => browser.close() && teardown() },

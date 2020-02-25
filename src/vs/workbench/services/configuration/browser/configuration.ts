@@ -86,7 +86,7 @@ class FileServiceBasedConfigurationWithNames extends Disposable {
 		this._cache = new ConfigurationModel();
 
 		this.changeEventTriggerScheduler = this._register(new RunOnceScheduler(() => this._onDidChange.fire(), 50));
-		this._register(this.fileService.onFileChanges((e) => this.handleFileEvents(e)));
+		this._register(this.fileService.onDidFilesChange((e) => this.handleFileEvents(e)));
 	}
 
 	async loadConfiguration(): Promise<ConfigurationModel> {
@@ -268,7 +268,7 @@ class FileServiceBasedRemoteUserConfiguration extends Disposable {
 		super();
 
 		this.parser = new ConfigurationModelParser(this.configurationResource.toString(), this.scopes);
-		this._register(fileService.onFileChanges(e => this.handleFileEvents(e)));
+		this._register(fileService.onDidFilesChange(e => this.handleFileEvents(e)));
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.reload().then(configurationModel => this._onDidChangeConfiguration.fire(configurationModel)), 50));
 		this._register(toDisposable(() => {
 			this.stopWatchingResource();
@@ -523,7 +523,7 @@ class FileServiceBasedWorkspaceConfiguration extends Disposable implements IWork
 		this.workspaceConfigurationModelParser = new WorkspaceConfigurationModelParser('');
 		this.workspaceSettings = new ConfigurationModel();
 
-		this._register(fileService.onFileChanges(e => this.handleWorkspaceFileEvents(e)));
+		this._register(fileService.onDidFilesChange(e => this.handleWorkspaceFileEvents(e)));
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this._onDidChange.fire(), 50));
 		this.workspaceConfigWatcher = this._register(this.watchWorkspaceConfigurationFile());
 	}

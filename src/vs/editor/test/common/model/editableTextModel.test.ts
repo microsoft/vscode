@@ -10,9 +10,10 @@ import { MirrorTextModel } from 'vs/editor/common/model/mirrorTextModel';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { assertSyncedModels, testApplyEditsWithSyncedModels } from 'vs/editor/test/common/model/editableTextModelTestUtils';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 function createEditableTextModelFromString(text: string): TextModel {
-	return new TextModel(text, TextModel.DEFAULT_CREATION_OPTIONS, null);
+	return createTextModel(text, TextModel.DEFAULT_CREATION_OPTIONS, null);
 }
 
 suite('EditorModel - EditableTextModel.applyEdits updates mightContainRTL', () => {

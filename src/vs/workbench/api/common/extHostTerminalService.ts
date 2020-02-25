@@ -13,6 +13,7 @@ import { ITerminalChildProcess, ITerminalDimensions, EXT_HOST_CREATION_DELAY } f
 import { timeout } from 'vs/base/common/async';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { TerminalDataBufferer } from 'vs/workbench/contrib/terminal/common/terminalDataBuffering';
+import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 
 export interface IExtHostTerminalService extends ExtHostTerminalServiceShape {
 
@@ -122,16 +123,16 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 		strictEnv?: boolean,
 		hideFromUser?: boolean
 	): Promise<void> {
-		const terminal = await this._proxy.$createTerminal({ name: this._name, shellPath, shellArgs, cwd, env, waitOnExit, strictEnv, hideFromUser });
-		this._name = terminal.name;
-		this._runQueuedRequests(terminal.id);
+		const result = await this._proxy.$createTerminal({ name: this._name, shellPath, shellArgs, cwd, env, waitOnExit, strictEnv, hideFromUser });
+		this._name = result.name;
+		this._runQueuedRequests(result.id);
 	}
 
 	public async createExtensionTerminal(): Promise<number> {
-		const terminal = await this._proxy.$createTerminal({ name: this._name, isExtensionTerminal: true });
-		this._name = terminal.name;
-		this._runQueuedRequests(terminal.id);
-		return terminal.id;
+		const result = await this._proxy.$createTerminal({ name: this._name, isExtensionTerminal: true });
+		this._name = result.name;
+		this._runQueuedRequests(result.id);
+		return result.id;
 	}
 
 	public get name(): string {
@@ -290,6 +291,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	protected _activeTerminal: ExtHostTerminal | undefined;
 	protected _terminals: ExtHostTerminal[] = [];
 	protected _terminalProcesses: { [id: number]: ITerminalChildProcess } = {};
+	protected _terminalProcessDisposables: { [id: number]: IDisposable } = {};
 	protected _extensionTerminalAwaitingStart: { [id: number]: { initialDimensions: ITerminalDimensionsDto | undefined } | undefined } = {};
 	protected _getTerminalPromises: { [id: number]: Promise<ExtHostTerminal> } = {};
 
@@ -332,7 +334,10 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	public createExtensionTerminal(options: vscode.ExtensionTerminalOptions): vscode.Terminal {
 		const terminal = new ExtHostTerminal(this._proxy, options, options.name);
 		const p = new ExtHostPseudoterminal(options.pty);
-		terminal.createExtensionTerminal().then(id => this._setupExtHostProcessListeners(id, p));
+		terminal.createExtensionTerminal().then(id => {
+			const disposable = this._setupExtHostProcessListeners(id, p);
+			this._terminalProcessDisposables[id] = disposable;
+		});
 		this._terminals.push(terminal);
 		return terminal;
 	}
@@ -343,7 +348,8 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 			throw new Error(`Cannot resolve terminal with id ${id} for virtual process`);
 		}
 		const p = new ExtHostPseudoterminal(pty);
-		this._setupExtHostProcessListeners(id, p);
+		const disposable = this._setupExtHostProcessListeners(id, p);
+		this._terminalProcessDisposables[id] = disposable;
 	}
 
 	public async $acceptActiveTerminalChanged(id: number | null): Promise<void> {
@@ -474,16 +480,18 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 
 	}
 
-	protected _setupExtHostProcessListeners(id: number, p: ITerminalChildProcess): void {
-		p.onProcessReady((e: { pid: number, cwd: string }) => this._proxy.$sendProcessReady(id, e.pid, e.cwd));
-		p.onProcessTitleChanged(title => this._proxy.$sendProcessTitle(id, title));
+	protected _setupExtHostProcessListeners(id: number, p: ITerminalChildProcess): IDisposable {
+		const disposables = new DisposableStore();
+
+		disposables.add(p.onProcessReady((e: { pid: number, cwd: string }) => this._proxy.$sendProcessReady(id, e.pid, e.cwd)));
+		disposables.add(p.onProcessTitleChanged(title => this._proxy.$sendProcessTitle(id, title)));
 
 		// Buffer data events to reduce the amount of messages going to the renderer
 		this._bufferer.startBuffering(id, p.onProcessData);
-		p.onProcessExit(exitCode => this._onProcessExit(id, exitCode));
+		disposables.add(p.onProcessExit(exitCode => this._onProcessExit(id, exitCode)));
 
 		if (p.onProcessOverrideDimensions) {
-			p.onProcessOverrideDimensions(e => this._proxy.$sendOverrideDimensions(id, e));
+			disposables.add(p.onProcessOverrideDimensions(e => this._proxy.$sendOverrideDimensions(id, e)));
 		}
 		this._terminalProcesses[id] = p;
 
@@ -492,6 +500,8 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 			p.startSendingEvents(awaitingStart.initialDimensions);
 			delete this._extensionTerminalAwaitingStart[id];
 		}
+
+		return disposables;
 	}
 
 	public $acceptProcessInput(id: number, data: string): void {
@@ -531,6 +541,13 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 		// Remove process reference
 		delete this._terminalProcesses[id];
 		delete this._extensionTerminalAwaitingStart[id];
+
+		// Clean up process disposables
+		const processDiposable = this._terminalProcessDisposables[id];
+		if (processDiposable) {
+			processDiposable.dispose();
+			delete this._terminalProcessDisposables[id];
+		}
 
 		// Send exit event to main side
 		this._proxy.$sendProcessExit(id, exitCode);

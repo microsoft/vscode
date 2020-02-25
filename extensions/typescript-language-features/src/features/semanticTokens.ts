@@ -35,12 +35,6 @@ class DocumentSemanticTokensProvider implements vscode.DocumentSemanticTokensPro
 	}
 
 	getLegend(): vscode.SemanticTokensLegend {
-		if (tokenTypes.length !== TokenType._) {
-			console.warn('typescript-vscode-sh-plugin has added new tokens types.');
-		}
-		if (tokenModifiers.length !== TokenModifier._) {
-			console.warn('typescript-vscode-sh-plugin has added new tokens modifiers.');
-		}
 		return new vscode.SemanticTokensLegend(tokenTypes, tokenModifiers);
 	}
 
@@ -146,6 +140,7 @@ tokenTypes[TokenType.typeParameter] = 'typeParameter';
 tokenTypes[TokenType.type] = 'type';
 tokenTypes[TokenType.parameter] = 'parameter';
 tokenTypes[TokenType.variable] = 'variable';
+tokenTypes[TokenType.enumMember] = 'enumMember';
 tokenTypes[TokenType.property] = 'property';
 tokenTypes[TokenType.function] = 'function';
 tokenTypes[TokenType.member] = 'member';
@@ -155,6 +150,15 @@ tokenModifiers[TokenModifier.async] = 'async';
 tokenModifiers[TokenModifier.declaration] = 'declaration';
 tokenModifiers[TokenModifier.readonly] = 'readonly';
 tokenModifiers[TokenModifier.static] = 'static';
+tokenModifiers[TokenModifier.local] = 'local';
+
+// make sure token types and modifiers are complete
+if (tokenTypes.filter(t => !!t).length !== TokenType._) {
+	console.warn('typescript-vscode-sh-plugin has added new tokens types.');
+}
+if (tokenModifiers.filter(t => !!t).length !== TokenModifier._) {
+	console.warn('typescript-vscode-sh-plugin has added new tokens modifiers.');
+}
 
 // mapping for the original ExperimentalProtocol.ClassificationType from TypeScript (only used when plugin is not available)
 const tokenTypeMap: number[] = [];

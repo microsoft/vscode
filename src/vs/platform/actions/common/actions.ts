@@ -11,8 +11,9 @@ import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/commo
 import { ICommandService, CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { UriDto } from 'vs/base/common/types';
 
 export interface ILocalizedString {
 	value: string;
@@ -28,9 +29,7 @@ export interface ICommandAction {
 	toggled?: ContextKeyExpr;
 }
 
-type Serialized<T> = { [K in keyof T]: T[K] extends URI ? UriComponents : Serialized<T[K]> };
-
-export type ISerializableCommandAction = Serialized<ICommandAction>;
+export type ISerializableCommandAction = UriDto<ICommandAction>;
 
 export interface IMenuItem {
 	command: ICommandAction;
@@ -114,7 +113,9 @@ export class MenuId {
 	static readonly CommentActions = new MenuId('CommentActions');
 	static readonly BulkEditTitle = new MenuId('BulkEditTitle');
 	static readonly BulkEditContext = new MenuId('BulkEditContext');
-
+	static readonly TimelineItemContext = new MenuId('TimelineItemContext');
+	static readonly TimelineTitle = new MenuId('TimelineTitle');
+	static readonly TimelineTitleContext = new MenuId('TimelineTitleContext');
 
 	readonly id: number;
 	readonly _debugName: string;

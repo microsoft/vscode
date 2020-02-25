@@ -236,6 +236,9 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		// Register all containers that were registered before this ctor
 		this.viewContainersRegistry.all.forEach(viewContainer => this.onDidRegisterViewContainer(viewContainer));
 
+		// Try generating all generated containers that don't need extensions
+		this.tryGenerateContainers();
+
 		this._register(this.viewsRegistry.onViewsRegistered(({ views, viewContainer }) => this.onDidRegisterViews(views, viewContainer)));
 		this._register(this.viewsRegistry.onViewsDeregistered(({ views, viewContainer }) => this.onDidDeregisterViews(views, viewContainer)));
 
@@ -318,7 +321,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		}
 	}
 
-	private onDidRegisterExtensions(): void {
+	private tryGenerateContainers(fallbackToDefault?: boolean): void {
 		for (const [viewId, containerInfo] of this.cachedViewInfo.entries()) {
 			const containerId = containerInfo.containerId;
 
@@ -337,20 +340,28 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 				}
 			}
 
-			// check if view has been registered to default location
-			const viewContainer = this.viewsRegistry.getViewContainer(viewId);
-			const viewDescriptor = this.getViewDescriptor(viewId);
-			if (viewContainer && viewDescriptor) {
-				this.addViews(viewContainer, [viewDescriptor]);
+			if (fallbackToDefault) {
+				// check if view has been registered to default location
+				const viewContainer = this.viewsRegistry.getViewContainer(viewId);
+				const viewDescriptor = this.getViewDescriptor(viewId);
+				if (viewContainer && viewDescriptor) {
+					this.addViews(viewContainer, [viewDescriptor]);
 
-				const newLocation = this.getViewContainerLocation(viewContainer);
-				if (containerInfo.location && containerInfo.location !== newLocation) {
-					this._onDidChangeLocation.fire({ views: [viewDescriptor], from: containerInfo.location, to: newLocation });
+					const newLocation = this.getViewContainerLocation(viewContainer);
+					if (containerInfo.location && containerInfo.location !== newLocation) {
+						this._onDidChangeLocation.fire({ views: [viewDescriptor], from: containerInfo.location, to: newLocation });
+					}
 				}
 			}
 		}
 
-		this.saveViewPositionsToCache();
+		if (fallbackToDefault) {
+			this.saveViewPositionsToCache();
+		}
+	}
+
+	private onDidRegisterExtensions(): void {
+		this.tryGenerateContainers(true);
 	}
 
 	private onDidRegisterViews(views: IViewDescriptor[], viewContainer: ViewContainer): void {
@@ -537,6 +548,22 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 				}
 			}
 
+			// If a value is not present in the cache, it must be reset to default
+			this.viewContainersRegistry.all.forEach(viewContainer => {
+				const viewDescriptorCollection = this.getViewDescriptors(viewContainer);
+				viewDescriptorCollection.allViewDescriptors.forEach(viewDescriptor => {
+					if (!newCachedPositions.has(viewDescriptor.id)) {
+						const currentContainer = this.getViewContainer(viewDescriptor.id);
+						const defaultContainer = this.getDefaultContainer(viewDescriptor.id);
+						if (currentContainer && defaultContainer && currentContainer !== defaultContainer) {
+							this.moveViews([viewDescriptor], currentContainer, defaultContainer);
+						}
+
+						this.cachedViewInfo.delete(viewDescriptor.id);
+					}
+				});
+			});
+
 			this.cachedViewInfo = this.getCachedViewPositions();
 		}
 	}
@@ -570,6 +597,16 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 				});
 			});
 		});
+
+		// Do no save default positions to the cache
+		// so that default changes can be recognized
+		// https://github.com/microsoft/vscode/issues/90414
+		for (const [viewId, containerInfo] of this.cachedViewInfo) {
+			const defaultContainer = this.getDefaultContainer(viewId);
+			if (defaultContainer?.id === containerInfo.containerId) {
+				this.cachedViewInfo.delete(viewId);
+			}
+		}
 
 		this.cachedViewPositionsValue = JSON.stringify([...this.cachedViewInfo]);
 	}

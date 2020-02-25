@@ -58,7 +58,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 		this.editorMemento = this.getEditorMemento<IEditorViewState>(editorGroupService, BaseTextEditor.TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY, 100);
 
 		this._register(this.textResourceConfigurationService.onDidChangeConfiguration(e => {
-			const resource = this.getResource();
+			const resource = this.getActiveResource();
 			const value = resource ? this.textResourceConfigurationService.getValue<IEditorConfiguration>(resource) : undefined;
 
 			return this.handleConfigurationChangeEvent(value);
@@ -130,7 +130,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 
 		// Editor for Text
 		this.editorContainer = parent;
-		this.editorControl = this._register(this.createEditorControl(parent, this.computeConfiguration(this.textResourceConfigurationService.getValue<IEditorConfiguration>(this.getResource()))));
+		this.editorControl = this._register(this.createEditorControl(parent, this.computeConfiguration(this.textResourceConfigurationService.getValue<IEditorConfiguration>(this.getActiveResource()))));
 
 		// Model & Language changes
 		const codeEditor = getCodeEditor(this.editorControl);
@@ -204,9 +204,6 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 		return this.editorControl;
 	}
 
-	/**
-	 * Saves the text editor view state for the given resource.
-	 */
 	protected saveTextEditorViewState(resource: URI): void {
 		const editorViewState = this.retrieveTextEditorViewState(resource);
 		if (!editorViewState || !this.group) {
@@ -217,7 +214,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 	}
 
 	getViewState(): IEditorViewState | undefined {
-		const resource = this.input?.getResource();
+		const resource = this.input?.resource;
 		if (resource) {
 			return withNullAsUndefined(this.retrieveTextEditorViewState(resource));
 		}
@@ -248,25 +245,23 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 		return control.saveViewState();
 	}
 
-	/**
-	 * Clears the text editor view state for the given resources.
-	 */
+	protected loadTextEditorViewState(resource: URI): IEditorViewState | undefined {
+		return this.group ? this.editorMemento.loadEditorState(this.group, resource) : undefined;
+	}
+
+	protected moveTextEditorViewState(source: URI, target: URI): void {
+		return this.editorMemento.moveEditorState(source, target);
+	}
+
 	protected clearTextEditorViewState(resources: URI[], group?: IEditorGroup): void {
 		resources.forEach(resource => {
 			this.editorMemento.clearEditorState(resource, group);
 		});
 	}
 
-	/**
-	 * Loads the text editor view state for the given resource and returns it.
-	 */
-	protected loadTextEditorViewState(resource: URI): IEditorViewState | undefined {
-		return this.group ? this.editorMemento.loadEditorState(this.group, resource) : undefined;
-	}
-
 	private updateEditorConfiguration(configuration?: IEditorConfiguration): void {
 		if (!configuration) {
-			const resource = this.getResource();
+			const resource = this.getActiveResource();
 			if (resource) {
 				configuration = this.textResourceConfigurationService.getValue<IEditorConfiguration>(resource);
 			}
@@ -292,7 +287,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 		}
 	}
 
-	private getResource(): URI | undefined {
+	private getActiveResource(): URI | undefined {
 		const codeEditor = getCodeEditor(this.editorControl);
 		if (codeEditor) {
 			const model = codeEditor.getModel();
@@ -302,7 +297,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 		}
 
 		if (this.input) {
-			return this.input.getResource();
+			return this.input.resource;
 		}
 
 		return undefined;

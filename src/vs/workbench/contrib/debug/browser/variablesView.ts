@@ -33,6 +33,7 @@ import { dispose } from 'vs/base/common/lifecycle';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 const $ = dom.$;
 let forgetScopes = true;
@@ -58,8 +59,9 @@ export class VariablesView extends ViewPane {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: nls.localize('variablesSection', "Variables Section") }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService);
+		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: nls.localize('variablesSection', "Variables Section") }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
 		// Use scheduler to prevent unnecessary flashing
 		this.onFocusStackFrameScheduler = new RunOnceScheduler(async () => {
@@ -90,6 +92,7 @@ export class VariablesView extends ViewPane {
 	renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
+		dom.addClass(this.element, 'debug-pane');
 		dom.addClass(container, 'debug-variables');
 		const treeContainer = renderViewTree(container);
 
@@ -141,11 +144,6 @@ export class VariablesView extends ViewPane {
 		this._register(this.debugService.getViewModel().onDidSelectExpression(e => {
 			if (e instanceof Variable) {
 				this.tree.rerender(e);
-			}
-		}));
-		this._register(this.viewDescriptorService.onDidChangeLocation(({ views, from, to }) => {
-			if (views.some(v => v.id === this.id)) {
-				this.tree.updateOptions({ overrideStyles: { listBackground: this.getBackgroundColor() } });
 			}
 		}));
 	}

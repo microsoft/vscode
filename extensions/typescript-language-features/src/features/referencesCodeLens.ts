@@ -99,6 +99,14 @@ export class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLens
 			case PConst.Kind.memberSetAccessor:
 			case PConst.Kind.constructorImplementation:
 			case PConst.Kind.memberVariable:
+				// Don't show if child and parent have same start
+				// For https://github.com/microsoft/vscode/issues/90396
+				if (parent &&
+					typeConverters.Position.fromLocation(parent.spans[0].start).isEqual(typeConverters.Position.fromLocation(item.spans[0].start))
+				) {
+					return null;
+				}
+
 				// Only show if parent is a class type object (not a literal)
 				switch (parent?.kind) {
 					case PConst.Kind.class:

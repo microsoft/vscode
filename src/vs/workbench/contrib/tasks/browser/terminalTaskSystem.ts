@@ -438,6 +438,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.DependsOnStarted, task));
 						promise = this.executeTask(dependencyTask, resolver, trigger, alreadyResolved);
 					}
+					promises.push(promise);
 					if (task.configurationProperties.dependsOrder === DependsOrder.sequence) {
 						const promiseResult = await promise;
 						if (promiseResult.exitCode === 0) {

@@ -57,13 +57,13 @@ import {
 	TaskSorter, TaskIdentifier, KeyedTaskIdentifier, TASK_RUNNING_STATE, TaskRunSource,
 	KeyedTaskIdentifier as NKeyedTaskIdentifier, TaskDefinition
 } from 'vs/workbench/contrib/tasks/common/tasks';
-import { ITaskService, ITaskProvider, ProblemMatcherRunOptions, CustomizationProperties, TaskFilter, WorkspaceFolderTaskResult } from 'vs/workbench/contrib/tasks/common/taskService';
+import { ITaskService, ITaskProvider, ProblemMatcherRunOptions, CustomizationProperties, TaskFilter, WorkspaceFolderTaskResult, USER_TASKS_GROUP_KEY } from 'vs/workbench/contrib/tasks/common/taskService';
 import { getTemplates as getTaskTemplates } from 'vs/workbench/contrib/tasks/common/taskTemplates';
 
 import * as TaskConfig from '../common/taskConfiguration';
 import { TerminalTaskSystem } from './terminalTaskSystem';
 
-import { IQuickInputService, IQuickPickItem, QuickPickInput, IQuickPick } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 
 import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -80,14 +80,11 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { find } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IViewsService } from 'vs/workbench/common/views';
-import { ProviderProgressMananger } from 'vs/workbench/contrib/tasks/browser/providerProgressManager';
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
 const QUICKOPEN_DETAIL_CONFIG = 'task.quickOpen.detail';
 const PROBLEM_MATCHER_NEVER_CONFIG = 'task.problemMatchers.neverPrompt';
 const QUICKOPEN_SKIP_CONFIG = 'task.quickOpen.skip';
-
-const SETTINGS_GROUP_KEY = 'settings';
 
 export namespace ConfigureTaskAction {
 	export const ID = 'workbench.action.tasks.configureTaskRunner';
@@ -221,7 +218,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private _providers: Map<number, ITaskProvider>;
 	private _providerTypes: Map<number, string>;
 	protected _taskSystemInfos: Map<string, TaskSystemInfo>;
-	private _providerProgressManager: ProviderProgressMananger | undefined;
 
 	protected _workspaceTasksPromise?: Promise<Map<string, WorkspaceFolderTaskResult>>;
 	protected _areJsonTasksSupportedPromise: Promise<boolean> = Promise.resolve(false);
@@ -553,7 +549,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 		return this.getGroupedTasks().then((map) => {
 			let values = map.get(folder);
-			values = values.concat(map.get(SETTINGS_GROUP_KEY));
+			values = values.concat(map.get(USER_TASKS_GROUP_KEY));
 
 			if (!values) {
 				return undefined;
@@ -1171,8 +1167,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 		});
 		let resolver: ITaskResolver = {
-			resolve: (uri: URI, alias: string) => {
-				let data = resolverData.get(uri.toString());
+			resolve: (uri: URI | string, alias: string) => {
+				let data = resolverData.get(typeof uri === 'string' ? uri : uri.toString());
 				if (!data) {
 					return undefined;
 				}
@@ -1238,8 +1234,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		});
 
 		return {
-			resolve: (uri: URI, identifier: string | TaskIdentifier | undefined) => {
-				let data = uri ? resolverData.get(uri.toString()) : undefined;
+			resolve: (uri: URI | string, identifier: string | TaskIdentifier | undefined) => {
+				let data = resolverData.get(typeof uri === 'string' ? uri : uri.toString());
 				if (!data || !identifier) {
 					return undefined;
 				}
@@ -1349,24 +1345,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	protected abstract getTaskSystem(): ITaskSystem;
 
-	private async provideTasksWithWarning(provider: ITaskProvider, type: string, validTypes: IStringDictionary<boolean>): Promise<TaskSet | undefined> {
+	private async provideTasksWithWarning(provider: ITaskProvider, type: string, validTypes: IStringDictionary<boolean>): Promise<TaskSet> {
 		return new Promise<TaskSet>(async (resolve, reject) => {
-			let isDone = false;
-			let disposable: IDisposable | undefined;
-			const providePromise = provider.provideTasks(validTypes);
-			this._providerProgressManager?.addProvider(type, providePromise);
-			disposable = this._providerProgressManager?.canceled.token.onCancellationRequested(() => {
-				if (!isDone) {
-					resolve();
-				}
-			});
-			providePromise.then((value) => {
-				isDone = true;
-				disposable?.dispose();
+			provider.provideTasks(validTypes).then((value) => {
 				resolve(value);
 			}, (e) => {
-				isDone = true;
-				disposable?.dispose();
 				reject(e);
 			});
 		});
@@ -1378,11 +1361,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			TaskDefinitionRegistry.all().forEach(definition => validTypes[definition.taskType] = true);
 			validTypes['shell'] = true;
 			validTypes['process'] = true;
-			this._providerProgressManager = new ProviderProgressMananger();
 			return new Promise<TaskSet[]>(resolve => {
 				let result: TaskSet[] = [];
 				let counter: number = 0;
-				let done = (value: TaskSet | undefined) => {
+				let done = (value: TaskSet) => {
 					if (value) {
 						result.push(value);
 					}
@@ -1600,7 +1582,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				}
 				const userTasks = await this.computeUserTasks(this.workspaceFolders[0], runSource).then((value) => value, () => undefined);
 				if (userTasks) {
-					result.set(SETTINGS_GROUP_KEY, userTasks);
+					result.set(USER_TASKS_GROUP_KEY, userTasks);
 				}
 				const workspaceFileTasks = await this.computeWorkspaceFileTasks(this.workspaceFolders[0], runSource).then((value) => value, () => undefined);
 				if (workspaceFileTasks && this._workspace && this._workspace.configuration) {
@@ -2078,69 +2060,30 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 			return entries;
 		});
-
-		const picker: IQuickPick<TaskQuickPickEntry> = this.quickInputService.createQuickPick();
-		picker.placeholder = placeHolder;
-		picker.matchOnDescription = true;
-		picker.ignoreFocusOut = true;
-
-		picker.onDidTriggerItemButton(context => {
-			let task = context.item.task;
-			this.quickInputService.cancel();
-			if (ContributedTask.is(task)) {
-				this.customize(task, undefined, true);
-			} else if (CustomTask.is(task)) {
-				this.openConfig(task);
-			}
-		});
-		picker.busy = true;
-		const progressManager = this._providerProgressManager;
-		const progressTimeout = setTimeout(() => {
-			if (progressManager) {
-				progressManager.showProgress = (stillProviding, total) => {
-					let message = undefined;
-					if (stillProviding.length > 0) {
-						message = nls.localize('pickProgressManager.description', 'Detecting tasks ({0} of {1}): {2} in progress', total - stillProviding.length, total, stillProviding.join(', '));
-					}
-					picker.description = message;
-				};
-				progressManager.addOnDoneListener(() => {
-					picker.focusOnInput();
-					picker.customButton = false;
-				});
-				if (!progressManager.isDone) {
-					picker.customLabel = nls.localize('taskQuickPick.cancel', "Stop detecting");
-					picker.onDidCustom(() => {
-						this._providerProgressManager?.cancel();
-					});
-					picker.customButton = true;
+		return this.quickInputService.pick(pickEntries, {
+			placeHolder,
+			matchOnDescription: true,
+			onDidTriggerItemButton: context => {
+				let task = context.item.task;
+				this.quickInputService.cancel();
+				if (ContributedTask.is(task)) {
+					this.customize(task, undefined, true);
+				} else if (CustomTask.is(task)) {
+					this.openConfig(task);
 				}
 			}
-		}, 1000);
-		pickEntries.then(entries => {
-			clearTimeout(progressTimeout);
-			progressManager?.dispose();
-			picker.busy = false;
-			picker.items = entries;
-		});
-		picker.show();
-
-		return new Promise<TaskQuickPickEntry | undefined | null>(resolve => {
-			this._register(picker.onDidAccept(async () => {
-				let selection = picker.selectedItems ? picker.selectedItems[0] : undefined;
-				if (cancellationToken.isCancellationRequested) {
-					// canceled when there's only one task
-					const task = (await pickEntries)[0];
-					if ((<any>task).task) {
-						selection = <TaskQuickPickEntry>task;
-					}
+		}, cancellationToken).then(async (selection) => {
+			if (cancellationToken.isCancellationRequested) {
+				// canceled when there's only one task
+				const task = (await pickEntries)[0];
+				if ((<any>task).task) {
+					selection = <TaskQuickPickEntry>task;
 				}
-				picker.dispose();
-				if (!selection) {
-					resolve();
-				}
-				resolve(selection);
-			}));
+			}
+			if (!selection) {
+				return;
+			}
+			return selection;
 		});
 	}
 
@@ -2173,9 +2116,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (identifier !== undefined) {
 			this.getGroupedTasks().then((grouped) => {
 				let resolver = this.createResolver(grouped);
-				let folders = this.contextService.getWorkspace().folders;
+				let folders: (IWorkspaceFolder | string)[] = this.contextService.getWorkspace().folders;
+				folders = folders.concat([USER_TASKS_GROUP_KEY]);
 				for (let folder of folders) {
-					let task = resolver.resolve(folder.uri, identifier);
+					let task = resolver.resolve(typeof folder === 'string' ? folder : folder.uri, identifier);
 					if (task) {
 						this.run(task).then(undefined, reason => {
 							// eat the error, it has already been surfaced to the user and we don't care about it here

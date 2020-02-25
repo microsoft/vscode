@@ -876,9 +876,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Debug:
-
-	// deprecated
+	//#region deprecated debug API
 
 	export interface DebugConfigurationProvider {
 		/**
@@ -1189,65 +1187,77 @@ declare module 'vscode' {
 
 	//#region Custom editors: https://github.com/microsoft/vscode/issues/77131
 
+	// TODO:
+	// - Naming!
+	// - Think about where a rename would live.
+	// - Think about handling go to line?
+	// - Should we expose edits?
+	// - More properties from `TextDocument`?
+
 	/**
-	 * Defines the editing functionality of a webview editor. This allows the webview editor to hook into standard
+	 * Defines the capabilities of a custom webview editor.
+	 */
+	interface WebviewCustomEditorCapabilities {
+		/**
+		 * Defines the editing capability of a custom webview document.
+		 *
+		 * When not provided, the document is considered readonly.
+		 */
+		readonly editing?: WebviewCustomEditorEditingCapability;
+	}
+
+	/**
+	 * Defines the editing capability of a custom webview editor. This allows the webview editor to hook into standard
 	 * editor events such as `undo` or `save`.
 	 *
 	 * @param EditType Type of edits.
 	 */
-	interface WebviewCustomEditorEditingDelegate<EditType> {
+	interface WebviewCustomEditorEditingCapability<EditType = unknown> {
 		/**
-		 * Save a resource.
-		 *
-		 * @param resource Resource being saved.
+		 * Save the resource.
 		 *
 		 * @return Thenable signaling that the save has completed.
 		 */
-		save(resource: Uri): Thenable<void>;
+		save(): Thenable<void>;
 
 		/**
-		 * Save an existing resource at a new path.
+		 * Save the existing resource at a new path.
 		 *
-		 * @param resource Resource being saved.
 		 * @param targetResource Location to save to.
 		 *
 		 * @return Thenable signaling that the save has completed.
 		 */
-		saveAs(resource: Uri, targetResource: Uri): Thenable<void>;
+		saveAs(targetResource: Uri): Thenable<void>;
 
 		/**
 		 * Event triggered by extensions to signal to VS Code that an edit has occurred.
 		 */
-		// TODO@matt
-		// eslint-disable-next-line vscode-dts-event-naming
-		readonly onEdit: Event<{ readonly resource: Uri, readonly edit: EditType }>;
+		readonly onDidEdit: Event<EditType>;
 
 		/**
 		 * Apply a set of edits.
 		 *
-		 * Note that is not invoked when `onEdit` is called as `onEdit` implies also updating the view to reflect the edit.
+		 * Note that is not invoked when `onDidEdit` is called because `onDidEdit` implies also updating the view to reflect the edit.
 		 *
-		 * @param resource Resource being edited.
 		 * @param edit Array of edits. Sorted from oldest to most recent.
 		 *
 		 * @return Thenable signaling that the change has completed.
 		 */
-		applyEdits(resource: Uri, edits: readonly EditType[]): Thenable<void>;
+		applyEdits(edits: readonly EditType[]): Thenable<void>;
 
 		/**
 		 * Undo a set of edits.
 		 *
 		 * This is triggered when a user undoes an edit or when revert is called on a file.
 		 *
-		 * @param resource Resource being edited.
 		 * @param edit Array of edits. Sorted from most recent to oldest.
 		 *
 		 * @return Thenable signaling that the change has completed.
 		 */
-		undoEdits(resource: Uri, edits: readonly EditType[]): Thenable<void>;
+		undoEdits(edits: readonly EditType[]): Thenable<void>;
 
 		/**
-		 * Back up `resource` in its current state.
+		 * Back up the resource in its current state.
 		 *
 		 * Backups are used for hot exit and to prevent data loss. Your `backup` method should persist the resource in
 		 * its current state, i.e. with the edits applied. Most commonly this means saving the resource to disk in
@@ -1259,57 +1269,159 @@ declare module 'vscode' {
 		 * made in quick succession, `backup` is only triggered after the last one. `backup` is not invoked when
 		 * `auto save` is enabled (since auto save already persists resource ).
 		 *
-		 * @param resource The resource to back up.
 		 * @param cancellation Token that signals the current backup since a new backup is coming in. It is up to your
 		 * extension to decided how to respond to cancellation. If for example your extension is backing up a large file
 		 * in an operation that takes time to complete, your extension may decide to finish the ongoing backup rather
 		 * than cancelling it to ensure that VS Code has some valid backup.
 		 */
-		backup?(resource: Uri, cancellation: CancellationToken): Thenable<boolean>;
+		backup(cancellation: CancellationToken): Thenable<boolean>;
 	}
 
+	/**
+	 * Represents a custom document for a custom webview editor.
+	 *
+	 * Custom documents are only used within a given `WebviewCustomEditorProvider`. The lifecycle of a
+	 * `WebviewEditorCustomDocument` is managed by VS Code. When more more references remain to a given `WebviewEditorCustomDocument`
+	 * then it is disposed of.
+	 *
+	 * @param UserDataType Type of custom object that extensions can store on the document.
+	 */
+	interface WebviewEditorCustomDocument<UserDataType = unknown> {
+		/**
+		 * The associated viewType for this document.
+		 */
+		readonly viewType: string;
+
+		/**
+		 * The associated uri for this document.
+		 */
+		readonly uri: Uri;
+
+		/**
+		 * Event fired when there are no more references to the `WebviewEditorCustomDocument`.
+		 */
+		readonly onDidDispose: Event<void>;
+
+		/**
+		 * Custom data that an extension can store on the document.
+		 */
+		readonly userData: UserDataType;
+
+		// TODO: Should we expose edits here?
+		// This could be helpful for tracking the life cycle of edits
+	}
+
+	/**
+	 * Provider for webview editors that use a custom data model.
+	 *
+	 * Custom webview editors use [`WebviewEditorCustomDocument`](#WebviewEditorCustomDocument) as their data model.
+	 * This gives extensions full control over actions such as edit, save, and backup.
+	 *
+	 * You should use custom text based editors when dealing with binary files or more complex scenarios. For simple text
+	 * based documents, use [`WebviewTextEditorProvider`](#WebviewTextEditorProvider) instead.
+	 */
 	export interface WebviewCustomEditorProvider {
+		/**
+		 * Create the model for a given
+		 *
+		 * @param document Resource being resolved.
+		 */
+		provideWebviewCustomEditorDocument(resource: Uri): Thenable<WebviewEditorCustomDocument>;
+
 		/**
 		 * Resolve a webview editor for a given resource.
 		 *
 		 * To resolve a webview editor, a provider must fill in its initial html content and hook up all
 		 * the event listeners it is interested it. The provider should also take ownership of the passed in `WebviewPanel`.
 		 *
-		 * @param resource Resource being resolved.
+		 * @param document Document for resource being resolved.
 		 * @param webview Webview being resolved. The provider should take ownership of this webview.
 		 *
 		 * @return Thenable indicating that the webview editor has been resolved.
 		 */
-		resolveWebviewEditor(
-			resource: Uri,
-			webview: WebviewPanel,
-		): Thenable<void>;
+		resolveWebviewCustomEditor(document: WebviewEditorCustomDocument, webview: WebviewPanel): Thenable<void>;
+	}
 
+	/**
+	 * Provider for text based webview editors.
+	 *
+	 * Text based webview editors use a [`TextDocument`](#TextDocument) as their data model. This considerably simplifies
+	 * implementing a webview editor as it allows VS Code to handle many common operations such as
+	 * undo and backup. The provider is responsible for synchronizing text changes between the webview and the `TextDocument`.
+	 *
+	 * You should use text based webview editors when dealing with text based file formats, such as `xml` or `json`.
+	 * For binary files or more specialized use cases, see [WebviewCustomEditorProvider](#WebviewCustomEditorProvider).
+	 */
+	export interface WebviewTextEditorProvider {
 		/**
-		 * Controls the editing functionality of a webview editor. This allows the webview editor to hook into standard
-		 * editor events such as `undo` or `save`.
+		 * Resolve a webview editor for a given resource.
 		 *
-		 * WebviewEditors that do not have `editingCapability` are considered to be readonly. Users can still interact
-		 * with readonly editors, but these editors will not integrate with VS Code's standard editor functionality.
+		 * To resolve a webview editor, the provider must fill in its initial html content and hook up all
+		 * the event listeners it is interested it. The provider should also take ownership of the passed in `WebviewPanel`.
+		 *
+		 * @param document Resource being resolved.
+		 * @param webview Webview being resolved. The provider should take ownership of this webview.
+		 *
+		 * @return Thenable indicating that the webview editor has been resolved.
 		 */
-		readonly editingDelegate?: WebviewCustomEditorEditingDelegate<unknown>;
+		resolveWebviewTextEditor(document: TextDocument, webview: WebviewPanel): Thenable<void>;
 	}
 
 	namespace window {
 		/**
-		 * Register a new provider for webview editors of a given type.
+		 * Register a new provider for text based webview editors.
 		 *
-		 * @param viewType  Type of the webview editor provider.
-		 * @param provider Resolves webview editors.
-		 * @param options Content settings for a webview panels the provider is given.
+		 * @param viewType Type of the webview editor provider. This should match the `viewType` from the
+		 *   `package.json` contributions
+		 * @param provider Provider that resolves webview editors.
+		 * @param webviewOptions Content settings for the webview panels that provider is given.
+		 *
+		 * @return Disposable that unregisters the `WebviewTextEditorProvider`.
+		 */
+		export function registerWebviewTextEditorProvider(
+			viewType: string,
+			provider: WebviewTextEditorProvider,
+			webviewOptions?: WebviewPanelOptions,
+		): Disposable;
+
+		/**
+		 * Register a new provider for custom webview editors.
+		 *
+		 * @param viewType Type of the webview editor provider. This should match the `viewType` from the
+		 *   `package.json` contributions.
+		 * @param provider Provider that resolves webview editors.
+		 * @param webviewOptions Content settings for the webview panels that provider is given.
 		 *
 		 * @return Disposable that unregisters the `WebviewCustomEditorProvider`.
 		 */
 		export function registerWebviewCustomEditorProvider(
 			viewType: string,
 			provider: WebviewCustomEditorProvider,
-			options?: WebviewPanelOptions,
+			webviewOptions?: WebviewPanelOptions,
 		): Disposable;
+
+		/**
+		 * Create a new `WebviewEditorCustomDocument`.
+		 *
+		 * Note that this method only creates a custom document object. To have it be registered with VS Code, you
+		 * must return the document from `WebviewCustomEditorProvider.provideWebviewCustomEditorDocument`.
+		 *
+		 * @param viewType Type of the webview editor provider. This should match the `viewType` from the
+		 *   `package.json` contributions.
+		 * @param uri The document's resource.
+		 * @param userData Custom data attached to the document.
+		 * @param capabilities Controls the editing functionality of a webview editor. This allows the webview
+		 * editor to hook into standard editor events such as `undo` or `save`.
+		 *
+		 * WebviewEditors that do not have `editingCapability` are considered to be readonly. Users can still interact
+		 * with readonly editors, but these editors will not integrate with VS Code's standard editor functionality.
+		 */
+		export function createWebviewEditorCustomDocument<UserDataType>(
+			viewType: string,
+			uri: Uri,
+			userData: UserDataType,
+			capabilities: WebviewCustomEditorCapabilities
+		): WebviewEditorCustomDocument<UserDataType>;
 	}
 
 	//#endregion
@@ -1410,49 +1522,6 @@ declare module 'vscode' {
 	//#endregion
 
 
-	//#region https://github.com/microsoft/vscode/issues/77728
-
-	/**
-	 * Additional data for entries of a workspace edit. Supports to label entries and marks entries
-	 * as needing confirmation by the user. The editor groups edits with equal labels into tree nodes,
-	 * for instance all edits labelled with "Changes in Strings" would be a tree node.
-	 */
-	export interface WorkspaceEditMetadata {
-
-		/**
-		 * A flag which indicates that user confirmation is needed.
-		 */
-		needsConfirmation: boolean;
-
-		/**
-		 * A human-readable string which is rendered prominent.
-		 */
-		label: string;
-
-		/**
-		 * A human-readable string which is rendered less prominent in the same line.
-		 */
-		description?: string;
-
-		/**
-		 * The icon path or [ThemeIcon](#ThemeIcon) for the edit.
-		 */
-		iconPath?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
-	}
-
-	export interface WorkspaceEdit {
-
-		insert(uri: Uri, position: Position, newText: string, metadata?: WorkspaceEditMetadata): void;
-		delete(uri: Uri, range: Range, metadata?: WorkspaceEditMetadata): void;
-		replace(uri: Uri, range: Range, newText: string, metadata?: WorkspaceEditMetadata): void;
-
-		createFile(uri: Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }, metadata?: WorkspaceEditMetadata): void;
-		deleteFile(uri: Uri, options?: { recursive?: boolean, ignoreIfNotExists?: boolean }, metadata?: WorkspaceEditMetadata): void;
-		renameFile(oldUri: Uri, newUri: Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }, metadata?: WorkspaceEditMetadata): void;
-	}
-
-	//#endregion
-
 	//#region Diagnostic links https://github.com/microsoft/vscode/issues/11847
 
 	export interface Diagnostic {
@@ -1489,12 +1558,9 @@ declare module 'vscode' {
 		label: string;
 
 		/**
-		 * Optional id for the timeline item.
-		 */
-		/**
-		 * Optional id for the timeline item that has to be unique across your timeline source.
+		 * Optional id for the timeline item. It must be unique across all the timeline items provided by this source.
 		 *
-		 * If not provided, an id is generated using the timeline item's label.
+		 * If not provided, an id is generated using the timeline item's timestamp.
 		 */
 		id?: string;
 
@@ -1551,6 +1617,50 @@ declare module 'vscode' {
 		 * If the [uri](#Uri) is `undefined` that signals that the timeline source for all resources changed.
 		 */
 		uri?: Uri;
+
+		/**
+		 * A flag which indicates whether the entire timeline should be reset.
+		 */
+		reset?: boolean;
+	}
+
+	export interface Timeline {
+		readonly paging?: {
+			/**
+			 * A set of provider-defined cursors specifing the range of timeline items returned.
+			 */
+			readonly cursors: {
+				readonly before: string;
+				readonly after?: string
+			};
+
+			/**
+			 * A flag which indicates whether there are more items that weren't returned.
+			 */
+			readonly more?: boolean;
+		}
+
+		/**
+		 * An array of [timeline items](#TimelineItem).
+		 */
+		readonly items: readonly TimelineItem[];
+	}
+
+	export interface TimelineOptions {
+		/**
+		 * A provider-defined cursor specifing the range of timeline items that should be returned.
+		 */
+		cursor?: string;
+
+		/**
+		 * A flag to specify whether the timeline items being requested should be before or after (default) the provided cursor.
+		 */
+		before?: boolean;
+
+		/**
+		 * The maximum number or the ending cursor of timeline items that should be returned.
+		 */
+		limit?: number | string;
 	}
 
 	export interface TimelineProvider {
@@ -1563,22 +1673,23 @@ declare module 'vscode' {
 		/**
 		 * An identifier of the source of the timeline items. This can be used to filter sources.
 		 */
-		id: string;
+		readonly id: string;
 
 		/**
 		 * A human-readable string describing the source of the timeline items. This can be used as the display label when filtering sources.
 		 */
-		label: string;
+		readonly label: string;
 
 		/**
 		 * Provide [timeline items](#TimelineItem) for a [Uri](#Uri).
 		 *
 		 * @param uri The [uri](#Uri) of the file to provide the timeline for.
+		 * @param options A set of options to determine how results should be returned.
 		 * @param token A cancellation token.
-		 * @return An array of timeline items or a thenable that resolves to such. The lack of a result
+		 * @return The [timeline result](#TimelineResult) or a thenable that resolves to such. The lack of a result
 		 * can be signaled by returning `undefined`, `null`, or an empty array.
 		 */
-		provideTimeline(uri: Uri, token: CancellationToken): ProviderResult<TimelineItem[]>;
+		provideTimeline(uri: Uri, options: TimelineOptions, token: CancellationToken): ProviderResult<Timeline>;
 	}
 
 	export namespace workspace {
@@ -1638,6 +1749,35 @@ declare module 'vscode' {
 		 * - Any code actions of `kind` are returned by the provider.
 		 */
 		readonly documentation?: ReadonlyArray<{ readonly kind: CodeActionKind, readonly command: Command }>;
+	}
+
+	//#endregion
+
+	//#region Dialog title: https://github.com/microsoft/vscode/issues/82871
+
+	/**
+	 * Options to configure the behaviour of a file open dialog.
+	 *
+	 * * Note 1: A dialog can select files, folders, or both. This is not true for Windows
+	 * which enforces to open either files or folder, but *not both*.
+	 * * Note 2: Explicitly setting `canSelectFiles` and `canSelectFolders` to `false` is futile
+	 * and the editor then silently adjusts the options to select files.
+	 */
+	export interface OpenDialogOptions {
+		/**
+		 * Dialog title
+		 */
+		title?: string;
+	}
+
+	/**
+	 * Options to configure the behaviour of a file save dialog.
+	 */
+	export interface SaveDialogOptions {
+		/**
+		 * Dialog title
+		 */
+		title?: string;
 	}
 
 	//#endregion

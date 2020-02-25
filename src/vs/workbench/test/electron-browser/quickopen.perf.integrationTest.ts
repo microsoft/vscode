@@ -33,6 +33,12 @@ import { TestEnvironmentService } from 'vs/workbench/test/electron-browser/workb
 import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { NullLogService } from 'vs/platform/log/common/log';
+import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
+import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
+import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 namespace Timer {
 	export interface ITimerEvent {
@@ -72,11 +78,17 @@ suite.skip('QuickOpen performance (integration)', () => {
 		const telemetryService = new TestTelemetryService();
 		const configurationService = new TestConfigurationService();
 		const textResourcePropertiesService = new TestTextResourcePropertiesService(configurationService);
+		const dialogService = new TestDialogService();
+		const notificationService = new TestNotificationService();
+		const undoRedoService = new UndoRedoService(dialogService, notificationService);
 		const instantiationService = new InstantiationService(new ServiceCollection(
 			[ITelemetryService, telemetryService],
 			[IConfigurationService, configurationService],
 			[ITextResourcePropertiesService, textResourcePropertiesService],
-			[IModelService, new ModelServiceImpl(configurationService, textResourcePropertiesService, new TestThemeService(), new NullLogService())],
+			[IDialogService, dialogService],
+			[INotificationService, notificationService],
+			[IUndoRedoService, undoRedoService],
+			[IModelService, new ModelServiceImpl(configurationService, textResourcePropertiesService, new TestThemeService(), new NullLogService(), undoRedoService)],
 			[IWorkspaceContextService, new TestContextService(testWorkspace(URI.file(testWorkspacePath)))],
 			[IEditorService, new TestEditorService()],
 			[IEditorGroupsService, new TestEditorGroupsService()],

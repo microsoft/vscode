@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/openeditors';
 import * as nls from 'vs/nls';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IAction, ActionRunner, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
@@ -42,7 +43,6 @@ import { URI } from 'vs/base/common/uri';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { isWeb } from 'vs/base/common/platform';
 import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -76,9 +76,9 @@ export class OpenEditorsView extends ViewPane {
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ITelemetryService telemetryService: ITelemetryService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
@@ -87,7 +87,7 @@ export class OpenEditorsView extends ViewPane {
 		super({
 			...(options as IViewPaneOptions),
 			ariaHeaderLabel: nls.localize({ key: 'openEditosrSection', comment: ['Open is an adjective'] }, "Open Editors Section"),
-		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService);
+		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
 		this.structuralRefreshDelay = 0;
 		this.listRefreshScheduler = new RunOnceScheduler(() => {
@@ -206,7 +206,7 @@ export class OpenEditorsView extends ViewPane {
 	renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
-		dom.addClass(container, 'explorer-open-editors');
+		dom.addClass(container, 'open-editors');
 		dom.addClass(container, 'show-file-icons');
 
 		const delegate = new OpenEditorsDelegate();
@@ -225,7 +225,7 @@ export class OpenEditorsView extends ViewPane {
 			identityProvider: { getId: (element: OpenEditor | IEditorGroup) => element instanceof OpenEditor ? element.getId() : element.id.toString() },
 			dnd: new OpenEditorsDragAndDrop(this.instantiationService, this.editorGroupService),
 			overrideStyles: {
-				listBackground: SIDE_BAR_BACKGROUND
+				listBackground: this.getBackgroundColor()
 			}
 		});
 		this._register(this.list);
@@ -380,7 +380,7 @@ export class OpenEditorsView extends ViewPane {
 
 		const element = e.element;
 		const actions: IAction[] = [];
-		const actionsDisposable = createAndFillInContextMenuActions(this.contributedContextMenu, { shouldForwardArgs: true, arg: element instanceof OpenEditor ? element.editor.getResource() : {} }, actions, this.contextMenuService);
+		const actionsDisposable = createAndFillInContextMenuActions(this.contributedContextMenu, { shouldForwardArgs: true, arg: element instanceof OpenEditor ? element.editor.resource : {} }, actions, this.contextMenuService);
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,

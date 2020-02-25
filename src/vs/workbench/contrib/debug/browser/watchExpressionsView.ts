@@ -33,6 +33,7 @@ import { dispose } from 'vs/base/common/lifecycle';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
 let ignoreVariableSetEmitter = false;
@@ -55,8 +56,9 @@ export class WatchExpressionsView extends ViewPane {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: nls.localize('watchExpressionsSection', "Watch Expressions Section") }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService);
+		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: nls.localize('watchExpressionsSection', "Watch Expressions Section") }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
 		this.onWatchExpressionsUpdatedScheduler = new RunOnceScheduler(() => {
 			this.needsRefresh = false;
@@ -67,6 +69,7 @@ export class WatchExpressionsView extends ViewPane {
 	renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
+		dom.addClass(this.element, 'debug-pane');
 		dom.addClass(container, 'debug-watch');
 		const treeContainer = renderViewTree(container);
 
@@ -136,11 +139,6 @@ export class WatchExpressionsView extends ViewPane {
 		this._register(this.debugService.getViewModel().onDidSelectExpression(e => {
 			if (e instanceof Expression && e.name) {
 				this.tree.rerender(e);
-			}
-		}));
-		this._register(this.viewDescriptorService.onDidChangeLocation(({ views, from, to }) => {
-			if (views.some(v => v.id === this.id)) {
-				this.tree.updateOptions({ overrideStyles: { listBackground: this.getBackgroundColor() } });
 			}
 		}));
 	}

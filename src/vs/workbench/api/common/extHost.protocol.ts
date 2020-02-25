@@ -49,7 +49,10 @@ import { SaveReason } from 'vs/workbench/common/editor';
 import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import { TunnelOptions } from 'vs/platform/remote/common/tunnel';
-import { TimelineItem, TimelineProviderDescriptor, TimelineChangeEvent, TimelineItemWithSource } from 'vs/workbench/contrib/timeline/common/timeline';
+import { Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor } from 'vs/workbench/contrib/timeline/common/timeline';
+import { revive } from 'vs/base/common/marshalling';
+import { CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
+import { Dto } from 'vs/base/common/types';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -173,12 +176,14 @@ export interface MainThreadDialogOpenOptions {
 	canSelectFolders?: boolean;
 	canSelectMany?: boolean;
 	filters?: { [name: string]: string[]; };
+	title?: string;
 }
 
 export interface MainThreadDialogSaveOptions {
 	defaultUri?: UriComponents;
 	saveLabel?: string;
 	filters?: { [name: string]: string[]; };
+	title?: string;
 }
 
 export interface MainThreadDiaglogsShape extends IDisposable {
@@ -353,9 +358,10 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerImplementationSupport(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerTypeDefinitionSupport(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerHoverProvider(handle: number, selector: IDocumentFilterDto[]): void;
+	$registerEvaluatableExpressionProvider(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerDocumentHighlightProvider(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerReferenceSupport(handle: number, selector: IDocumentFilterDto[]): void;
-	$registerQuickFixSupport(handle: number, selector: IDocumentFilterDto[], metadata: ICodeActionProviderMetadataDto): void;
+	$registerQuickFixSupport(handle: number, selector: IDocumentFilterDto[], metadata: ICodeActionProviderMetadataDto, displayName: string): void;
 	$registerDocumentFormattingSupport(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, displayName: string): void;
 	$registerRangeFormattingSupport(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, displayName: string): void;
 	$registerOnTypeFormattingSupport(handle: number, selector: IDocumentFilterDto[], autoFormatTriggerCharacters: string[], extensionId: ExtensionIdentifier): void;
@@ -566,11 +572,6 @@ export interface WebviewExtensionDescription {
 	readonly location: UriComponents;
 }
 
-export enum WebviewEditorCapabilities {
-	Editable,
-	SupportsHotExit,
-}
-
 export interface MainThreadWebviewsShape extends IDisposable {
 	$createWebviewPanel(extension: WebviewExtensionDescription, handle: WebviewPanelHandle, viewType: string, title: string, showOptions: WebviewPanelShowOptions, options: modes.IWebviewPanelOptions & modes.IWebviewOptions): void;
 	$disposeWebview(handle: WebviewPanelHandle): void;
@@ -586,10 +587,11 @@ export interface MainThreadWebviewsShape extends IDisposable {
 	$registerSerializer(viewType: string): void;
 	$unregisterSerializer(viewType: string): void;
 
-	$registerEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: modes.IWebviewPanelOptions, capabilities: readonly WebviewEditorCapabilities[]): void;
+	$registerTextEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: modes.IWebviewPanelOptions): void;
+	$registerCustomEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: modes.IWebviewPanelOptions): void;
 	$unregisterEditorProvider(viewType: string): void;
 
-	$onEdit(resource: UriComponents, viewType: string, editId: number): void;
+	$onDidChangeCustomDocumentState(resource: UriComponents, viewType: string, state: { dirty: boolean }): void;
 }
 
 export interface WebviewPanelViewStateData {
@@ -607,12 +609,14 @@ export interface ExtHostWebviewsShape {
 	$onDidDisposeWebviewPanel(handle: WebviewPanelHandle): Promise<void>;
 
 	$deserializeWebviewPanel(newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, state: any, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions): Promise<void>;
+
 	$resolveWebviewEditor(resource: UriComponents, newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions): Promise<void>;
+	$createWebviewCustomEditorDocument(resource: UriComponents, viewType: string): Promise<{ editable: boolean }>;
+	$disposeWebviewCustomEditorDocument(resource: UriComponents, viewType: string): Promise<void>;
 
-	$undoEdits(resource: UriComponents, viewType: string, editIds: readonly number[]): void;
-	$applyEdits(resource: UriComponents, viewType: string, editIds: readonly number[]): void;
-	$disposeEdits(editIds: readonly number[]): void;
-
+	$undo(resource: UriComponents, viewType: string): void;
+	$redo(resource: UriComponents, viewType: string): void;
+	$revert(resource: UriComponents, viewType: string): void;
 	$onSave(resource: UriComponents, viewType: string): Promise<void>;
 	$onSaveAs(resource: UriComponents, viewType: string, targetResource: UriComponents): Promise<void>;
 
@@ -802,8 +806,6 @@ export interface MainThreadTimelineShape extends IDisposable {
 	$registerTimelineProvider(provider: TimelineProviderDescriptor): void;
 	$unregisterTimelineProvider(source: string): void;
 	$emitTimelineChangeEvent(e: TimelineChangeEvent): void;
-
-	$getTimeline(uri: UriComponents, token: CancellationToken): Promise<TimelineItem[]>;
 }
 
 // -- extension host
@@ -1094,18 +1096,25 @@ export interface IWorkspaceSymbolsDto extends IdObject {
 	symbols: IWorkspaceSymbolDto[];
 }
 
+export interface IWorkspaceEditEntryMetadataDto {
+	needsConfirmation: boolean;
+	label: string;
+	description?: string;
+	iconPath?: { id: string } | UriComponents | { light: UriComponents, dark: UriComponents };
+}
+
 export interface IWorkspaceFileEditDto {
 	oldUri?: UriComponents;
 	newUri?: UriComponents;
 	options?: modes.WorkspaceFileEditOptions
-	metadata?: modes.WorkspaceEditMetadata;
+	metadata?: IWorkspaceEditEntryMetadataDto;
 }
 
 export interface IWorkspaceTextEditDto {
 	resource: UriComponents;
 	edit: modes.TextEdit;
 	modelVersionId?: number;
-	metadata?: modes.WorkspaceEditMetadata;
+	metadata?: IWorkspaceEditEntryMetadataDto;
 }
 
 export interface IWorkspaceEditDto {
@@ -1123,6 +1132,9 @@ export function reviveWorkspaceEditDto(data: IWorkspaceEditDto | undefined): mod
 			} else {
 				(<IWorkspaceFileEditDto>edit).newUri = URI.revive((<IWorkspaceFileEditDto>edit).newUri);
 				(<IWorkspaceFileEditDto>edit).oldUri = URI.revive((<IWorkspaceFileEditDto>edit).oldUri);
+			}
+			if (edit.metadata && edit.metadata.iconPath) {
+				edit.metadata = revive(edit.metadata);
 			}
 		}
 	}
@@ -1177,16 +1189,7 @@ export interface ICodeLensDto {
 	command?: ICommandDto;
 }
 
-export interface ICallHierarchyItemDto {
-	_sessionId: string;
-	_itemId: string;
-	kind: modes.SymbolKind;
-	name: string;
-	detail?: string;
-	uri: UriComponents;
-	range: IRange;
-	selectionRange: IRange;
-}
+export type ICallHierarchyItemDto = Dto<CallHierarchyItem>;
 
 export interface IIncomingCallDto {
 	from: ICallHierarchyItemDto;
@@ -1196,6 +1199,12 @@ export interface IIncomingCallDto {
 export interface IOutgoingCallDto {
 	fromRanges: IRange[];
 	to: ICallHierarchyItemDto;
+}
+
+export interface ILanguageWordDefinitionDto {
+	languageId: string;
+	regexSource: string;
+	regexFlags: string
 }
 
 export interface ExtHostLanguageFeaturesShape {
@@ -1208,6 +1217,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideImplementation(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<IDefinitionLinkDto[]>;
 	$provideTypeDefinition(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<IDefinitionLinkDto[]>;
 	$provideHover(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.Hover | undefined>;
+	$provideEvaluatableExpression(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.EvaluatableExpression | undefined>;
 	$provideDocumentHighlights(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.DocumentHighlight[] | undefined>;
 	$provideReferences(handle: number, resource: UriComponents, position: IPosition, context: modes.ReferenceContext, token: CancellationToken): Promise<ILocationDto[] | undefined>;
 	$provideCodeActions(handle: number, resource: UriComponents, rangeOrSelection: IRange | ISelection, context: modes.CodeActionContext, token: CancellationToken): Promise<ICodeActionListDto | undefined>;
@@ -1239,6 +1249,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideCallHierarchyIncomingCalls(handle: number, sessionId: string, itemId: string, token: CancellationToken): Promise<IIncomingCallDto[] | undefined>;
 	$provideCallHierarchyOutgoingCalls(handle: number, sessionId: string, itemId: string, token: CancellationToken): Promise<IOutgoingCallDto[] | undefined>;
 	$releaseCallHierarchy(handle: number, sessionId: string): void;
+	$setWordDefinitions(wordDefinitions: ILanguageWordDefinitionDto[]): void;
 }
 
 export interface ExtHostQuickOpenShape {
@@ -1457,7 +1468,7 @@ export interface ExtHostTunnelServiceShape {
 }
 
 export interface ExtHostTimelineShape {
-	$getTimeline(source: string, uri: UriComponents, token: CancellationToken): Promise<TimelineItemWithSource[]>;
+	$getTimeline(source: string, uri: UriComponents, options: TimelineOptions, token: CancellationToken, internalOptions?: { cacheResults?: boolean }): Promise<Timeline | undefined>;
 }
 
 // --- proxy identifiers
