@@ -211,9 +211,12 @@ export const serializeSearchResultForEditor =
 			? contentPatternToSearchResultHeader(searchResult.query, rawIncludePattern, rawExcludePattern, contextLines)
 			: [];
 
+		const filecount = searchResult.fileCount() > 1 ? localize('numFiles', "{0} files", searchResult.fileCount()) : localize('oneFile', "1 file");
+		const resultcount = searchResult.count() > 1 ? localize('numResults', "{0} results", searchResult.count()) : localize('oneResult', "1 result");
+
 		const info = [
 			searchResult.count()
-				? localize('resultCount', "{0} results in {1} files", searchResult.count(), searchResult.fileCount())
+				? `${filecount} - ${resultcount}`
 				: localize('noResults', "No Results"),
 			''];
 
