@@ -254,7 +254,7 @@ class WebviewEditorCustomDocument extends Disposable implements vscode.CustomDoc
 
 	public userData: unknown;
 
-	public _capabilities?: vscode.CustomEditorCapabilities;
+	public _capabilities?: vscode.CustomEditorCapabilities = undefined;
 
 	constructor(
 		private readonly _proxy: MainThreadWebviewsShape,

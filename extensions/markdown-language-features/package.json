@@ -309,7 +309,7 @@
 		"markdown.previewScripts": [
 			"./media/index.js"
 		],
-		"webviewEditors": [
+		"customEditors": [
 			{
 				"viewType": "vscode.markdown.preview.editor",
 				"displayName": "(Experimental) VS Code Markdown Preview",
