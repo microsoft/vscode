@@ -1205,6 +1205,7 @@ export class SettingTreeRenderers {
 			new Separator(),
 			this._instantiationService.createInstance(CopySettingIdAction),
 			this._instantiationService.createInstance(CopySettingAsJSONAction),
+			new Separator(),
 		];
 
 		const actionFactory = (setting: ISetting) => this.getActionsForSetting(setting);
