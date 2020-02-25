@@ -1522,28 +1522,6 @@ declare module 'vscode' {
 	//#endregion
 
 
-	//#region Diagnostic links https://github.com/microsoft/vscode/issues/11847
-
-	export interface Diagnostic {
-		/**
-		 * Will be merged into `Diagnostic#code`
-		 */
-		code2?: {
-			/**
-			 * A code or identifier for this diagnostic.
-			 * Should be used for later processing, e.g. when providing [code actions](#CodeActionContext).
-			 */
-			value: string | number;
-
-			/**
-			 * A target URI to open with more information about the diagnostic error.
-			 */
-			target: Uri;
-		}
-	}
-
-	//#endregion
-
 	//#region eamodio - timeline: https://github.com/microsoft/vscode/issues/84297
 
 	export class TimelineItem {
