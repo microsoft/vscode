@@ -7,6 +7,7 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IRelativePattern } from 'vs/base/common/glob';
+import { PieceTreeTextBufferFactory } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 
 export const NOTEBOOK_DISPLAY_ORDER = [
 	'application/json',
@@ -103,6 +104,7 @@ export interface ICell {
 	outputs: IOutput[];
 	onDidChangeOutputs?: Event<NotebookCellOutputsSplice[]>;
 	isDirty: boolean;
+	resolveTextBufferFactory(): PieceTreeTextBufferFactory;
 }
 
 /**

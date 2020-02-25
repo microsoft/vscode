@@ -34,6 +34,7 @@ class RichRenderer implements IOutputTransformContribution {
 		this._richMimeTypeRenderers.set('image/png', this.renderPNG.bind(this));
 		this._richMimeTypeRenderers.set('image/jpeg', this.renderJavaScript.bind(this));
 		this._richMimeTypeRenderers.set('text/plain', this.renderPlainText.bind(this));
+		this._richMimeTypeRenderers.set('text/x-javascript', this.renderCode.bind(this));
 	}
 
 	render(output: any, container: HTMLElement, preferredMimeType: string | undefined): IRenderOutput {
@@ -73,7 +74,7 @@ class RichRenderer implements IOutputTransformContribution {
 		let str = JSON.stringify(data, null, '\t');
 
 		const editor = this.instantiationService.createInstance(CodeEditorWidget, container, {
-			...getJSONSimpleEditorOptions(),
+			...getOutputSimpleEditorOptions(),
 			dimension: {
 				width: 0,
 				height: 0
@@ -84,6 +85,41 @@ class RichRenderer implements IOutputTransformContribution {
 
 		let mode = this.modeService.create('json');
 		let resource = URI.parse(`notebook-output-${Date.now()}.json`);
+		const textModel = this.modelService.createModel(str, mode, resource, false);
+		editor.setModel(textModel);
+
+		let width = this.notebookEditor.getListDimension()!.width;
+		let fontInfo = this.notebookEditor.getFontInfo();
+		let height = Math.min(textModel.getLineCount(), 16) * (fontInfo?.lineHeight || 18);
+
+		editor.layout({
+			height,
+			width
+		});
+
+		container.style.height = `${height + 16}px`;
+
+		return {
+			hasDynamicHeight: true
+		};
+	}
+
+	renderCode(output: any, container: HTMLElement) {
+		let data = output.data['text/x-javascript'];
+		let str = isArray(data) ? data.join('') : data;
+
+		const editor = this.instantiationService.createInstance(CodeEditorWidget, container, {
+			...getOutputSimpleEditorOptions(),
+			dimension: {
+				width: 0,
+				height: 0
+			}
+		}, {
+			isSimpleWidget: true
+		});
+
+		let mode = this.modeService.create('javascript');
+		let resource = URI.parse(`notebook-output-${Date.now()}.js`);
 		const textModel = this.modelService.createModel(str, mode, resource, false);
 		editor.setModel(textModel);
 
@@ -188,8 +224,9 @@ class RichRenderer implements IOutputTransformContribution {
 registerOutputTransform('notebook.output.rich', ['display_data', 'execute_result'], RichRenderer);
 
 
-export function getJSONSimpleEditorOptions(): IEditorOptions {
+export function getOutputSimpleEditorOptions(): IEditorOptions {
 	return {
+		readOnly: true,
 		wordWrap: 'on',
 		overviewRulerLanes: 0,
 		glyphMargin: false,

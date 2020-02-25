@@ -18,6 +18,11 @@ export class NotebookEditorModel extends EditorModel {
 	private readonly _onDidChangeCells = new Emitter<NotebookCellsSplice[]>();
 	get onDidChangeCells(): Event<NotebookCellsSplice[]> { return this._onDidChangeCells.event; }
 
+
+	get notebook() {
+		return this._notebook;
+	}
+
 	constructor(
 		private _notebook: INotebook
 	) {

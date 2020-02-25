@@ -47,8 +47,9 @@ export class CodeCell extends Disposable {
 		const cts = new CancellationTokenSource();
 		this._register({ dispose() { cts.dispose(true); } });
 		raceCancellation(viewCell.resolveTextModel(), cts.token).then(model => {
-			if (model) {
-				templateData.editor?.setModel(model);
+			if (model && templateData.editor) {
+				templateData.editor.setModel(model);
+				viewCell.attachTextEditor(templateData.editor);
 
 				let realContentHeight = templateData.editor?.getContentHeight();
 				let width: number;

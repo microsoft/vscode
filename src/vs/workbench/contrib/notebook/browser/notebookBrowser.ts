@@ -10,6 +10,9 @@ import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/renderers/cellViewModel';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/output/outputRenderer';
 import { IOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+
+export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('notebookFindWidgetFocused', false);
 
 export interface INotebookEditor {
 	viewType: string | undefined;

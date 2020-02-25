@@ -3,15 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ITextModel } from 'vs/editor/common/model';
-import { Emitter } from 'vs/base/common/event';
 import * as UUID from 'vs/base/common/uuid';
-import { MarkdownRenderer } from 'vs/workbench/contrib/notebook/browser/renderers/mdRenderer';
-import { ICell, NotebookCellOutputsSplice, IOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { Range } from 'vs/editor/common/core/range';
+import * as model from 'vs/editor/common/model';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { CellFindMatch } from 'vs/workbench/contrib/notebook/browser/notebookFindWidget';
+import { MarkdownRenderer } from 'vs/workbench/contrib/notebook/browser/renderers/mdRenderer';
+import { EDITOR_BOTTOM_PADDING, EDITOR_TOP_PADDING, ICell, IOutput, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { SearchParams } from 'vs/editor/common/model/textModelSearch';
 
 export class CellViewModel extends Disposable {
 
@@ -63,7 +67,10 @@ export class CellViewModel extends Disposable {
 		return this._editorHeight;
 	}
 
-	private _textModel?: ITextModel;
+	private _textModel?: model.ITextModel;
+	private _textEditor?: ICodeEditor;
+	private _buffer: model.ITextBuffer | null;
+
 	readonly id: string = UUID.generateUuid();
 
 	constructor(
@@ -84,7 +91,60 @@ export class CellViewModel extends Disposable {
 		}
 
 		this._outputCollection = new Array(this.cell.outputs.length);
+		this._buffer = null;
 	}
+
+
+	//#region Search
+	private readonly _hasFindResult = this._register(new Emitter<boolean>());
+	public readonly hasFindResult: Event<boolean> = this._hasFindResult.event;
+
+	startFind(value: string): CellFindMatch[] {
+		let cellMatches: model.FindMatch[] = [];
+		if (this.assertTextModelAttached()) {
+			cellMatches = this._textModel!.findMatches(value, false, false, false, null, false);
+		} else {
+			if (!this._buffer) {
+				this._buffer = this.cell.resolveTextBufferFactory().create(model.DefaultEndOfLine.LF);
+			}
+
+			const lineCount = this._buffer.getLineCount();
+			const fullRange = new Range(1, 1, lineCount, this._buffer.getLineLength(lineCount) + 1);
+			const searchParams = new SearchParams(value, false, false, null);
+			const searchData = searchParams.parseSearchRequest();
+
+			if (!searchData) {
+				return [];
+			}
+
+			cellMatches = this._buffer.findMatchesLineByLine(fullRange, searchData, false, 1000);
+		}
+
+		return cellMatches.map(match => ({
+			cell: this,
+			match: match
+		}));
+	}
+
+	stopFind(keepSelection?: boolean | undefined): void {
+		if (!this.assertTextModelAttached()) {
+			return;
+		}
+	}
+
+	focus(): void {
+	}
+
+	assertTextModelAttached(): boolean {
+		if (this._textModel && this._textEditor && this._textEditor.getModel() === this._textModel) {
+			return true;
+		}
+
+		return false;
+	}
+
+	//#endregion
+
 	hasDynamicHeight() {
 		if (this._dynamicHeight !== null) {
 			return false;
@@ -118,7 +178,7 @@ export class CellViewModel extends Disposable {
 			return 100;
 		}
 		else {
-			return this.lineCount * lineHeight + 16;
+			return this.lineCount * lineHeight + 16 + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING;
 		}
 	}
 	setText(strs: string[]) {
@@ -132,6 +192,10 @@ export class CellViewModel extends Disposable {
 		}
 	}
 	getText(): string {
+		if (this._textModel) {
+			return this._textModel.getValue();
+		}
+
 		return this.cell.source.join('\n');
 	}
 
@@ -147,16 +211,21 @@ export class CellViewModel extends Disposable {
 		return null;
 	}
 
-	async resolveTextModel(): Promise<ITextModel> {
+	async resolveTextModel(): Promise<model.ITextModel> {
 		if (!this._textModel) {
 			const ref = await this._modelService.createModelReference(this.cell.uri);
 			this._textModel = ref.object.textEditorModel;
+			this._buffer = this._textModel.getTextBuffer();
 			this._register(ref);
 			this._register(this._textModel.onDidChangeContent(() => {
 				this.cell.isDirty = true;
 			}));
 		}
 		return this._textModel;
+	}
+
+	attachTextEditor(editor: ICodeEditor) {
+		this._textEditor = editor;
 	}
 
 	getMarkdownRenderer() {

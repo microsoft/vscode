@@ -11,6 +11,7 @@ import { INotebookService, IMainNotebookController } from 'vs/workbench/contrib/
 import { Emitter, Event } from 'vs/base/common/event';
 import { ICell, IOutput, INotebook, INotebookMimeTypeSelector, NOTEBOOK_DISPLAY_ORDER, NotebookCellsSplice, NotebookCellOutputsSplice, generateCellPath } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { PieceTreeTextBufferFactory, PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 
 export class MainThreadCell implements ICell {
 	private _onDidChangeOutputs = new Emitter<NotebookCellOutputsSplice[]>();
@@ -37,6 +38,8 @@ export class MainThreadCell implements ICell {
 	}
 
 	readonly uri: URI;
+
+	private _buffer: PieceTreeTextBufferFactory | null = null;
 
 	constructor(
 		parent: MainThreadNotebookDocument,
@@ -65,6 +68,17 @@ export class MainThreadCell implements ICell {
 
 	save() {
 		this._isDirty = false;
+	}
+
+	resolveTextBufferFactory(): PieceTreeTextBufferFactory {
+		if (this._buffer) {
+			return this._buffer;
+		}
+
+		let builder = new PieceTreeTextBufferBuilder();
+		builder.acceptChunk(this.source.join('\n'));
+		this._buffer = builder.finish(true);
+		return this._buffer;
 	}
 }
 

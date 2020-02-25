@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { MenuRegistry, MenuId, Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContext, InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
@@ -12,6 +12,7 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebook
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { NOTEBOOK_EDITOR_FOCUSED, NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -82,25 +83,15 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		let editorService = accessor.get(IEditorService);
 		let notebookService = accessor.get(INotebookService);
+		let editor = getActiveNotebookEditor(editorService, notebookService);
 
-		let resource = editorService.activeEditor?.resource;
-		let editorControl = editorService.activeControl;
-		let notebookProviders = notebookService.getContributedNotebookProviders(resource!);
-
-		if (!resource || !editorControl || notebookProviders.length === 0) {
+		if (!editor) {
 			return;
 		}
 
-		let editorViewType = (editorControl! as NotebookEditor).viewType;
-		let viewType = notebookProviders[0].id;
-
-		if (viewType !== editorViewType) {
-			return;
-		}
-
-		let activeCell = (editorControl! as NotebookEditor).getActiveCell();
+		let activeCell = editor.getActiveCell();
 		if (activeCell) {
-			(editorControl! as NotebookEditor).focusNotebookCell(activeCell, false);
+			editor.focusNotebookCell(activeCell, false);
 		}
 	}
 });
@@ -125,26 +116,59 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		let editorService = accessor.get(IEditorService);
 		let notebookService = accessor.get(INotebookService);
+		let editor = getActiveNotebookEditor(editorService, notebookService);
 
-		let resource = editorService.activeEditor?.resource;
-		let editorControl = editorService.activeControl;
-		let notebookProviders = notebookService.getContributedNotebookProviders(resource!);
-
-		if (!resource || !editorControl || notebookProviders.length === 0) {
+		if (!editor) {
 			return;
 		}
 
-		let editorViewType = (editorControl! as NotebookEditor).viewType;
-		let viewType = notebookProviders[0].id;
-
-		if (viewType !== editorViewType) {
-			return;
-		}
-
-		let activeCell = (editorControl! as NotebookEditor).getActiveCell();
+		let activeCell = editor.getActiveCell();
 		if (activeCell) {
-			(editorControl! as NotebookEditor).editNotebookCell(undefined, activeCell);
+			editor.editNotebookCell(undefined, activeCell);
 		}
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.notebook.hideFind',
+			title: 'Hide Find in Notebook',
+			keybinding: {
+				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED),
+				primary: KeyCode.Escape,
+				weight: KeybindingWeight.WorkbenchContrib
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		let editorService = accessor.get(IEditorService);
+		let notebookService = accessor.get(INotebookService);
+		let editor = getActiveNotebookEditor(editorService, notebookService);
+
+		editor?.hideFind();
+	}
+});
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.notebook.find',
+			title: 'Find in Notebook',
+			keybinding: {
+				when: NOTEBOOK_EDITOR_FOCUSED,
+				primary: KeyCode.KEY_F | KeyMod.CtrlCmd,
+				weight: KeybindingWeight.WorkbenchContrib
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		let editorService = accessor.get(IEditorService);
+		let notebookService = accessor.get(INotebookService);
+		let editor = getActiveNotebookEditor(editorService, notebookService);
+
+		editor?.showFind();
 	}
 });
 
@@ -170,3 +194,23 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	group: 'navigation',
 	when: NOTEBOOK_EDITOR_FOCUSED
 });
+
+
+function getActiveNotebookEditor(editorService: IEditorService, notebookService: INotebookService): NotebookEditor | undefined {
+	let resource = editorService.activeEditor?.resource;
+	let editorControl = editorService.activeControl;
+	let notebookProviders = notebookService.getContributedNotebookProviders(resource!);
+
+	if (!resource || !editorControl || notebookProviders.length === 0) {
+		return;
+	}
+
+	let editorViewType = (editorControl! as NotebookEditor).viewType;
+	let viewType = notebookProviders[0].id;
+
+	if (viewType !== editorViewType) {
+		return;
+	}
+
+	return editorControl! as NotebookEditor;
+}

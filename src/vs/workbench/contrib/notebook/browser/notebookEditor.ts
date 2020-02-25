@@ -28,7 +28,7 @@ import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/output/out
 import { BackLayerWebView } from 'vs/workbench/contrib/notebook/browser/renderers/backLayerWebView';
 import { CodeCellRenderer, MarkdownCellRenderer, NotebookCellListDelegate } from 'vs/workbench/contrib/notebook/browser/renderers/cellRenderer';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/renderers/cellViewModel';
-import { CELL_MARGIN, INotebook, NotebookCellsSplice, IOutput, parseCellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CELL_MARGIN, NotebookCellsSplice, IOutput, parseCellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -37,6 +37,8 @@ import { IEditor } from 'vs/editor/common/editorCommon';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { Emitter, Event } from 'vs/base/common/event';
 import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/notebookCellList';
+import { NotebookFindWidget, NotebookFindDelegate, CellFindMatch } from 'vs/workbench/contrib/notebook/browser/notebookFindWidget';
+import { FindMatch } from 'vs/editor/common/model';
 
 const $ = DOM.$;
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
@@ -107,7 +109,7 @@ class NotebookCodeEditors implements ICompositeCodeEditor {
 	}
 }
 
-export class NotebookEditor extends BaseEditor implements INotebookEditor {
+export class NotebookEditor extends BaseEditor implements INotebookEditor, NotebookFindDelegate {
 	static readonly ID: string = 'workbench.editor.notebook';
 	private rootElement!: HTMLElement;
 	private body!: HTMLElement;
@@ -118,7 +120,6 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	private control: ICompositeCodeEditor | undefined;
 	private renderedEditors: Map<CellViewModel, ICodeEditor | undefined> = new Map();
 	private model: NotebookEditorModel | undefined;
-	private notebook: INotebook | undefined;
 	viewType: string | undefined;
 	private viewCells: CellViewModel[] = [];
 	private localStore: DisposableStore = this._register(new DisposableStore());
@@ -128,6 +129,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	private dimension: DOM.Dimension | null = null;
 	private editorFocus: IContextKey<boolean> | null = null;
 	private outputRenderer: OutputRenderer;
+	private findWidget: NotebookFindWidget;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -145,8 +147,9 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 		this.editorMemento = this.getEditorMemento<INotebookEditorViewState>(editorGroupService, NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 		this.outputRenderer = new OutputRenderer(this, this.instantiationService);
+		this.findWidget = this.instantiationService.createInstance(NotebookFindWidget, this);
+		this.findWidget.updateTheme(this.themeService.getTheme());
 	}
-
 
 	get minimumWidth(): number { return 375; }
 	get maximumWidth(): number { return Number.POSITIVE_INFINITY; }
@@ -186,6 +189,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		this.contentWidgets = document.createElement('div');
 		DOM.addClass(this.contentWidgets, 'notebook-content-widgets');
 		DOM.append(this.body, this.contentWidgets);
+		DOM.append(this.body, this.findWidget.getDomNode());
 	}
 
 	private createCellList(): void {
@@ -242,7 +246,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	}
 
 	onHide() {
-
+		this.editorFocus?.set(false);
 		if (this.webview) {
 			this.localStore.clear();
 			this.list?.rowsContainer.removeChild(this.webview?.element);
@@ -253,9 +257,8 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		this.list?.splice(0, this.list?.length);
 
 		if (this.model && !this.model.isDirty()) {
-			this.notebookService.destoryNotebookDocument(this.viewType!, this.notebook!);
+			this.notebookService.destoryNotebookDocument(this.viewType!, this.model!.notebook!);
 			this.model = undefined;
-			this.notebook = undefined;
 			this.viewType = undefined;
 		}
 
@@ -271,6 +274,11 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 				}
 			});
 		}
+	}
+
+	focus() {
+		super.focus();
+		this.editorFocus?.set(true);
 	}
 
 	setInput(input: NotebookEditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
@@ -306,12 +314,11 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 				}));
 
 				let viewState = this.loadTextEditorViewState(input);
-				this.notebook = model.getNotebook();
-				this.webview.updateRendererPreloads(this.notebook.renderers);
+				this.webview.updateRendererPreloads(this.model!.notebook.renderers);
 				this.viewType = input.viewType;
-				this.viewCells = await Promise.all(this.notebook!.cells.map(async cell => {
+				this.viewCells = await Promise.all(this.model!.notebook!.cells.map(async cell => {
 					const isEditing = viewState && viewState.editingCells[cell.handle];
-					const viewCell = this.instantiationService.createInstance(CellViewModel, input.viewType!, this.notebook!.handle, cell, !!isEditing);
+					const viewCell = this.instantiationService.createInstance(CellViewModel, input.viewType!, this.model!.notebook!.handle, cell, !!isEditing);
 					this.localStore.add(viewCell);
 					return viewCell;
 				}));
@@ -395,6 +402,37 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 	//#endregion
 
+	//#region Find Delegate
+	startFind(value: string): CellFindMatch[] {
+		let matches: CellFindMatch[] = [];
+		this.viewCells.forEach(cell => {
+			let cellMatches = cell.startFind(value);
+			matches.push(...cellMatches);
+		});
+
+		return matches;
+	}
+
+	stopFind(keepSelection?: boolean | undefined): void {
+	}
+
+	focusNext(match: CellFindMatch) {
+		let cell = match.cell;
+		let index = this.viewCells.indexOf(cell);
+
+		this.list?.reveal(index);
+	}
+
+	public showFind() {
+		this.findWidget.reveal();
+	}
+
+	public hideFind() {
+		this.findWidget.hide();
+	}
+
+	//#endregion
+
 	//#region Cell operations
 	layoutNotebookCell(cell: CellViewModel, height: number) {
 		let relayout = (cell: CellViewModel, height: number) => {
@@ -413,7 +451,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	updateViewCells(splices: NotebookCellsSplice[]) {
 		let update = () => splices.reverse().forEach((diff) => {
 			this.list?.splice(diff[0], diff[1], diff[2].map(cell => {
-				return this.instantiationService.createInstance(CellViewModel, this.viewType!, this.notebook!.handle, cell, false);
+				return this.instantiationService.createInstance(CellViewModel, this.viewType!, this.model!.notebook!.handle, cell, false);
 			}));
 		});
 
@@ -433,7 +471,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	}
 
 	async insertEmptyNotebookCell(listIndex: number | undefined, cell: CellViewModel, type: 'code' | 'markdown', direction: 'above' | 'below'): Promise<void> {
-		let newLanguages = this.notebook!.languages;
+		let newLanguages = this.model!.notebook!.languages;
 		let language = 'markdown';
 		if (newLanguages && newLanguages.length) {
 			language = newLanguages[0];
@@ -442,8 +480,8 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		let index = listIndex ? listIndex : this.model!.getNotebook().cells.indexOf(cell.cell);
 		const insertIndex = direction === 'above' ? index : index + 1;
 
-		let newModeCell = await this.notebookService.createNotebookCell(this.viewType!, this.notebook!.uri, insertIndex, language, type);
-		let newCell = this.instantiationService.createInstance(CellViewModel, this.viewType!, this.notebook!.handle, newModeCell!, false);
+		let newModeCell = await this.notebookService.createNotebookCell(this.viewType!, this.model!.notebook!.uri, insertIndex, language, type);
+		let newCell = this.instantiationService.createInstance(CellViewModel, this.viewType!, this.model!.notebook!.handle, newModeCell!, false);
 
 		this.viewCells!.splice(insertIndex, 0, newCell);
 		this.model!.insertCell(newCell.cell, insertIndex);
@@ -498,8 +536,8 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	async deleteNotebookCell(listIndex: number | undefined, cell: CellViewModel): Promise<void> {
 		let index = this.model!.getNotebook().cells.indexOf(cell.cell);
 
-		// await this.notebookService.createNotebookCell(this.viewType!, this.notebook!.uri, insertIndex, language, type);
-		await this.notebookService.deleteNotebookCell(this.viewType!, this.notebook!.uri, index);
+		// await this.notebookService.createNotebookCell(this.viewType!, this.model!.notebook!.uri, insertIndex, language, type);
+		await this.notebookService.deleteNotebookCell(this.viewType!, this.model!.notebook!.uri, index);
 		this.viewCells!.splice(index, 1);
 		this.model!.deleteCell(cell.cell);
 		this.list?.splice(index, 1);
@@ -526,7 +564,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			return;
 		}
 
-		let preloads = this.notebook!.renderers;
+		let preloads = this.model!.notebook!.renderers;
 
 		if (!this.webview!.insetMapping.has(output)) {
 			let index = this.model!.getNotebook().cells.indexOf(cell.cell);

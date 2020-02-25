@@ -161,8 +161,9 @@ class CellContentProvider implements ITextModelContentProvider {
 		}
 		for (let cell of notebook.cells) {
 			if (cell.uri.toString() === resource.toString()) {
+				let bufferFactory = cell.resolveTextBufferFactory();
 				return this._modelService.createModel(
-					cell.source.join('\n'),
+					bufferFactory,
 					cell.language ? this._modeService.create(cell.language) : this._modeService.createByFilepathOrFirstLine(resource, cell.source[0]),
 					resource
 				);
