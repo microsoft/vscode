@@ -38,8 +38,6 @@ import { MenuItemAction, IMenuService, MenuId } from 'vs/platform/actions/common
 import { fromNow } from 'vs/base/common/date';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
-// TODO[ECA]: Localize all the strings
-
 const InitialPageSize = 20;
 const SubsequentPageSize = 40;
 
@@ -240,7 +238,7 @@ export class TimelinePane extends ViewPane {
 
 			// TODO[ECA]: Are these the right the list of schemes to exclude? Is there a better way?
 			if (this._uri && (this._uri.scheme === 'vscode-settings' || this._uri.scheme === 'webview-panel' || this._uri.scheme === 'walkThrough')) {
-				this.message = 'The active editor cannot provide timeline information.';
+				this.message = localize('timeline.editorCannotProvideTimeline', 'The active editor cannot provide timeline information.');
 				this._tree.setChildren(null, undefined);
 
 				return;
@@ -253,7 +251,7 @@ export class TimelinePane extends ViewPane {
 					}
 
 					this._tree.setChildren(null, undefined);
-					this.message = `Loading timeline for ${basename(uri.fsPath)}...`;
+					this.message = localize('timeline.loading', 'Loading timeline for ${0}...', basename(uri.fsPath));
 				}, 500, this._uri);
 			}
 		}
@@ -410,7 +408,7 @@ export class TimelinePane extends ViewPane {
 					this._items.push({
 						element: {
 							handle: 'vscode-command:loadMore',
-							label: 'Load more',
+							label: localize('timeline.loadMore', 'Load more'),
 							timestamp: 0
 						} as CommandItem
 					});
@@ -512,7 +510,7 @@ export class TimelinePane extends ViewPane {
 		}
 
 		if (this._items.length === 0) {
-			this.message = 'No timeline information was provided.';
+			this.message = localize('timeline.noTimelineInfo', 'No timeline information was provided.');
 		} else {
 			this.message = undefined;
 		}
@@ -556,7 +554,7 @@ export class TimelinePane extends ViewPane {
 		this._messageElement = DOM.append(this._container, DOM.$('.message'));
 		DOM.addClass(this._messageElement, 'timeline-subtle');
 
-		this.message = 'The active editor cannot provide timeline information.';
+		this.message = localize('timeline.editorCannotProvideTimeline', 'The active editor cannot provide timeline information.');
 
 		this._treeElement = document.createElement('div');
 		DOM.addClasses(this._treeElement, 'customview-tree', 'file-icon-themable-tree', 'hide-arrows');
