@@ -72,7 +72,7 @@ export class TerminalLinkHandler {
 	private _processCwd: string | undefined;
 	private _gitDiffPreImagePattern: RegExp;
 	private _gitDiffPostImagePattern: RegExp;
-	private readonly _tooltipCallback: (event: MouseEvent, uri: string, location: IViewportRange) => boolean | void;
+	private readonly _tooltipCallback: (event: MouseEvent, uri: string, location: IViewportRange, linkHandler: (url: string) => void) => boolean | void;
 	private readonly _leaveCallback: () => void;
 
 	constructor(
@@ -90,7 +90,7 @@ export class TerminalLinkHandler {
 		// Matches '+++ b/src/file1', capturing 'src/file1' in group 1
 		this._gitDiffPostImagePattern = /^\+\+\+ b\/(\S*)/;
 
-		this._tooltipCallback = (e: MouseEvent, uri: string, location: IViewportRange) => {
+		this._tooltipCallback = (e: MouseEvent, uri: string, location: IViewportRange, linkHandler: (url: string) => void) => {
 			if (!this._widgetManager) {
 				return;
 			}
@@ -117,7 +117,7 @@ export class TerminalLinkHandler {
 				const leftPosition = location.start.x * (charWidth! + (font.letterSpacing / window.devicePixelRatio));
 				const bottomPosition = offsetRow * (Math.ceil(charHeight! * window.devicePixelRatio) * font.lineHeight) / window.devicePixelRatio;
 
-				this._widgetManager.showMessage(leftPosition, bottomPosition, this._getLinkHoverString(uri), verticalAlignment);
+				this._widgetManager.showMessage(leftPosition, bottomPosition, this._getLinkHoverString(uri), verticalAlignment, linkHandler);
 			} else {
 				const target = (e.target as HTMLElement);
 				const colWidth = target.offsetWidth / this._xterm.cols;
@@ -125,7 +125,7 @@ export class TerminalLinkHandler {
 
 				const leftPosition = location.start.x * colWidth;
 				const bottomPosition = offsetRow * rowHeight;
-				this._widgetManager.showMessage(leftPosition, bottomPosition, this._getLinkHoverString(uri), verticalAlignment);
+				this._widgetManager.showMessage(leftPosition, bottomPosition, this._getLinkHoverString(uri), verticalAlignment, linkHandler);
 			}
 		};
 		this._leaveCallback = () => {
@@ -152,9 +152,12 @@ export class TerminalLinkHandler {
 	}
 
 	public registerCustomLinkHandler(regex: RegExp, handler: (uri: string) => void, matchIndex?: number, validationCallback?: XtermLinkMatcherValidationCallback): number {
+		const tooltipCallback = (event: MouseEvent, uri: string, location: IViewportRange) => {
+			this._tooltipCallback(event, uri, location, handler);
+		};
 		const options: ILinkMatcherOptions = {
 			matchIndex,
-			tooltipCallback: this._tooltipCallback,
+			tooltipCallback,
 			leaveCallback: this._leaveCallback,
 			willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e),
 			priority: CUSTOM_LINK_PRIORITY
@@ -173,9 +176,12 @@ export class TerminalLinkHandler {
 			const wrappedHandler = this._wrapLinkHandler(uri => {
 				this._handleHypertextLink(uri);
 			});
+			const tooltipCallback = (event: MouseEvent, uri: string, location: IViewportRange) => {
+				this._tooltipCallback(event, uri, location, this._handleHypertextLink.bind(this));
+			};
 			this._xterm.loadAddon(new WebLinksAddon(wrappedHandler, {
 				validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateWebLink(uri, callback),
-				tooltipCallback: this._tooltipCallback,
+				tooltipCallback,
 				leaveCallback: this._leaveCallback,
 				willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e)
 			}));
@@ -186,9 +192,12 @@ export class TerminalLinkHandler {
 		const wrappedHandler = this._wrapLinkHandler(url => {
 			this._handleLocalLink(url);
 		});
+		const tooltipCallback = (event: MouseEvent, uri: string, location: IViewportRange) => {
+			this._tooltipCallback(event, uri, location, this._handleLocalLink.bind(this));
+		};
 		this._xterm.registerLinkMatcher(this._localLinkRegex, wrappedHandler, {
 			validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateLocalLink(uri, callback),
-			tooltipCallback: this._tooltipCallback,
+			tooltipCallback,
 			leaveCallback: this._leaveCallback,
 			willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e),
 			priority: LOCAL_LINK_PRIORITY
@@ -199,10 +208,13 @@ export class TerminalLinkHandler {
 		const wrappedHandler = this._wrapLinkHandler(url => {
 			this._handleLocalLink(url);
 		});
+		const tooltipCallback = (event: MouseEvent, uri: string, location: IViewportRange) => {
+			this._tooltipCallback(event, uri, location, this._handleLocalLink.bind(this));
+		};
 		const options = {
 			matchIndex: 1,
 			validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateLocalLink(uri, callback),
-			tooltipCallback: this._tooltipCallback,
+			tooltipCallback,
 			leaveCallback: this._leaveCallback,
 			willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e),
 			priority: LOCAL_LINK_PRIORITY

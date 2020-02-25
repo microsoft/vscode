@@ -669,7 +669,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._refreshSelectionContextKey();
 		}));
 
-		const widgetManager = new TerminalWidgetManager(this._wrapperElement, this._openerService);
+		const widgetManager = new TerminalWidgetManager(this._wrapperElement);
 		this._widgetManager = widgetManager;
 		this._processManager.onProcessReady(() => this._linkHandler?.setWidgetManager(widgetManager));
 
