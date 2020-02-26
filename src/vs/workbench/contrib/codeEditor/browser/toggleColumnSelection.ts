@@ -82,11 +82,11 @@ const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.Workbenc
 registry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleColumnSelectionAction, ToggleColumnSelectionAction.ID, ToggleColumnSelectionAction.LABEL), 'View: Toggle Column Selection Mode', nls.localize('view', "View"));
 
 MenuRegistry.appendMenuItem(MenuId.MenubarSelectionMenu, {
-	group: '3_multi',
+	group: '4_config',
 	command: {
 		id: ToggleColumnSelectionAction.ID,
 		title: nls.localize({ key: 'miColumnSelection', comment: ['&& denotes a mnemonic'] }, "Column &&Selection Mode"),
 		toggled: ContextKeyExpr.equals('config.editor.columnSelection', true)
 	},
-	order: 1.5
+	order: 2
 });
