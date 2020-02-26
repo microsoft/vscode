@@ -20,7 +20,7 @@ declare module 'vscode' {
 
 	export interface AuthenticationSession {
 		id: string;
-		accessToken(): Thenable<string>;
+		getAccessToken(): Thenable<string>;
 		accountName: string;
 		scopes: string[]
 	}

@@ -184,7 +184,7 @@ export class AzureActiveDirectoryService {
 	private convertToSession(token: IToken): vscode.AuthenticationSession {
 		return {
 			id: token.sessionId,
-			accessToken: () => this.resolveAccessToken(token),
+			getAccessToken: () => this.resolveAccessToken(token),
 			accountName: token.accountName,
 			scopes: token.scope.split(' ')
 		};

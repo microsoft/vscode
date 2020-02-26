@@ -226,7 +226,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 		if (account) {
 			try {
-				const token = await account.accessToken();
+				const token = await account.getAccessToken();
 				this.authTokenService.setToken(token);
 				this.authenticationState.set(AuthStatus.SignedIn);
 			} catch (e) {
