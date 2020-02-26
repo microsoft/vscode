@@ -20,7 +20,7 @@ declare module 'vscode' {
 
 	export interface AuthenticationSession {
 		id: string;
-		accessToken(): Promise<string>;
+		accessToken(): Thenable<string>;
 		accountName: string;
 		scopes: string[]
 	}
@@ -58,13 +58,13 @@ declare module 'vscode' {
 		/**
 		 * Returns an array of current sessions.
 		 */
-		getSessions(): Promise<ReadonlyArray<AuthenticationSession>>;
+		getSessions(): Thenable<ReadonlyArray<AuthenticationSession>>;
 
 		/**
 		 * Prompts a user to login.
 		 */
-		login(scopes: string[]): Promise<AuthenticationSession>;
-		logout(sessionId: string): Promise<void>;
+		login(scopes: string[]): Thenable<AuthenticationSession>;
+		logout(sessionId: string): Thenable<void>;
 	}
 
 	export namespace authentication {

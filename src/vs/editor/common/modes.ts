@@ -1373,7 +1373,7 @@ export interface RenameProvider {
  */
 export interface AuthenticationSession {
 	id: string;
-	accessToken(): Promise<string>;
+	accessToken(): Thenable<string>;
 	accountName: string;
 }
 
