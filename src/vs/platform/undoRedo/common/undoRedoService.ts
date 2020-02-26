@@ -260,7 +260,7 @@ export class UndoRedoService implements IUndoRedoService {
 			this._splitPastWorkspaceElement(element, element.removedResources.set);
 			const message = nls.localize('cannotWorkspaceUndo', "Could not undo '{0}' across all files. {1}", element.label, element.removedResources.createMessage());
 			this._notificationService.info(message);
-			return;
+			return this.undo(resource);
 		}
 
 		// this must be the last past element in all the impacted resources!
@@ -281,7 +281,7 @@ export class UndoRedoService implements IUndoRedoService {
 			const paths = cannotUndoDueToResources.map(r => r.scheme === Schemas.file ? r.fsPath : r.path);
 			const message = nls.localize('cannotWorkspaceUndoDueToChanges', "Could not undo '{0}' across all files because changes were made to {1}", element.label, paths.join(', '));
 			this._notificationService.info(message);
-			return;
+			return this.undo(resource);
 		}
 
 		return this._dialogService.show(
@@ -344,7 +344,7 @@ export class UndoRedoService implements IUndoRedoService {
 			this._splitFutureWorkspaceElement(element, element.removedResources.set);
 			const message = nls.localize('cannotWorkspaceRedo', "Could not redo '{0}' across all files. {1}", element.label, element.removedResources.createMessage());
 			this._notificationService.info(message);
-			return;
+			return this.redo(resource);
 		}
 
 		// this must be the last future element in all the impacted resources!
@@ -365,7 +365,7 @@ export class UndoRedoService implements IUndoRedoService {
 			const paths = cannotRedoDueToResources.map(r => r.scheme === Schemas.file ? r.fsPath : r.path);
 			const message = nls.localize('cannotWorkspaceRedoDueToChanges', "Could not redo '{0}' across all files because changes were made to {1}", element.label, paths.join(', '));
 			this._notificationService.info(message);
-			return;
+			return this.redo(resource);
 		}
 
 		for (const editStack of affectedEditStacks) {
