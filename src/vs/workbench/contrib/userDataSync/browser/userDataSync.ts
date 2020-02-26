@@ -163,7 +163,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			this.registerActions();
 			this.initializeActiveAccount().then(_ => {
 				if (!isWeb) {
-					this._register(instantiationService.createInstance(UserDataSyncTrigger).onDidTriggerSync(() => userDataAutoSyncService.triggerAutoSync()));
+					this._register(instantiationService.createInstance(UserDataSyncTrigger).onDidTriggerSync(source => userDataAutoSyncService.triggerAutoSync([source])));
 				}
 			});
 

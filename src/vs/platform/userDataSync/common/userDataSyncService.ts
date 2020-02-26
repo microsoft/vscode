@@ -34,7 +34,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	private _onDidChangeStatus: Emitter<SyncStatus> = this._register(new Emitter<SyncStatus>());
 	readonly onDidChangeStatus: Event<SyncStatus> = this._onDidChangeStatus.event;
 
-	readonly onDidChangeLocal: Event<void>;
+	readonly onDidChangeLocal: Event<SyncSource>;
 
 	private _conflictsSources: SyncSource[] = [];
 	get conflictsSources(): SyncSource[] { return this._conflictsSources; }
@@ -74,7 +74,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		}
 
 		this._lastSyncTime = this.storageService.getNumber(LAST_SYNC_TIME_KEY, StorageScope.GLOBAL, undefined);
-		this.onDidChangeLocal = Event.any(...this.synchronisers.map(s => s.onDidChangeLocal));
+		this.onDidChangeLocal = Event.any(...this.synchronisers.map(s => Event.map(s.onDidChangeLocal, () => s.source)));
 	}
 
 	async pull(): Promise<void> {
