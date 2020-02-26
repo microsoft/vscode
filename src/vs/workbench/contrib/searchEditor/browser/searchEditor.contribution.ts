@@ -21,7 +21,6 @@ import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } fro
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { Extensions as EditorInputExtensions, IEditorInputFactory, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
-import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import * as SearchConstants from 'vs/workbench/contrib/search/common/constants';
 import * as SearchEditorConstants from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditor';
@@ -30,6 +29,7 @@ import { getOrMakeSearchEditorInput, SearchEditorInput } from 'vs/workbench/cont
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 
 //#region Editor Descriptior
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -54,10 +54,15 @@ class SearchEditorContribution implements IWorkbenchContribution {
 	) {
 
 		this.editorService.overrideOpenEditor((editor, options, group) => {
-			const resource = editor.resource;
-			if (!resource ||
-				!(endsWith(resource.path, '.code-search') || resource.scheme === SearchEditorConstants.SearchEditorScheme) ||
-				!(editor instanceof FileEditorInput || (resource.scheme === SearchEditorConstants.SearchEditorScheme))) {
+			let resource = editor.resource;
+			if (!resource) { return undefined; }
+
+			if (resource.scheme === SearchEditorConstants.SearchEditorBodyScheme) {
+				resource = resource.with({ scheme: SearchEditorConstants.SearchEditorScheme });
+			}
+
+			if (resource.scheme !== SearchEditorConstants.SearchEditorScheme
+				&& !(endsWith(resource.path, '.code-search') && editor instanceof FileEditorInput)) {
 				return undefined;
 			}
 

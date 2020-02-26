@@ -18,7 +18,7 @@ import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { EditorInput, GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, IMoveResult } from 'vs/workbench/common/editor';
-import { SearchEditorFindMatchClass, SearchEditorScheme } from 'vs/workbench/contrib/searchEditor/browser/constants';
+import { SearchEditorFindMatchClass, SearchEditorScheme, SearchEditorBodyScheme } from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { extractSearchQuery, serializeSearchConfiguration } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -339,7 +339,7 @@ export const getOrMakeSearchEditorInput = (
 			}
 		}
 
-		const contentsModelURI = uri.with({ scheme: 'search-editor-body' });
+		const contentsModelURI = uri.with({ scheme: SearchEditorBodyScheme });
 		const headerModelURI = uri.with({ scheme: 'search-editor-header' });
 		const contentsModel = modelService.getModel(contentsModelURI) ?? modelService.createModel('', modeService.create('search-result'), contentsModelURI);
 		const headerModel = modelService.getModel(headerModelURI) ?? modelService.createModel('', modeService.create('search-result'), headerModelURI);
