@@ -409,9 +409,9 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					const sourceArea = getSyncAreaLabel(error.source);
 					this.notificationService.notify({
 						severity: Severity.Error,
-						message: localize('too large', "Disabled syncing {0} because size of the {1} file to sync is larger than {2}. Please open the file and reduce the size and enable sync", sourceArea, sourceArea, '100kb'),
+						message: localize('too large', "Disabled syncing {0} because size of the {1} file to sync is larger than {2}. Please open the file and reduce the size and enable sync", sourceArea.toLowerCase(), sourceArea.toLowerCase(), '100kb'),
 						actions: {
-							primary: [new Action('open sync file', localize('open file', "Open {0} file", sourceArea), undefined, true,
+							primary: [new Action('open sync file', localize('open file', "Open {0} File", sourceArea), undefined, true,
 								() => error.source === SyncSource.Settings ? this.preferencesService.openGlobalSettings(true) : this.preferencesService.openGlobalKeybindingSettings(true))]
 						}
 					});
@@ -450,22 +450,31 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private handleInvalidContentError(source: SyncSource): void {
-		if (!this.invalidContentErrorDisposables.has(source)) {
-			const errorArea = getSyncAreaLabel(source);
-			const handle = this.notificationService.notify({
-				severity: Severity.Error,
-				message: localize('errorInvalidConfiguration', "Unable to sync {0} because there are some errors/warnings in the file. Please open the file to correct errors/warnings in it.", errorArea),
-				actions: {
-					primary: [new Action('open sync file', localize('open file', "Open {0} file", errorArea), undefined, true,
-						() => source === SyncSource.Settings ? this.preferencesService.openGlobalSettings(true) : this.preferencesService.openGlobalKeybindingSettings(true))]
-				}
-			});
-			this.invalidContentErrorDisposables.set(source, toDisposable(() => {
-				// close the error warning notification
-				handle.close();
-				this.invalidContentErrorDisposables.delete(source);
-			}));
+		if (this.invalidContentErrorDisposables.has(source)) {
+			return;
 		}
+		if (source !== SyncSource.Settings && source !== SyncSource.Keybindings) {
+			return;
+		}
+		const resource = source === SyncSource.Settings ? this.workbenchEnvironmentService.settingsResource : this.workbenchEnvironmentService.keybindingsResource;
+		if (isEqual(resource, this.editorService.activeEditor?.resource)) {
+			// Do not show notification if the file in error is active
+			return;
+		}
+		const errorArea = getSyncAreaLabel(source);
+		const handle = this.notificationService.notify({
+			severity: Severity.Error,
+			message: localize('errorInvalidConfiguration', "Unable to sync {0} because there are some errors/warnings in the file. Please open the file to correct errors/warnings in it.", errorArea.toLowerCase()),
+			actions: {
+				primary: [new Action('open sync file', localize('open file', "Open {0} File", errorArea), undefined, true,
+					() => source === SyncSource.Settings ? this.preferencesService.openGlobalSettings(true) : this.preferencesService.openGlobalKeybindingSettings(true))]
+			}
+		});
+		this.invalidContentErrorDisposables.set(source, toDisposable(() => {
+			// close the error warning notification
+			handle.close();
+			this.invalidContentErrorDisposables.delete(source);
+		}));
 	}
 
 	private async updateBadge(): Promise<void> {
