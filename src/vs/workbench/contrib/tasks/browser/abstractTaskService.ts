@@ -562,6 +562,37 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	protected abstract versionAndEngineCompatible(filter?: TaskFilter): boolean;
 
+	private tasksAndGroupedTasks(filter?: TaskFilter): { tasks: Promise<Task[]>, grouped: Promise<TaskMap> } {
+		if (!this.versionAndEngineCompatible(filter)) {
+			return { tasks: Promise.resolve<Task[]>([]), grouped: Promise.resolve(new TaskMap()) };
+		}
+		const grouped = this.getGroupedTasks(filter ? filter.type : undefined);
+		const tasks = grouped.then((map) => {
+			if (!filter || !filter.type) {
+				return map.all();
+			}
+			let result: Task[] = [];
+			map.forEach((tasks) => {
+				for (let task of tasks) {
+					if (ContributedTask.is(task) && task.defines.type === filter.type) {
+						result.push(task);
+					} else if (CustomTask.is(task)) {
+						if (task.type === filter.type) {
+							result.push(task);
+						} else {
+							let customizes = task.customizes();
+							if (customizes && customizes.type === filter.type) {
+								result.push(task);
+							}
+						}
+					}
+				}
+			});
+			return result;
+		});
+		return { tasks, grouped };
+	}
+
 	public tasks(filter?: TaskFilter): Promise<Task[]> {
 		if (!this.versionAndEngineCompatible(filter)) {
 			return Promise.resolve<Task[]>([]);
@@ -705,11 +736,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		});
 	}
 
-	public run(task: Task | undefined, options?: ProblemMatcherRunOptions, runSource: TaskRunSource = TaskRunSource.System): Promise<ITaskSummary | undefined> {
+	public run(task: Task | undefined, options?: ProblemMatcherRunOptions, runSource: TaskRunSource = TaskRunSource.System, grouped?: Promise<TaskMap>): Promise<ITaskSummary | undefined> {
 		if (!task) {
 			throw new TaskError(Severity.Info, nls.localize('TaskServer.noTask', 'Task to execute is undefined'), TaskErrors.TaskNotFound);
 		}
-		return this.getGroupedTasks().then((grouped) => {
+		return (grouped ?? this.getGroupedTasks()).then((grouped) => {
 			let resolver = this.createResolver(grouped);
 			if (options && options.attachProblemMatcher && this.shouldAttachProblemMatcher(task) && !InMemoryTask.is(task)) {
 				return this.attachProblemMatcher(task).then((toExecute) => {
@@ -2193,7 +2224,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	private doRunTaskCommand(tasks?: Task[]): void {
 		this.showIgnoredFoldersMessage().then(() => {
-			this.showQuickPick(tasks ? tasks : this.tasks(),
+			let taskResult: { tasks: Promise<Task[]>, grouped: Promise<TaskMap> } | undefined = undefined;
+			if (!tasks) {
+				taskResult = this.tasksAndGroupedTasks();
+			}
+			this.showQuickPick(tasks ? tasks : taskResult!.tasks,
 				nls.localize('TaskService.pickRunTask', 'Select the task to run'),
 				{
 					label: nls.localize('TaskService.noEntryToRun', 'No task to run found. Configure Tasks...'),
@@ -2208,7 +2243,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					if (task === null) {
 						this.runConfigureTasks();
 					} else {
-						this.run(task, { attachProblemMatcher: true }, TaskRunSource.User).then(undefined, reason => {
+						this.run(task, { attachProblemMatcher: true }, TaskRunSource.User, taskResult?.grouped).then(undefined, reason => {
 							// eat the error, it has already been surfaced to the user and we don't care about it here
 						});
 					}
