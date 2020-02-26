@@ -438,7 +438,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 		let relayout = (cell: CellViewModel, height: number) => {
 			let index = this.model!.getNotebook().cells.indexOf(cell.cell);
 			if (index >= 0) {
-				this.list?.updateDynamicHeight(index, cell, height);
+				this.list?.updateElementHeight(index, cell, height);
 			}
 		};
 
@@ -449,11 +449,13 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 	}
 
 	updateViewCells(splices: NotebookCellsSplice[]) {
-		let update = () => splices.reverse().forEach((diff) => {
-			this.list?.splice(diff[0], diff[1], diff[2].map(cell => {
-				return this.instantiationService.createInstance(CellViewModel, this.viewType!, this.model!.notebook!.handle, cell, false);
-			}));
-		});
+		let update = () => {
+			splices.reverse().forEach((diff) => {
+				this.list?.splice(diff[0], diff[1], diff[2].map(cell => {
+					return this.instantiationService.createInstance(CellViewModel, this.viewType!, this.model!.notebook!.handle, cell, false);
+				}));
+			});
+		};
 
 		if (this.list?.isRendering) {
 			// if (this.relayoutDisposable) {

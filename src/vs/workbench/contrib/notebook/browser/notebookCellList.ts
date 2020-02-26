@@ -60,8 +60,8 @@ export class NotebookCellList<T> extends WorkbenchList<T> {
 		this.view.triggerScrollFromMouseWheelEvent(browserEvent);
 	}
 
-	updateDynamicHeight(index: number, element: T, size: number): void {
-		this.view.updateDynamicHeight(index, element, size);
+	updateElementHeight(index: number, element: T, size: number): void {
+		this.view.updateElementHeight(index, element, size);
 	}
 
 	// override

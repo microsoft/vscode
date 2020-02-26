@@ -287,8 +287,10 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		this.scrollableElement.triggerScrollFromMouseWheelEvent(browserEvent);
 	}
 
-	updateDynamicHeight(index: number, element: T, size: number): void {
-		const renderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
+	updateElementHeight(index: number, element: T, size: number): void {
+		const lastRenderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
+
+		let heightDiff = size - this.items[index].size;
 		this.rangeMap.splice(index, 1, [
 			{
 				size: size
@@ -297,27 +299,48 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		this.items[index].size = size;
 
-		for (let i = renderRange.start; i < renderRange.end; i++) {
-			if (this.items[i].row) {
+		if (index < lastRenderRange.start) {
+			for (let i = lastRenderRange.start; i < lastRenderRange.end; i++) {
 				this.updateItemInDOM(this.items[i], i);
 			}
+
+			this.lastRenderTop = this.lastRenderTop + heightDiff;
+			this.rowsContainer.style.top = `-${this.lastRenderTop}px`;
+			return;
+		}
+
+		if (index > lastRenderRange.end) {
+			return;
+		}
+
+		// update positions of items after index
+
+		for (let i = index; i < lastRenderRange.end; i++) {
+			this.updateItemInDOM(this.items[i], i);
 		}
 
 		const newRenderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
-		const removeRanges = Range.relativeComplement(renderRange, newRenderRange);
+		const removeRanges = Range.relativeComplement(lastRenderRange, newRenderRange);
 
 		for (const range of removeRanges) {
 			for (let i = range.start; i < range.end; i++) {
-				if (this.items[i].row) {
-					this.removeItemFromDOM(i);
-				}
+				this.removeItemFromDOM(i);
 			}
 		}
 
-		this.fixMisuseRows(newRenderRange);
+		const renderRanges = Range.relativeComplement(newRenderRange, lastRenderRange);
+		for (const range of renderRanges) {
+			for (let i = range.start; i < range.end; i++) {
+				const afterIndex = i + 1;
+				const beforeRow = afterIndex < this.items.length ? this.items[afterIndex].row : null;
+				const beforeElement = beforeRow ? beforeRow.domNode : null;
+				this.insertItemInDOM(i, beforeElement);
+			}
+		}
 
-		this._onDidChangeContentHeight.fire(this.contentHeight);
-		this.eventuallyUpdateScrollDimensions();
+		if (this.supportDynamicHeights) {
+			this._rerender(this.lastRenderTop, this.lastRenderHeight);
+		}
 	}
 
 	splice(start: number, deleteCount: number, elements: T[] = []): T[] {
@@ -1067,12 +1090,6 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	 * to be probed for dynamic height. Adjusts scroll height and top if necessary.
 	 */
 	private _rerender(renderTop: number, renderHeight: number): void {
-		let isOutermost = true;
-
-		if (this.isRendering) {
-			isOutermost = false;
-		}
-
 		this.isRendering = true;
 		const previousRenderRange = this.getRenderRange(renderTop, renderHeight);
 
@@ -1143,44 +1160,9 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 					this.scrollTop = this.elementTop(anchorElementIndex) - anchorElementTopDelta!;
 				}
 
-				if (isOutermost && this.rowsContainer.getElementsByClassName('monaco-list-row').length !== (renderRange.end - renderRange.start)) {
-					this.fixMisuseRows(renderRange);
-				}
-
 				this._onDidChangeContentHeight.fire(this.contentHeight);
 				this.isRendering = false;
 				return;
-			}
-		}
-	}
-
-	private fixMisuseRows(renderRange: IRange) {
-		let elements = this.rowsContainer.getElementsByClassName('monaco-list-row');
-		let rowsToRemove = [];
-		let rowsRendered = new Set<number>();
-		for (let i = 0; i < elements.length; i++) {
-			let index = Number(elements[i].getAttribute('data-index'));
-			if (index >= renderRange.start && index < renderRange.end) {
-				rowsRendered.add(index);
-				continue;
-			} else {
-				rowsToRemove.push(index);
-			}
-		}
-
-		for (let i = 0; i < rowsToRemove.length; i++) {
-			let index = rowsToRemove[i];
-			if (this.items[index].row) {
-				this.removeItemFromDOM(index);
-			}
-		}
-
-		for (let i = renderRange.start; i < renderRange.end; i++) {
-			if (rowsRendered.has(i)) {
-				continue;
-			} else {
-				// @TODO: why?
-				this.insertItemInDOM(i, null);
 			}
 		}
 	}
