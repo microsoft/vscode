@@ -608,7 +608,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 		const result = await this.dialogService.show(
 			Severity.Info,
-			localize('firs time sync', "First time Sync"),
+			localize('firs time sync', "Sync"),
 			[
 				localize('merge', "Merge"),
 				localize('cancel', "Cancel"),
@@ -616,7 +616,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			],
 			{
 				cancelId: 1,
-				detail: localize('first time sync detail', "Synchronizing from this device for the first time.\nWould you like to merge or replace with the data from the cloud?"),
+				detail: localize('first time sync detail', "It looks like this is the first time sync is set up.\nWould you like to merge or replace with the data from the cloud?"),
 			}
 		);
 		switch (result.choice) {
