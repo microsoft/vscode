@@ -895,7 +895,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			constructor() {
 				super({
 					id: 'workbench.userData.actions.syncStatus',
-					title: localize('sync is on', "Sync..."),
+					title: localize('sync is on', "Sync is on"),
 					menu: [
 						{
 							id: MenuId.GlobalActivity,
