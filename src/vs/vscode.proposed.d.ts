@@ -1334,11 +1334,11 @@ declare module 'vscode' {
 		 * the event listeners it is interested it. The provider should also take ownership of the passed in `WebviewPanel`.
 		 *
 		 * @param document Document for resource being resolved.
-		 * @param webview Webview being resolved. The provider should take ownership of this webview.
+		 * @param webviewPanel Webview being resolved. The provider should take ownership of this webview.
 		 *
 		 * @return Thenable indicating that the webview editor has been resolved.
 		 */
-		resolveCustomEditor(document: CustomDocument, webview: WebviewPanel): Thenable<void>;
+		resolveCustomEditor(document: CustomDocument, webviewPanel: WebviewPanel): Thenable<void>;
 	}
 
 	/**
@@ -1359,11 +1359,11 @@ declare module 'vscode' {
 		 * the event listeners it is interested it. The provider should also take ownership of the passed in `WebviewPanel`.
 		 *
 		 * @param document Resource being resolved.
-		 * @param webview Webview being resolved. The provider should take ownership of this webview.
+		 * @param webviewPanel Webview being resolved. The provider should take ownership of this webview.
 		 *
 		 * @return Thenable indicating that the webview editor has been resolved.
 		 */
-		resolveCustomTextEditor(document: TextDocument, webview: WebviewPanel): Thenable<void>;
+		resolveCustomTextEditor(document: TextDocument, webviewPanel: WebviewPanel): Thenable<void>;
 	}
 
 	namespace window {
