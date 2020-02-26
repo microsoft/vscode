@@ -20,10 +20,6 @@ export class NotebookCellList<T> extends WorkbenchList<T> {
 		return this.view.containerDomNode;
 	}
 
-	get isRendering(): boolean {
-		return this.view.isRendering;
-	}
-
 	constructor(
 		private listUser: string,
 		container: HTMLElement,
