@@ -147,6 +147,7 @@ export class CellViewModel extends Disposable {
 
 	hasDynamicHeight() {
 		if (this._dynamicHeight !== null) {
+			// if there is an output rendered in the webview, it should always be false
 			return false;
 		}
 
@@ -166,10 +167,6 @@ export class CellViewModel extends Disposable {
 	}
 
 	getHeight(lineHeight: number) {
-		if (this._dynamicHeight) {
-			console.log('dynamic height not needed?');
-			return this._dynamicHeight;
-		}
 		if (this.cellType === 'markdown') {
 			return 100;
 		}
