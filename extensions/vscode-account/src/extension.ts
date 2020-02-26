@@ -18,7 +18,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	await loginService.initialize();
 
 	context.subscriptions.push(vscode.authentication.registerAuthenticationProvider({
-		id: 'MSA',
+		id: 'microsoft',
 		displayName: 'Microsoft',
 		onDidChangeSessions: onDidChangeSessions.event,
 		getSessions: () => Promise.resolve(loginService.sessions),
