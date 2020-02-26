@@ -60,7 +60,7 @@ export class AuthenticationProviderWrapper implements vscode.AuthenticationProvi
 		return this._provider.login(scopes);
 	}
 
-	logout(sessionId: string): Promise<void> {
+	logout(sessionId: string): Thenable<void> {
 		return this._provider.logout(sessionId);
 	}
 }
