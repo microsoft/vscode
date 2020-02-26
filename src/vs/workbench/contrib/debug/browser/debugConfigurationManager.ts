@@ -519,18 +519,17 @@ abstract class AbstractLaunch {
 		if (!config || (!Array.isArray(config.configurations) && !Array.isArray(config.compounds))) {
 			return [];
 		} else {
-			const names: string[] = [];
+			const configurations: (IConfig | ICompound)[] = [];
 			if (config.configurations) {
-				names.push(...config.configurations.filter(cfg => cfg && typeof cfg.name === 'string').map(cfg => cfg.name));
+				configurations.push(...config.configurations.filter(cfg => cfg && typeof cfg.name === 'string'));
 			}
 			if (includeCompounds && config.compounds) {
 				if (config.compounds) {
-					names.push(...config.compounds.filter(compound => typeof compound.name === 'string' && compound.configurations && compound.configurations.length)
-						.map(compound => compound.name));
+					configurations.push(...config.compounds.filter(compound => typeof compound.name === 'string' && compound.configurations && compound.configurations.length));
 				}
 			}
 
-			return names;
+			return getVisibleAndSorted(configurations).map(c => c.name);
 		}
 	}
 
