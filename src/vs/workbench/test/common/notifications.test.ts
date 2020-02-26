@@ -23,6 +23,7 @@ suite('Notifications', () => {
 		let item3 = NotificationViewItem.create({ severity: Severity.Info, message: 'Info Message' })!;
 		let item4 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message', source: 'Source' })!;
 		let item5 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message', actions: { primary: [new Action('id', 'label')] } })!;
+		let item6 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message', actions: { primary: [new Action('id', 'label')] }, progress: { infinite: true } })!;
 
 		assert.equal(item1.equals(item1), true);
 		assert.equal(item2.equals(item2), true);
@@ -34,6 +35,10 @@ suite('Notifications', () => {
 		assert.equal(item1.equals(item3), false);
 		assert.equal(item1.equals(item4), false);
 		assert.equal(item1.equals(item5), false);
+
+		// Progress
+		assert.equal(item1.hasProgress, false);
+		assert.equal(item6.hasProgress, true);
 
 		// Message Box
 		assert.equal(item5.canCollapse, false);
@@ -102,8 +107,8 @@ suite('Notifications', () => {
 		assert.equal(called, 1);
 
 		// Error with Action
-		let item6 = NotificationViewItem.create({ severity: Severity.Error, message: createErrorWithActions('Hello Error', { actions: [new Action('id', 'label')] }) })!;
-		assert.equal(item6.actions!.primary!.length, 1);
+		let item7 = NotificationViewItem.create({ severity: Severity.Error, message: createErrorWithActions('Hello Error', { actions: [new Action('id', 'label')] }) })!;
+		assert.equal(item7.actions!.primary!.length, 1);
 
 		// Filter
 		let item8 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message' }, NotificationsFilter.SILENT)!;

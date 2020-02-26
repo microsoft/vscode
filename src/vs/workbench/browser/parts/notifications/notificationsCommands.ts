@@ -107,7 +107,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 		},
 		handler: (accessor, args?: any) => {
 			const notification = getNotificationFromContext(accessor.get(IListService), args);
-			if (notification) {
+			if (notification && !notification.hasProgress) {
 				notification.close();
 			}
 		}

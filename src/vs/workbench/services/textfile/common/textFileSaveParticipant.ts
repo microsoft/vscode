@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
-import { localize } from 'vs/nls';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { ITextFileSaveParticipant, IResolvedTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
@@ -33,7 +33,7 @@ export class TextFileSaveParticipant extends Disposable {
 		const cts = new CancellationTokenSource(token);
 
 		return this.progressService.withProgress({
-			title: localize('saveParticipants', "Running Save Participants for '{0}'", model.name),
+			title: localize('saveParticipants', "Saving '{0}'", model.name),
 			location: ProgressLocation.Notification,
 			cancellable: true,
 			delay: model.isDirty() ? 3000 : 5000

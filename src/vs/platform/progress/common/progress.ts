@@ -86,8 +86,6 @@ export interface IProgressRunner {
 	done(): void;
 }
 
-export const emptyProgress: IProgress<IProgressStep> = { report: () => { } };
-
 export const emptyProgressRunner: IProgressRunner = Object.freeze({
 	total() { },
 	worked() { },
@@ -99,6 +97,8 @@ export interface IProgress<T> {
 }
 
 export class Progress<T> implements IProgress<T> {
+
+	static readonly None: IProgress<any> = Object.freeze({ report() { } });
 
 	private _value?: T;
 	get value(): T | undefined { return this._value; }

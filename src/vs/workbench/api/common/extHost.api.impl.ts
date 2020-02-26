@@ -113,7 +113,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostOutputService = rpcProtocol.set(ExtHostContext.ExtHostOutputService, accessor.get(IExtHostOutputService));
 
 	// manually create and register addressable instances
-	const extHostWebviews = rpcProtocol.set(ExtHostContext.ExtHostWebviews, new ExtHostWebviews(rpcProtocol, initData.environment, extHostWorkspace, extHostLogService));
 	const extHostUrls = rpcProtocol.set(ExtHostContext.ExtHostUrls, new ExtHostUrls(rpcProtocol));
 	const extHostDocuments = rpcProtocol.set(ExtHostContext.ExtHostDocuments, new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors));
 	const extHostDocumentContentProviders = rpcProtocol.set(ExtHostContext.ExtHostDocumentContentProviders, new ExtHostDocumentContentProvider(rpcProtocol, extHostDocumentsAndEditors, extHostLogService));
@@ -134,6 +133,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostTheming = rpcProtocol.set(ExtHostContext.ExtHostTheming, new ExtHostTheming(rpcProtocol));
 	const extHostAuthentication = rpcProtocol.set(ExtHostContext.ExtHostAuthentication, new ExtHostAuthentication(rpcProtocol));
 	const extHostTimeline = rpcProtocol.set(ExtHostContext.ExtHostTimeline, new ExtHostTimeline(rpcProtocol, extHostCommands));
+	const extHostWebviews = rpcProtocol.set(ExtHostContext.ExtHostWebviews, new ExtHostWebviews(rpcProtocol, initData.environment, extHostWorkspace, extHostLogService, extHostApiDeprecation, extHostDocuments));
 
 	// Check that no named customers are missing
 	const expected: ProxyIdentifier<any>[] = values(ExtHostContext);
@@ -561,9 +561,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerWebviewPanelSerializer: (viewType: string, serializer: vscode.WebviewPanelSerializer) => {
 				return extHostWebviews.registerWebviewPanelSerializer(extension, viewType, serializer);
 			},
-			registerWebviewCustomEditorProvider: (viewType: string, provider: vscode.WebviewCustomEditorProvider, options?: vscode.WebviewPanelOptions) => {
+			registerCustomEditorProvider: (viewType: string, provider: vscode.CustomEditorProvider | vscode.CustomTextEditorProvider, options?: vscode.WebviewPanelOptions) => {
 				checkProposedApiEnabled(extension);
-				return extHostWebviews.registerWebviewCustomEditorProvider(extension, viewType, provider, options);
+				return extHostWebviews.registerCustomEditorProvider(extension, viewType, provider, options);
 			},
 			registerDecorationProvider(provider: vscode.DecorationProvider) {
 				checkProposedApiEnabled(extension);

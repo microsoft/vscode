@@ -42,6 +42,7 @@ import { parseLinkedText } from 'vs/base/common/linkedText';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { Link } from 'vs/platform/opener/browser/link';
+import { LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
 
 export interface IPaneColors extends IColorMapping {
 	dropBackground?: ColorIdentifier;
@@ -56,6 +57,19 @@ export interface IViewPaneOptions extends IPaneOptions {
 	showActionsAlways?: boolean;
 	titleMenuId?: MenuId;
 }
+
+export class DraggedViewIdentifier {
+	constructor(private _viewId: string) { }
+
+	get id(): string {
+		return this._viewId;
+	}
+}
+
+type WelcomeActionClassification = {
+	viewId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	uri: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+};
 
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 
@@ -184,11 +198,12 @@ export abstract class ViewPane extends Pane implements IView {
 		@IKeybindingService protected keybindingService: IKeybindingService,
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService protected contextKeyService: IContextKeyService,
 		@IViewDescriptorService protected viewDescriptorService: IViewDescriptorService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IOpenerService protected openerService: IOpenerService,
 		@IThemeService protected themeService: IThemeService,
+		@ITelemetryService protected telemetryService: ITelemetryService,
 	) {
 		super(options);
 
@@ -387,7 +402,9 @@ export abstract class ViewPane extends Pane implements IView {
 		addClass(this.bodyContainer, 'welcome');
 		this.viewWelcomeContainer.innerHTML = '';
 
-		for (const { content } of contents) {
+		let buttonIndex = 0;
+
+		for (const { content, preconditions } of contents) {
 			const lines = content.split('\n');
 
 			for (let line of lines) {
@@ -406,9 +423,28 @@ export abstract class ViewPane extends Pane implements IView {
 					} else if (linkedText.nodes.length === 1) {
 						const button = new Button(p, { title: node.title });
 						button.label = node.label;
-						button.onDidClick(_ => this.openerService.open(node.href), null, disposables);
+						button.onDidClick(_ => {
+							this.telemetryService.publicLog2<{ viewId: string, uri: string }, WelcomeActionClassification>('views.welcomeAction', { viewId: this.id, uri: node.href });
+							this.openerService.open(node.href);
+						}, null, disposables);
 						disposables.add(button);
 						disposables.add(attachButtonStyler(button, this.themeService));
+
+						if (preconditions) {
+							const precondition = preconditions[buttonIndex];
+
+							if (precondition) {
+								const updateEnablement = () => button.enabled = this.contextKeyService.contextMatchesRules(precondition);
+								updateEnablement();
+
+								const keys = new Set();
+								precondition.keys().forEach(key => keys.add(key));
+								const onDidChangeContext = Event.filter(this.contextKeyService.onDidChangeContext, e => e.affectsSome(keys));
+								onDidChangeContext(updateEnablement, null, disposables);
+							}
+						}
+
+						buttonIndex++;
 					} else {
 						const link = this.instantiationService.createInstance(Link, node);
 						append(p, link.el);
@@ -443,6 +479,8 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	private lastFocusedPane: ViewPane | undefined;
 	private paneItems: IViewPaneItem[] = [];
 	private paneview?: PaneView;
+
+	private static viewTransfer = LocalSelectionTransfer.getInstance<DraggedViewIdentifier>();
 
 	private visible: boolean = false;
 
@@ -874,6 +912,22 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 		this.paneItems.splice(index, 0, paneItem);
 		assertIsDefined(this.paneview).addPane(pane, size, index);
+
+		this._register(addDisposableListener(pane.draggableElement, EventType.DRAG_START, (e: DragEvent) => {
+			if (e.dataTransfer) {
+				e.dataTransfer.effectAllowed = 'move';
+			}
+
+			// Register as dragged to local transfer
+			ViewPaneContainer.viewTransfer.setData([new DraggedViewIdentifier(pane.id)], DraggedViewIdentifier.prototype);
+		}));
+
+
+		this._register(addDisposableListener(pane.draggableElement, EventType.DRAG_END, (e: DragEvent) => {
+			if (ViewPaneContainer.viewTransfer.hasData(DraggedViewIdentifier.prototype)) {
+				ViewPaneContainer.viewTransfer.clearData(DraggedViewIdentifier.prototype);
+			}
+		}));
 	}
 
 	removePanes(panes: ViewPane[]): void {
@@ -952,7 +1006,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		}
 		if (!this.areExtensionsReady) {
 			if (this.visibleViewsCountFromCache === undefined) {
-				return false;
+				return true;
 			}
 			// Check in cache so that view do not jump. See #29609
 			return this.visibleViewsCountFromCache === 1;

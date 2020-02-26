@@ -154,6 +154,7 @@ export interface IConfiguration extends IDisposable {
 	readonly options: IComputedEditorOptions;
 
 	setMaxLineNumber(maxLineNumber: number): void;
+	setViewLineCount(viewLineCount: number): void;
 	updateOptions(newOptions: IEditorOptions): void;
 	getRawOptions(): IEditorOptions;
 	observeReferenceElement(dimension?: IDimension): void;
@@ -467,6 +468,12 @@ export interface IEditor {
 	revealRangeNearTop(range: IRange, scrollType?: ScrollType): void;
 
 	/**
+	 * Scroll vertically or horizontally as necessary and reveal a range close to the top of the viewport,
+	 * optimized for viewing a code definition. Only if it lies outside the viewport.
+	 */
+	revealRangeNearTopIfOutsideViewport(range: IRange, scrollType?: ScrollType): void;
+
+	/**
 	 * Directly trigger a handler or an editor action.
 	 * @param source The source of the call.
 	 * @param handlerId The id of the handler or the id of a contribution.
@@ -671,9 +678,5 @@ export const Handler = {
 	CompositionStart: 'compositionStart',
 	CompositionEnd: 'compositionEnd',
 	Paste: 'paste',
-
 	Cut: 'cut',
-
-	Undo: 'undo',
-	Redo: 'redo',
 };

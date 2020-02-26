@@ -19,6 +19,7 @@ export interface TimelineItem {
 	handle: string;
 	source: string;
 
+	id?: string;
 	timestamp: number;
 	label: string;
 	icon?: URI,
@@ -31,28 +32,34 @@ export interface TimelineItem {
 }
 
 export interface TimelineChangeEvent {
-	id: string;
+	id?: string;
 	uri?: URI;
+	reset?: boolean
 }
 
-export interface TimelineCursor {
-	cursor?: any;
+export interface TimelineOptions {
+	cursor?: string;
 	before?: boolean;
-	limit?: number;
+	limit?: number | string;
 }
 
 export interface Timeline {
 	source: string;
 	items: TimelineItem[];
 
-	cursor?: any;
-	more?: boolean;
+	paging?: {
+		cursors: {
+			before: string;
+			after?: string
+		};
+		more?: boolean;
+	}
 }
 
 export interface TimelineProvider extends TimelineProviderDescriptor, IDisposable {
 	onDidChange?: Event<TimelineChangeEvent>;
 
-	provideTimeline(uri: URI, cursor: TimelineCursor, token: CancellationToken, options?: { cacheResults?: boolean }): Promise<Timeline | undefined>;
+	provideTimeline(uri: URI, options: TimelineOptions, token: CancellationToken, internalOptions?: { cacheResults?: boolean }): Promise<Timeline | undefined>;
 }
 
 export interface TimelineProviderDescriptor {
@@ -68,6 +75,7 @@ export interface TimelineProvidersChangeEvent {
 
 export interface TimelineRequest {
 	readonly result: Promise<Timeline | undefined>;
+	readonly options: TimelineOptions;
 	readonly source: string;
 	readonly tokenSource: CancellationTokenSource;
 	readonly uri: URI;
@@ -78,13 +86,17 @@ export interface ITimelineService {
 
 	onDidChangeProviders: Event<TimelineProvidersChangeEvent>;
 	onDidChangeTimeline: Event<TimelineChangeEvent>;
+	onDidReset: Event<void>;
 
 	registerTimelineProvider(provider: TimelineProvider): IDisposable;
 	unregisterTimelineProvider(id: string): void;
 
 	getSources(): string[];
 
-	getTimeline(id: string, uri: URI, cursor: TimelineCursor, tokenSource: CancellationTokenSource, options?: { cacheResults?: boolean }): TimelineRequest | undefined;
+	getTimeline(id: string, uri: URI, options: TimelineOptions, tokenSource: CancellationTokenSource, internalOptions?: { cacheResults?: boolean }): TimelineRequest | undefined;
+
+	// refresh(fetch?: 'all' | 'more'): void;
+	reset(): void;
 }
 
 const TIMELINE_SERVICE_ID = 'timeline';

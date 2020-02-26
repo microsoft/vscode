@@ -22,10 +22,10 @@
     "onCommand:imagePreview.zoomOut"
   ],
   "contributes": {
-    "webviewEditors": [
+    "customEditors": [
       {
         "viewType": "imagePreview.previewEditor",
-        "displayName": "%webviewEditors.displayName%",
+        "displayName": "%customEditors.displayName%",
         "priority": "builtin",
         "selector": [
           {

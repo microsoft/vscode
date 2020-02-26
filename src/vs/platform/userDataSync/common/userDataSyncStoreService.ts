@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, } from 'vs/base/common/lifecycle';
-import { IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, IUserDataSyncStore, getUserDataSyncStore, IUserDataAuthTokenService, SyncSource, UserDataSyncStoreError, IUserDataSyncLogService, IUserDataManifest } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, IUserDataSyncStore, getUserDataSyncStore, SyncSource, UserDataSyncStoreError, IUserDataSyncLogService, IUserDataManifest } from 'vs/platform/userDataSync/common/userDataSync';
 import { IRequestService, asText, isSuccess, asJson } from 'vs/platform/request/common/request';
 import { joinPath } from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IHeaders, IRequestOptions, IRequestContext } from 'vs/base/parts/request/common/request';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IAuthenticationTokenService } from 'vs/platform/authentication/common/authentication';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 export class UserDataSyncStoreService extends Disposable implements IUserDataSyncStoreService {
 
@@ -18,13 +20,14 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 	readonly userDataSyncStore: IUserDataSyncStore | undefined;
 
 	constructor(
+		@IProductService productService: IProductService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IRequestService private readonly requestService: IRequestService,
-		@IUserDataAuthTokenService private readonly authTokenService: IUserDataAuthTokenService,
+		@IAuthenticationTokenService private readonly authTokenService: IAuthenticationTokenService,
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
 	) {
 		super();
-		this.userDataSyncStore = getUserDataSyncStore(configurationService);
+		this.userDataSyncStore = getUserDataSyncStore(productService, configurationService);
 	}
 
 	async read(key: string, oldValue: IUserData | null, source?: SyncSource): Promise<IUserData> {

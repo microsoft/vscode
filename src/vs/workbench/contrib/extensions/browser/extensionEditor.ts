@@ -1060,7 +1060,7 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	private renderCustomEditors(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
-		const webviewEditors = manifest.contributes?.webviewEditors || [];
+		const webviewEditors = manifest.contributes?.customEditors || [];
 		if (!webviewEditors.length) {
 			return false;
 		}

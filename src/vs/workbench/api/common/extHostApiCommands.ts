@@ -14,7 +14,7 @@ import * as search from 'vs/workbench/contrib/search/common/search';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { CustomCodeAction } from 'vs/workbench/api/common/extHostLanguageFeatures';
-import { ICommandsExecutor, OpenFolderAPICommand, DiffAPICommand, OpenAPICommand, RemoveFromRecentlyOpenedAPICommand, SetEditorLayoutAPICommand, OpenIssueReporter } from './apiCommands';
+import { ICommandsExecutor, OpenFolderAPICommand, DiffAPICommand, OpenAPICommand, RemoveFromRecentlyOpenedAPICommand, SetEditorLayoutAPICommand, OpenIssueReporter, OpenIssueReporterArgs } from './apiCommands';
 import { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { IRange } from 'vs/editor/common/core/range';
@@ -364,7 +364,7 @@ export class ExtHostApiCommands {
 		this._register(OpenIssueReporter.ID, adjustHandler(OpenIssueReporter.execute), {
 			description: 'Opens the issue reporter with the provided extension id as the selected source',
 			args: [
-				{ name: 'extensionId', description: 'extensionId to report an issue on', constraint: (value: any) => typeof value === 'string' }
+				{ name: 'extensionId', description: 'extensionId to report an issue on', constraint: (value: unknown) => typeof value === 'string' || (typeof value === 'object' && typeof (value as OpenIssueReporterArgs).extensionId === 'string') }
 			]
 		});
 	}

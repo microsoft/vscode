@@ -9,7 +9,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 // import { basename } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ITimelineService, TimelineChangeEvent, TimelineCursor, TimelineProvidersChangeEvent, TimelineProvider } from './timeline';
+import { ITimelineService, TimelineChangeEvent, TimelineOptions, TimelineProvidersChangeEvent, TimelineProvider } from './timeline';
 
 export class TimelineService implements ITimelineService {
 	_serviceBrand: undefined;
@@ -19,6 +19,9 @@ export class TimelineService implements ITimelineService {
 
 	private readonly _onDidChangeTimeline = new Emitter<TimelineChangeEvent>();
 	readonly onDidChangeTimeline: Event<TimelineChangeEvent> = this._onDidChangeTimeline.event;
+
+	private readonly _onDidReset = new Emitter<void>();
+	readonly onDidReset: Event<void> = this._onDidReset.event;
 
 	private readonly _providers = new Map<string, TimelineProvider>();
 	private readonly _providerSubscriptions = new Map<string, IDisposable>();
@@ -81,7 +84,7 @@ export class TimelineService implements ITimelineService {
 		return [...this._providers.keys()];
 	}
 
-	getTimeline(id: string, uri: URI, cursor: TimelineCursor, tokenSource: CancellationTokenSource, options?: { cacheResults?: boolean }) {
+	getTimeline(id: string, uri: URI, options: TimelineOptions, tokenSource: CancellationTokenSource, internalOptions?: { cacheResults?: boolean }) {
 		this.logService.trace(`TimelineService#getTimeline(${id}): uri=${uri.toString(true)}`);
 
 		const provider = this._providers.get(id);
@@ -98,7 +101,7 @@ export class TimelineService implements ITimelineService {
 		}
 
 		return {
-			result: provider.provideTimeline(uri, cursor, tokenSource.token, options)
+			result: provider.provideTimeline(uri, options, tokenSource.token, internalOptions)
 				.then(result => {
 					if (result === undefined) {
 						return undefined;
@@ -109,6 +112,7 @@ export class TimelineService implements ITimelineService {
 
 					return result;
 				}),
+			options: options,
 			source: provider.id,
 			tokenSource: tokenSource,
 			uri: uri
@@ -155,5 +159,13 @@ export class TimelineService implements ITimelineService {
 		this._providers.delete(id);
 		this._providerSubscriptions.delete(id);
 		this._onDidChangeProviders.fire({ removed: [id] });
+	}
+
+	// refresh(fetch?: 'all' | 'more') {
+	// 	this._onDidChangeTimeline.fire({ fetch: fetch });
+	// }
+
+	reset() {
+		this._onDidReset.fire();
 	}
 }

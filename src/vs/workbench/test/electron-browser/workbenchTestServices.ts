@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workbenchInstantiationService as browserWorkbenchInstantiationService, ITestInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService as browserWorkbenchInstantiationService, ITestInstantiationService, TestLifecycleService, TestFilesConfigurationService, TestContextService, TestFileService, TestFileDialogService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { Event } from 'vs/base/common/event';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
-import { NativeTextFileService } from 'vs/workbench/services/textfile/electron-browser/nativeTextFileService';
+import { NativeTextFileService, EncodingOracle, IEncodingOverride } from 'vs/workbench/services/textfile/electron-browser/nativeTextFileService';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/node/dialogs';
 import { FileOperationError, IFileService } from 'vs/platform/files/common/files';
@@ -29,6 +29,14 @@ import { IOpenedWindow, IOpenEmptyWindowOptions, IWindowOpenable, IOpenWindowOpt
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
+import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
+import { UTF16le, UTF16be, UTF8_with_bom } from 'vs/base/node/encoding';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
+import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { NodeTestBackupFileService } from 'vs/workbench/services/backup/test/electron-browser/backupFileService.test';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export const TestWindowConfiguration: IWindowConfiguration = {
 	windowId: 0,
@@ -61,7 +69,8 @@ export class TestTextFileService extends NativeTextFileService {
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
 		@ITextModelService textModelService: ITextModelService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@IRemotePathService remotePathService: IRemotePathService
+		@IRemotePathService remotePathService: IRemotePathService,
+		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService
 	) {
 		super(
 			fileService,
@@ -77,7 +86,8 @@ export class TestTextFileService extends NativeTextFileService {
 			filesConfigurationService,
 			textModelService,
 			codeEditorService,
-			remotePathService
+			remotePathService,
+			workingCopyFileService
 		);
 	}
 
@@ -105,6 +115,31 @@ export class TestTextFileService extends NativeTextFileService {
 			size: 10
 		};
 	}
+}
+
+export class TestNativeTextFileServiceWithEncodingOverrides extends NativeTextFileService {
+
+	private _testEncoding: TestEncodingOracle | undefined;
+	get encoding(): TestEncodingOracle {
+		if (!this._testEncoding) {
+			this._testEncoding = this._register(this.instantiationService.createInstance(TestEncodingOracle));
+		}
+
+		return this._testEncoding;
+	}
+}
+
+class TestEncodingOracle extends EncodingOracle {
+
+	protected get encodingOverrides(): IEncodingOverride[] {
+		return [
+			{ extension: 'utf16le', encoding: UTF16le },
+			{ extension: 'utf16be', encoding: UTF16be },
+			{ extension: 'utf8bom', encoding: UTF8_with_bom }
+		];
+	}
+
+	protected set encodingOverrides(overrides: IEncodingOverride[]) { }
 }
 
 export class TestSharedProcessService implements ISharedProcessService {
@@ -183,4 +218,21 @@ export function workbenchInstantiationService(): ITestInstantiationService {
 	instantiationService.stub(IElectronService, new TestElectronService());
 
 	return instantiationService;
+}
+
+export class TestServiceAccessor {
+	constructor(
+		@ILifecycleService public lifecycleService: TestLifecycleService,
+		@ITextFileService public textFileService: TestTextFileService,
+		@IFilesConfigurationService public filesConfigurationService: TestFilesConfigurationService,
+		@IWorkspaceContextService public contextService: TestContextService,
+		@IModelService public modelService: ModelServiceImpl,
+		@IFileService public fileService: TestFileService,
+		@IElectronService public electronService: TestElectronService,
+		@IFileDialogService public fileDialogService: TestFileDialogService,
+		@IBackupFileService public backupFileService: NodeTestBackupFileService,
+		@IWorkingCopyService public workingCopyService: IWorkingCopyService,
+		@IEditorService public editorService: IEditorService
+	) {
+	}
 }

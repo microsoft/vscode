@@ -68,7 +68,7 @@ export class DragAndDropController extends Disposable implements IEditorContribu
 	}
 
 	private onEditorKeyDown(e: IKeyboardEvent): void {
-		if (!this._editor.getOption(EditorOption.dragAndDrop)) {
+		if (!this._editor.getOption(EditorOption.dragAndDrop) || this._editor.getOption(EditorOption.columnSelection)) {
 			return;
 		}
 
@@ -84,7 +84,7 @@ export class DragAndDropController extends Disposable implements IEditorContribu
 	}
 
 	private onEditorKeyUp(e: IKeyboardEvent): void {
-		if (!this._editor.getOption(EditorOption.dragAndDrop)) {
+		if (!this._editor.getOption(EditorOption.dragAndDrop) || this._editor.getOption(EditorOption.columnSelection)) {
 			return;
 		}
 

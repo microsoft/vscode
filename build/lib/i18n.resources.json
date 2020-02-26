@@ -303,6 +303,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/workingCopy",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/workspaces",
 			"project": "vscode-workbench"
 		},

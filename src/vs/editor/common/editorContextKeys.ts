@@ -23,6 +23,7 @@ export namespace EditorContextKeys {
 	export const textInputFocus = new RawContextKey<boolean>('textInputFocus', false);
 
 	export const readOnly = new RawContextKey<boolean>('editorReadonly', false);
+	export const columnSelection = new RawContextKey<boolean>('editorColumnSelection', false);
 	export const writable: ContextKeyExpr = readOnly.toNegated();
 	export const hasNonEmptySelection = new RawContextKey<boolean>('editorHasSelection', false);
 	export const hasOnlyEmptySelection: ContextKeyExpr = hasNonEmptySelection.toNegated();

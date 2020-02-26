@@ -19,7 +19,7 @@ import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { URI } from 'vs/base/common/uri';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import * as callh from 'vs/workbench/contrib/callHierarchy/browser/callHierarchy';
+import * as callh from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { mixin } from 'vs/base/common/objects';
 import { decodeSemanticTokensDto } from 'vs/workbench/api/common/shared/semanticTokens';
 
@@ -273,7 +273,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	// --- quick fix
 
-	$registerQuickFixSupport(handle: number, selector: IDocumentFilterDto[], metadata: ICodeActionProviderMetadataDto): void {
+	$registerQuickFixSupport(handle: number, selector: IDocumentFilterDto[], metadata: ICodeActionProviderMetadataDto, displayName: string): void {
 		this._registrations.set(handle, modes.CodeActionProviderRegistry.register(selector, <modes.CodeActionProvider>{
 			provideCodeActions: async (model: ITextModel, rangeOrSelection: EditorRange | Selection, context: modes.CodeActionContext, token: CancellationToken): Promise<modes.CodeActionList | undefined> => {
 				const listDto = await this._proxy.$provideCodeActions(handle, model.uri, rangeOrSelection, context, token);
@@ -290,7 +290,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 				};
 			},
 			providedCodeActionKinds: metadata.providedKinds,
-			documentation: metadata.documentation
+			documentation: metadata.documentation,
+			displayName
 		}));
 	}
 

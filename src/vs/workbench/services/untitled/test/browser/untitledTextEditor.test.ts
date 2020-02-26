@@ -8,37 +8,21 @@ import * as assert from 'assert';
 import { join } from 'vs/base/common/path';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { workbenchInstantiationService, TestEditorService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
+import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/browser/workbenchTestServices';
 import { snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
 import { ModesRegistry, PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
-import { IWorkingCopyService, IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 
-class ServiceAccessor {
-	constructor(
-		@IUntitledTextEditorService public readonly untitledTextEditorService: IUntitledTextEditorService,
-		@IEditorService public readonly editorService: TestEditorService,
-		@IWorkingCopyService public readonly workingCopyService: IWorkingCopyService,
-		@IModeService public readonly modeService: ModeServiceImpl,
-		@IConfigurationService public readonly testConfigurationService: TestConfigurationService
-	) { }
-}
-
 suite('Untitled text editors', () => {
 
 	let instantiationService: IInstantiationService;
-	let accessor: ServiceAccessor;
+	let accessor: TestServiceAccessor;
 
 	setup(() => {
 		instantiationService = workbenchInstantiationService();
-		accessor = instantiationService.createInstance(ServiceAccessor);
+		accessor = instantiationService.createInstance(TestServiceAccessor);
 	});
 
 	teardown(() => {
@@ -135,9 +119,13 @@ suite('Untitled text editors', () => {
 	test('associated resource is dirty', async () => {
 		const service = accessor.untitledTextEditorService;
 		const file = URI.file(join('C:\\', '/foo/file.txt'));
-		const untitled = await service.resolve({ associatedResource: file });
 
-		assert.ok(untitled.hasAssociatedFilePath);
+		const untitled = instantiationService.createInstance(UntitledTextEditorInput, service.create({ associatedResource: file }));
+		assert.ok(untitled.isDirty());
+
+		const model = await untitled.resolve();
+
+		assert.ok(model.hasAssociatedFilePath);
 		assert.equal(untitled.isDirty(), true);
 
 		untitled.dispose();
@@ -212,20 +200,14 @@ suite('Untitled text editors', () => {
 		const workingCopyService = accessor.workingCopyService;
 
 		const untitled = instantiationService.createInstance(UntitledTextEditorInput, service.create({ initialValue: 'Hello World' }));
-
-		let onDidChangeDirty: IWorkingCopy | undefined = undefined;
-		const listener = workingCopyService.onDidChangeDirty(copy => {
-			onDidChangeDirty = copy;
-		});
+		assert.ok(untitled.isDirty());
 
 		// dirty
 		const model = await untitled.resolve();
 		assert.ok(model.isDirty());
 		assert.equal(workingCopyService.dirtyCount, 1);
-		assert.equal(onDidChangeDirty, model);
 
 		untitled.dispose();
-		listener.dispose();
 		model.dispose();
 	});
 

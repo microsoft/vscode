@@ -36,6 +36,7 @@ import { TokensStore, MultilineTokens, countEOL, MultilineTokens2, TokensStore2 
 import { Color } from 'vs/base/common/color';
 import { Constants } from 'vs/base/common/uint';
 import { EditorTheme } from 'vs/editor/common/view/viewContext';
+import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 
 function createTextBufferBuilder() {
 	return new PieceTreeTextBufferBuilder();
@@ -187,10 +188,6 @@ export class TextModel extends Disposable implements model.ITextModel {
 		largeFileOptimizations: EDITOR_MODEL_DEFAULTS.largeFileOptimizations,
 	};
 
-	public static createFromString(text: string, options: model.ITextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS, languageIdentifier: LanguageIdentifier | null = null, uri: URI | null = null): TextModel {
-		return new TextModel(text, options, languageIdentifier, uri);
-	}
-
 	public static resolveOptions(textBuffer: model.ITextBuffer, options: model.ITextModelCreationOptions): model.TextModelResolvedOptions {
 		if (options.detectIndentation) {
 			const guessedIndentation = guessIndentation(textBuffer, options.tabSize, options.insertSpaces);
@@ -253,6 +250,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 	public readonly id: string;
 	public readonly isForSimpleWidget: boolean;
 	private readonly _associatedResource: URI;
+	private readonly _undoRedoService: IUndoRedoService;
 	private _attachedEditorCount: number;
 	private _buffer: model.ITextBuffer;
 	private _options: model.TextModelResolvedOptions;
@@ -268,7 +266,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 	private readonly _isTooLargeForTokenization: boolean;
 
 	//#region Editing
-	private _commandManager: EditStack;
+	private readonly _commandManager: EditStack;
 	private _isUndoing: boolean;
 	private _isRedoing: boolean;
 	private _trimAutoWhitespaceLines: number[] | null;
@@ -293,7 +291,13 @@ export class TextModel extends Disposable implements model.ITextModel {
 	private readonly _tokenization: TextModelTokenization;
 	//#endregion
 
-	constructor(source: string | model.ITextBufferFactory, creationOptions: model.ITextModelCreationOptions, languageIdentifier: LanguageIdentifier | null, associatedResource: URI | null = null) {
+	constructor(
+		source: string | model.ITextBufferFactory,
+		creationOptions: model.ITextModelCreationOptions,
+		languageIdentifier: LanguageIdentifier | null,
+		associatedResource: URI | null = null,
+		undoRedoService: IUndoRedoService
+	) {
 		super();
 
 		// Generate a new unique model id
@@ -305,6 +309,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		} else {
 			this._associatedResource = associatedResource;
 		}
+		this._undoRedoService = undoRedoService;
 		this._attachedEditorCount = 0;
 
 		this._buffer = createTextBuffer(source, creationOptions.defaultEOL);
@@ -347,7 +352,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this._decorations = Object.create(null);
 		this._decorationsTree = new DecorationsTrees();
 
-		this._commandManager = new EditStack(this);
+		this._commandManager = new EditStack(this, undoRedoService);
 		this._isUndoing = false;
 		this._isRedoing = false;
 		this._trimAutoWhitespaceLines = null;
@@ -362,6 +367,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this._onWillDispose.fire();
 		this._languageRegistryListener.dispose();
 		this._tokenization.dispose();
+		this._undoRedoService.removeElements(this.uri);
 		this._isDisposed = true;
 		super.dispose();
 		this._isDisposing = false;
@@ -436,7 +442,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this._decorationsTree = new DecorationsTrees();
 
 		// Destroy my edit history and settings
-		this._commandManager = new EditStack(this);
+		this._commandManager.clear();
 		this._trimAutoWhitespaceLines = null;
 
 		this._emitContentChangedEvent(
@@ -1176,7 +1182,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return result;
 	}
 
-	public pushEditOperations(beforeCursorState: Selection[], editOperations: model.IIdentifiedSingleEditOperation[], cursorStateComputer: model.ICursorStateComputer | null): Selection[] | null {
+	public pushEditOperations(beforeCursorState: Selection[] | null, editOperations: model.IIdentifiedSingleEditOperation[], cursorStateComputer: model.ICursorStateComputer | null): Selection[] | null {
 		try {
 			this._onDidChangeDecorations.beginDeferredEmit();
 			this._eventEmitter.beginDeferredEmit();
@@ -1187,7 +1193,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		}
 	}
 
-	private _pushEditOperations(beforeCursorState: Selection[], editOperations: model.ValidAnnotatedEditOperation[], cursorStateComputer: model.ICursorStateComputer | null): Selection[] | null {
+	private _pushEditOperations(beforeCursorState: Selection[] | null, editOperations: model.ValidAnnotatedEditOperation[], cursorStateComputer: model.ICursorStateComputer | null): Selection[] | null {
 		if (this._options.trimAutoWhitespace && this._trimAutoWhitespaceLines) {
 			// Go through each saved line number and insert a trim whitespace edit
 			// if it is safe to do so (no conflicts with other edits).
@@ -1202,21 +1208,23 @@ export class TextModel extends Disposable implements model.ITextModel {
 			// Sometimes, auto-formatters change ranges automatically which can cause undesired auto whitespace trimming near the cursor
 			// We'll use the following heuristic: if the edits occur near the cursor, then it's ok to trim auto whitespace
 			let editsAreNearCursors = true;
-			for (let i = 0, len = beforeCursorState.length; i < len; i++) {
-				let sel = beforeCursorState[i];
-				let foundEditNearSel = false;
-				for (let j = 0, lenJ = incomingEdits.length; j < lenJ; j++) {
-					let editRange = incomingEdits[j].range;
-					let selIsAbove = editRange.startLineNumber > sel.endLineNumber;
-					let selIsBelow = sel.startLineNumber > editRange.endLineNumber;
-					if (!selIsAbove && !selIsBelow) {
-						foundEditNearSel = true;
+			if (beforeCursorState) {
+				for (let i = 0, len = beforeCursorState.length; i < len; i++) {
+					let sel = beforeCursorState[i];
+					let foundEditNearSel = false;
+					for (let j = 0, lenJ = incomingEdits.length; j < lenJ; j++) {
+						let editRange = incomingEdits[j].range;
+						let selIsAbove = editRange.startLineNumber > sel.endLineNumber;
+						let selIsBelow = sel.startLineNumber > editRange.endLineNumber;
+						if (!selIsAbove && !selIsBelow) {
+							foundEditNearSel = true;
+							break;
+						}
+					}
+					if (!foundEditNearSel) {
+						editsAreNearCursors = false;
 						break;
 					}
-				}
-				if (!foundEditNearSel) {
-					editsAreNearCursors = false;
-					break;
 				}
 			}
 
@@ -1272,18 +1280,39 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return this._commandManager.pushEditOperation(beforeCursorState, editOperations, cursorStateComputer);
 	}
 
+	_applyUndoRedoEdits(edits: model.IValidEditOperations[], eol: model.EndOfLineSequence, isUndoing: boolean, isRedoing: boolean, resultingAlternativeVersionId: number, resultingSelection: Selection[] | null): model.IValidEditOperations[] {
+		try {
+			this._onDidChangeDecorations.beginDeferredEmit();
+			this._eventEmitter.beginDeferredEmit();
+			this._isUndoing = isUndoing;
+			this._isRedoing = isRedoing;
+			let reverseEdits: model.IValidEditOperations[] = [];
+			for (let i = 0, len = edits.length; i < len; i++) {
+				reverseEdits[i] = { operations: this.applyEdits(edits[i].operations) };
+			}
+			this.setEOL(eol);
+			this._overwriteAlternativeVersionId(resultingAlternativeVersionId);
+			return reverseEdits;
+		} finally {
+			this._isUndoing = false;
+			this._isRedoing = false;
+			this._eventEmitter.endDeferredEmit(resultingSelection);
+			this._onDidChangeDecorations.endDeferredEmit();
+		}
+	}
+
 	public applyEdits(rawOperations: model.IIdentifiedSingleEditOperation[]): model.IValidEditOperation[] {
 		try {
 			this._onDidChangeDecorations.beginDeferredEmit();
 			this._eventEmitter.beginDeferredEmit();
-			return this._applyEdits(this._validateEditOperations(rawOperations));
+			return this._doApplyEdits(this._validateEditOperations(rawOperations));
 		} finally {
 			this._eventEmitter.endDeferredEmit();
 			this._onDidChangeDecorations.endDeferredEmit();
 		}
 	}
 
-	private _applyEdits(rawOperations: model.ValidAnnotatedEditOperation[]): model.IValidEditOperation[] {
+	private _doApplyEdits(rawOperations: model.ValidAnnotatedEditOperation[]): model.IValidEditOperation[] {
 
 		const oldLineCount = this._buffer.getLineCount();
 		const result = this._buffer.applyEdits(rawOperations, this._options.trimAutoWhitespace);
@@ -1364,62 +1393,20 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return result.reverseEdits;
 	}
 
-	private _undo(): Selection[] | null {
-		this._isUndoing = true;
-		let r = this._commandManager.undo();
-		this._isUndoing = false;
-
-		if (!r) {
-			return null;
-		}
-
-		this._overwriteAlternativeVersionId(r.recordedVersionId);
-
-		return r.selections;
-	}
-
-	public undo(): Selection[] | null {
-		try {
-			this._onDidChangeDecorations.beginDeferredEmit();
-			this._eventEmitter.beginDeferredEmit();
-			return this._undo();
-		} finally {
-			this._eventEmitter.endDeferredEmit();
-			this._onDidChangeDecorations.endDeferredEmit();
-		}
+	public undo(): void {
+		this._undoRedoService.undo(this.uri);
 	}
 
 	public canUndo(): boolean {
-		return this._commandManager.canUndo();
+		return this._undoRedoService.canUndo(this.uri);
 	}
 
-	private _redo(): Selection[] | null {
-		this._isRedoing = true;
-		let r = this._commandManager.redo();
-		this._isRedoing = false;
-
-		if (!r) {
-			return null;
-		}
-
-		this._overwriteAlternativeVersionId(r.recordedVersionId);
-
-		return r.selections;
-	}
-
-	public redo(): Selection[] | null {
-		try {
-			this._onDidChangeDecorations.beginDeferredEmit();
-			this._eventEmitter.beginDeferredEmit();
-			return this._redo();
-		} finally {
-			this._eventEmitter.endDeferredEmit();
-			this._onDidChangeDecorations.endDeferredEmit();
-		}
+	public redo(): void {
+		this._undoRedoService.redo(this.uri);
 	}
 
 	public canRedo(): boolean {
-		return this._commandManager.canRedo();
+		return this._undoRedoService.canRedo(this.uri);
 	}
 
 	//#endregion
@@ -3191,10 +3178,11 @@ export class DidChangeContentEmitter extends Disposable {
 		this._deferredCnt++;
 	}
 
-	public endDeferredEmit(): void {
+	public endDeferredEmit(resultingSelection: Selection[] | null = null): void {
 		this._deferredCnt--;
 		if (this._deferredCnt === 0) {
 			if (this._deferredEvent !== null) {
+				this._deferredEvent.rawContentChangedEvent.resultingSelection = resultingSelection;
 				const e = this._deferredEvent;
 				this._deferredEvent = null;
 				this._fastEmitter.fire(e);

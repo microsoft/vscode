@@ -832,6 +832,20 @@ export class DebugSession implements IDebugSession {
 				column: event.body.column ? event.body.column : 1,
 				source: this.getSource(event.body.source)
 			} : undefined;
+
+			if (event.body.group === 'start' || event.body.group === 'startCollapsed') {
+				const expanded = event.body.group === 'start';
+				this.repl.startGroup(event.body.output || '', expanded, source);
+				return;
+			}
+			if (event.body.group === 'end') {
+				this.repl.endGroup();
+				if (!event.body.output) {
+					// Only return if the end event does not have additional output in it
+					return;
+				}
+			}
+
 			if (event.body.variablesReference) {
 				const container = new ExpressionContainer(this, undefined, event.body.variablesReference, generateUuid());
 				outpuPromises.push(container.getChildren().then(async children => {

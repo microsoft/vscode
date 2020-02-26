@@ -6,7 +6,7 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import * as network from 'vs/base/common/network';
 import { basename } from 'vs/base/common/path';
-import { isEqual, joinPath } from 'vs/base/common/resources';
+import { isEqual, joinPath, extname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/searchEditor';
 import { Range } from 'vs/editor/common/core/range';
@@ -17,8 +17,8 @@ import { localize } from 'vs/nls';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { EditorInput, GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
-import { SearchEditorFindMatchClass, SearchEditorScheme } from 'vs/workbench/contrib/searchEditor/browser/constants';
+import { EditorInput, GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, IMoveResult } from 'vs/workbench/common/editor';
+import { SearchEditorFindMatchClass, SearchEditorScheme, SearchEditorBodyScheme } from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { extractSearchQuery, serializeSearchConfiguration } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -41,6 +41,8 @@ export type SearchConfiguration = {
 	useIgnores: boolean,
 	showIncludesExcludes: boolean,
 };
+
+const SEARCH_EDITOR_EXT = '.code-search';
 
 export class SearchEditorInput extends EditorInput {
 	static readonly ID: string = 'workbench.editorinputs.searchEditorInput';
@@ -170,7 +172,7 @@ export class SearchEditorInput extends EditorInput {
 			return localize('searchTitle', "Search");
 		}
 
-		return localize('searchTitle.withQuery', "Search: {0}", basename(this.resource.path, '.code-search'));
+		return localize('searchTitle.withQuery', "Search: {0}", basename(this.resource.path, SEARCH_EDITOR_EXT));
 	}
 
 	getConfigSync() {
@@ -212,6 +214,17 @@ export class SearchEditorInput extends EditorInput {
 
 	isUntitled() {
 		return this.resource.scheme === SearchEditorScheme;
+	}
+
+	move(group: GroupIdentifier, target: URI): IMoveResult | undefined {
+		if (extname(target) === SEARCH_EDITOR_EXT) {
+			return {
+				editor: this.instantiationService.invokeFunction(getOrMakeSearchEditorInput, { uri: target })
+			};
+		}
+
+		// Ignore move if editor was renamed to a different file extension
+		return undefined;
 	}
 
 	dispose() {
@@ -261,7 +274,7 @@ export class SearchEditorInput extends EditorInput {
 	private async suggestFileName(): Promise<URI> {
 		const query = extractSearchQuery(await this.headerModel).query;
 
-		const searchFileName = (query.replace(/[^\w \-_]+/g, '_') || 'Search') + '.code-search';
+		const searchFileName = (query.replace(/[^\w \-_]+/g, '_') || 'Search') + SEARCH_EDITOR_EXT;
 
 		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
 		const schemeFilter = remoteAuthority ? network.Schemas.vscodeRemote : network.Schemas.file;
@@ -326,7 +339,7 @@ export const getOrMakeSearchEditorInput = (
 			}
 		}
 
-		const contentsModelURI = uri.with({ scheme: 'search-editor-body' });
+		const contentsModelURI = uri.with({ scheme: SearchEditorBodyScheme });
 		const headerModelURI = uri.with({ scheme: 'search-editor-header' });
 		const contentsModel = modelService.getModel(contentsModelURI) ?? modelService.createModel('', modeService.create('search-result'), contentsModelURI);
 		const headerModel = modelService.getModel(headerModelURI) ?? modelService.createModel('', modeService.create('search-result'), headerModelURI);

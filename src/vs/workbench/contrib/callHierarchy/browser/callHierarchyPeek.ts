@@ -7,7 +7,7 @@ import 'vs/css!./media/callHierarchy';
 import * as peekView from 'vs/editor/contrib/peekView/peekView';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CallHierarchyDirection, CallHierarchyModel } from 'vs/workbench/contrib/callHierarchy/browser/callHierarchy';
+import { CallHierarchyDirection, CallHierarchyModel } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { WorkbenchAsyncDataTree, IWorkbenchAsyncDataTreeOptions } from 'vs/platform/list/browser/listService';
 import { FuzzyScore } from 'vs/base/common/filters';
 import * as callHTree from 'vs/workbench/contrib/callHierarchy/browser/callHierarchyTree';

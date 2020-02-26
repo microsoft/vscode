@@ -22,7 +22,7 @@ import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/
 import { IPathData } from 'vs/platform/windows/common/windows';
 import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
 import { ITextFileSaveOptions, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { isEqual, dirname } from 'vs/base/common/resources';
 import { IPanel } from 'vs/workbench/common/panel';
 import { IRange } from 'vs/editor/common/core/range';
@@ -345,6 +345,11 @@ export interface IRevertOptions {
 	readonly soft?: boolean;
 }
 
+export interface IMoveResult {
+	editor: EditorInput | IResourceEditor;
+	options?: IEditorOptions;
+}
+
 export interface IEditorInput extends IDisposable {
 
 	/**
@@ -447,6 +452,16 @@ export interface IEditorInput extends IDisposable {
 	revert(group: GroupIdentifier, options?: IRevertOptions): Promise<boolean>;
 
 	/**
+	 * Called to determine how to handle a resource that is moved that matches
+	 * the editors resource (or is a child of).
+	 *
+	 * Implementors are free to not implement this method to signal no intent
+	 * to participate. If an editor is returned though, it will replace the
+	 * current one with that editor and optional options.
+	 */
+	move(group: GroupIdentifier, target: URI): IMoveResult | undefined;
+
+	/**
 	 * Returns if the other object matches this input.
 	 */
 	matches(other: unknown): boolean;
@@ -544,6 +559,10 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 
 	async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<boolean> {
 		return true;
+	}
+
+	move(group: GroupIdentifier, target: URI): IMoveResult | undefined {
+		return undefined;
 	}
 
 	/**
@@ -780,6 +799,11 @@ export interface IFileEditorInput extends IEditorInput, IEncodingSupport, IModeS
 	 * Forces this file input to open as binary instead of text.
 	 */
 	setForceOpenAsBinary(): void;
+
+	/**
+	 * Figure out if the input has been resolved or not.
+	 */
+	isResolved(): boolean;
 }
 
 /**
@@ -1209,6 +1233,8 @@ export class TextEditorOptions extends EditorOptions implements ITextEditorOptio
 
 			if (this.selectionRevealType === TextEditorSelectionRevealType.NearTop) {
 				editor.revealRangeNearTop(range, scrollType);
+			} else if (this.selectionRevealType === TextEditorSelectionRevealType.NearTopIfOutsideViewport) {
+				editor.revealRangeNearTopIfOutsideViewport(range, scrollType);
 			} else if (this.selectionRevealType === TextEditorSelectionRevealType.CenterIfOutsideViewport) {
 				editor.revealRangeInCenterIfOutsideViewport(range, scrollType);
 			} else {
@@ -1348,6 +1374,8 @@ export interface IEditorMemento<T> {
 
 	clearEditorState(resource: URI, group?: IEditorGroup): void;
 	clearEditorState(editor: EditorInput, group?: IEditorGroup): void;
+
+	moveEditorState(source: URI, target: URI): void;
 }
 
 class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {

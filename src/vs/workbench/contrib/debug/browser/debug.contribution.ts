@@ -250,6 +250,11 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('debug.console.wordWrap', "Controls if the lines should wrap in the debug console."),
 			default: true
 		},
+		'debug.console.historySuggestions': {
+			type: 'boolean',
+			description: nls.localize('debug.console.historySuggestions', "Controls if the debug console should suggest previously typed input."),
+			default: true
+		},
 		'launch': {
 			type: 'object',
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'launch' }, "Global debug launch configuration. Should be used as an alternative to 'launch.json' that is shared across workspaces."),
@@ -262,7 +267,7 @@ configurationRegistry.registerConfiguration({
 			default: true
 		},
 		'debug.onTaskErrors': {
-			enum: ['debugAnyway', 'showErrors', 'prompt', 'cancel'],
+			enum: ['debugAnyway', 'showErrors', 'prompt', 'abort'],
 			enumDescriptions: [nls.localize('debugAnyway', "Ignore task errors and start debugging."), nls.localize('showErrors', "Show the Problems view and do not start debugging."), nls.localize('prompt', "Prompt user."), nls.localize('cancel', "Cancel debugging.")],
 			description: nls.localize('debug.onTaskErrors', "Controls what to do when errors are encountered after running a preLaunchTask."),
 			default: 'prompt'

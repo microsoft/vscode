@@ -34,7 +34,6 @@ import { addDisposableListener, EventType, EventHelper } from 'vs/base/browser/d
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
-import { ILogService } from 'vs/platform/log/common/log';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -112,8 +111,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@ILogService private readonly logService: ILogService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
 
@@ -277,7 +275,9 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	clear(): void {
-		this.ensureHistoryLoaded();
+
+		// History
+		this.clearRecentlyOpened();
 
 		// Navigation (next, previous)
 		this.navigationStackIndex = -1;
@@ -288,9 +288,6 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		// Closed files
 		this.recentlyClosedFiles = [];
-
-		// History
-		this.clearRecentlyOpened();
 
 		// Context Keys
 		this.updateContextKeys();
@@ -719,8 +716,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private static readonly MAX_HISTORY_ITEMS = 200;
 	private static readonly HISTORY_STORAGE_KEY = 'history.entries';
 
-	private history: Array<IEditorInput | IResourceInput> = [];
-	private loaded = false;
+	private history: Array<IEditorInput | IResourceInput> | undefined = undefined;
+
 	private readonly resourceFilter = this._register(this.instantiationService.createInstance(
 		ResourceGlobMatcher,
 		(root?: URI) => this.getExcludes(root),
@@ -741,11 +738,10 @@ export class HistoryService extends Disposable implements IHistoryService {
 			return;
 		}
 
-		this.ensureHistoryLoaded();
-
 		const historyInput = this.preferResourceInput(input);
 
 		// Remove any existing entry and add to the beginning
+		this.ensureHistoryLoaded(this.history);
 		this.removeFromHistory(input);
 		this.history.unshift(historyInput);
 
@@ -772,7 +768,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private removeExcludedFromHistory(): void {
-		this.ensureHistoryLoaded();
+		this.ensureHistoryLoaded(this.history);
 
 		this.history = this.history.filter(e => {
 			const include = this.include(e);
@@ -787,7 +783,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private removeFromHistory(arg1: IEditorInput | IResourceInput | FileChangesEvent): void {
-		this.ensureHistoryLoaded();
+		this.ensureHistoryLoaded(this.history);
 
 		this.history = this.history.filter(e => {
 			const matches = this.matches(arg1, e);
@@ -809,17 +805,59 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	getHistory(): ReadonlyArray<IEditorInput | IResourceInput> {
-		this.ensureHistoryLoaded();
+		this.ensureHistoryLoaded(this.history);
 
 		return this.history.slice(0);
 	}
 
-	private ensureHistoryLoaded(): void {
-		if (!this.loaded) {
-			this.loadHistory();
+	private ensureHistoryLoaded(history: Array<IEditorInput | IResourceInput> | undefined): asserts history {
+		if (!this.history) {
+			this.history = this.loadHistory();
+		}
+	}
+
+	private loadHistory(): Array<IEditorInput | IResourceInput> {
+		let entries: ISerializedEditorHistoryEntry[] = [];
+
+		const entriesRaw = this.storageService.get(HistoryService.HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
+		if (entriesRaw) {
+			entries = coalesce(JSON.parse(entriesRaw));
 		}
 
-		this.loaded = true;
+		const registry = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories);
+
+		return coalesce(entries.map(entry => {
+			try {
+				return this.safeLoadHistoryEntry(registry, entry);
+			} catch (error) {
+				return undefined; // https://github.com/Microsoft/vscode/issues/60960
+			}
+		}));
+	}
+
+	private safeLoadHistoryEntry(registry: IEditorInputFactoryRegistry, entry: ISerializedEditorHistoryEntry): IEditorInput | IResourceInput | undefined {
+		const serializedEditorHistoryEntry = entry;
+
+		// File resource: via URI.revive()
+		if (serializedEditorHistoryEntry.resourceJSON) {
+			return { resource: URI.revive(<UriComponents>serializedEditorHistoryEntry.resourceJSON) };
+		}
+
+		// Editor input: via factory
+		const { editorInputJSON } = serializedEditorHistoryEntry;
+		if (editorInputJSON?.deserialized) {
+			const factory = registry.getEditorInputFactory(editorInputJSON.typeId);
+			if (factory) {
+				const input = factory.deserialize(this.instantiationService, editorInputJSON.deserialized);
+				if (input) {
+					this.onEditorDispose(input, () => this.removeFromHistory(input), this.editorHistoryListeners);
+				}
+
+				return withNullAsUndefined(input);
+			}
+		}
+
+		return undefined;
 	}
 
 	private saveState(): void {
@@ -850,56 +888,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 			return undefined;
 		}));
 
-		this.logService.trace(`[editor history] saving ${entries.length} entries`);
 		this.storageService.store(HistoryService.HISTORY_STORAGE_KEY, JSON.stringify(entries), StorageScope.WORKSPACE);
-	}
-
-	private loadHistory(): void {
-		let entries: ISerializedEditorHistoryEntry[] = [];
-
-		const entriesRaw = this.storageService.get(HistoryService.HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
-		if (entriesRaw) {
-			entries = coalesce(JSON.parse(entriesRaw));
-		}
-
-		const registry = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories);
-
-		this.history = coalesce(entries.map(entry => {
-			try {
-				return this.safeLoadHistoryEntry(registry, entry);
-			} catch (error) {
-				this.logService.error(`[editor history] error loading one editor history entry: ${error.toString()}`);
-
-				return undefined; // https://github.com/Microsoft/vscode/issues/60960
-			}
-		}));
-
-		this.logService.trace(`[editor history] loading ${this.history.length} entries`);
-	}
-
-	private safeLoadHistoryEntry(registry: IEditorInputFactoryRegistry, entry: ISerializedEditorHistoryEntry): IEditorInput | IResourceInput | undefined {
-		const serializedEditorHistoryEntry = entry;
-
-		// File resource: via URI.revive()
-		if (serializedEditorHistoryEntry.resourceJSON) {
-			return { resource: URI.revive(<UriComponents>serializedEditorHistoryEntry.resourceJSON) };
-		}
-
-		// Editor input: via factory
-		const { editorInputJSON } = serializedEditorHistoryEntry;
-		if (editorInputJSON?.deserialized) {
-			const factory = registry.getEditorInputFactory(editorInputJSON.typeId);
-			if (factory) {
-				const input = factory.deserialize(this.instantiationService, editorInputJSON.deserialized);
-				if (input) {
-					this.onEditorDispose(input, () => this.removeFromHistory(input), this.editorHistoryListeners);
-				}
-
-				return withNullAsUndefined(input);
-			}
-		}
-
-		return undefined;
 	}
 
 	//#endregion
@@ -925,8 +914,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 
 		// Multiple folders: find the last active one
-		const history = this.getHistory();
-		for (const input of history) {
+		for (const input of this.getHistory()) {
 			if (input instanceof EditorInput) {
 				continue;
 			}
@@ -954,8 +942,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	getLastActiveFile(filterByScheme: string): URI | undefined {
-		const history = this.getHistory();
-		for (const input of history) {
+		for (const input of this.getHistory()) {
 			let resource: URI | undefined;
 			if (input instanceof EditorInput) {
 				resource = toResource(input, { filterByScheme });

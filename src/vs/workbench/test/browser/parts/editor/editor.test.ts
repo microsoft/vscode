@@ -4,43 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { EditorInput, toResource, SideBySideEditor } from 'vs/workbench/common/editor';
+import { toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { URI } from 'vs/base/common/uri';
-import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService, TestServiceAccessor, TestEditorInput } from 'vs/workbench/test/browser/workbenchTestServices';
 import { Schemas } from 'vs/base/common/network';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-
-class ServiceAccessor {
-	constructor(@IUntitledTextEditorService public untitledTextEditorService: UntitledTextEditorService) { }
-}
-
-class FileEditorInput extends EditorInput {
-
-	constructor(public resource: URI) {
-		super();
-	}
-
-	getTypeId(): string {
-		return 'editorResourceFileTest';
-	}
-
-	resolve(): Promise<IEditorModel | null> {
-		return Promise.resolve(null);
-	}
-}
 
 suite('Workbench editor', () => {
 
 	let instantiationService: IInstantiationService;
-	let accessor: ServiceAccessor;
+	let accessor: TestServiceAccessor;
 
 	setup(() => {
 		instantiationService = workbenchInstantiationService();
-		accessor = instantiationService.createInstance(ServiceAccessor);
+		accessor = instantiationService.createInstance(TestServiceAccessor);
 	});
 
 	teardown(() => {
@@ -60,7 +39,7 @@ suite('Workbench editor', () => {
 		assert.equal(toResource(untitled, { filterByScheme: [Schemas.file, Schemas.untitled] })!.toString(), untitled.resource.toString());
 		assert.ok(!toResource(untitled, { filterByScheme: Schemas.file }));
 
-		const file = new FileEditorInput(URI.file('/some/path.txt'));
+		const file = new TestEditorInput(URI.file('/some/path.txt'), 'editorResourceFileTest');
 
 		assert.equal(toResource(file)!.toString(), file.resource.toString());
 		assert.equal(toResource(file, { supportSideBySide: SideBySideEditor.MASTER })!.toString(), file.resource.toString());

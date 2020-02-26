@@ -109,6 +109,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	private lastStart: number;
 	private numberRestarts: number;
 	private isRestarting: boolean = false;
+	private hasServerFatallyCrashedTooManyTimes = false;
 	private readonly loadingIndicator = new ServerInitializingIndicator();
 
 	public readonly telemetryReporter: TelemetryReporter;
@@ -306,7 +307,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 	private token: number = 0;
 	private startService(resendModels: boolean = false): ServerState.State {
-		if (this.isDisposed) {
+		if (this.isDisposed || this.hasServerFatallyCrashedTooManyTimes) {
 			return ServerState.None;
 		}
 
@@ -477,7 +478,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.bufferSyncSupport.reset();
 
 		const watchOptions = this.apiVersion.gte(API.v380)
-			? vscode.workspace.getConfiguration('typescript').get<Proto.WatchOptions | undefined>('tsserver.watchOptions')
+			? this.configuration.watchOptions
 			: undefined;
 
 		const configureOptions: Proto.ConfigureRequestArguments = {
@@ -529,7 +530,9 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			id: MessageAction;
 		}
 
+		const previousState = this.serverState;
 		this.serverState = ServerState.None;
+
 		if (restart) {
 			const diff = Date.now() - this.lastStart;
 			this.numberRestarts++;
@@ -540,6 +543,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				if (diff < 10 * 1000 /* 10 seconds */) {
 					this.lastStart = Date.now();
 					startService = false;
+					this.hasServerFatallyCrashedTooManyTimes = true;
 					prompt = vscode.window.showErrorMessage<MyMessageItem>(
 						localize('serverDiedAfterStart', 'The TypeScript language service died 5 times right after it got started. The service will not be restarted.'),
 						{
@@ -565,8 +569,11 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				}
 				if (prompt) {
 					prompt.then(item => {
-						if (item && item.id === MessageAction.reportIssue) {
-							return vscode.commands.executeCommand('workbench.action.openIssueReporter');
+						if (item?.id === MessageAction.reportIssue) {
+							const args = previousState.type === ServerState.Type.Errored && previousState.error instanceof TypeScriptServerError
+								? getReportIssueArgsForError(previousState.error)
+								: undefined;
+							return vscode.commands.executeCommand('workbench.action.openIssueReporter', args);
 						}
 						return undefined;
 					});
@@ -719,9 +726,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	private fatalError(command: string, error: unknown): void {
-		if (!(error instanceof TypeScriptServerError)) {
-			console.log('fdasfasdf');
-		}
 		/* __GDPR__
 			"fatalError" : {
 				"${include}": [
@@ -740,6 +744,9 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		if (this.serverState.type === ServerState.Type.Running) {
 			this.info('Killing TS Server');
 			this.serverState.server.kill();
+			if (error instanceof TypeScriptServerError) {
+				this.serverState = new ServerState.Errored(error);
+			}
 		}
 	}
 
@@ -867,6 +874,32 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			this.executeWithoutWaitingForResponse('configurePlugin', { pluginName, configuration });
 		}
 	}
+}
+
+function getReportIssueArgsForError(error: TypeScriptServerError): { issueTitle: string, issueBody: string } | undefined {
+	if (!error.serverStack || !error.serverMessage) {
+		return undefined;
+	}
+
+	// Note these strings are intentionally not localized
+	// as we want users to file issues in english
+	return {
+		issueTitle: `TS Server fatal error:  ${error.serverMessage}`,
+
+		issueBody: `**TypeScript Version:** ${error.version.apiVersion?.fullVersionString}
+
+**Steps to reproduce crash**
+
+1.
+2.
+3.
+
+**TS Server Error Stack**
+
+\`\`\`
+${error.serverStack}
+\`\`\``,
+	};
 }
 
 function getDignosticsKind(event: Proto.Event) {

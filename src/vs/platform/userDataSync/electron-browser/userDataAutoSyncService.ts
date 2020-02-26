@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, IUserDataSyncLogService, IUserDataAuthTokenService, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, IUserDataSyncLogService, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { Event } from 'vs/base/common/event';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { UserDataAutoSyncService as BaseUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
+import { IAuthenticationTokenService } from 'vs/platform/authentication/common/authentication';
 
 export class UserDataAutoSyncService extends BaseUserDataAutoSyncService {
 
@@ -15,7 +16,7 @@ export class UserDataAutoSyncService extends BaseUserDataAutoSyncService {
 		@IUserDataSyncService userDataSyncService: IUserDataSyncService,
 		@IElectronService electronService: IElectronService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
-		@IUserDataAuthTokenService authTokenService: IUserDataAuthTokenService,
+		@IAuthenticationTokenService authTokenService: IAuthenticationTokenService,
 	) {
 		super(userDataSyncEnablementService, userDataSyncService, logService, authTokenService);
 

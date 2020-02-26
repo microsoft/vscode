@@ -10,6 +10,7 @@ import './inspectKeybindings';
 import './largeFileOptimizations';
 import './inspectEditorTokens/inspectEditorTokens';
 import './saveParticipants';
+import './toggleColumnSelection';
 import './toggleMinimap';
 import './toggleMultiCursorModifier';
 import './toggleRenderControlCharacter';

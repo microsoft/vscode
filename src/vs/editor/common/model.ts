@@ -380,6 +380,13 @@ export interface IValidEditOperation {
 }
 
 /**
+ * @internal
+ */
+export interface IValidEditOperations {
+	operations: IValidEditOperation[];
+}
+
+/**
  * A callback that can compute the cursor state after applying a series of edit operations.
  */
 export interface ICursorStateComputer {
@@ -1070,7 +1077,7 @@ export interface ITextModel {
 	 * @param cursorStateComputer A callback that can compute the resulting cursors state after the edit operations have been executed.
 	 * @return The cursor state returned by the `cursorStateComputer`.
 	 */
-	pushEditOperations(beforeCursorState: Selection[], editOperations: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer): Selection[] | null;
+	pushEditOperations(beforeCursorState: Selection[] | null, editOperations: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer): Selection[] | null;
 
 	/**
 	 * Change the end of line sequence. This is the preferred way of
@@ -1093,11 +1100,16 @@ export interface ITextModel {
 	setEOL(eol: EndOfLineSequence): void;
 
 	/**
+	 * @internal
+	 */
+	_applyUndoRedoEdits(edits: IValidEditOperations[], eol: EndOfLineSequence, isUndoing: boolean, isRedoing: boolean, resultingAlternativeVersionId: number, resultingSelection: Selection[] | null): IValidEditOperations[];
+
+	/**
 	 * Undo edit operations until the first previous stop point created by `pushStackElement`.
 	 * The inverse edit operations will be pushed on the redo stack.
 	 * @internal
 	 */
-	undo(): Selection[] | null;
+	undo(): void;
 
 	/**
 	 * Is there anything in the undo stack?
@@ -1110,7 +1122,7 @@ export interface ITextModel {
 	 * The inverse edit operations will be pushed on the undo stack.
 	 * @internal
 	 */
-	redo(): Selection[] | null;
+	redo(): void;
 
 	/**
 	 * Is there anything in the redo stack?
