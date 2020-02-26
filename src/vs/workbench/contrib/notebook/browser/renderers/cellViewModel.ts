@@ -151,20 +151,15 @@ export class CellViewModel extends Disposable {
 		}
 
 		if (this.cellType === 'code') {
-			// if (this.outputs && this.outputs.length > 0) {
-			// 	// if it contains output, it will be marked as dynamic height
-			// 	// thus when it's being rendered, the list view will `probeHeight`
-			// 	// inside which, we will check domNode's height directly instead of doing another `renderElement` with height undefined.
-			// 	return true;
-			// }
-			// else {
-			// 	return false;
-			// }
-
-			// we don't want code cell to be dynamic, because when it's dynamic, there is always a chance that List View needs to run `renderElement(height: undefined)`
-			// to check its actual size, however that's what we want to avoid as we might end up with rendering outputs twice (creating duplicated outputs in webview)
-			// let's see how resizing and relayout works
-			return false;
+			if (this.outputs && this.outputs.length > 0) {
+				// if it contains output, it will be marked as dynamic height
+				// thus when it's being rendered, the list view will `probeHeight`
+				// inside which, we will check domNode's height directly instead of doing another `renderElement` with height undefined.
+				return true;
+			}
+			else {
+				return false;
+			}
 		}
 
 		return true;
@@ -172,6 +167,7 @@ export class CellViewModel extends Disposable {
 
 	getHeight(lineHeight: number) {
 		if (this._dynamicHeight) {
+			console.log('dynamic height not needed?');
 			return this._dynamicHeight;
 		}
 		if (this.cellType === 'markdown') {

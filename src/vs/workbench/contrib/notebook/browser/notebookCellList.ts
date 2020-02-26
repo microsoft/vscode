@@ -66,6 +66,7 @@ export class NotebookCellList<T> extends WorkbenchList<T> {
 
 	// override
 	domFocus() {
+		// @TODO, custom menu doesn't work
 		if (document.activeElement && this.view.domNode.contains(document.activeElement)) {
 			// for example, when focus goes into monaco editor, if we refocus the list view, the editor will lose focus.
 			return;

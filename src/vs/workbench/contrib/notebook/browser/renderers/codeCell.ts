@@ -297,6 +297,8 @@ export class CodeCell extends Disposable {
 				// let cachedHeight = this.viewCell.getOutputHeight(currOutput);
 			} else {
 				// static output
+
+				// @TODO, if we stop checking output height, we need to evaluate it later when checking the height of output container
 				let clientHeight = outputItemDiv.clientHeight;
 				this.viewCell.updateOutputHeight(index, clientHeight);
 			}
