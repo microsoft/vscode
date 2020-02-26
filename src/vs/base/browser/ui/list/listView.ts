@@ -342,6 +342,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		if (this.supportDynamicHeights) {
 			this._rerender(this.lastRenderTop, this.lastRenderHeight);
 		}
+
+		this.eventuallyUpdateScrollDimensions();
 	}
 
 	splice(start: number, deleteCount: number, elements: T[] = []): T[] {
@@ -438,11 +440,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	private eventuallyUpdateScrollDimensions(): void {
 		this._scrollHeight = this.contentHeight;
-		if (this.scrollableElement.getScrollDimensions().height > this._scrollHeight) {
-			this.rowsContainer.style.height = `${this.scrollableElement.getScrollDimensions().height}`;
-		} else {
-			this.rowsContainer.style.height = `${this._scrollHeight}px`;
-		}
+		this.rowsContainer.style.height = `${this._scrollHeight}px`;
 
 		if (!this.scrollableElementUpdateDisposable) {
 			this.scrollableElementUpdateDisposable = DOM.scheduleAtNextAnimationFrame(() => {
