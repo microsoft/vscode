@@ -99,7 +99,7 @@ const resolveKeybindingsConflictsCommand = { id: 'workbench.userData.actions.res
 const configureSyncCommand = { id: 'workbench.userData.actions.configureSync', title: localize('configure sync', "Sync: Configure") };
 const showSyncActivityCommand = {
 	id: 'workbench.userData.actions.showSyncActivity', title(userDataSyncService: IUserDataSyncService): string {
-		return getActivityTitle(localize('show sync log', "Sync: Show Activity"), userDataSyncService);
+		return getActivityTitle(localize('show sync log', "Sync: Show Log"), userDataSyncService);
 	}
 };
 const showSyncSettingsCommand = { id: 'workbench.userData.actions.syncSettings', title: localize('sync settings', "Sync: Settings"), };
