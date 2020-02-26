@@ -46,7 +46,7 @@ export class NotificationsStatus extends Disposable {
 		if (!this.isNotificationsCenterVisible) {
 			if (e.kind === NotificationChangeType.ADD) {
 				this.newNotificationsCount++;
-			} else if (e.kind === NotificationChangeType.REMOVE) {
+			} else if (e.kind === NotificationChangeType.REMOVE && this.newNotificationsCount > 0) {
 				this.newNotificationsCount--;
 			}
 		}
