@@ -42,7 +42,7 @@ const matchToSearchResultFormat = (match: Match): { line: string, ranges: Range[
 
 			const rangeOnThisLine = ({ start, end }: { start?: number; end?: number; }) => new Range(1, (start ?? 1) + prefixOffset, 1, (end ?? sourceLine.length + 1) + prefixOffset);
 
-			const matchRange = match.range();
+			const matchRange = match.rangeInPreview();
 			const matchIsSingleLine = matchRange.startLineNumber === matchRange.endLineNumber;
 
 			let lineRange;

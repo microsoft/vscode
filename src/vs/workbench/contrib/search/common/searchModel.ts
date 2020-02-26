@@ -141,6 +141,15 @@ export class Match {
 		return thisMatchPreviewLines.join('\n');
 	}
 
+	rangeInPreview() {
+		// convert to editor's base 1 positions.
+		return {
+			...this._fullPreviewRange,
+			startColumn: this._fullPreviewRange.startColumn + 1,
+			endColumn: this._fullPreviewRange.endColumn + 1
+		};
+	}
+
 	fullPreviewLines(): string[] {
 		return this._fullPreviewLines.slice(this._fullPreviewRange.startLineNumber, this._fullPreviewRange.endLineNumber + 1);
 	}
