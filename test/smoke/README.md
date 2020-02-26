@@ -13,6 +13,7 @@ yarn --cwd test/automation
 yarn smoketest
 
 # Dev (Web)
+yarn gulp mixin-server
 yarn smoketest --web --browser [chromium|firefox|webkit]
 
 # Build (Electron)
