@@ -616,6 +616,8 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 					const data = this.compositeTransfer.getData(DraggedViewIdentifier.prototype);
 					if (Array.isArray(data)) {
 						const draggedViewId = data[0].id;
+						this.updateFromDragging(container, false);
+						this.compositeTransfer.clearData(DraggedViewIdentifier.prototype);
 
 						this.dndHandler.drop(new CompositeDragAndDropData('view', draggedViewId), this.activity.id, e);
 					}
