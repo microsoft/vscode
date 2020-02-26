@@ -553,7 +553,7 @@ export class MoveFocusedViewAction extends Action {
 
 		const viewDescriptor = this.viewDescriptorService.getViewDescriptor(focusedViewId);
 		if (!viewDescriptor || !viewDescriptor.canMoveView) {
-			this.notificationService.error(nls.localize('moveFocusedView.error.nonMovableView', "The currently focused view is not movable {0}.", focusedViewId));
+			this.notificationService.error(nls.localize('moveFocusedView.error.nonMovableView', "The currently focused view is not movable."));
 			return Promise.resolve();
 		}
 
