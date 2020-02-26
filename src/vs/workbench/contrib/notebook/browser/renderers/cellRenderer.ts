@@ -40,10 +40,6 @@ export class NotebookCellListDelegate implements IListVirtualDelegate<CellViewMo
 		return element.hasDynamicHeight();
 	}
 
-	getDynamicHeight(element: CellViewModel) {
-		return element.dynamicHeight || 0;
-	}
-
 	getTemplateId(element: CellViewModel): string {
 		if (element.cellType === 'markdown') {
 			return MarkdownCellRenderer.TEMPLATE_ID;

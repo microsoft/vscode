@@ -1172,6 +1172,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		if (this.virtualDelegate.hasDynamicHeight) {
 			if (!this.virtualDelegate.hasDynamicHeight(item.element)) {
+				// if the item doesn't have dynamic height, don't check its height again
 				return 0;
 			}
 		} else {
