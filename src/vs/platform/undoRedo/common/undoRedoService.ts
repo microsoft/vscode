@@ -289,10 +289,17 @@ export class UndoRedoService implements IUndoRedoService {
 			nls.localize('confirmWorkspace', "Would you like to undo '{0}' across all files?", element.label),
 			[
 				nls.localize('ok', "Yes, change {0} files.", affectedEditStacks.length),
-				nls.localize('nok', "No, change only this file.")
-			]
+				nls.localize('nok', "No, change only this file."),
+				nls.localize('cancel', "Cancel"),
+			],
+			{
+				cancelId: 2
+			}
 		).then((result) => {
-			if (result.choice === 0) {
+			if (result.choice === 2) {
+				// cancel
+				return;
+			} else if (result.choice === 0) {
 				for (const editStack of affectedEditStacks) {
 					editStack.past.pop();
 					editStack.future.push(element);
