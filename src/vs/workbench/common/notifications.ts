@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { INotification, INotificationHandle, INotificationActions, INotificationProgress, NoOpNotification, Severity, NotificationMessage, IPromptChoice, IStatusMessageOptions, NotificationsFilter } from 'vs/platform/notification/common/notification';
+import { INotification, INotificationHandle, INotificationActions, INotificationProgress, NoOpNotification, Severity, NotificationMessage, IPromptChoice, IStatusMessageOptions, NotificationsFilter, INotificationProgressProperties } from 'vs/platform/notification/common/notification';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -435,7 +435,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 			actions = { primary: notification.message.actions };
 		}
 
-		return new NotificationViewItem(severity, notification.sticky, notification.silent || filter === NotificationsFilter.SILENT || (filter === NotificationsFilter.ERROR && notification.severity !== Severity.Error), message, notification.source, actions);
+		return new NotificationViewItem(severity, notification.sticky, notification.silent || filter === NotificationsFilter.SILENT || (filter === NotificationsFilter.ERROR && notification.severity !== Severity.Error), message, notification.source, notification.progress, actions);
 	}
 
 	private static parseNotificationMessage(input: NotificationMessage): INotificationMessage | undefined {
@@ -472,11 +472,28 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 		private _silent: boolean | undefined,
 		private _message: INotificationMessage,
 		private _source: string | undefined,
+		progress: INotificationProgressProperties | undefined,
 		actions?: INotificationActions
 	) {
 		super();
 
+		if (progress) {
+			this.setProgress(progress);
+		}
+
 		this.setActions(actions);
+	}
+
+	private setProgress(progress: INotificationProgressProperties): void {
+		if (progress.infinite) {
+			this.progress.infinite();
+		} else if (progress.total) {
+			this.progress.total(progress.total);
+
+			if (progress.worked) {
+				this.progress.worked(progress.worked);
+			}
+		}
 	}
 
 	private setActions(actions: INotificationActions = { primary: [], secondary: [] }): void {

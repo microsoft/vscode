@@ -233,7 +233,8 @@ export class ProgressService extends Disposable implements IProgressService {
 				severity: Severity.Info,
 				message,
 				source: options.source,
-				actions: { primary: primaryActions, secondary: secondaryActions }
+				actions: { primary: primaryActions, secondary: secondaryActions },
+				progress: typeof increment === 'number' && increment >= 0 ? { total: 100, worked: increment } : { infinite: true }
 			});
 
 			updateProgress(handle, increment);
