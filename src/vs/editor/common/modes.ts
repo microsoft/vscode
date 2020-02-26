@@ -494,7 +494,7 @@ export interface CompletionItem {
 	preselect?: boolean;
 	/**
 	 * A string or snippet that should be inserted in a document when selecting
-	 * this completion. When `falsy` the [label](#CompletionItem.label)
+	 * this completion.
 	 * is used.
 	 */
 	insertText: string;
