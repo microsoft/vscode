@@ -493,7 +493,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				localize('sync preview message', "Synchronizing your preferences is a preview feature, please read the documentation before turning it on."),
 				[
 					localize('open doc', "Open Documentation"),
-					localize('confirm', "Continue"),
+					localize('turn on sync', "Turn on Sync"),
 					localize('cancel', "Cancel"),
 				],
 				{
