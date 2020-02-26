@@ -284,7 +284,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		this.layout();
 	}
 
-	public triggerScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {
+	triggerScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {
 		this.scrollableElement.triggerScrollFromMouseWheelEvent(browserEvent);
 	}
 
