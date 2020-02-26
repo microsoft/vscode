@@ -1279,8 +1279,8 @@ declare module 'vscode' {
 	/**
 	 * Represents a custom document for a custom webview editor.
 	 *
-	 * Custom documents are only used within a given `WebviewCustomEditorProvider`. The lifecycle of a
-	 * `WebviewEditorCustomDocument` is managed by VS Code. When more more references remain to a given `WebviewEditorCustomDocument`
+	 * Custom documents are only used within a given `CustomEditorProvider`. The lifecycle of a
+	 * `CustomDocument` is managed by VS Code. When more more references remain to a given `CustomDocument`
 	 * then it is disposed of.
 	 *
 	 * @param UserDataType Type of custom object that extensions can store on the document.
@@ -1297,7 +1297,7 @@ declare module 'vscode' {
 		readonly uri: Uri;
 
 		/**
-		 * Event fired when there are no more references to the `WebviewEditorCustomDocument`.
+		 * Event fired when there are no more references to the `CustomDocument`.
 		 */
 		readonly onDidDispose: Event<void>;
 
@@ -1313,7 +1313,7 @@ declare module 'vscode' {
 	/**
 	 * Provider for webview editors that use a custom data model.
 	 *
-	 * Custom webview editors use [`WebviewEditorCustomDocument`](#WebviewEditorCustomDocument) as their data model.
+	 * Custom webview editors use [`CustomDocument`](#CustomDocument) as their data model.
 	 * This gives extensions full control over actions such as edit, save, and backup.
 	 *
 	 * You should use custom text based editors when dealing with binary files or more complex scenarios. For simple text
@@ -1321,20 +1321,22 @@ declare module 'vscode' {
 	 */
 	export interface CustomEditorProvider {
 		/**
-		 * Create the model for a given
+		 * Resolve the model for a given resource.
 		 *
-		 * @param document Resource being resolved.
+		 * @param document Document to resolve.
+		 *
+		 * @return The capabilities of the resolved document.
 		 */
 		resolveCustomDocument(document: CustomDocument): Thenable<CustomEditorCapabilities>;
 
 		/**
 		 * Resolve a webview editor for a given resource.
 		 *
-		 * To resolve a webview editor, a provider must fill in its initial html content and hook up all
+		 * To resolve a webview editor, the provider must fill in its initial html content and hook up all
 		 * the event listeners it is interested it. The provider should also take ownership of the passed in `WebviewPanel`.
 		 *
-		 * @param document Document for resource being resolved.
-		 * @param webviewPanel Webview being resolved. The provider should take ownership of this webview.
+		 * @param document Document for the resource being resolved.
+		 * @param webviewPanel Webview to resolve. The provider should take ownership of this webview.
 		 *
 		 * @return Thenable indicating that the webview editor has been resolved.
 		 */
@@ -1349,7 +1351,7 @@ declare module 'vscode' {
 	 * undo and backup. The provider is responsible for synchronizing text changes between the webview and the `TextDocument`.
 	 *
 	 * You should use text based webview editors when dealing with text based file formats, such as `xml` or `json`.
-	 * For binary files or more specialized use cases, see [WebviewCustomEditorProvider](#WebviewCustomEditorProvider).
+	 * For binary files or more specialized use cases, see [CustomEditorProvider](#CustomEditorProvider).
 	 */
 	export interface CustomTextEditorProvider {
 		/**
@@ -1359,7 +1361,7 @@ declare module 'vscode' {
 		 * the event listeners it is interested it. The provider should also take ownership of the passed in `WebviewPanel`.
 		 *
 		 * @param document Resource being resolved.
-		 * @param webviewPanel Webview being resolved. The provider should take ownership of this webview.
+		 * @param webviewPanel Webview to resolve. The provider should take ownership of this webview.
 		 *
 		 * @return Thenable indicating that the webview editor has been resolved.
 		 */
