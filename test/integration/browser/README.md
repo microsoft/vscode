@@ -14,7 +14,6 @@ All integration tests run in an Electron instance. You can specify to run the te
 
 ## Run (inside browser)
 
-	yarn gulp mixin-server
 	resources/server/test/test-web-integration.[sh|bat] --browser [chromium|webkit] [--debug]
 
 All integration tests run in a browser instance as specified by the command line arguments.
