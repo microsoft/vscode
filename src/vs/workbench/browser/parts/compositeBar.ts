@@ -52,7 +52,7 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 			if (targetCompositeId) {
 				if (currentLocation !== this.targetContainerLocation && this.targetContainerLocation !== ViewContainerLocation.Panel) {
 					const destinationContainer = viewContainerRegistry.get(targetCompositeId);
-					if (destinationContainer) {
+					if (destinationContainer && !destinationContainer.rejectAddedViews) {
 						this.viewDescriptorService.moveViewsToContainer(this.viewDescriptorService.getViewDescriptors(currentContainer)!.allViewDescriptors.filter(vd => vd.canMoveView), destinationContainer);
 						this.openComposite(targetCompositeId, true);
 					}
@@ -73,7 +73,7 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 			if (viewDescriptor && viewDescriptor.canMoveView) {
 				if (targetCompositeId) {
 					const destinationContainer = viewContainerRegistry.get(targetCompositeId);
-					if (destinationContainer) {
+					if (destinationContainer && !destinationContainer.rejectAddedViews) {
 						if (this.targetContainerLocation === ViewContainerLocation.Sidebar) {
 							this.viewDescriptorService.moveViewsToContainer([viewDescriptor], destinationContainer);
 							this.openComposite(targetCompositeId, true);
@@ -134,6 +134,7 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 			if (this.targetContainerLocation === ViewContainerLocation.Sidebar) {
 				const destinationContainer = viewContainerRegistry.get(targetCompositeId);
 				return !!destinationContainer &&
+					!destinationContainer.rejectAddedViews &&
 					this.viewDescriptorService.getViewDescriptors(currentContainer)!.allViewDescriptors.some(vd => vd.canMoveView);
 			}
 			// ... from sidebar to the panel
@@ -155,7 +156,8 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 			}
 
 			// ... into a destination
-			return true;
+			const destinationContainer = viewContainerRegistry.get(targetCompositeId);
+			return !!destinationContainer && !destinationContainer.rejectAddedViews;
 		}
 
 		return false;
