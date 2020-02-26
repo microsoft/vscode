@@ -113,7 +113,7 @@ export interface IInputOptions {
 	placeHolder?: string;
 
 	/**
-	 * set to true to show a password prompt that will not show the typed value
+	 * Controls if a password input is shown. Password input hides the typed text.
 	 */
 	password?: boolean;
 
