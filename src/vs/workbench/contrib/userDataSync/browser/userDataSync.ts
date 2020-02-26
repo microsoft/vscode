@@ -290,7 +290,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				const conflictsEditorInput = this.getConflictsEditorInput(conflictsSource);
 				if (!conflictsEditorInput && !this.conflictsDisposables.has(conflictsSource)) {
 					const conflictsArea = getSyncAreaLabel(conflictsSource);
-					const handle = this.notificationService.prompt(Severity.Warning, localize('conflicts detected', "Unable to sync due to conflicts in {0}. Please resolve them to continue.", conflictsArea),
+					const handle = this.notificationService.prompt(Severity.Warning, localize('conflicts detected', "Unable to sync due to conflicts in {0}. Please resolve them to continue.", conflictsArea.toLowerCase()),
 						[
 							{
 								label: localize('accept remote', "Accept Remote"),
@@ -1133,8 +1133,8 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 							? localize('Sync accept remote', "Sync: {0}", acceptRemoteLabel)
 							: localize('Sync accept local', "Sync: {0}", acceptLocalLabel),
 						message: isRemote
-							? localize('confirm replace and overwrite local', "Would you like to accept Remote {0} and replace Local {1}?", syncAreaLabel, syncAreaLabel)
-							: localize('confirm replace and overwrite remote', "Would you like to accept Local {0} and replace Remote {1}?", syncAreaLabel, syncAreaLabel),
+							? localize('confirm replace and overwrite local', "Would you like to accept Remote {0} and replace Local {1}?", syncAreaLabel.toLowerCase(), syncAreaLabel.toLowerCase())
+							: localize('confirm replace and overwrite remote', "Would you like to accept Local {0} and replace Remote {1}?", syncAreaLabel.toLowerCase(), syncAreaLabel.toLowerCase()),
 						primaryButton: isRemote ? acceptRemoteLabel : acceptLocalLabel
 					});
 					if (result.confirmed) {
