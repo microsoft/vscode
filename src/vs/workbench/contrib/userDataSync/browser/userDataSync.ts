@@ -542,19 +542,20 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			await new Promise((c, e) => {
 				const disposables: DisposableStore = new DisposableStore();
 				const displayName = this.authenticationService.getDisplayName(this.userDataSyncStore!.authenticationProviderId);
-				const quickPick = this.quickInputService.createQuickPick<{ id: string, label: string, description?: string }>();
+				const quickPick = this.quickInputService.createQuickPick<{ id: string, label: string, description?: string, detail?: string }>();
 				const chooseAnotherItemId = 'chooseAnother';
 				disposables.add(quickPick);
-				quickPick.title = localize('pick account', "Sync: Choose Account");
+				quickPick.title = localize('pick account', "{0}: Pick an account", displayName);
 				quickPick.ok = false;
-				quickPick.placeholder = localize('choose account placeholder', "Choose account to sync");
+				quickPick.placeholder = localize('choose account placeholder', "Pick an account for syncing");
 				quickPick.ignoreFocusOut = true;
 				quickPick.items = [{
 					id: 'existing',
-					label: localize('existing', "Use {0}:{1}", displayName, this.activeAccount!.accountName)
+					label: localize('existing', "{0}", this.activeAccount!.accountName),
+					detail: localize('signed in', "Signed in"),
 				}, {
 					id: chooseAnotherItemId,
-					label: localize('choose another', "Choose another account")
+					label: localize('choose another', "Use another account")
 				}];
 				disposables.add(quickPick.onDidAccept(async () => {
 					if (quickPick.selectedItems.length) {
