@@ -510,7 +510,7 @@ export interface IEditorOptions {
 	 * Controls whether clicking on the empty content after a folded line will unfold the line.
 	 * Defaults to false.
 	 */
-	unfoldOnClickInEmptyContent?: boolean;
+	unfoldOnClickAfterEndOfLine?: boolean;
 	/**
 	 * Enable highlighting of matching brackets.
 	 * Defaults to 'always'.
@@ -3325,7 +3325,7 @@ export const enum EditorOption {
 	folding,
 	foldingStrategy,
 	foldingHighlight,
-	unfoldOnClickInEmptyContent,
+	unfoldOnClickAfterEndOfLine,
 	fontFamily,
 	fontInfo,
 	fontLigatures,
@@ -3625,9 +3625,9 @@ export const EditorOptions = {
 		EditorOption.foldingHighlight, 'foldingHighlight', true,
 		{ description: nls.localize('foldingHighlight', "Controls whether the editor should highlight folded ranges.") }
 	)),
-	unfoldOnClickInEmptyContent: register(new EditorBooleanOption(
-		EditorOption.unfoldOnClickInEmptyContent, 'unfoldOnClickInEmptyContent', false,
-		{ description: nls.localize('unfoldOnClickInEmptyContent', "Controls whether clicking on the empty content after a folded line will unfold the line.") }
+	unfoldOnClickAfterEndOfLine: register(new EditorBooleanOption(
+		EditorOption.unfoldOnClickAfterEndOfLine, 'unfoldOnClickAfterEndOfLine', false,
+		{ description: nls.localize('unfoldOnClickAfterEndOfLine', "Controls whether clicking on the empty content after a folded line will unfold the line.") }
 	)),
 	fontFamily: register(new EditorStringOption(
 		EditorOption.fontFamily, 'fontFamily', EDITOR_FONT_DEFAULTS.fontFamily,

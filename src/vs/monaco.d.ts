@@ -3035,7 +3035,7 @@ declare namespace monaco.editor {
 		 * Controls whether clicking on the empty content after a folded line will unfold the line.
 		 * Defaults to false.
 		 */
-		unfoldOnClickInEmptyContent?: boolean;
+		unfoldOnClickAfterEndOfLine?: boolean;
 		/**
 		 * Enable highlighting of matching brackets.
 		 * Defaults to 'always'.
@@ -3825,7 +3825,7 @@ declare namespace monaco.editor {
 		folding = 31,
 		foldingStrategy = 32,
 		foldingHighlight = 33,
-		unfoldOnClickInEmptyContent = 34,
+		unfoldOnClickAfterEndOfLine = 34,
 		fontFamily = 35,
 		fontInfo = 36,
 		fontLigatures = 37,
@@ -3941,7 +3941,7 @@ declare namespace monaco.editor {
 		folding: IEditorOption<EditorOption.folding, boolean>;
 		foldingStrategy: IEditorOption<EditorOption.foldingStrategy, 'auto' | 'indentation'>;
 		foldingHighlight: IEditorOption<EditorOption.foldingHighlight, boolean>;
-		unfoldOnClickInEmptyContent: IEditorOption<EditorOption.unfoldOnClickInEmptyContent, boolean>;
+		unfoldOnClickAfterEndOfLine: IEditorOption<EditorOption.unfoldOnClickAfterEndOfLine, boolean>;
 		fontFamily: IEditorOption<EditorOption.fontFamily, string>;
 		fontInfo: IEditorOption<EditorOption.fontInfo, FontInfo>;
 		fontLigatures2: IEditorOption<EditorOption.fontLigatures, string>;
