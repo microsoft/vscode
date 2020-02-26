@@ -165,7 +165,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		if (local) {
 			// update local
 			this.logService.trace('UI State: Updating local ui state...');
-			await this.backupLocal(VSBuffer.fromString(JSON.stringify(localUserData)));
+			await this.backupLocal(VSBuffer.fromString(JSON.stringify(localUserData, null, '\t')));
 			await this.writeLocalGlobalState(local);
 			this.logService.info('UI State: Updated local ui state');
 		}
