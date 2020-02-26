@@ -185,7 +185,7 @@ export class OpenEditorsView extends ViewPane {
 		super.renderHeaderTitle(container, this.title);
 
 		const count = dom.append(container, $('.count'));
-		this.dirtyCountElement = dom.append(count, $('.monaco-count-badge'));
+		this.dirtyCountElement = dom.append(count, $('.dirty-count.monaco-count-badge'));
 
 		this._register((attachStylerCallback(this.themeService, { badgeBackground, badgeForeground, contrastBorder }, colors => {
 			const background = colors.badgeBackground ? colors.badgeBackground.toString() : '';
