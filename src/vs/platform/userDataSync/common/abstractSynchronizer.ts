@@ -202,7 +202,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 	}
 
 	protected async backupLocal(content: VSBuffer): Promise<void> {
-		const resource = joinPath(this.syncFolder, toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, ''));
+		const resource = joinPath(this.syncFolder, `${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}.json`);
 		try {
 			await this.fileService.writeFile(resource, content);
 		} catch (e) {
@@ -215,7 +215,8 @@ export abstract class AbstractSynchroniser extends Disposable {
 		try {
 			const stat = await this.fileService.resolve(this.syncFolder);
 			if (stat.children) {
-				const all = stat.children.filter(stat => stat.isFile && /^\d{8}T\d{6}$/.test(stat.name)).sort();
+				const all = stat.children.filter(stat => stat.isFile && /^\d{8}T\d{6}(\.json)?$/.test(stat.name)).sort();
+				console.log(all.map(a => a.name));
 				const backUpMaxAge = 1000 * 60 * 60 * 24 * (this.configurationService.getValue<number>('sync.localBackupDuration') || 30 /* Default 30 days */);
 				let toDelete = all.filter(stat => {
 					const ctime = stat.ctime || new Date(
