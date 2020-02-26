@@ -49,7 +49,7 @@ import { ExcludeSettingWidget, IListChangeEvent, IListDataItem, ListSettingWidge
 import { SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ISetting, ISettingsGroup, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
-import { IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncEnablementService, getDefaultIgnoredSettings } from 'vs/platform/userDataSync/common/userDataSync';
 
 const $ = DOM.$;
 
@@ -1238,7 +1238,7 @@ export class SettingTreeRenderers {
 	private getActionsForSetting(setting: ISetting): IAction[] {
 		const enableSync = this._userDataSyncEnablementService.isEnabled();
 		return enableSync && !setting.disallowSyncIgnore ?
-			[this._instantiationService.createInstance(StopSyncingSettingAction, setting)] :
+			[this._instantiationService.createInstance(SyncSettingAction, setting)] :
 			[];
 	}
 
@@ -1622,7 +1622,7 @@ class CopySettingAsJSONAction extends Action {
 	}
 }
 
-class StopSyncingSettingAction extends Action {
+class SyncSettingAction extends Action {
 	static readonly ID = 'settings.stopSyncingSetting';
 	static readonly LABEL = localize('stopSyncingSetting', "Sync This Setting");
 
@@ -1630,24 +1630,38 @@ class StopSyncingSettingAction extends Action {
 		private readonly setting: ISetting,
 		@IConfigurationService private readonly configService: IConfigurationService,
 	) {
-		super(StopSyncingSettingAction.ID, StopSyncingSettingAction.LABEL);
+		super(SyncSettingAction.ID, SyncSettingAction.LABEL);
+		this._register(Event.filter(configService.onDidChangeConfiguration, e => e.affectsConfiguration('sync.ignoredSettings'))(() => this.update()));
 		this.update();
 	}
 
-	update() {
-		const ignoredSettings = getIgnoredSettings(this.configService);
+	async update() {
+		const ignoredSettings = getIgnoredSettings(getDefaultIgnoredSettings(), this.configService);
 		this.checked = !ignoredSettings.includes(this.setting.key);
 	}
 
 	async run(): Promise<void> {
+		// first remove the current setting completely from ignored settings
 		let currentValue = [...this.configService.getValue<string[]>('sync.ignoredSettings')];
-		if (this.checked) {
-			currentValue.push(this.setting.key);
-		} else {
-			currentValue = currentValue.filter(v => v !== this.setting.key);
+		currentValue = currentValue.filter(v => v !== this.setting.key && v !== `-${this.setting.key}`);
+
+		const defaultIgnoredSettings = getDefaultIgnoredSettings();
+		const isDefaultIgnored = defaultIgnoredSettings.includes(this.setting.key);
+		const askedToSync = !this.checked;
+
+		// If asked to sync, then add only if it is ignored by default
+		if (askedToSync && isDefaultIgnored) {
+			currentValue.push(`-${this.setting.key}`);
 		}
+
+		// If asked not to sync, then add only if it is not ignored by default
+		if (!askedToSync && !isDefaultIgnored) {
+			currentValue.push(this.setting.key);
+		}
+
 		this.configService.updateValue('sync.ignoredSettings', currentValue.length ? currentValue : undefined, ConfigurationTarget.USER);
 
 		return Promise.resolve(undefined);
 	}
+
 }

@@ -22,7 +22,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	private _onDidChangeStatus: Emitter<SyncStatus> = this._register(new Emitter<SyncStatus>());
 	readonly onDidChangeStatus: Event<SyncStatus> = this._onDidChangeStatus.event;
 
-	get onDidChangeLocal(): Event<void> { return this.channel.listen('onDidChangeLocal'); }
+	get onDidChangeLocal(): Event<SyncSource> { return this.channel.listen<SyncSource>('onDidChangeLocal'); }
 
 	private _conflictsSources: SyncSource[] = [];
 	get conflictsSources(): SyncSource[] { return this._conflictsSources; }
@@ -33,6 +33,9 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	get lastSyncTime(): number | undefined { return this._lastSyncTime; }
 	private _onDidChangeLastSyncTime: Emitter<number> = this._register(new Emitter<number>());
 	readonly onDidChangeLastSyncTime: Event<number> = this._onDidChangeLastSyncTime.event;
+
+	private _onSyncErrors: Emitter<[SyncSource, UserDataSyncError][]> = this._register(new Emitter<[SyncSource, UserDataSyncError][]>());
+	readonly onSyncErrors: Event<[SyncSource, UserDataSyncError][]> = this._onSyncErrors.event;
 
 	constructor(
 		@ISharedProcessService sharedProcessService: ISharedProcessService
@@ -58,6 +61,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			this._register(this.channel.listen<number>('onDidChangeLastSyncTime')(lastSyncTime => this.updateLastSyncTime(lastSyncTime)));
 		});
 		this._register(this.channel.listen<SyncSource[]>('onDidChangeConflicts')(conflicts => this.updateConflicts(conflicts)));
+		this._register(this.channel.listen<[SyncSource, Error][]>('onSyncErrors')(errors => this._onSyncErrors.fire(errors.map(([source, error]) => ([source, UserDataSyncError.toUserDataSyncError(error)])))));
 	}
 
 	pull(): Promise<void> {

@@ -352,6 +352,7 @@ class MouseDownOperation extends Disposable {
 
 		if (!options.get(EditorOption.readOnly)
 			&& options.get(EditorOption.dragAndDrop)
+			&& !options.get(EditorOption.columnSelection)
 			&& !this._mouseState.altKey // we don't support multiple mouse
 			&& e.detail < 2 // only single click on a selection can work
 			&& !this._isActive // the mouse is not down yet

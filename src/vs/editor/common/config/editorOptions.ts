@@ -325,6 +325,11 @@ export interface IEditorOptions {
 	 */
 	scrollPredominantAxis?: boolean;
 	/**
+	 * Enable that the selection with the mouse and keys is doing column selection.
+	 * Defaults to false.
+	 */
+	columnSelection?: boolean;
+	/**
 	 * The modifier to be used to add multiple cursors with the mouse.
 	 * Defaults to 'alt'
 	 */
@@ -501,6 +506,11 @@ export interface IEditorOptions {
 	 * Defaults to 'mouseover'.
 	 */
 	showFoldingControls?: 'always' | 'mouseover';
+	/**
+	 * Controls whether clicking on the empty content after a folded line will unfold the line.
+	 * Defaults to false.
+	 */
+	unfoldOnClickAfterEndOfLine?: boolean;
 	/**
 	 * Enable highlighting of matching brackets.
 	 * Defaults to 'always'.
@@ -3294,6 +3304,7 @@ export const enum EditorOption {
 	autoSurround,
 	codeLens,
 	colorDecorators,
+	columnSelection,
 	comments,
 	contextmenu,
 	copyWithSyntaxHighlighting,
@@ -3314,6 +3325,7 @@ export const enum EditorOption {
 	folding,
 	foldingStrategy,
 	foldingHighlight,
+	unfoldOnClickAfterEndOfLine,
 	fontFamily,
 	fontInfo,
 	fontLigatures,
@@ -3518,6 +3530,10 @@ export const EditorOptions = {
 		EditorOption.colorDecorators, 'colorDecorators', true,
 		{ description: nls.localize('colorDecorators', "Controls whether the editor should render the inline color decorators and color picker.") }
 	)),
+	columnSelection: register(new EditorBooleanOption(
+		EditorOption.columnSelection, 'columnSelection', false,
+		{ description: nls.localize('columnSelection', "Enable that the selection with the mouse and keys is doing column selection.") }
+	)),
 	comments: register(new EditorComments()),
 	contextmenu: register(new EditorBooleanOption(
 		EditorOption.contextmenu, 'contextmenu', true,
@@ -3608,6 +3624,10 @@ export const EditorOptions = {
 	foldingHighlight: register(new EditorBooleanOption(
 		EditorOption.foldingHighlight, 'foldingHighlight', true,
 		{ description: nls.localize('foldingHighlight', "Controls whether the editor should highlight folded ranges.") }
+	)),
+	unfoldOnClickAfterEndOfLine: register(new EditorBooleanOption(
+		EditorOption.unfoldOnClickAfterEndOfLine, 'unfoldOnClickAfterEndOfLine', false,
+		{ description: nls.localize('unfoldOnClickAfterEndOfLine', "Controls whether clicking on the empty content after a folded line will unfold the line.") }
 	)),
 	fontFamily: register(new EditorStringOption(
 		EditorOption.fontFamily, 'fontFamily', EDITOR_FONT_DEFAULTS.fontFamily,

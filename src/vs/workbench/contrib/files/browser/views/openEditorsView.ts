@@ -76,9 +76,9 @@ export class OpenEditorsView extends ViewPane {
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ITelemetryService telemetryService: ITelemetryService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
@@ -87,7 +87,7 @@ export class OpenEditorsView extends ViewPane {
 		super({
 			...(options as IViewPaneOptions),
 			ariaHeaderLabel: nls.localize({ key: 'openEditosrSection', comment: ['Open is an adjective'] }, "Open Editors Section"),
-		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService);
+		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
 		this.structuralRefreshDelay = 0;
 		this.listRefreshScheduler = new RunOnceScheduler(() => {

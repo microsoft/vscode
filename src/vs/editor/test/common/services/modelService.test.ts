@@ -11,7 +11,7 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { DefaultEndOfLine } from 'vs/editor/common/model';
-import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
+import { createTextBuffer } from 'vs/editor/common/model/textModel';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -19,6 +19,9 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
+import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
+import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 const GENERATE_TESTS = false;
 
@@ -30,7 +33,7 @@ suite('ModelService', () => {
 		configService.setUserConfiguration('files', { 'eol': '\n' });
 		configService.setUserConfiguration('files', { 'eol': '\r\n' }, URI.file(platform.isWindows ? 'c:\\myroot' : '/myroot'));
 
-		modelService = new ModelServiceImpl(configService, new TestTextResourcePropertiesService(configService), new TestThemeService(), new NullLogService(), new UndoRedoService());
+		modelService = new ModelServiceImpl(configService, new TestTextResourcePropertiesService(configService), new TestThemeService(), new NullLogService(), new UndoRedoService(new TestDialogService(), new TestNotificationService()));
 	});
 
 	teardown(() => {
@@ -49,7 +52,7 @@ suite('ModelService', () => {
 
 	test('_computeEdits no change', function () {
 
-		const model = TextModel.createFromString(
+		const model = createTextModel(
 			[
 				'This is line one', //16
 				'and this is line number two', //27
@@ -75,7 +78,7 @@ suite('ModelService', () => {
 
 	test('_computeEdits first line changed', function () {
 
-		const model = TextModel.createFromString(
+		const model = createTextModel(
 			[
 				'This is line one', //16
 				'and this is line number two', //27
@@ -103,7 +106,7 @@ suite('ModelService', () => {
 
 	test('_computeEdits EOL changed', function () {
 
-		const model = TextModel.createFromString(
+		const model = createTextModel(
 			[
 				'This is line one', //16
 				'and this is line number two', //27
@@ -129,7 +132,7 @@ suite('ModelService', () => {
 
 	test('_computeEdits EOL and other change 1', function () {
 
-		const model = TextModel.createFromString(
+		const model = createTextModel(
 			[
 				'This is line one', //16
 				'and this is line number two', //27
@@ -165,7 +168,7 @@ suite('ModelService', () => {
 
 	test('_computeEdits EOL and other change 2', function () {
 
-		const model = TextModel.createFromString(
+		const model = createTextModel(
 			[
 				'package main',	// 1
 				'func foo() {',	// 2
@@ -307,7 +310,7 @@ suite('ModelService', () => {
 });
 
 function assertComputeEdits(lines1: string[], lines2: string[]): void {
-	const model = TextModel.createFromString(lines1.join('\n'));
+	const model = createTextModel(lines1.join('\n'));
 	const textBuffer = createTextBuffer(lines2.join('\n'), DefaultEndOfLine.LF);
 
 	// compute required edits

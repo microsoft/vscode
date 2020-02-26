@@ -33,6 +33,7 @@ import * as peekView from 'vs/editor/contrib/peekView/peekView';
 import { FileReferences, OneReference, ReferencesModel } from '../referencesModel';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { SplitView, Sizing } from 'vs/base/browser/ui/splitview/splitview';
+import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 
 
 class DecorationsManager implements IDisposable {
@@ -215,7 +216,8 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		@ITextModelService private readonly _textModelResolverService: ITextModelService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@peekView.IPeekViewService private readonly _peekViewService: peekView.IPeekViewService,
-		@ILabelService private readonly _uriLabel: ILabelService
+		@ILabelService private readonly _uriLabel: ILabelService,
+		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
 	) {
 		super(editor, { showFrame: false, showArrow: true, isResizeable: true, isAccessible: true });
 
@@ -304,7 +306,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		};
 		this._preview = this._instantiationService.createInstance(EmbeddedCodeEditorWidget, this._previewContainer, options, this.editor);
 		dom.hide(this._previewContainer);
-		this._previewNotAvailableMessage = TextModel.createFromString(nls.localize('missingPreviewMessage', "no preview available"));
+		this._previewNotAvailableMessage = new TextModel(nls.localize('missingPreviewMessage', "no preview available"), TextModel.DEFAULT_CREATION_OPTIONS, null, null, this._undoRedoService);
 
 		// tree
 		this._treeContainer = dom.append(containerElement, dom.$('div.ref-tree.inline'));

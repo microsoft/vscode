@@ -15,9 +15,9 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { EditorViewColumn, viewColumnToEditorGroup } from 'vs/workbench/api/common/shared/editor';
 import { IEditorCommandsContext } from 'vs/workbench/common/editor';
-import { CustomFileEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
+import { CustomEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
 import { defaultEditorId } from 'vs/workbench/contrib/customEditor/browser/customEditors';
-import { CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CONTEXT_HAS_CUSTOM_EDITORS, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
+import { CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CONTEXT_CUSTOM_EDITORS, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import type { ITextEditorOptions } from 'vs/platform/editor/common/editor';
@@ -80,7 +80,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		title: REOPEN_WITH_TITLE,
 		category: viewCategory,
 	},
-	when: CONTEXT_HAS_CUSTOM_EDITORS,
+	when: CONTEXT_CUSTOM_EDITORS.notEqualsTo(''),
 });
 
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
@@ -89,9 +89,9 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		title: REOPEN_WITH_TITLE,
 		category: viewCategory,
 	},
-	group: '3_open',
+	group: '6_reopen',
 	order: 20,
-	when: CONTEXT_HAS_CUSTOM_EDITORS,
+	when: CONTEXT_CUSTOM_EDITORS.notEqualsTo(''),
 });
 
 // #endregion
@@ -114,19 +114,11 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	}
 
 	public runCommand(accessor: ServicesAccessor): void {
-		const customEditorService = accessor.get<ICustomEditorService>(ICustomEditorService);
-
-		const activeCustomEditor = customEditorService.activeCustomEditor;
-		if (!activeCustomEditor) {
-			return;
+		const editorService = accessor.get<IEditorService>(IEditorService);
+		const activeInput = editorService.activeControl?.input;
+		if (activeInput instanceof CustomEditorInput) {
+			activeInput.undo();
 		}
-
-		const model = customEditorService.models.get(activeCustomEditor.resource, activeCustomEditor.viewType);
-		if (!model) {
-			return;
-		}
-
-		model.undo();
 	}
 }).register();
 
@@ -149,19 +141,11 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	}
 
 	public runCommand(accessor: ServicesAccessor): void {
-		const customEditorService = accessor.get<ICustomEditorService>(ICustomEditorService);
-
-		const activeCustomEditor = customEditorService.activeCustomEditor;
-		if (!activeCustomEditor) {
-			return;
+		const editorService = accessor.get<IEditorService>(IEditorService);
+		const activeInput = editorService.activeControl?.input;
+		if (activeInput instanceof CustomEditorInput) {
+			activeInput.redo();
 		}
-
-		const model = customEditorService.models.get(activeCustomEditor.resource, activeCustomEditor.viewType);
-		if (!model) {
-			return;
-		}
-
-		model.redo();
 	}
 }).register();
 
@@ -171,7 +155,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	constructor() {
 		super({
 			id: ToggleCustomEditorCommand.ID,
-			precondition: CONTEXT_HAS_CUSTOM_EDITORS,
+			precondition: CONTEXT_CUSTOM_EDITORS,
 		});
 	}
 
@@ -193,7 +177,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		const customEditorService = accessor.get<ICustomEditorService>(ICustomEditorService);
 
 		let toggleView = defaultEditorId;
-		if (!(activeEditor instanceof CustomFileEditorInput)) {
+		if (!(activeEditor instanceof CustomEditorInput)) {
 			const bestAvailableEditor = customEditorService.getContributedCustomEditors(targetResource).bestAvailableEditor;
 			if (bestAvailableEditor) {
 				toggleView = bestAvailableEditor.id;

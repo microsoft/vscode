@@ -66,6 +66,10 @@ export class DraggedViewIdentifier {
 	}
 }
 
+type WelcomeActionClassification = {
+	viewId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	uri: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+};
 
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 
@@ -194,11 +198,12 @@ export abstract class ViewPane extends Pane implements IView {
 		@IKeybindingService protected keybindingService: IKeybindingService,
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService protected contextKeyService: IContextKeyService,
 		@IViewDescriptorService protected viewDescriptorService: IViewDescriptorService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IOpenerService protected openerService: IOpenerService,
 		@IThemeService protected themeService: IThemeService,
+		@ITelemetryService protected telemetryService: ITelemetryService,
 	) {
 		super(options);
 
@@ -250,7 +255,10 @@ export abstract class ViewPane extends Pane implements IView {
 			this._onDidFocus.fire();
 		}));
 		this._register(focusTracker.onDidBlur(() => {
-			this.focusedViewContextKey.reset();
+			if (this.focusedViewContextKey.get() === this.id) {
+				this.focusedViewContextKey.reset();
+			}
+
 			this._onDidBlur.fire();
 		}));
 	}
@@ -397,7 +405,9 @@ export abstract class ViewPane extends Pane implements IView {
 		addClass(this.bodyContainer, 'welcome');
 		this.viewWelcomeContainer.innerHTML = '';
 
-		for (const { content } of contents) {
+		let buttonIndex = 0;
+
+		for (const { content, preconditions } of contents) {
 			const lines = content.split('\n');
 
 			for (let line of lines) {
@@ -416,9 +426,28 @@ export abstract class ViewPane extends Pane implements IView {
 					} else if (linkedText.nodes.length === 1) {
 						const button = new Button(p, { title: node.title });
 						button.label = node.label;
-						button.onDidClick(_ => this.openerService.open(node.href), null, disposables);
+						button.onDidClick(_ => {
+							this.telemetryService.publicLog2<{ viewId: string, uri: string }, WelcomeActionClassification>('views.welcomeAction', { viewId: this.id, uri: node.href });
+							this.openerService.open(node.href);
+						}, null, disposables);
 						disposables.add(button);
 						disposables.add(attachButtonStyler(button, this.themeService));
+
+						if (preconditions) {
+							const precondition = preconditions[buttonIndex];
+
+							if (precondition) {
+								const updateEnablement = () => button.enabled = this.contextKeyService.contextMatchesRules(precondition);
+								updateEnablement();
+
+								const keys = new Set();
+								precondition.keys().forEach(key => keys.add(key));
+								const onDidChangeContext = Event.filter(this.contextKeyService.onDidChangeContext, e => e.affectsSome(keys));
+								onDidChangeContext(updateEnablement, null, disposables);
+							}
+						}
+
+						buttonIndex++;
 					} else {
 						const link = this.instantiationService.createInstance(Link, node);
 						append(p, link.el);

@@ -58,6 +58,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ReplGroup } from 'vs/workbench/contrib/debug/common/replModel';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 const $ = dom.$;
 
@@ -100,7 +101,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		@IStorageService private readonly storageService: IStorageService,
 		@IThemeService themeService: IThemeService,
 		@IModelService private readonly modelService: IModelService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -110,8 +111,9 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		@IEditorService private readonly editorService: IEditorService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IOpenerService openerService: IOpenerService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super({ ...(options as IViewPaneOptions), id: REPL_VIEW_ID, ariaHeaderLabel: localize('debugConsole', "Debug Console") }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService);
+		super({ ...(options as IViewPaneOptions), id: REPL_VIEW_ID, ariaHeaderLabel: localize('debugConsole', "Debug Console") }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
 		this.history = new HistoryNavigator(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')), 50);
 		codeEditorService.registerDecorationType(DECORATION_KEY, {});

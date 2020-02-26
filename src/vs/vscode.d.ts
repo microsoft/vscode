@@ -1806,7 +1806,7 @@ declare module 'vscode' {
 		placeHolder?: string;
 
 		/**
-		 * Set to `true` to show a password prompt that will not show the typed value.
+		 * Controls if a password input is shown. Password input hides the typed text.
 		 */
 		password?: boolean;
 
@@ -4675,7 +4675,18 @@ declare module 'vscode' {
 		 * A code or identifier for this diagnostic.
 		 * Should be used for later processing, e.g. when providing [code actions](#CodeActionContext).
 		 */
-		code?: string | number;
+		code?: string | number | {
+			/**
+			 * A code or identifier for this diagnostic.
+			 * Should be used for later processing, e.g. when providing [code actions](#CodeActionContext).
+			 */
+			value: string | number;
+
+			/**
+			 * A target URI to open with more information about the diagnostic error.
+			 */
+			target: Uri;
+		};
 
 		/**
 		 * An array of related diagnostic information, e.g. when symbol-names within

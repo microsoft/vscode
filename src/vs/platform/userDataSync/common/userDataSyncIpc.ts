@@ -20,6 +20,7 @@ export class UserDataSyncChannel implements IServerChannel {
 			case 'onDidChangeConflicts': return this.service.onDidChangeConflicts;
 			case 'onDidChangeLocal': return this.service.onDidChangeLocal;
 			case 'onDidChangeLastSyncTime': return this.service.onDidChangeLastSyncTime;
+			case 'onSyncErrors': return this.service.onSyncErrors;
 		}
 		throw new Error(`Event not found: ${event}`);
 	}
@@ -85,7 +86,7 @@ export class UserDataAutoSyncChannel implements IServerChannel {
 
 	call(context: any, command: string, args?: any): Promise<any> {
 		switch (command) {
-			case 'triggerAutoSync': return this.service.triggerAutoSync();
+			case 'triggerAutoSync': return this.service.triggerAutoSync(args[0]);
 		}
 		throw new Error('Invalid call');
 	}
@@ -101,6 +102,7 @@ export class UserDataSycnUtilServiceChannel implements IServerChannel {
 
 	call(context: any, command: string, args?: any): Promise<any> {
 		switch (command) {
+			case 'resolveDefaultIgnoredSettings': return this.service.resolveDefaultIgnoredSettings();
 			case 'resolveUserKeybindings': return this.service.resolveUserBindings(args[0]);
 			case 'resolveFormattingOptions': return this.service.resolveFormattingOptions(URI.revive(args[0]));
 		}
@@ -113,6 +115,10 @@ export class UserDataSyncUtilServiceClient implements IUserDataSyncUtilService {
 	_serviceBrand: undefined;
 
 	constructor(private readonly channel: IChannel) {
+	}
+
+	async resolveDefaultIgnoredSettings(): Promise<string[]> {
+		return this.channel.call('resolveDefaultIgnoredSettings');
 	}
 
 	async resolveUserBindings(userbindings: string[]): Promise<IStringDictionary<string>> {

@@ -602,8 +602,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// Respect chords if the allowChords setting is set and it's not Escape. Escape is
 			// handled specially for Zen Mode's Escape, Escape chord, plus it's important in
 			// terminals generally
-			const allowChords = resolveResult && resolveResult.enterChord && this._configHelper.config.allowChords && event.key !== 'Escape';
-			if (allowChords || resolveResult && this._skipTerminalCommands.some(k => k === resolveResult.commandId)) {
+			const allowChords = resolveResult?.enterChord && this._configHelper.config.allowChords && event.key !== 'Escape';
+			if (this._keybindingService.inChordMode || allowChords || resolveResult && this._skipTerminalCommands.some(k => k === resolveResult.commandId)) {
 				event.preventDefault();
 				return false;
 			}

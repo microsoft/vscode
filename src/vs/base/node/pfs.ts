@@ -14,7 +14,6 @@ import { promisify } from 'util';
 import { isRootOrDriveLetter } from 'vs/base/common/extpath';
 import { generateUuid } from 'vs/base/common/uuid';
 import { normalizeNFC } from 'vs/base/common/normalization';
-import { encode } from 'vs/base/node/encoding';
 
 // See https://github.com/Microsoft/vscode/issues/30180
 const WIN32_MAX_FILE_SIZE = 300 * 1024 * 1024; // 300 MB
@@ -320,10 +319,6 @@ function ensureWriteFileQueue(queueKey: string): Queue<void> {
 export interface IWriteFileOptions {
 	mode?: number;
 	flag?: string;
-	encoding?: {
-		charset: string;
-		addBOM: boolean;
-	};
 }
 
 interface IEnsuredWriteFileOptions extends IWriteFileOptions {
@@ -339,10 +334,6 @@ let canFlush = true;
 //
 // See https://github.com/nodejs/node/blob/v5.10.0/lib/fs.js#L1194
 function doWriteFileAndFlush(path: string, data: string | Buffer | Uint8Array, options: IEnsuredWriteFileOptions, callback: (error: Error | null) => void): void {
-	if (options.encoding) {
-		data = encode(data instanceof Uint8Array ? Buffer.from(data) : data, options.encoding.charset, { addBOM: options.encoding.addBOM });
-	}
-
 	if (!canFlush) {
 		return fs.writeFile(path, data, { mode: options.mode, flag: options.flag }, callback);
 	}
@@ -378,10 +369,6 @@ function doWriteFileAndFlush(path: string, data: string | Buffer | Uint8Array, o
 export function writeFileSync(path: string, data: string | Buffer, options?: IWriteFileOptions): void {
 	const ensuredOptions = ensureWriteOptions(options);
 
-	if (ensuredOptions.encoding) {
-		data = encode(data, ensuredOptions.encoding.charset, { addBOM: ensuredOptions.encoding.addBOM });
-	}
-
 	if (!canFlush) {
 		return fs.writeFileSync(path, data, { mode: ensuredOptions.mode, flag: ensuredOptions.flag });
 	}
@@ -413,8 +400,7 @@ function ensureWriteOptions(options?: IWriteFileOptions): IEnsuredWriteFileOptio
 
 	return {
 		mode: typeof options.mode === 'number' ? options.mode : 0o666,
-		flag: typeof options.flag === 'string' ? options.flag : 'w',
-		encoding: options.encoding
+		flag: typeof options.flag === 'string' ? options.flag : 'w'
 	};
 }
 

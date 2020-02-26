@@ -547,6 +547,13 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 						this.updateFromDragging(container, true);
 					}
 				}
+
+				if (this.compositeTransfer.hasData(DraggedViewIdentifier.prototype)) {
+					const data = this.compositeTransfer.getData(DraggedViewIdentifier.prototype);
+					if (Array.isArray(data) && data[0].id !== this.activity.id) {
+						this.updateFromDragging(container, true);
+					}
+				}
 			},
 
 			onDragOver: e => {
@@ -575,7 +582,8 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 			},
 
 			onDragLeave: e => {
-				if (this.compositeTransfer.hasData(DraggedCompositeIdentifier.prototype)) {
+				if (this.compositeTransfer.hasData(DraggedCompositeIdentifier.prototype) ||
+					this.compositeTransfer.hasData(DraggedViewIdentifier.prototype)) {
 					this.updateFromDragging(container, false);
 				}
 			},
@@ -608,6 +616,8 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 					const data = this.compositeTransfer.getData(DraggedViewIdentifier.prototype);
 					if (Array.isArray(data)) {
 						const draggedViewId = data[0].id;
+						this.updateFromDragging(container, false);
+						this.compositeTransfer.clearData(DraggedViewIdentifier.prototype);
 
 						this.dndHandler.drop(new CompositeDragAndDropData('view', draggedViewId), this.activity.id, e);
 					}

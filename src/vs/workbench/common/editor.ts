@@ -363,7 +363,7 @@ export interface IRevertOptions {
 }
 
 export interface IMoveResult {
-	editor: IEditorInput | IResourceEditor;
+	editor: EditorInput | IResourceEditor;
 	options?: IEditorOptions;
 }
 

@@ -167,10 +167,11 @@ function getMassagedTopLevelDeclarationText(sourceFile: ts.SourceFile, declarati
 					result = result.replace(memberText, '');
 				} else {
 					const memberName = (<ts.Identifier | ts.StringLiteral>member.name).text;
+					const memberAccess = (memberName.indexOf('.') >= 0 ? `['${memberName}']` : `.${memberName}`);
 					if (isStatic(member)) {
-						usage.push(`a = ${staticTypeName}.${memberName};`);
+						usage.push(`a = ${staticTypeName}${memberAccess};`);
 					} else {
-						usage.push(`a = (<${instanceTypeName}>b).${memberName};`);
+						usage.push(`a = (<${instanceTypeName}>b)${memberAccess};`);
 					}
 				}
 			} catch (err) {

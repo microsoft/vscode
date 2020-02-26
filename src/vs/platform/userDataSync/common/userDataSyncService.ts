@@ -34,12 +34,16 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	private _onDidChangeStatus: Emitter<SyncStatus> = this._register(new Emitter<SyncStatus>());
 	readonly onDidChangeStatus: Event<SyncStatus> = this._onDidChangeStatus.event;
 
-	readonly onDidChangeLocal: Event<void>;
+	readonly onDidChangeLocal: Event<SyncSource>;
 
 	private _conflictsSources: SyncSource[] = [];
 	get conflictsSources(): SyncSource[] { return this._conflictsSources; }
 	private _onDidChangeConflicts: Emitter<SyncSource[]> = this._register(new Emitter<SyncSource[]>());
 	readonly onDidChangeConflicts: Event<SyncSource[]> = this._onDidChangeConflicts.event;
+
+	private _syncErrors: [SyncSource, UserDataSyncError][] = [];
+	private _onSyncErrors: Emitter<[SyncSource, UserDataSyncError][]> = this._register(new Emitter<[SyncSource, UserDataSyncError][]>());
+	readonly onSyncErrors: Event<[SyncSource, UserDataSyncError][]> = this._onSyncErrors.event;
 
 	private _lastSyncTime: number | undefined = undefined;
 	get lastSyncTime(): number | undefined { return this._lastSyncTime; }
@@ -70,7 +74,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		}
 
 		this._lastSyncTime = this.storageService.getNumber(LAST_SYNC_TIME_KEY, StorageScope.GLOBAL, undefined);
-		this.onDidChangeLocal = Event.any(...this.synchronisers.map(s => s.onDidChangeLocal));
+		this.onDidChangeLocal = Event.any(...this.synchronisers.map(s => Event.map(s.onDidChangeLocal, () => s.source)));
 	}
 
 	async pull(): Promise<void> {
@@ -101,6 +105,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		await this.checkEnablement();
 
 		const startTime = new Date().getTime();
+		this._syncErrors = [];
 		try {
 			this.logService.trace('Sync started.');
 			if (this.status !== SyncStatus.HasConflicts) {
@@ -126,6 +131,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 					await synchroniser.sync(manifest && manifest.latest ? manifest.latest[synchroniser.resourceKey] : undefined);
 				} catch (e) {
 					this.handleSyncError(e, synchroniser.source);
+					this._syncErrors.push([synchroniser.source, UserDataSyncError.toUserDataSyncError(e)]);
 				}
 			}
 
@@ -144,6 +150,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 		} finally {
 			this.updateStatus();
+			this._onSyncErrors.fire(this._syncErrors);
 		}
 	}
 

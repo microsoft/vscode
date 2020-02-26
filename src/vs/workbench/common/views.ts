@@ -53,6 +53,7 @@ export interface IViewContainerDescriptor {
 
 	readonly extensionId?: ExtensionIdentifier;
 
+	readonly rejectAddedViews?: boolean;
 }
 
 export interface IViewContainersRegistry {
@@ -214,6 +215,11 @@ export interface IViewDescriptorCollection extends IDisposable {
 export interface IViewContentDescriptor {
 	readonly content: string;
 	readonly when?: ContextKeyExpr | 'default';
+
+	/**
+	 * ordered preconditions for each button in the content
+	 */
+	readonly preconditions?: (ContextKeyExpr | undefined)[];
 }
 
 export interface IViewsRegistry {

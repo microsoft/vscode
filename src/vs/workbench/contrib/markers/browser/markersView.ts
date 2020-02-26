@@ -97,7 +97,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ITelemetryService telemetryService: ITelemetryService,
 		@IMarkersWorkbenchService private readonly markersWorkbenchService: IMarkersWorkbenchService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
@@ -108,7 +108,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 	) {
-		super({ ...(options as IViewPaneOptions), id: Constants.MARKERS_VIEW_ID, ariaHeaderLabel: Messages.MARKERS_PANEL_TITLE_PROBLEMS }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService);
+		super({ ...(options as IViewPaneOptions), id: Constants.MARKERS_VIEW_ID, ariaHeaderLabel: Messages.MARKERS_PANEL_TITLE_PROBLEMS }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		this.panelFoucusContextKey = Constants.MarkerViewFocusContextKey.bindTo(contextKeyService);
 		this.panelState = new Memento(Constants.MARKERS_VIEW_STORAGE_ID, storageService).getMemento(StorageScope.WORKSPACE);
 		this.markersViewModel = this._register(instantiationService.createInstance(MarkersViewModel, this.panelState['multiline']));
@@ -349,7 +349,6 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 	private createArialLabelElement(parent: HTMLElement): void {
 		this.ariaLabelElement = dom.append(parent, dom.$(''));
 		this.ariaLabelElement.setAttribute('id', 'markers-panel-arialabel');
-		this.ariaLabelElement.setAttribute('aria-live', 'polite');
 	}
 
 	private createTree(parent: HTMLElement): void {

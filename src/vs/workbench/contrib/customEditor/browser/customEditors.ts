@@ -7,7 +7,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { Emitter } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { basename, isEqual, extname } from 'vs/base/common/resources';
+import { basename, extname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import * as nls from 'vs/nls';
@@ -25,13 +25,13 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { EditorInput, EditorOptions, IEditor, IEditorInput } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { webviewEditorsExtensionPoint } from 'vs/workbench/contrib/customEditor/browser/extensionPoint';
-import { CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CONTEXT_HAS_CUSTOM_EDITORS, CustomEditorInfo, CustomEditorInfoCollection, CustomEditorPriority, CustomEditorSelector, ICustomEditor, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
+import { CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CONTEXT_CUSTOM_EDITORS, CustomEditorInfo, CustomEditorInfoCollection, CustomEditorPriority, CustomEditorSelector, ICustomEditor, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { CustomEditorModelManager } from 'vs/workbench/contrib/customEditor/common/customEditorModelManager';
 import { IWebviewService, webviewHasOwnEditFunctionsContext } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { CustomFileEditorInput } from './customEditorInput';
+import { CustomEditorInput } from './customEditorInput';
 
 export const defaultEditorId = 'default';
 
@@ -98,7 +98,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 
 	private readonly _models: CustomEditorModelManager;
 
-	private readonly _hasCustomEditor: IContextKey<boolean>;
+	private readonly _customEditorContextKey: IContextKey<string>;
 	private readonly _focusedCustomEditorIsEditable: IContextKey<boolean>;
 	private readonly _webviewHasOwnEditFunctions: IContextKey<boolean>;
 
@@ -118,7 +118,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 
 		this._models = new CustomEditorModelManager(workingCopyService, labelService);
 
-		this._hasCustomEditor = CONTEXT_HAS_CUSTOM_EDITORS.bindTo(contextKeyService);
+		this._customEditorContextKey = CONTEXT_CUSTOM_EDITORS.bindTo(contextKeyService);
 		this._focusedCustomEditorIsEditable = CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE.bindTo(contextKeyService);
 		this._webviewHasOwnEditFunctions = webviewHasOwnEditFunctionsContext.bindTo(contextKeyService);
 
@@ -138,7 +138,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 
 	public get activeCustomEditor(): ICustomEditor | undefined {
 		const activeInput = this.editorService.activeControl?.input;
-		if (!(activeInput instanceof CustomFileEditorInput)) {
+		if (!(activeInput instanceof CustomEditorInput)) {
 			return undefined;
 		}
 		const resource = activeInput.resource;
@@ -175,7 +175,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		let currentlyOpenedEditorType: undefined | string;
 		for (const editor of group ? group.editors : []) {
 			if (editor.resource && isEqual(editor.resource, resource)) {
-				currentlyOpenedEditorType = editor instanceof CustomFileEditorInput ? editor.viewType : defaultEditorId;
+				currentlyOpenedEditorType = editor instanceof CustomEditorInput ? editor.viewType : defaultEditorId;
 				break;
 			}
 		}
@@ -271,7 +271,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		const webview = new Lazy(() => {
 			return this.webviewService.createWebviewEditorOverlay(id, { customClasses: options?.customClasses }, {});
 		});
-		const input = this.instantiationService.createInstance(CustomFileEditorInput, resource, viewType, id, webview);
+		const input = this.instantiationService.createInstance(CustomEditorInput, resource, viewType, id, webview);
 		if (group) {
 			input.updateGroup(group.id);
 		}
@@ -297,7 +297,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 					options: options ? EditorOptions.create(options) : undefined,
 				}], targetGroup);
 
-				if (existing instanceof CustomFileEditorInput) {
+				if (existing instanceof CustomEditorInput) {
 					existing.dispose();
 				}
 			}
@@ -310,7 +310,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		const activeControl = this.editorService.activeControl;
 		const resource = activeControl?.input.resource;
 		if (!resource) {
-			this._hasCustomEditor.reset();
+			this._customEditorContextKey.reset();
 			this._focusedCustomEditorIsEditable.reset();
 			this._webviewHasOwnEditFunctions.reset();
 			return;
@@ -320,24 +320,20 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 			...this.getContributedCustomEditors(resource).allEditors,
 			...this.getUserConfiguredCustomEditors(resource).allEditors,
 		];
-		this._hasCustomEditor.set(possibleEditors.length > 0);
-		this._focusedCustomEditorIsEditable.set(activeControl?.input instanceof CustomFileEditorInput);
+		this._customEditorContextKey.set(possibleEditors.map(x => x.id).join(','));
+		this._focusedCustomEditorIsEditable.set(activeControl?.input instanceof CustomEditorInput);
 		this._webviewHasOwnEditFunctions.set(possibleEditors.length > 0);
 	}
 
 	private handleMovedFileInOpenedFileEditors(oldResource: URI, newResource: URI): void {
 		for (const group of this.editorGroupService.groups) {
 			for (const editor of group.editors) {
-				if (!(editor instanceof CustomFileEditorInput)) {
+				if (!(editor instanceof CustomEditorInput)) {
 					continue;
 				}
 
 				const editorInfo = this._editorInfoStore.get(editor.viewType);
-				if (!editorInfo) {
-					continue;
-				}
-
-				if (!editorInfo.matches(newResource)) {
+				if (!editorInfo?.matches(newResource)) {
 					continue;
 				}
 
@@ -371,7 +367,7 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 		}));
 
 		this._register(this.editorService.onDidCloseEditor(({ editor }) => {
-			if (!(editor instanceof CustomFileEditorInput)) {
+			if (!(editor instanceof CustomEditorInput)) {
 				return;
 			}
 
@@ -386,7 +382,7 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 		options: ITextEditorOptions | undefined,
 		group: IEditorGroup
 	): IOpenEditorOverride | undefined {
-		if (editor instanceof CustomFileEditorInput) {
+		if (editor instanceof CustomEditorInput) {
 			if (editor.group === group.id) {
 				// No need to do anything
 				return undefined;
@@ -483,7 +479,7 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 		group: IEditorGroup
 	): IOpenEditorOverride | undefined {
 		const getCustomEditorOverrideForSubInput = (subInput: IEditorInput, customClasses: string): EditorInput | undefined => {
-			if (subInput instanceof CustomFileEditorInput) {
+			if (subInput instanceof CustomEditorInput) {
 				return undefined;
 			}
 			const resource = subInput.resource;

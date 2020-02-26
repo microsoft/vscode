@@ -37,7 +37,6 @@ import { Color } from 'vs/base/common/color';
 import { Constants } from 'vs/base/common/uint';
 import { EditorTheme } from 'vs/editor/common/view/viewContext';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 
 function createTextBufferBuilder() {
 	return new PieceTreeTextBufferBuilder();
@@ -188,10 +187,6 @@ export class TextModel extends Disposable implements model.ITextModel {
 		trimAutoWhitespace: EDITOR_MODEL_DEFAULTS.trimAutoWhitespace,
 		largeFileOptimizations: EDITOR_MODEL_DEFAULTS.largeFileOptimizations,
 	};
-
-	public static createFromString(text: string, options: model.ITextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS, languageIdentifier: LanguageIdentifier | null = null, uri: URI | null = null): TextModel {
-		return new TextModel(text, options, languageIdentifier, uri, new UndoRedoService());
-	}
 
 	public static resolveOptions(textBuffer: model.ITextBuffer, options: model.ITextModelCreationOptions): model.TextModelResolvedOptions {
 		if (options.detectIndentation) {
@@ -497,21 +492,6 @@ export class TextModel extends Disposable implements model.ITextModel {
 			),
 			this._createContentChanged2(new Range(1, 1, endLineNumber, endColumn), 0, oldModelValueLength, this.getValue(), false, false, false)
 		);
-	}
-
-	_setEOL(eol: model.EndOfLineSequence, isUndoing: boolean, isRedoing: boolean, resultingAlternativeVersionId: number, resultingSelection: Selection[] | null): void {
-		try {
-			this._onDidChangeDecorations.beginDeferredEmit();
-			this._eventEmitter.beginDeferredEmit();
-			this._isUndoing = isUndoing;
-			this._isRedoing = isRedoing;
-			this.setEOL(eol);
-			this._overwriteAlternativeVersionId(resultingAlternativeVersionId);
-		} finally {
-			this._isUndoing = false;
-			this._eventEmitter.endDeferredEmit(resultingSelection);
-			this._onDidChangeDecorations.endDeferredEmit();
-		}
 	}
 
 	private _onBeforeEOLChange(): void {
@@ -1207,7 +1187,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return result;
 	}
 
-	public pushEditOperations(beforeCursorState: Selection[], editOperations: model.IIdentifiedSingleEditOperation[], cursorStateComputer: model.ICursorStateComputer | null): Selection[] | null {
+	public pushEditOperations(beforeCursorState: Selection[] | null, editOperations: model.IIdentifiedSingleEditOperation[], cursorStateComputer: model.ICursorStateComputer | null): Selection[] | null {
 		try {
 			this._onDidChangeDecorations.beginDeferredEmit();
 			this._eventEmitter.beginDeferredEmit();
@@ -1218,7 +1198,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		}
 	}
 
-	private _pushEditOperations(beforeCursorState: Selection[], editOperations: model.ValidAnnotatedEditOperation[], cursorStateComputer: model.ICursorStateComputer | null): Selection[] | null {
+	private _pushEditOperations(beforeCursorState: Selection[] | null, editOperations: model.ValidAnnotatedEditOperation[], cursorStateComputer: model.ICursorStateComputer | null): Selection[] | null {
 		if (this._options.trimAutoWhitespace && this._trimAutoWhitespaceLines) {
 			// Go through each saved line number and insert a trim whitespace edit
 			// if it is safe to do so (no conflicts with other edits).
@@ -1233,21 +1213,23 @@ export class TextModel extends Disposable implements model.ITextModel {
 			// Sometimes, auto-formatters change ranges automatically which can cause undesired auto whitespace trimming near the cursor
 			// We'll use the following heuristic: if the edits occur near the cursor, then it's ok to trim auto whitespace
 			let editsAreNearCursors = true;
-			for (let i = 0, len = beforeCursorState.length; i < len; i++) {
-				let sel = beforeCursorState[i];
-				let foundEditNearSel = false;
-				for (let j = 0, lenJ = incomingEdits.length; j < lenJ; j++) {
-					let editRange = incomingEdits[j].range;
-					let selIsAbove = editRange.startLineNumber > sel.endLineNumber;
-					let selIsBelow = sel.startLineNumber > editRange.endLineNumber;
-					if (!selIsAbove && !selIsBelow) {
-						foundEditNearSel = true;
+			if (beforeCursorState) {
+				for (let i = 0, len = beforeCursorState.length; i < len; i++) {
+					let sel = beforeCursorState[i];
+					let foundEditNearSel = false;
+					for (let j = 0, lenJ = incomingEdits.length; j < lenJ; j++) {
+						let editRange = incomingEdits[j].range;
+						let selIsAbove = editRange.startLineNumber > sel.endLineNumber;
+						let selIsBelow = sel.startLineNumber > editRange.endLineNumber;
+						if (!selIsAbove && !selIsBelow) {
+							foundEditNearSel = true;
+							break;
+						}
+					}
+					if (!foundEditNearSel) {
+						editsAreNearCursors = false;
 						break;
 					}
-				}
-				if (!foundEditNearSel) {
-					editsAreNearCursors = false;
-					break;
 				}
 			}
 
@@ -1303,7 +1285,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return this._commandManager.pushEditOperation(beforeCursorState, editOperations, cursorStateComputer);
 	}
 
-	_applyEdits(edits: model.IValidEditOperations[], isUndoing: boolean, isRedoing: boolean, resultingAlternativeVersionId: number, resultingSelection: Selection[] | null): model.IValidEditOperations[] {
+	_applyUndoRedoEdits(edits: model.IValidEditOperations[], eol: model.EndOfLineSequence, isUndoing: boolean, isRedoing: boolean, resultingAlternativeVersionId: number, resultingSelection: Selection[] | null): model.IValidEditOperations[] {
 		try {
 			this._onDidChangeDecorations.beginDeferredEmit();
 			this._eventEmitter.beginDeferredEmit();
@@ -1313,10 +1295,12 @@ export class TextModel extends Disposable implements model.ITextModel {
 			for (let i = 0, len = edits.length; i < len; i++) {
 				reverseEdits[i] = { operations: this.applyEdits(edits[i].operations) };
 			}
+			this.setEOL(eol);
 			this._overwriteAlternativeVersionId(resultingAlternativeVersionId);
 			return reverseEdits;
 		} finally {
 			this._isUndoing = false;
+			this._isRedoing = false;
 			this._eventEmitter.endDeferredEmit(resultingSelection);
 			this._onDidChangeDecorations.endDeferredEmit();
 		}

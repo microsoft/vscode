@@ -1617,7 +1617,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 				kind: x.kind.value,
 				command: this._commands.converter.toInternal(x.command, store),
 			}))
-		});
+		}, ExtHostLanguageFeatures._extLabel(extension));
 		store.add(this._createDisposable(handle));
 		return store;
 	}

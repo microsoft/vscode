@@ -109,6 +109,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	private lastStart: number;
 	private numberRestarts: number;
 	private isRestarting: boolean = false;
+	private hasServerFatallyCrashedTooManyTimes = false;
 	private readonly loadingIndicator = new ServerInitializingIndicator();
 
 	public readonly telemetryReporter: TelemetryReporter;
@@ -306,7 +307,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 	private token: number = 0;
 	private startService(resendModels: boolean = false): ServerState.State {
-		if (this.isDisposed) {
+		if (this.isDisposed || this.hasServerFatallyCrashedTooManyTimes) {
 			return ServerState.None;
 		}
 
@@ -477,7 +478,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.bufferSyncSupport.reset();
 
 		const watchOptions = this.apiVersion.gte(API.v380)
-			? vscode.workspace.getConfiguration('typescript').get<Proto.WatchOptions | undefined>('tsserver.watchOptions')
+			? this.configuration.watchOptions
 			: undefined;
 
 		const configureOptions: Proto.ConfigureRequestArguments = {
@@ -542,6 +543,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				if (diff < 10 * 1000 /* 10 seconds */) {
 					this.lastStart = Date.now();
 					startService = false;
+					this.hasServerFatallyCrashedTooManyTimes = true;
 					prompt = vscode.window.showErrorMessage<MyMessageItem>(
 						localize('serverDiedAfterStart', 'The TypeScript language service died 5 times right after it got started. The service will not be restarted.'),
 						{

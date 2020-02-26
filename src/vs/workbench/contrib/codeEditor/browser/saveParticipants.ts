@@ -13,7 +13,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel } from 'vs/editor/common/model';
-import { CodeAction, CodeActionTriggerType } from 'vs/editor/common/modes';
+import { CodeActionTriggerType, DocumentFormattingEditProvider, CodeActionProvider } from 'vs/editor/common/modes';
 import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
 import { applyCodeAction } from 'vs/editor/contrib/codeAction/codeActionCommands';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/types';
@@ -22,7 +22,7 @@ import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IProgressStep, IProgress } from 'vs/platform/progress/common/progress';
+import { IProgressStep, IProgress, Progress } from 'vs/platform/progress/common/progress';
 import { IResolvedTextFileEditorModel, ITextFileService, ITextFileSaveParticipant } from 'vs/workbench/services/textfile/common/textfiles';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -213,9 +213,17 @@ class FormatOnSaveParticipant implements ITextFileSaveParticipant {
 			return undefined;
 		}
 
-		progress.report({ message: localize('formatting', "Formatting") });
+		const nestedProgress = new Progress<DocumentFormattingEditProvider>(provider => {
+			progress.report({
+				message: localize(
+					'formatting',
+					"Running '{0}' Formatter ([configure](command:workbench.action.openSettings?%5B%22editor.formatOnSave%22%5D)).",
+					provider.displayName || provider.extensionId && provider.extensionId.value || '???'
+				)
+			});
+		});
 		const editorOrModel = findEditor(model, this.codeEditorService) || model;
-		await this.instantiationService.invokeFunction(formatDocumentWithSelectedProvider, editorOrModel, FormattingMode.Silent, token);
+		await this.instantiationService.invokeFunction(formatDocumentWithSelectedProvider, editorOrModel, FormattingMode.Silent, nestedProgress, token);
 	}
 }
 
@@ -262,14 +270,37 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 			.map(x => new CodeActionKind(x));
 
 		progress.report({ message: localize('codeaction', "Quick Fixes") });
-		await this.applyOnSaveActions(model, codeActionsOnSave, excludedActions, token);
+		await this.applyOnSaveActions(model, codeActionsOnSave, excludedActions, progress, token);
 	}
 
-	private async applyOnSaveActions(model: ITextModel, codeActionsOnSave: readonly CodeActionKind[], excludes: readonly CodeActionKind[], token: CancellationToken): Promise<void> {
+	private async applyOnSaveActions(model: ITextModel, codeActionsOnSave: readonly CodeActionKind[], excludes: readonly CodeActionKind[], progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
+
+		const getActionProgress = new class implements IProgress<CodeActionProvider> {
+			private _names: string[] = [];
+			private _report(): void {
+				progress.report({
+					message: localize(
+						'codeaction.get',
+						"Getting code actions from '{0}' ([configure](command:workbench.action.openSettings?%5B%22editor.codeActionsOnSave%22%5D)).",
+						this._names.map(name => `'${name}'`).join(', ')
+					)
+				});
+			}
+			report(provider: CodeActionProvider) {
+				if (provider.displayName) {
+					this._names.push(provider.displayName);
+					this._report();
+				}
+			}
+		};
+
 		for (const codeActionKind of codeActionsOnSave) {
-			const actionsToRun = await this.getActionsToRun(model, codeActionKind, excludes, token);
+			const actionsToRun = await this.getActionsToRun(model, codeActionKind, excludes, getActionProgress, token);
 			try {
-				await this.applyCodeActions(actionsToRun.validActions);
+				for (const action of actionsToRun.validActions) {
+					progress.report({ message: localize('codeAction.apply', "Applying code action '{0}'.", action.title) });
+					await this.instantiationService.invokeFunction(applyCodeAction, action);
+				}
 			} catch {
 				// Failure to apply a code action should not block other on save actions
 			} finally {
@@ -278,17 +309,11 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 		}
 	}
 
-	private async applyCodeActions(actionsToRun: readonly CodeAction[]) {
-		for (const action of actionsToRun) {
-			await this.instantiationService.invokeFunction(applyCodeAction, action);
-		}
-	}
-
-	private getActionsToRun(model: ITextModel, codeActionKind: CodeActionKind, excludes: readonly CodeActionKind[], token: CancellationToken) {
+	private getActionsToRun(model: ITextModel, codeActionKind: CodeActionKind, excludes: readonly CodeActionKind[], progress: IProgress<CodeActionProvider>, token: CancellationToken) {
 		return getCodeActions(model, model.getFullModelRange(), {
 			type: CodeActionTriggerType.Auto,
 			filter: { include: codeActionKind, excludes: excludes, includeSourceActions: true },
-		}, token);
+		}, progress, token);
 	}
 }
 

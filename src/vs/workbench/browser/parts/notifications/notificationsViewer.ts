@@ -306,7 +306,7 @@ export class NotificationTemplateRenderer extends Disposable {
 		// Container
 		toggleClass(this.template.container, 'expanded', notification.expanded);
 		this.inputDisposables.add(addDisposableListener(this.template.container, EventType.MOUSE_UP, e => {
-			if (e.button === 1 /* Middle Button */) {
+			if (!notification.hasProgress && e.button === 1 /* Middle Button */) {
 				EventHelper.stop(e);
 
 				notification.close();
@@ -403,8 +403,10 @@ export class NotificationTemplateRenderer extends Disposable {
 			actions.push(notification.expanded ? NotificationTemplateRenderer.collapseNotificationAction : NotificationTemplateRenderer.expandNotificationAction);
 		}
 
-		// Close
-		actions.push(NotificationTemplateRenderer.closeNotificationAction);
+		// Close (unless progress is showing)
+		if (!notification.hasProgress) {
+			actions.push(NotificationTemplateRenderer.closeNotificationAction);
+		}
 
 		this.template.toolbar.clear();
 		this.template.toolbar.context = notification;
@@ -453,7 +455,7 @@ export class NotificationTemplateRenderer extends Disposable {
 	private renderProgress(notification: INotificationViewItem): void {
 
 		// Return early if the item has no progress
-		if (!notification.hasProgress()) {
+		if (!notification.hasProgress) {
 			this.template.progress.stop().hide();
 
 			return;

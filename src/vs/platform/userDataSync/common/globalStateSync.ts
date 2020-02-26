@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { UserDataSyncError, UserDataSyncErrorCode, SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IGlobalState, SyncSource, IUserDataSynchroniser, ResourceKey, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IGlobalState, SyncSource, IUserDataSynchroniser, ResourceKey, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Event } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -15,6 +15,7 @@ import { merge } from 'vs/platform/userDataSync/common/globalStateMerge';
 import { parse } from 'vs/base/common/json';
 import { AbstractSynchroniser, IRemoteUserData } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const argvProperties: string[] = ['locale'];
 
@@ -38,8 +39,9 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IUserDataSyncEnablementService userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(SyncSource.GlobalState, fileService, environmentService, userDataSyncStoreService, userDataSyncEnablementService, telemetryService, logService);
+		super(SyncSource.GlobalState, fileService, environmentService, userDataSyncStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService);
 		this._register(this.fileService.watch(dirname(this.environmentService.argvResource)));
 		this._register(Event.filter(this.fileService.onDidFilesChange, e => e.contains(this.environmentService.argvResource))(() => this._onDidChangeLocal.fire()));
 	}
@@ -129,11 +131,6 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			this.logService.trace('UI State: Finished synchronizing ui state.');
 		} catch (e) {
 			this.setStatus(SyncStatus.Idle);
-			if (e instanceof UserDataSyncError && e.code === UserDataSyncErrorCode.RemotePreconditionFailed) {
-				// Rejected as there is a new remote version. Syncing again,
-				this.logService.info('UI State: Failed to synchronize ui state as there is a new remote version available. Synchronizing again...');
-				return this.sync();
-			}
 			throw e;
 		} finally {
 			this.setStatus(SyncStatus.Idle);
@@ -168,7 +165,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		if (local) {
 			// update local
 			this.logService.trace('UI State: Updating local ui state...');
-			await this.backupLocal(VSBuffer.fromString(JSON.stringify(localUserData)));
+			await this.backupLocal(VSBuffer.fromString(JSON.stringify(localUserData, null, '\t')));
 			await this.writeLocalGlobalState(local);
 			this.logService.info('UI State: Updated local ui state');
 		}

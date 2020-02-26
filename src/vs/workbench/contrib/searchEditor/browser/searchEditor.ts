@@ -47,6 +47,8 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { Position } from 'vs/editor/common/core/position';
+import { Selection } from 'vs/editor/common/core/selection';
 
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(:| )(\s+)(.*)$/;
 const FILE_LINE_REGEX = /^(\S.*):$/;
@@ -77,6 +79,7 @@ export class SearchEditor extends BaseTextEditor {
 	private searchHistoryDelayer: Delayer<void>;
 	private messageDisposables: IDisposable[] = [];
 	private container: HTMLElement;
+	private searchModel: SearchModel;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -107,6 +110,8 @@ export class SearchEditor extends BaseTextEditor {
 		this.inputFocusContextKey = InputBoxFocusedKey.bindTo(scopedContextKeyService);
 		this.searchOperation = this._register(new LongRunningOperation(progressService));
 		this.searchHistoryDelayer = new Delayer<void>(2000);
+
+		this.searchModel = this._register(this.instantiationService.createInstance(SearchModel));
 	}
 
 	createEditor(parent: HTMLElement) {
@@ -200,7 +205,7 @@ export class SearchEditor extends BaseTextEditor {
 		this.searchResultEditor = super.getControl() as CodeEditorWidget;
 		this.searchResultEditor.onMouseUp(e => {
 			if (e.event.detail === 2) {
-				const behaviour = this.configurationService.getValue<ISearchConfigurationProperties>('search').searchEditorPreview.doubleClickBehaviour;
+				const behaviour = this.configurationService.getValue<ISearchConfigurationProperties>('search').searchEditor.doubleClickBehaviour;
 				const position = e.target.position;
 				if (position && behaviour !== 'selectWord') {
 					const line = this.searchResultEditor.getModel()?.getLineContent(position.lineNumber) ?? '';
@@ -292,8 +297,48 @@ export class SearchEditor extends BaseTextEditor {
 		this.toggleIncludesExcludes();
 	}
 
+	cleanState() {
+		this.getInput()?.setDirty(false);
+	}
+
 	private get searchConfig(): ISearchConfigurationProperties {
 		return this.configurationService.getValue<ISearchConfigurationProperties>('search');
+	}
+
+	private iterateThroughMatches(reverse: boolean) {
+		const model = this.searchResultEditor.getModel();
+		if (!model) { return; }
+
+		const lastLine = model.getLineCount() ?? 1;
+		const lastColumn = model.getLineLength(lastLine);
+
+		const fallbackStart = reverse ? new Position(lastLine, lastColumn) : new Position(1, 1);
+
+		const currentPosition = this.searchResultEditor.getSelection()?.getStartPosition() ?? fallbackStart;
+
+		const matchRanges = this.getInput()?.getMatchRanges();
+		if (!matchRanges) { return; }
+
+		const matchRange = (reverse ? findPrevRange : findNextRange)(matchRanges, currentPosition);
+
+		this.searchResultEditor.setSelection(matchRange);
+		this.searchResultEditor.revealLineInCenterIfOutsideViewport(matchRange.startLineNumber);
+		this.searchResultEditor.focus();
+	}
+
+	focusNextResult() {
+		this.iterateThroughMatches(false);
+	}
+
+	focusPreviousResult() {
+		this.iterateThroughMatches(true);
+	}
+
+	focusAllResults() {
+		this.searchResultEditor
+			.setSelections((this.getInput()?.getMatchRanges() ?? []).map(
+				range => new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn)));
+		this.searchResultEditor.focus();
 	}
 
 	async triggerSearch(_options?: { resetCursor?: boolean; delay?: number; }) {
@@ -304,7 +349,7 @@ export class SearchEditor extends BaseTextEditor {
 				await this.doRunSearch();
 				this.toggleRunAgainMessage(false);
 				if (options.resetCursor) {
-					this.searchResultEditor.setSelection(new Range(1, 1, 1, 1));
+					this.searchResultEditor.setPosition(new Position(1, 1));
 					this.searchResultEditor.setScrollPosition({ scrollTop: 0, scrollLeft: 0 });
 				}
 			}, options.delay);
@@ -326,6 +371,8 @@ export class SearchEditor extends BaseTextEditor {
 	}
 
 	private async doRunSearch() {
+		this.searchModel.cancelSearch(true);
+
 		const startInput = this.getInput();
 
 		this.searchHistoryDelayer.trigger(() => {
@@ -372,30 +419,26 @@ export class SearchEditor extends BaseTextEditor {
 		catch (err) {
 			return;
 		}
-		const searchModel = this.instantiationService.createInstance(SearchModel);
+
 		this.searchOperation.start(500);
-		await searchModel.search(query).finally(() => this.searchOperation.stop());
+		await this.searchModel.search(query).finally(() => this.searchOperation.stop());
 		const input = this.getInput();
 		if (!input ||
 			input !== startInput ||
 			JSON.stringify(config) !== JSON.stringify(this.readConfigFromWidget())) {
-
-			searchModel.dispose();
 			return;
 		}
 
 		const controller = ReferencesController.get(this.searchResultEditor);
 		controller.closeWidget(false);
 		const labelFormatter = (uri: URI): string => this.labelService.getUriLabel(uri, { relative: true });
-		const results = serializeSearchResultForEditor(searchModel.searchResult, config.includes, config.excludes, config.contextLines, labelFormatter, false);
+		const results = serializeSearchResultForEditor(this.searchModel.searchResult, config.includes, config.excludes, config.contextLines, labelFormatter, false);
 		const { header, body } = await input.getModels();
 		this.modelService.updateModel(body, results.text);
 		header.setValue(serializeSearchConfiguration(config));
 
 		input.setDirty(input.resource.scheme !== 'search-editor');
 		input.setMatchRanges(results.matchRanges);
-
-		searchModel.dispose();
 	}
 
 	layout(dimension: DOM.Dimension) {
@@ -522,3 +565,24 @@ registerThemingParticipant((theme, collector) => {
 });
 
 export const searchEditorTextInputBorder = registerColor('searchEditor.textInputBorder', { dark: inputBorder, light: inputBorder, hc: inputBorder }, localize('textInputBoxBorder', "Search editor text input box border."));
+
+function findNextRange(matchRanges: Range[], currentPosition: Position) {
+	for (const matchRange of matchRanges) {
+		if (Position.isBefore(currentPosition, matchRange.getStartPosition())) {
+			return matchRange;
+		}
+	}
+	return matchRanges[0];
+}
+
+function findPrevRange(matchRanges: Range[], currentPosition: Position) {
+	for (let i = matchRanges.length - 1; i >= 0; i--) {
+		const matchRange = matchRanges[i];
+		if (Position.isBefore(matchRange.getStartPosition(), currentPosition)) {
+			{
+				return matchRange;
+			}
+		}
+	}
+	return matchRanges[matchRanges.length - 1];
+}

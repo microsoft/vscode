@@ -36,14 +36,14 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 	constructor(
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IUserDataSyncEnablementService userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@IFileService fileService: IFileService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IUserDataSyncUtilService userDataSyncUtilService: IUserDataSyncUtilService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(environmentService.keybindingsResource, SyncSource.Keybindings, fileService, environmentService, userDataSyncStoreService, userDataSyncEnablementService, telemetryService, logService, userDataSyncUtilService);
+		super(environmentService.keybindingsResource, SyncSource.Keybindings, fileService, environmentService, userDataSyncStoreService, userDataSyncEnablementService, telemetryService, logService, userDataSyncUtilService, configurationService);
 	}
 
 	async pull(): Promise<void> {
@@ -180,10 +180,6 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 			this.setStatus(SyncStatus.Idle);
 			if (e instanceof UserDataSyncError) {
 				switch (e.code) {
-					case UserDataSyncErrorCode.RemotePreconditionFailed:
-						// Rejected as there is a new remote version. Syncing again,
-						this.logService.info('Keybindings: Failed to synchronize keybindings as there is a new remote version available. Synchronizing again...');
-						return this.sync();
 					case UserDataSyncErrorCode.LocalPreconditionFailed:
 						// Rejected as there is a new local version. Syncing again.
 						this.logService.info('Keybindings: Failed to synchronize keybindings as there is a new local version available. Synchronizing again...');

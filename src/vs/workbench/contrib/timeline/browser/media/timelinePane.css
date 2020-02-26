@@ -12,6 +12,7 @@
 	opacity: 0.5;
 	position: absolute;
 	pointer-events: none;
+	z-index: 1;
 }
 
 .timeline-tree-view .monaco-list .monaco-list-row .custom-view-tree-node-item .monaco-icon-label {

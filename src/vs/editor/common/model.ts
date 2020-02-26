@@ -1083,7 +1083,7 @@ export interface ITextModel {
 	 * @param cursorStateComputer A callback that can compute the resulting cursors state after the edit operations have been executed.
 	 * @return The cursor state returned by the `cursorStateComputer`.
 	 */
-	pushEditOperations(beforeCursorState: Selection[], editOperations: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer): Selection[] | null;
+	pushEditOperations(beforeCursorState: Selection[] | null, editOperations: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer): Selection[] | null;
 
 	/**
 	 * Change the end of line sequence. This is the preferred way of
@@ -1100,11 +1100,6 @@ export interface ITextModel {
 	applyEdits(operations: IIdentifiedSingleEditOperation[]): IValidEditOperation[];
 
 	/**
-	 * @internal
-	 */
-	_applyEdits(edits: IValidEditOperations[], isUndoing: boolean, isRedoing: boolean, resultingAlternativeVersionId: number, resultingSelection: Selection[] | null): IValidEditOperations[];
-
-	/**
 	 * Change the end of line sequence without recording in the undo stack.
 	 * This can have dire consequences on the undo stack! See @pushEOL for the preferred way.
 	 */
@@ -1113,7 +1108,7 @@ export interface ITextModel {
 	/**
 	 * @internal
 	 */
-	_setEOL(eol: EndOfLineSequence, isUndoing: boolean, isRedoing: boolean, resultingAlternativeVersionId: number, resultingSelection: Selection[] | null): void;
+	_applyUndoRedoEdits(edits: IValidEditOperations[], eol: EndOfLineSequence, isUndoing: boolean, isRedoing: boolean, resultingAlternativeVersionId: number, resultingSelection: Selection[] | null): IValidEditOperations[];
 
 	/**
 	 * Undo edit operations until the first previous stop point created by `pushStackElement`.

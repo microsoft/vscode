@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { INotification, INotificationHandle, INotificationActions, INotificationProgress, NoOpNotification, Severity, NotificationMessage, IPromptChoice, IStatusMessageOptions, NotificationsFilter } from 'vs/platform/notification/common/notification';
+import { INotification, INotificationHandle, INotificationActions, INotificationProgress, NoOpNotification, Severity, NotificationMessage, IPromptChoice, IStatusMessageOptions, NotificationsFilter, INotificationProgressProperties } from 'vs/platform/notification/common/notification';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -261,6 +261,7 @@ export interface INotificationViewItem {
 
 	readonly expanded: boolean;
 	readonly canCollapse: boolean;
+	readonly hasProgress: boolean;
 
 	readonly onDidChangeExpansion: Event<void>;
 	readonly onDidClose: Event<void>;
@@ -269,9 +270,6 @@ export interface INotificationViewItem {
 	expand(): void;
 	collapse(skipEvents?: boolean): void;
 	toggle(): void;
-
-	hasProgress(): boolean;
-	hasPrompt(): boolean;
 
 	updateSeverity(severity: Severity): void;
 	updateMessage(message: NotificationMessage): void;
@@ -437,7 +435,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 			actions = { primary: notification.message.actions };
 		}
 
-		return new NotificationViewItem(severity, notification.sticky, notification.silent || filter === NotificationsFilter.SILENT || (filter === NotificationsFilter.ERROR && notification.severity !== Severity.Error), message, notification.source, actions);
+		return new NotificationViewItem(severity, notification.sticky, notification.silent || filter === NotificationsFilter.SILENT || (filter === NotificationsFilter.ERROR && notification.severity !== Severity.Error), message, notification.source, notification.progress, actions);
 	}
 
 	private static parseNotificationMessage(input: NotificationMessage): INotificationMessage | undefined {
@@ -474,11 +472,28 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 		private _silent: boolean | undefined,
 		private _message: INotificationMessage,
 		private _source: string | undefined,
+		progress: INotificationProgressProperties | undefined,
 		actions?: INotificationActions
 	) {
 		super();
 
+		if (progress) {
+			this.setProgress(progress);
+		}
+
 		this.setActions(actions);
+	}
+
+	private setProgress(progress: INotificationProgressProperties): void {
+		if (progress.infinite) {
+			this.progress.infinite();
+		} else if (progress.total) {
+			this.progress.total(progress.total);
+
+			if (progress.worked) {
+				this.progress.worked(progress.worked);
+			}
+		}
 	}
 
 	private setActions(actions: INotificationActions = { primary: [], secondary: [] }): void {
@@ -495,7 +510,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 	}
 
 	get canCollapse(): boolean {
-		return !this.hasPrompt();
+		return !this.hasPrompt;
 	}
 
 	get expanded(): boolean {
@@ -511,7 +526,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 			return true; // explicitly sticky
 		}
 
-		const hasPrompt = this.hasPrompt();
+		const hasPrompt = this.hasPrompt;
 		if (
 			(hasPrompt && this._severity === Severity.Error) || // notification errors with actions are sticky
 			(!hasPrompt && this._expanded) ||					// notifications that got expanded are sticky
@@ -527,7 +542,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 		return !!this._silent;
 	}
 
-	hasPrompt(): boolean {
+	private get hasPrompt(): boolean {
 		if (!this._actions) {
 			return false;
 		}
@@ -539,7 +554,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 		return this._actions.primary.length > 0;
 	}
 
-	hasProgress(): boolean {
+	get hasProgress(): boolean {
 		return !!this._progress;
 	}
 
@@ -621,7 +636,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 	}
 
 	equals(other: INotificationViewItem): boolean {
-		if (this.hasProgress() || other.hasProgress()) {
+		if (this.hasProgress || other.hasProgress) {
 			return false;
 		}
 

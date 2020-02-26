@@ -42,6 +42,11 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
+import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
+import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 suite('MainThreadEditors', () => {
 
@@ -64,7 +69,10 @@ suite('MainThreadEditors', () => {
 
 
 		const configService = new TestConfigurationService();
-		modelService = new ModelServiceImpl(configService, new TestTextResourcePropertiesService(configService), new TestThemeService(), new NullLogService(), new UndoRedoService());
+		const dialogService = new TestDialogService();
+		const notificationService = new TestNotificationService();
+		const undoRedoService = new UndoRedoService(dialogService, notificationService);
+		modelService = new ModelServiceImpl(configService, new TestTextResourcePropertiesService(configService), new TestThemeService(), new NullLogService(), undoRedoService);
 
 
 		const services = new ServiceCollection();
@@ -74,6 +82,9 @@ suite('MainThreadEditors', () => {
 		services.set(IWorkspaceContextService, new TestContextService());
 		services.set(IWorkbenchEnvironmentService, TestEnvironmentService);
 		services.set(IConfigurationService, configService);
+		services.set(IDialogService, dialogService);
+		services.set(INotificationService, notificationService);
+		services.set(IUndoRedoService, undoRedoService);
 		services.set(IModelService, modelService);
 		services.set(ICodeEditorService, new TestCodeEditorService());
 		services.set(IFileService, new TestFileService());

@@ -5551,4 +5551,28 @@ suite('Undo stops', () => {
 		});
 	});
 
+	test('can undo typing and EOL change in one undo stop', () => {
+		let model = createTextModel(
+			[
+				'A  line',
+				'Another line',
+			].join('\n')
+		);
+
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+			cursor.setSelections('test', [new Selection(1, 3, 1, 3)]);
+			cursorCommand(cursor, H.Type, { text: 'first' }, 'keyboard');
+			assert.equal(model.getValue(), 'A first line\nAnother line');
+			assertCursor(cursor, new Selection(1, 8, 1, 8));
+
+			model.pushEOL(EndOfLineSequence.CRLF);
+			assert.equal(model.getValue(), 'A first line\r\nAnother line');
+			assertCursor(cursor, new Selection(1, 8, 1, 8));
+
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
+			assert.equal(model.getValue(), 'A  line\nAnother line');
+			assertCursor(cursor, new Selection(1, 3, 1, 3));
+		});
+	});
+
 });

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { UserDataSyncError, UserDataSyncErrorCode, SyncStatus, IUserDataSyncStoreService, ISyncExtension, IUserDataSyncLogService, IUserDataSynchroniser, SyncSource, ResourceKey, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { SyncStatus, IUserDataSyncStoreService, ISyncExtension, IUserDataSyncLogService, IUserDataSynchroniser, SyncSource, ResourceKey, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { Event } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IExtensionManagementService, IExtensionGalleryService, IGlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -46,11 +46,11 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		@IGlobalExtensionEnablementService private readonly extensionEnablementService: IGlobalExtensionEnablementService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IUserDataSyncEnablementService userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(SyncSource.Extensions, fileService, environmentService, userDataSyncStoreService, userDataSyncEnablementService, telemetryService, logService);
+		super(SyncSource.Extensions, fileService, environmentService, userDataSyncStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService);
 		this._register(
 			Event.debounce(
 				Event.any<any>(
@@ -154,11 +154,6 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 			await this.apply(previewResult);
 		} catch (e) {
 			this.setStatus(SyncStatus.Idle);
-			if (e instanceof UserDataSyncError && e.code === UserDataSyncErrorCode.RemotePreconditionFailed) {
-				// Rejected as there is a new remote version. Syncing again,
-				this.logService.info('Extensions: Failed to synchronize extensions as there is a new remote version available. Synchronizing again...');
-				return this.sync();
-			}
 			throw e;
 		}
 
@@ -199,7 +194,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		if (added.length || removed.length || updated.length) {
 			// back up all disabled or market place extensions
 			const backUpExtensions = localExtensions.filter(e => e.disabled || !!e.identifier.uuid);
-			await this.backupLocal(VSBuffer.fromString(JSON.stringify(backUpExtensions)));
+			await this.backupLocal(VSBuffer.fromString(JSON.stringify(backUpExtensions, null, '\t')));
 			skippedExtensions = await this.updateLocalExtensions(added, removed, updated, skippedExtensions);
 		}
 
