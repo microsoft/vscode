@@ -213,6 +213,9 @@ export abstract class AbstractSynchroniser extends Disposable {
 
 	private async cleanUpBackup(): Promise<void> {
 		try {
+			if (!(await this.fileService.exists(this.syncFolder))) {
+				return;
+			}
 			const stat = await this.fileService.resolve(this.syncFolder);
 			if (stat.children) {
 				const all = stat.children.filter(stat => stat.isFile && /^\d{8}T\d{6}(\.json)?$/.test(stat.name)).sort();
