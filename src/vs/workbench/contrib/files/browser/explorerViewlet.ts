@@ -65,21 +65,21 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 	private registerViews(): void {
 		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 
-		viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
+		this._register(viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
 			content: localize('noWorkspaceHelp', "You have not yet added a folder to the workspace.\n[Add Folder](command:{0})", AddRootFolderAction.ID),
 			when: WorkbenchStateContext.isEqualTo('workspace')
-		});
+		}));
 
 		const commandId = isMacintosh ? OpenFileFolderAction.ID : OpenFolderAction.ID;
-		viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
+		this._register(viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
 			content: localize('remoteNoFolderHelp', "Connected to remote.\n[Open Folder](command:{0})", commandId),
 			when: ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('workspace'), RemoteNameContext.notEqualsTo(''), IsWebContext.toNegated())
-		});
+		}));
 
-		viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
+		this._register(viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
 			content: localize('noFolderHelp', "You have not yet opened a folder.\n[Open Folder](command:{0})", commandId),
 			when: ContextKeyExpr.or(ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('workspace'), RemoteNameContext.isEqualTo('')), ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('workspace'), IsWebContext))
-		});
+		}));
 
 		const viewDescriptors = viewsRegistry.getViews(VIEW_CONTAINER);
 
