@@ -457,19 +457,9 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 			});
 		};
 
-		if (this.list?.isRendering) {
-			// if (this.relayoutDisposable) {
-			// 	this.relayoutDisposable.dispose();
-			// 	this.relayoutDisposable = null;
-			// }
-
-			DOM.scheduleAtNextAnimationFrame(() => {
-				update();
-				// this.relayoutDisposable = null;
-			});
-		} else {
+		DOM.scheduleAtNextAnimationFrame(() => {
 			update();
-		}
+		});
 	}
 
 	async insertEmptyNotebookCell(listIndex: number | undefined, cell: CellViewModel, type: 'code' | 'markdown', direction: 'above' | 'below'): Promise<void> {
