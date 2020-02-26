@@ -167,7 +167,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private lastRenderTop: number;
 	private lastRenderHeight: number;
 	private renderWidth = 0;
-	public rowsContainer: HTMLElement;
+	private rowsContainer: HTMLElement;
 	private scrollableElement: ScrollableElement;
 	private _scrollHeight: number = 0;
 	private scrollableElementUpdateDisposable: IDisposable | null = null;
@@ -199,6 +199,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	get onDidScroll(): Event<ScrollEvent> { return this.scrollableElement.onScroll; }
 	get onWillScroll(): Event<ScrollEvent> { return this.scrollableElement.onWillScroll; }
+	get containerDomNode(): HTMLElement { return this.rowsContainer; }
 
 	private _isRendering: boolean = false;
 	get isRendering(): boolean {

@@ -17,7 +17,7 @@ export class NotebookCellList<T> extends WorkbenchList<T> {
 	get onWillScroll(): Event<ScrollEvent> { return this.view.onWillScroll; }
 
 	get rowsContainer(): HTMLElement {
-		return this.view.rowsContainer;
+		return this.view.containerDomNode;
 	}
 
 	get isRendering(): boolean {
