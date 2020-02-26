@@ -1,6 +1,6 @@
 {
 	"displayName": "Microsoft Account",
 	"description": "Microsoft authentication provider",
-	"signIn": "Sign in",
-	"signOut": "Sign out"
+	"signIn": "Sign In",
+	"signOut": "Sign Out"
 }
