@@ -63,7 +63,7 @@ import { getTemplates as getTaskTemplates } from 'vs/workbench/contrib/tasks/com
 import * as TaskConfig from '../common/taskConfiguration';
 import { TerminalTaskSystem } from './terminalTaskSystem';
 
-import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPickItem, QuickPickInput, IQuickPick } from 'vs/platform/quickinput/common/quickInput';
 
 import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -80,6 +80,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { find } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IViewsService } from 'vs/workbench/common/views';
+import { ProviderProgressMananger } from 'vs/workbench/contrib/tasks/browser/providerProgressManager';
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
 const QUICKOPEN_DETAIL_CONFIG = 'task.quickOpen.detail';
@@ -218,6 +219,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private _providers: Map<number, ITaskProvider>;
 	private _providerTypes: Map<number, string>;
 	protected _taskSystemInfos: Map<string, TaskSystemInfo>;
+	private _providerProgressManager: ProviderProgressMananger | undefined;
 
 	protected _workspaceTasksPromise?: Promise<Map<string, WorkspaceFolderTaskResult>>;
 	protected _areJsonTasksSupportedPromise: Promise<boolean> = Promise.resolve(false);
@@ -1345,11 +1347,24 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	protected abstract getTaskSystem(): ITaskSystem;
 
-	private async provideTasksWithWarning(provider: ITaskProvider, type: string, validTypes: IStringDictionary<boolean>): Promise<TaskSet> {
+	private async provideTasksWithWarning(provider: ITaskProvider, type: string, validTypes: IStringDictionary<boolean>): Promise<TaskSet | undefined> {
 		return new Promise<TaskSet>(async (resolve, reject) => {
-			provider.provideTasks(validTypes).then((value) => {
+			let isDone = false;
+			let disposable: IDisposable | undefined;
+			const providePromise = provider.provideTasks(validTypes);
+			this._providerProgressManager?.addProvider(type, providePromise);
+			disposable = this._providerProgressManager?.canceled.token.onCancellationRequested(() => {
+				if (!isDone) {
+					resolve();
+				}
+			});
+			providePromise.then((value) => {
+				isDone = true;
+				disposable?.dispose();
 				resolve(value);
 			}, (e) => {
+				isDone = true;
+				disposable?.dispose();
 				reject(e);
 			});
 		});
@@ -1361,10 +1376,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			TaskDefinitionRegistry.all().forEach(definition => validTypes[definition.taskType] = true);
 			validTypes['shell'] = true;
 			validTypes['process'] = true;
+			this._providerProgressManager = new ProviderProgressMananger();
 			return new Promise<TaskSet[]>(resolve => {
 				let result: TaskSet[] = [];
 				let counter: number = 0;
-				let done = (value: TaskSet) => {
+				let done = (value: TaskSet | undefined) => {
 					if (value) {
 						result.push(value);
 					}
@@ -2060,30 +2076,69 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 			return entries;
 		});
-		return this.quickInputService.pick(pickEntries, {
-			placeHolder,
-			matchOnDescription: true,
-			onDidTriggerItemButton: context => {
-				let task = context.item.task;
-				this.quickInputService.cancel();
-				if (ContributedTask.is(task)) {
-					this.customize(task, undefined, true);
-				} else if (CustomTask.is(task)) {
-					this.openConfig(task);
+
+		const picker: IQuickPick<TaskQuickPickEntry> = this.quickInputService.createQuickPick();
+		picker.placeholder = placeHolder;
+		picker.matchOnDescription = true;
+		picker.ignoreFocusOut = true;
+
+		picker.onDidTriggerItemButton(context => {
+			let task = context.item.task;
+			this.quickInputService.cancel();
+			if (ContributedTask.is(task)) {
+				this.customize(task, undefined, true);
+			} else if (CustomTask.is(task)) {
+				this.openConfig(task);
+			}
+		});
+		picker.busy = true;
+		const progressManager = this._providerProgressManager;
+		const progressTimeout = setTimeout(() => {
+			if (progressManager) {
+				progressManager.showProgress = (stillProviding, total) => {
+					let message = undefined;
+					if (stillProviding.length > 0) {
+						message = nls.localize('pickProgressManager.description', 'Detecting tasks ({0} of {1}): {2} in progress', total - stillProviding.length, total, stillProviding.join(', '));
+					}
+					picker.description = message;
+				};
+				progressManager.addOnDoneListener(() => {
+					picker.focusOnInput();
+					picker.customButton = false;
+				});
+				if (!progressManager.isDone) {
+					picker.customLabel = nls.localize('taskQuickPick.cancel', "Stop detecting");
+					picker.onDidCustom(() => {
+						this._providerProgressManager?.cancel();
+					});
+					picker.customButton = true;
 				}
 			}
-		}, cancellationToken).then(async (selection) => {
-			if (cancellationToken.isCancellationRequested) {
-				// canceled when there's only one task
-				const task = (await pickEntries)[0];
-				if ((<any>task).task) {
-					selection = <TaskQuickPickEntry>task;
+		}, 1000);
+		pickEntries.then(entries => {
+			clearTimeout(progressTimeout);
+			progressManager?.dispose();
+			picker.busy = false;
+			picker.items = entries;
+		});
+		picker.show();
+
+		return new Promise<TaskQuickPickEntry | undefined | null>(resolve => {
+			this._register(picker.onDidAccept(async () => {
+				let selection = picker.selectedItems ? picker.selectedItems[0] : undefined;
+				if (cancellationToken.isCancellationRequested) {
+					// canceled when there's only one task
+					const task = (await pickEntries)[0];
+					if ((<any>task).task) {
+						selection = <TaskQuickPickEntry>task;
+					}
 				}
-			}
-			if (!selection) {
-				return;
-			}
-			return selection;
+				picker.dispose();
+				if (!selection) {
+					resolve();
+				}
+				resolve(selection);
+			}));
 		});
 	}
 
