@@ -2669,7 +2669,7 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 				if (server) {
 					this.tooltip = localize('Install in other server to enable', "Install the extension on '{0}' to enable.", server.label);
 				} else {
-					this.tooltip = localize('disabled because of extension kind', "This extension cannot be enabled in the remote server.");
+					this.tooltip = localize('disabled because of extension kind', "This extension has defined that it cannot run on the remote server");
 				}
 				return;
 			}
