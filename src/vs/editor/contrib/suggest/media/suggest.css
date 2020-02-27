@@ -392,6 +392,10 @@
 	word-wrap: break-word;
 }
 
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .docs.markdown-docs .codicon {
+	vertical-align: sub;
+}
+
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > p:empty {
 	display: none;
 }
