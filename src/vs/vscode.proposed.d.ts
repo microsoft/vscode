@@ -1273,7 +1273,7 @@ declare module 'vscode' {
 		 * in an operation that takes time to complete, your extension may decide to finish the ongoing backup rather
 		 * than cancelling it to ensure that VS Code has some valid backup.
 		 */
-		backup(cancellation: CancellationToken): Thenable<boolean>;
+		backup(cancellation: CancellationToken): Thenable<void>;
 	}
 
 	/**
