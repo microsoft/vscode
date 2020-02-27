@@ -24,6 +24,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventHelper } from 'vs/base/browser/dom';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { parseLinkedText } from 'vs/base/common/linkedText';
 
 export class ProgressService extends Disposable implements IProgressService {
 
@@ -200,17 +201,25 @@ export class ProgressService extends Disposable implements IProgressService {
 
 			this.withWindowProgress<R>({
 				location: ProgressLocation.Window,
-				title: options.title,
+				title: options.title ? parseLinkedText(options.title).toString() : undefined, // convert markdown links => string
 				command: 'notifications.showList'
 			}, progress => {
 
+				function reportProgress(step: IProgressStep) {
+					if (step.message) {
+						progress.report({
+							message: parseLinkedText(step.message).toString()  // convert markdown links => string
+						});
+					}
+				}
+
 				// Apply any progress that was made already
 				if (progressStateModel.step) {
-					progress.report(progressStateModel.step);
+					reportProgress(progressStateModel.step);
 				}
 
 				// Continue to report progress as it happens
-				const onDidReportListener = progressStateModel.onDidReport(step => progress.report(step));
+				const onDidReportListener = progressStateModel.onDidReport(step => reportProgress(step));
 				promise.finally(() => onDidReportListener.dispose());
 
 				// When the progress model gets disposed, we are done as well
