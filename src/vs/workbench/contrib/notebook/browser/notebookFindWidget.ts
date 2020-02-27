@@ -7,7 +7,6 @@ import { SimpleFindWidget } from 'vs/workbench/contrib/codeEditor/browser/find/s
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { Event } from 'vs/base/common/event';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/renderers/cellViewModel';
 import { FindMatch } from 'vs/editor/common/model';
 
