@@ -144,9 +144,7 @@ export default class FileConfigurationManager extends Disposable {
 			isTypeScriptDocument(document) ? 'typescript.format' : 'javascript.format',
 			document.uri);
 
-		// `semicolons` added to `Proto.FormatCodeSettings` in TypeScript 3.7:
-		// remove intersection type after upgrading TypeScript.
-		const settings: Proto.FormatCodeSettings & { semicolons?: string } = {
+		return {
 			tabSize: options.tabSize,
 			indentSize: options.tabSize,
 			convertTabsToSpaces: options.insertSpaces,
@@ -169,8 +167,6 @@ export default class FileConfigurationManager extends Disposable {
 			placeOpenBraceOnNewLineForControlBlocks: config.get<boolean>('placeOpenBraceOnNewLineForControlBlocks'),
 			semicolons: config.get<Proto.SemicolonPreference>('semicolons'),
 		};
-
-		return settings;
 	}
 
 	private getPreferences(document: vscode.TextDocument): Proto.UserPreferences {
@@ -182,7 +178,9 @@ export default class FileConfigurationManager extends Disposable {
 			isTypeScriptDocument(document) ? 'typescript.preferences' : 'javascript.preferences',
 			document.uri);
 
-		return {
+		// `importModuleSpecifierEnding` added to `Proto.UserPreferences` in TypeScript 3.9:
+		// remove intersection type after upgrading TypeScript.
+		const preferences: Proto.UserPreferences & { importModuleSpecifierEnding?: string } = {
 			quotePreference: this.getQuoteStylePreference(config),
 			importModuleSpecifierPreference: getImportModuleSpecifierPreference(config),
 			importModuleSpecifierEnding: getImportModuleSpecifierEndingPreference(config),
@@ -190,6 +188,8 @@ export default class FileConfigurationManager extends Disposable {
 			providePrefixAndSuffixTextForRename: config.get<boolean>('renameShorthandProperties', true),
 			allowRenameOfImportPath: true,
 		};
+
+		return preferences;
 	}
 
 	private getQuoteStylePreference(config: vscode.WorkspaceConfiguration) {
