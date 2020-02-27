@@ -20,6 +20,12 @@ export interface ViewWelcome {
 
 export type ViewsWelcomeExtensionPoint = ViewWelcome[];
 
+export const ViewIdentifierMap: { [key: string]: string } = {
+	'explorer': 'workbench.explorer.emptyView',
+	'debug': 'workbench.debug.startView',
+	'scm': 'workbench.scm',
+};
+
 const viewsWelcomeExtensionPointSchema = Object.freeze<IConfigurationPropertySchema>({
 	type: 'array',
 	description: nls.localize('contributes.viewsWelcome', "Contributed views welcome content. Welcome content will be rendered in views whenever they have no meaningful content to display, ie. the File Explorer when no folder is open. Such content is useful as in-product documentation to drive users to use certain features before they are available. A good example would be a `Clone Repository` button in the File Explorer welcome view."),
@@ -34,6 +40,7 @@ const viewsWelcomeExtensionPointSchema = Object.freeze<IConfigurationPropertySch
 			[ViewsWelcomeExtensionPointFields.view]: {
 				type: 'string',
 				description: nls.localize('contributes.viewsWelcome.view.view', "Target view identifier for this welcome content."),
+				enum: Object.keys(ViewIdentifierMap),
 			},
 			[ViewsWelcomeExtensionPointFields.contents]: {
 				type: 'string',
