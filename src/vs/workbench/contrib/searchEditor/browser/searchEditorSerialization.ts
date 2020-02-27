@@ -216,7 +216,7 @@ export const serializeSearchResultForEditor =
 
 		const info = [
 			searchResult.count()
-				? `${filecount} - ${resultcount}`
+				? `${resultcount} - ${filecount}`
 				: localize('noResults', "No Results"),
 			''];
 
