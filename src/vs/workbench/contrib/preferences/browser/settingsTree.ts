@@ -1205,7 +1205,6 @@ export class SettingTreeRenderers {
 			new Separator(),
 			this._instantiationService.createInstance(CopySettingIdAction),
 			this._instantiationService.createInstance(CopySettingAsJSONAction),
-			new Separator(),
 		];
 
 		const actionFactory = (setting: ISetting) => this.getActionsForSetting(setting);
@@ -1239,7 +1238,10 @@ export class SettingTreeRenderers {
 	private getActionsForSetting(setting: ISetting): IAction[] {
 		const enableSync = this._userDataSyncEnablementService.isEnabled();
 		return enableSync && !setting.disallowSyncIgnore ?
-			[this._instantiationService.createInstance(SyncSettingAction, setting)] :
+			[
+				new Separator(),
+				this._instantiationService.createInstance(SyncSettingAction, setting)
+			] :
 			[];
 	}
 
