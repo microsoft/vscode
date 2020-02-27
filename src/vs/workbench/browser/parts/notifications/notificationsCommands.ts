@@ -75,6 +75,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 
 	// Show Notifications Cneter
 	CommandsRegistry.registerCommand(SHOW_NOTIFICATIONS_CENTER, () => {
+		toasts.hide();
 		center.show();
 	});
 
@@ -92,6 +93,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 		if (center.isVisible) {
 			center.hide();
 		} else {
+			toasts.hide();
 			center.show();
 		}
 	});

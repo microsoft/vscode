@@ -6,7 +6,7 @@
 import 'vs/css!./media/progressService';
 
 import { localize } from 'vs/nls';
-import { IDisposable, dispose, DisposableStore, MutableDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, DisposableStore, MutableDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IProgressService, IProgressOptions, IProgressStep, ProgressLocation, IProgress, Progress, IProgressCompositeOptions, IProgressNotificationOptions, IProgressRunner, IProgressIndicator, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { StatusbarAlignment, IStatusbarService } from 'vs/workbench/services/statusbar/common/statusbar';
@@ -191,6 +191,38 @@ export class ProgressService extends Disposable implements IProgressService {
 			}
 		};
 
+		const createWindowProgress = () => {
+
+			// Create a promise that we can resolve as needed
+			// when the outside calls dispose on us
+			let promiseResolve: () => void;
+			const promise = new Promise<R>(resolve => promiseResolve = resolve);
+
+			this.withWindowProgress<R>({
+				location: ProgressLocation.Window,
+				title: options.title,
+				command: 'notifications.showList'
+			}, progress => {
+
+				// Apply any progress that was made already
+				if (progressStateModel.step) {
+					progress.report(progressStateModel.step);
+				}
+
+				// Continue to report progress as it happens
+				const onDidReportListener = progressStateModel.onDidReport(step => progress.report(step));
+				promise.finally(() => onDidReportListener.dispose());
+
+				// When the progress model gets disposed, we are done as well
+				Event.once(progressStateModel.onDispose)(() => promiseResolve());
+
+				return promise;
+			});
+
+			// Dispose means completing our promise
+			return toDisposable(() => promiseResolve());
+		};
+
 		const createNotification = (message: string, increment?: number): INotificationHandle => {
 			const notificationDisposables = new DisposableStore();
 
@@ -229,7 +261,7 @@ export class ProgressService extends Disposable implements IProgressService {
 				primaryActions.push(cancelAction);
 			}
 
-			const handle = this.notificationService.notify({
+			const notification = this.notificationService.notify({
 				severity: Severity.Info,
 				message,
 				source: options.source,
@@ -237,12 +269,26 @@ export class ProgressService extends Disposable implements IProgressService {
 				progress: typeof increment === 'number' && increment >= 0 ? { total: 100, worked: increment } : { infinite: true }
 			});
 
-			updateProgress(handle, increment);
+			// Switch to window based progress once the notification
+			// changes visibility to hidden and is still ongoing.
+			// Remove that window based progress once the notification
+			// shows again.
+			let windowProgressDisposable: IDisposable | undefined = undefined;
+			notificationDisposables.add(notification.onDidChangeVisibility(visible => {
+
+				// Clear any previous running window progress
+				dispose(windowProgressDisposable);
+
+				// Create new window progress if notification got hidden
+				if (!visible && !progressStateModel.done) {
+					windowProgressDisposable = createWindowProgress();
+				}
+			}));
 
 			// Clear upon dispose
-			Event.once(handle.onDidClose)(() => notificationDisposables.dispose());
+			Event.once(notification.onDidClose)(() => notificationDisposables.dispose());
 
-			return handle;
+			return notification;
 		};
 
 		const updateProgress = (notification: INotificationHandle, increment?: number): void => {

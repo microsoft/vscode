@@ -174,6 +174,13 @@ export interface INotificationHandle {
 	readonly onDidClose: Event<void>;
 
 	/**
+	 * Will be fired whenever the visibility of the notification changes.
+	 * A notification can either be visible as toast or inside the notification
+	 * center if it is visible. 
+	 */
+	readonly onDidChangeVisibility: Event<boolean>;
+
+	/**
 	 * Allows to indicate progress on the notification even after the
 	 * notification is already visible.
 	 */
