@@ -181,8 +181,10 @@ function _simpleAsString(modifiers: Modifiers, key: string, labels: ModifierLabe
 		result.push(labels.metaKey);
 	}
 
-	// the actual key
-	result.push(key);
+	if (key) {
+		// the actual key
+		result.push(key);
+	}
 
 	return result.join(labels.separator);
 }
