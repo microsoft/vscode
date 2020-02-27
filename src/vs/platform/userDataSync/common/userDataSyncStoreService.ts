@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, } from 'vs/base/common/lifecycle';
-import { IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, IUserDataSyncStore, getUserDataSyncStore, IUserDataAuthTokenService, SyncSource, UserDataSyncStoreError, IUserDataSyncLogService, IUserDataManifest } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, IUserDataSyncStore, getUserDataSyncStore, SyncSource, UserDataSyncStoreError, IUserDataSyncLogService, IUserDataManifest } from 'vs/platform/userDataSync/common/userDataSync';
 import { IRequestService, asText, isSuccess, asJson } from 'vs/platform/request/common/request';
-import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IHeaders, IRequestOptions, IRequestContext } from 'vs/base/parts/request/common/request';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IAuthenticationTokenService } from 'vs/platform/authentication/common/authentication';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 export class UserDataSyncStoreService extends Disposable implements IUserDataSyncStoreService {
 
@@ -19,13 +20,14 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 	readonly userDataSyncStore: IUserDataSyncStore | undefined;
 
 	constructor(
+		@IProductService productService: IProductService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IRequestService private readonly requestService: IRequestService,
-		@IUserDataAuthTokenService private readonly authTokenService: IUserDataAuthTokenService,
+		@IAuthenticationTokenService private readonly authTokenService: IAuthenticationTokenService,
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
 	) {
 		super();
-		this.userDataSyncStore = getUserDataSyncStore(configurationService);
+		this.userDataSyncStore = getUserDataSyncStore(productService, configurationService);
 	}
 
 	async read(key: string, oldValue: IUserData | null, source?: SyncSource): Promise<IUserData> {
@@ -33,7 +35,7 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 			throw new Error('No settings sync store url configured.');
 		}
 
-		const url = joinPath(URI.parse(this.userDataSyncStore.url), 'resource', key, 'latest').toString();
+		const url = joinPath(this.userDataSyncStore.url, 'resource', key, 'latest').toString();
 		const headers: IHeaders = {};
 		// Disable caching as they are cached by synchronisers
 		headers['Cache-Control'] = 'no-cache';
@@ -65,7 +67,7 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 			throw new Error('No settings sync store url configured.');
 		}
 
-		const url = joinPath(URI.parse(this.userDataSyncStore.url), 'resource', key).toString();
+		const url = joinPath(this.userDataSyncStore.url, 'resource', key).toString();
 		const headers: IHeaders = { 'Content-Type': 'text/plain' };
 		if (ref) {
 			headers['If-Match'] = ref;
@@ -89,7 +91,7 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 			throw new Error('No settings sync store url configured.');
 		}
 
-		const url = joinPath(URI.parse(this.userDataSyncStore.url), 'resource', 'latest').toString();
+		const url = joinPath(this.userDataSyncStore.url, 'manifest').toString();
 		const headers: IHeaders = { 'Content-Type': 'application/json' };
 
 		const context = await this.request({ type: 'GET', url, headers }, undefined, CancellationToken.None);
@@ -105,7 +107,7 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 			throw new Error('No settings sync store url configured.');
 		}
 
-		const url = joinPath(URI.parse(this.userDataSyncStore.url), 'resource').toString();
+		const url = joinPath(this.userDataSyncStore.url, 'resource').toString();
 		const headers: IHeaders = { 'Content-Type': 'text/plain' };
 
 		const context = await this.request({ type: 'DELETE', url, headers }, undefined, CancellationToken.None);
@@ -134,6 +136,7 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		}
 
 		if (context.res.statusCode === 401) {
+			this.authTokenService.sendTokenFailed();
 			throw new UserDataSyncStoreError(`Request '${options.url?.toString()}' failed because of Unauthorized (401).`, UserDataSyncErrorCode.Unauthorized, source);
 		}
 

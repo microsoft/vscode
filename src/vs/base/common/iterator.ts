@@ -125,6 +125,19 @@ export module Iterator {
 		};
 	}
 
+	export function some<T>(iterator: Iterator<T> | NativeIterator<T>, fn: (t: T) => boolean): boolean {
+		while (true) {
+			const element = iterator.next();
+			if (element.done) {
+				return false;
+			}
+
+			if (fn(element.value)) {
+				return true;
+			}
+		}
+	}
+
 	export function forEach<T>(iterator: Iterator<T>, fn: (t: T) => void): void {
 		for (let next = iterator.next(); !next.done; next = iterator.next()) {
 			fn(next.value);

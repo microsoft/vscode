@@ -3,64 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { Button } from 'vs/base/browser/ui/button/button';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { localize } from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { StartAction, ConfigureAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { equals } from 'vs/base/common/arrays';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
+import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { IViewDescriptorService, IViewsRegistry, Extensions } from 'vs/workbench/common/views';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-const $ = dom.$;
+import { WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
+import { OpenFolderAction, OpenFileAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
+import { isMacintosh } from 'vs/base/common/platform';
+import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
-interface DebugStartMetrics {
-	debuggers?: string[];
-}
-type DebugStartMetricsClassification = {
-	debuggers?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-};
-
-function createClickElement(textContent: string, action: () => any): HTMLSpanElement {
-	const clickElement = $('span.click');
-	clickElement.textContent = textContent;
-	clickElement.onclick = action;
-	clickElement.tabIndex = 0;
-	clickElement.onkeyup = (e) => {
-		const keyboardEvent = new StandardKeyboardEvent(e);
-		if (keyboardEvent.keyCode === KeyCode.Enter || (keyboardEvent.keyCode === KeyCode.Space)) {
-			action();
-		}
-	};
-
-	return clickElement;
-}
+const debugStartLanguageKey = 'debugStartLanguage';
+const CONTEXT_DEBUG_START_LANGUAGE = new RawContextKey<string>(debugStartLanguageKey, undefined);
+const CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR = new RawContextKey<boolean>('debuggerInterestedInActiveEditor', false);
 
 export class StartView extends ViewPane {
 
 	static ID = 'workbench.debug.startView';
 	static LABEL = localize('start', "Start");
 
-	private debugButton!: Button;
-	private firstMessageContainer!: HTMLElement;
-	private secondMessageContainer!: HTMLElement;
-	private clickElement: HTMLElement | undefined;
-	private debuggerLabels: string[] | undefined = undefined;
+	private debugStartLanguageContext: IContextKey<string | undefined>;
+	private debuggerInterestedContext: IContextKey<boolean>;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -69,124 +44,66 @@ export class StartView extends ViewPane {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ICommandService private readonly commandService: ICommandService,
 		@IDebugService private readonly debugService: IDebugService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IFileDialogService private readonly dialogService: IFileDialogService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IOpenerService openerService: IOpenerService,
+		@IStorageService storageSevice: IStorageService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: localize('debugStart', "Debug Start Section") }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService);
-		this._register(editorService.onDidActiveEditorChange(() => this.updateView()));
-		this._register(this.debugService.getConfigurationManager().onDidRegisterDebugger(() => this.updateView()));
+		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: localize('debugStart', "Debug Start Section") }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+
+		this.debugStartLanguageContext = CONTEXT_DEBUG_START_LANGUAGE.bindTo(contextKeyService);
+		this.debuggerInterestedContext = CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR.bindTo(contextKeyService);
+		const lastSetLanguage = storageSevice.get(debugStartLanguageKey, StorageScope.WORKSPACE);
+		this.debugStartLanguageContext.set(lastSetLanguage);
+
+		const setContextKey = () => {
+			const editor = this.editorService.activeTextEditorWidget;
+			if (isCodeEditor(editor)) {
+				const model = editor.getModel();
+				const language = model ? model.getLanguageIdentifier().language : undefined;
+				if (language && this.debugService.getConfigurationManager().isDebuggerInterestedInLanguage(language)) {
+					this.debugStartLanguageContext.set(language);
+					this.debuggerInterestedContext.set(true);
+					storageSevice.store(debugStartLanguageKey, language, StorageScope.WORKSPACE);
+					return;
+				}
+			}
+			this.debuggerInterestedContext.set(false);
+		};
+		this._register(editorService.onDidActiveEditorChange(setContextKey));
+		this._register(this.debugService.getConfigurationManager().onDidRegisterDebugger(setContextKey));
+		setContextKey();
+
+		const debugKeybinding = this.keybindingService.lookupKeybinding(StartAction.ID);
+		debugKeybindingLabel = debugKeybinding ? ` (${debugKeybinding.getLabel()})` : '';
 	}
 
-	private updateView(): void {
-		const activeEditor = this.editorService.activeTextEditorWidget;
-		const debuggerLabels = this.debugService.getConfigurationManager().getDebuggerLabelsForEditor(activeEditor);
-		if (!equals(this.debuggerLabels, debuggerLabels)) {
-			this.debuggerLabels = debuggerLabels;
-			const enabled = this.debuggerLabels.length > 0;
-
-			this.debugButton.enabled = enabled;
-			const debugKeybinding = this.keybindingService.lookupKeybinding(StartAction.ID);
-			let debugLabel = this.debuggerLabels.length !== 1 ? localize('debug', "Run and Debug") : localize('debugWith', "Run and Debug {0}", this.debuggerLabels[0]);
-			if (debugKeybinding) {
-				debugLabel += ` (${debugKeybinding.getLabel()})`;
-			}
-			this.debugButton.label = debugLabel;
-
-			const emptyWorkbench = this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY;
-			this.firstMessageContainer.innerHTML = '';
-			this.secondMessageContainer.innerHTML = '';
-			const secondMessageElement = $('span');
-			this.secondMessageContainer.appendChild(secondMessageElement);
-
-			const setSecondMessage = () => {
-				secondMessageElement.textContent = localize('specifyHowToRun', "To customize Run and Debug");
-				this.clickElement = createClickElement(localize('configure', " create a launch.json file."), () => {
-					this.telemetryService.publicLog2<DebugStartMetrics, DebugStartMetricsClassification>('debugStart.configure', { debuggers: this.debuggerLabels });
-					this.commandService.executeCommand(ConfigureAction.ID);
-				});
-				this.secondMessageContainer.appendChild(this.clickElement);
-			};
-			const setSecondMessageWithFolder = () => {
-				secondMessageElement.textContent = localize('noLaunchConfiguration', "To customize Run and Debug, ");
-				this.clickElement = createClickElement(localize('openFolder', " open a folder"), () => {
-					this.telemetryService.publicLog2<DebugStartMetrics, DebugStartMetricsClassification>('debugStart.openFolder', { debuggers: this.debuggerLabels });
-					this.dialogService.pickFolderAndOpen({ forceNewWindow: false });
-				});
-				this.secondMessageContainer.appendChild(this.clickElement);
-
-				const moreText = $('span.moreText');
-				moreText.textContent = localize('andconfigure', " and create a launch.json file.");
-				this.secondMessageContainer.appendChild(moreText);
-			};
-
-			if (enabled && !emptyWorkbench) {
-				setSecondMessage();
-			}
-
-			if (enabled && emptyWorkbench) {
-				setSecondMessageWithFolder();
-			}
-
-			if (!enabled && !emptyWorkbench) {
-				const firstMessageElement = $('span');
-				this.firstMessageContainer.appendChild(firstMessageElement);
-				firstMessageElement.textContent = localize('simplyDebugAndRun', "Open a file which can be debugged or run.");
-
-				setSecondMessage();
-			}
-
-			if (!enabled && emptyWorkbench) {
-				this.clickElement = createClickElement(localize('openFile', "Open a file"), () => {
-					this.telemetryService.publicLog2<DebugStartMetrics, DebugStartMetricsClassification>('debugStart.openFile');
-					this.dialogService.pickFileAndOpen({ forceNewWindow: false });
-				});
-				this.firstMessageContainer.appendChild(this.clickElement);
-				const firstMessageElement = $('span');
-				this.firstMessageContainer.appendChild(firstMessageElement);
-				firstMessageElement.textContent = localize('canBeDebuggedOrRun', " which can be debugged or run.");
-
-				setSecondMessageWithFolder();
-			}
-		}
-	}
-
-	protected renderBody(container: HTMLElement): void {
-		super.renderBody(container);
-
-		this.firstMessageContainer = $('.top-section');
-		container.appendChild(this.firstMessageContainer);
-
-		this.debugButton = new Button(container);
-		this._register(this.debugButton.onDidClick(() => {
-			this.commandService.executeCommand(StartAction.ID);
-			this.telemetryService.publicLog2<DebugStartMetrics, DebugStartMetricsClassification>('debugStart.runAndDebug', { debuggers: this.debuggerLabels });
-		}));
-		attachButtonStyler(this.debugButton, this.themeService);
-
-		dom.addClass(container, 'debug-start-view');
-
-		this.secondMessageContainer = $('.section');
-		container.appendChild(this.secondMessageContainer);
-
-		this.updateView();
-	}
-
-	protected layoutBody(_: number, __: number): void {
-		// no-op
-	}
-
-	focus(): void {
-		if (this.debugButton.enabled) {
-			this.debugButton.focus();
-		} else if (this.clickElement) {
-			this.clickElement.focus();
-		}
+	shouldShowWelcome(): boolean {
+		return true;
 	}
 }
+
+const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
+viewsRegistry.registerViewWelcomeContent(StartView.ID, {
+	content: localize('openAFileWhichCanBeDebugged', "[Open a file](command:{0}) which can be debugged or run.", isMacintosh ? OpenFileFolderAction.ID : OpenFileAction.ID),
+	when: CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR.toNegated()
+});
+
+let debugKeybindingLabel = '';
+viewsRegistry.registerViewWelcomeContent(StartView.ID, {
+	content: localize('runAndDebugAction', "[Run and Debug{0}](command:{1})", debugKeybindingLabel, StartAction.ID),
+	preconditions: [CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR]
+});
+
+viewsRegistry.registerViewWelcomeContent(StartView.ID, {
+	content: localize('customizeRunAndDebug', "To customize Run and Debug [create a launch.json file](command:{0}).", ConfigureAction.ID),
+	when: WorkbenchStateContext.notEqualsTo('empty')
+});
+
+viewsRegistry.registerViewWelcomeContent(StartView.ID, {
+	content: localize('customizeRunAndDebugOpenFolder', "To customize Run and Debug, [open a folder](command:{0}) and create a launch.json file.", isMacintosh ? OpenFileFolderAction.ID : OpenFolderAction.ID),
+	when: WorkbenchStateContext.isEqualTo('empty')
+});

@@ -17,7 +17,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IAction, IActionViewItem } from 'vs/base/common/actions';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { flatten } from 'vs/base/common/arrays';
+import { flatten, mergeSort } from 'vs/base/common/arrays';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { SetMap } from 'vs/base/common/collections';
 
@@ -53,16 +53,17 @@ export interface IViewContainerDescriptor {
 
 	readonly extensionId?: ExtensionIdentifier;
 
+	readonly rejectAddedViews?: boolean;
 }
 
 export interface IViewContainersRegistry {
 	/**
-	 * An event that is triggerred when a view container is registered.
+	 * An event that is triggered when a view container is registered.
 	 */
 	readonly onDidRegister: Event<{ viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation }>;
 
 	/**
-	 * An event that is triggerred when a view container is deregistered.
+	 * An event that is triggered when a view container is deregistered.
 	 */
 	readonly onDidDeregister: Event<{ viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation }>;
 
@@ -211,8 +212,21 @@ export interface IViewDescriptorCollection extends IDisposable {
 	readonly allViewDescriptors: IViewDescriptor[];
 }
 
+export enum ViewContentPriority {
+	Normal = 0,
+	Low = 1,
+	Lowest = 2
+}
+
 export interface IViewContentDescriptor {
 	readonly content: string;
+	readonly when?: ContextKeyExpr | 'default';
+	readonly priority?: ViewContentPriority;
+
+	/**
+	 * ordered preconditions for each button in the content
+	 */
+	readonly preconditions?: (ContextKeyExpr | undefined)[];
 }
 
 export interface IViewsRegistry {
@@ -235,9 +249,20 @@ export interface IViewsRegistry {
 
 	getViewContainer(id: string): ViewContainer | null;
 
-	readonly onDidChangeEmptyViewContent: Event<string>;
-	registerEmptyViewContent(id: string, viewContent: IViewContentDescriptor): IDisposable;
-	getEmptyViewContent(id: string): IViewContentDescriptor[];
+	readonly onDidChangeViewWelcomeContent: Event<string>;
+	registerViewWelcomeContent(id: string, viewContent: IViewContentDescriptor): IDisposable;
+	getViewWelcomeContent(id: string): IViewContentDescriptor[];
+}
+
+function compareViewContentDescriptors(a: IViewContentDescriptor, b: IViewContentDescriptor): number {
+	const aPriority = a.priority ?? ViewContentPriority.Normal;
+	const bPriority = b.priority ?? ViewContentPriority.Normal;
+
+	if (aPriority !== bPriority) {
+		return aPriority - bPriority;
+	}
+
+	return a.content < b.content ? -1 : 1;
 }
 
 class ViewsRegistry extends Disposable implements IViewsRegistry {
@@ -251,12 +276,12 @@ class ViewsRegistry extends Disposable implements IViewsRegistry {
 	private readonly _onDidChangeContainer: Emitter<{ views: IViewDescriptor[], from: ViewContainer, to: ViewContainer }> = this._register(new Emitter<{ views: IViewDescriptor[], from: ViewContainer, to: ViewContainer }>());
 	readonly onDidChangeContainer: Event<{ views: IViewDescriptor[], from: ViewContainer, to: ViewContainer }> = this._onDidChangeContainer.event;
 
-	private readonly _onDidChangeEmptyViewContent: Emitter<string> = this._register(new Emitter<string>());
-	readonly onDidChangeEmptyViewContent: Event<string> = this._onDidChangeEmptyViewContent.event;
+	private readonly _onDidChangeViewWelcomeContent: Emitter<string> = this._register(new Emitter<string>());
+	readonly onDidChangeViewWelcomeContent: Event<string> = this._onDidChangeViewWelcomeContent.event;
 
 	private _viewContainers: ViewContainer[] = [];
 	private _views: Map<ViewContainer, IViewDescriptor[]> = new Map<ViewContainer, IViewDescriptor[]>();
-	private _emptyViewContents = new SetMap<string, IViewContentDescriptor>();
+	private _viewWelcomeContents = new SetMap<string, IViewContentDescriptor>();
 
 	registerViews(views: IViewDescriptor[], viewContainer: ViewContainer): void {
 		this.addViews(views, viewContainer);
@@ -306,19 +331,20 @@ class ViewsRegistry extends Disposable implements IViewsRegistry {
 		return null;
 	}
 
-	registerEmptyViewContent(id: string, viewContent: IViewContentDescriptor): IDisposable {
-		this._emptyViewContents.add(id, viewContent);
-		this._onDidChangeEmptyViewContent.fire(id);
+	registerViewWelcomeContent(id: string, viewContent: IViewContentDescriptor): IDisposable {
+		this._viewWelcomeContents.add(id, viewContent);
+		this._onDidChangeViewWelcomeContent.fire(id);
 
 		return toDisposable(() => {
-			this._emptyViewContents.delete(id, viewContent);
-			this._onDidChangeEmptyViewContent.fire(id);
+			this._viewWelcomeContents.delete(id, viewContent);
+			this._onDidChangeViewWelcomeContent.fire(id);
 		});
 	}
 
-	getEmptyViewContent(id: string): IViewContentDescriptor[] {
+	getViewWelcomeContent(id: string): IViewContentDescriptor[] {
 		const result: IViewContentDescriptor[] = [];
-		this._emptyViewContents.forEach(id, descriptor => result.push(descriptor));
+		this._viewWelcomeContents.forEach(id, descriptor => result.push(descriptor));
+		mergeSort(result, compareViewContentDescriptors);
 		return result;
 	}
 
@@ -330,8 +356,8 @@ class ViewsRegistry extends Disposable implements IViewsRegistry {
 			this._viewContainers.push(viewContainer);
 		}
 		for (const viewDescriptor of viewDescriptors) {
-			if (views.some(v => v.id === viewDescriptor.id)) {
-				throw new Error(localize('duplicateId', "A view with id '{0}' is already registered in the container '{1}'", viewDescriptor.id, viewContainer.id));
+			if (this.getView(viewDescriptor.id) !== null) {
+				throw new Error(localize('duplicateId', "A view with id '{0}' is already registered", viewDescriptor.id));
 			}
 			views.push(viewDescriptor);
 		}

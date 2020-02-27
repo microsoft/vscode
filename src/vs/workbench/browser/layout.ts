@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { EventType, addDisposableListener, addClass, removeClass, isAncestor, getClientArea, Dimension, toggleClass, position, size } from 'vs/base/browser/dom';
 import { onDidChangeFullscreen, isFullscreen } from 'vs/base/browser/browser';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -25,6 +25,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { LifecyclePhase, StartupKind, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IEditor } from 'vs/editor/common/editorCommon';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -40,6 +41,7 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { INotificationService, NotificationsFilter } from 'vs/platform/notification/common/notification';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { WINDOW_ACTIVE_BORDER, WINDOW_INACTIVE_BORDER } from 'vs/workbench/common/theme';
+import { LineNumbersType } from 'vs/editor/common/config/editorOptions';
 
 enum Settings {
 	ACTIVITYBAR_VISIBLE = 'workbench.activityBar.visible',
@@ -87,26 +89,26 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	//#region Events
 
-	private readonly _onZenModeChange: Emitter<boolean> = this._register(new Emitter<boolean>());
-	readonly onZenModeChange: Event<boolean> = this._onZenModeChange.event;
+	private readonly _onZenModeChange = this._register(new Emitter<boolean>());
+	readonly onZenModeChange = this._onZenModeChange.event;
 
-	private readonly _onFullscreenChange: Emitter<boolean> = this._register(new Emitter<boolean>());
-	readonly onFullscreenChange: Event<boolean> = this._onFullscreenChange.event;
+	private readonly _onFullscreenChange = this._register(new Emitter<boolean>());
+	readonly onFullscreenChange = this._onFullscreenChange.event;
 
-	private readonly _onCenteredLayoutChange: Emitter<boolean> = this._register(new Emitter<boolean>());
-	readonly onCenteredLayoutChange: Event<boolean> = this._onCenteredLayoutChange.event;
+	private readonly _onCenteredLayoutChange = this._register(new Emitter<boolean>());
+	readonly onCenteredLayoutChange = this._onCenteredLayoutChange.event;
 
-	private readonly _onMaximizeChange: Emitter<boolean> = this._register(new Emitter<boolean>());
-	readonly onMaximizeChange: Event<boolean> = this._onMaximizeChange.event;
+	private readonly _onMaximizeChange = this._register(new Emitter<boolean>());
+	readonly onMaximizeChange = this._onMaximizeChange.event;
 
-	private readonly _onPanelPositionChange: Emitter<string> = this._register(new Emitter<string>());
-	readonly onPanelPositionChange: Event<string> = this._onPanelPositionChange.event;
+	private readonly _onPanelPositionChange = this._register(new Emitter<string>());
+	readonly onPanelPositionChange = this._onPanelPositionChange.event;
 
-	private readonly _onPartVisibilityChange: Emitter<void> = this._register(new Emitter<void>());
-	readonly onPartVisibilityChange: Event<void> = this._onPartVisibilityChange.event;
+	private readonly _onPartVisibilityChange = this._register(new Emitter<void>());
+	readonly onPartVisibilityChange = this._onPartVisibilityChange.event;
 
 	private readonly _onLayout = this._register(new Emitter<IDimension>());
-	readonly onLayout: Event<IDimension> = this._onLayout.event;
+	readonly onLayout = this._onLayout.event;
 
 	//#endregion
 
@@ -194,7 +196,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			wasSideBarVisible: false,
 			wasPanelVisible: false,
 			transitionDisposables: new DisposableStore(),
-			setNotificationsFilter: false
+			setNotificationsFilter: false,
+			editorWidgetSet: new Set<IEditor>()
 		},
 
 	};
@@ -690,18 +693,39 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.state.zenMode.active = !this.state.zenMode.active;
 		this.state.zenMode.transitionDisposables.clear();
 
-		const setLineNumbers = (lineNumbers?: any) => this.editorService.visibleTextEditorWidgets.forEach(editor => {
-			// To properly reset line numbers we need to read the configuration for each editor respecting it's uri.
-			if (!lineNumbers && isCodeEditor(editor) && editor.hasModel()) {
-				const model = editor.getModel();
-				lineNumbers = this.configurationService.getValue('editor.lineNumbers', { resource: model.uri, overrideIdentifier: model.getModeId() });
-			}
-			if (!lineNumbers) {
-				lineNumbers = this.configurationService.getValue('editor.lineNumbers');
-			}
+		const setLineNumbers = (lineNumbers?: LineNumbersType) => {
+			const setEditorLineNumbers = (editor: IEditor) => {
+				// To properly reset line numbers we need to read the configuration for each editor respecting it's uri.
+				if (!lineNumbers && isCodeEditor(editor) && editor.hasModel()) {
+					const model = editor.getModel();
+					lineNumbers = this.configurationService.getValue('editor.lineNumbers', { resource: model.uri, overrideIdentifier: model.getModeId() });
+				}
+				if (!lineNumbers) {
+					lineNumbers = this.configurationService.getValue('editor.lineNumbers');
+				}
 
-			editor.updateOptions({ lineNumbers });
-		});
+				editor.updateOptions({ lineNumbers });
+			};
+
+			const editorWidgetSet = this.state.zenMode.editorWidgetSet;
+			if (!lineNumbers) {
+				// Reset line numbers on all editors visible and non-visible
+				for (const editor of editorWidgetSet) {
+					setEditorLineNumbers(editor);
+				}
+				editorWidgetSet.clear();
+			} else {
+				this.editorService.visibleTextEditorWidgets.forEach(editor => {
+					if (!editorWidgetSet.has(editor)) {
+						editorWidgetSet.add(editor);
+						this.state.zenMode.transitionDisposables.add(editor.onDidDispose(() => {
+							editorWidgetSet.delete(editor);
+						}));
+					}
+					setEditorLineNumbers(editor);
+				});
+			}
+		};
 
 		// Check if zen mode transitioned to full screen and if now we are out of zen mode
 		// -> we need to go out of full screen (same goes for the centered editor layout)
@@ -1156,6 +1180,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		} else {
 			this.setEditorHidden(false);
 			this.workbenchGrid.resizeView(this.panelPartView, { width: this.state.panel.position === Position.BOTTOM ? size.width : this.state.panel.lastNonMaximizedWidth, height: this.state.panel.position === Position.BOTTOM ? this.state.panel.lastNonMaximizedHeight : size.height });
+			this.editorGroupService.activeGroup.focus();
 		}
 	}
 

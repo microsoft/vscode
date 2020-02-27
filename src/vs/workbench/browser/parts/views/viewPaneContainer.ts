@@ -12,7 +12,7 @@ import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_FOREGROUND, 
 import { append, $, trackFocus, toggleClass, EventType, isAncestor, Dimension, addDisposableListener, removeClass, addClass } from 'vs/base/browser/dom';
 import { IDisposable, combinedDisposable, dispose, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { firstIndex } from 'vs/base/common/arrays';
-import { IAction, IActionRunner, ActionRunner } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import { IActionViewItem, ActionsOrientation, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { prepareActions } from 'vs/workbench/browser/actions';
@@ -25,7 +25,7 @@ import { PaneView, IPaneViewOptions, IPaneOptions, Pane, DefaultPaneDndControlle
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { Extensions as ViewContainerExtensions, IView, FocusedViewContext, IViewContainersRegistry, IViewDescriptor, ViewContainer, IViewDescriptorService, ViewContainerLocation, IViewPaneContainer, IViewsRegistry } from 'vs/workbench/common/views';
+import { Extensions as ViewContainerExtensions, IView, FocusedViewContext, IViewContainersRegistry, IViewDescriptor, ViewContainer, IViewDescriptorService, ViewContainerLocation, IViewPaneContainer, IViewsRegistry, IViewContentDescriptor } from 'vs/workbench/common/views';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { assertIsDefined } from 'vs/base/common/types';
@@ -38,10 +38,11 @@ import { Component } from 'vs/workbench/common/component';
 import { MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { ViewMenuActions } from 'vs/workbench/browser/parts/views/viewMenuActions';
-import { parseLinkedText } from 'vs/base/browser/linkedText';
+import { parseLinkedText } from 'vs/base/common/linkedText';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { Link } from 'vs/platform/opener/browser/link';
+import { LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
 
 export interface IPaneColors extends IColorMapping {
 	dropBackground?: ColorIdentifier;
@@ -51,14 +52,108 @@ export interface IPaneColors extends IColorMapping {
 }
 
 export interface IViewPaneOptions extends IPaneOptions {
-	actionRunner?: IActionRunner;
 	id: string;
 	title: string;
 	showActionsAlways?: boolean;
 	titleMenuId?: MenuId;
 }
 
+export class DraggedViewIdentifier {
+	constructor(private _viewId: string) { }
+
+	get id(): string {
+		return this._viewId;
+	}
+}
+
+type WelcomeActionClassification = {
+	viewId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	uri: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+};
+
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
+
+interface IItem {
+	readonly descriptor: IViewContentDescriptor;
+	visible: boolean;
+}
+
+class ViewWelcomeController {
+
+	private _onDidChange = new Emitter<void>();
+	readonly onDidChange = this._onDidChange.event;
+
+	private defaultItem: IItem | undefined;
+	private items: IItem[] = [];
+	get contents(): IViewContentDescriptor[] {
+		const visibleItems = this.items.filter(v => v.visible);
+
+		if (visibleItems.length === 0 && this.defaultItem) {
+			return [this.defaultItem.descriptor];
+		}
+
+		return visibleItems.map(v => v.descriptor);
+	}
+
+	private contextKeyService: IContextKeyService;
+	private disposables = new DisposableStore();
+
+	constructor(
+		private id: string,
+		@IContextKeyService contextKeyService: IContextKeyService,
+	) {
+		this.contextKeyService = contextKeyService.createScoped();
+		this.disposables.add(this.contextKeyService);
+
+		contextKeyService.onDidChangeContext(this.onDidChangeContext, this, this.disposables);
+		Event.filter(viewsRegistry.onDidChangeViewWelcomeContent, id => id === this.id)(this.onDidChangeViewWelcomeContent, this, this.disposables);
+		this.onDidChangeViewWelcomeContent();
+	}
+
+	private onDidChangeViewWelcomeContent(): void {
+		const descriptors = viewsRegistry.getViewWelcomeContent(this.id);
+
+		this.items = [];
+
+		for (const descriptor of descriptors) {
+			if (descriptor.when === 'default') {
+				this.defaultItem = { descriptor, visible: true };
+			} else {
+				const visible = descriptor.when ? this.contextKeyService.contextMatchesRules(descriptor.when) : true;
+				this.items.push({ descriptor, visible });
+			}
+		}
+
+		this._onDidChange.fire();
+	}
+
+	private onDidChangeContext(): void {
+		let didChange = false;
+
+		for (const item of this.items) {
+			if (!item.descriptor.when || item.descriptor.when === 'default') {
+				continue;
+			}
+
+			const visible = this.contextKeyService.contextMatchesRules(item.descriptor.when);
+
+			if (item.visible === visible) {
+				continue;
+			}
+
+			item.visible = visible;
+			didChange = true;
+		}
+
+		if (didChange) {
+			this._onDidChange.fire();
+		}
+	}
+
+	dispose(): void {
+		this.disposables.dispose();
+	}
+}
 
 export abstract class ViewPane extends Pane implements IView {
 
@@ -76,8 +171,8 @@ export abstract class ViewPane extends Pane implements IView {
 	protected _onDidChangeTitleArea = this._register(new Emitter<void>());
 	readonly onDidChangeTitleArea: Event<void> = this._onDidChangeTitleArea.event;
 
-	protected _onDidChangeEmptyState = this._register(new Emitter<void>());
-	readonly onDidChangeEmptyState: Event<void> = this._onDidChangeEmptyState.event;
+	protected _onDidChangeViewWelcomeState = this._register(new Emitter<void>());
+	readonly onDidChangeViewWelcomeState: Event<void> = this._onDidChangeViewWelcomeState.event;
 
 	private focusedViewContextKey: IContextKey<string>;
 
@@ -87,7 +182,6 @@ export abstract class ViewPane extends Pane implements IView {
 
 	private readonly menuActions: ViewMenuActions;
 
-	protected actionRunner?: IActionRunner;
 	private toolbar?: ToolBar;
 	private readonly showActionsAlways: boolean = false;
 	private headerContainer?: HTMLElement;
@@ -95,30 +189,33 @@ export abstract class ViewPane extends Pane implements IView {
 	protected twistiesContainer?: HTMLElement;
 
 	private bodyContainer!: HTMLElement;
-	private emptyViewContainer!: HTMLElement;
-	private emptyViewDisposable: IDisposable = Disposable.None;
+	private viewWelcomeContainer!: HTMLElement;
+	private viewWelcomeDisposable: IDisposable = Disposable.None;
+	private viewWelcomeController: ViewWelcomeController;
 
 	constructor(
 		options: IViewPaneOptions,
 		@IKeybindingService protected keybindingService: IKeybindingService,
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService protected contextKeyService: IContextKeyService,
 		@IViewDescriptorService protected viewDescriptorService: IViewDescriptorService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IOpenerService protected openerService: IOpenerService,
 		@IThemeService protected themeService: IThemeService,
+		@ITelemetryService protected telemetryService: ITelemetryService,
 	) {
 		super(options);
 
 		this.id = options.id;
 		this.title = options.title;
-		this.actionRunner = options.actionRunner;
 		this.showActionsAlways = !!options.showActionsAlways;
 		this.focusedViewContextKey = FocusedViewContext.bindTo(contextKeyService);
 
 		this.menuActions = this._register(instantiationService.createInstance(ViewMenuActions, this.id, options.titleMenuId || MenuId.ViewTitle, MenuId.ViewTitleContext));
 		this._register(this.menuActions.onDidChangeTitle(() => this.updateActions()));
+
+		this.viewWelcomeController = new ViewWelcomeController(this.id, contextKeyService);
 	}
 
 	setVisible(visible: boolean): void {
@@ -158,7 +255,10 @@ export abstract class ViewPane extends Pane implements IView {
 			this._onDidFocus.fire();
 		}));
 		this._register(focusTracker.onDidBlur(() => {
-			this.focusedViewContextKey.reset();
+			if (this.focusedViewContextKey.get() === this.id) {
+				this.focusedViewContextKey.reset();
+			}
+
 			this._onDidBlur.fire();
 		}));
 	}
@@ -177,7 +277,6 @@ export abstract class ViewPane extends Pane implements IView {
 			actionViewItemProvider: action => this.getActionViewItem(action),
 			ariaLabel: nls.localize('viewToolbarAriaLabel', "{0} actions", this.title),
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
-			actionRunner: this.actionRunner
 		});
 
 		this._register(this.toolbar);
@@ -206,18 +305,15 @@ export abstract class ViewPane extends Pane implements IView {
 
 	protected renderBody(container: HTMLElement): void {
 		this.bodyContainer = container;
-		this.emptyViewContainer = append(container, $('.empty-view', { tabIndex: 0 }));
+		this.viewWelcomeContainer = append(container, $('.welcome-view', { tabIndex: 0 }));
 
-		// we should update our empty state whenever
-		const onEmptyViewContentChange = Event.any(
-			// the registry changes
-			Event.map(Event.filter(viewsRegistry.onDidChangeEmptyViewContent, id => id === this.id), () => this.isEmpty()),
-			// or the view's empty state changes
-			Event.latch(Event.map(this.onDidChangeEmptyState, () => this.isEmpty()))
-		);
+		const onViewWelcomeChange = Event.any(this.viewWelcomeController.onDidChange, this.onDidChangeViewWelcomeState);
+		this._register(onViewWelcomeChange(this.updateViewWelcome, this));
+		this.updateViewWelcome();
+	}
 
-		this._register(onEmptyViewContentChange(this.updateEmptyState, this));
-		this.updateEmptyState(this.isEmpty());
+	protected layoutBody(height: number, width: number): void {
+		// noop
 	}
 
 	protected getProgressLocation(): string {
@@ -229,7 +325,9 @@ export abstract class ViewPane extends Pane implements IView {
 	}
 
 	focus(): void {
-		if (this.element) {
+		if (this.shouldShowWelcome()) {
+			this.viewWelcomeContainer.focus();
+		} else if (this.element) {
 			this.element.focus();
 			this._onDidFocus.fire();
 		}
@@ -286,28 +384,30 @@ export abstract class ViewPane extends Pane implements IView {
 		// Subclasses to implement for saving state
 	}
 
-	private updateEmptyState(isEmpty: boolean): void {
-		this.emptyViewDisposable.dispose();
+	private updateViewWelcome(): void {
+		this.viewWelcomeDisposable.dispose();
 
-		if (!isEmpty) {
-			removeClass(this.bodyContainer, 'empty');
-			this.emptyViewContainer.innerHTML = '';
+		if (!this.shouldShowWelcome()) {
+			removeClass(this.bodyContainer, 'welcome');
+			this.viewWelcomeContainer.innerHTML = '';
 			return;
 		}
 
-		const contents = viewsRegistry.getEmptyViewContent(this.id);
+		const contents = this.viewWelcomeController.contents;
 
 		if (contents.length === 0) {
-			removeClass(this.bodyContainer, 'empty');
-			this.emptyViewContainer.innerHTML = '';
+			removeClass(this.bodyContainer, 'welcome');
+			this.viewWelcomeContainer.innerHTML = '';
 			return;
 		}
 
 		const disposables = new DisposableStore();
-		addClass(this.bodyContainer, 'empty');
-		this.emptyViewContainer.innerHTML = '';
+		addClass(this.bodyContainer, 'welcome');
+		this.viewWelcomeContainer.innerHTML = '';
 
-		for (const { content } of contents) {
+		let buttonIndex = 0;
+
+		for (const { content, preconditions } of contents) {
 			const lines = content.split('\n');
 
 			for (let line of lines) {
@@ -317,18 +417,37 @@ export abstract class ViewPane extends Pane implements IView {
 					continue;
 				}
 
-				const p = append(this.emptyViewContainer, $('p'));
+				const p = append(this.viewWelcomeContainer, $('p'));
 				const linkedText = parseLinkedText(line);
 
-				for (const node of linkedText) {
+				for (const node of linkedText.nodes) {
 					if (typeof node === 'string') {
 						append(p, document.createTextNode(node));
-					} else if (linkedText.length === 1) {
+					} else if (linkedText.nodes.length === 1) {
 						const button = new Button(p, { title: node.title });
 						button.label = node.label;
-						button.onDidClick(_ => this.openerService.open(node.href), null, disposables);
+						button.onDidClick(_ => {
+							this.telemetryService.publicLog2<{ viewId: string, uri: string }, WelcomeActionClassification>('views.welcomeAction', { viewId: this.id, uri: node.href });
+							this.openerService.open(node.href);
+						}, null, disposables);
 						disposables.add(button);
 						disposables.add(attachButtonStyler(button, this.themeService));
+
+						if (preconditions) {
+							const precondition = preconditions[buttonIndex];
+
+							if (precondition) {
+								const updateEnablement = () => button.enabled = this.contextKeyService.contextMatchesRules(precondition);
+								updateEnablement();
+
+								const keys = new Set();
+								precondition.keys().forEach(key => keys.add(key));
+								const onDidChangeContext = Event.filter(this.contextKeyService.onDidChangeContext, e => e.affectsSome(keys));
+								onDidChangeContext(updateEnablement, null, disposables);
+							}
+						}
+
+						buttonIndex++;
 					} else {
 						const link = this.instantiationService.createInstance(Link, node);
 						append(p, link.el);
@@ -339,10 +458,10 @@ export abstract class ViewPane extends Pane implements IView {
 			}
 		}
 
-		this.emptyViewDisposable = disposables;
+		this.viewWelcomeDisposable = disposables;
 	}
 
-	isEmpty(): boolean {
+	shouldShowWelcome(): boolean {
 		return false;
 	}
 }
@@ -364,14 +483,14 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	private paneItems: IViewPaneItem[] = [];
 	private paneview?: PaneView;
 
+	private static viewTransfer = LocalSelectionTransfer.getInstance<DraggedViewIdentifier>();
+
 	private visible: boolean = false;
 
 	private areExtensionsReady: boolean = false;
 
 	private didLayout = false;
 	private dimension: Dimension | undefined;
-
-	protected actionRunner: IActionRunner | undefined;
 
 	private readonly visibleViewsCountFromCache: number | undefined;
 	private readonly visibleViewsStorageId: string;
@@ -718,7 +837,6 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 				{
 					id: viewDescriptor.id,
 					title: viewDescriptor.name,
-					actionRunner: this.getActionRunner(),
 					expanded: !collapsed,
 					minimumBodySize: this.viewDescriptorService.getViewContainerLocation(this.viewContainer) === ViewContainerLocation.Panel ? 0 : 120
 				});
@@ -747,14 +865,6 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			panes.push(pane);
 		}
 		return panes;
-	}
-
-	getActionRunner(): IActionRunner {
-		if (!this.actionRunner) {
-			this.actionRunner = new ActionRunner();
-		}
-
-		return this.actionRunner;
 	}
 
 	private onDidRemoveViewDescriptors(removed: IViewDescriptorRef[]): void {
@@ -805,6 +915,22 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 		this.paneItems.splice(index, 0, paneItem);
 		assertIsDefined(this.paneview).addPane(pane, size, index);
+
+		this._register(addDisposableListener(pane.draggableElement, EventType.DRAG_START, (e: DragEvent) => {
+			if (e.dataTransfer) {
+				e.dataTransfer.effectAllowed = 'move';
+			}
+
+			// Register as dragged to local transfer
+			ViewPaneContainer.viewTransfer.setData([new DraggedViewIdentifier(pane.id)], DraggedViewIdentifier.prototype);
+		}));
+
+
+		this._register(addDisposableListener(pane.draggableElement, EventType.DRAG_END, (e: DragEvent) => {
+			if (ViewPaneContainer.viewTransfer.hasData(DraggedViewIdentifier.prototype)) {
+				ViewPaneContainer.viewTransfer.clearData(DraggedViewIdentifier.prototype);
+			}
+		}));
 	}
 
 	removePanes(panes: ViewPane[]): void {
@@ -883,7 +1009,8 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		}
 		if (!this.areExtensionsReady) {
 			if (this.visibleViewsCountFromCache === undefined) {
-				return false;
+				// TODO @sbatten fix hack for #91367
+				return this.viewDescriptorService.getViewContainerLocation(this.viewContainer) === ViewContainerLocation.Panel;
 			}
 			// Check in cache so that view do not jump. See #29609
 			return this.visibleViewsCountFromCache === 1;

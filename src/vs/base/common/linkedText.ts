@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { memoize } from 'vs/base/common/decorators';
+
 export interface ILink {
 	readonly label: string;
 	readonly href: string;
@@ -10,9 +12,18 @@ export interface ILink {
 }
 
 export type LinkedTextNode = string | ILink;
-export type LinkedText = LinkedTextNode[];
 
-const LINK_REGEX = /\[([^\]]+)\]\(((?:https?:\/\/|command:)[^\)\s]+)(?: "([^"]+)")?\)/gi;
+export class LinkedText {
+
+	constructor(readonly nodes: LinkedTextNode[]) { }
+
+	@memoize
+	toString(): string {
+		return this.nodes.map(node => typeof node === 'string' ? node : node.label).join('');
+	}
+}
+
+const LINK_REGEX = /\[([^\]]+)\]\(((?:https?:\/\/|command:)[^\)\s]+)(?: (?:"|')([^"]+)(?:"|'))?\)/gi;
 
 export function parseLinkedText(text: string): LinkedText {
 	const result: LinkedTextNode[] = [];
@@ -40,5 +51,5 @@ export function parseLinkedText(text: string): LinkedText {
 		result.push(text.substring(index));
 	}
 
-	return result;
+	return new LinkedText(result);
 }

@@ -198,6 +198,12 @@ export interface ISearchCompleteStats {
 
 export interface ISearchComplete extends ISearchCompleteStats {
 	results: IFileMatch[];
+	exit?: SearchCompletionExitCode
+}
+
+export const enum SearchCompletionExitCode {
+	Normal,
+	NewSearchStarted
 }
 
 export interface ITextSearchStats {
@@ -334,9 +340,7 @@ export interface ISearchConfigurationProperties {
 	collapseResults: 'auto' | 'alwaysCollapse' | 'alwaysExpand';
 	searchOnType: boolean;
 	searchOnTypeDebouncePeriod: number;
-	enableSearchEditorPreview: boolean;
-	searchEditorPreview: { doubleClickBehaviour: 'selectWord' | 'goToLocation' | 'openLocationToSide' };
-	searchEditorPreviewForceAbsolutePaths: boolean;
+	searchEditor: { doubleClickBehaviour: 'selectWord' | 'goToLocation' | 'openLocationToSide' };
 	sortOrder: SearchSortOrder;
 }
 

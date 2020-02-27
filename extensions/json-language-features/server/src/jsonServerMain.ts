@@ -450,7 +450,7 @@ connection.onDocumentRangeFormatting((formatParams, token) => {
 			const edits = languageService.format(document, formatParams.range, formatParams.options);
 			if (edits.length > formatterMaxNumberOfEdits) {
 				const newText = TextDocument.applyEdits(document, edits);
-				return [TextEdit.replace(Range.create(Position.create(0, 0), document.positionAt(document.getText().length - 1)), newText)];
+				return [TextEdit.replace(Range.create(Position.create(0, 0), document.positionAt(document.getText().length)), newText)];
 			}
 			return edits;
 		}

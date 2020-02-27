@@ -159,20 +159,20 @@ export class ExplorerView extends ViewPane {
 		@IEditorService private readonly editorService: IEditorService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IDecorationsService private readonly decorationService: IDecorationsService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IThemeService protected themeService: IWorkbenchThemeService,
 		@IMenuService private readonly menuService: IMenuService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ITelemetryService telemetryService: ITelemetryService,
 		@IExplorerService private readonly explorerService: IExplorerService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IClipboardService private clipboardService: IClipboardService,
 		@IFileService private readonly fileService: IFileService,
 		@IOpenerService openerService: IOpenerService,
 	) {
-		super({ ...(options as IViewPaneOptions), id: ExplorerView.ID, ariaHeaderLabel: nls.localize('explorerSection', "Explorer Section: {0}", labelService.getWorkspaceLabel(contextService.getWorkspace())) }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService);
+		super({ ...(options as IViewPaneOptions), id: ExplorerView.ID, ariaHeaderLabel: nls.localize('explorerSection', "Explorer Section: {0}", labelService.getWorkspaceLabel(contextService.getWorkspace())) }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
 		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
 		this._register(this.resourceContext);
@@ -676,7 +676,11 @@ export class ExplorerView extends ViewPane {
 				if (item.isDisposed) {
 					return this.onSelectResource(resource, reveal, retry + 1);
 				}
-				this.tree.reveal(item, 0.5);
+
+				// Don't scroll to the item if it's already visible
+				if (this.tree.getRelativeTop(item) === null) {
+					this.tree.reveal(item, 0.5);
+				}
 			}
 
 			this.tree.setFocus([item]);

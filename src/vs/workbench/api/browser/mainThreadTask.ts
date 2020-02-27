@@ -512,7 +512,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 	public $executeTask(value: TaskHandleDTO | TaskDTO): Promise<TaskExecutionDTO> {
 		return new Promise<TaskExecutionDTO>((resolve, reject) => {
 			if (TaskHandleDTO.is(value)) {
-				const workspaceFolder = this._workspaceContextServer.getWorkspaceFolder(URI.revive(value.workspaceFolder));
+				const workspaceFolder = typeof value.workspaceFolder === 'string' ? value.workspaceFolder : this._workspaceContextServer.getWorkspaceFolder(URI.revive(value.workspaceFolder));
 				if (workspaceFolder) {
 					this._taskService.getTask(workspaceFolder, value.id, true).then((task: Task | undefined) => {
 						if (!task) {

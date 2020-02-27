@@ -21,7 +21,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	configureHttpRequest();
 	let d = vscode.workspace.onDidChangeConfiguration((e) => {
 		configureHttpRequest();
-		if (e.affectsConfiguration('npm.exclude')) {
+		if (e.affectsConfiguration('npm.exclude') || e.affectsConfiguration('npm.autoDetect')) {
 			invalidateTasksCache();
 			if (treeDataProvider) {
 				treeDataProvider.refresh();

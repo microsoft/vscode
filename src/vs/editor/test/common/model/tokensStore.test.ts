@@ -9,6 +9,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { MetadataConsts, TokenMetadata } from 'vs/editor/common/modes';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 suite('TokensStore', () => {
 
@@ -96,7 +97,7 @@ suite('TokensStore', () => {
 
 	function testTokensAdjustment(rawInitialState: string[], edits: IIdentifiedSingleEditOperation[], rawFinalState: string[]) {
 		const initialState = parseTokensState(rawInitialState);
-		const model = TextModel.createFromString(initialState.text);
+		const model = createTextModel(initialState.text);
 		model.setSemanticTokens([initialState.tokens]);
 
 		model.applyEdits(edits);

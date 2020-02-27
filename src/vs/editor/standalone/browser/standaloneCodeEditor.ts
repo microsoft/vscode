@@ -23,7 +23,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
-import { IInstantiationService, optional, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -115,6 +115,11 @@ export interface IGlobalEditorOptions {
 	 */
 	wordBasedSuggestions?: boolean;
 	/**
+	 * Controls whether the semanticHighlighting is shown for the languages that support it.
+	 * Defaults to true.
+	 */
+	'semanticHighlighting.enabled'?: boolean;
+	/**
 	 * Keep peek editors open even when double clicking their content or when hitting `Escape`.
 	 * Defaults to false.
 	 */
@@ -124,6 +129,13 @@ export interface IGlobalEditorOptions {
 	 * Defaults to 20000.
 	 */
 	maxTokenizationLineLength?: number;
+	/**
+	 * Theme to be used for rendering.
+	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
+	 * You can create custom themes via `monaco.editor.defineTheme`.
+	 * To switch a theme, use `monaco.editor.setTheme`
+	 */
+	theme?: string;
 }
 
 /**
@@ -334,6 +346,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 
 	private readonly _contextViewService: ContextViewService;
 	private readonly _configurationService: IConfigurationService;
+	private readonly _standaloneThemeService: IStandaloneThemeService;
 	private _ownsModel: boolean;
 
 	constructor(
@@ -363,6 +376,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 
 		this._contextViewService = <ContextViewService>contextViewService;
 		this._configurationService = configurationService;
+		this._standaloneThemeService = themeService;
 		this._register(toDispose);
 		this._register(themeDomRegistration);
 
@@ -391,6 +405,9 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 
 	public updateOptions(newOptions: IEditorOptions & IGlobalEditorOptions): void {
 		applyConfigurationValues(this._configurationService, newOptions, false);
+		if (typeof newOptions.theme === 'string') {
+			this._standaloneThemeService.setTheme(newOptions.theme);
+		}
 		super.updateOptions(newOptions);
 	}
 
@@ -414,6 +431,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 
 	private readonly _contextViewService: ContextViewService;
 	private readonly _configurationService: IConfigurationService;
+	private readonly _standaloneThemeService: IStandaloneThemeService;
 
 	constructor(
 		domElement: HTMLElement,
@@ -430,7 +448,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IEditorProgressService editorProgressService: IEditorProgressService,
-		@optional(IClipboardService) clipboardService: IClipboardService | null,
+		@IClipboardService clipboardService: IClipboardService,
 	) {
 		applyConfigurationValues(configurationService, options, true);
 		const themeDomRegistration = (<StandaloneThemeServiceImpl>themeService).registerEditorContainer(domElement);
@@ -443,6 +461,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 
 		this._contextViewService = <ContextViewService>contextViewService;
 		this._configurationService = configurationService;
+		this._standaloneThemeService = themeService;
 
 		this._register(toDispose);
 		this._register(themeDomRegistration);
@@ -454,8 +473,11 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		super.dispose();
 	}
 
-	public updateOptions(newOptions: IDiffEditorOptions): void {
+	public updateOptions(newOptions: IDiffEditorOptions & IGlobalEditorOptions): void {
 		applyConfigurationValues(this._configurationService, newOptions, true);
+		if (typeof newOptions.theme === 'string') {
+			this._standaloneThemeService.setTheme(newOptions.theme);
+		}
 		super.updateOptions(newOptions);
 	}
 

@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { ITextFileService, snapshotToString, TextFileOperationResult, TextFileOperationError } from 'vs/workbench/services/textfile/common/textfiles';
@@ -20,57 +21,23 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { join, basename } from 'vs/base/common/path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { UTF16be, UTF16le, UTF8_with_bom, UTF8 } from 'vs/base/node/encoding';
-import { NativeTextFileService, EncodingOracle, IEncodingOverride } from 'vs/workbench/services/textfile/electron-browser/nativeTextFileService';
 import { DefaultEndOfLine, ITextSnapshot } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { isWindows } from 'vs/base/common/platform';
 import { readFileSync, statSync } from 'fs';
 import { detectEncodingByBOM } from 'vs/base/test/node/encoding/encoding.test';
-import { workbenchInstantiationService, TestTextFileService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
-
-class ServiceAccessor {
-	constructor(
-		@ITextFileService public textFileService: TestTextFileService
-	) {
-	}
-}
-
-class TestNativeTextFileService extends NativeTextFileService {
-
-	private _testEncoding: TestEncodingOracle | undefined;
-	get encoding(): TestEncodingOracle {
-		if (!this._testEncoding) {
-			this._testEncoding = this._register(this.instantiationService.createInstance(TestEncodingOracle));
-		}
-
-		return this._testEncoding;
-	}
-}
-
-class TestEncodingOracle extends EncodingOracle {
-
-	protected get encodingOverrides(): IEncodingOverride[] {
-		return [
-			{ extension: 'utf16le', encoding: UTF16le },
-			{ extension: 'utf16be', encoding: UTF16be },
-			{ extension: 'utf8bom', encoding: UTF8_with_bom }
-		];
-	}
-
-	protected set encodingOverrides(overrides: IEncodingOverride[]) { }
-}
+import { workbenchInstantiationService, TestNativeTextFileServiceWithEncodingOverrides } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 
 suite('Files - TextFileService i/o', () => {
 	const parentDir = getRandomTestPath(tmpdir(), 'vsctests', 'textfileservice');
 
-	let accessor: ServiceAccessor;
 	const disposables = new DisposableStore();
+
 	let service: ITextFileService;
 	let testDir: string;
 
 	setup(async () => {
 		const instantiationService = workbenchInstantiationService();
-		accessor = instantiationService.createInstance(ServiceAccessor);
 
 		const logService = new NullLogService();
 		const fileService = new FileService(logService);
@@ -82,7 +49,7 @@ suite('Files - TextFileService i/o', () => {
 		const collection = new ServiceCollection();
 		collection.set(IFileService, fileService);
 
-		service = instantiationService.createChild(collection).createInstance(TestNativeTextFileService);
+		service = instantiationService.createChild(collection).createInstance(TestNativeTextFileServiceWithEncodingOverrides);
 
 		const id = generateUuid();
 		testDir = join(parentDir, id);
@@ -92,7 +59,7 @@ suite('Files - TextFileService i/o', () => {
 	});
 
 	teardown(async () => {
-		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
+		(<TextFileEditorModelManager>service.files).dispose();
 
 		disposables.clear();
 
@@ -185,7 +152,7 @@ suite('Files - TextFileService i/o', () => {
 	test('create - UTF 8 BOM - empty content - snapshot', async () => {
 		const resource = URI.file(join(testDir, 'small_new.utf8bom'));
 
-		await service.create(resource, TextModel.createFromString('').createSnapshot());
+		await service.create(resource, createTextModel('').createSnapshot());
 
 		assert.equal(await exists(resource.fsPath), true);
 
@@ -196,7 +163,7 @@ suite('Files - TextFileService i/o', () => {
 	test('create - UTF 8 BOM - content provided - snapshot', async () => {
 		const resource = URI.file(join(testDir, 'small_new.utf8bom'));
 
-		await service.create(resource, TextModel.createFromString('Hello World').createSnapshot());
+		await service.create(resource, createTextModel('Hello World').createSnapshot());
 
 		assert.equal(await exists(resource.fsPath), true);
 
@@ -209,7 +176,7 @@ suite('Files - TextFileService i/o', () => {
 	});
 
 	test('write - use encoding (UTF 16 BE) - small content as snapshot', async () => {
-		await testEncoding(URI.file(join(testDir, 'small.txt')), UTF16be, TextModel.createFromString('Hello\nWorld').createSnapshot(), 'Hello\nWorld');
+		await testEncoding(URI.file(join(testDir, 'small.txt')), UTF16be, createTextModel('Hello\nWorld').createSnapshot(), 'Hello\nWorld');
 	});
 
 	test('write - use encoding (UTF 16 BE) - large content as string', async () => {
@@ -217,7 +184,7 @@ suite('Files - TextFileService i/o', () => {
 	});
 
 	test('write - use encoding (UTF 16 BE) - large content as snapshot', async () => {
-		await testEncoding(URI.file(join(testDir, 'lorem.txt')), UTF16be, TextModel.createFromString('Hello\nWorld').createSnapshot(), 'Hello\nWorld');
+		await testEncoding(URI.file(join(testDir, 'lorem.txt')), UTF16be, createTextModel('Hello\nWorld').createSnapshot(), 'Hello\nWorld');
 	});
 
 	async function testEncoding(resource: URI, encoding: string, content: string | ITextSnapshot, expectedContent: string) {
@@ -265,7 +232,7 @@ suite('Files - TextFileService i/o', () => {
 		resolved = await service.readStream(resource, { encoding });
 		assert.equal(snapshotToString(resolved.value.create(DefaultEndOfLine.CRLF).createSnapshot(false)), content);
 
-		await service.write(resource, TextModel.createFromString(content).createSnapshot(), { encoding });
+		await service.write(resource, createTextModel(content).createSnapshot(), { encoding });
 
 		resolved = await service.readStream(resource, { encoding });
 		assert.equal(snapshotToString(resolved.value.create(DefaultEndOfLine.CRLF).createSnapshot(false)), content);
@@ -287,7 +254,7 @@ suite('Files - TextFileService i/o', () => {
 
 		const content = (await readFile(resource.fsPath)).toString();
 
-		await service.write(resource, TextModel.createFromString(content).createSnapshot());
+		await service.write(resource, createTextModel(content).createSnapshot());
 
 		const resolved = await service.readStream(resource);
 		assert.equal(resolved.value.getFirstLineText(999999), content);
@@ -308,7 +275,7 @@ suite('Files - TextFileService i/o', () => {
 		const resolved = await service.readStream(resource);
 		assert.equal(resolved.encoding, UTF16le);
 
-		await testEncoding(URI.file(join(testDir, 'some_utf16le.css')), UTF16le, TextModel.createFromString('Hello\nWorld').createSnapshot(), 'Hello\nWorld');
+		await testEncoding(URI.file(join(testDir, 'some_utf16le.css')), UTF16le, createTextModel('Hello\nWorld').createSnapshot(), 'Hello\nWorld');
 	});
 
 	test('write - UTF8 variations - content as string', async () => {
@@ -345,7 +312,7 @@ suite('Files - TextFileService i/o', () => {
 		let detectedEncoding = await detectEncodingByBOM(resource.fsPath);
 		assert.equal(detectedEncoding, null);
 
-		const model = TextModel.createFromString((await readFile(resource.fsPath)).toString() + 'updates');
+		const model = createTextModel((await readFile(resource.fsPath)).toString() + 'updates');
 		await service.write(resource, model.createSnapshot(), { encoding: UTF8_with_bom });
 
 		detectedEncoding = await detectEncodingByBOM(resource.fsPath);
@@ -390,7 +357,7 @@ suite('Files - TextFileService i/o', () => {
 	test('write - ensure BOM in empty file - content as snapshot', async () => {
 		const resource = URI.file(join(testDir, 'small.txt'));
 
-		await service.write(resource, TextModel.createFromString('').createSnapshot(), { encoding: UTF8_with_bom });
+		await service.write(resource, createTextModel('').createSnapshot(), { encoding: UTF8_with_bom });
 
 		let detectedEncoding = await detectEncodingByBOM(resource.fsPath);
 		assert.equal(detectedEncoding, UTF8_with_bom);
@@ -413,7 +380,7 @@ suite('Files - TextFileService i/o', () => {
 
 		assert.equal(result.name, basename(resource.fsPath));
 		assert.equal(result.size, statSync(resource.fsPath).size);
-		assert.equal(snapshotToString(result.value.create(DefaultEndOfLine.LF).createSnapshot(false)), snapshotToString(TextModel.createFromString(readFileSync(resource.fsPath).toString()).createSnapshot(false)));
+		assert.equal(snapshotToString(result.value.create(DefaultEndOfLine.LF).createSnapshot(false)), snapshotToString(createTextModel(readFileSync(resource.fsPath).toString()).createSnapshot(false)));
 	}
 
 	test('read - small text', async () => {

@@ -14,7 +14,7 @@ import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } fro
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IOutputChannelRegistry, Extensions as OutputExtensions } from 'vs/workbench/services/output/common/output';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { VIEWLET_ID, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
+import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
 import {
 	OpenExtensionsViewletAction, InstallExtensionsAction, ShowOutdatedExtensionsAction, ShowRecommendedExtensionsAction, ShowRecommendedKeymapExtensionsAction, ShowPopularExtensionsAction,
@@ -47,6 +47,9 @@ import { IViewContainersRegistry, ViewContainerLocation, Extensions as ViewConta
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { CONTEXT_SYNC_ENABLEMENT } from 'vs/platform/userDataSync/common/userDataSync';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
@@ -84,7 +87,8 @@ Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegis
 		name: localize('extensions', "Extensions"),
 		ctorDescriptor: new SyncDescriptor(ExtensionsViewPaneContainer),
 		icon: 'codicon-extensions',
-		order: 4
+		order: 4,
+		rejectAddedViews: true,
 	}, ViewContainerLocation.Sidebar);
 
 
@@ -290,6 +294,30 @@ CommandsRegistry.registerCommand({
 	}
 });
 
+CommandsRegistry.registerCommand({
+	id: 'workbench.extensions.search',
+	description: {
+		description: localize('workbench.extensions.search.description', "Search for a specific extension"),
+		args: [
+			{
+				name: localize('workbench.extensions.search.arg.name', "Query to use in search"),
+				schema: { 'type': 'string' }
+			}
+		]
+	},
+	handler: async (accessor, query: string = '') => {
+		const viewletService = accessor.get(IViewletService);
+		const viewlet = await viewletService.openViewlet(VIEWLET_ID, true);
+
+		if (!viewlet) {
+			return;
+		}
+
+		(viewlet.getViewPaneContainer() as IExtensionsViewPaneContainer).search(query);
+		viewlet.focus();
+	}
+});
+
 // File menu registration
 
 MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
@@ -407,6 +435,33 @@ registerAction2(class extends Action2 {
 
 	async run(accessor: ServicesAccessor, id: string) {
 		await accessor.get(IPreferencesService).openSettings(false, `@ext:${id}`);
+	}
+});
+
+registerAction2(class extends Action2 {
+
+	constructor() {
+		super({
+			id: TOGGLE_IGNORE_EXTENSION_ACTION_ID,
+			title: { value: localize('workbench.extensions.action.toggleIgnoreExtension', "Sync This Extension"), original: `Sync This Extension` },
+			menu: {
+				id: MenuId.ExtensionContext,
+				group: '2_configure',
+				when: CONTEXT_SYNC_ENABLEMENT
+			},
+		});
+	}
+
+	async run(accessor: ServicesAccessor, id: string) {
+		const configurationService = accessor.get(IConfigurationService);
+		const ignoredExtensions = [...configurationService.getValue<string[]>('sync.ignoredExtensions')];
+		const index = ignoredExtensions.findIndex(ignoredExtension => areSameExtensions({ id: ignoredExtension }, { id }));
+		if (index !== -1) {
+			ignoredExtensions.splice(index, 1);
+		} else {
+			ignoredExtensions.push(id);
+		}
+		return configurationService.updateValue('sync.ignoredExtensions', ignoredExtensions.length ? ignoredExtensions : undefined, ConfigurationTarget.USER);
 	}
 });
 

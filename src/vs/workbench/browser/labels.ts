@@ -4,18 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import * as resources from 'vs/base/common/resources';
+import { dirname, isEqual, basenameOrAuthority } from 'vs/base/common/resources';
 import { IconLabel, IIconLabelValueOptions, IIconLabelCreationOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IDecorationsService, IResourceDecorationChangeEvent } from 'vs/workbench/services/decorations/browser/decorations';
 import { Schemas } from 'vs/base/common/network';
-import { FileKind, FILES_ASSOCIATIONS_CONFIG, IFileService } from 'vs/platform/files/common/files';
+import { FileKind, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
 import { ITextModel } from 'vs/editor/common/model';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -88,7 +87,6 @@ export class ResourceLabels extends Disposable {
 		@IModelService private readonly modelService: IModelService,
 		@IDecorationsService private readonly decorationsService: IDecorationsService,
 		@IThemeService private readonly themeService: IThemeService,
-		@IFileService private readonly fileService: IFileService,
 		@ILabelService private readonly labelService: ILabelService,
 		@ITextFileService private readonly textFileService: ITextFileService
 	) {
@@ -111,10 +109,6 @@ export class ResourceLabels extends Disposable {
 		this._register(this.modelService.onModelModeChanged(e => {
 			if (!e.model.uri) {
 				return; // we need the resource to compare
-			}
-
-			if (this.fileService.canHandleResource(e.model.uri) && e.oldModeId === PLAINTEXT_MODE_ID) {
-				return; // ignore transitions in files from no mode to specific mode because this happens each time a model is created
 			}
 
 			this._widgets.forEach(widget => widget.notifyModelModeChanged(e.model));
@@ -148,8 +142,8 @@ export class ResourceLabels extends Disposable {
 		}));
 
 		// notify when untitled labels change
-		this.textFileService.untitled.onDidChangeLabel(resource => {
-			this._widgets.forEach(widget => widget.notifyUntitledLabelChange(resource));
+		this.textFileService.untitled.onDidChangeLabel(model => {
+			this._widgets.forEach(widget => widget.notifyUntitledLabelChange(model.resource));
 		});
 	}
 
@@ -217,11 +211,10 @@ export class ResourceLabel extends ResourceLabels {
 		@IModelService modelService: IModelService,
 		@IDecorationsService decorationsService: IDecorationsService,
 		@IThemeService themeService: IThemeService,
-		@IFileService fileService: IFileService,
 		@ILabelService labelService: ILabelService,
 		@ITextFileService textFileService: ITextFileService
 	) {
-		super(DEFAULT_LABELS_CONTAINER, instantiationService, extensionService, configurationService, modelService, decorationsService, themeService, fileService, labelService, textFileService);
+		super(DEFAULT_LABELS_CONTAINER, instantiationService, extensionService, configurationService, modelService, decorationsService, themeService, labelService, textFileService);
 
 		this._label = this._register(this.create(container, options));
 	}
@@ -239,7 +232,7 @@ enum Redraw {
 class ResourceLabelWidget extends IconLabel {
 
 	private _onDidRender = this._register(new Emitter<void>());
-	readonly onDidRender: Event<void> = this._onDidRender.event;
+	readonly onDidRender = this._onDidRender.event;
 
 	private readonly renderDisposables = this._register(new DisposableStore());
 
@@ -323,7 +316,7 @@ class ResourceLabelWidget extends IconLabel {
 	}
 
 	notifyUntitledLabelChange(resource: URI): void {
-		if (resources.isEqual(resource, this.label?.resource)) {
+		if (isEqual(resource, this.label?.resource)) {
 			this.render(false);
 		}
 	}
@@ -340,19 +333,19 @@ class ResourceLabelWidget extends IconLabel {
 			}
 
 			if (!name) {
-				name = resources.basenameOrAuthority(resource);
+				name = basenameOrAuthority(resource);
 			}
 		}
 
 		let description: string | undefined;
 		if (!options?.hidePath) {
-			description = this.labelService.getUriLabel(resources.dirname(resource), { relative: true });
+			description = this.labelService.getUriLabel(dirname(resource), { relative: true });
 		}
 
 		this.setResource({ resource, name, description }, options);
 	}
 
-	setResource(label: IResourceLabelProps, options?: IResourceLabelOptions): void {
+	setResource(label: IResourceLabelProps, options: IResourceLabelOptions = Object.create(null)): void {
 		if (label.resource?.scheme === Schemas.untitled) {
 			// Untitled labels are very dynamic because they may change
 			// whenever the content changes (unless a path is associated).
@@ -368,16 +361,19 @@ class ResourceLabelWidget extends IconLabel {
 				}
 
 				if (typeof label.description === 'string') {
-					let untitledDescription: string;
-					if (untitledModel.hasAssociatedFilePath) {
-						untitledDescription = this.labelService.getUriLabel(resources.dirname(untitledModel.resource), { relative: true });
-					} else {
-						untitledDescription = untitledModel.resource.path;
-					}
-
+					let untitledDescription = untitledModel.resource.path;
 					if (label.name !== untitledDescription) {
 						label.description = untitledDescription;
+					} else {
+						label.description = undefined;
 					}
+				}
+
+				let untitledTitle = untitledModel.resource.path;
+				if (untitledModel.name !== untitledTitle) {
+					options.title = `${untitledModel.name} • ${untitledTitle}`;
+				} else {
+					options.title = untitledTitle;
 				}
 			}
 		}

@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { URI, UriComponents } from 'vs/base/common/uri';
+
 const _typeof = {
 	number: 'number',
 	string: 'string',
@@ -262,3 +264,21 @@ export type AddFirstParameterToFunctions<Target, TargetFunctionsReturnType, Firs
 	// Else: just leave as is
 	Target[K]
 };
+
+/**
+ * Mapped-type that replaces all occurrences of URI with UriComponents
+ */
+export type UriDto<T> = { [K in keyof T]: T[K] extends URI
+	? UriComponents
+	: UriDto<T[K]> };
+
+/**
+ * Mapped-type that replaces all occurrences of URI with UriComponents and
+ * drops all functions.
+ * todo@joh use toJSON-results
+ */
+export type Dto<T> = { [K in keyof T]: T[K] extends URI
+	? UriComponents
+	: T[K] extends Function
+	? never
+	: UriDto<T[K]> };

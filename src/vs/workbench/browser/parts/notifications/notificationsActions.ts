@@ -63,7 +63,7 @@ export class HideNotificationsCenterAction extends Action {
 		label: string,
 		@ICommandService private readonly commandService: ICommandService
 	) {
-		super(id, label, 'codicon-close');
+		super(id, label, 'codicon-chevron-down');
 	}
 
 	run(notification: INotificationViewItem): Promise<any> {

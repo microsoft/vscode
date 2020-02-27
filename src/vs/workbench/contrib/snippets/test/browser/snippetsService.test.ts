@@ -8,7 +8,7 @@ import { SnippetCompletionProvider } from 'vs/workbench/contrib/snippets/browser
 import { Position } from 'vs/editor/common/core/position';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
-import { TextModel } from 'vs/editor/common/model/textModel';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets.contribution';
 import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
@@ -67,7 +67,7 @@ suite('SnippetsService', function () {
 	test('snippet completions - simple', function () {
 
 		const provider = new SnippetCompletionProvider(modeService, snippetService);
-		const model = TextModel.createFromString('', undefined, modeService.getLanguageIdentifier('fooLang'));
+		const model = createTextModel('', undefined, modeService.getLanguageIdentifier('fooLang'));
 
 		return provider.provideCompletionItems(model, new Position(1, 1), context)!.then(result => {
 			assert.equal(result.incomplete, undefined);
@@ -78,7 +78,7 @@ suite('SnippetsService', function () {
 	test('snippet completions - with prefix', function () {
 
 		const provider = new SnippetCompletionProvider(modeService, snippetService);
-		const model = TextModel.createFromString('bar', undefined, modeService.getLanguageIdentifier('fooLang'));
+		const model = createTextModel('bar', undefined, modeService.getLanguageIdentifier('fooLang'));
 
 		return provider.provideCompletionItems(model, new Position(1, 4), context)!.then(result => {
 			assert.equal(result.incomplete, undefined);
@@ -113,7 +113,7 @@ suite('SnippetsService', function () {
 		)]);
 
 		const provider = new SnippetCompletionProvider(modeService, snippetService);
-		const model = TextModel.createFromString('bar-bar', undefined, modeService.getLanguageIdentifier('fooLang'));
+		const model = createTextModel('bar-bar', undefined, modeService.getLanguageIdentifier('fooLang'));
 
 		await provider.provideCompletionItems(model, new Position(1, 3), context)!.then(result => {
 			assert.equal(result.incomplete, undefined);
@@ -174,19 +174,19 @@ suite('SnippetsService', function () {
 
 		const provider = new SnippetCompletionProvider(modeService, snippetService);
 
-		let model = TextModel.createFromString('\t<?php', undefined, modeService.getLanguageIdentifier('fooLang'));
+		let model = createTextModel('\t<?php', undefined, modeService.getLanguageIdentifier('fooLang'));
 		return provider.provideCompletionItems(model, new Position(1, 7), context)!.then(result => {
 			assert.equal(result.suggestions.length, 1);
 			model.dispose();
 
-			model = TextModel.createFromString('\t<?', undefined, modeService.getLanguageIdentifier('fooLang'));
+			model = createTextModel('\t<?', undefined, modeService.getLanguageIdentifier('fooLang'));
 			return provider.provideCompletionItems(model, new Position(1, 4), context)!;
 		}).then(result => {
 			assert.equal(result.suggestions.length, 1);
 			assert.equal((result.suggestions[0].range as any).insert.startColumn, 2);
 			model.dispose();
 
-			model = TextModel.createFromString('a<?', undefined, modeService.getLanguageIdentifier('fooLang'));
+			model = createTextModel('a<?', undefined, modeService.getLanguageIdentifier('fooLang'));
 			return provider.provideCompletionItems(model, new Position(1, 4), context)!;
 		}).then(result => {
 			assert.equal(result.suggestions.length, 1);
@@ -209,7 +209,7 @@ suite('SnippetsService', function () {
 
 		const provider = new SnippetCompletionProvider(modeService, snippetService);
 
-		let model = TextModel.createFromString('<head>\n\t\n>/head>', undefined, modeService.getLanguageIdentifier('fooLang'));
+		let model = createTextModel('<head>\n\t\n>/head>', undefined, modeService.getLanguageIdentifier('fooLang'));
 		return provider.provideCompletionItems(model, new Position(1, 1), context)!.then(result => {
 			assert.equal(result.suggestions.length, 1);
 			return provider.provideCompletionItems(model, new Position(2, 2), context)!;
@@ -239,7 +239,7 @@ suite('SnippetsService', function () {
 
 		const provider = new SnippetCompletionProvider(modeService, snippetService);
 
-		let model = TextModel.createFromString('', undefined, modeService.getLanguageIdentifier('fooLang'));
+		let model = createTextModel('', undefined, modeService.getLanguageIdentifier('fooLang'));
 		return provider.provideCompletionItems(model, new Position(1, 1), context)!.then(result => {
 			assert.equal(result.suggestions.length, 2);
 			let [first, second] = result.suggestions;
@@ -266,7 +266,7 @@ suite('SnippetsService', function () {
 		)]);
 		const provider = new SnippetCompletionProvider(modeService, snippetService);
 
-		let model = TextModel.createFromString('p-', undefined, modeService.getLanguageIdentifier('fooLang'));
+		let model = createTextModel('p-', undefined, modeService.getLanguageIdentifier('fooLang'));
 
 		let result = await provider.provideCompletionItems(model, new Position(1, 2), context)!;
 		assert.equal(result.suggestions.length, 1);
@@ -291,7 +291,7 @@ suite('SnippetsService', function () {
 
 		const provider = new SnippetCompletionProvider(modeService, snippetService);
 
-		let model = TextModel.createFromString('Thisisaverylonglinegoingwithmore100bcharactersandthismakesintellisensebecomea Thisisaverylonglinegoingwithmore100bcharactersandthismakesintellisensebecomea b', undefined, modeService.getLanguageIdentifier('fooLang'));
+		let model = createTextModel('Thisisaverylonglinegoingwithmore100bcharactersandthismakesintellisensebecomea Thisisaverylonglinegoingwithmore100bcharactersandthismakesintellisensebecomea b', undefined, modeService.getLanguageIdentifier('fooLang'));
 		let result = await provider.provideCompletionItems(model, new Position(1, 158), context)!;
 
 		assert.equal(result.suggestions.length, 1);
@@ -310,7 +310,7 @@ suite('SnippetsService', function () {
 
 		const provider = new SnippetCompletionProvider(modeService, snippetService);
 
-		let model = TextModel.createFromString(':', undefined, modeService.getLanguageIdentifier('fooLang'));
+		let model = createTextModel(':', undefined, modeService.getLanguageIdentifier('fooLang'));
 		let result = await provider.provideCompletionItems(model, new Position(1, 2), context)!;
 
 		assert.equal(result.suggestions.length, 0);
@@ -329,7 +329,7 @@ suite('SnippetsService', function () {
 
 		const provider = new SnippetCompletionProvider(modeService, snippetService);
 
-		let model = TextModel.createFromString('template', undefined, modeService.getLanguageIdentifier('fooLang'));
+		let model = createTextModel('template', undefined, modeService.getLanguageIdentifier('fooLang'));
 		let result = await provider.provideCompletionItems(model, new Position(1, 9), context)!;
 
 		assert.equal(result.suggestions.length, 1);
@@ -352,7 +352,7 @@ suite('SnippetsService', function () {
 
 		const provider = new SnippetCompletionProvider(modeService, snippetService);
 
-		let model = TextModel.createFromString('Thisisaverylonglinegoingwithmore100bcharactersandthismakesintellisensebecomea Thisisaverylonglinegoingwithmore100bcharactersandthismakesintellisensebecomea b text_after_b', undefined, modeService.getLanguageIdentifier('fooLang'));
+		let model = createTextModel('Thisisaverylonglinegoingwithmore100bcharactersandthismakesintellisensebecomea Thisisaverylonglinegoingwithmore100bcharactersandthismakesintellisensebecomea b text_after_b', undefined, modeService.getLanguageIdentifier('fooLang'));
 		let result = await provider.provideCompletionItems(model, new Position(1, 158), context)!;
 
 		assert.equal(result.suggestions.length, 1);
@@ -374,7 +374,7 @@ suite('SnippetsService', function () {
 
 		const provider = new SnippetCompletionProvider(modeService, snippetService);
 
-		let model = TextModel.createFromString('.🐷-a-b', undefined, modeService.getLanguageIdentifier('fooLang'));
+		let model = createTextModel('.🐷-a-b', undefined, modeService.getLanguageIdentifier('fooLang'));
 		let result = await provider.provideCompletionItems(model, new Position(1, 8), context)!;
 
 		assert.equal(result.suggestions.length, 1);
@@ -395,7 +395,7 @@ suite('SnippetsService', function () {
 
 		const provider = new SnippetCompletionProvider(modeService, snippetService);
 
-		let model = TextModel.createFromString('a ', undefined, modeService.getLanguageIdentifier('fooLang'));
+		let model = createTextModel('a ', undefined, modeService.getLanguageIdentifier('fooLang'));
 		let result = await provider.provideCompletionItems(model, new Position(1, 3), context)!;
 
 		assert.equal(result.suggestions.length, 1);
@@ -422,14 +422,14 @@ suite('SnippetsService', function () {
 
 		const provider = new SnippetCompletionProvider(modeService, snippetService);
 
-		let model = TextModel.createFromString(' <', undefined, modeService.getLanguageIdentifier('fooLang'));
+		let model = createTextModel(' <', undefined, modeService.getLanguageIdentifier('fooLang'));
 		let result = await provider.provideCompletionItems(model, new Position(1, 3), context)!;
 
 		assert.equal(result.suggestions.length, 1);
 		let [first] = result.suggestions;
 		assert.equal((first.range as any).insert.startColumn, 2);
 
-		model = TextModel.createFromString('1', undefined, modeService.getLanguageIdentifier('fooLang'));
+		model = createTextModel('1', undefined, modeService.getLanguageIdentifier('fooLang'));
 		result = await provider.provideCompletionItems(model, new Position(1, 2), context)!;
 
 		assert.equal(result.suggestions.length, 1);
@@ -450,7 +450,7 @@ suite('SnippetsService', function () {
 
 		const provider = new SnippetCompletionProvider(modeService, snippetService);
 
-		let model = TextModel.createFromString('not wordFoo bar', undefined, modeService.getLanguageIdentifier('fooLang'));
+		let model = createTextModel('not wordFoo bar', undefined, modeService.getLanguageIdentifier('fooLang'));
 		let result = await provider.provideCompletionItems(model, new Position(1, 3), context)!;
 
 		assert.equal(result.suggestions.length, 1);
@@ -458,7 +458,7 @@ suite('SnippetsService', function () {
 		assert.equal((first.range as any).insert.endColumn, 3);
 		assert.equal((first.range as any).replace.endColumn, 9);
 
-		model = TextModel.createFromString('not woFoo bar', undefined, modeService.getLanguageIdentifier('fooLang'));
+		model = createTextModel('not woFoo bar', undefined, modeService.getLanguageIdentifier('fooLang'));
 		result = await provider.provideCompletionItems(model, new Position(1, 3), context)!;
 
 		assert.equal(result.suggestions.length, 1);
@@ -466,7 +466,7 @@ suite('SnippetsService', function () {
 		assert.equal((first.range as any).insert.endColumn, 3);
 		assert.equal((first.range as any).replace.endColumn, 3);
 
-		model = TextModel.createFromString('not word', undefined, modeService.getLanguageIdentifier('fooLang'));
+		model = createTextModel('not word', undefined, modeService.getLanguageIdentifier('fooLang'));
 		result = await provider.provideCompletionItems(model, new Position(1, 1), context)!;
 
 		assert.equal(result.suggestions.length, 1);

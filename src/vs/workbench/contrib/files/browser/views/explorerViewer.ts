@@ -37,7 +37,7 @@ import { Schemas } from 'vs/base/common/network';
 import { DesktopDragAndDropData, ExternalElementsDragAndDropData, ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { IDialogService, IConfirmation, getFileNamesMessage } from 'vs/platform/dialogs/common/dialogs';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { URI } from 'vs/base/common/uri';
@@ -55,7 +55,6 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { isNumber } from 'vs/base/common/types';
 import { domEvent } from 'vs/base/browser/event';
 import { IEditableData } from 'vs/workbench/common/views';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -641,10 +640,9 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		@IFileService private fileService: IFileService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@ITextFileService private textFileService: ITextFileService,
+		@IWorkingCopyFileService private workingCopyFileService: IWorkingCopyFileService,
 		@IHostService private hostService: IHostService,
-		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
-		@IWorkingCopyService private workingCopyService: IWorkingCopyService
+		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService
 	) {
 		this.toDispose = [];
 
@@ -945,15 +943,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 					const sourceFile = resource;
 					const targetFile = joinPath(target.resource, basename(sourceFile));
 
-					// if the target exists and is dirty, make sure to revert it. otherwise the dirty contents
-					// of the target file would replace the contents of the added file. since we already
-					// confirmed the overwrite before, this is OK.
-					if (this.workingCopyService.isDirty(targetFile)) {
-						await Promise.all(this.workingCopyService.getWorkingCopies(targetFile).map(workingCopy => workingCopy.revert({ soft: true })));
-					}
-
-					const copyTarget = joinPath(target.resource, basename(sourceFile));
-					const stat = await this.textFileService.copy(sourceFile, copyTarget, true);
+					const stat = await this.workingCopyFileService.copy(sourceFile, targetFile, true);
 					// if we only add one file, just open it directly
 					if (resources.length === 1 && !stat.isDirectory) {
 						this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
@@ -1040,7 +1030,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		// Reuse duplicate action if user copies
 		if (isCopy) {
 			const incrementalNaming = this.configurationService.getValue<IFilesConfiguration>().explorer.incrementalNaming;
-			const stat = await this.textFileService.copy(source.resource, findValidPasteFileTarget(this.explorerService, target, { resource: source.resource, isDirectory: source.isDirectory, allowOverwrite: false }, incrementalNaming));
+			const stat = await this.workingCopyFileService.copy(source.resource, findValidPasteFileTarget(this.explorerService, target, { resource: source.resource, isDirectory: source.isDirectory, allowOverwrite: false }, incrementalNaming));
 			if (!stat.isDirectory) {
 				await this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
 			}
@@ -1056,7 +1046,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		}
 
 		try {
-			await this.textFileService.move(source.resource, targetResource);
+			await this.workingCopyFileService.move(source.resource, targetResource);
 		} catch (error) {
 			// Conflict
 			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MOVE_CONFLICT) {
@@ -1065,7 +1055,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				const { confirmed } = await this.dialogService.confirm(confirm);
 				if (confirmed) {
 					try {
-						await this.textFileService.move(source.resource, targetResource, true /* overwrite */);
+						await this.workingCopyFileService.move(source.resource, targetResource, true /* overwrite */);
 					} catch (error) {
 						this.notificationService.error(error);
 					}

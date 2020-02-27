@@ -19,7 +19,7 @@ import { FoldingDecorationProvider } from './foldingDecorations';
 import { FoldingRegions, FoldingRegion } from './foldingRanges';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
+import { IMarginData, IEmptyContentData } from 'vs/editor/browser/controller/mouseTarget';
 import { HiddenRangeModel } from 'vs/editor/contrib/folding/hiddenRangeModel';
 import { IRange } from 'vs/editor/common/core/range';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
@@ -62,6 +62,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 	private readonly editor: ICodeEditor;
 	private _isEnabled: boolean;
 	private _useFoldingProviders: boolean;
+	private _unfoldOnClickAfterEndOfLine: boolean;
 
 	private readonly foldingDecorationProvider: FoldingDecorationProvider;
 
@@ -91,6 +92,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 		const options = this.editor.getOptions();
 		this._isEnabled = options.get(EditorOption.folding);
 		this._useFoldingProviders = options.get(EditorOption.foldingStrategy) !== 'indentation';
+		this._unfoldOnClickAfterEndOfLine = options.get(EditorOption.unfoldOnClickAfterEndOfLine);
 
 		this.foldingModel = null;
 		this.hiddenRangeModel = null;
@@ -112,8 +114,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 
 		this._register(this.editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
 			if (e.hasChanged(EditorOption.folding)) {
-				const options = this.editor.getOptions();
-				this._isEnabled = options.get(EditorOption.folding);
+				this._isEnabled = this.editor.getOptions().get(EditorOption.folding);
 				this.foldingEnabled.set(this._isEnabled);
 				this.onModelChanged();
 			}
@@ -124,9 +125,11 @@ export class FoldingController extends Disposable implements IEditorContribution
 				this.onModelContentChanged();
 			}
 			if (e.hasChanged(EditorOption.foldingStrategy)) {
-				const options = this.editor.getOptions();
-				this._useFoldingProviders = options.get(EditorOption.foldingStrategy) !== 'indentation';
+				this._useFoldingProviders = this.editor.getOptions().get(EditorOption.foldingStrategy) !== 'indentation';
 				this.onFoldingStrategyChanged();
+			}
+			if (e.hasChanged(EditorOption.unfoldOnClickAfterEndOfLine)) {
+				this._unfoldOnClickAfterEndOfLine = this.editor.getOptions().get(EditorOption.unfoldOnClickAfterEndOfLine);
 			}
 		}));
 		this.onModelChanged();
@@ -364,6 +367,15 @@ export class FoldingController extends Disposable implements IEditorContribution
 
 				iconClicked = true;
 				break;
+			case MouseTargetType.CONTENT_EMPTY: {
+				if (this._unfoldOnClickAfterEndOfLine && this.hiddenRangeModel.hasRanges()) {
+					const data = e.target.detail as IEmptyContentData;
+					if (!data.isAfterLines) {
+						break;
+					}
+				}
+				return;
+			}
 			case MouseTargetType.CONTENT_TEXT: {
 				if (this.hiddenRangeModel.hasRanges()) {
 					let model = this.editor.getModel();
@@ -885,7 +897,7 @@ for (let i = 1; i <= 7; i++) {
 	);
 }
 
-export const foldBackgroundBackground = registerColor('editor.foldBackground', { light: transparent(editorSelectionBackground, 0.3), dark: transparent(editorSelectionBackground, 0.3), hc: null }, nls.localize('foldBackgroundBackground', "Background color behind folded ranges."));
+export const foldBackgroundBackground = registerColor('editor.foldBackground', { light: transparent(editorSelectionBackground, 0.3), dark: transparent(editorSelectionBackground, 0.3), hc: null }, nls.localize('foldBackgroundBackground', "Background color behind folded ranges. The color must not be opaque so as not to hide underlying decorations."), true);
 
 registerThemingParticipant((theme, collector) => {
 	const foldBackground = theme.getColor(foldBackgroundBackground);

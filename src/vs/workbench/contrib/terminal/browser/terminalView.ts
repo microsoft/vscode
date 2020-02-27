@@ -57,7 +57,7 @@ export class TerminalViewPane extends ViewPane {
 		@IStorageService storageService: IStorageService,
 		@IOpenerService openerService: IOpenerService,
 	) {
-		super(options, keybindingService, _contextMenuService, configurationService, contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService);
+		super(options, keybindingService, _contextMenuService, configurationService, contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, telemetryService);
 	}
 
 	protected renderBody(container: HTMLElement): void {
@@ -114,7 +114,7 @@ export class TerminalViewPane extends ViewPane {
 		}));
 
 		// Force another layout (first is setContainers) since config has changed
-		this.layoutBody(this._terminalContainer.offsetWidth, this._terminalContainer.offsetHeight);
+		this.layoutBody(this._terminalContainer.offsetHeight, this._terminalContainer.offsetWidth);
 	}
 
 	protected layoutBody(height: number, width: number): void {
@@ -321,7 +321,7 @@ export class TerminalViewPane extends ViewPane {
 		}
 		// TODO: Can we support ligatures?
 		// dom.toggleClass(this._parentDomElement, 'enable-ligatures', this._terminalService.configHelper.config.fontLigatures);
-		this.layoutBody(this._parentDomElement.offsetWidth, this._parentDomElement.offsetHeight);
+		this.layoutBody(this._parentDomElement.offsetHeight, this._parentDomElement.offsetWidth);
 	}
 }
 

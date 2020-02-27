@@ -11,7 +11,6 @@ import * as objects from 'vs/base/common/objects';
 import { URI as uri } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { IEditor } from 'vs/workbench/common/editor';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -434,15 +433,8 @@ export class ConfigurationManager implements IConfigurationManager {
 		return this.debuggers.filter(dbg => strings.equalsIgnoreCase(dbg.type, type)).pop();
 	}
 
-	getDebuggerLabelsForEditor(editor: editorCommon.IEditor | undefined): string[] {
-		if (isCodeEditor(editor)) {
-			const model = editor.getModel();
-			const language = model ? model.getLanguageIdentifier().language : undefined;
-
-			return this.debuggers.filter(a => language && a.languages && a.languages.indexOf(language) >= 0).map(d => d.label);
-		}
-
-		return [];
+	isDebuggerInterestedInLanguage(language: string): boolean {
+		return this.debuggers.filter(a => language && a.languages && a.languages.indexOf(language) >= 0).length > 0;
 	}
 
 	async guessDebugger(type?: string): Promise<Debugger | undefined> {
@@ -527,18 +519,17 @@ abstract class AbstractLaunch {
 		if (!config || (!Array.isArray(config.configurations) && !Array.isArray(config.compounds))) {
 			return [];
 		} else {
-			const names: string[] = [];
+			const configurations: (IConfig | ICompound)[] = [];
 			if (config.configurations) {
-				names.push(...config.configurations.filter(cfg => cfg && typeof cfg.name === 'string').map(cfg => cfg.name));
+				configurations.push(...config.configurations.filter(cfg => cfg && typeof cfg.name === 'string'));
 			}
 			if (includeCompounds && config.compounds) {
 				if (config.compounds) {
-					names.push(...config.compounds.filter(compound => typeof compound.name === 'string' && compound.configurations && compound.configurations.length)
-						.map(compound => compound.name));
+					configurations.push(...config.compounds.filter(compound => typeof compound.name === 'string' && compound.configurations && compound.configurations.length));
 				}
 			}
 
-			return names;
+			return getVisibleAndSorted(configurations).map(c => c.name);
 		}
 	}
 
