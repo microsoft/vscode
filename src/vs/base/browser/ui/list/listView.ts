@@ -279,21 +279,24 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		this.scrollableElement.triggerScrollFromMouseWheelEvent(browserEvent);
 	}
 
-	updateElementHeight(index: number, element: T, size: number): void {
+	updateElementHeight(index: number, size: number): void {
+		if (this.items[index].size === size) {
+			return;
+		}
+		
 		const lastRenderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
 
-		let heightDiff = index < lastRenderRange.start ? size - this.items[index].size : 0;
+		const heightDiff = index < lastRenderRange.start ? size - this.items[index].size : 0;
 		this.rangeMap.splice(index, 1, [{ size: size }]);
-
 		this.items[index].size = size;
 
 		this.render(lastRenderRange, this.lastRenderTop + heightDiff, this.lastRenderHeight, undefined, undefined, true);
 
+		this.eventuallyUpdateScrollDimensions();
+		
 		if (this.supportDynamicHeights) {
 			this._rerender(this.lastRenderTop, this.lastRenderHeight);
 		}
-
-		this.eventuallyUpdateScrollDimensions();
 		return;
 	}
 
