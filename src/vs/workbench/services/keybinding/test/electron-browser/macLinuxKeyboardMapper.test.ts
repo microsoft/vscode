@@ -330,7 +330,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 		);
 	});
 
-	test('resolveKeyboardEvent Modifier only MetaLeft+', () => {
+	test('resolveKeyboardEvent Modifier only MetaLeft', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
@@ -344,9 +344,9 @@ suite('keyboardMapper - MAC de_ch', () => {
 			},
 			{
 				label: '⌘',
-				ariaLabel: 'Command+',
+				ariaLabel: 'Command',
 				electronAccelerator: null,
-				userSettingsLabel: 'cmd+',
+				userSettingsLabel: 'cmd',
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: [null],
@@ -354,7 +354,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 		);
 	});
 
-	test('resolveKeyboardEvent Modifier only MetaRight+', () => {
+	test('resolveKeyboardEvent Modifier only MetaRight', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
@@ -368,9 +368,9 @@ suite('keyboardMapper - MAC de_ch', () => {
 			},
 			{
 				label: '⌘',
-				ariaLabel: 'Command+',
+				ariaLabel: 'Command',
 				electronAccelerator: null,
-				userSettingsLabel: 'cmd+',
+				userSettingsLabel: 'cmd',
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: [null],
@@ -411,7 +411,7 @@ suite('keyboardMapper - MAC en_us', () => {
 		);
 	});
 
-	test('resolveKeyboardEvent Modifier only MetaLeft+', () => {
+	test('resolveKeyboardEvent Modifier only MetaLeft', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
@@ -425,9 +425,9 @@ suite('keyboardMapper - MAC en_us', () => {
 			},
 			{
 				label: '⌘',
-				ariaLabel: 'Command+',
+				ariaLabel: 'Command',
 				electronAccelerator: null,
-				userSettingsLabel: 'cmd+',
+				userSettingsLabel: 'cmd',
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: [null],
@@ -435,7 +435,7 @@ suite('keyboardMapper - MAC en_us', () => {
 		);
 	});
 
-	test('resolveKeyboardEvent Modifier only MetaRight+', () => {
+	test('resolveKeyboardEvent Modifier only MetaRight', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
@@ -449,9 +449,9 @@ suite('keyboardMapper - MAC en_us', () => {
 			},
 			{
 				label: '⌘',
-				ariaLabel: 'Command+',
+				ariaLabel: 'Command',
 				electronAccelerator: null,
-				userSettingsLabel: 'cmd+',
+				userSettingsLabel: 'cmd',
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: [null],

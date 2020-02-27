@@ -93,7 +93,7 @@ suite('keyboardMapper - MAC fallback', () => {
 		);
 	});
 
-	test('resolveKeyboardEvent Modifier only Meta+', () => {
+	test('resolveKeyboardEvent Modifier only Meta', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
@@ -107,9 +107,9 @@ suite('keyboardMapper - MAC fallback', () => {
 			},
 			{
 				label: '⌘',
-				ariaLabel: 'Command+',
+				ariaLabel: 'Command',
 				electronAccelerator: null,
-				userSettingsLabel: 'cmd+',
+				userSettingsLabel: 'cmd',
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: [null],
