@@ -522,7 +522,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			quickPick.ok = false;
 			quickPick.customButton = true;
 			if (this.authenticationState.get() === AuthStatus.SignedIn) {
-				quickPick.customLabel = localize('turn on', "Turn on");
+				quickPick.customLabel = localize('turn on', "Turn On");
 			} else {
 				const displayName = this.authenticationService.getDisplayName(this.userDataSyncStore!.authenticationProviderId);
 				quickPick.description = localize('sign in and turn on sync detail', "Sign in with your {0} account to synchronize your data across devices.", displayName);
@@ -680,7 +680,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			type: 'info',
 			message: localize('turn off sync confirmation', "Turn off Sync"),
 			detail: localize('turn off sync detail', "Your settings, keybindings, extensions and UI State will no longer be synced."),
-			primaryButton: localize('turn off', "Turn off"),
+			primaryButton: localize('turn off', "Turn Off"),
 			checkbox: {
 				label: localize('turn off sync everywhere', "Turn off sync on all your devices and clear the data from the cloud.")
 			}
