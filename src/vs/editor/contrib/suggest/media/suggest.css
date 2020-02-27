@@ -234,7 +234,7 @@
 	flex-shrink: 0;
 }
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row:not(.string-label) > .contents > .main > .left > .monaco-icon-label {
-	max-width: 100%;
+	max-width: 80%;
 }
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row.string-label > .contents > .main > .left > .monaco-icon-label {
 	flex-shrink: 1;
