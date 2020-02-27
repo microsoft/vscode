@@ -23,7 +23,7 @@ export class LinkedText {
 	}
 }
 
-const LINK_REGEX = /\[([^\]]+)\]\(((?:https?:\/\/|command:)[^\)\s]+)(?: "([^"]+)")?\)/gi;
+const LINK_REGEX = /\[([^\]]+)\]\(((?:https?:\/\/|command:)[^\)\s]+)(?: (?:"|')([^"]+)(?:"|'))?\)/gi;
 
 export function parseLinkedText(text: string): LinkedText {
 	const result: LinkedTextNode[] = [];
