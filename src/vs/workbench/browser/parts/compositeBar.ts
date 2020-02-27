@@ -111,7 +111,15 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 		}
 	}
 
+	onDragEnter(data: CompositeDragAndDropData, targetCompositeId: string | undefined, originalEvent: DragEvent): boolean {
+		return this.canDrop(data, targetCompositeId);
+	}
+
 	onDragOver(data: CompositeDragAndDropData, targetCompositeId: string | undefined, originalEvent: DragEvent): boolean {
+		return this.canDrop(data, targetCompositeId);
+	}
+
+	private canDrop(data: CompositeDragAndDropData, targetCompositeId: string | undefined): boolean {
 		const dragData = data.getData();
 		const viewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 
@@ -173,8 +181,6 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 			const destinationContainer = viewContainerRegistry.get(targetCompositeId);
 			return !!destinationContainer && !destinationContainer.rejectAddedViews;
 		}
-
-		return false;
 	}
 }
 
