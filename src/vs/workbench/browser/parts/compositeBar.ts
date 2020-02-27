@@ -17,8 +17,8 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { isUndefinedOrNull } from 'vs/base/common/types';
-import { LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
-import { ITheme } from 'vs/platform/theme/common/themeService';
+import { LocalSelectionTransfer, DragAndDropObserver } from 'vs/workbench/browser/dnd';
+import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { Emitter } from 'vs/base/common/event';
 import { DraggedViewIdentifier } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -222,6 +222,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 	constructor(
 		items: ICompositeBarItem[],
 		private options: ICompositeBarOptions,
+		@IThemeService private readonly themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
@@ -250,6 +251,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 
 	create(parent: HTMLElement): HTMLElement {
 		const actionBarDiv = parent.appendChild($('.composite-bar'));
+		const excessDiv = parent.appendChild($('.composite-bar-excess'));
 
 		this.compositeSwitcherBar = this._register(new ActionBar(actionBarDiv, {
 			actionViewItemProvider: (action: IAction) => {
@@ -276,58 +278,99 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, e => this.showContextMenu(e)));
 
 		// Allow to drop at the end to move composites to the end
-		this._register(addDisposableListener(parent, EventType.DROP, (e: DragEvent) => {
-			if (this.compositeTransfer.hasData(DraggedCompositeIdentifier.prototype)) {
-				EventHelper.stop(e, true);
+		this._register(new DragAndDropObserver(excessDiv, {
+			onDragOver: (e: DragEvent) => {
+				if (this.compositeTransfer.hasData(DraggedCompositeIdentifier.prototype)) {
+					EventHelper.stop(e, true);
 
-				const data = this.compositeTransfer.getData(DraggedCompositeIdentifier.prototype);
-				if (Array.isArray(data)) {
-					const draggedCompositeId = data[0].id;
-					this.compositeTransfer.clearData(DraggedCompositeIdentifier.prototype);
+					const data = this.compositeTransfer.getData(DraggedCompositeIdentifier.prototype);
+					if (Array.isArray(data)) {
+						const draggedCompositeId = data[0].id;
 
-					this.options.dndHandler.drop(new CompositeDragAndDropData('composite', draggedCompositeId), undefined, e);
-				}
-			}
-
-			if (this.compositeTransfer.hasData(DraggedViewIdentifier.prototype)) {
-				const data = this.compositeTransfer.getData(DraggedViewIdentifier.prototype);
-				if (Array.isArray(data)) {
-					const draggedViewId = data[0].id;
-					this.compositeTransfer.clearData(DraggedViewIdentifier.prototype);
-
-					this.options.dndHandler.drop(new CompositeDragAndDropData('view', draggedViewId), undefined, e);
-				}
-			}
-		}));
-
-		this._register(addDisposableListener(parent, EventType.DRAG_OVER, (e: DragEvent) => {
-			if (this.compositeTransfer.hasData(DraggedCompositeIdentifier.prototype)) {
-				EventHelper.stop(e, true);
-
-				const data = this.compositeTransfer.getData(DraggedCompositeIdentifier.prototype);
-				if (Array.isArray(data)) {
-					const draggedCompositeId = data[0].id;
-
-					// Check if drop is allowed
-					if (e.dataTransfer && !this.options.dndHandler.onDragOver(new CompositeDragAndDropData('composite', draggedCompositeId), undefined, e)) {
-						e.dataTransfer.dropEffect = 'none';
+						// Check if drop is allowed
+						if (e.dataTransfer && !this.options.dndHandler.onDragOver(new CompositeDragAndDropData('composite', draggedCompositeId), undefined, e)) {
+							e.dataTransfer.dropEffect = 'none';
+						}
 					}
 				}
-			}
 
-			if (this.compositeTransfer.hasData(DraggedViewIdentifier.prototype)) {
-				EventHelper.stop(e, true);
+				if (this.compositeTransfer.hasData(DraggedViewIdentifier.prototype)) {
+					EventHelper.stop(e, true);
 
-				const data = this.compositeTransfer.getData(DraggedViewIdentifier.prototype);
-				if (Array.isArray(data)) {
-					const draggedViewId = data[0].id;
+					const data = this.compositeTransfer.getData(DraggedViewIdentifier.prototype);
+					if (Array.isArray(data)) {
+						const draggedViewId = data[0].id;
 
-					// Check if drop is allowed
-					if (e.dataTransfer && !this.options.dndHandler.onDragOver(new CompositeDragAndDropData('view', draggedViewId), undefined, e)) {
-						e.dataTransfer.dropEffect = 'none';
+						// Check if drop is allowed
+						if (e.dataTransfer && !this.options.dndHandler.onDragOver(new CompositeDragAndDropData('view', draggedViewId), undefined, e)) {
+							e.dataTransfer.dropEffect = 'none';
+						}
 					}
 				}
-			}
+			},
+
+			onDragEnter: (e: DragEvent) => {
+				if (this.compositeTransfer.hasData(DraggedCompositeIdentifier.prototype)) {
+					EventHelper.stop(e, true);
+
+					const data = this.compositeTransfer.getData(DraggedCompositeIdentifier.prototype);
+					if (Array.isArray(data)) {
+						const draggedCompositeId = data[0].id;
+
+						// Check if drop is allowed
+						const validDropTarget = this.options.dndHandler.onDragEnter(new CompositeDragAndDropData('composite', draggedCompositeId), undefined, e);
+						this.updateFromDragging(excessDiv, validDropTarget);
+					}
+				}
+
+				if (this.compositeTransfer.hasData(DraggedViewIdentifier.prototype)) {
+					EventHelper.stop(e, true);
+
+					const data = this.compositeTransfer.getData(DraggedViewIdentifier.prototype);
+					if (Array.isArray(data)) {
+						const draggedViewId = data[0].id;
+
+						// Check if drop is allowed
+						const validDropTarget = this.options.dndHandler.onDragEnter(new CompositeDragAndDropData('view', draggedViewId), undefined, e);
+						this.updateFromDragging(excessDiv, validDropTarget);
+					}
+				}
+			},
+
+			onDragLeave: (e: DragEvent) => {
+				if (this.compositeTransfer.hasData(DraggedCompositeIdentifier.prototype) ||
+					this.compositeTransfer.hasData(DraggedViewIdentifier.prototype)) {
+					this.updateFromDragging(excessDiv, false);
+				}
+			},
+			onDragEnd: (e: DragEvent) => {
+				// no-op, will not be called
+			},
+			onDrop: (e: DragEvent) => {
+				if (this.compositeTransfer.hasData(DraggedCompositeIdentifier.prototype)) {
+					EventHelper.stop(e, true);
+
+					const data = this.compositeTransfer.getData(DraggedCompositeIdentifier.prototype);
+					if (Array.isArray(data)) {
+						const draggedCompositeId = data[0].id;
+						this.compositeTransfer.clearData(DraggedCompositeIdentifier.prototype);
+
+						this.options.dndHandler.drop(new CompositeDragAndDropData('composite', draggedCompositeId), undefined, e);
+						this.updateFromDragging(excessDiv, false);
+					}
+				}
+
+				if (this.compositeTransfer.hasData(DraggedViewIdentifier.prototype)) {
+					const data = this.compositeTransfer.getData(DraggedViewIdentifier.prototype);
+					if (Array.isArray(data)) {
+						const draggedViewId = data[0].id;
+						this.compositeTransfer.clearData(DraggedViewIdentifier.prototype);
+
+						this.options.dndHandler.drop(new CompositeDragAndDropData('view', draggedViewId), undefined, e);
+						this.updateFromDragging(excessDiv, false);
+					}
+				}
+			},
 		}));
 
 		return actionBarDiv;
@@ -430,6 +473,13 @@ export class CompositeBar extends Widget implements ICompositeBar {
 
 			this.resetActiveComposite(compositeId);
 		}
+	}
+
+	private updateFromDragging(element: HTMLElement, isDragging: boolean): void {
+		const theme = this.themeService.getTheme();
+		const dragBackground = this.options.colors(theme).dragAndDropBackground;
+
+		element.style.backgroundColor = isDragging && dragBackground ? dragBackground.toString() : '';
 	}
 
 	private resetActiveComposite(compositeId: string) {
