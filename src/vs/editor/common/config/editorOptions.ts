@@ -1802,7 +1802,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		const minimapRenderCharacters = minimap.renderCharacters;
 		let minimapScale = (pixelRatio >= 2 ? Math.round(minimap.scale * 2) : minimap.scale);
 		const minimapMaxColumn = minimap.maxColumn | 0;
-		const minimapMode = minimap.mode;
+		const minimapSize = minimap.size;
 
 		const scrollbar = options.get(EditorOption.scrollbar);
 		const verticalScrollbarWidth = scrollbar.verticalScrollbarSize | 0;
@@ -1866,7 +1866,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 			let minimapCharWidth = minimapScale / pixelRatio;
 			let minimapWidthMultiplier: number = 1;
 
-			if (minimapMode === 'cover' || minimapMode === 'contain') {
+			if (minimapSize === 'fill' || minimapSize === 'fit') {
 				const viewLineCount = env.viewLineCount;
 				const { typicalViewportLineCount, extraLinesBeyondLastLine, desiredRatio, minimapLineCount } = EditorLayoutInfoComputer.computeContainedMinimapLineCount({
 					viewLineCount: viewLineCount,
@@ -1887,7 +1887,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 					minimapCharWidth = minimapScale / pixelRatio;
 				} else {
 					const effectiveMinimapHeight = Math.ceil((viewLineCount + extraLinesBeyondLastLine) * minimapLineHeight);
-					if (minimapMode === 'cover' || effectiveMinimapHeight > minimapCanvasInnerHeight) {
+					if (minimapSize === 'fill' || effectiveMinimapHeight > minimapCanvasInnerHeight) {
 						minimapHeightIsEditorHeight = true;
 						const configuredFontScale = minimapScale;
 						minimapLineHeight = Math.min(lineHeight * pixelRatio, Math.max(1, Math.floor(1 / desiredRatio)));
@@ -2074,7 +2074,7 @@ export interface IEditorMinimapOptions {
 	 * Control the minimap rendering mode.
 	 * Defaults to 'actual'.
 	 */
-	mode?: 'actual' | 'cover' | 'contain';
+	size?: 'proportional' | 'fill' | 'fit';
 	/**
 	 * Control the rendering of the minimap slider.
 	 * Defaults to 'mouseover'.
@@ -2103,7 +2103,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, EditorMinimap
 	constructor() {
 		const defaults: EditorMinimapOptions = {
 			enabled: true,
-			mode: 'actual',
+			size: 'proportional',
 			side: 'right',
 			showSlider: 'mouseover',
 			renderCharacters: true,
@@ -2118,16 +2118,16 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, EditorMinimap
 					default: defaults.enabled,
 					description: nls.localize('minimap.enabled', "Controls whether the minimap is shown.")
 				},
-				'editor.minimap.mode': {
+				'editor.minimap.size': {
 					type: 'string',
-					enum: ['actual', 'cover', 'contain'],
+					enum: ['proportional', 'fill', 'fit'],
 					enumDescriptions: [
-						nls.localize('minimap.mode.actual', "The minimap will be displayed in its original size, so it might be higher than the editor."),
-						nls.localize('minimap.mode.cover', "The minimap will always have the height of the editor and will stretch or shrink as necessary."),
-						nls.localize('minimap.mode.contain', "The minimap will shrink as necessary to never be higher than the editor."),
+						nls.localize('minimap.size.proportional', "The minimap has the same size as the editor contents (and might scroll)."),
+						nls.localize('minimap.size.fill', "The minimap will stretch or shrink as necessary to fill the height of the editor (no scrolling)."),
+						nls.localize('minimap.size.fit', "The minimap will shrink as necessary to never be larger than the editor (no scrolling)."),
 					],
-					default: defaults.mode,
-					description: nls.localize('minimap.mode', "Controls the rendering mode of the minimap.")
+					default: defaults.size,
+					description: nls.localize('minimap.size', "Controls the size of the minimap.")
 				},
 				'editor.minimap.side': {
 					type: 'string',
@@ -2169,7 +2169,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, EditorMinimap
 		const input = _input as IEditorMinimapOptions;
 		return {
 			enabled: EditorBooleanOption.boolean(input.enabled, this.defaultValue.enabled),
-			mode: EditorStringEnumOption.stringSet<'actual' | 'cover' | 'contain'>(input.mode, this.defaultValue.mode, ['actual', 'cover', 'contain']),
+			size: EditorStringEnumOption.stringSet<'proportional' | 'fill' | 'fit'>(input.size, this.defaultValue.size, ['proportional', 'fill', 'fit']),
 			side: EditorStringEnumOption.stringSet<'right' | 'left'>(input.side, this.defaultValue.side, ['right', 'left']),
 			showSlider: EditorStringEnumOption.stringSet<'always' | 'mouseover'>(input.showSlider, this.defaultValue.showSlider, ['always', 'mouseover']),
 			renderCharacters: EditorBooleanOption.boolean(input.renderCharacters, this.defaultValue.renderCharacters),

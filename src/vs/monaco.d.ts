@@ -3444,7 +3444,7 @@ declare namespace monaco.editor {
 		 * Control the minimap rendering mode.
 		 * Defaults to 'actual'.
 		 */
-		mode?: 'actual' | 'cover' | 'contain';
+		size?: 'proportional' | 'fill' | 'fit';
 		/**
 		 * Control the rendering of the minimap slider.
 		 * Defaults to 'mouseover'.

@@ -46,7 +46,7 @@ class MinimapOptions {
 
 	public readonly renderMinimap: RenderMinimap;
 
-	public readonly mode: 'actual' | 'cover' | 'contain';
+	public readonly size: 'proportional' | 'fill' | 'fit';
 
 	public readonly minimapHeightIsEditorHeight: boolean;
 
@@ -108,7 +108,7 @@ class MinimapOptions {
 		const minimapOpts = options.get(EditorOption.minimap);
 
 		this.renderMinimap = layoutInfo.renderMinimap | 0;
-		this.mode = minimapOpts.mode;
+		this.size = minimapOpts.size;
 		this.minimapHeightIsEditorHeight = layoutInfo.minimapHeightIsEditorHeight;
 		this.scrollBeyondLastLine = options.get(EditorOption.scrollBeyondLastLine);
 		this.showSlider = minimapOpts.showSlider;
@@ -144,7 +144,7 @@ class MinimapOptions {
 
 	public equals(other: MinimapOptions): boolean {
 		return (this.renderMinimap === other.renderMinimap
-			&& this.mode === other.mode
+			&& this.size === other.size
 			&& this.minimapHeightIsEditorHeight === other.minimapHeightIsEditorHeight
 			&& this.scrollBeyondLastLine === other.scrollBeyondLastLine
 			&& this.showSlider === other.showSlider
