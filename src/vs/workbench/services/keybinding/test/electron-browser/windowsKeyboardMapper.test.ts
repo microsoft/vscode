@@ -295,7 +295,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 		);
 	});
 
-	test('resolveKeyboardEvent Modifier only Ctrl+', () => {
+	test('resolveKeyboardEvent Modifier only Ctrl', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
@@ -308,10 +308,10 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				code: null!
 			},
 			{
-				label: 'Ctrl+',
-				ariaLabel: 'Control+',
+				label: 'Ctrl',
+				ariaLabel: 'Control',
 				electronAccelerator: null,
-				userSettingsLabel: 'ctrl+',
+				userSettingsLabel: 'ctrl',
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: [null],
@@ -383,7 +383,7 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 		);
 	});
 
-	test('resolveKeyboardEvent Modifier only Ctrl+', () => {
+	test('resolveKeyboardEvent Modifier only Ctrl', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
@@ -396,10 +396,10 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 				code: null!
 			},
 			{
-				label: 'Ctrl+',
-				ariaLabel: 'Control+',
+				label: 'Ctrl',
+				ariaLabel: 'Control',
 				electronAccelerator: null,
-				userSettingsLabel: 'ctrl+',
+				userSettingsLabel: 'ctrl',
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: [null],
