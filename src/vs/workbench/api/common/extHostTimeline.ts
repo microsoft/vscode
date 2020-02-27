@@ -71,11 +71,17 @@ export class ExtHostTimeline implements IExtHostTimeline {
 			scheme: scheme,
 			onDidChange: undefined,
 			async provideTimeline(uri: URI, options: TimelineOptions, token: CancellationToken, internalOptions?: { cacheResults?: boolean }) {
-				timelineDisposables.clear();
-
 				// For now, only allow the caching of a single Uri
-				if (internalOptions?.cacheResults && !itemsBySourceByUriMap.has(getUriKey(uri))) {
-					itemsBySourceByUriMap.clear();
+				if (internalOptions?.cacheResults) {
+					if (options.cursor === undefined) {
+						timelineDisposables.clear();
+					}
+
+					if (!itemsBySourceByUriMap.has(getUriKey(uri))) {
+						itemsBySourceByUriMap.clear();
+					}
+				} else {
+					timelineDisposables.clear();
 				}
 
 				const result = await provider.provideTimeline(uri, options, token);
