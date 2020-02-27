@@ -3769,7 +3769,7 @@ export const EditorOptions = {
 	)),
 	definitionLinkOpensInPeek: register(new EditorBooleanOption(
 		EditorOption.definitionLinkOpensInPeek, 'definitionLinkOpensInPeek', false,
-		{ description: nls.localize('definitionLinkOpensInPeek', "Controls whether the definition link opens element in the peek widget.") }
+		{ description: nls.localize('definitionLinkOpensInPeek', "Controls whether the Go to Definition mouse gesture always opens the peek widget.") }
 	)),
 	quickSuggestions: register(new EditorQuickSuggestions()),
 	quickSuggestionsDelay: register(new EditorIntOption(
