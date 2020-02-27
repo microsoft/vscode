@@ -36,6 +36,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, IViewDescriptorService, IViewDescriptorCollection, ViewContainerLocation } from 'vs/workbench/common/views';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { ViewMenuActions } from 'vs/workbench/browser/parts/views/viewMenuActions';
+import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 
 interface ICachedPanel {
 	id: string;
@@ -143,7 +144,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			getDefaultCompositeId: () => this.panelRegistry.getDefaultPanelId(),
 			hidePart: () => this.layoutService.setPanelHidden(true),
 			dndHandler: new CompositeDragAndDrop(this.viewDescriptorService, ViewContainerLocation.Panel,
-				(id: string, focus?: boolean) => this.openPanel(id, focus),
+				(id: string, focus?: boolean) => this.openPanel(id, focus) as Promise<IPaneComposite | undefined>,
 				(from: string, to: string) => this.compositeBar.move(from, to),
 				() => this.getPinnedPanels().map(p => p.id)
 			),
