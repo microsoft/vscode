@@ -79,7 +79,7 @@ export class ToggleColumnSelectionAction extends Action {
 }
 
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleColumnSelectionAction, ToggleColumnSelectionAction.ID, ToggleColumnSelectionAction.LABEL), 'View: Toggle Column Selection Mode', nls.localize('view', "View"));
+registry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleColumnSelectionAction, ToggleColumnSelectionAction.ID, ToggleColumnSelectionAction.LABEL), 'Toggle Column Selection Mode');
 
 MenuRegistry.appendMenuItem(MenuId.MenubarSelectionMenu, {
 	group: '4_config',
