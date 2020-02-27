@@ -1855,7 +1855,7 @@
         "when": "config.git.enabled && !git.missing && workbenchState == workspace && workspaceFolderCount == 0"
       },
       {
-        "view": "workbench.explorer.emptyView",
+        "view": "workbench.explorer",
         "contents": "%view.workbench.cloneRepository%"
       }
     ]

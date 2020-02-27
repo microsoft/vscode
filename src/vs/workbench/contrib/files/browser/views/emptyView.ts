@@ -23,7 +23,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export class EmptyView extends ViewPane {
 
-	static readonly ID: string = 'workbench.explorer.emptyView';
+	static readonly ID: string = 'workbench.explorer';
 	static readonly NAME = nls.localize('noWorkspace', "No Folder Opened");
 
 	constructor(

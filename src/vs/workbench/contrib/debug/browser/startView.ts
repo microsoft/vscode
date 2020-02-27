@@ -31,7 +31,7 @@ const CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR = new RawContextKey<boolean>(
 
 export class StartView extends ViewPane {
 
-	static ID = 'workbench.debug.startView';
+	static ID = 'workbench.debug';
 	static LABEL = localize('start', "Start");
 
 	private debugStartLanguageContext: IContextKey<string | undefined>;
