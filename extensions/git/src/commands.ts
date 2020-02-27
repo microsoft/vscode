@@ -1397,12 +1397,16 @@ export class CommandCenter {
 			opts.signoff = true;
 		}
 
+		const smartCommitChanges = config.get<'all' | 'tracked'>('smartCommitChanges');
+
 		if (
 			(
 				// no changes
 				(noStagedChanges && noUnstagedChanges)
 				// or no staged changes and not `all`
 				|| (!opts.all && noStagedChanges)
+				// no staged changes and no tracked unstaged changes
+				|| (noStagedChanges && smartCommitChanges === 'tracked' && repository.workingTreeGroup.resourceStates.every(r => r.type === Status.UNTRACKED))
 			)
 			&& !opts.empty
 		) {
@@ -1416,7 +1420,7 @@ export class CommandCenter {
 			return false;
 		}
 
-		if (opts.all && config.get<'all' | 'tracked'>('smartCommitChanges') === 'tracked') {
+		if (opts.all && smartCommitChanges === 'tracked') {
 			opts.all = 'tracked';
 		}
 
