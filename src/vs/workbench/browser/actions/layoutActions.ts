@@ -613,7 +613,7 @@ export class MoveFocusedViewAction extends Action {
 	}
 }
 
-registry.registerWorkbenchAction(SyncActionDescriptor.create(MoveFocusedViewAction, MoveFocusedViewAction.ID, MoveFocusedViewAction.LABEL), 'View: Move Focused View', viewCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.create(MoveFocusedViewAction, MoveFocusedViewAction.ID, MoveFocusedViewAction.LABEL), 'View: Move Focused View', viewCategory, FocusedViewContext.notEqualsTo(''));
 
 
 // --- Resize View
