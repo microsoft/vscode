@@ -7,9 +7,10 @@ import * as vscode from 'vscode';
 import type * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
+import { Disposable } from '../utils/dispose';
+import * as fileSchemes from '../utils/fileSchemes';
 import { isTypeScriptDocument } from '../utils/languageModeIds';
 import { ResourceMap } from '../utils/resourceMap';
-import { Disposable } from '../utils/dispose';
 
 
 function objsAreEqual<T>(a: T, b: T): boolean {
@@ -185,7 +186,7 @@ export default class FileConfigurationManager extends Disposable {
 		return {
 			quotePreference: this.getQuoteStylePreference(config),
 			importModuleSpecifierPreference: getImportModuleSpecifierPreference(config),
-			allowTextChangesInNewFiles: document.uri.scheme === 'file',
+			allowTextChangesInNewFiles: document.uri.scheme === fileSchemes.file,
 			providePrefixAndSuffixTextForRename: config.get<boolean>('renameShorthandProperties', true),
 			allowRenameOfImportPath: true,
 		};
