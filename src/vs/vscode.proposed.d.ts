@@ -1705,7 +1705,10 @@ declare module 'vscode' {
 	 */
 	export interface OpenDialogOptions {
 		/**
-		 * Dialog title
+		 * Dialog title.
+		 *
+		 * Depending on the underlying operating system this parameter might be ignored, since some
+		 * systems do not present title on open dialogs.
 		 */
 		title?: string;
 	}
@@ -1715,7 +1718,10 @@ declare module 'vscode' {
 	 */
 	export interface SaveDialogOptions {
 		/**
-		 * Dialog title
+		 * Dialog title.
+		 *
+		 * Depending on the underlying operating system this parameter might be ignored, since some
+		 * systems do not present title on save dialogs.
 		 */
 		title?: string;
 	}
