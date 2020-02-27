@@ -392,12 +392,6 @@ export interface ITerminalInstance {
 	 */
 	sendText(text: string, addNewLine: boolean): void;
 
-	/**
-	 * Write text directly to the terminal, skipping the process if it exists.
-	 * @param text The text to write.
-	 */
-	write(text: string): void;
-
 	/** Scroll the terminal buffer down 1 line. */
 	scrollDownLine(): void;
 	/** Scroll the terminal buffer down 1 page. */

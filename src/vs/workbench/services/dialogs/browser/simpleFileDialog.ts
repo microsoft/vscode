@@ -156,7 +156,7 @@ export class SimpleFileDialog {
 
 	public async showOpenDialog(options: IOpenDialogOptions = {}): Promise<URI | undefined> {
 		this.scheme = this.getScheme(options.availableFileSystems, options.defaultUri);
-		this.userHome = await this.remotePathService.userHome;
+		this.userHome = await this.getUserHome();
 		const newOptions = this.getOptions(options);
 		if (!newOptions) {
 			return Promise.resolve(undefined);
@@ -167,7 +167,7 @@ export class SimpleFileDialog {
 
 	public async showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
 		this.scheme = this.getScheme(options.availableFileSystems, options.defaultUri);
-		this.userHome = await this.remotePathService.userHome;
+		this.userHome = await this.getUserHome();
 		this.requiresTrailing = true;
 		const newOptions = this.getOptions(options, true);
 		if (!newOptions) {
@@ -229,6 +229,13 @@ export class SimpleFileDialog {
 			this.remoteAgentEnvironment = await this.remoteAgentService.getEnvironment();
 		}
 		return this.remoteAgentEnvironment;
+	}
+
+	private async getUserHome(): Promise<URI> {
+		if (this.scheme !== Schemas.file) {
+			return this.remotePathService.userHome;
+		}
+		return URI.from({ scheme: this.scheme, path: this.environmentService.userHome });
 	}
 
 	private async pickResource(isSave: boolean = false): Promise<URI | undefined> {

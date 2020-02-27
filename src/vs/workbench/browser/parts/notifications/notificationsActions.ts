@@ -26,10 +26,8 @@ export class ClearNotificationAction extends Action {
 		super(id, label, 'codicon-close');
 	}
 
-	run(notification: INotificationViewItem): Promise<any> {
+	async run(notification: INotificationViewItem): Promise<any> {
 		this.commandService.executeCommand(CLEAR_NOTIFICATION, notification);
-
-		return Promise.resolve();
 	}
 }
 
@@ -46,10 +44,8 @@ export class ClearAllNotificationsAction extends Action {
 		super(id, label, 'codicon-clear-all');
 	}
 
-	run(notification: INotificationViewItem): Promise<any> {
+	async 	run(notification: INotificationViewItem): Promise<any> {
 		this.commandService.executeCommand(CLEAR_ALL_NOTIFICATIONS);
-
-		return Promise.resolve();
 	}
 }
 
@@ -63,13 +59,11 @@ export class HideNotificationsCenterAction extends Action {
 		label: string,
 		@ICommandService private readonly commandService: ICommandService
 	) {
-		super(id, label, 'codicon-close');
+		super(id, label, 'codicon-chevron-down');
 	}
 
-	run(notification: INotificationViewItem): Promise<any> {
+	async run(notification: INotificationViewItem): Promise<any> {
 		this.commandService.executeCommand(HIDE_NOTIFICATIONS_CENTER);
-
-		return Promise.resolve();
 	}
 }
 
@@ -86,10 +80,8 @@ export class ExpandNotificationAction extends Action {
 		super(id, label, 'codicon-chevron-up');
 	}
 
-	run(notification: INotificationViewItem): Promise<any> {
+	async run(notification: INotificationViewItem): Promise<any> {
 		this.commandService.executeCommand(EXPAND_NOTIFICATION, notification);
-
-		return Promise.resolve();
 	}
 }
 
@@ -106,10 +98,8 @@ export class CollapseNotificationAction extends Action {
 		super(id, label, 'codicon-chevron-down');
 	}
 
-	run(notification: INotificationViewItem): Promise<any> {
+	async run(notification: INotificationViewItem): Promise<any> {
 		this.commandService.executeCommand(COLLAPSE_NOTIFICATION, notification);
-
-		return Promise.resolve();
 	}
 }
 

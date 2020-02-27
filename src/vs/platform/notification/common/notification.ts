@@ -6,7 +6,7 @@
 import BaseSeverity from 'vs/base/common/severity';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IAction } from 'vs/base/common/actions';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 export import Severity = BaseSeverity;
@@ -101,6 +101,12 @@ export interface INotification extends INotificationProperties {
 	 * this usecase and much easier to use!
 	 */
 	actions?: INotificationActions;
+
+	/**
+	 * The initial set of progress properties for the notification. To update progress
+	 * later on, access the `INotificationHandle.progress` property.
+	 */
+	progress?: INotificationProgressProperties;
 }
 
 export interface INotificationActions {
@@ -117,6 +123,24 @@ export interface INotificationActions {
 	 * close automatically when invoking a secondary action.
 	 */
 	secondary?: ReadonlyArray<IAction>;
+}
+
+export interface INotificationProgressProperties {
+
+	/**
+	 * Causes the progress bar to spin infinitley.
+	 */
+	infinite?: boolean;
+
+	/**
+	 * Indicate the total amount of work.
+	 */
+	total?: number;
+
+	/**
+	 * Indicate that a specific chunk of work is done.
+	 */
+	worked?: number;
 }
 
 export interface INotificationProgress {
@@ -148,6 +172,13 @@ export interface INotificationHandle {
 	 * Will be fired once the notification is closed.
 	 */
 	readonly onDidClose: Event<void>;
+
+	/**
+	 * Will be fired whenever the visibility of the notification changes.
+	 * A notification can either be visible as toast or inside the notification
+	 * center if it is visible. 
+	 */
+	readonly onDidChangeVisibility: Event<boolean>;
 
 	/**
 	 * Allows to indicate progress on the notification even after the
@@ -318,16 +349,14 @@ export class NoOpNotification implements INotificationHandle {
 
 	readonly progress = new NoOpProgress();
 
-	private readonly _onDidClose: Emitter<void> = new Emitter();
-	readonly onDidClose: Event<void> = this._onDidClose.event;
+	readonly onDidClose = Event.None;
+	readonly onDidChangeVisibility = Event.None;
 
 	updateSeverity(severity: Severity): void { }
 	updateMessage(message: NotificationMessage): void { }
 	updateActions(actions?: INotificationActions): void { }
 
-	close(): void {
-		this._onDidClose.dispose();
-	}
+	close(): void { }
 }
 
 export class NoOpProgress implements INotificationProgress {

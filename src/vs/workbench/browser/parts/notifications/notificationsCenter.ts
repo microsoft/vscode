@@ -11,7 +11,7 @@ import { INotificationsModel, INotificationChangeEvent, NotificationChangeType }
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { Emitter } from 'vs/base/common/event';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { NotificationsCenterVisibleContext } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
+import { NotificationsCenterVisibleContext, INotificationsCenterController } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { NotificationsList } from 'vs/workbench/browser/parts/notifications/notificationsList';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { addClass, removeClass, isAncestor, Dimension } from 'vs/base/browser/dom';
@@ -24,7 +24,7 @@ import { IAction } from 'vs/base/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { assertAllDefined, assertIsDefined } from 'vs/base/common/types';
 
-export class NotificationsCenter extends Themable {
+export class NotificationsCenter extends Themable implements INotificationsCenterController {
 
 	private static readonly MAX_DIMENSIONS = new Dimension(450, 400);
 
@@ -58,7 +58,7 @@ export class NotificationsCenter extends Themable {
 	}
 
 	private registerListeners(): void {
-		this._register(this.model.onDidNotificationChange(e => this.onDidNotificationChange(e)));
+		this._register(this.model.onDidChangeNotification(e => this.onDidChangeNotification(e)));
 		this._register(this.layoutService.onLayout(dimension => this.layout(dimension)));
 	}
 
@@ -100,6 +100,9 @@ export class NotificationsCenter extends Themable {
 		// Theming
 		this.updateStyles();
 
+		// Mark as visible
+		this.model.notifications.forEach(notification => notification.updateVisibility(true));
+
 		// Context Key
 		this.notificationsCenterVisibleContextKey.set(true);
 
@@ -115,7 +118,7 @@ export class NotificationsCenter extends Themable {
 			clearAllAction.enabled = false;
 		} else {
 			notificationsCenterTitle.textContent = localize('notifications', "Notifications");
-			clearAllAction.enabled = true;
+			clearAllAction.enabled = this.model.notifications.some(notification => !notification.hasProgress);
 		}
 	}
 
@@ -167,25 +170,27 @@ export class NotificationsCenter extends Themable {
 		return keybinding ? keybinding.getLabel() : null;
 	}
 
-	private onDidNotificationChange(e: INotificationChangeEvent): void {
+	private onDidChangeNotification(e: INotificationChangeEvent): void {
 		if (!this._isVisible) {
 			return; // only if visible
 		}
 
-		let focusGroup = false;
+		let focusEditor = false;
 
 		// Update notifications list based on event
 		const [notificationsList, notificationsCenterContainer] = assertAllDefined(this.notificationsList, this.notificationsCenterContainer);
 		switch (e.kind) {
 			case NotificationChangeType.ADD:
 				notificationsList.updateNotificationsList(e.index, 0, [e.item]);
+				e.item.updateVisibility(true);
 				break;
 			case NotificationChangeType.CHANGE:
 				notificationsList.updateNotificationsList(e.index, 1, [e.item]);
 				break;
 			case NotificationChangeType.REMOVE:
-				focusGroup = isAncestor(document.activeElement, notificationsCenterContainer);
+				focusEditor = isAncestor(document.activeElement, notificationsCenterContainer);
 				notificationsList.updateNotificationsList(e.index, 1);
+				e.item.updateVisibility(false);
 				break;
 		}
 
@@ -197,7 +202,7 @@ export class NotificationsCenter extends Themable {
 			this.hide();
 
 			// Restore focus to editor group if we had focus
-			if (focusGroup) {
+			if (focusEditor) {
 				this.editorGroupService.activeGroup.focus();
 			}
 		}
@@ -208,12 +213,15 @@ export class NotificationsCenter extends Themable {
 			return; // already hidden
 		}
 
-		const focusGroup = isAncestor(document.activeElement, this.notificationsCenterContainer);
+		const focusEditor = isAncestor(document.activeElement, this.notificationsCenterContainer);
 
 		// Hide
 		this._isVisible = false;
 		removeClass(this.notificationsCenterContainer, 'visible');
 		this.notificationsList.hide();
+
+		// Mark as hidden
+		this.model.notifications.forEach(notification => notification.updateVisibility(false));
 
 		// Context Key
 		this.notificationsCenterVisibleContextKey.set(false);
@@ -222,7 +230,7 @@ export class NotificationsCenter extends Themable {
 		this._onDidChangeVisibility.fire();
 
 		// Restore focus to editor group if we had focus
-		if (focusGroup) {
+		if (focusEditor) {
 			this.editorGroupService.activeGroup.focus();
 		}
 	}
@@ -284,8 +292,10 @@ export class NotificationsCenter extends Themable {
 		this.hide();
 
 		// Close all
-		while (this.model.notifications.length) {
-			this.model.notifications[0].close();
+		for (const notification of this.model.notifications) {
+			if (!notification.hasProgress) {
+				notification.close();
+			}
 		}
 	}
 }

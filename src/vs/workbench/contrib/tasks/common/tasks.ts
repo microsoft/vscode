@@ -438,7 +438,7 @@ export interface KeyedTaskIdentifier extends TaskIdentifier {
 }
 
 export interface TaskDependency {
-	uri: URI;
+	uri: URI | string;
 	task: string | KeyedTaskIdentifier | undefined;
 }
 

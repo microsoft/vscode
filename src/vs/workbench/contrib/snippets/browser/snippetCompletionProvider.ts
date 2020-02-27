@@ -154,7 +154,7 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 		});
 	}
 
-	resolveCompletionItem?(model: ITextModel, position: Position, item: CompletionItem): CompletionItem {
+	resolveCompletionItem(_model: ITextModel, _position: Position, item: CompletionItem): CompletionItem {
 		return (item instanceof SnippetCompletion) ? item.resolve() : item;
 	}
 

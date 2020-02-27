@@ -10,6 +10,7 @@ import { mkdir } from 'fs';
 import { promisify } from 'util';
 import { IDriver, IDisposable } from './driver';
 import { URI } from 'vscode-uri';
+import * as kill from 'tree-kill';
 
 const width = 1200;
 const height = 800;
@@ -93,6 +94,7 @@ let workspacePath: string | undefined;
 
 export async function launch(userDataDir: string, _workspacePath: string, codeServerPath = process.env.VSCODE_REMOTE_SERVER_PATH): Promise<void> {
 	workspacePath = _workspacePath;
+
 	const agentFolder = userDataDir;
 	await promisify(mkdir)(agentFolder);
 	const env = {
@@ -121,7 +123,7 @@ export async function launch(userDataDir: string, _workspacePath: string, codeSe
 
 function teardown(): void {
 	if (server) {
-		server.kill();
+		kill(server.pid);
 		server = undefined;
 	}
 }
@@ -137,15 +139,12 @@ function waitForEndpoint(): Promise<string> {
 	});
 }
 
-export function connect(headless: boolean, engine: 'chromium' | 'webkit' | 'firefox' = 'chromium'): Promise<{ client: IDisposable, driver: IDriver }> {
+export function connect(browserType: 'chromium' | 'webkit' | 'firefox' = 'chromium'): Promise<{ client: IDisposable, driver: IDriver }> {
 	return new Promise(async (c) => {
-		const browser = await playwright[engine].launch({
-			// Run in Edge dev on macOS
-			// executablePath: '/Applications/Microsoft\ Edge\ Dev.app/Contents/MacOS/Microsoft\ Edge\ Dev',
-			headless
-		});
-		const page = (await browser.defaultContext().pages())[0];
-		await page.setViewport({ width, height });
+		const browser = await playwright[browserType].launch({ headless: false, dumpio: true });
+		const context = await browser.newContext();
+		const page = await context.newPage();
+		await page.setViewportSize({ width, height });
 		await page.goto(`${endpoint}&folder=vscode-remote://localhost:9888${URI.file(workspacePath!).path}`);
 		const result = {
 			client: { dispose: () => browser.close() && teardown() },

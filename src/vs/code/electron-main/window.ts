@@ -32,6 +32,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 
 const RUN_TEXTMATE_IN_WORKER = false;
 
@@ -100,7 +101,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		@IWorkspacesMainService private readonly workspacesMainService: IWorkspacesMainService,
 		@IBackupMainService private readonly backupMainService: IBackupMainService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IDialogMainService private readonly dialogMainService: IDialogMainService
+		@IDialogMainService private readonly dialogMainService: IDialogMainService,
+		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService
 	) {
 		super();
 
@@ -243,6 +245,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	get isExtensionDevelopmentHost(): boolean { return !!(this.config && this.config.extensionDevelopmentPath); }
 
 	get isExtensionTestHost(): boolean { return !!(this.config && this.config.extensionTestsPath); }
+
+	get isExtensionDevelopmentTestFromCli(): boolean { return this.isExtensionDevelopmentHost && this.isExtensionTestHost && !this.config?.debugId; }
 
 	setRepresentedFilename(filename: string): void {
 		if (isMacintosh) {
@@ -447,6 +451,15 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private onWindowError(error: WindowError): void {
 		this.logService.error(error === WindowError.CRASHED ? '[VS Code]: render process crashed!' : '[VS Code]: detected unresponsive');
 
+		// If we run extension tests from CLI, showing a dialog is not
+		// very helpful in this case. Rather, we bring down the test run
+		// to signal back a failing run.
+		if (this.isExtensionDevelopmentTestFromCli) {
+			this.lifecycleMainService.kill(1);
+			return;
+		}
+
+		// Telemetry
 		type WindowErrorClassification = {
 			type: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
 		};

@@ -8,6 +8,8 @@ import { EditorInput } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 
 class MyEditorInput extends EditorInput {
+	readonly resource = undefined;
+
 	getTypeId(): string { return ''; }
 	resolve(): any { return null; }
 }

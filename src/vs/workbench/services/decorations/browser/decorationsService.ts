@@ -175,7 +175,7 @@ class FileDecorationChangeEvent implements IResourceDecorationChangeEvent {
 		return this._data.get(uri.toString()) || this._data.findSuperstr(uri.toString()) !== undefined;
 	}
 
-	static debouncer(last: FileDecorationChangeEvent, current: URI | URI[]) {
+	static debouncer(last: FileDecorationChangeEvent | undefined, current: URI | URI[]) {
 		if (!last) {
 			last = new FileDecorationChangeEvent();
 		}

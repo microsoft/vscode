@@ -21,14 +21,16 @@ then
 	echo "Running integration tests out of sources."
 else
 	# Run from a built: need to compile all test extensions
-	yarn gulp compile-extension:vscode-api-tests
-	yarn gulp compile-extension:vscode-colorize-tests
-	yarn gulp compile-extension:markdown-language-features
-	yarn gulp compile-extension:emmet
-	yarn gulp compile-extension:css-language-features-server
-	yarn gulp compile-extension:html-language-features-server
-	yarn gulp compile-extension:json-language-features-server
-	yarn gulp compile-extension:git
+	# because we run extension tests from their source folders
+	# and the build bundles extensions into .build webpacked
+	yarn gulp 	compile-extension:vscode-api-tests \
+				compile-extension:vscode-colorize-tests \
+				compile-extension:markdown-language-features \
+				compile-extension:emmet \
+				compile-extension:css-language-features-server \
+				compile-extension:html-language-features-server \
+				compile-extension:json-language-features-server \
+				compile-extension:git
 
 	# Configuration for more verbose output
 	export VSCODE_CLI=1
@@ -48,12 +50,6 @@ fi
 "$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_NO_SANDBOX $ROOT/extensions/markdown-language-features/out/test/test-fixtures --extensionDevelopmentPath=$ROOT/extensions/markdown-language-features --extensionTestsPath=$ROOT/extensions/markdown-language-features/out/test --disable-telemetry --disable-crash-reporter --disable-updates --disable-extensions --skip-getting-started --user-data-dir=$VSCODEUSERDATADIR
 "$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_NO_SANDBOX $ROOT/extensions/emmet/out/test/test-fixtures --extensionDevelopmentPath=$ROOT/extensions/emmet --extensionTestsPath=$ROOT/extensions/emmet/out/test --disable-telemetry --disable-crash-reporter --disable-updates --disable-extensions --skip-getting-started  --user-data-dir=$VSCODEUSERDATADIR
 "$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_NO_SANDBOX $(mktemp -d 2>/dev/null) --extensionDevelopmentPath=$ROOT/extensions/git --extensionTestsPath=$ROOT/extensions/git/out/test --disable-telemetry --disable-crash-reporter --disable-updates --disable-extensions --skip-getting-started --user-data-dir=$VSCODEUSERDATADIR
-
-
-# Remote Integration Tests
-if [ -f ./resources/server/test/test-remote-integration.sh ]; then
-	./resources/server/test/test-remote-integration.sh
-fi
 
 # Tests in commonJS
 cd $ROOT/extensions/css-language-features/server && $ROOT/scripts/node-electron.sh test/index.js

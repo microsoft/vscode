@@ -515,22 +515,6 @@ connection.onRequest(MatchingTagPositionRequest.type, (params, token) => {
 	}, null, `Error while computing matching tag position for ${params.textDocument.uri}`, token);
 });
 
-connection.onRequest(MatchingTagPositionRequest.type, (params, token) => {
-	return runSafe(() => {
-		const document = documents.get(params.textDocument.uri);
-		if (document) {
-			const pos = params.position;
-			if (pos.character > 0) {
-				const mode = languageModes.getModeAtPosition(document, Position.create(pos.line, pos.character - 1));
-				if (mode && mode.findMatchingTagPosition) {
-					return mode.findMatchingTagPosition(document, pos);
-				}
-			}
-		}
-		return null;
-	}, null, `Error while computing matching tag position for ${params.textDocument.uri}`, token);
-});
-
 let semanticTokensProvider: SemanticTokenProvider | undefined;
 function getSemanticTokenProvider() {
 	if (!semanticTokensProvider) {

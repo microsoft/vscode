@@ -52,7 +52,7 @@ export function toDecodeStream(readable: Readable, options: IDecodeStreamOptions
 			private bufferedChunks: Buffer[] = [];
 			private bytesBuffered = 0;
 
-			_write(chunk: Buffer, encoding: string, callback: (error: Error | null) => void): void {
+			_write(chunk: Buffer, encoding: string, callback: (error: Error | null | undefined) => void): void {
 				if (!Buffer.isBuffer(chunk)) {
 					return callback(new Error('toDecodeStream(): data must be a buffer'));
 				}
@@ -84,7 +84,7 @@ export function toDecodeStream(readable: Readable, options: IDecodeStreamOptions
 				}
 			}
 
-			_startDecodeStream(callback: (error: Error | null) => void): void {
+			_startDecodeStream(callback: (error: Error | null | undefined) => void): void {
 
 				// detect encoding from buffer
 				this.decodeStreamPromise = Promise.resolve(detectEncodingFromBuffer({
@@ -140,10 +140,6 @@ export function toDecodeStream(readable: Readable, options: IDecodeStreamOptions
 
 export function decode(buffer: Buffer, encoding: string): string {
 	return iconv.decode(buffer, toNodeEncoding(encoding));
-}
-
-export function encode(content: string | Buffer, encoding: string, options?: { addBOM?: boolean }): Buffer {
-	return iconv.encode(content as string /* TODO report into upstream typings */, toNodeEncoding(encoding), options);
 }
 
 export function encodingExists(encoding: string): boolean {

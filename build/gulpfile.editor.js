@@ -16,6 +16,8 @@ const cp = require('child_process');
 const compilation = require('./lib/compilation');
 const monacoapi = require('./monaco/api');
 const fs = require('fs');
+const webpack = require('webpack');
+const webpackGulp = require('webpack-stream');
 
 let root = path.dirname(__dirname);
 let sha1 = util.getVersion(root);
@@ -355,6 +357,49 @@ gulp.task('editor-distro',
 			)
 		),
 		finalEditorResourcesTask
+	)
+);
+
+const bundleEditorESMTask = task.define('editor-esm-bundle-webpack', () => {
+	const result = es.through();
+
+	const webpackConfigPath = path.join(root, 'build/monaco/monaco.webpack.config.js');
+
+	const webpackConfig = {
+		...require(webpackConfigPath),
+		...{ mode: 'production' }
+	};
+
+	const webpackDone = (err, stats) => {
+		if (err) {
+			result.emit('error', err);
+			return;
+		}
+		const { compilation } = stats;
+		if (compilation.errors.length > 0) {
+			result.emit('error', compilation.errors.join('\n'));
+		}
+		if (compilation.warnings.length > 0) {
+			result.emit('data', compilation.warnings.join('\n'));
+		}
+	};
+
+	return webpackGulp(webpackConfig, webpack, webpackDone)
+		.pipe(gulp.dest('out-editor-esm-bundle'));
+});
+
+gulp.task('editor-esm-bundle',
+	task.series(
+		task.parallel(
+			util.rimraf('out-editor-src'),
+			util.rimraf('out-editor-esm'),
+			util.rimraf('out-monaco-editor-core'),
+			util.rimraf('out-editor-esm-bundle'),
+		),
+		extractEditorSrcTask,
+		createESMSourcesAndResourcesTask,
+		compileEditorESMTask,
+		bundleEditorESMTask,
 	)
 );
 

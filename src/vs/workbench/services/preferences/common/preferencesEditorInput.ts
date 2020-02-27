@@ -75,6 +75,8 @@ export class KeybindingsEditorInput extends EditorInput {
 
 	searchOptions: IKeybindingsEditorSearchOptions | null = null;
 
+	readonly resource = undefined;
+
 	constructor(@IInstantiationService instantiationService: IInstantiationService) {
 		super();
 		this.keybindingsModel = instantiationService.createInstance(KeybindingsEditorModel, OS);
@@ -101,7 +103,8 @@ export class SettingsEditor2Input extends EditorInput {
 
 	static readonly ID: string = 'workbench.input.settings2';
 	private readonly _settingsModel: Settings2EditorModel;
-	private resource: URI = URI.from({
+
+	readonly resource: URI = URI.from({
 		scheme: 'vscode-settings',
 		path: `settingseditor`
 	});
@@ -128,9 +131,5 @@ export class SettingsEditor2Input extends EditorInput {
 
 	resolve(): Promise<Settings2EditorModel> {
 		return Promise.resolve(this._settingsModel);
-	}
-
-	getResource(): URI {
-		return this.resource;
 	}
 }

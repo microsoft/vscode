@@ -83,7 +83,15 @@ class MyCompletionItem extends vscode.CompletionItem {
 		if (completionContext.isMemberCompletion && completionContext.dotAccessorContext) {
 			this.filterText = completionContext.dotAccessorContext.text + (this.insertText || this.label);
 			if (!this.range) {
-				this.range = completionContext.dotAccessorContext.range;
+				const replacementRange = this.getReplaceRange(line);
+				if (replacementRange) {
+					this.range = {
+						inserting: completionContext.dotAccessorContext.range,
+						replacing: completionContext.dotAccessorContext.range.union(replacementRange),
+					};
+				} else {
+					this.range = completionContext.dotAccessorContext.range;
+				}
 				this.insertText = this.filterText;
 			}
 		}
@@ -135,7 +143,6 @@ class MyCompletionItem extends vscode.CompletionItem {
 			} else {
 				return wordStart === '#' ? undefined : this.tsEntry.name.replace(/^#/, '');
 			}
-			return undefined;
 		}
 
 		// For `this.` completions, generally don't set the filter text since we don't want them to be overly prioritized. #74164
@@ -162,6 +169,16 @@ class MyCompletionItem extends vscode.CompletionItem {
 			return;
 		}
 
+		const replaceRange = this.getReplaceRange(line);
+		if (replaceRange) {
+			this.range = {
+				inserting: new vscode.Range(replaceRange.start, this.position),
+				replacing: replaceRange
+			};
+		}
+	}
+
+	private getReplaceRange(line: string) {
 		const wordRange = this.document.getWordRangeAtPosition(this.position);
 		let replaceRange = wordRange;
 
@@ -177,12 +194,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 			}
 		}
 
-		if (replaceRange) {
-			this.range = {
-				inserting: new vscode.Range(replaceRange.start, this.position),
-				replacing: replaceRange
-			};
-		}
+		return replaceRange;
 	}
 
 	private static convertKind(kind: string): vscode.CompletionItemKind {

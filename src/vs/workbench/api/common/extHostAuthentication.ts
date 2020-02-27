@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import * as modes from 'vs/editor/common/modes';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMainContext, MainContext, MainThreadAuthenticationShape, ExtHostAuthenticationShape } from 'vs/workbench/api/common/extHost.protocol';
@@ -11,7 +11,7 @@ import { Disposable } from 'vs/workbench/api/common/extHostTypes';
 import { IExtensionDescription, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export class AuthenticationProviderWrapper implements vscode.AuthenticationProvider {
-	onDidChangeSessions: Event<void>;
+	readonly onDidChangeSessions: vscode.Event<void>;
 
 	constructor(private _requestingExtension: IExtensionDescription,
 		private _provider: vscode.AuthenticationProvider,
@@ -34,7 +34,7 @@ export class AuthenticationProviderWrapper implements vscode.AuthenticationProvi
 				id: session.id,
 				accountName: session.accountName,
 				scopes: session.scopes,
-				accessToken: async () => {
+				getAccessToken: async () => {
 					const isAllowed = await this._proxy.$getSessionsPrompt(
 						this._provider.id,
 						this.displayName,
@@ -45,7 +45,7 @@ export class AuthenticationProviderWrapper implements vscode.AuthenticationProvi
 						throw new Error('User did not consent to token access.');
 					}
 
-					return session.accessToken();
+					return session.getAccessToken();
 				}
 			};
 		});
@@ -60,7 +60,7 @@ export class AuthenticationProviderWrapper implements vscode.AuthenticationProvi
 		return this._provider.login(scopes);
 	}
 
-	logout(sessionId: string): Promise<void> {
+	logout(sessionId: string): Thenable<void> {
 		return this._provider.logout(sessionId);
 	}
 }
@@ -137,7 +137,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 			const sessions = await authProvider.getSessions();
 			const session = sessions.find(session => session.id === sessionId);
 			if (session) {
-				return session.accessToken();
+				return session.getAccessToken();
 			}
 
 			throw new Error(`Unable to find session with id: ${sessionId}`);

@@ -11,7 +11,7 @@ import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { Cursor } from 'vs/editor/common/controller/cursor';
 import { IConfiguration, IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { TestCodeEditorService, TestCommandService } from 'vs/editor/test/browser/editorTestServices';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
@@ -77,13 +77,14 @@ export function withTestCodeEditor(text: string | string[] | null, options: Test
 	// create a model if necessary and remember it in order to dispose it.
 	if (!options.model) {
 		if (typeof text === 'string') {
-			options.model = TextModel.createFromString(text);
+			options.model = createTextModel(text);
 		} else if (text) {
-			options.model = TextModel.createFromString(text.join('\n'));
+			options.model = createTextModel(text.join('\n'));
 		}
 	}
 
 	let editor = <TestCodeEditor>createTestCodeEditor(options);
+	editor.getCursor()!.setHasFocus(true);
 	callback(editor, editor.getCursor()!);
 
 	editor.dispose();

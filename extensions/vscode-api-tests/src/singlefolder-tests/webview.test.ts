@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'mocha';
 import * as assert from 'assert';
-import * as vscode from 'vscode';
+import 'mocha';
+import * as os from 'os';
 import { join } from 'path';
-import { closeAllEditors, disposeAll, conditionalTest } from '../utils';
+import * as vscode from 'vscode';
+import { closeAllEditors, conditionalTest, delay, disposeAll } from '../utils';
 
 const webviewId = 'myWebview';
 
 const testDocument = join(vscode.workspace.rootPath || '', './bower.json');
 
-// TODO: Re-enable after https://github.com/microsoft/vscode/issues/88415
-('electron' in process.versions ? suite.skip : suite)('Webview tests', () => {
+suite('Webview tests', () => {
 	const disposables: vscode.Disposable[] = [];
 
 	function _register<T extends vscode.Disposable>(disposable: T) {
@@ -333,8 +333,30 @@ const testDocument = join(vscode.workspace.rootPath || '', './bower.json');
 		webview.webview.postMessage({ value: 1 });
 		await firstResponse;
 		assert.strictEqual(webview.viewColumn, vscode.ViewColumn.One);
-
 	});
+
+	if (os.platform() === 'darwin') {
+		conditionalTest('webview can copy text from webview', async () => {
+			const expectedText = `webview text from: ${Date.now()}!`;
+
+			const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true, retainContextWhenHidden: true }));
+			const ready = getMesssage(webview);
+
+
+			webview.webview.html = createHtmlDocumentWithBody(/*html*/`
+			<b>${expectedText}</b>
+			<script>
+				const vscode = acquireVsCodeApi();
+				document.execCommand('selectAll');
+				vscode.postMessage({ type: 'ready' });
+			</script>`);
+			await ready;
+
+			await vscode.commands.executeCommand('editor.action.webvieweditor.copy');
+			await delay(200); // Make sure copy has time to reach webview
+			assert.strictEqual(await vscode.env.clipboard.readText(), expectedText);
+		});
+	}
 });
 
 function createHtmlDocumentWithBody(body: string): string {

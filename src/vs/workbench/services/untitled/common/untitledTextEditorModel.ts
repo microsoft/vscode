@@ -8,7 +8,7 @@ import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel'
 import { URI } from 'vs/base/common/uri';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { ITextBufferFactory, ITextModel } from 'vs/editor/common/model';
@@ -20,13 +20,50 @@ import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvent
 import { withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export interface IUntitledTextEditorModel extends ITextEditorModel, IModeSupport, IEncodingSupport, IWorkingCopy {
+
+	/**
+	 * Emits an event when the encoding of this untitled model changes.
+	 */
+	readonly onDidChangeEncoding: Event<void>;
+
+	/**
+	 * Emits an event when the name of this untitled model changes.
+	 */
+	readonly onDidChangeName: Event<void>;
+
+	/**
+	 * Emits an event when this untitled model is reverted.
+	 */
+	readonly onDidRevert: Event<void>;
 
 	/**
 	 * Wether this untitled text model has an associated file path.
 	 */
 	readonly hasAssociatedFilePath: boolean;
+
+	/**
+	 * Wether this model has an explicit language mode or not.
+	 */
+	readonly hasModeSetExplicitly: boolean;
+
+	/**
+	 * Sets the encoding to use for this untitled model.
+	 */
+	setEncoding(encoding: string): void;
+
+	/**
+	 * Load the untitled model.
+	 */
+	load(): Promise<IUntitledTextEditorModel & IResolvedTextEditorModel>;
+
+	/**
+	 * Updates the value of the untitled model optionally allowing to ignore dirty.
+	 * The model must be resolved for this method to work.
+	 */
+	setValue(this: IResolvedTextEditorModel, value: string, ignoreDirty?: boolean): void;
 }
 
 export class UntitledTextEditorModel extends BaseTextEditorModel implements IUntitledTextEditorModel {
@@ -45,6 +82,9 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	private readonly _onDidChangeEncoding = this._register(new Emitter<void>());
 	readonly onDidChangeEncoding = this._onDidChangeEncoding.event;
 
+	private readonly _onDidRevert = this._register(new Emitter<void>());
+	readonly onDidRevert = this._onDidRevert.event;
+
 	readonly capabilities = WorkingCopyCapabilities.Untitled;
 
 	private cachedModelFirstLineWords: string | undefined = undefined;
@@ -52,7 +92,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		// Take name from first line if present and only if
 		// we have no associated file path. In that case we
 		// prefer the file name as title.
-		if (!this.hasAssociatedFilePath && this.cachedModelFirstLineWords) {
+		if (this.configuredLabelFormat === 'content' && !this.hasAssociatedFilePath && this.cachedModelFirstLineWords) {
 			return this.cachedModelFirstLineWords;
 		}
 
@@ -60,17 +100,19 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		return this.labelService.getUriBasenameLabel(this.resource);
 	}
 
-	private dirty = false;
+	private dirty = this.hasAssociatedFilePath || !!this.initialValue;
 	private ignoreDirtyOnModelContentChange = false;
 
 	private versionId = 0;
+
 	private configuredEncoding: string | undefined;
+	private configuredLabelFormat: 'content' | 'name' = 'content';
 
 	constructor(
-		private readonly preferredMode: string | undefined,
 		public readonly resource: URI,
 		public readonly hasAssociatedFilePath: boolean,
 		private readonly initialValue: string | undefined,
+		private preferredMode: string | undefined,
 		private preferredEncoding: string | undefined,
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
@@ -78,12 +120,20 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@ITextFileService private readonly textFileService: ITextFileService,
-		@ILabelService private readonly labelService: ILabelService
+		@ILabelService private readonly labelService: ILabelService,
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super(modelService, modeService);
 
 		// Make known to working copy service
 		this._register(this.workingCopyService.registerWorkingCopy(this));
+
+		if (preferredMode) {
+			this.setMode(preferredMode);
+		}
+
+		// Fetch config
+		this.onConfigurationChange(false);
 
 		this.registerListeners();
 	}
@@ -91,23 +141,59 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	private registerListeners(): void {
 
 		// Config Changes
-		this._register(this.textResourceConfigurationService.onDidChangeConfiguration(e => this.onConfigurationChange()));
+		this._register(this.textResourceConfigurationService.onDidChangeConfiguration(e => this.onConfigurationChange(true)));
 	}
 
-	private onConfigurationChange(): void {
-		const configuredEncoding = this.textResourceConfigurationService.getValue<string>(this.resource, 'files.encoding');
+	private onConfigurationChange(fromEvent: boolean): void {
 
+		// Encoding
+		const configuredEncoding = this.textResourceConfigurationService.getValue<string>(this.resource, 'files.encoding');
 		if (this.configuredEncoding !== configuredEncoding) {
 			this.configuredEncoding = configuredEncoding;
 
-			if (!this.preferredEncoding) {
+			if (fromEvent && !this.preferredEncoding) {
 				this._onDidChangeEncoding.fire(); // do not fire event if we have a preferred encoding set
+			}
+		}
+
+		// Label Format
+		const configuredLabelFormat = this.textResourceConfigurationService.getValue<string>(this.resource, 'workbench.editor.untitled.labelFormat');
+		if (this.configuredLabelFormat !== configuredLabelFormat && (configuredLabelFormat === 'content' || configuredLabelFormat === 'name')) {
+			this.configuredLabelFormat = configuredLabelFormat;
+
+			if (fromEvent) {
+				this._onDidChangeName.fire();
 			}
 		}
 	}
 
 	getVersionId(): number {
 		return this.versionId;
+	}
+
+	private _hasModeSetExplicitly: boolean = false;
+	get hasModeSetExplicitly(): boolean { return this._hasModeSetExplicitly; }
+
+	setMode(mode: string): void {
+
+		// Remember that an explicit mode was set
+		this._hasModeSetExplicitly = true;
+
+		let actualMode: string | undefined = undefined;
+		if (mode === '${activeEditorLanguage}') {
+			// support the special '${activeEditorLanguage}' mode by
+			// looking up the language mode from the currently
+			// active text editor if any
+			actualMode = this.editorService.activeTextEditorMode;
+		} else {
+			actualMode = mode;
+		}
+
+		this.preferredMode = actualMode;
+
+		if (actualMode) {
+			super.setMode(actualMode);
+		}
 	}
 
 	getMode(): string | undefined {
@@ -170,6 +256,9 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	async revert(): Promise<boolean> {
 		this.setDirty(false);
 
+		// Emit as event
+		this._onDidRevert.fire();
+
 		// A reverted untitled model is invalid because it has
 		// no actual source on disk to revert to. As such we
 		// dispose the model.
@@ -195,35 +284,41 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		}
 
 		// Create text editor model if not yet done
+		let createdUntitledModel = false;
 		if (!this.textEditorModel) {
 			this.createTextEditorModel(untitledContents, this.resource, this.preferredMode);
+			createdUntitledModel = true;
 		}
 
-		// Otherwise update
+		// Otherwise: the untitled model already exists and we must assume
+		// that the value of the model was changed by the user. As such we
+		// do not update the contents, only the mode if configured.
 		else {
-			this.updateTextEditorModel(untitledContents, this.preferredMode);
+			this.updateTextEditorModel(undefined, this.preferredMode);
 		}
-
-		// Figure out encoding now that model is present
-		this.configuredEncoding = this.textResourceConfigurationService.getValue<string>(this.resource, 'files.encoding');
 
 		// Listen to text model events
 		const textEditorModel = assertIsDefined(this.textEditorModel);
 		this._register(textEditorModel.onDidChangeContent(e => this.onModelContentChanged(textEditorModel, e)));
-		this._register(textEditorModel.onDidChangeLanguage(() => this.onConfigurationChange())); // mode change can have impact on config
+		this._register(textEditorModel.onDidChangeLanguage(() => this.onConfigurationChange(true))); // mode change can have impact on config
 
-		// Name
-		if (backup || this.initialValue) {
-			this.updateNameFromFirstLine();
-		}
+		// Only adjust name and dirty state etc. if we
+		// actually created the untitled model
+		if (createdUntitledModel) {
 
-		// Untitled associated to file path are dirty right away as well as untitled with content
-		this.setDirty(this.hasAssociatedFilePath || !!backup || !!this.initialValue);
+			// Name
+			if (backup || this.initialValue) {
+				this.updateNameFromFirstLine();
+			}
 
-		// If we have initial contents, make sure to emit this
-		// as the appropiate events to the outside.
-		if (backup || this.initialValue) {
-			this._onDidChangeContent.fire();
+			// Untitled associated to file path are dirty right away as well as untitled with content
+			this.setDirty(this.hasAssociatedFilePath || !!backup || !!this.initialValue);
+
+			// If we have initial contents, make sure to emit this
+			// as the appropiate events to the outside.
+			if (backup || this.initialValue) {
+				this._onDidChangeContent.fire();
+			}
 		}
 
 		return this as UntitledTextEditorModel & IResolvedTextEditorModel;

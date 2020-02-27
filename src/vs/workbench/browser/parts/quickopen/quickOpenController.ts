@@ -817,7 +817,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 }
 
 function resourceForEditorHistory(input: EditorInput, fileService: IFileService): URI | undefined {
-	const resource = input ? input.getResource() : undefined;
+	const resource = input ? input.resource : undefined;
 
 	// For the editor history we only prefer resources that are either untitled or
 	// can be handled by the file service which indicates they are editable resources.

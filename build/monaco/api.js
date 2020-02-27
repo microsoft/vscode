@@ -135,11 +135,12 @@ function getMassagedTopLevelDeclarationText(sourceFile, declaration, importName,
                 }
                 else {
                     const memberName = member.name.text;
+                    const memberAccess = (memberName.indexOf('.') >= 0 ? `['${memberName}']` : `.${memberName}`);
                     if (isStatic(member)) {
-                        usage.push(`a = ${staticTypeName}.${memberName};`);
+                        usage.push(`a = ${staticTypeName}${memberAccess};`);
                     }
                     else {
-                        usage.push(`a = (<${instanceTypeName}>b).${memberName};`);
+                        usage.push(`a = (<${instanceTypeName}>b)${memberAccess};`);
                     }
                 }
             }

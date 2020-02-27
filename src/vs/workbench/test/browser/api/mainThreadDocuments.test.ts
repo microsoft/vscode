@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { BoundModelReferenceCollection } from 'vs/workbench/api/browser/mainThreadDocuments';
-import { TextModel } from 'vs/editor/common/model/textModel';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { timeout } from 'vs/base/common/async';
 
 suite('BoundModelReferenceCollection', () => {
@@ -21,7 +21,7 @@ suite('BoundModelReferenceCollection', () => {
 		let didDispose = false;
 
 		col.add({
-			object: <any>{ textEditorModel: TextModel.createFromString('farboo') },
+			object: <any>{ textEditorModel: createTextModel('farboo') },
 			dispose() {
 				didDispose = true;
 			}
@@ -36,20 +36,20 @@ suite('BoundModelReferenceCollection', () => {
 		let disposed: number[] = [];
 
 		col.add({
-			object: <any>{ textEditorModel: TextModel.createFromString('farboo') },
+			object: <any>{ textEditorModel: createTextModel('farboo') },
 			dispose() {
 				disposed.push(0);
 			}
 		});
 		col.add({
-			object: <any>{ textEditorModel: TextModel.createFromString('boofar') },
+			object: <any>{ textEditorModel: createTextModel('boofar') },
 			dispose() {
 				disposed.push(1);
 			}
 		});
 
 		col.add({
-			object: <any>{ textEditorModel: TextModel.createFromString(new Array(71).join('x')) },
+			object: <any>{ textEditorModel: createTextModel(new Array(71).join('x')) },
 			dispose() {
 				disposed.push(2);
 			}

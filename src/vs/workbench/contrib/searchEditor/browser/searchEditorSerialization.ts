@@ -42,7 +42,7 @@ const matchToSearchResultFormat = (match: Match): { line: string, ranges: Range[
 
 			const rangeOnThisLine = ({ start, end }: { start?: number; end?: number; }) => new Range(1, (start ?? 1) + prefixOffset, 1, (end ?? sourceLine.length + 1) + prefixOffset);
 
-			const matchRange = match.range();
+			const matchRange = match.rangeInPreview();
 			const matchIsSingleLine = matchRange.startLineNumber === matchRange.endLineNumber;
 
 			let lineRange;
@@ -207,13 +207,18 @@ export const extractSearchQuery = (model: ITextModel | string): SearchConfigurat
 
 export const serializeSearchResultForEditor =
 	(searchResult: SearchResult, rawIncludePattern: string, rawExcludePattern: string, contextLines: number, labelFormatter: (x: URI) => string, includeHeader: boolean): { matchRanges: Range[], text: string } => {
-		const header = (includeHeader
+		const header = includeHeader
 			? contentPatternToSearchResultHeader(searchResult.query, rawIncludePattern, rawExcludePattern, contextLines)
-			: []);
+			: [];
 
-		const resultCount = searchResult.count() ? localize('resultCount', "{0} results in {1} files", searchResult.count(), searchResult.fileCount()) : localize('noResults', "No Results");
-		header.push(resultCount);
-		header.push('');
+		const filecount = searchResult.fileCount() > 1 ? localize('numFiles', "{0} files", searchResult.fileCount()) : localize('oneFile', "1 file");
+		const resultcount = searchResult.count() > 1 ? localize('numResults', "{0} results", searchResult.count()) : localize('oneResult', "1 result");
+
+		const info = [
+			searchResult.count()
+				? `${resultcount} - ${filecount}`
+				: localize('noResults', "No Results"),
+			''];
 
 		const allResults =
 			flattenSearchResultSerializations(
@@ -223,8 +228,8 @@ export const serializeSearchResultForEditor =
 							.map(fileMatch => fileMatchToSearchResultFormat(fileMatch, labelFormatter)))));
 
 		return {
-			matchRanges: allResults.matchRanges.map(translateRangeLines(header.length)),
-			text: header.concat(allResults.text).join(lineDelimiter)
+			matchRanges: allResults.matchRanges.map(translateRangeLines(info.length)),
+			text: header.concat(info).concat(allResults.text).join(lineDelimiter)
 		};
 	};
 

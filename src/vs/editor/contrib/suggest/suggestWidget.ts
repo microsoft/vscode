@@ -244,12 +244,12 @@ class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTemplateD
 			data.signatureLabel.textContent = '';
 			data.qualifierLabel.textContent = '';
 			data.detailsLabel.textContent = (suggestion.detail || '').replace(/\n.*$/m, '');
-			removeClass(data.right, 'always-show-details');
+			addClass(data.root, 'string-label');
 		} else {
 			data.signatureLabel.textContent = (suggestion.label.signature || '').replace(/\n.*$/m, '');
 			data.qualifierLabel.textContent = (suggestion.label.qualifier || '').replace(/\n.*$/m, '');
 			data.detailsLabel.textContent = (suggestion.label.type || '').replace(/\n.*$/m, '');
-			addClass(data.right, 'always-show-details');
+			removeClass(data.root, 'string-label');
 		}
 
 		if (canExpandCompletionItem(element)) {
@@ -552,7 +552,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.messageElement = append(this.element, $('.message'));
 		this.listElement = append(this.element, $('.tree'));
 
-		const applyStatusBarStyle = () => toggleClass(this.element, 'with-status-bar', !this.editor.getOption(EditorOption.suggest).hideStatusBar);
+		const applyStatusBarStyle = () => toggleClass(this.element, 'with-status-bar', this.editor.getOption(EditorOption.suggest).statusBar.visible);
 		applyStatusBarStyle();
 
 		this.statusBarElement = append(this.element, $('.suggest-status-bar'));
