@@ -552,8 +552,8 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				const disposables: DisposableStore = new DisposableStore();
 				const displayName = this.authenticationService.getDisplayName(this.userDataSyncStore!.authenticationProviderId);
 				const quickPick = this.quickInputService.createQuickPick<{ id: string, label: string, description?: string, detail?: string }>();
-				const chooseAnotherItemId = 'chooseAnother';
 				disposables.add(quickPick);
+				const chooseAnotherItemId = 'chooseAnother';
 				quickPick.title = localize('pick account', "{0}: Pick an account", displayName);
 				quickPick.ok = false;
 				quickPick.placeholder = localize('choose account placeholder', "Pick an account for syncing");
@@ -916,7 +916,9 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				return new Promise((c, e) => {
 					const quickInputService = accessor.get(IQuickInputService);
 					const commandService = accessor.get(ICommandService);
+					const disposables = new DisposableStore();
 					const quickPick = quickInputService.createQuickPick();
+					disposables.add(quickPick);
 					const items: Array<IQuickPickItem | IQuickPickSeparator> = [];
 					if (that.userDataSyncService.conflictsSources.length) {
 						for (const source of that.userDataSyncService.conflictsSources) {
@@ -937,7 +939,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					items.push({ type: 'separator' });
 					items.push({ id: stopSyncCommand.id, label: stopSyncCommand.title(that.userDataSyncStore!.authenticationProviderId, that.activeAccount, that.authenticationService) });
 					quickPick.items = items;
-					const disposables = new DisposableStore();
 					disposables.add(quickPick.onDidAccept(() => {
 						if (quickPick.selectedItems[0] && quickPick.selectedItems[0].id) {
 							commandService.executeCommand(quickPick.selectedItems[0].id);
