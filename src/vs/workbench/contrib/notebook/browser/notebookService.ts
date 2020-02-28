@@ -10,7 +10,7 @@ import { notebookProviderExtensionPoint, notebookRendererExtensionPoint } from '
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
 import { Emitter, Event } from 'vs/base/common/event';
-import { INotebook, ICell, INotebookMimeTypeSelector } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebook, ICell, INotebookMimeTypeSelector, INotebookRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
 
@@ -38,7 +38,7 @@ export interface INotebookService {
 	unregisterNotebookProvider(viewType: string): void;
 	registerNotebookRenderer(handle: number, extensionData: NotebookExtensionDescription, type: string, selectors: INotebookMimeTypeSelector, preloads: URI[]): void;
 	unregisterNotebookRenderer(handle: number): void;
-	getRendererPreloads(handle: number): URI[];
+	getRendererPreloads(handle: number): INotebookRendererInfo | undefined;
 	resolveNotebook(viewType: string, uri: URI): Promise<INotebook | undefined>;
 	executeNotebook(viewType: string, uri: URI): Promise<void>;
 	executeNotebookActiveCell(viewType: string, uri: URI): Promise<void>;
@@ -201,8 +201,17 @@ export class NotebookService extends Disposable implements INotebookService {
 		this._notebookRenderers.delete(handle);
 	}
 
-	getRendererPreloads(handle: number): URI[] {
-		return this._notebookRenderers.get(handle)?.preloads || [];
+	getRendererPreloads(handle: number): INotebookRendererInfo | undefined {
+		const renderer = this._notebookRenderers.get(handle);
+
+		if (renderer) {
+			return {
+				extensionLocation: URI.revive(renderer.extensionData.location),
+				preloads: renderer.preloads
+			};
+		}
+
+		return;
 	}
 
 	async resolveNotebook(viewType: string, uri: URI): Promise<INotebook | undefined> {

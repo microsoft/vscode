@@ -31,6 +31,11 @@ export interface INotebookMimeTypeSelector {
 	subTypes?: string[];
 }
 
+export interface INotebookRendererInfo {
+	extensionLocation: URI,
+	preloads: URI[]
+}
+
 /**
  * @internal
  */

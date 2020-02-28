@@ -75,6 +75,8 @@ export class BackLayerWebView extends Disposable {
 	insetMapping: Map<IOutput, { outputId: string, cell: CellViewModel, cacheOffset: number | undefined }> = new Map();
 	reversedInsetMapping: Map<string, IOutput> = new Map();
 	preloadsCache: Map<string, boolean> = new Map();
+	localResourceRootsCache: URI[] | undefined = undefined;
+	rendererRootsCache: URI[] = [];
 
 	constructor(public webviewService: IWebviewService, public notebookService: INotebookService, public notebookEditor: INotebookEditor, public environmentSerice: IEnvironmentService) {
 		super();
@@ -289,11 +291,12 @@ export class BackLayerWebView extends Disposable {
 	}
 
 	private _createInset(webviewService: IWebviewService, content: string) {
+		this.localResourceRootsCache = [...this.notebookService.getNotebookProviderResourceRoots(), URI.file(this.environmentSerice.appRoot)];
 		const webview = webviewService.createWebview('' + UUID.generateUuid(), {
 			enableFindWidget: false,
 		}, {
 			allowScripts: true,
-			localResourceRoots: [...this.notebookService.getNotebookProviderResourceRoots(), URI.file(this.environmentSerice.appRoot)]
+			localResourceRoots: this.localResourceRootsCache
 		});
 		webview.html = content;
 		return webview;
@@ -386,15 +389,30 @@ export class BackLayerWebView extends Disposable {
 
 	updateRendererPreloads(preloads: Set<number>) {
 		let resources: string[] = [];
+		let extensionLocations: URI[] = [];
 		preloads.forEach(preload => {
-			let preloadResources = this.notebookService.getRendererPreloads(preload).map(preloadResource => preloadResource.with({ scheme: WebviewResourceScheme }));
-			preloadResources.forEach(e => {
-				if (!this.preloadsCache.has(e.toString())) {
-					resources.push(e.toString());
-					this.preloadsCache.set(e.toString(), true);
-				}
-			});
+			let rendererInfo = this.notebookService.getRendererPreloads(preload);
+
+			if (rendererInfo) {
+				let preloadResources = rendererInfo.preloads.map(preloadResource => preloadResource.with({ scheme: WebviewResourceScheme }));
+				extensionLocations.push(rendererInfo.extensionLocation);
+				preloadResources.forEach(e => {
+					if (!this.preloadsCache.has(e.toString())) {
+						resources.push(e.toString());
+						this.preloadsCache.set(e.toString(), true);
+					}
+				});
+			}
 		});
+
+		this.rendererRootsCache = extensionLocations;
+		const mixedResourceRoots = [...(this.localResourceRootsCache || []), ...this.rendererRootsCache];
+
+		this.webview.contentOptions = {
+			allowScripts: true,
+			enableCommandUris: true,
+			localResourceRoots: mixedResourceRoots
+		};
 
 		let message: IUpdatePreloadResourceMessage = {
 			type: 'preload',
@@ -402,8 +420,6 @@ export class BackLayerWebView extends Disposable {
 		};
 
 		this.webview.sendMessage(message);
-
-		// @TODO, update allowed resources folder
 	}
 
 	clearPreloadsCache() {
