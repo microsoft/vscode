@@ -1205,7 +1205,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 			},
 			{
 				label: 'Ctrl',
-				ariaLabel: 'Control+',
+				ariaLabel: 'Control',
 				electronAccelerator: null,
 				userSettingsLabel: 'ctrl',
 				isWYSIWYG: true,
