@@ -74,7 +74,7 @@ export interface ICustomEditorModel extends IWorkingCopy {
 	readonly onWillSave: Event<CustomEditorSaveEvent>;
 	readonly onWillSaveAs: Event<CustomEditorSaveAsEvent>;
 
-	onBackup(f: () => CancelablePromise<boolean>): void;
+	onBackup(f: () => CancelablePromise<void>): void;
 
 	setDirty(dirty: boolean): void;
 	undo(): void;

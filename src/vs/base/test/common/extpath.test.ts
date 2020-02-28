@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import * as extpath from 'vs/base/common/extpath';
 import * as platform from 'vs/base/common/platform';
+import { CharCode } from 'vs/base/common/charCode';
 
 suite('Paths', () => {
 
@@ -113,5 +114,20 @@ suite('Paths', () => {
 			assert.ok(extpath.isRootOrDriveLetter('/'));
 			assert.ok(!extpath.isRootOrDriveLetter('/path'));
 		}
+	});
+
+	test('isWindowsDriveLetter', () => {
+		assert.ok(!extpath.isWindowsDriveLetter(0));
+		assert.ok(!extpath.isWindowsDriveLetter(-1));
+		assert.ok(extpath.isWindowsDriveLetter(CharCode.A));
+		assert.ok(extpath.isWindowsDriveLetter(CharCode.z));
+	});
+
+	test('indexOfPath', () => {
+		assert.equal(extpath.indexOfPath('/foo', '/bar', true), -1);
+		assert.equal(extpath.indexOfPath('/foo', '/FOO', false), -1);
+		assert.equal(extpath.indexOfPath('/foo', '/FOO', true), 0);
+		assert.equal(extpath.indexOfPath('/some/long/path', '/some/long', false), 0);
+		assert.equal(extpath.indexOfPath('/some/long/path', '/PATH', true), 10);
 	});
 });

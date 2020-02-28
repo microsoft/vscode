@@ -60,14 +60,12 @@ export class BaseQuickOpenNavigateAction extends Action {
 		super(id, label);
 	}
 
-	run(event?: any): Promise<any> {
+	async run(): Promise<void> {
 		const keys = this.keybindingService.lookupKeybindings(this.id);
 		const quickNavigate = this.quickNavigate ? { keybindings: keys } : undefined;
 
 		this.quickOpenService.navigate(this.next, quickNavigate);
 		this.quickInputService.navigate(this.next, quickNavigate);
-
-		return Promise.resolve(true);
 	}
 }
 

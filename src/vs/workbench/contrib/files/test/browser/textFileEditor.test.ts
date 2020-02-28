@@ -4,11 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Event } from 'vs/base/common/event';
 import { toResource } from 'vs/base/test/common/utils';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { TestFilesConfigurationService, TestEnvironmentService, workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/browser/workbenchTestServices';
-import { IResolvedTextFileEditorModel, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
+import { workbenchInstantiationService, TestServiceAccessor, TestFilesConfigurationService, TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
@@ -20,14 +18,16 @@ import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileE
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { EditorAutoSave } from 'vs/workbench/browser/parts/editor/editorAutoSave';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { Selection } from 'vs/editor/common/core/selection';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 
-suite('EditorAutoSave', () => {
+suite('Files - TextFileEditor', () => {
 
 	let disposables: IDisposable[] = [];
 
@@ -47,11 +47,11 @@ suite('EditorAutoSave', () => {
 		disposables = [];
 	});
 
-	async function createEditorAutoSave(autoSaveConfig: object): Promise<[TestServiceAccessor, EditorPart, EditorAutoSave]> {
+	async function createPart(restoreViewState: boolean): Promise<[EditorPart, TestServiceAccessor, IInstantiationService, IEditorService]> {
 		const instantiationService = workbenchInstantiationService();
 
 		const configurationService = new TestConfigurationService();
-		configurationService.setUserConfiguration('files', autoSaveConfig);
+		configurationService.setUserConfiguration('workbench', { editor: { restoreViewState } });
 		instantiationService.stub(IConfigurationService, configurationService);
 
 		instantiationService.stub(IFilesConfigurationService, new TestFilesConfigurationService(
@@ -71,55 +71,40 @@ suite('EditorAutoSave', () => {
 
 		const accessor = instantiationService.createInstance(TestServiceAccessor);
 
-		const editorAutoSave = instantiationService.createInstance(EditorAutoSave);
+		await part.whenRestored;
 
-		return [accessor, part, editorAutoSave];
+		return [part, accessor, instantiationService, editorService];
 	}
 
-	test('editor auto saves after short delay if configured', async function () {
-		const [accessor, part, editorAutoSave] = await createEditorAutoSave({ autoSave: 'afterDelay', autoSaveDelay: 1 });
-
-		const resource = toResource.call(this, '/path/index.txt');
-
-		const model = await accessor.textFileService.files.resolve(resource) as IResolvedTextFileEditorModel;
-		model.textEditorModel.setValue('Super Good');
-
-		assert.ok(model.isDirty());
-
-		await awaitModelSaved(model);
-
-		assert.ok(!model.isDirty());
-
-		part.dispose();
-		editorAutoSave.dispose();
-		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
+	test('text file editor preserves viewstate', async function () {
+		return viewStateTest(this, true);
 	});
 
-	test('editor auto saves on focus change if configured', async function () {
-		const [accessor, part, editorAutoSave] = await createEditorAutoSave({ autoSave: 'onFocusChange' });
-
-		const resource = toResource.call(this, '/path/index.txt');
-		await accessor.editorService.openEditor({ resource, forceFile: true });
-
-		const model = await accessor.textFileService.files.resolve(resource) as IResolvedTextFileEditorModel;
-		model.textEditorModel.setValue('Super Good');
-
-		assert.ok(model.isDirty());
-
-		await accessor.editorService.openEditor({ resource: toResource.call(this, '/path/index_other.txt') });
-
-		await awaitModelSaved(model);
-
-		assert.ok(!model.isDirty());
-
-		part.dispose();
-		editorAutoSave.dispose();
-		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
+	test('text file editor resets viewstate if configured as such', async function () {
+		return viewStateTest(this, false);
 	});
 
-	function awaitModelSaved(model: ITextFileEditorModel): Promise<void> {
-		return new Promise(c => {
-			Event.once(model.onDidChangeDirty)(c);
-		});
+	async function viewStateTest(context: Mocha.ITestCallbackContext, restoreViewState: boolean): Promise<void> {
+		const [part, accessor] = await createPart(restoreViewState);
+
+		let editor = await accessor.editorService.openEditor(accessor.editorService.createInput({ resource: toResource.call(context, '/path/index.txt'), forceFile: true }));
+
+		let codeEditor = editor?.getControl() as CodeEditorWidget;
+		const selection = new Selection(1, 3, 1, 4);
+		codeEditor.setSelection(selection);
+
+		editor = await accessor.editorService.openEditor(accessor.editorService.createInput({ resource: toResource.call(context, '/path/index-other.txt'), forceFile: true }));
+		editor = await accessor.editorService.openEditor(accessor.editorService.createInput({ resource: toResource.call(context, '/path/index.txt'), forceFile: true }));
+
+		codeEditor = editor?.getControl() as CodeEditorWidget;
+
+		if (restoreViewState) {
+			assert.ok(codeEditor.getSelection()?.equalsSelection(selection));
+		} else {
+			assert.ok(!codeEditor.getSelection()?.equalsSelection(selection));
+		}
+
+		part.dispose();
+		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
 	}
 });

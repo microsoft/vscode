@@ -131,7 +131,7 @@ export class Gesture extends Disposable {
 
 	@memoize
 	private static isTouchDevice(): boolean {
-		return 'ontouchstart' in window as any || navigator.maxTouchPoints > 0 || window.navigator.msMaxTouchPoints > 0;
+		return 'ontouchstart' in window || navigator.maxTouchPoints > 0 || window.navigator.msMaxTouchPoints > 0;
 	}
 
 	public dispose(): void {

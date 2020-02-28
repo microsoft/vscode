@@ -40,6 +40,11 @@ import { BackupTracker } from 'vs/workbench/contrib/backup/common/backupTracker'
 import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestFilesConfigurationService, TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 const userdataDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backuprestorer');
 const backupHome = path.join(userdataDir, 'Backups');
@@ -113,10 +118,22 @@ suite('BackupTracker', () => {
 		return pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
 	});
 
-	async function createTracker(): Promise<[TestServiceAccessor, EditorPart, BackupTracker, IInstantiationService]> {
+	async function createTracker(autoSaveEnabled = false): Promise<[TestServiceAccessor, EditorPart, BackupTracker, IInstantiationService]> {
 		const backupFileService = new NodeTestBackupFileService(workspaceBackupPath);
 		const instantiationService = workbenchInstantiationService();
 		instantiationService.stub(IBackupFileService, backupFileService);
+
+		const configurationService = new TestConfigurationService();
+		if (autoSaveEnabled) {
+			configurationService.setUserConfiguration('files', { autoSave: 'afterDelay', autoSaveDelay: 1 });
+		}
+		instantiationService.stub(IConfigurationService, configurationService);
+
+		instantiationService.stub(IFilesConfigurationService, new TestFilesConfigurationService(
+			<IContextKeyService>instantiationService.createInstance(MockContextKeyService),
+			configurationService,
+			TestEnvironmentService
+		));
 
 		const part = instantiationService.createInstance(EditorPart);
 		part.create(document.createElement('div'));
@@ -218,7 +235,7 @@ suite('BackupTracker', () => {
 		tracker.dispose();
 	});
 
-	test('confirm onWillShutdown - veto if user cancels', async function () {
+	test.skip('confirm onWillShutdown - veto if user cancels', async function () {
 		const [accessor, part, tracker] = await createTracker();
 
 		const resource = toResource.call(this, '/path/index.txt');
@@ -234,7 +251,41 @@ suite('BackupTracker', () => {
 
 		const event = new BeforeShutdownEventImpl();
 		accessor.lifecycleService.fireWillShutdown(event);
-		assert.ok(event.value);
+
+		const veto = event.value;
+		if (typeof veto === 'boolean') {
+			assert.ok(veto);
+		} else {
+			assert.ok((await veto));
+		}
+
+		part.dispose();
+		tracker.dispose();
+	});
+
+	test('onWillShutdown - no veto if auto save is on', async function () {
+		const [accessor, part, tracker] = await createTracker(true /* auto save enabled */);
+
+		const resource = toResource.call(this, '/path/index.txt');
+		await accessor.editorService.openEditor({ resource, options: { pinned: true } });
+
+		const model = accessor.textFileService.files.get(resource);
+
+		await model?.load();
+		model?.textEditorModel?.setValue('foo');
+		assert.equal(accessor.workingCopyService.dirtyCount, 1);
+
+		const event = new BeforeShutdownEventImpl();
+		accessor.lifecycleService.fireWillShutdown(event);
+
+		const veto = event.value;
+		if (typeof veto === 'boolean') {
+			assert.ok(!veto);
+		} else {
+			assert.ok(!(await veto));
+		}
+
+		assert.equal(accessor.workingCopyService.dirtyCount, 0);
 
 		part.dispose();
 		tracker.dispose();

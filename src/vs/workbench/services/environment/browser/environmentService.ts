@@ -62,7 +62,7 @@ export class BrowserWindowConfiguration implements IWindowConfiguration {
 
 	//#region TODO MOVE TO NODE LAYER
 
-	_!: any[];
+	_!: string[];
 
 	windowId!: number;
 	mainPid!: number;
