@@ -229,7 +229,7 @@ suite('keyboardMapper - LINUX fallback', () => {
 			},
 			{
 				label: 'Ctrl',
-				ariaLabel: 'Control+',
+				ariaLabel: 'Control',
 				electronAccelerator: null,
 				userSettingsLabel: 'ctrl',
 				isWYSIWYG: true,
