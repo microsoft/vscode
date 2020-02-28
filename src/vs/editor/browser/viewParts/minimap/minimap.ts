@@ -163,7 +163,7 @@ class MinimapOptions {
 			&& this.fontScale === other.fontScale
 			&& this.minimapLineHeight === other.minimapLineHeight
 			&& this.minimapCharWidth === other.minimapCharWidth
-			&& this.backgroundColor.equals(other.backgroundColor)
+			&& this.backgroundColor && this.backgroundColor.equals(other.backgroundColor)
 		);
 	}
 }

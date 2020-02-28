@@ -95,8 +95,8 @@ export interface WriteableStream<T> extends ReadableStream<T> {
 	end(result?: T | Error): void;
 }
 
-export function isReadableStream<T>(obj: any): obj is ReadableStream<T> {
-	const candidate: ReadableStream<T> = obj;
+export function isReadableStream<T>(obj: unknown): obj is ReadableStream<T> {
+	const candidate = obj as ReadableStream<T>;
 
 	return candidate && [candidate.on, candidate.pause, candidate.resume, candidate.destroy].every(fn => typeof fn === 'function');
 }

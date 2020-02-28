@@ -98,7 +98,7 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 		};
 	}
 
-	private async triggerAndDisposeAction(instantiationService: IInstantiationService, lifecycleService: ILifecycleService, descriptor: SyncActionDescriptor, args: any): Promise<void> {
+	private async triggerAndDisposeAction(instantiationService: IInstantiationService, lifecycleService: ILifecycleService, descriptor: SyncActionDescriptor, args: unknown): Promise<void> {
 
 		// run action when workbench is created
 		await lifecycleService.when(LifecyclePhase.Ready);
@@ -115,7 +115,7 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 
 		// otherwise run and dispose
 		try {
-			const from = args?.from || 'keybinding';
+			const from = (args as any)?.from || 'keybinding';
 			await actionInstance.run(undefined, { from });
 		} finally {
 			actionInstance.dispose();
