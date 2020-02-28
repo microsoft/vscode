@@ -767,7 +767,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 		);
 	});
 
-	test('resolveKeyboardEvent Modifier only ControlLeft+', () => {
+	test('resolveKeyboardEvent Modifier only ControlLeft', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
@@ -780,10 +780,10 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				code: 'ControlLeft'
 			},
 			{
-				label: 'Ctrl+',
+				label: 'Ctrl',
 				ariaLabel: 'Control+',
 				electronAccelerator: null,
-				userSettingsLabel: 'ctrl+',
+				userSettingsLabel: 'ctrl',
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: [null],
@@ -791,7 +791,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 		);
 	});
 
-	test('resolveKeyboardEvent Modifier only ControlRight+', () => {
+	test('resolveKeyboardEvent Modifier only ControlRight', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
@@ -804,10 +804,10 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				code: 'ControlRight'
 			},
 			{
-				label: 'Ctrl+',
-				ariaLabel: 'Control+',
+				label: 'Ctrl',
+				ariaLabel: 'Control',
 				electronAccelerator: null,
-				userSettingsLabel: 'ctrl+',
+				userSettingsLabel: 'ctrl',
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: [null],
@@ -1167,7 +1167,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 		);
 	});
 
-	test('resolveKeyboardEvent Modifier only ControlLeft+', () => {
+	test('resolveKeyboardEvent Modifier only ControlLeft', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
@@ -1180,10 +1180,10 @@ suite('keyboardMapper - LINUX en_us', () => {
 				code: 'ControlLeft'
 			},
 			{
-				label: 'Ctrl+',
-				ariaLabel: 'Control+',
+				label: 'Ctrl',
+				ariaLabel: 'Control',
 				electronAccelerator: null,
-				userSettingsLabel: 'ctrl+',
+				userSettingsLabel: 'ctrl',
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: [null],
@@ -1191,7 +1191,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 		);
 	});
 
-	test('resolveKeyboardEvent Modifier only ControlRight+', () => {
+	test('resolveKeyboardEvent Modifier only ControlRight', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
@@ -1204,10 +1204,10 @@ suite('keyboardMapper - LINUX en_us', () => {
 				code: 'ControlRight'
 			},
 			{
-				label: 'Ctrl+',
+				label: 'Ctrl',
 				ariaLabel: 'Control+',
 				electronAccelerator: null,
-				userSettingsLabel: 'ctrl+',
+				userSettingsLabel: 'ctrl',
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: [null],
