@@ -8,7 +8,7 @@ import { EditorActivation } from 'vs/platform/editor/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { EditorInput, EditorsOrder } from 'vs/workbench/common/editor';
+import { EditorInput, EditorsOrder, SideBySideEditorInput } from 'vs/workbench/common/editor';
 import { workbenchInstantiationService, TestStorageService, TestServiceAccessor, registerTestEditor, TestFileEditorInput } from 'vs/workbench/test/browser/workbenchTestServices';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
@@ -26,6 +26,7 @@ import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { UntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { NullFileSystemProvider } from 'vs/platform/files/test/common/nullFileSystemProvider';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 
 const TEST_EDITOR_ID = 'MyTestEditorForEditorService';
 const TEST_EDITOR_INPUT_ID = 'testEditorInputForEditorService';
@@ -233,6 +234,10 @@ suite('EditorService', () => {
 		let contentInput = <FileEditorInput>input;
 		assert.strictEqual(contentInput.resource.fsPath, toResource.call(this, '/index.html').fsPath);
 
+		// Typed Input
+		assert.equal(service.createInput(input), input);
+		assert.equal(service.createInput({ editor: input }), input);
+
 		// Untyped Input (file, encoding)
 		input = service.createInput({ resource: toResource.call(this, '/index.html'), encoding: 'utf16le', options: { selection: { startLineNumber: 1, startColumn: 1 } } });
 		assert(input instanceof FileEditorInput);
@@ -289,6 +294,20 @@ suite('EditorService', () => {
 		// Untyped Input (resource)
 		input = service.createInput({ resource: URI.parse('custom:resource') });
 		assert(input instanceof ResourceEditorInput);
+
+		// Untyped Input (side by side)
+		input = service.createInput({
+			masterResource: toResource.call(this, '/master.html'),
+			detailResource: toResource.call(this, '/detail.html')
+		});
+		assert(input instanceof SideBySideEditorInput);
+
+		// Untyped Input (diff)
+		input = service.createInput({
+			leftResource: toResource.call(this, '/master.html'),
+			rightResource: toResource.call(this, '/detail.html')
+		});
+		assert(input instanceof DiffEditorInput);
 	});
 
 	test('delegate', function (done) {
