@@ -517,6 +517,56 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		// Tree
 		else if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
 			const list = focused;
+			const fakeKeyboardEvent = getSelectionKeyboardEvent('keydown', true);
+			const focus = list.getFocus();
+
+			if (focus.length > 0) {
+				let toggleCollapsed = true;
+
+				if (list.expandOnlyOnTwistieClick === true) {
+					toggleCollapsed = false;
+				} else if (typeof list.expandOnlyOnTwistieClick !== 'boolean' && list.expandOnlyOnTwistieClick(focus[0])) {
+					toggleCollapsed = false;
+				}
+
+				if (toggleCollapsed) {
+					list.toggleCollapsed(focus[0]);
+				}
+			}
+
+			list.setSelection(focus, fakeKeyboardEvent);
+			list.open(focus, fakeKeyboardEvent);
+		}
+
+		// Tree
+		else if (focused) {
+			const tree = focused;
+			const focus = tree.getFocus();
+
+			if (focus) {
+				tree.setSelection([focus], { origin: 'keyboard' });
+			}
+		}
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'list.focus',
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: WorkbenchListFocusContextKey,
+	handler: accessor => {
+		const focused = accessor.get(IListService).lastFocusedList;
+
+		// List
+		if (focused instanceof List || focused instanceof PagedList) {
+			const list = focused;
+			list.setSelection(list.getFocus());
+		}
+
+		// ObjectTree
+		else if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
+			const list = focused;
+			const fakeKeyboardEvent = getSelectionKeyboardEvent('keydown', false);
 			const focus = list.getFocus();
 
 			if (focus.length > 0) {
