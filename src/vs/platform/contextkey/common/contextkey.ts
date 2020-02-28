@@ -8,14 +8,16 @@ import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const enum ContextKeyExprType {
-	Defined = 1,
-	Not = 2,
-	Equals = 3,
-	NotEquals = 4,
-	And = 5,
-	Regex = 6,
-	NotRegex = 7,
-	Or = 8
+	False = 0,
+	True = 1,
+	Defined = 2,
+	Not = 3,
+	Equals = 4,
+	NotEquals = 5,
+	And = 6,
+	Regex = 7,
+	NotRegex = 8,
+	Or = 9
 }
 
 export interface IContextKeyExprMapper {
@@ -38,11 +40,20 @@ export interface IContextKeyExpression {
 }
 
 export type ContextKeyExpression = (
-	ContextKeyDefinedExpr | ContextKeyNotExpr | ContextKeyEqualsExpr | ContextKeyNotEqualsExpr
-	| ContextKeyRegexExpr | ContextKeyNotRegexExpr | ContextKeyAndExpr | ContextKeyOrExpr
+	ContextKeyFalseExpr | ContextKeyTrueExpr | ContextKeyDefinedExpr | ContextKeyNotExpr
+	| ContextKeyEqualsExpr | ContextKeyNotEqualsExpr | ContextKeyRegexExpr
+	| ContextKeyNotRegexExpr | ContextKeyAndExpr | ContextKeyOrExpr
 );
 
 export abstract class ContextKeyExpr {
+
+	public static false(): ContextKeyExpression {
+		return ContextKeyFalseExpr.INSTANCE;
+	}
+
+	public static true(): ContextKeyExpression {
+		return ContextKeyTrueExpr.INSTANCE;
+	}
 
 	public static has(key: string): ContextKeyExpression {
 		return ContextKeyDefinedExpr.create(key);
@@ -175,8 +186,88 @@ function cmp(a: ContextKeyExpression, b: ContextKeyExpression): number {
 	return a.cmp(b);
 }
 
+export class ContextKeyFalseExpr implements IContextKeyExpression {
+	public static INSTANCE = new ContextKeyFalseExpr();
+
+	public readonly type = ContextKeyExprType.False;
+
+	protected constructor() {
+	}
+
+	public cmp(other: ContextKeyExpression): number {
+		return this.type - other.type;
+	}
+
+	public equals(other: ContextKeyExpression): boolean {
+		return (other.type === this.type);
+	}
+
+	public evaluate(context: IContext): boolean {
+		return false;
+	}
+
+	public serialize(): string {
+		return 'false';
+	}
+
+	public keys(): string[] {
+		return [];
+	}
+
+	public map(mapFnc: IContextKeyExprMapper): ContextKeyExpression {
+		return this;
+	}
+
+	public negate(): ContextKeyExpression {
+		return ContextKeyTrueExpr.INSTANCE;
+	}
+}
+
+export class ContextKeyTrueExpr implements IContextKeyExpression {
+	public static INSTANCE = new ContextKeyTrueExpr();
+
+	public readonly type = ContextKeyExprType.True;
+
+	protected constructor() {
+	}
+
+	public cmp(other: ContextKeyExpression): number {
+		return this.type - other.type;
+	}
+
+	public equals(other: ContextKeyExpression): boolean {
+		return (other.type === this.type);
+	}
+
+	public evaluate(context: IContext): boolean {
+		return true;
+	}
+
+	public serialize(): string {
+		return 'true';
+	}
+
+	public keys(): string[] {
+		return [];
+	}
+
+	public map(mapFnc: IContextKeyExprMapper): ContextKeyExpression {
+		return this;
+	}
+
+	public negate(): ContextKeyExpression {
+		return ContextKeyFalseExpr.INSTANCE;
+	}
+}
+
 export class ContextKeyDefinedExpr implements IContextKeyExpression {
-	public static create(key: string): ContextKeyDefinedExpr {
+	public static create(key: string): ContextKeyExpression {
+		if (key === 'false') {
+			return ContextKeyFalseExpr.INSTANCE;
+		}
+		if (key === 'true') {
+			return ContextKeyTrueExpr.INSTANCE;
+		}
 		return new ContextKeyDefinedExpr(key);
 	}
 
@@ -234,6 +325,14 @@ export class ContextKeyEqualsExpr implements IContextKeyExpression {
 				return ContextKeyDefinedExpr.create(key);
 			}
 			return ContextKeyNotExpr.create(key);
+		}
+		if (key === 'false') {
+			// false only equals false
+			return (value === 'false' ? ContextKeyTrueExpr.INSTANCE : ContextKeyFalseExpr.INSTANCE);
+		}
+		if (key === 'true') {
+			// true only equals true
+			return (value === 'true' ? ContextKeyTrueExpr.INSTANCE : ContextKeyFalseExpr.INSTANCE);
 		}
 		return new ContextKeyEqualsExpr(key, value);
 	}
@@ -301,6 +400,14 @@ export class ContextKeyNotEqualsExpr implements IContextKeyExpression {
 			}
 			return ContextKeyDefinedExpr.create(key);
 		}
+		if (key === 'false') {
+			// false only equals false
+			return (value === 'false' ? ContextKeyFalseExpr.INSTANCE : ContextKeyTrueExpr.INSTANCE);
+		}
+		if (key === 'true') {
+			// true only equals true
+			return (value === 'true' ? ContextKeyFalseExpr.INSTANCE : ContextKeyTrueExpr.INSTANCE);
+		}
 		return new ContextKeyNotEqualsExpr(key, value);
 	}
 
@@ -361,6 +468,14 @@ export class ContextKeyNotEqualsExpr implements IContextKeyExpression {
 export class ContextKeyNotExpr implements IContextKeyExpression {
 
 	public static create(key: string): ContextKeyExpression {
+		if (key === 'false') {
+			// !false
+			return ContextKeyTrueExpr.INSTANCE;
+		}
+		if (key === 'true') {
+			// !true
+			return ContextKeyFalseExpr.INSTANCE;
+		}
 		return new ContextKeyNotExpr(key);
 	}
 
@@ -589,10 +704,22 @@ export class ContextKeyAndExpr implements IContextKeyExpression {
 
 	private static _normalizeArr(arr: ReadonlyArray<ContextKeyExpression | null | undefined>): ContextKeyExpression[] {
 		const expr: ContextKeyExpression[] = [];
+		let hasTrue = false;
 
 		for (const e of arr) {
 			if (!e) {
 				continue;
+			}
+
+			if (e.type === ContextKeyExprType.True) {
+				// anything && true ==> anything
+				hasTrue = true;
+				continue;
+			}
+
+			if (e.type === ContextKeyExprType.False) {
+				// anything && false ==> false
+				return [ContextKeyFalseExpr.INSTANCE];
 			}
 
 			if (e.type === ContextKeyExprType.And) {
@@ -606,6 +733,10 @@ export class ContextKeyAndExpr implements IContextKeyExpression {
 			}
 
 			expr.push(e);
+		}
+
+		if (expr.length === 0 && hasTrue) {
+			return [ContextKeyTrueExpr.INSTANCE];
 		}
 
 		expr.sort(cmp);
@@ -703,12 +834,24 @@ export class ContextKeyOrExpr implements IContextKeyExpression {
 
 	private static _normalizeArr(arr: ReadonlyArray<ContextKeyExpression | null | undefined>): ContextKeyExpression[] {
 		let expr: ContextKeyExpression[] = [];
+		let hasFalse = false;
 
 		if (arr) {
 			for (let i = 0, len = arr.length; i < len; i++) {
-				let e: ContextKeyExpression | null | undefined = arr[i];
+				const e = arr[i];
 				if (!e) {
 					continue;
+				}
+
+				if (e.type === ContextKeyExprType.False) {
+					// anything || false ==> anything
+					hasFalse = true;
+					continue;
+				}
+
+				if (e.type === ContextKeyExprType.True) {
+					// anything || true ==> true
+					return [ContextKeyTrueExpr.INSTANCE];
 				}
 
 				if (e.type === ContextKeyExprType.Or) {
@@ -717,6 +860,10 @@ export class ContextKeyOrExpr implements IContextKeyExpression {
 				}
 
 				expr.push(e);
+			}
+
+			if (expr.length === 0 && hasFalse) {
+				return [ContextKeyFalseExpr.INSTANCE];
 			}
 
 			expr.sort(cmp);
