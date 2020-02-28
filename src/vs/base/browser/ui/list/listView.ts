@@ -283,7 +283,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		if (this.items[index].size === size) {
 			return;
 		}
-		
+
 		const lastRenderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
 
 		const heightDiff = index < lastRenderRange.start ? size - this.items[index].size : 0;
@@ -293,7 +293,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		this.render(lastRenderRange, this.lastRenderTop + heightDiff, this.lastRenderHeight, undefined, undefined, true);
 
 		this.eventuallyUpdateScrollDimensions();
-		
+
 		if (this.supportDynamicHeights) {
 			this._rerender(this.lastRenderTop, this.lastRenderHeight);
 		}

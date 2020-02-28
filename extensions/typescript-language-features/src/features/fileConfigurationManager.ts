@@ -179,13 +179,18 @@ export default class FileConfigurationManager extends Disposable {
 			isTypeScriptDocument(document) ? 'typescript.preferences' : 'javascript.preferences',
 			document.uri);
 
-		return {
+		// `importModuleSpecifierEnding` added to `Proto.UserPreferences` in TypeScript 3.9:
+		// remove intersection type after upgrading TypeScript.
+		const preferences: Proto.UserPreferences & { importModuleSpecifierEnding?: string } = {
 			quotePreference: this.getQuoteStylePreference(config),
 			importModuleSpecifierPreference: getImportModuleSpecifierPreference(config),
+			importModuleSpecifierEnding: getImportModuleSpecifierEndingPreference(config),
 			allowTextChangesInNewFiles: document.uri.scheme === fileSchemes.file,
 			providePrefixAndSuffixTextForRename: config.get<boolean>('renameShorthandProperties', true),
 			allowRenameOfImportPath: true,
 		};
+
+		return preferences;
 	}
 
 	private getQuoteStylePreference(config: vscode.WorkspaceConfiguration) {
@@ -202,5 +207,14 @@ function getImportModuleSpecifierPreference(config: vscode.WorkspaceConfiguratio
 		case 'relative': return 'relative';
 		case 'non-relative': return 'non-relative';
 		default: return undefined;
+	}
+}
+
+function getImportModuleSpecifierEndingPreference(config: vscode.WorkspaceConfiguration) {
+	switch (config.get<string>('importModuleSpecifierEnding')) {
+		case 'minimal': return 'minimal';
+		case 'index': return 'index';
+		case 'js': return 'js';
+		default: return 'auto';
 	}
 }
