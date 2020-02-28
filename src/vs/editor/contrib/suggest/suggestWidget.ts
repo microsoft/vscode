@@ -144,10 +144,9 @@ class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTemplateD
 		const text = append(container, $('.contents'));
 		const main = append(text, $('.main'));
 
+		data.iconContainer = append(main, $('.icon-label.codicon'));
 		data.left = append(main, $('span.left'));
 		data.right = append(main, $('span.right'));
-
-		data.iconContainer = append(data.left, $('.icon-label.codicon'));
 
 		data.iconLabel = new IconLabel(data.left, { supportHighlights: true, supportCodicons: true });
 		data.disposables.add(data.iconLabel);
