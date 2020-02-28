@@ -38,7 +38,7 @@ export interface INotebookService {
 	unregisterNotebookProvider(viewType: string): void;
 	registerNotebookRenderer(handle: number, extensionData: NotebookExtensionDescription, type: string, selectors: INotebookMimeTypeSelector, preloads: URI[]): void;
 	unregisterNotebookRenderer(handle: number): void;
-	getRendererPreloads(handle: number): INotebookRendererInfo | undefined;
+	getRendererInfo(handle: number): INotebookRendererInfo | undefined;
 	resolveNotebook(viewType: string, uri: URI): Promise<INotebook | undefined>;
 	executeNotebook(viewType: string, uri: URI): Promise<void>;
 	executeNotebookActiveCell(viewType: string, uri: URI): Promise<void>;
@@ -201,11 +201,12 @@ export class NotebookService extends Disposable implements INotebookService {
 		this._notebookRenderers.delete(handle);
 	}
 
-	getRendererPreloads(handle: number): INotebookRendererInfo | undefined {
+	getRendererInfo(handle: number): INotebookRendererInfo | undefined {
 		const renderer = this._notebookRenderers.get(handle);
 
 		if (renderer) {
 			return {
+				id: renderer.extensionData.id,
 				extensionLocation: URI.revive(renderer.extensionData.location),
 				preloads: renderer.preloads
 			};

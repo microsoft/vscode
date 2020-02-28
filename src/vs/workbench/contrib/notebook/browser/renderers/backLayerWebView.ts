@@ -391,7 +391,7 @@ export class BackLayerWebView extends Disposable {
 		let resources: string[] = [];
 		let extensionLocations: URI[] = [];
 		preloads.forEach(preload => {
-			let rendererInfo = this.notebookService.getRendererPreloads(preload);
+			let rendererInfo = this.notebookService.getRendererInfo(preload);
 
 			if (rendererInfo) {
 				let preloadResources = rendererInfo.preloads.map(preloadResource => preloadResource.with({ scheme: WebviewResourceScheme }));

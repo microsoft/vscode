@@ -13,7 +13,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { readonly } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { INotebookDisplayOrder, IGenericOutput, parseCellUri, parseCellHandle } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookDisplayOrder, parseCellUri, parseCellHandle, ITransformedDisplayOutputDto, IOrderedMimeType, IStreamOutput, IErrorOutput, mimeTypeSupportedByCore } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ISplice } from 'vs/base/common/sequence';
 
 interface ExtHostOutputDisplayOrder {
@@ -240,30 +240,16 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument, vscode.
 				let outputs = cell.outputs;
 				if (outputs && outputs.length) {
 					outputs = outputs.map(output => {
-						let richestMimeType: string | undefined = undefined;
+						if (output.output_type === 'display_data' || output.output_type === 'execute_result') {
+							const ret = this.transformMimeTypes(cell, output);
 
-						if (this.renderingHandler.outputDisplayOrder?.defaultOrder || this.renderingHandler.outputDisplayOrder?.userOrder || this._parsedDisplayOrder.length > 0) {
-							richestMimeType = this.findRichestMimeType(output);
-						}
-
-						output.pickedMimeType = richestMimeType;
-
-						let transformedOutput: vscode.CellOutput | undefined = undefined;
-
-						if (richestMimeType) {
-							let handler = this.renderingHandler.findBestMatchedRenderer(richestMimeType);
-							if (handler.length) {
-								renderers.add(handler[0].handle);
-								transformedOutput = handler[0].render(this, cell, output);
-
-								output.pickedRenderer = handler[0].handle;
-								// output.transformedOutput = transformedOutput;
-								output.transformedOutput = {};
-								output.transformedOutput[richestMimeType] = transformedOutput;
+							if (ret.orderedMimeTypes[ret.pickedMimeTypeIndex].isResolved) {
+								renderers.add(ret.orderedMimeTypes[ret.pickedMimeTypeIndex].rendererId!);
 							}
+							return ret;
+						} else {
+							return output;
 						}
-
-						return output;
 					});
 				}
 
@@ -293,34 +279,20 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument, vscode.
 		let outputDtos: NotebookCellOutputsSplice[] = diffs.map(diff => {
 			let outputs = diff.toInsert;
 
-			outputs = outputs.map(output => {
-				let richestMimeType: string | undefined = undefined;
+			let transformedOutputs = outputs.map(output => {
+				if (output.output_type === 'display_data' || output.output_type === 'execute_result') {
+					const ret = this.transformMimeTypes(cell, output);
 
-				if (this.renderingHandler.outputDisplayOrder?.defaultOrder || this.renderingHandler.outputDisplayOrder?.userOrder || this._parsedDisplayOrder.length > 0) {
-					richestMimeType = this.findRichestMimeType(output);
-				}
-
-				(<IGenericOutput>output).pickedMimeType = richestMimeType;
-				let transformedOutput: vscode.CellOutput | undefined = undefined;
-
-				if (richestMimeType) {
-					let handler = this.renderingHandler.findBestMatchedRenderer(richestMimeType);
-					if (handler.length) {
-						let pickedHandler = handler[0];
-						renderers.add(pickedHandler.handle);
-
-						transformedOutput = pickedHandler.render(this, cell, output);
-						(<IGenericOutput>output).pickedRenderer = pickedHandler.handle;
-						(<IGenericOutput>output).transformedOutput = {};
-						(<IGenericOutput>output).transformedOutput![richestMimeType] = transformedOutput;
-
+					if (ret.orderedMimeTypes[ret.pickedMimeTypeIndex].isResolved) {
+						renderers.add(ret.orderedMimeTypes[ret.pickedMimeTypeIndex].rendererId!);
 					}
+					return ret;
+				} else {
+					return output as IStreamOutput | IErrorOutput;
 				}
-
-				return output;
 			});
 
-			return [diff.start, diff.deleteCount, outputs];
+			return [diff.start, diff.deleteCount, transformedOutputs];
 		});
 
 		this._proxy.$spliceNotebookCellOutputs(this.viewType, this.uri, cell.handle, outputDtos, Array.from(renderers));
@@ -351,6 +323,60 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument, vscode.
 
 		this.cells.splice(index, 1);
 		return true;
+	}
+
+
+	transformMimeTypes(cell: ExtHostCell, output: vscode.CellDisplayOutput): ITransformedDisplayOutputDto {
+		let mimeTypes = Object.keys(output.data);
+
+		const sorted = mimeTypes.sort((a, b) => {
+			return this.getMimeTypeOrder(a) - this.getMimeTypeOrder(b);
+		});
+
+		let orderMimeTypes: IOrderedMimeType[] = [];
+
+		sorted.forEach(mimeType => {
+			let handlers = this.renderingHandler.findBestMatchedRenderer(mimeType);
+
+			if (handlers.length) {
+				let renderedOutput = handlers[0].render(this, cell, output);
+
+				orderMimeTypes.push({
+					mimeType: mimeType,
+					isResolved: true,
+					rendererId: handlers[0].handle,
+					output: renderedOutput
+				});
+
+				for (let i = 1; i < handlers.length; i++) {
+					orderMimeTypes.push({
+						mimeType: mimeType,
+						isResolved: false,
+						rendererId: handlers[i].handle
+					});
+				}
+
+				if (mimeTypeSupportedByCore(mimeType)) {
+					orderMimeTypes.push({
+						mimeType: mimeType,
+						isResolved: false,
+						rendererId: -1
+					});
+				}
+			} else {
+				orderMimeTypes.push({
+					mimeType: mimeType,
+					isResolved: false
+				});
+			}
+		});
+
+		return {
+			output_type: output.output_type,
+			data: output.data,
+			orderedMimeTypes: orderMimeTypes,
+			pickedMimeTypeIndex: 0
+		};
 	}
 
 	findRichestMimeType(output: vscode.CellOutput) {
@@ -525,17 +551,18 @@ export class ExtHostNotebookOutputRenderer {
 		return false;
 	}
 
-	render(document: ExtHostNotebookDocument, cell: ExtHostCell, output: vscode.CellOutput): vscode.CellDisplayOutput {
+	render(document: ExtHostNotebookDocument, cell: ExtHostCell, output: vscode.CellOutput): string {
 		let html = this.renderer.render(document, cell, output);
 
-		return {
-			output_type: 'display_data',
-			data: {
-				'text/html': [
-					html
-				]
-			}
-		};
+		return html;
+		// return {
+		// 	output_type: 'display_data',
+		// 	data: {
+		// 		'text/html': [
+		// 			html
+		// 		]
+		// 	}
+		// };
 	}
 }
 

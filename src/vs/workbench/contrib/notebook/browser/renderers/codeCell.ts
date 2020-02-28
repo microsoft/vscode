@@ -8,11 +8,16 @@ import * as DOM from 'vs/base/browser/dom';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/renderers/cellViewModel';
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/renderers/sizeObserver';
-import { CELL_MARGIN, IOutput, IDisplayOutput, EDITOR_TOP_PADDING, EDITOR_BOTTOM_PADDING } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CELL_MARGIN, IOutput, EDITOR_TOP_PADDING, EDITOR_BOTTOM_PADDING, ITransformedDisplayOutputDto, IRenderOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellRenderTemplate, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
+
+interface IMimeTypeRenderer extends IQuickPickItem {
+	index: number;
+}
 
 export class CodeCell extends Disposable {
 	private outputResizeListeners = new Map<IOutput, DisposableStore>();
@@ -21,6 +26,7 @@ export class CodeCell extends Disposable {
 		private notebookEditor: INotebookEditor,
 		private viewCell: CellViewModel,
 		private templateData: CellRenderTemplate,
+		@INotebookService private notebookService: INotebookService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
 		super();
@@ -203,26 +209,12 @@ export class CodeCell extends Disposable {
 		}
 
 		let outputItemDiv = document.createElement('div');
-		let transformedOutput: IOutput;
-		let transformedMimeType: string;
-		if (currOutput.pickedMimeType) {
-			if (currOutput.transformedOutput && currOutput.transformedOutput![currOutput.pickedMimeType]) {
-				// currently, transformed output is always text/html
-				transformedMimeType = 'text/html';
-				transformedOutput = currOutput.transformedOutput![currOutput.pickedMimeType];
-			} else {
-				// otherwise
-				transformedMimeType = currOutput.pickedMimeType;
-				transformedOutput = currOutput;
-			}
-		} else {
-			transformedOutput = currOutput;
-		}
+		let result: IRenderOutput | undefined = undefined;
 
 		if (currOutput.output_type === 'display_data' || currOutput.output_type === 'execute_result') {
-			let mimeTypes = Object.keys((currOutput! as IDisplayOutput).data);
+			let transformedDisplayOutput = currOutput as ITransformedDisplayOutputDto;
 
-			if (mimeTypes.length > 1) {
+			if (transformedDisplayOutput.orderedMimeTypes.length > 1) {
 				outputItemDiv.style.position = 'relative';
 				const mimeTypePicker = DOM.$('.multi-mimetype-output');
 				DOM.addClasses(mimeTypePicker, 'codicon', 'codicon-list-selection');
@@ -230,12 +222,21 @@ export class CodeCell extends Disposable {
 				this.outputResizeListeners.get(currOutput)!.add(DOM.addStandardDisposableListener(mimeTypePicker, 'mousedown', async e => {
 					e.preventDefault();
 					e.stopPropagation();
-					await this.pickActiveMimeType(currOutput, mimeTypes);
+					await this.pickActiveMimeTypeRenderer(transformedDisplayOutput);
 				}));
 			}
-		}
+			let pickedMimeTypeRenderer = currOutput.orderedMimeTypes[currOutput.pickedMimeTypeIndex];
 
-		let result = this.notebookEditor.getOutputRenderer().render(transformedOutput!, outputItemDiv, transformedMimeType!);
+			if (pickedMimeTypeRenderer.isResolved) {
+				// html
+				result = this.notebookEditor.getOutputRenderer().render({ output_type: 'display_data', data: { 'text/html': pickedMimeTypeRenderer.output! } } as any, outputItemDiv, 'text/html');
+			} else {
+				result = this.notebookEditor.getOutputRenderer().render(currOutput, outputItemDiv, pickedMimeTypeRenderer.mimeType);
+			}
+		} else {
+			// for text and error, there is no mimetype
+			result = this.notebookEditor.getOutputRenderer().render(currOutput, outputItemDiv, undefined);
+		}
 
 		if (!result) {
 			this.viewCell.updateOutputHeight(index, 0);
@@ -305,44 +306,52 @@ export class CodeCell extends Disposable {
 		}
 	}
 
-	async pickActiveMimeType(output: IOutput, mimeTypes: string[]) {
-		const sorted = mimeTypes.sort((a, b) => {
-			if (a === output.pickedMimeType) {
-				return -1;
-			} else {
-				return 0;
-			}
-		});
+	generateRendererInfo(renderId: number | undefined): string {
+		if (renderId === undefined) {
+			return '';
+		}
 
-		const items = sorted.map((mimeType): IQuickPickItem => ({
-			label: mimeType,
-			id: mimeType,
-			description: mimeType === output.pickedMimeType
-				? nls.localize('curruentActiveMimeType', "Currently Active")
-				: undefined,
-			// buttons: resourceExt ? [{
-			// 	iconClass: 'codicon-settings-gear',
-			// 	tooltip: nls.localize('promptOpenWith.setDefaultTooltip', "Set as default editor for '{0}' files", resourceExt)
-			// }] : undefined
+		if (renderId === -1) {
+			return 'builtin';
+		}
+
+		let renderInfo = this.notebookService.getRendererInfo(renderId);
+
+		if (renderInfo) {
+			return renderInfo.id.value;
+		}
+
+		return '';
+	}
+
+	async pickActiveMimeTypeRenderer(output: ITransformedDisplayOutputDto) {
+		let currIndex = output.pickedMimeTypeIndex;
+		const items = output.orderedMimeTypes.map((mimeType, index): IMimeTypeRenderer => ({
+			label: mimeType.mimeType,
+			id: mimeType.mimeType,
+			index: index,
+			description: this.generateRendererInfo(mimeType.rendererId) + (index === currIndex
+				? nls.localize('curruentActiveMimeType', " (Currently Active)")
+				: ''),
 		}));
 
 		const picker = this.quickInputService.createQuickPick();
 		picker.items = items;
 		picker.placeholder = nls.localize('promptChooseMimeType.placeHolder', "Select output mimetype to render for current output");
 
-		const pick = await new Promise<string | undefined>(resolve => {
+		const pick = await new Promise<number | undefined>(resolve => {
 			picker.onDidAccept(() => {
-				resolve(picker.selectedItems.length === 1 ? picker.selectedItems[0].id : undefined);
+				resolve(picker.selectedItems.length === 1 ? (picker.selectedItems[0] as IMimeTypeRenderer).index : undefined);
 				picker.dispose();
 			});
 			picker.show();
 		});
 
-		if (!pick) {
+		if (pick === undefined) {
 			return;
 		}
 
-		if (pick !== output.pickedMimeType) {
+		if (pick !== currIndex) {
 			// user chooses another mimetype
 			let index = this.viewCell.outputs.indexOf(output);
 			let nextElement = index + 1 < this.viewCell.outputs.length ? this.outputElements.get(this.viewCell.outputs[index + 1]) : undefined;
@@ -353,7 +362,7 @@ export class CodeCell extends Disposable {
 				this.notebookEditor.removeInset(output);
 			}
 
-			output.pickedMimeType = pick;
+			output.pickedMimeTypeIndex = pick;
 
 			this.renderOutput(output, index, nextElement);
 

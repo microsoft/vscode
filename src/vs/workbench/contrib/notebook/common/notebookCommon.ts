@@ -8,6 +8,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { PieceTreeTextBufferFactory } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export const NOTEBOOK_DISPLAY_ORDER = [
 	'application/json',
@@ -32,29 +33,20 @@ export interface INotebookMimeTypeSelector {
 }
 
 export interface INotebookRendererInfo {
+	id: ExtensionIdentifier;
 	extensionLocation: URI,
 	preloads: URI[]
 }
-
-/**
- * @internal
- */
 
 export interface INotebookSelectors {
 	readonly filenamePattern?: string;
 }
 
-/**
- * @internal
- */
 export interface IStreamOutput {
 	output_type: 'stream';
 	text: string;
 }
 
-/**
- * @internal
- */
 export interface IErrorOutput {
 	output_type: 'error';
 	/**
@@ -71,9 +63,6 @@ export interface IErrorOutput {
 	traceback?: string[];
 }
 
-/**
- * @internal
- */
 export interface IDisplayOutput {
 	output_type: 'display_data' | 'execute_result';
 	/**
@@ -82,9 +71,27 @@ export interface IDisplayOutput {
 	data: { [key: string]: any; }
 }
 
-/**
- * @internal
- */
+export enum MimeTypeRendererResolver {
+	Core,
+	Active,
+	Lazy
+}
+
+export interface IOrderedMimeType {
+	mimeType: string;
+	isResolved: boolean;
+	rendererId?: number;
+	output?: string;
+}
+
+export interface ITransformedDisplayOutputDto {
+	output_type: 'display_data' | 'execute_result';
+	data: { [key: string]: any; }
+
+	orderedMimeTypes: IOrderedMimeType[];
+	pickedMimeTypeIndex: number;
+}
+
 export interface IGenericOutput {
 	output_type: string;
 	pickedMimeType?: string;
@@ -92,14 +99,8 @@ export interface IGenericOutput {
 	transformedOutput?: { [key: string]: IDisplayOutput };
 }
 
-/**
- * @internal
- */
-export type IOutput = IGenericOutput;
+export type IOutput = ITransformedDisplayOutputDto | IStreamOutput | IErrorOutput;
 
-/**
- * @internal
- */
 export interface ICell {
 	readonly uri: URI;
 	handle: number;
@@ -112,23 +113,14 @@ export interface ICell {
 	resolveTextBufferFactory(): PieceTreeTextBufferFactory;
 }
 
-/**
- * @internal
- */
 export interface LanguageInfo {
 	file_extension: string;
 }
 
-/**
- * @internal
- */
 export interface IMetadata {
 	language_info: LanguageInfo;
 }
 
-/**
- * @internal
- */
 export interface INotebook {
 	handle: number;
 	viewType: string;
@@ -201,3 +193,23 @@ export function parseCellHandle(path: string): number | undefined {
 
 	return;
 }
+
+export function mimeTypeSupportedByCore(mimeType: string) {
+	if ([
+		'application/json',
+		'application/javascript',
+		'text/html',
+		'image/svg+xml',
+		'text/markdown',
+		'image/png',
+		'image/jpeg',
+		'text/plain',
+		'text/x-javascript'
+	].indexOf(mimeType) > -1) {
+		return true;
+	}
+
+	return false;
+}
+
+
