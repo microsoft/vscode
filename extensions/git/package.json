@@ -1825,37 +1825,37 @@
     },
     "viewsWelcome": [
       {
-        "view": "workbench.scm",
+        "view": "scm",
         "contents": "%view.workbench.scm.disabled%",
         "when": "!config.git.enabled"
       },
       {
-        "view": "workbench.scm",
+        "view": "scm",
         "contents": "%view.workbench.scm.missing%",
         "when": "config.git.enabled && git.missing"
       },
       {
-        "view": "workbench.scm",
+        "view": "scm",
         "contents": "%view.workbench.scm.empty%",
         "when": "config.git.enabled && !git.missing && workbenchState == empty"
       },
       {
-        "view": "workbench.scm",
+        "view": "scm",
         "contents": "%view.workbench.scm.folder%",
         "when": "config.git.enabled && !git.missing && workbenchState == folder"
       },
       {
-        "view": "workbench.scm",
+        "view": "scm",
         "contents": "%view.workbench.scm.workspace%",
         "when": "config.git.enabled && !git.missing && workbenchState == workspace && workspaceFolderCount != 0"
       },
       {
-        "view": "workbench.scm",
+        "view": "scm",
         "contents": "%view.workbench.scm.emptyWorkspace%",
         "when": "config.git.enabled && !git.missing && workbenchState == workspace && workspaceFolderCount == 0"
       },
       {
-        "view": "workbench.explorer.emptyView",
+        "view": "explorer",
         "contents": "%view.workbench.cloneRepository%"
       }
     ]

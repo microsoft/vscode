@@ -99,6 +99,17 @@ suite('Notifications', () => {
 		assert.equal(called, 1);
 
 		called = 0;
+		item1.onDidChangeVisibility(e => {
+			called++;
+		});
+
+		item1.updateVisibility(true);
+		item1.updateVisibility(false);
+		item1.updateVisibility(false);
+
+		assert.equal(called, 2);
+
+		called = 0;
 		item1.onDidClose(() => {
 			called++;
 		});

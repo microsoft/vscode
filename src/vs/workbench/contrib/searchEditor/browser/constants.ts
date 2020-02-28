@@ -22,3 +22,5 @@ export const SearchEditorScheme = 'search-editor';
 export const SearchEditorBodyScheme = 'search-editor-body';
 
 export const SearchEditorFindMatchClass = 'seaarchEditorFindMatch';
+
+export const SearchEditorID = 'workbench.editor.searchEditor';

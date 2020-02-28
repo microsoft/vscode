@@ -17,7 +17,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IAction, IActionViewItem } from 'vs/base/common/actions';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { flatten } from 'vs/base/common/arrays';
+import { flatten, mergeSort } from 'vs/base/common/arrays';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { SetMap } from 'vs/base/common/collections';
 
@@ -212,9 +212,16 @@ export interface IViewDescriptorCollection extends IDisposable {
 	readonly allViewDescriptors: IViewDescriptor[];
 }
 
+export enum ViewContentPriority {
+	Normal = 0,
+	Low = 1,
+	Lowest = 2
+}
+
 export interface IViewContentDescriptor {
 	readonly content: string;
 	readonly when?: ContextKeyExpr | 'default';
+	readonly priority?: ViewContentPriority;
 
 	/**
 	 * ordered preconditions for each button in the content
@@ -248,6 +255,13 @@ export interface IViewsRegistry {
 }
 
 function compareViewContentDescriptors(a: IViewContentDescriptor, b: IViewContentDescriptor): number {
+	const aPriority = a.priority ?? ViewContentPriority.Normal;
+	const bPriority = b.priority ?? ViewContentPriority.Normal;
+
+	if (aPriority !== bPriority) {
+		return aPriority - bPriority;
+	}
+
 	return a.content < b.content ? -1 : 1;
 }
 
@@ -329,8 +343,8 @@ class ViewsRegistry extends Disposable implements IViewsRegistry {
 
 	getViewWelcomeContent(id: string): IViewContentDescriptor[] {
 		const result: IViewContentDescriptor[] = [];
-		result.sort(compareViewContentDescriptors);
 		this._viewWelcomeContents.forEach(id, descriptor => result.push(descriptor));
+		mergeSort(result, compareViewContentDescriptors);
 		return result;
 	}
 

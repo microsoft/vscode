@@ -92,6 +92,9 @@ export class NotificationHandle extends Disposable implements INotificationHandl
 	private readonly _onDidClose = this._register(new Emitter<void>());
 	readonly onDidClose = this._onDidClose.event;
 
+	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
+	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
+
 	constructor(private readonly item: INotificationViewItem, private readonly onClose: (item: INotificationViewItem) => void) {
 		super();
 
@@ -99,6 +102,11 @@ export class NotificationHandle extends Disposable implements INotificationHandl
 	}
 
 	private registerListeners(): void {
+
+		// Visibility
+		this._register(this.item.onDidChangeVisibility(visible => this._onDidChangeVisibility.fire(visible)));
+
+		// Closing
 		Event.once(this.item.onDidClose)(() => {
 			this._onDidClose.fire();
 
@@ -265,6 +273,7 @@ export interface INotificationViewItem {
 
 	readonly onDidChangeExpansion: Event<void>;
 	readonly onDidClose: Event<void>;
+	readonly onDidChangeVisibility: Event<boolean>;
 	readonly onDidChangeLabel: Event<INotificationViewItemLabelChangeEvent>;
 
 	expand(): void;
@@ -274,6 +283,8 @@ export interface INotificationViewItem {
 	updateSeverity(severity: Severity): void;
 	updateMessage(message: NotificationMessage): void;
 	updateActions(actions?: INotificationActions): void;
+
+	updateVisibility(visible: boolean): void;
 
 	close(): void;
 
@@ -398,6 +409,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 	private static readonly MAX_MESSAGE_LENGTH = 1000;
 
 	private _expanded: boolean | undefined;
+	private _visible: boolean = false;
 
 	private _actions: INotificationActions | undefined;
 	private _progress: NotificationViewItemProgress | undefined;
@@ -410,6 +422,9 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 
 	private readonly _onDidChangeLabel = this._register(new Emitter<INotificationViewItemLabelChangeEvent>());
 	readonly onDidChangeLabel = this._onDidChangeLabel.event;
+
+	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
+	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
 
 	static create(notification: INotification, filter: NotificationsFilter = NotificationsFilter.OFF): INotificationViewItem | undefined {
 		if (!notification || !notification.message || isPromiseCanceledError(notification.message)) {
@@ -598,6 +613,14 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 		this.setActions(actions);
 
 		this._onDidChangeLabel.fire({ kind: NotificationViewItemLabelKind.ACTIONS });
+	}
+
+	updateVisibility(visible: boolean): void {
+		if (this._visible !== visible) {
+			this._visible = visible;
+
+			this._onDidChangeVisibility.fire(visible);
+		}
 	}
 
 	expand(): void {

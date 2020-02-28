@@ -919,6 +919,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	dispose(): void {
+		this.logService.trace('[text file model] dispose()', this.resource.toString(true));
+
 		this.disposed = true;
 		this.inConflictMode = false;
 		this.inOrphanMode = false;

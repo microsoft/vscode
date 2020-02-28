@@ -25,7 +25,7 @@ export class MainThreadAuthenticationProvider {
 			return {
 				id: session.id,
 				accountName: session.accountName,
-				accessToken: () => this._proxy.$getSessionAccessToken(this.id, session.id)
+				getAccessToken: () => this._proxy.$getSessionAccessToken(this.id, session.id)
 			};
 		});
 	}
@@ -35,7 +35,7 @@ export class MainThreadAuthenticationProvider {
 			return {
 				id: session.id,
 				accountName: session.accountName,
-				accessToken: () => this._proxy.$getSessionAccessToken(this.id, session.id)
+				getAccessToken: () => this._proxy.$getSessionAccessToken(this.id, session.id)
 			};
 		});
 	}

@@ -727,7 +727,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		return document._saveAs(URI.revive(targetResource));
 	}
 
-	async $backup(resourceComponents: UriComponents, viewType: string, cancellation: CancellationToken): Promise<boolean> {
+	async $backup(resourceComponents: UriComponents, viewType: string, cancellation: CancellationToken): Promise<void> {
 		const document = this.getDocument(viewType, resourceComponents);
 		return document._backup(cancellation);
 	}

@@ -112,7 +112,7 @@ export class EnvironmentService implements IEnvironmentService {
 	get settingsResource(): URI { return resources.joinPath(this.userRoamingDataHome, 'settings.json'); }
 
 	@memoize
-	get userDataSyncHome(): URI { return resources.joinPath(this.userRoamingDataHome, '.sync'); }
+	get userDataSyncHome(): URI { return resources.joinPath(this.userRoamingDataHome, 'sync'); }
 
 	@memoize
 	get settingsSyncPreviewResource(): URI { return resources.joinPath(this.userDataSyncHome, 'settings.json'); }

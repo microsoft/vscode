@@ -3444,7 +3444,7 @@ declare namespace monaco.editor {
 		 * Control the minimap rendering mode.
 		 * Defaults to 'actual'.
 		 */
-		mode?: 'actual' | 'cover' | 'contain';
+		size?: 'proportional' | 'fill' | 'fit';
 		/**
 		 * Control the rendering of the minimap slider.
 		 * Defaults to 'mouseover'.
@@ -3754,9 +3754,14 @@ declare namespace monaco.editor {
 		 */
 		showSnippets?: boolean;
 		/**
-		 * Controls the visibility of the status bar at the bottom of the suggest widget.
+		 * Status bar related settings.
 		 */
-		hideStatusBar?: boolean;
+		statusBar?: {
+			/**
+			 * Controls the visibility of the status bar at the bottom of the suggest widget.
+			 */
+			visible?: boolean;
+		};
 	}
 
 	export type InternalSuggestOptions = Readonly<Required<ISuggestOptions>>;

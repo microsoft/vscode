@@ -68,7 +68,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 	) {
 		super();
 		this.syncFolder = joinPath(environmentService.userDataSyncHome, source);
-		this.lastSyncResource = joinPath(this.syncFolder, `.lastSync${source}.json`);
+		this.lastSyncResource = joinPath(this.syncFolder, `lastSync${source}.json`);
 		this.cleanUpDelayer = new ThrottledDelayer(50);
 		this.cleanUpBackup();
 	}
