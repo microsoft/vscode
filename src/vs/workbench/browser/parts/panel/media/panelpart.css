@@ -63,7 +63,7 @@
 }
 
 .monaco-workbench .part.panel > .composite.title > .composite-bar-excess {
-	width: 100%;
+	width: 100px;
 }
 
 .monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar {
