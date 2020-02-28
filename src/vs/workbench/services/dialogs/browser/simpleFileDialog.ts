@@ -297,6 +297,7 @@ export class SimpleFileDialog {
 
 			function doResolve(dialog: SimpleFileDialog, uri: URI | undefined) {
 				if (uri) {
+					uri = resources.addTrailingPathSeparator(uri, dialog.separator); // Ensures that c: is c:/
 					uri = resources.removeTrailingPathSeparator(uri);
 				}
 				resolve(uri);
