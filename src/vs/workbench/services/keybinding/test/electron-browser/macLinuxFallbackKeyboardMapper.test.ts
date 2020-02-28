@@ -215,7 +215,7 @@ suite('keyboardMapper - LINUX fallback', () => {
 		);
 	});
 
-	test('resolveKeyboardEvent Modifier only Ctrl+', () => {
+	test('resolveKeyboardEvent Modifier only Ctrl', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
@@ -228,10 +228,10 @@ suite('keyboardMapper - LINUX fallback', () => {
 				code: null!
 			},
 			{
-				label: 'Ctrl+',
+				label: 'Ctrl',
 				ariaLabel: 'Control+',
 				electronAccelerator: null,
-				userSettingsLabel: 'ctrl+',
+				userSettingsLabel: 'ctrl',
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: [null],
