@@ -175,8 +175,11 @@ class ToggleScreencastModeAction extends Action {
 				}
 
 				const keybinding = this.keybindingService.resolveKeyboardEvent(event);
-				const label = keybinding.getLabel();
-				const key = $('span.key', {}, label || '');
+				let label = keybinding.getLabel() || '';
+				if (/[^\+]\+$/.test(label)) {
+					label = label.substr(0, label.length - 1);
+				}
+				const key = $('span.key', {}, label);
 				length++;
 				append(keyboardMarker, key);
 			}
