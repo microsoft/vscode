@@ -98,7 +98,7 @@ export class DiffReview extends Disposable {
 			this.actionBarContainer.domNode
 		));
 
-		this._actionBar.push(new Action('diffreview.close', nls.localize('label.close', "Close"), 'close-diff-review', true, () => {
+		this._actionBar.push(new Action('diffreview.close', nls.localize('label.close', "Close"), 'close-diff-review codicon-close', true, () => {
 			this.hide();
 			return Promise.resolve(null);
 		}), { label: false, icon: true });
