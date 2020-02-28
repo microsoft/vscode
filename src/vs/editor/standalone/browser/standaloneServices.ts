@@ -48,6 +48,10 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { getSingletonServiceDescriptors } from 'vs/platform/instantiation/common/extensions';
 import { AccessibilityService } from 'vs/platform/accessibility/common/accessibilityService';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { BrowserClipboardService } from 'vs/platform/clipboard/browser/clipboardService';
+import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
+import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 
 export interface IEditorOverrideServices {
 	[index: string]: any;
@@ -148,7 +152,9 @@ export module StaticServices {
 
 	export const logService = define(ILogService, () => new NullLogService());
 
-	export const modelService = define(IModelService, (o) => new ModelServiceImpl(configurationService.get(o), resourcePropertiesService.get(o), standaloneThemeService.get(o), logService.get(o)));
+	export const undoRedoService = define(IUndoRedoService, (o) => new UndoRedoService(dialogService.get(o), notificationService.get(o)));
+
+	export const modelService = define(IModelService, (o) => new ModelServiceImpl(configurationService.get(o), resourcePropertiesService.get(o), standaloneThemeService.get(o), logService.get(o), undoRedoService.get(o)));
 
 	export const markerDecorationsService = define(IMarkerDecorationsService, (o) => new MarkerDecorationsService(modelService.get(o), markerService.get(o)));
 
@@ -203,6 +209,8 @@ export class DynamicStandaloneServices extends Disposable {
 		let layoutService = ensure(ILayoutService, () => new SimpleLayoutService(domElement));
 
 		let contextViewService = ensure(IContextViewService, () => this._register(new ContextViewService(layoutService)));
+
+		ensure(IClipboardService, () => new BrowserClipboardService());
 
 		ensure(IContextMenuService, () => {
 			const contextMenuService = new ContextMenuService(telemetryService, notificationService, contextViewService, keybindingService, themeService);

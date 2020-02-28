@@ -5,6 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import * as platform from 'vs/base/common/platform';
+import * as browser from 'vs/base/browser/browser';
 import { IframeUtils } from 'vs/base/browser/iframe';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -102,7 +103,7 @@ export class GlobalMouseMoveMonitor<R extends { buttons: number; }> implements I
 		for (const element of listenTo) {
 			this._hooks.add(dom.addDisposableThrottledListener(element, mouseMove,
 				(data: R) => {
-					if (data.buttons !== initialButtons) {
+					if (!browser.isIE && data.buttons !== initialButtons) {
 						// Buttons state has changed in the meantime
 						this.stopMonitoring(true);
 						return;

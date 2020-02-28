@@ -22,7 +22,7 @@ import { ClosePanelAction, PanelActivityAction, ToggleMaximizedPanelAction, Togg
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_DRAG_AND_DROP_BACKGROUND, PANEL_INPUT_BORDER } from 'vs/workbench/common/theme';
 import { activeContrastBorder, focusBorder, contrastBorder, editorBackground, badgeBackground, badgeForeground } from 'vs/platform/theme/common/colorRegistry';
-import { CompositeBar, ICompositeBarItem } from 'vs/workbench/browser/parts/compositeBar';
+import { CompositeBar, ICompositeBarItem, CompositeDragAndDrop } from 'vs/workbench/browser/parts/compositeBar';
 import { ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -33,9 +33,10 @@ import { IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/con
 import { isUndefinedOrNull, assertIsDefined } from 'vs/base/common/types';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, IViewDescriptorService, IViewDescriptorCollection } from 'vs/workbench/common/views';
+import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, IViewDescriptorService, IViewDescriptorCollection, ViewContainerLocation } from 'vs/workbench/common/views';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { ViewMenuActions } from 'vs/workbench/browser/parts/views/viewMenuActions';
+import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 
 interface ICachedPanel {
 	id: string;
@@ -56,7 +57,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	//#region IView
 
-	readonly minimumWidth: number = 420;
+	readonly minimumWidth: number = 300;
 	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
 	readonly minimumHeight: number = 77;
 	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
@@ -76,7 +77,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	//#endregion
 
 	get onDidPanelOpen(): Event<{ panel: IPanel, focus: boolean; }> { return Event.map(this.onDidCompositeOpen.event, compositeOpen => ({ panel: compositeOpen.composite, focus: compositeOpen.focus })); }
-	readonly onDidPanelClose: Event<IPanel> = this.onDidCompositeClose.event;
+	readonly onDidPanelClose = this.onDidCompositeClose.event;
 
 	private activePanelContextKey: IContextKey<string>;
 	private panelFocusContextKey: IContextKey<boolean>;
@@ -128,7 +129,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		this.compositeBar = this._register(this.instantiationService.createInstance(CompositeBar, this.getCachedPanels(), {
 			icon: false,
 			orientation: ActionsOrientation.HORIZONTAL,
-			openComposite: (compositeId: string) => Promise.resolve(this.openPanel(compositeId, true)),
+			openComposite: (compositeId: string) => this.openPanel(compositeId, true),
 			getActivityAction: (compositeId: string) => this.getCompositeActions(compositeId).activityAction,
 			getCompositePinnedAction: (compositeId: string) => this.getCompositeActions(compositeId).pinnedAction,
 			getOnCompositeClickAction: (compositeId: string) => this.instantiationService.createInstance(PanelActivityAction, assertIsDefined(this.getPanel(compositeId))),
@@ -142,6 +143,11 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			getContextMenuActionsForComposite: (compositeId: string) => this.getContextMenuActionsForComposite(compositeId) as Action[],
 			getDefaultCompositeId: () => this.panelRegistry.getDefaultPanelId(),
 			hidePart: () => this.layoutService.setPanelHidden(true),
+			dndHandler: new CompositeDragAndDrop(this.viewDescriptorService, ViewContainerLocation.Panel,
+				(id: string, focus?: boolean) => this.openPanel(id, focus) as Promise<IPaneComposite | undefined>,
+				(from: string, to: string) => this.compositeBar.move(from, to),
+				() => this.getPinnedPanels().map(p => p.id)
+			),
 			compositeSize: 0,
 			overflowActionSize: 44,
 			colors: (theme: ITheme) => ({
@@ -355,7 +361,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		}
 	}
 
-	openPanel(id: string, focus?: boolean): Panel | undefined {
+	doOpenPanel(id: string, focus?: boolean): Panel | undefined {
 		if (this.blockOpeningPanel) {
 			return undefined; // Workaround against a potential race condition
 		}
@@ -373,15 +379,15 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		return this.openComposite(id, focus);
 	}
 
-	async	openPanelAsync(id?: string, focus?: boolean): Promise<Panel | undefined> {
+	async openPanel(id?: string, focus?: boolean): Promise<Panel | undefined> {
 		if (typeof id === 'string' && this.getPanel(id)) {
-			return this.openPanel(id, focus);
+			return this.doOpenPanel(id, focus);
 		}
 
 		await this.extensionService.whenInstalledExtensionsRegistered();
 
 		if (typeof id === 'string' && this.getPanel(id)) {
-			return this.openPanel(id, focus);
+			return this.doOpenPanel(id, focus);
 		}
 
 		return undefined;
@@ -397,7 +403,17 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	getPanels(): readonly PanelDescriptor[] {
 		return this.panelRegistry.getPanels()
-			.sort((v1, v2) => typeof v1.order === 'number' && typeof v2.order === 'number' ? v1.order - v2.order : NaN);
+			.sort((v1, v2) => {
+				if (typeof v1.order !== 'number') {
+					return 1;
+				}
+
+				if (typeof v2.order !== 'number') {
+					return -1;
+				}
+
+				return v1.order - v2.order;
+			});
 	}
 
 	getPinnedPanels(): readonly PanelDescriptor[] {

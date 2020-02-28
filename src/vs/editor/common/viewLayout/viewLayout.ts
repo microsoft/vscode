@@ -161,8 +161,9 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		this._configuration = configuration;
 		const options = this._configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
+		const padding = options.get(EditorOption.padding);
 
-		this._linesLayout = new LinesLayout(lineCount, options.get(EditorOption.lineHeight));
+		this._linesLayout = new LinesLayout(lineCount, options.get(EditorOption.lineHeight), padding.top, padding.bottom);
 
 		this._scrollable = this._register(new EditorScrollable(0, scheduleAtNextAnimationFrame));
 		this._configureSmoothScrollDuration();
@@ -201,6 +202,10 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		const options = this._configuration.options;
 		if (e.hasChanged(EditorOption.lineHeight)) {
 			this._linesLayout.setLineHeight(options.get(EditorOption.lineHeight));
+		}
+		if (e.hasChanged(EditorOption.padding)) {
+			const padding = options.get(EditorOption.padding);
+			this._linesLayout.setPadding(padding.top, padding.bottom);
 		}
 		if (e.hasChanged(EditorOption.layoutInfo)) {
 			const layoutInfo = options.get(EditorOption.layoutInfo);

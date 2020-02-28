@@ -227,7 +227,7 @@ export function relativePath(from: URI, to: URI, ignoreCase = hasToIgnoreCase(fr
 		return undefined;
 	}
 	if (from.scheme === Schemas.file) {
-		const relativePath = paths.relative(from.path, to.path);
+		const relativePath = paths.relative(originalFSPath(from), originalFSPath(to));
 		return isWindows ? extpath.toSlashes(relativePath) : relativePath;
 	}
 	let fromPath = from.path || '/', toPath = to.path || '/';

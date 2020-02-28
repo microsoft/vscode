@@ -12,7 +12,8 @@ import * as path from 'vs/base/common/path';
 import * as pfs from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { BackupFilesModel } from 'vs/workbench/services/backup/common/backupFileService';
-import { TextModel, createTextBufferFactory } from 'vs/editor/common/model/textModel';
+import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { DefaultEndOfLine, ITextSnapshot } from 'vs/editor/common/model';
 import { Schemas } from 'vs/base/common/network';
@@ -26,7 +27,7 @@ import { hashPath, BackupFileService } from 'vs/workbench/services/backup/node/b
 import { BACKUPS } from 'vs/platform/environment/common/environment';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { TestWindowConfiguration } from 'vs/workbench/test/workbenchTestServices';
+import { TestWindowConfiguration } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 
 const userdataDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backupfileservice');
 const appSettingsHome = path.join(userdataDir, 'User');
@@ -205,7 +206,7 @@ suite('BackupFileService', () => {
 		});
 
 		test('text file (ITextSnapshot)', async () => {
-			const model = TextModel.createFromString('test');
+			const model = createTextModel('test');
 
 			await service.backup(fooFile, model.createSnapshot());
 			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
@@ -217,7 +218,7 @@ suite('BackupFileService', () => {
 		});
 
 		test('untitled file (ITextSnapshot)', async () => {
-			const model = TextModel.createFromString('test');
+			const model = createTextModel('test');
 
 			await service.backup(untitledFile, model.createSnapshot());
 			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 1);
@@ -229,7 +230,7 @@ suite('BackupFileService', () => {
 
 		test('text file (large file, ITextSnapshot)', async () => {
 			const largeString = (new Array(10 * 1024)).join('Large String\n');
-			const model = TextModel.createFromString(largeString);
+			const model = createTextModel(largeString);
 
 			await service.backup(fooFile, model.createSnapshot());
 			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
@@ -242,7 +243,7 @@ suite('BackupFileService', () => {
 
 		test('untitled file (large file, ITextSnapshot)', async () => {
 			const largeString = (new Array(10 * 1024)).join('Large String\n');
-			const model = TextModel.createFromString(largeString);
+			const model = createTextModel(largeString);
 
 			await service.backup(untitledFile, model.createSnapshot());
 			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 1);

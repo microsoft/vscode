@@ -179,7 +179,7 @@ class RenameController implements IEditorContribution {
 			selectionEnd = Math.min(loc.range.endColumn, selection.endColumn) - loc.range.startColumn;
 		}
 
-		const supportPreview = this._configService.getValue<boolean>(this.editor.getModel().uri, 'editor.rename.enablePreview');
+		const supportPreview = this._bulkEditService.hasPreviewHandler() && this._configService.getValue<boolean>(this.editor.getModel().uri, 'editor.rename.enablePreview');
 		const inputFieldResult = await this._renameInputField.getValue().getInput(loc.range, loc.text, selectionStart, selectionEnd, supportPreview);
 
 		// no result, only hint to focus the editor or not
@@ -206,7 +206,8 @@ class RenameController implements IEditorContribution {
 			this._bulkEditService.apply(renameResult, {
 				editor: this.editor,
 				showPreview: inputFieldResult.wantsPreview,
-				label: nls.localize('label', "Renaming '{0}'", loc?.text)
+				label: nls.localize('label', "Renaming '{0}'", loc?.text),
+				quotableLabel: nls.localize('quotableLabel', "Renaming {0}", loc?.text),
 			}).then(result => {
 				if (result.ariaSummary) {
 					alert(nls.localize('aria', "Successfully renamed '{0}' to '{1}'. Summary: {2}", loc!.text, inputFieldResult.newName, result.ariaSummary));

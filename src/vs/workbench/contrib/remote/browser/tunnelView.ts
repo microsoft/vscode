@@ -40,6 +40,7 @@ import { URI } from 'vs/base/common/uri';
 import { RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export const forwardedPortsViewEnabled = new RawContextKey<boolean>('forwardedPortsViewEnabled', false);
 
@@ -57,7 +58,7 @@ export interface ITunnelViewModel {
 	onForwardedPortsChanged: Event<void>;
 	readonly forwarded: TunnelItem[];
 	readonly detected: TunnelItem[];
-	readonly candidates: Promise<TunnelItem[]>;
+	readonly candidates: TunnelItem[];
 	readonly input: TunnelItem;
 	groups(): Promise<ITunnelGroup[]>;
 }
@@ -67,6 +68,7 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 	public onForwardedPortsChanged: Event<void> = this._onForwardedPortsChanged.event;
 	private model: TunnelModel;
 	private _input: TunnelItem;
+	private _candidates: Map<string, { host: string, port: number, detail: string }> = new Map();
 
 	constructor(
 		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService) {
@@ -87,6 +89,10 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 
 	async groups(): Promise<ITunnelGroup[]> {
 		const groups: ITunnelGroup[] = [];
+		this._candidates = new Map();
+		(await this.model.candidates).forEach(candidate => {
+			this._candidates.set(MakeAddress(candidate.host, candidate.port), candidate);
+		});
 		if ((this.model.forwarded.size > 0) || this.remoteExplorerService.getEditableData(undefined)) {
 			groups.push({
 				label: nls.localize('remote.tunnelsView.forwarded', "Forwarded"),
@@ -115,9 +121,18 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 		return groups;
 	}
 
+	private addProcessInfoFromCandidate(tunnelItem: ITunnelItem) {
+		const key = MakeAddress(tunnelItem.remoteHost, tunnelItem.remotePort);
+		if (this._candidates.has(key)) {
+			tunnelItem.description = this._candidates.get(key)!.detail;
+		}
+	}
+
 	get forwarded(): TunnelItem[] {
 		const forwarded = Array.from(this.model.forwarded.values()).map(tunnel => {
-			return TunnelItem.createFromTunnel(tunnel);
+			const tunnelItem = TunnelItem.createFromTunnel(tunnel);
+			this.addProcessInfoFromCandidate(tunnelItem);
+			return tunnelItem;
 		}).sort((a: TunnelItem, b: TunnelItem) => {
 			if (a.remotePort === b.remotePort) {
 				return a.remoteHost < b.remoteHost ? -1 : 1;
@@ -133,21 +148,21 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 
 	get detected(): TunnelItem[] {
 		return Array.from(this.model.detected.values()).map(tunnel => {
-			return TunnelItem.createFromTunnel(tunnel, TunnelType.Detected, false);
+			const tunnelItem = TunnelItem.createFromTunnel(tunnel, TunnelType.Detected, false);
+			this.addProcessInfoFromCandidate(tunnelItem);
+			return tunnelItem;
 		});
 	}
 
-	get candidates(): Promise<TunnelItem[]> {
-		return this.model.candidates.then(values => {
-			const candidates: TunnelItem[] = [];
-			values.forEach(value => {
-				const key = MakeAddress(value.host, value.port);
-				if (!this.model.forwarded.has(key) && !this.model.detected.has(key)) {
-					candidates.push(new TunnelItem(TunnelType.Candidate, value.host, value.port, undefined, false, undefined, value.detail));
-				}
-			});
-			return candidates;
+	get candidates(): TunnelItem[] {
+		const candidates: TunnelItem[] = [];
+		this._candidates.forEach(value => {
+			const key = MakeAddress(value.host, value.port);
+			if (!this.model.forwarded.has(key) && !this.model.detected.has(key)) {
+				candidates.push(new TunnelItem(TunnelType.Candidate, value.host, value.port, undefined, false, undefined, value.detail));
+			}
 		});
+		return candidates;
 	}
 
 	get input(): TunnelItem {
@@ -386,6 +401,10 @@ class TunnelItem implements ITunnelItem {
 		}
 	}
 
+	set description(description: string | undefined) {
+		this._description = description;
+	}
+
 	get description(): string | undefined {
 		if (this._description) {
 			return this._description;
@@ -408,10 +427,12 @@ const TunnelViewSelectionKeyName = 'tunnelViewSelection';
 const TunnelViewSelectionContextKey = new RawContextKey<ITunnelItem | undefined>(TunnelViewSelectionKeyName, undefined);
 const PortChangableContextKey = new RawContextKey<boolean>('portChangable', false);
 
+class TunnelDataTree extends WorkbenchAsyncDataTree<any, any, any> { }
+
 export class TunnelPanel extends ViewPane {
 	static readonly ID = '~remote.forwardedPorts';
 	static readonly TITLE = nls.localize('remote.tunnel', "Forwarded Ports");
-	private tree!: WorkbenchAsyncDataTree<any, any, any>;
+	private tree!: TunnelDataTree;
 	private tunnelTypeContext: IContextKey<TunnelType>;
 	private tunnelCloseableContext: IContextKey<boolean>;
 	private tunnelViewFocusContext: IContextKey<boolean>;
@@ -430,16 +451,17 @@ export class TunnelPanel extends ViewPane {
 		@IConfigurationService protected configurationService: IConfigurationService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IOpenerService protected openerService: IOpenerService,
+		@IOpenerService openerService: IOpenerService,
 		@IQuickInputService protected quickInputService: IQuickInputService,
 		@ICommandService protected commandService: ICommandService,
 		@IMenuService private readonly menuService: IMenuService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
-		@IThemeService private readonly themeService: IThemeService,
-		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService
+		@IThemeService themeService: IThemeService,
+		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		this.tunnelTypeContext = TunnelTypeContextKey.bindTo(contextKeyService);
 		this.tunnelCloseableContext = TunnelCloseableContextKey.bindTo(contextKeyService);
 		this.tunnelViewFocusContext = TunnelViewFocusContextKey.bindTo(contextKeyService);
@@ -466,13 +488,15 @@ export class TunnelPanel extends ViewPane {
 	}
 
 	protected renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+
 		const panelContainer = dom.append(container, dom.$('.tree-explorer-viewlet-tree-view'));
 		const treeContainer = dom.append(panelContainer, dom.$('.customview-tree'));
 		dom.addClass(treeContainer, 'file-icon-themable-tree');
 		dom.addClass(treeContainer, 'show-file-icons');
 
 		const renderer = new TunnelTreeRenderer(TunnelPanel.ID, this.menuService, this.contextKeyService, this.instantiationService, this.contextViewService, this.themeService, this.remoteExplorerService);
-		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree,
+		this.tree = this.instantiationService.createInstance(TunnelDataTree,
 			'RemoteTunnels',
 			treeContainer,
 			new TunnelTreeVirtualDelegate(),

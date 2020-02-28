@@ -74,6 +74,7 @@ interface NoResponseTsServerRequests {
 
 interface AsyncTsServerRequests {
 	'geterr': [Proto.GeterrRequestArgs, Proto.Response];
+	'geterrForProject': [Proto.GeterrForProjectRequestArgs, Proto.Response];
 }
 
 export type TypeScriptRequests = StandardTsServerRequests & NoResponseTsServerRequests & AsyncTsServerRequests;
@@ -137,7 +138,11 @@ export interface ITypeScriptServiceClient {
 		args: NoResponseTsServerRequests[K][0]
 	): void;
 
-	executeAsync(command: 'geterr', args: Proto.GeterrRequestArgs, token: vscode.CancellationToken): Promise<ServerResponse.Response<Proto.Response>>;
+	executeAsync<K extends keyof AsyncTsServerRequests>(
+		command: K,
+		args: AsyncTsServerRequests[K][0],
+		token: vscode.CancellationToken
+	): Promise<ServerResponse.Response<Proto.Response>>;
 
 	/**
 	 * Cancel on going geterr requests and re-queue them after `f` has been evaluated.

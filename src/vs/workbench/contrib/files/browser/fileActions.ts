@@ -46,6 +46,7 @@ import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IWorkingCopyService, IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { sequence } from 'vs/base/common/async';
+import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
@@ -144,7 +145,7 @@ export class GlobalNewUntitledFileAction extends Action {
 	}
 }
 
-async function deleteFiles(workingCopyService: IWorkingCopyService, textFileService: ITextFileService, dialogService: IDialogService, configurationService: IConfigurationService, elements: ExplorerItem[], useTrash: boolean, skipConfirm = false): Promise<void> {
+async function deleteFiles(workingCopyFileService: IWorkingCopyFileService, dialogService: IDialogService, configurationService: IConfigurationService, elements: ExplorerItem[], useTrash: boolean, skipConfirm = false): Promise<void> {
 	let primaryButton: string;
 	if (useTrash) {
 		primaryButton = isWindows ? nls.localize('deleteButtonLabelRecycleBin', "&&Move to Recycle Bin") : nls.localize({ key: 'deleteButtonLabelTrash', comment: ['&& denotes a mnemonic'] }, "&&Move to Trash");
@@ -152,20 +153,24 @@ async function deleteFiles(workingCopyService: IWorkingCopyService, textFileServ
 		primaryButton = nls.localize({ key: 'deleteButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Delete");
 	}
 
-	const distinctElements = resources.distinctParents(elements, e => e.resource);
-
 	// Handle dirty
+	const distinctElements = resources.distinctParents(elements, e => e.resource);
+	const dirtyWorkingCopies = new Set<IWorkingCopy>();
+	for (const distinctElement of distinctElements) {
+		for (const dirtyWorkingCopy of workingCopyFileService.getDirty(distinctElement.resource)) {
+			dirtyWorkingCopies.add(dirtyWorkingCopy);
+		}
+	}
 	let confirmed = true;
-	const dirtyWorkingCopies = workingCopyService.dirtyWorkingCopies.filter(workingCopy => distinctElements.some(e => resources.isEqualOrParent(workingCopy.resource, e.resource)));
-	if (dirtyWorkingCopies.length) {
+	if (dirtyWorkingCopies.size) {
 		let message: string;
 		if (distinctElements.length > 1) {
 			message = nls.localize('dirtyMessageFilesDelete', "You are deleting files with unsaved changes. Do you want to continue?");
 		} else if (distinctElements[0].isDirectory) {
-			if (dirtyWorkingCopies.length === 1) {
+			if (dirtyWorkingCopies.size === 1) {
 				message = nls.localize('dirtyMessageFolderOneDelete', "You are deleting a folder {0} with unsaved changes in 1 file. Do you want to continue?", distinctElements[0].name);
 			} else {
-				message = nls.localize('dirtyMessageFolderDelete', "You are deleting a folder {0} with unsaved changes in {1} files. Do you want to continue?", distinctElements[0].name, dirtyWorkingCopies.length);
+				message = nls.localize('dirtyMessageFolderDelete', "You are deleting a folder {0} with unsaved changes in {1} files. Do you want to continue?", distinctElements[0].name, dirtyWorkingCopies.size);
 			}
 		} else {
 			message = nls.localize('dirtyMessageFileDelete', "You are deleting {0} with unsaved changes. Do you want to continue?", distinctElements[0].name);
@@ -182,7 +187,6 @@ async function deleteFiles(workingCopyService: IWorkingCopyService, textFileServ
 			confirmed = false;
 		} else {
 			skipConfirm = true;
-			await Promise.all(dirtyWorkingCopies.map(dirty => dirty.revert()));
 		}
 	}
 
@@ -244,7 +248,7 @@ async function deleteFiles(workingCopyService: IWorkingCopyService, textFileServ
 
 	// Call function
 	try {
-		await Promise.all(distinctElements.map(e => textFileService.delete(e.resource, { useTrash: useTrash, recursive: true })));
+		await Promise.all(distinctElements.map(e => workingCopyFileService.delete(e.resource, { useTrash: useTrash, recursive: true })));
 	} catch (error) {
 
 		// Handle error to delete file(s) from a modal confirmation dialog
@@ -274,7 +278,7 @@ async function deleteFiles(workingCopyService: IWorkingCopyService, textFileServ
 
 			skipConfirm = true;
 
-			return deleteFiles(workingCopyService, textFileService, dialogService, configurationService, elements, useTrash, skipConfirm);
+			return deleteFiles(workingCopyFileService, dialogService, configurationService, elements, useTrash, skipConfirm);
 		}
 	}
 }
@@ -472,7 +476,7 @@ export class GlobalCompareResourcesAction extends Action {
 
 	async run(): Promise<any> {
 		const activeInput = this.editorService.activeEditor;
-		const activeResource = activeInput ? activeInput.getResource() : undefined;
+		const activeResource = activeInput ? activeInput.resource : undefined;
 		if (activeResource) {
 
 			// Compare with next editor that opens
@@ -482,7 +486,7 @@ export class GlobalCompareResourcesAction extends Action {
 				toDispose.dispose();
 
 				// Open editor as diff
-				const resource = editor.getResource();
+				const resource = editor.resource;
 				if (resource) {
 					return {
 						override: this.editorService.openEditor({
@@ -522,7 +526,7 @@ export class ToggleAutoSaveAction extends Action {
 }
 
 export abstract class BaseSaveAllAction extends Action {
-	private lastIsDirty: boolean;
+	private lastDirtyState: boolean;
 
 	constructor(
 		id: string,
@@ -533,8 +537,8 @@ export abstract class BaseSaveAllAction extends Action {
 	) {
 		super(id, label);
 
-		this.lastIsDirty = this.workingCopyService.hasDirty;
-		this.enabled = this.lastIsDirty;
+		this.lastDirtyState = this.workingCopyService.hasDirty;
+		this.enabled = this.lastDirtyState;
 
 		this.registerListeners();
 	}
@@ -544,14 +548,14 @@ export abstract class BaseSaveAllAction extends Action {
 	private registerListeners(): void {
 
 		// update enablement based on working copy changes
-		this._register(this.workingCopyService.onDidChangeDirty(w => this.updateEnablement(w)));
+		this._register(this.workingCopyService.onDidChangeDirty(workingCopy => this.updateEnablement(workingCopy)));
 	}
 
 	private updateEnablement(workingCopy: IWorkingCopy): void {
 		const hasDirty = workingCopy.isDirty() || this.workingCopyService.hasDirty;
-		if (this.lastIsDirty !== hasDirty) {
+		if (this.lastDirtyState !== hasDirty) {
 			this.enabled = hasDirty;
-			this.lastIsDirty = this.enabled;
+			this.lastDirtyState = this.enabled;
 		}
 	}
 
@@ -934,7 +938,7 @@ CommandsRegistry.registerCommand({
 
 export const renameHandler = (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
-	const textFileService = accessor.get(ITextFileService);
+	const workingCopyFileService = accessor.get(IWorkingCopyFileService);
 	const notificationService = accessor.get(INotificationService);
 
 	const stats = explorerService.getContext(false);
@@ -951,7 +955,7 @@ export const renameHandler = (accessor: ServicesAccessor) => {
 				const targetResource = resources.joinPath(parentResource, value);
 				if (stat.resource.toString() !== targetResource.toString()) {
 					try {
-						await textFileService.move(stat.resource, targetResource);
+						await workingCopyFileService.move(stat.resource, targetResource);
 						refreshIfSeparator(value, explorerService);
 					} catch (e) {
 						notificationService.error(e);
@@ -967,7 +971,7 @@ export const moveFileToTrashHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
 	const stats = explorerService.getContext(true).filter(s => !s.isRoot);
 	if (stats.length) {
-		await deleteFiles(accessor.get(IWorkingCopyService), accessor.get(ITextFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), stats, true);
+		await deleteFiles(accessor.get(IWorkingCopyFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), stats, true);
 	}
 };
 
@@ -976,7 +980,7 @@ export const deleteFileHandler = async (accessor: ServicesAccessor) => {
 	const stats = explorerService.getContext(true).filter(s => !s.isRoot);
 
 	if (stats.length) {
-		await deleteFiles(accessor.get(IWorkingCopyService), accessor.get(ITextFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), stats, false);
+		await deleteFiles(accessor.get(IWorkingCopyFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), stats, false);
 	}
 };
 
@@ -1002,7 +1006,7 @@ export const cutFileHandler = (accessor: ServicesAccessor) => {
 export const DOWNLOAD_COMMAND_ID = 'explorer.download';
 const downloadFileHandler = (accessor: ServicesAccessor) => {
 	const fileService = accessor.get(IFileService);
-	const textFileService = accessor.get(ITextFileService);
+	const workingCopyFileService = accessor.get(IWorkingCopyFileService);
 	const fileDialogService = accessor.get(IFileDialogService);
 	const explorerService = accessor.get(IExplorerService);
 	const stats = explorerService.getContext(true);
@@ -1025,7 +1029,7 @@ const downloadFileHandler = (accessor: ServicesAccessor) => {
 				triggerDownload(bufferOrUri, s.name);
 			}
 		} else {
-			let defaultUri = s.isDirectory ? fileDialogService.defaultFolderPath() : fileDialogService.defaultFilePath();
+			let defaultUri = s.isDirectory ? fileDialogService.defaultFolderPath(Schemas.file) : fileDialogService.defaultFilePath(Schemas.file);
 			if (defaultUri) {
 				defaultUri = resources.joinPath(defaultUri, s.name);
 			}
@@ -1037,7 +1041,7 @@ const downloadFileHandler = (accessor: ServicesAccessor) => {
 				defaultUri
 			});
 			if (destination) {
-				await textFileService.copy(s.resource, destination, true);
+				await workingCopyFileService.copy(s.resource, destination, true);
 			} else {
 				// User canceled a download. In case there were multiple files selected we should cancel the remainder of the prompts #86100
 				canceled = true;
@@ -1055,7 +1059,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 	const clipboardService = accessor.get(IClipboardService);
 	const explorerService = accessor.get(IExplorerService);
 	const fileService = accessor.get(IFileService);
-	const textFileService = accessor.get(ITextFileService);
+	const workingCopyFileService = accessor.get(IWorkingCopyFileService);
 	const notificationService = accessor.get(INotificationService);
 	const editorService = accessor.get(IEditorService);
 	const configurationService = accessor.get(IConfigurationService);
@@ -1087,9 +1091,9 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 
 			// Move/Copy File
 			if (pasteShouldMove) {
-				return await textFileService.move(fileToPaste, targetFile);
+				return await workingCopyFileService.move(fileToPaste, targetFile);
 			} else {
-				return await textFileService.copy(fileToPaste, targetFile);
+				return await workingCopyFileService.copy(fileToPaste, targetFile);
 			}
 		} catch (e) {
 			onError(notificationService, new Error(nls.localize('fileDeleted', "The file to paste has been deleted or moved since you copied it. {0}", getErrorMessage(e))));

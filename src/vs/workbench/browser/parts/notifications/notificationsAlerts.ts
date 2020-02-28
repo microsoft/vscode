@@ -23,10 +23,10 @@ export class NotificationsAlerts extends Disposable {
 	}
 
 	private registerListeners(): void {
-		this._register(this.model.onDidNotificationChange(e => this.onDidNotificationChange(e)));
+		this._register(this.model.onDidChangeNotification(e => this.onDidChangeNotification(e)));
 	}
 
-	private onDidNotificationChange(e: INotificationChangeEvent): void {
+	private onDidChangeNotification(e: INotificationChangeEvent): void {
 		if (e.kind === NotificationChangeType.ADD) {
 
 			// ARIA alert for screen readers
@@ -37,7 +37,7 @@ export class NotificationsAlerts extends Disposable {
 				if (e.item.message.original instanceof Error) {
 					console.error(e.item.message.original);
 				} else {
-					console.error(toErrorMessage(e.item.message.value, true));
+					console.error(toErrorMessage(e.item.message.linkedText.toString(), true));
 				}
 			}
 		}
@@ -46,7 +46,7 @@ export class NotificationsAlerts extends Disposable {
 	private triggerAriaAlert(notifiation: INotificationViewItem): void {
 
 		// Trigger the alert again whenever the label changes
-		const listener = notifiation.onDidLabelChange(e => {
+		const listener = notifiation.onDidChangeLabel(e => {
 			if (e.kind === NotificationViewItemLabelKind.MESSAGE) {
 				this.doTriggerAriaAlert(notifiation);
 			}
@@ -60,11 +60,11 @@ export class NotificationsAlerts extends Disposable {
 	private doTriggerAriaAlert(notifiation: INotificationViewItem): void {
 		let alertText: string;
 		if (notifiation.severity === Severity.Error) {
-			alertText = localize('alertErrorMessage', "Error: {0}", notifiation.message.value);
+			alertText = localize('alertErrorMessage', "Error: {0}", notifiation.message.linkedText.toString());
 		} else if (notifiation.severity === Severity.Warning) {
-			alertText = localize('alertWarningMessage', "Warning: {0}", notifiation.message.value);
+			alertText = localize('alertWarningMessage', "Warning: {0}", notifiation.message.linkedText.toString());
 		} else {
-			alertText = localize('alertInfoMessage', "Info: {0}", notifiation.message.value);
+			alertText = localize('alertInfoMessage', "Info: {0}", notifiation.message.linkedText.toString());
 		}
 
 		alert(alertText);

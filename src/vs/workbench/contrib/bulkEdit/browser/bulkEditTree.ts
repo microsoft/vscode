@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAsyncDataSource, ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
+import { IAsyncDataSource, ITreeRenderer, ITreeNode, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
@@ -24,6 +24,9 @@ import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { basename } from 'vs/base/common/resources';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { WorkspaceFileEdit } from 'vs/editor/common/modes';
+import { compare } from 'vs/base/common/strings';
+import { URI } from 'vs/base/common/uri';
+import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 
 // --- VIEW MODEL
 
@@ -172,7 +175,10 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 
 	public groupByFile: boolean = true;
 
-	constructor(@ITextModelService private readonly _textModelService: ITextModelService) { }
+	constructor(
+		@ITextModelService private readonly _textModelService: ITextModelService,
+		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
+	) { }
 
 	hasChildren(element: BulkFileOperations | BulkEditElement): boolean {
 		if (element instanceof FileElement) {
@@ -208,7 +214,7 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 				textModel = ref.object.textEditorModel;
 				textModelDisposable = ref;
 			} catch {
-				textModel = TextModel.createFromString('');
+				textModel = new TextModel('', TextModel.DEFAULT_CREATION_OPTIONS, null, null, this._undoRedoService);
 				textModelDisposable = textModel;
 			}
 
@@ -245,6 +251,39 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 		}
 
 		return [];
+	}
+}
+
+
+export class BulkEditSorter implements ITreeSorter<BulkEditElement> {
+
+	compare(a: BulkEditElement, b: BulkEditElement): number {
+		if (a instanceof CategoryElement && b instanceof CategoryElement) {
+			//
+			const aConfirm = BulkEditSorter._needsConfirmation(a.category);
+			const bConfirm = BulkEditSorter._needsConfirmation(b.category);
+			if (aConfirm === bConfirm) {
+				return a.category.metadata.label.localeCompare(b.category.metadata.label);
+			} else if (aConfirm) {
+				return -1;
+			} else {
+				return 1;
+			}
+		}
+
+		if (a instanceof FileElement && b instanceof FileElement) {
+			return compare(a.edit.uri.toString(), b.edit.uri.toString());
+		}
+
+		if (a instanceof TextEditElement && b instanceof TextEditElement) {
+			return Range.compareRangesUsingStarts(a.edit.textEdit.edit.range, b.edit.textEdit.edit.range);
+		}
+
+		return 0;
+	}
+
+	private static _needsConfirmation(a: BulkCategory): boolean {
+		return a.fileOperations.some(ops => ops.needsConfirmation());
 	}
 }
 
@@ -386,6 +425,12 @@ export class CategoryElementRenderer implements ITreeRenderer<CategoryElement, F
 			const className = ThemeIcon.asClassName(metadata.iconPath);
 			template.icon.className = className ? `theme-icon ${className}` : '';
 
+		} else if (URI.isUri(metadata.iconPath)) {
+			// background-image
+			template.icon.className = 'uri-icon';
+			template.icon.style.setProperty('--background-dark', `url("${metadata.iconPath.toString(true)}")`);
+			template.icon.style.setProperty('--background-light', `url("${metadata.iconPath.toString(true)}")`);
+
 		} else if (metadata.iconPath) {
 			// background-image
 			template.icon.className = 'uri-icon';
@@ -447,33 +492,33 @@ class FileElementTemplate {
 		}));
 
 		if (element.edit.type & BulkFileOperationType.Rename && element.edit.newUri) {
-			// rename: NEW NAME (old name)
-			this._label.setFile(element.edit.newUri, {
-				matches: createMatches(score),
-				fileKind: FileKind.FILE,
-				fileDecorations: { colors: true, badges: false },
+			// rename: oldName → newName
+			this._label.setResource({
+				resource: element.edit.uri,
+				name: localize('rename.label', "{0} → {1}", this._labelService.getUriLabel(element.edit.uri, { relative: true }), this._labelService.getUriLabel(element.edit.newUri, { relative: true })),
+			}, {
+				fileDecorations: { colors: true, badges: false }
 			});
 
-			this._details.innerText = localize(
-				'detail.rename', "(renaming from {0})",
-				this._labelService.getUriLabel(element.edit.uri, { relative: true })
-			);
+			this._details.innerText = localize('detail.rename', "(renaming)");
 
 		} else {
 			// create, delete, edit: NAME
-			this._label.setFile(element.edit.uri, {
+			const options = {
 				matches: createMatches(score),
 				fileKind: FileKind.FILE,
 				fileDecorations: { colors: true, badges: false },
-			});
-
+				extraClasses: <string[]>[]
+			};
 			if (element.edit.type & BulkFileOperationType.Create) {
 				this._details.innerText = localize('detail.create', "(creating)");
 			} else if (element.edit.type & BulkFileOperationType.Delete) {
 				this._details.innerText = localize('detail.del', "(deleting)");
+				options.extraClasses.push('delete');
 			} else {
 				this._details.innerText = '';
 			}
+			this._label.setFile(element.edit.uri, options);
 		}
 	}
 }

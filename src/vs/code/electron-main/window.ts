@@ -8,7 +8,7 @@ import * as objects from 'vs/base/common/objects';
 import * as nls from 'vs/nls';
 import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage, Rectangle, Display, TouchBarSegmentedControl, NativeImage, BrowserWindowConstructorOptions, SegmentedControlSegment } from 'electron';
+import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage, Rectangle, Display, TouchBarSegmentedControl, NativeImage, BrowserWindowConstructorOptions, SegmentedControlSegment, nativeTheme } from 'electron';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -32,6 +32,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 
 const RUN_TEXTMATE_IN_WORKER = false;
 
@@ -100,7 +101,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		@IWorkspacesMainService private readonly workspacesMainService: IWorkspacesMainService,
 		@IBackupMainService private readonly backupMainService: IBackupMainService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IDialogMainService private readonly dialogMainService: IDialogMainService
+		@IDialogMainService private readonly dialogMainService: IDialogMainService,
+		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService
 	) {
 		super();
 
@@ -244,6 +246,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	get isExtensionTestHost(): boolean { return !!(this.config && this.config.extensionTestsPath); }
 
+	get isExtensionDevelopmentTestFromCli(): boolean { return this.isExtensionDevelopmentHost && this.isExtensionTestHost && !this.config?.debugId; }
+
 	setRepresentedFilename(filename: string): void {
 		if (isMacintosh) {
 			this.win.setRepresentedFilename(filename);
@@ -347,9 +351,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		});
 
 		this._win.webContents.session.webRequest.onHeadersReceived(null!, (details, callback) => {
-			const responseHeaders = details.responseHeaders as { [key: string]: string[] };
+			const responseHeaders = details.responseHeaders as Record<string, (string) | (string[])>;
 
-			const contentType: string[] = (responseHeaders['content-type'] || responseHeaders['Content-Type']);
+			const contentType = (responseHeaders['content-type'] || responseHeaders['Content-Type']);
 			if (contentType && Array.isArray(contentType) && contentType.some(x => x.toLowerCase().indexOf('image/svg') >= 0)) {
 				return callback({ cancel: true });
 			}
@@ -441,12 +445,21 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// Inject headers when requests are incoming
 		const urls = ['https://marketplace.visualstudio.com/*', 'https://*.vsassets.io/*'];
 		this._win.webContents.session.webRequest.onBeforeSendHeaders({ urls }, (details, cb) =>
-			this.marketplaceHeadersPromise.then(headers => cb({ cancel: false, requestHeaders: objects.assign(details.requestHeaders, headers) as { [key: string]: string | undefined } })));
+			this.marketplaceHeadersPromise.then(headers => cb({ cancel: false, requestHeaders: objects.assign(details.requestHeaders, headers) as Record<string, string> })));
 	}
 
 	private onWindowError(error: WindowError): void {
 		this.logService.error(error === WindowError.CRASHED ? '[VS Code]: render process crashed!' : '[VS Code]: detected unresponsive');
 
+		// If we run extension tests from CLI, showing a dialog is not
+		// very helpful in this case. Rather, we bring down the test run
+		// to signal back a failing run.
+		if (this.isExtensionDevelopmentTestFromCli) {
+			this.lifecycleMainService.kill(1);
+			return;
+		}
+
+		// Telemetry
 		type WindowErrorClassification = {
 			type: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
 		};
@@ -648,7 +661,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		if (windowConfig?.autoDetectHighContrast === false) {
 			autoDetectHighContrast = false;
 		}
-		windowConfiguration.highContrast = isWindows && autoDetectHighContrast && systemPreferences.isInvertedColorScheme();
+		windowConfiguration.highContrast = isWindows && autoDetectHighContrast && nativeTheme.shouldUseInvertedColorScheme;
 		windowConfiguration.accessibilitySupport = app.accessibilitySupportEnabled;
 
 		// Title style related
@@ -1007,22 +1020,22 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		switch (visibility) {
 			case ('default'):
 				this._win.setMenuBarVisibility(!isFullscreen);
-				this._win.setAutoHideMenuBar(isFullscreen);
+				this._win.autoHideMenuBar = isFullscreen;
 				break;
 
 			case ('visible'):
 				this._win.setMenuBarVisibility(true);
-				this._win.setAutoHideMenuBar(false);
+				this._win.autoHideMenuBar = false;
 				break;
 
 			case ('toggle'):
 				this._win.setMenuBarVisibility(false);
-				this._win.setAutoHideMenuBar(true);
+				this._win.autoHideMenuBar = true;
 				break;
 
 			case ('hidden'):
 				this._win.setMenuBarVisibility(false);
-				this._win.setAutoHideMenuBar(false);
+				this._win.autoHideMenuBar = false;
 				break;
 		}
 	}

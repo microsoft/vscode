@@ -6,7 +6,7 @@
 import 'vs/workbench/browser/style';
 
 import { localize } from 'vs/nls';
-import { Event, Emitter, setGlobalLeakWarningThreshold } from 'vs/base/common/event';
+import { Emitter, setGlobalLeakWarningThreshold } from 'vs/base/common/event';
 import { addClasses, addClass, removeClasses } from 'vs/base/browser/dom';
 import { runWhenIdle } from 'vs/base/common/async';
 import { getZoomLevel, isFirefox, isSafari, isChrome } from 'vs/base/browser/browser';
@@ -50,13 +50,13 @@ import { Extensions as PanelExtensions, PanelRegistry } from 'vs/workbench/brows
 export class Workbench extends Layout {
 
 	private readonly _onBeforeShutdown = this._register(new Emitter<BeforeShutdownEvent>());
-	readonly onBeforeShutdown: Event<BeforeShutdownEvent> = this._onBeforeShutdown.event;
+	readonly onBeforeShutdown = this._onBeforeShutdown.event;
 
 	private readonly _onWillShutdown = this._register(new Emitter<WillShutdownEvent>());
-	readonly onWillShutdown: Event<WillShutdownEvent> = this._onWillShutdown.event;
+	readonly onWillShutdown = this._onWillShutdown.event;
 
 	private readonly _onShutdown = this._register(new Emitter<void>());
-	readonly onShutdown: Event<void> = this._onShutdown.event;
+	readonly onShutdown = this._onShutdown.event;
 
 	constructor(
 		parent: HTMLElement,
@@ -384,8 +384,12 @@ export class Workbench extends Layout {
 
 		// Visibility
 		this._register(notificationsCenter.onDidChangeVisibility(() => {
-			notificationsStatus.update(notificationsCenter.isVisible);
+			notificationsStatus.update(notificationsCenter.isVisible, notificationsToasts.isVisible);
 			notificationsToasts.update(notificationsCenter.isVisible);
+		}));
+
+		this._register(notificationsToasts.onDidChangeVisibility(() => {
+			notificationsStatus.update(notificationsCenter.isVisible, notificationsToasts.isVisible);
 		}));
 
 		// Register Commands
@@ -443,9 +447,9 @@ export class Workbench extends Layout {
 			restorePromises.push((async () => {
 				mark('willRestorePanel');
 
-				const panel = await panelService.openPanelAsync(this.state.panel.panelToRestore);
+				const panel = await panelService.openPanel(this.state.panel.panelToRestore!);
 				if (!panel) {
-					panelService.openPanel(Registry.as<PanelRegistry>(PanelExtensions.Panels).getDefaultPanelId()); // fallback to default panel as needed
+					await panelService.openPanel(Registry.as<PanelRegistry>(PanelExtensions.Panels).getDefaultPanelId()); // fallback to default panel as needed
 				}
 
 				mark('didRestorePanel');

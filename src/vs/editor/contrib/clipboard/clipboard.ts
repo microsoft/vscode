@@ -161,6 +161,7 @@ class ExecCommandPasteAction extends ExecCommandAction {
 			kbExpr: EditorContextKeys.textInputFocus,
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
 			win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.Shift | KeyCode.Insert] },
+			linux: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.Shift | KeyCode.Insert] },
 			weight: KeybindingWeight.EditorContrib
 		};
 		// Do not bind paste keybindings in the browser,

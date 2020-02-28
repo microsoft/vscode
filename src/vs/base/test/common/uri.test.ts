@@ -404,7 +404,7 @@ suite('URI', () => {
 		path = 'foo/bar';
 		assert.equal(URI.file(path).path, '/foo/bar');
 		path = './foo/bar';
-		assert.equal(URI.file(path).path, '/./foo/bar'); // todo@joh missing normalization
+		assert.equal(URI.file(path).path, '/./foo/bar'); // missing normalization
 
 		const fileUri1 = URI.parse(`file:foo/bar`);
 		assert.equal(fileUri1.path, '/foo/bar');

@@ -7,6 +7,7 @@ import { CursorColumns, CursorConfiguration, ICursorSimpleModel, SingleCursorSta
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import * as strings from 'vs/base/common/strings';
+import { Constants } from 'vs/base/common/uint';
 
 export class CursorPosition {
 	_cursorPositionBrand: void;
@@ -214,7 +215,7 @@ export class MoveOperations {
 	public static moveToEndOfLine(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean): SingleCursorState {
 		let lineNumber = cursor.position.lineNumber;
 		let maxColumn = model.getLineMaxColumn(lineNumber);
-		return cursor.move(inSelectionMode, lineNumber, maxColumn, 0);
+		return cursor.move(inSelectionMode, lineNumber, maxColumn, Constants.MAX_SAFE_SMALL_INTEGER - maxColumn);
 	}
 
 	public static moveToBeginningOfBuffer(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean): SingleCursorState {

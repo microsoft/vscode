@@ -8,7 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
-import { CustomEditorEdit, CustomEditorSaveAsEvent, CustomEditorSaveEvent, ICustomEditorModel } from 'vs/workbench/contrib/customEditor/common/customEditor';
+import { CustomEditorSaveAsEvent, CustomEditorSaveEvent, ICustomEditorModel } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { basename } from 'vs/base/common/path';
@@ -29,7 +29,7 @@ namespace HotExitState {
 		readonly type = Type.Pending;
 
 		constructor(
-			public readonly operation: CancelablePromise<boolean>,
+			public readonly operation: CancelablePromise<void>,
 		) { }
 	}
 
@@ -38,10 +38,8 @@ namespace HotExitState {
 
 export class CustomEditorModel extends Disposable implements ICustomEditorModel {
 
-	private _currentEditIndex: number = -1;
-	private _savePoint: number = -1;
-	private readonly _edits: Array<CustomEditorEdit> = [];
 	private _hotExitState: HotExitState.State = HotExitState.NotSupported;
+	private _dirty = false;
 
 	constructor(
 		public readonly viewType: string,
@@ -49,11 +47,6 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 		private readonly labelService: ILabelService,
 	) {
 		super();
-	}
-
-	dispose() {
-		this._onDisposeEdits.fire({ edits: this._edits });
-		super.dispose();
 	}
 
 	//#region IWorkingCopy
@@ -71,35 +64,35 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 	}
 
 	public isDirty(): boolean {
-		return this._edits.length > 0 && this._savePoint !== this._currentEditIndex;
+		return this._dirty;
 	}
 
-	protected readonly _onDidChangeDirty: Emitter<void> = this._register(new Emitter<void>());
+	private readonly _onDidChangeDirty: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeDirty: Event<void> = this._onDidChangeDirty.event;
 
-	protected readonly _onDidChangeContent: Emitter<void> = this._register(new Emitter<void>());
+	private readonly _onDidChangeContent: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 
 	//#endregion
 
-	protected readonly _onUndo = this._register(new Emitter<{ edits: readonly CustomEditorEdit[], trigger: any | undefined }>());
-	readonly onUndo = this._onUndo.event;
+	private readonly _onUndo = this._register(new Emitter<void>());
+	public readonly onUndo = this._onUndo.event;
 
-	protected readonly _onApplyEdit = this._register(new Emitter<{ edits: readonly CustomEditorEdit[], trigger: any | undefined }>());
-	readonly onApplyEdit = this._onApplyEdit.event;
+	private readonly _onRedo = this._register(new Emitter<void>());
+	public readonly onRedo = this._onRedo.event;
 
-	protected readonly _onDisposeEdits = this._register(new Emitter<{ edits: readonly CustomEditorEdit[] }>());
-	readonly onDisposeEdits = this._onDisposeEdits.event;
+	private readonly _onRevert = this._register(new Emitter<void>());
+	public readonly onRevert = this._onRevert.event;
 
-	protected readonly _onWillSave = this._register(new Emitter<CustomEditorSaveEvent>());
-	readonly onWillSave = this._onWillSave.event;
+	private readonly _onWillSave = this._register(new Emitter<CustomEditorSaveEvent>());
+	public readonly onWillSave = this._onWillSave.event;
 
-	protected readonly _onWillSaveAs = this._register(new Emitter<CustomEditorSaveAsEvent>());
-	readonly onWillSaveAs = this._onWillSaveAs.event;
+	private readonly _onWillSaveAs = this._register(new Emitter<CustomEditorSaveAsEvent>());
+	public readonly onWillSaveAs = this._onWillSaveAs.event;
 
-	private _onBackup: undefined | (() => CancelablePromise<boolean>);
+	private _onBackup: undefined | (() => CancelablePromise<void>);
 
-	public onBackup(f: () => CancelablePromise<boolean>) {
+	public onBackup(f: () => CancelablePromise<void>) {
 		if (this._onBackup) {
 			throw new Error('Backup already implemented');
 		}
@@ -110,38 +103,30 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 		}
 	}
 
-	public pushEdit(edit: CustomEditorEdit, trigger: any) {
-		this.spliceEdits(edit);
+	public setDirty(dirty: boolean): void {
+		this._onDidChangeContent.fire();
 
-		this._currentEditIndex = this._edits.length - 1;
-		this.updateDirty();
-		this._onApplyEdit.fire({ edits: [edit], trigger });
-		this.updateContentChanged();
-	}
-
-	private spliceEdits(editToInsert?: CustomEditorEdit) {
-		const start = this._currentEditIndex + 1;
-		const toRemove = this._edits.length - this._currentEditIndex;
-
-		const removedEdits = editToInsert
-			? this._edits.splice(start, toRemove, editToInsert)
-			: this._edits.splice(start, toRemove);
-
-		if (removedEdits.length) {
-			this._onDisposeEdits.fire({ edits: removedEdits });
+		if (this._dirty !== dirty) {
+			this._dirty = dirty;
+			this._onDidChangeDirty.fire();
 		}
 	}
 
-	private updateDirty() {
-		// TODO@matt this should to be more fine grained and avoid
-		// emitting events if there was no change actually
-		this._onDidChangeDirty.fire();
+	public async revert(_options?: IRevertOptions) {
+		if (!this._dirty) {
+			return true;
+		}
+
+		this._onRevert.fire();
+		return true;
 	}
 
-	private updateContentChanged() {
-		// TODO@matt revisit that this method is being called correctly
-		// on each case of content change within the custom editor
-		this._onDidChangeContent.fire();
+	public undo() {
+		this._onUndo.fire();
+	}
+
+	public redo() {
+		this._onRedo.fire();
 	}
 
 	public async save(_options?: ISaveOptions): Promise<boolean> {
@@ -158,8 +143,7 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 			return false;
 		}
 
-		this._savePoint = this._currentEditIndex;
-		this.updateDirty();
+		this.setDirty(false);
 
 		return true;
 	}
@@ -179,60 +163,9 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 			return false;
 		}
 
-		this._savePoint = this._currentEditIndex;
-		this.updateDirty();
+		this.setDirty(false);
 
 		return true;
-	}
-
-	public async revert(_options?: IRevertOptions) {
-		if (this._currentEditIndex === this._savePoint) {
-			return true;
-		}
-
-		if (this._currentEditIndex >= this._savePoint) {
-			const editsToUndo = this._edits.slice(this._savePoint, this._currentEditIndex);
-			this._onUndo.fire({ edits: editsToUndo.reverse(), trigger: undefined });
-		} else if (this._currentEditIndex < this._savePoint) {
-			const editsToRedo = this._edits.slice(this._currentEditIndex, this._savePoint);
-			this._onApplyEdit.fire({ edits: editsToRedo, trigger: undefined });
-		}
-
-		this._currentEditIndex = this._savePoint;
-		this.spliceEdits();
-
-		this.updateDirty();
-		this.updateContentChanged();
-		return true;
-	}
-
-	public undo() {
-		if (this._currentEditIndex < 0) {
-			// nothing to undo
-			return;
-		}
-
-		const undoneEdit = this._edits[this._currentEditIndex];
-		--this._currentEditIndex;
-		this._onUndo.fire({ edits: [undoneEdit], trigger: undefined });
-
-		this.updateDirty();
-		this.updateContentChanged();
-	}
-
-	public redo() {
-		if (this._currentEditIndex >= this._edits.length - 1) {
-			// nothing to redo
-			return;
-		}
-
-		++this._currentEditIndex;
-		const redoneEdit = this._edits[this._currentEditIndex];
-
-		this._onApplyEdit.fire({ edits: [redoneEdit], trigger: undefined });
-
-		this.updateDirty();
-		this.updateContentChanged();
 	}
 
 	public async backup(): Promise<IWorkingCopyBackup> {
@@ -249,7 +182,11 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 		this._hotExitState = pendingState;
 
 		try {
-			this._hotExitState = await pendingState.operation ? HotExitState.Allowed : HotExitState.NotAllowed;
+			await pendingState.operation;
+			// Make sure state has not changed in the meantime
+			if (this._hotExitState === pendingState) {
+				this._hotExitState = HotExitState.Allowed;
+			}
 		} catch (e) {
 			// Make sure state has not changed in the meantime
 			if (this._hotExitState === pendingState) {

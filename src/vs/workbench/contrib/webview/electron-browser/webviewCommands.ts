@@ -6,8 +6,9 @@
 import { WebviewTag } from 'electron';
 import { Action } from 'vs/base/common/actions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Command, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import * as nls from 'vs/nls';
+import { Action2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -37,109 +38,100 @@ export class OpenWebviewDeveloperToolsAction extends Action {
 	}
 }
 
-export class SelectAllWebviewEditorCommand extends Command {
-	public static readonly ID = 'editor.action.webvieweditor.selectAll';
-
-	constructor(contextKeyExpr: ContextKeyExpr) {
-		super({
-			id: SelectAllWebviewEditorCommand.ID,
-			precondition: ContextKeyExpr.and(contextKeyExpr, ContextKeyExpr.not(InputFocusedContextKey)),
-			kbOpts: {
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_A,
-				weight: KeybindingWeight.EditorContrib
-			}
-		});
-	}
-
-	public runCommand(accessor: ServicesAccessor, args: any): void {
-		withActiveWebviewBasedWebview(accessor, webview => webview.selectAll());
-	}
-}
-
-export class CopyWebviewEditorCommand extends Command {
+export class CopyWebviewEditorCommand extends Action2 {
 	public static readonly ID = 'editor.action.webvieweditor.copy';
+	public static readonly LABEL = nls.localize('editor.action.webvieweditor.copy', "Copy2");
 
 	constructor(contextKeyExpr: ContextKeyExpr) {
 		super({
 			id: CopyWebviewEditorCommand.ID,
-			precondition: ContextKeyExpr.and(contextKeyExpr, ContextKeyExpr.not(InputFocusedContextKey)),
-			kbOpts: {
+			title: CopyWebviewEditorCommand.LABEL,
+			keybinding: {
+				when: ContextKeyExpr.and(contextKeyExpr, ContextKeyExpr.not(InputFocusedContextKey)),
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
 
-	public runCommand(accessor: ServicesAccessor, _args: any): void {
-		withActiveWebviewBasedWebview(accessor, webview => webview.copy());
+	public run(accessor: ServicesAccessor): void {
+		getActiveWebviewBasedWebview(accessor)?.copy();
 	}
 }
 
-export class PasteWebviewEditorCommand extends Command {
+export class PasteWebviewEditorCommand extends Action2 {
 	public static readonly ID = 'editor.action.webvieweditor.paste';
+	public static readonly LABEL = nls.localize('editor.action.webvieweditor.paste', 'Paste');
 
 	constructor(contextKeyExpr: ContextKeyExpr) {
 		super({
 			id: PasteWebviewEditorCommand.ID,
-			precondition: ContextKeyExpr.and(contextKeyExpr, ContextKeyExpr.not(InputFocusedContextKey)),
-			kbOpts: {
+			title: PasteWebviewEditorCommand.LABEL,
+			keybinding: {
+				when: ContextKeyExpr.and(contextKeyExpr, ContextKeyExpr.not(InputFocusedContextKey)),
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
 
-	public runCommand(accessor: ServicesAccessor, _args: any): void {
-		withActiveWebviewBasedWebview(accessor, webview => webview.paste());
+	public run(accessor: ServicesAccessor): void {
+		getActiveWebviewBasedWebview(accessor)?.paste();
 	}
 }
 
-export class CutWebviewEditorCommand extends Command {
+export class CutWebviewEditorCommand extends Action2 {
 	public static readonly ID = 'editor.action.webvieweditor.cut';
+	public static readonly LABEL = nls.localize('editor.action.webvieweditor.cut', 'Cut');
 
 	constructor(contextKeyExpr: ContextKeyExpr) {
 		super({
 			id: CutWebviewEditorCommand.ID,
-			precondition: ContextKeyExpr.and(contextKeyExpr, ContextKeyExpr.not(InputFocusedContextKey)),
-			kbOpts: {
+			title: CutWebviewEditorCommand.LABEL,
+			keybinding: {
+				when: ContextKeyExpr.and(contextKeyExpr, ContextKeyExpr.not(InputFocusedContextKey)),
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_X,
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
 
-	public runCommand(accessor: ServicesAccessor, _args: any): void {
-		withActiveWebviewBasedWebview(accessor, webview => webview.cut());
+	public run(accessor: ServicesAccessor): void {
+		getActiveWebviewBasedWebview(accessor)?.cut();
 	}
 }
 
-export class UndoWebviewEditorCommand extends Command {
+export class UndoWebviewEditorCommand extends Action2 {
 	public static readonly ID = 'editor.action.webvieweditor.undo';
+	public static readonly LABEL = nls.localize('editor.action.webvieweditor.undo', "Undo");
 
 	constructor(contextKeyExpr: ContextKeyExpr) {
 		super({
 			id: UndoWebviewEditorCommand.ID,
-			precondition: ContextKeyExpr.and(contextKeyExpr, ContextKeyExpr.not(InputFocusedContextKey), ContextKeyExpr.not(webviewHasOwnEditFunctionsContextKey)),
-			kbOpts: {
+			title: UndoWebviewEditorCommand.LABEL,
+			keybinding: {
+				when: ContextKeyExpr.and(contextKeyExpr, ContextKeyExpr.not(InputFocusedContextKey), ContextKeyExpr.not(webviewHasOwnEditFunctionsContextKey)),
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_Z,
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
 
-	public runCommand(accessor: ServicesAccessor, args: any): void {
-		withActiveWebviewBasedWebview(accessor, webview => webview.undo());
+	public run(accessor: ServicesAccessor, args: any): void {
+		getActiveWebviewBasedWebview(accessor)?.undo();
 	}
 }
 
-export class RedoWebviewEditorCommand extends Command {
+export class RedoWebviewEditorCommand extends Action2 {
 	public static readonly ID = 'editor.action.webvieweditor.redo';
+	public static readonly LABEL = nls.localize('editor.action.webvieweditor.redo', "Redo");
 
 	constructor(contextKeyExpr: ContextKeyExpr) {
 		super({
 			id: RedoWebviewEditorCommand.ID,
-			precondition: ContextKeyExpr.and(contextKeyExpr, ContextKeyExpr.not(InputFocusedContextKey), ContextKeyExpr.not(webviewHasOwnEditFunctionsContextKey)),
-			kbOpts: {
+			title: RedoWebviewEditorCommand.LABEL,
+			keybinding: {
+				when: ContextKeyExpr.and(contextKeyExpr, ContextKeyExpr.not(InputFocusedContextKey), ContextKeyExpr.not(webviewHasOwnEditFunctionsContextKey)),
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_Y,
 				secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z],
 				mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z },
@@ -148,23 +140,25 @@ export class RedoWebviewEditorCommand extends Command {
 		});
 	}
 
-	public runCommand(accessor: ServicesAccessor, args: any): void {
-		withActiveWebviewBasedWebview(accessor, webview => webview.redo());
+	public run(accessor: ServicesAccessor, args: any): void {
+		getActiveWebviewBasedWebview(accessor)?.redo();
 	}
 }
 
-function withActiveWebviewBasedWebview(accessor: ServicesAccessor, f: (webview: ElectronWebviewBasedWebview) => void): void {
-	const webViewEditor = getActiveWebviewEditor(accessor);
-	if (webViewEditor) {
-		webViewEditor.withWebview(webview => {
-			if (webview instanceof ElectronWebviewBasedWebview) {
-				f(webview);
-			} else if ((webview as WebviewEditorOverlay).getInnerWebview) {
-				const innerWebview = (webview as WebviewEditorOverlay).getInnerWebview();
-				if (innerWebview instanceof ElectronWebviewBasedWebview) {
-					f(innerWebview);
-				}
-			}
-		});
+function getActiveWebviewBasedWebview(accessor: ServicesAccessor): ElectronWebviewBasedWebview | undefined {
+	const webview = getActiveWebviewEditor(accessor)?.webview;
+	if (!webview) {
+		return undefined;
 	}
+
+	if (webview instanceof ElectronWebviewBasedWebview) {
+		return webview;
+	} else if ((webview as WebviewEditorOverlay).getInnerWebview) {
+		const innerWebview = (webview as WebviewEditorOverlay).getInnerWebview();
+		if (innerWebview instanceof ElectronWebviewBasedWebview) {
+			return innerWebview;
+		}
+	}
+
+	return undefined;
 }

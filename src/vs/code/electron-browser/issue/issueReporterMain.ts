@@ -97,6 +97,23 @@ export class IssueReporter extends Disposable {
 			this.previewButton = new Button(issueReporterElement);
 		}
 
+		const issueTitle = configuration.data.issueTitle;
+		if (issueTitle) {
+			const issueTitleElement = this.getElementById<HTMLInputElement>('issue-title');
+			if (issueTitleElement) {
+				issueTitleElement.value = issueTitle;
+			}
+		}
+
+		const issueBody = configuration.data.issueBody;
+		if (issueBody) {
+			const description = this.getElementById<HTMLTextAreaElement>('description');
+			if (description) {
+				description.value = issueBody;
+				this.issueReporterModel.update({ issueDescription: issueBody });
+			}
+		}
+
 		ipcRenderer.on('vscode:issuePerformanceInfoResponse', (_: unknown, info: Partial<IssueReporterData>) => {
 			this.logService.trace('issueReporter: Received performance data');
 			this.issueReporterModel.update(info);
@@ -440,7 +457,7 @@ export class IssueReporter extends Disposable {
 			sendWorkbenchCommand('workbench.action.reloadWindowWithExtensionsDisabled');
 		});
 
-		this.addEventListener('extensionBugsLink', 'click', (e: MouseEvent) => {
+		this.addEventListener('extensionBugsLink', 'click', (e: Event) => {
 			const url = (<HTMLElement>e.target).innerText;
 			shell.openExternal(url);
 		});
@@ -1175,8 +1192,8 @@ export class IssueReporter extends Disposable {
 		}
 	}
 
-	private getElementById(elementId: string): HTMLElement | undefined {
-		const element = document.getElementById(elementId);
+	private getElementById<T extends HTMLElement = HTMLElement>(elementId: string): T | undefined {
+		const element = document.getElementById(elementId) as T | undefined;
 		if (element) {
 			return element;
 		} else {

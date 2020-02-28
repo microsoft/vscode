@@ -252,7 +252,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			}
 		});
 
-		this.fileService.onFileChanges(async e => {
+		this.fileService.onDidFilesChange(async e => {
 			if (this.watchedColorThemeLocation && this.currentColorTheme && e.contains(this.watchedColorThemeLocation, FileChangeType.UPDATED)) {
 				this.reloadCurrentColorTheme();
 			}
@@ -285,8 +285,8 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		const extDevLocs = this.environmentService.extensionDevelopmentLocationURI;
 
 		const initializeColorTheme = async () => {
-			if (extDevLocs && extDevLocs.length > 0) { // in dev mode, switch to a theme provided by the extension under dev.
-				const devThemes = await this.colorThemeStore.findThemeDataByParentLocation(extDevLocs[0]);
+			if (extDevLocs && extDevLocs.length === 1) { // in dev mode, switch to a theme provided by the extension under dev.
+				const devThemes = await this.colorThemeStore.findThemeDataByExtensionLocation(extDevLocs[0]);
 				if (devThemes.length) {
 					return this.setColorTheme(devThemes[0].id, ConfigurationTarget.MEMORY);
 				}
@@ -302,8 +302,8 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		};
 
 		const initializeIconTheme = async () => {
-			if (extDevLocs && extDevLocs.length > 0) { // in dev mode, switch to a theme provided by the extension under dev.
-				const devThemes = await this.iconThemeStore.findThemeDataByParentLocation(extDevLocs[0]);
+			if (extDevLocs && extDevLocs.length === 1) { // in dev mode, switch to a theme provided by the extension under dev.
+				const devThemes = await this.iconThemeStore.findThemeDataByExtensionLocation(extDevLocs[0]);
 				if (devThemes.length) {
 					return this.setFileIconTheme(devThemes[0].id, ConfigurationTarget.MEMORY);
 				}

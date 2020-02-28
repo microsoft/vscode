@@ -25,6 +25,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { Progress } from 'vs/platform/progress/common/progress';
 
 class FormatOnType implements IEditorContribution {
 
@@ -138,7 +139,7 @@ class FormatOnType implements IEditorContribution {
 			}
 
 			if (isNonEmptyArray(edits)) {
-				FormattingEdit.execute(this._editor, edits);
+				FormattingEdit.execute(this._editor, edits, true);
 				alertFormattingEdits(edits);
 			}
 
@@ -230,7 +231,7 @@ class FormatDocumentAction extends EditorAction {
 	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		if (editor.hasModel()) {
 			const instaService = accessor.get(IInstantiationService);
-			await instaService.invokeFunction(formatDocumentWithSelectedProvider, editor, FormattingMode.Explicit, CancellationToken.None);
+			await instaService.invokeFunction(formatDocumentWithSelectedProvider, editor, FormattingMode.Explicit, Progress.None, CancellationToken.None);
 		}
 	}
 }

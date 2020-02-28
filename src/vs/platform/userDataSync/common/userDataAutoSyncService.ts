@@ -6,8 +6,13 @@
 import { timeout, Delayer } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IUserDataSyncLogService, IUserDataSyncService, SyncStatus, IUserDataAuthTokenService, IUserDataAutoSyncService, IUserDataSyncUtilService, UserDataSyncError, UserDataSyncErrorCode, SyncSource } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncLogService, IUserDataSyncService, SyncStatus, IUserDataAutoSyncService, UserDataSyncError, UserDataSyncErrorCode, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IAuthenticationTokenService } from 'vs/platform/authentication/common/authentication';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+
+type AutoSyncTriggerClassification = {
+	source: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+};
 
 export class UserDataAutoSyncService extends Disposable implements IUserDataAutoSyncService {
 
@@ -15,25 +20,25 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 
 	private enabled: boolean = false;
 	private successiveFailures: number = 0;
-	private successiveUnhandledFailures: number = 0;
 	private readonly syncDelayer: Delayer<void>;
 
-	private readonly _onError: Emitter<{ code: UserDataSyncErrorCode, source?: SyncSource }> = this._register(new Emitter<{ code: UserDataSyncErrorCode, source?: SyncSource }>());
-	readonly onError: Event<{ code: UserDataSyncErrorCode, source?: SyncSource }> = this._onError.event;
+	private readonly _onError: Emitter<UserDataSyncError> = this._register(new Emitter<UserDataSyncError>());
+	readonly onError: Event<UserDataSyncError> = this._onError.event;
 
 	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
-		@IUserDataAuthTokenService private readonly userDataAuthTokenService: IUserDataAuthTokenService,
-		@IUserDataSyncUtilService private readonly userDataSyncUtilService: IUserDataSyncUtilService,
+		@IAuthenticationTokenService private readonly authTokenService: IAuthenticationTokenService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 		this.updateEnablement(false, true);
 		this.syncDelayer = this._register(new Delayer<void>(0));
-		this._register(Event.any<any>(userDataAuthTokenService.onDidChangeToken)(() => this.updateEnablement(true, true)));
+		this._register(Event.any<any>(authTokenService.onDidChangeToken)(() => this.updateEnablement(true, true)));
 		this._register(Event.any<any>(userDataSyncService.onDidChangeStatus)(() => this.updateEnablement(true, true)));
-		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('sync.enable'))(() => this.updateEnablement(true, false)));
+		this._register(this.userDataSyncEnablementService.onDidChangeEnablement(() => this.updateEnablement(true, false)));
+		this._register(this.userDataSyncEnablementService.onDidChangeResourceEnablement(() => this.triggerAutoSync(['resourceEnablement'])));
 	}
 
 	private async updateEnablement(stopIfDisabled: boolean, auto: boolean): Promise<void> {
@@ -60,75 +65,51 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 	private async sync(loop: boolean, auto: boolean): Promise<void> {
 		if (this.enabled) {
 			try {
-				if (auto) {
-					if (await this.isTurnedOffEverywhere()) {
-						// Turned off everywhere. Reset & Stop Sync.
-						this.logService.info('Auto Sync: Turning off sync as it is turned off everywhere.');
-						await this.userDataSyncService.resetLocal();
-						await this.userDataSyncUtilService.updateConfigurationValue('sync.enable', false);
-						return;
-					}
-					if (this.userDataSyncService.status !== SyncStatus.Idle) {
-						this.logService.trace('Auto Sync: Skipped once as it is syncing already');
-						return;
-					}
-				}
 				await this.userDataSyncService.sync();
 				this.resetFailures();
 			} catch (e) {
-				this.successiveFailures++;
-				if (this.isUnHandledError(e)) {
-					this.successiveUnhandledFailures++;
+				const error = UserDataSyncError.toUserDataSyncError(e);
+				if (error.code === UserDataSyncErrorCode.TurnedOff || error.code === UserDataSyncErrorCode.SessionExpired) {
+					this.logService.info('Auto Sync: Sync is turned off in the cloud.');
+					this.logService.info('Auto Sync: Resetting the local sync state.');
+					await this.userDataSyncService.resetLocal();
+					this.logService.info('Auto Sync: Completed resetting the local sync state.');
+					if (auto) {
+						this.userDataSyncEnablementService.setEnablement(false);
+						this._onError.fire(error);
+						return;
+					} else {
+						return this.sync(loop, auto);
+					}
 				}
-				this.logService.error(e);
-				this._onError.fire(e instanceof UserDataSyncError ? { code: e.code, source: e.source } : { code: UserDataSyncErrorCode.Unknown });
-			}
-			if (this.successiveUnhandledFailures > 5) {
-				this._onError.fire({ code: UserDataSyncErrorCode.TooManyFailures });
+				this.logService.error(error);
+				this.successiveFailures++;
+				this._onError.fire(error);
 			}
 			if (loop) {
 				await timeout(1000 * 60 * 5);
 				this.sync(loop, true);
 			}
 		} else {
-			this.logService.trace('Not syncing as it is disabled.');
+			this.logService.trace('Auto Sync: Not syncing as it is disabled.');
 		}
-	}
-
-	private async isTurnedOffEverywhere(): Promise<boolean> {
-		const hasRemote = await this.userDataSyncService.hasRemoteData();
-		const hasPreviouslySynced = await this.userDataSyncService.hasPreviouslySynced();
-		return !hasRemote && hasPreviouslySynced;
 	}
 
 	private async isAutoSyncEnabled(): Promise<boolean> {
-		return this.configurationService.getValue<boolean>('sync.enable')
+		return this.userDataSyncEnablementService.isEnabled()
 			&& this.userDataSyncService.status !== SyncStatus.Uninitialized
-			&& !!(await this.userDataAuthTokenService.getToken());
-	}
-
-	private isUnHandledError(error: Error): boolean {
-		if (!(error instanceof UserDataSyncError)) {
-			return true;
-		}
-		switch (error.code) {
-			case UserDataSyncErrorCode.ConnectionRefused:
-			case UserDataSyncErrorCode.Forbidden:
-			case UserDataSyncErrorCode.Unauthroized:
-			case UserDataSyncErrorCode.Rejected:
-				return false;
-		}
-		return true;
+			&& !!(await this.authTokenService.getToken());
 	}
 
 	private resetFailures(): void {
 		this.successiveFailures = 0;
 	}
 
-	async triggerAutoSync(): Promise<void> {
+	async triggerAutoSync(sources: string[]): Promise<void> {
+		sources.forEach(source => this.telemetryService.publicLog2<{ source: string }, AutoSyncTriggerClassification>('sync/triggerAutoSync', { source }));
 		if (this.enabled) {
 			return this.syncDelayer.trigger(() => {
-				this.logService.info('Sync: Triggerred.');
+				this.logService.info('Auto Sync: Triggered.');
 				return this.sync(false, true);
 			}, this.successiveFailures
 				? 1000 * 1 * Math.min(this.successiveFailures, 60) /* Delay by number of seconds as number of failures up to 1 minute */

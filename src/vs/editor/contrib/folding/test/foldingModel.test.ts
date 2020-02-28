@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { FoldingModel, setCollapseStateAtLevel, setCollapseStateLevelsDown, setCollapseStateLevelsUp, setCollapseStateForMatchingLines, setCollapseStateUp } from 'vs/editor/contrib/folding/foldingModel';
-import { TextModel, ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { computeRanges } from 'vs/editor/contrib/folding/indentRangeProvider';
 import { TrackedRangeStickiness, IModelDeltaDecoration, ITextModel, IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -92,7 +93,7 @@ suite('Folding Model', () => {
 		/* 7*/	'  }',
 		/* 8*/	'}'];
 
-		let textModel = TextModel.createFromString(lines.join('\n'));
+		let textModel = createTextModel(lines.join('\n'));
 		try {
 			let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
 
@@ -131,7 +132,7 @@ suite('Folding Model', () => {
 		/* 7*/	'  }',
 		/* 8*/	'}'];
 
-		let textModel = TextModel.createFromString(lines.join('\n'));
+		let textModel = createTextModel(lines.join('\n'));
 		try {
 			let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
 
@@ -177,7 +178,7 @@ suite('Folding Model', () => {
 		/* 7*/	'  }',
 		/* 8*/	'}'];
 
-		let textModel = TextModel.createFromString(lines.join('\n'));
+		let textModel = createTextModel(lines.join('\n'));
 		try {
 			let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
 
@@ -217,7 +218,7 @@ suite('Folding Model', () => {
 		/* 12*/	'  }',
 		/* 13*/	'}'];
 
-		let textModel = TextModel.createFromString(lines.join('\n'));
+		let textModel = createTextModel(lines.join('\n'));
 		try {
 			let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
 
@@ -254,7 +255,7 @@ suite('Folding Model', () => {
 		/* 7*/	'  }',
 		/* 8*/	'}'];
 
-		let textModel = TextModel.createFromString(lines.join('\n'));
+		let textModel = createTextModel(lines.join('\n'));
 		try {
 			let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
 
@@ -295,7 +296,7 @@ suite('Folding Model', () => {
 			/* 11*/	'  }',
 			/* 12*/	'}'];
 
-		let textModel = TextModel.createFromString(lines.join('\n'));
+		let textModel = createTextModel(lines.join('\n'));
 		try {
 
 			let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
@@ -346,7 +347,7 @@ suite('Folding Model', () => {
 		/* 10*/	'//#endregion',
 		/* 11*/	''];
 
-		let textModel = TextModel.createFromString(lines.join('\n'));
+		let textModel = createTextModel(lines.join('\n'));
 		try {
 			let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
 
@@ -392,7 +393,7 @@ suite('Folding Model', () => {
 		/* 12*/	'  }',
 		/* 13*/	'}'];
 
-		let textModel = TextModel.createFromString(lines.join('\n'));
+		let textModel = createTextModel(lines.join('\n'));
 		try {
 			let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
 
@@ -448,7 +449,7 @@ suite('Folding Model', () => {
 		/* 15*/	'  //#endregion',
 		/* 16*/	'}'];
 
-		let textModel = TextModel.createFromString(lines.join('\n'));
+		let textModel = createTextModel(lines.join('\n'));
 		try {
 			let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
 
@@ -504,7 +505,7 @@ suite('Folding Model', () => {
 		/* 12*/	'  }',
 		/* 13*/	'}'];
 
-		let textModel = TextModel.createFromString(lines.join('\n'));
+		let textModel = createTextModel(lines.join('\n'));
 		try {
 			let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
 
@@ -556,7 +557,7 @@ suite('Folding Model', () => {
 		/* 12*/	'  }',
 		/* 13*/	'}'];
 
-		let textModel = TextModel.createFromString(lines.join('\n'));
+		let textModel = createTextModel(lines.join('\n'));
 		try {
 			let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
 
@@ -603,7 +604,7 @@ suite('Folding Model', () => {
 		/* 12*/	'  }',
 		/* 13*/	'}'];
 
-		let textModel = TextModel.createFromString(lines.join('\n'));
+		let textModel = createTextModel(lines.join('\n'));
 		try {
 			let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
 
@@ -648,7 +649,7 @@ suite('Folding Model', () => {
 		/* 12*/	'  }',
 		/* 13*/	'}'];
 
-		let textModel = TextModel.createFromString(lines.join('\n'));
+		let textModel = createTextModel(lines.join('\n'));
 		try {
 			let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
 

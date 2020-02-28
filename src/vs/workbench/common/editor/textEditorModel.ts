@@ -77,18 +77,22 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 		this.modelService.setMode(this.textEditorModel, this.modeService.create(mode));
 	}
 
+	getMode(): string | undefined {
+		return this.textEditorModel?.getModeId();
+	}
+
 	/**
 	 * Creates the text editor model with the provided value, optional preferred mode
 	 * (can be comma separated for multiple values) and optional resource URL.
 	 */
-	protected createTextEditorModel(value: ITextBufferFactory, resource: URI | undefined, preferredMode?: string): EditorModel {
+	protected createTextEditorModel(value: ITextBufferFactory, resource: URI | undefined, preferredMode?: string): ITextModel {
 		const firstLineText = this.getFirstLineText(value);
 		const languageSelection = this.getOrCreateMode(resource, this.modeService, preferredMode, firstLineText);
 
 		return this.doCreateTextEditorModel(value, languageSelection, resource);
 	}
 
-	private doCreateTextEditorModel(value: ITextBufferFactory, languageSelection: ILanguageSelection, resource: URI | undefined): EditorModel {
+	private doCreateTextEditorModel(value: ITextBufferFactory, languageSelection: ILanguageSelection, resource: URI | undefined): ITextModel {
 		let model = resource && this.modelService.getModel(resource);
 		if (!model) {
 			model = this.modelService.createModel(value, languageSelection, resource);
@@ -102,7 +106,7 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 
 		this.textEditorModelHandle = model.uri;
 
-		return this;
+		return model;
 	}
 
 	protected getFirstLineText(value: ITextBufferFactory | ITextModel): string {
@@ -137,13 +141,15 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 	/**
 	 * Updates the text editor model with the provided value. If the value is the same as the model has, this is a no-op.
 	 */
-	protected updateTextEditorModel(newValue: ITextBufferFactory, preferredMode?: string): void {
+	updateTextEditorModel(newValue?: ITextBufferFactory, preferredMode?: string): void {
 		if (!this.isResolved()) {
 			return;
 		}
 
 		// contents
-		this.modelService.updateModel(this.textEditorModel, newValue);
+		if (newValue) {
+			this.modelService.updateModel(this.textEditorModel, newValue);
+		}
 
 		// mode (only if specific and changed)
 		if (preferredMode && preferredMode !== PLAINTEXT_MODE_ID && this.textEditorModel.getModeId() !== preferredMode) {

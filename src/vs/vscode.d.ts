@@ -1500,7 +1500,7 @@ declare module 'vscode' {
 
 	/**
 	 * A file system watcher notifies about changes to files and folders
-	 * on disk.
+	 * on disk or from other [FileSystemProviders](#FileSystemProvider).
 	 *
 	 * To get an instance of a `FileSystemWatcher` use
 	 * [createFileSystemWatcher](#workspace.createFileSystemWatcher).
@@ -1806,7 +1806,7 @@ declare module 'vscode' {
 		placeHolder?: string;
 
 		/**
-		 * Set to `true` to show a password prompt that will not show the typed value.
+		 * Controls if a password input is shown. Password input hides the typed text.
 		 */
 		password?: boolean;
 
@@ -2020,7 +2020,7 @@ declare module 'vscode' {
 		 * Base kind for source actions: `source`
 		 *
 		 * Source code actions apply to the entire file. They must be explicitly requested and will not show in the
-		 * normal [light bulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action) menu. Source actions
+		 * normal [lightbulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action) menu. Source actions
 		 * can be run on save using `editor.codeActionsOnSave` and are also shown in the `source` context menu.
 		 */
 		static readonly Source: CodeActionKind;
@@ -2086,7 +2086,7 @@ declare module 'vscode' {
 		/**
 		 * Requested kind of actions to return.
 		 *
-		 * Actions not of this kind are filtered out before being shown by the lightbulb.
+		 * Actions not of this kind are filtered out before being shown by the [lightbulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action).
 		 */
 		readonly only?: CodeActionKind;
 	}
@@ -2136,6 +2136,28 @@ declare module 'vscode' {
 		isPreferred?: boolean;
 
 		/**
+		 * Marks that the code action cannot currently be applied.
+		 *
+		 * - Disabled code actions are not shown in automatic [lightbulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action)
+		 * code action menu.
+		 *
+		 * - Disabled actions are shown as faded out in the code action menu when the user request a more specific type
+		 * of code action, such as refactorings.
+		 *
+		 * - If the user has a [keybinding](https://code.visualstudio.com/docs/editor/refactoring#_keybindings-for-code-actions)
+		 * that auto applies a code action and only a disabled code actions are returned, VS Code will show the user a
+		 * message with `reason` in the editor.
+		 */
+		disabled?: {
+			/**
+			 * Human readable description of why the code action is currently disabled.
+			 *
+			 * This is displayed in the code actions UI.
+			 */
+			readonly reason: string;
+		};
+
+		/**
 		 * Creates a new code action.
 		 *
 		 * A code action must have at least a [title](#CodeAction.title) and [edits](#CodeAction.edit)
@@ -2149,7 +2171,7 @@ declare module 'vscode' {
 
 	/**
 	 * The code action interface defines the contract between extensions and
-	 * the [light bulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action) feature.
+	 * the [lightbulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action) feature.
 	 *
 	 * A code action can be any command that is [known](#commands.getCommands) to the system.
 	 */
@@ -2169,14 +2191,16 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Metadata about the type of code actions that a [CodeActionProvider](#CodeActionProvider) providers
+	 * Metadata about the type of code actions that a [CodeActionProvider](#CodeActionProvider) providers.
 	 */
 	export interface CodeActionProviderMetadata {
 		/**
-		 * [CodeActionKinds](#CodeActionKind) that this provider may return.
+		 * List of [CodeActionKinds](#CodeActionKind) that a [CodeActionProvider](#CodeActionProvider) may return.
 		 *
-		 * The list of kinds may be generic, such as `CodeActionKind.Refactor`, or the provider
-		 * may list our every specific kind they provide, such as `CodeActionKind.Refactor.Extract.append('function`)`
+		 * This list is used to determine if a given `CodeActionProvider` should be invoked or not.
+		 * To avoid unnecessary computation, every `CodeActionProvider` should list use `providedCodeActionKinds`. The
+		 * list of kinds may either be generic, such as `[CodeActionKind.Refactor]`, or list out every kind provided,
+		 * such as `[CodeActionKind.Refactor.Extract.append('function'), CodeActionKind.Refactor.Extract.append('constant'), ...]`.
 		 */
 		readonly providedCodeActionKinds?: ReadonlyArray<CodeActionKind>;
 	}
@@ -2447,6 +2471,55 @@ declare module 'vscode' {
 		 * signaled by returning `undefined` or `null`.
 		 */
 		provideHover(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Hover>;
+	}
+
+	/**
+	 * An EvaluatableExpression represents an expression in a document that can be evaluated by an active debugger or runtime.
+	 * The result of this evaluation is shown in a tooltip-like widget.
+	 * If only a range is specified, the expression will be extracted from the underlying document.
+	 * An optional expression can be used to override the extracted expression.
+	 * In this case the range is still used to highlight the range in the document.
+	 */
+	export class EvaluatableExpression {
+
+		/*
+		 * The range is used to extract the evaluatable expression from the underlying document and to highlight it.
+		 */
+		readonly range: Range;
+
+		/*
+		 * If specified the expression overrides the extracted expression.
+		 */
+		readonly expression?: string;
+
+		/**
+		 * Creates a new evaluatable expression object.
+		 *
+		 * @param range The range in the underlying document from which the evaluatable expression is extracted.
+		 * @param expression If specified overrides the extracted expression.
+		 */
+		constructor(range: Range, expression?: string);
+	}
+
+	/**
+	 * The evaluatable expression provider interface defines the contract between extensions and
+	 * the debug hover. In this contract the provider returns an evaluatable expression for a given position
+	 * in a document and VS Code evaluates this expression in the active debug session and shows the result in a debug hover.
+	 */
+	export interface EvaluatableExpressionProvider {
+
+		/**
+		 * Provide an evaluatable expression for the given document and position.
+		 * VS Code will evaluate this expression in the active debug session and will show the result in the debug hover.
+		 * The expression can be implicitly specified by the range in the underlying document or by explicitly returning an expression.
+		 *
+		 * @param document The document for which the debug hover is about to appear.
+		 * @param position The line and character position in the document where the debug hover is about to appear.
+		 * @param token A cancellation token.
+		 * @return An EvaluatableExpression or a thenable that resolves to such. The lack of a result can be
+		 * signaled by returning `undefined` or `null`.
+		 */
+		provideEvaluatableExpression(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<EvaluatableExpression>;
 	}
 
 	/**
@@ -2835,6 +2908,34 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Additional data for entries of a workspace edit. Supports to label entries and marks entries
+	 * as needing confirmation by the user. The editor groups edits with equal labels into tree nodes,
+	 * for instance all edits labelled with "Changes in Strings" would be a tree node.
+	 */
+	export interface WorkspaceEditEntryMetadata {
+
+		/**
+		 * A flag which indicates that user confirmation is needed.
+		 */
+		needsConfirmation: boolean;
+
+		/**
+		 * A human-readable string which is rendered prominent.
+		 */
+		label: string;
+
+		/**
+		 * A human-readable string which is rendered less prominent on the same line.
+		 */
+		description?: string;
+
+		/**
+		 * The icon path or [ThemeIcon](#ThemeIcon) for the edit.
+		 */
+		iconPath?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
+	}
+
+	/**
 	 * A workspace edit is a collection of textual and files changes for
 	 * multiple resources and documents.
 	 *
@@ -2853,8 +2954,9 @@ declare module 'vscode' {
 		 * @param uri A resource identifier.
 		 * @param range A range.
 		 * @param newText A string.
+		 * @param metadata Optional metadata for the entry.
 		 */
-		replace(uri: Uri, range: Range, newText: string): void;
+		replace(uri: Uri, range: Range, newText: string, metadata?: WorkspaceEditEntryMetadata): void;
 
 		/**
 		 * Insert the given text at the given position.
@@ -2862,16 +2964,18 @@ declare module 'vscode' {
 		 * @param uri A resource identifier.
 		 * @param position A position.
 		 * @param newText A string.
+		 * @param metadata Optional metadata for the entry.
 		 */
-		insert(uri: Uri, position: Position, newText: string): void;
+		insert(uri: Uri, position: Position, newText: string, metadata?: WorkspaceEditEntryMetadata): void;
 
 		/**
 		 * Delete the text at the given range.
 		 *
 		 * @param uri A resource identifier.
 		 * @param range A range.
+		 * @param metadata Optional metadata for the entry.
 		 */
-		delete(uri: Uri, range: Range): void;
+		delete(uri: Uri, range: Range, metadata?: WorkspaceEditEntryMetadata): void;
 
 		/**
 		 * Check if a text edit for a resource exists.
@@ -2903,15 +3007,17 @@ declare module 'vscode' {
 		 * @param uri Uri of the new file..
 		 * @param options Defines if an existing file should be overwritten or be
 		 * ignored. When overwrite and ignoreIfExists are both set overwrite wins.
+		 * @param metadata Optional metadata for the entry.
 		 */
-		createFile(uri: Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }): void;
+		createFile(uri: Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }, metadata?: WorkspaceEditEntryMetadata): void;
 
 		/**
 		 * Delete a file or folder.
 		 *
 		 * @param uri The uri of the file that is to be deleted.
+		 * @param metadata Optional metadata for the entry.
 		 */
-		deleteFile(uri: Uri, options?: { recursive?: boolean, ignoreIfNotExists?: boolean }): void;
+		deleteFile(uri: Uri, options?: { recursive?: boolean, ignoreIfNotExists?: boolean }, metadata?: WorkspaceEditEntryMetadata): void;
 
 		/**
 		 * Rename a file or folder.
@@ -2920,8 +3026,9 @@ declare module 'vscode' {
 		 * @param newUri The new location.
 		 * @param options Defines if existing files should be overwritten or be
 		 * ignored. When overwrite and ignoreIfExists are both set overwrite wins.
+		 * @param metadata Optional metadata for the entry.
 		 */
-		renameFile(oldUri: Uri, newUri: Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }): void;
+		renameFile(oldUri: Uri, newUri: Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }, metadata?: WorkspaceEditEntryMetadata): void;
 
 
 		/**
@@ -4578,7 +4685,18 @@ declare module 'vscode' {
 		 * A code or identifier for this diagnostic.
 		 * Should be used for later processing, e.g. when providing [code actions](#CodeActionContext).
 		 */
-		code?: string | number;
+		code?: string | number | {
+			/**
+			 * A code or identifier for this diagnostic.
+			 * Should be used for later processing, e.g. when providing [code actions](#CodeActionContext).
+			 */
+			value: string | number;
+
+			/**
+			 * A target URI to open with more information about the diagnostic error.
+			 */
+			target: Uri;
+		};
 
 		/**
 		 * An array of related diagnostic information, e.g. when symbol-names within
@@ -4913,6 +5031,21 @@ declare module 'vscode' {
 		 * folder the shell was launched in.
 		 */
 		readonly creationOptions: Readonly<TerminalOptions | ExtensionTerminalOptions>;
+
+		/**
+		 * The exit status of the terminal, this will be undefined while the terminal is active.
+		 *
+		 * **Example:** Show a notification with the exit code when the terminal exits with a
+		 * non-zero exit code.
+		 * ```typescript
+		 * window.onDidCloseTerminal(t => {
+		 *   if (t.exitStatus && t.exitStatus.code) {
+		 *   	vscode.window.showInformationMessage(`Exit code: ${t.exitStatus.code}`);
+		 *   }
+		 * });
+		 * ```
+		 */
+		readonly exitStatus: TerminalExitStatus | undefined;
 
 		/**
 		 * Send text to the terminal. The text is written to the stdin of the underlying pty process
@@ -7731,6 +7864,20 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents how a terminal exited.
+	 */
+	export interface TerminalExitStatus {
+		/**
+		 * The exit code that a terminal exited with, it can have the following values:
+		 * - Zero: the terminal process or custom execution succeeded.
+		 * - Non-zero: the terminal process or custom execution failed.
+		 * - `undefined`: the user forcibly closed the terminal or a custom execution exited
+		 *   without providing an exit code.
+		 */
+		readonly code: number | undefined;
+	}
+
+	/**
 	 * A location in the editor at which progress information can be shown. It depends on the
 	 * location how progress is visually represented.
 	 */
@@ -8390,7 +8537,7 @@ declare module 'vscode' {
 		 * List of workspace folders or `undefined` when no folder is open.
 		 * *Note* that the first entry corresponds to the value of `rootPath`.
 		 */
-		export const workspaceFolders: WorkspaceFolder[] | undefined;
+		export const workspaceFolders: ReadonlyArray<WorkspaceFolder> | undefined;
 
 		/**
 		 * The name of the workspace. `undefined` when no folder
@@ -8564,7 +8711,7 @@ declare module 'vscode' {
 		/**
 		 * All text documents currently known to the system.
 		 */
-		export const textDocuments: TextDocument[];
+		export const textDocuments: ReadonlyArray<TextDocument>;
 
 		/**
 		 * Opens a document. Will return early if this document is already open. Otherwise
@@ -9034,6 +9181,18 @@ declare module 'vscode' {
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerHoverProvider(selector: DocumentSelector, provider: HoverProvider): Disposable;
+
+		/**
+		 * Register a provider that locates evaluatable expressions in text documents.
+		 * VS Code will evaluate the expression in the active debug session and will show the result in the debug hover.
+		 *
+		 * If multiple providers are registered for a language an arbitrary provider will be used.
+		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider An evaluatable expression provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerEvaluatableExpressionProvider(selector: DocumentSelector, provider: EvaluatableExpressionProvider): Disposable;
 
 		/**
 		 * Register a document highlight provider.
@@ -10052,7 +10211,7 @@ declare module 'vscode' {
 	 * 	return api;
 	 * }
 	 * ```
-	 * When depending on the API of another extension add an `extensionDependency`-entry
+	 * When depending on the API of another extension add an `extensionDependencies`-entry
 	 * to `package.json`, and use the [getExtension](#extensions.getExtension)-function
 	 * and the [exports](#Extension.exports)-property, like below:
 	 *

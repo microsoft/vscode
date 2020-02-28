@@ -130,8 +130,8 @@ export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 		return views;
 	}
 
-	onDidAddViews(added: IAddedViewDescriptorRef[]): ViewPane[] {
-		const panes: ViewPane[] = super.onDidAddViews(added);
+	onDidAddViewDescriptors(added: IAddedViewDescriptorRef[]): ViewPane[] {
+		const panes: ViewPane[] = super.onDidAddViewDescriptors(added);
 		for (let i = 0; i < added.length; i++) {
 			if (this.constantViewDescriptors.has(added[i].viewDescriptor.id)) {
 				panes[i].setExpanded(false);
