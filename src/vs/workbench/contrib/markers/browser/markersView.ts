@@ -349,7 +349,6 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 	private createArialLabelElement(parent: HTMLElement): void {
 		this.ariaLabelElement = dom.append(parent, dom.$(''));
 		this.ariaLabelElement.setAttribute('id', 'markers-panel-arialabel');
-		this.ariaLabelElement.setAttribute('aria-live', 'polite');
 	}
 
 	private createTree(parent: HTMLElement): void {

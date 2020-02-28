@@ -62,7 +62,7 @@ export class BrowserWindowConfiguration implements IWindowConfiguration {
 
 	//#region TODO MOVE TO NODE LAYER
 
-	_!: any[];
+	_!: string[];
 
 	windowId!: number;
 	mainPid!: number;
@@ -137,7 +137,7 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	get argvResource(): URI { return joinPath(this.userRoamingDataHome, 'argv.json'); }
 
 	@memoize
-	get userDataSyncHome(): URI { return joinPath(this.userRoamingDataHome, '.sync'); }
+	get userDataSyncHome(): URI { return joinPath(this.userRoamingDataHome, 'sync'); }
 
 	@memoize
 	get settingsSyncPreviewResource(): URI { return joinPath(this.userDataSyncHome, 'settings.json'); }

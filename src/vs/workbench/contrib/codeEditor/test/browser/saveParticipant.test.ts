@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { FinalNewLineParticipant, TrimFinalNewLinesParticipant } from 'vs/workbench/contrib/codeEditor/browser/saveParticipants';
+import { FinalNewLineParticipant, TrimFinalNewLinesParticipant, TrimWhitespaceParticipant } from 'vs/workbench/contrib/codeEditor/browser/saveParticipants';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/browser/workbenchTestServices';
 import { toResource } from 'vs/base/test/common/utils';
@@ -16,7 +16,7 @@ import { IResolvedTextFileEditorModel, snapshotToString } from 'vs/workbench/ser
 import { SaveReason } from 'vs/workbench/common/editor';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 
-suite('MainThreadSaveParticipant', function () {
+suite('Save Participants', function () {
 
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
@@ -150,5 +150,25 @@ suite('MainThreadSaveParticipant', function () {
 		assert.equal(snapshotToString(model.createSnapshot()!), `${textContent}${eol}${eol}`);
 		model.textEditorModel.redo();
 		assert.equal(snapshotToString(model.createSnapshot()!), `${textContent}${eol}`);
+	});
+
+	test('trim whitespace', async function () {
+		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/trim_final_new_line.txt'), 'utf8', undefined) as IResolvedTextFileEditorModel;
+
+		await model.load();
+		const configService = new TestConfigurationService();
+		configService.setUserConfiguration('files', { 'trimTrailingWhitespace': true });
+		const participant = new TrimWhitespaceParticipant(configService, undefined!);
+		const textContent = 'Test';
+		let content = `${textContent} 	`;
+		model.textEditorModel.setValue(content);
+
+		// save many times
+		for (let i = 0; i < 10; i++) {
+			await participant.participate(model, { reason: SaveReason.EXPLICIT });
+		}
+
+		// confirm trimming
+		assert.equal(snapshotToString(model.createSnapshot()!), `${textContent}`);
 	});
 });

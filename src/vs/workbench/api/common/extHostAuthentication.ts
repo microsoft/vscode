@@ -34,7 +34,7 @@ export class AuthenticationProviderWrapper implements vscode.AuthenticationProvi
 				id: session.id,
 				accountName: session.accountName,
 				scopes: session.scopes,
-				accessToken: async () => {
+				getAccessToken: async () => {
 					const isAllowed = await this._proxy.$getSessionsPrompt(
 						this._provider.id,
 						this.displayName,
@@ -45,7 +45,7 @@ export class AuthenticationProviderWrapper implements vscode.AuthenticationProvi
 						throw new Error('User did not consent to token access.');
 					}
 
-					return session.accessToken();
+					return session.getAccessToken();
 				}
 			};
 		});
@@ -60,7 +60,7 @@ export class AuthenticationProviderWrapper implements vscode.AuthenticationProvi
 		return this._provider.login(scopes);
 	}
 
-	logout(sessionId: string): Promise<void> {
+	logout(sessionId: string): Thenable<void> {
 		return this._provider.logout(sessionId);
 	}
 }
@@ -137,7 +137,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 			const sessions = await authProvider.getSessions();
 			const session = sessions.find(session => session.id === sessionId);
 			if (session) {
-				return session.accessToken();
+				return session.getAccessToken();
 			}
 
 			throw new Error(`Unable to find session with id: ${sessionId}`);

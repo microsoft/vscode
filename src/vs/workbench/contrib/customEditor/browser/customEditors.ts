@@ -333,11 +333,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 				}
 
 				const editorInfo = this._editorInfoStore.get(editor.viewType);
-				if (!editorInfo) {
-					continue;
-				}
-
-				if (!editorInfo.matches(newResource)) {
+				if (!editorInfo?.matches(newResource)) {
 					continue;
 				}
 

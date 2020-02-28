@@ -101,6 +101,12 @@ export interface INotification extends INotificationProperties {
 	 * this usecase and much easier to use!
 	 */
 	actions?: INotificationActions;
+
+	/**
+	 * The initial set of progress properties for the notification. To update progress
+	 * later on, access the `INotificationHandle.progress` property.
+	 */
+	progress?: INotificationProgressProperties;
 }
 
 export interface INotificationActions {
@@ -117,6 +123,24 @@ export interface INotificationActions {
 	 * close automatically when invoking a secondary action.
 	 */
 	secondary?: ReadonlyArray<IAction>;
+}
+
+export interface INotificationProgressProperties {
+
+	/**
+	 * Causes the progress bar to spin infinitley.
+	 */
+	infinite?: boolean;
+
+	/**
+	 * Indicate the total amount of work.
+	 */
+	total?: number;
+
+	/**
+	 * Indicate that a specific chunk of work is done.
+	 */
+	worked?: number;
 }
 
 export interface INotificationProgress {
@@ -148,6 +172,13 @@ export interface INotificationHandle {
 	 * Will be fired once the notification is closed.
 	 */
 	readonly onDidClose: Event<void>;
+
+	/**
+	 * Will be fired whenever the visibility of the notification changes.
+	 * A notification can either be visible as toast or inside the notification
+	 * center if it is visible. 
+	 */
+	readonly onDidChangeVisibility: Event<boolean>;
 
 	/**
 	 * Allows to indicate progress on the notification even after the

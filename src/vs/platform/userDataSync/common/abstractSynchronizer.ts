@@ -68,7 +68,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 	) {
 		super();
 		this.syncFolder = joinPath(environmentService.userDataSyncHome, source);
-		this.lastSyncResource = joinPath(this.syncFolder, `.lastSync${source}.json`);
+		this.lastSyncResource = joinPath(this.syncFolder, `lastSync${source}.json`);
 		this.cleanUpDelayer = new ThrottledDelayer(50);
 		this.cleanUpBackup();
 	}
@@ -202,7 +202,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 	}
 
 	protected async backupLocal(content: VSBuffer): Promise<void> {
-		const resource = joinPath(this.syncFolder, toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, ''));
+		const resource = joinPath(this.syncFolder, `${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}.json`);
 		try {
 			await this.fileService.writeFile(resource, content);
 		} catch (e) {
@@ -213,9 +213,12 @@ export abstract class AbstractSynchroniser extends Disposable {
 
 	private async cleanUpBackup(): Promise<void> {
 		try {
+			if (!(await this.fileService.exists(this.syncFolder))) {
+				return;
+			}
 			const stat = await this.fileService.resolve(this.syncFolder);
 			if (stat.children) {
-				const all = stat.children.filter(stat => stat.isFile && /^\d{8}T\d{6}$/.test(stat.name)).sort();
+				const all = stat.children.filter(stat => stat.isFile && /^\d{8}T\d{6}(\.json)?$/.test(stat.name)).sort();
 				const backUpMaxAge = 1000 * 60 * 60 * 24 * (this.configurationService.getValue<number>('sync.localBackupDuration') || 30 /* Default 30 days */);
 				let toDelete = all.filter(stat => {
 					const ctime = stat.ctime || new Date(

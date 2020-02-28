@@ -24,8 +24,8 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 		this.channel = sharedProcessService.getChannel('userDataAutoSync');
 	}
 
-	triggerAutoSync(): Promise<void> {
-		return this.channel.call('triggerAutoSync');
+	triggerAutoSync(sources: string[]): Promise<void> {
+		return this.channel.call('triggerAutoSync', [sources]);
 	}
 
 }

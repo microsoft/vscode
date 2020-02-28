@@ -96,7 +96,6 @@ export function registerConfiguration(): IDisposable {
 		const defaultIgnoredSettings = getDefaultIgnoredSettings().filter(s => s !== CONFIGURATION_SYNC_STORE_KEY);
 		const settings = Object.keys(allSettings.properties).filter(setting => defaultIgnoredSettings.indexOf(setting) === -1);
 		const ignoredSettings = defaultIgnoredSettings.filter(setting => disallowedIgnoredSettings.indexOf(setting) === -1);
-		console.log(ignoredSettings);
 		const ignoredSettingsSchema: IJSONSchema = {
 			items: {
 				type: 'string',
@@ -278,7 +277,7 @@ export interface IUserDataSyncService {
 	readonly conflictsSources: SyncSource[];
 	readonly onDidChangeConflicts: Event<SyncSource[]>;
 
-	readonly onDidChangeLocal: Event<void>;
+	readonly onDidChangeLocal: Event<SyncSource>;
 	readonly onSyncErrors: Event<[SyncSource, UserDataSyncError][]>;
 
 	readonly lastSyncTime: number | undefined;
@@ -299,7 +298,7 @@ export const IUserDataAutoSyncService = createDecorator<IUserDataAutoSyncService
 export interface IUserDataAutoSyncService {
 	_serviceBrand: any;
 	readonly onError: Event<UserDataSyncError>;
-	triggerAutoSync(): Promise<void>;
+	triggerAutoSync(sources: string[]): Promise<void>;
 }
 
 export const IUserDataSyncUtilService = createDecorator<IUserDataSyncUtilService>('IUserDataSyncUtilService');

@@ -6,7 +6,7 @@
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { MenuRegistry } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr, IContext, ContextKeyOrExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IContext, ContextKeyExpression, ContextKeyExprType } from 'vs/platform/contextkey/common/contextkey';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { keys } from 'vs/base/common/map';
 
@@ -49,12 +49,17 @@ export class KeybindingResolver {
 				continue;
 			}
 
+			if (k.when && k.when.type === ContextKeyExprType.False) {
+				// when condition is false
+				continue;
+			}
+
 			// TODO@chords
 			this._addKeyPress(k.keypressParts[0], k);
 		}
 	}
 
-	private static _isTargetedForRemoval(defaultKb: ResolvedKeybindingItem, keypressFirstPart: string | null, keypressChordPart: string | null, command: string, when: ContextKeyExpr | undefined): boolean {
+	private static _isTargetedForRemoval(defaultKb: ResolvedKeybindingItem, keypressFirstPart: string | null, keypressChordPart: string | null, command: string, when: ContextKeyExpression | undefined): boolean {
 		if (defaultKb.command !== command) {
 			return false;
 		}
@@ -175,7 +180,7 @@ export class KeybindingResolver {
 	/**
 	 * Returns true if it is provable `a` implies `b`.
 	 */
-	public static whenIsEntirelyIncluded(a: ContextKeyExpr | null | undefined, b: ContextKeyExpr | null | undefined): boolean {
+	public static whenIsEntirelyIncluded(a: ContextKeyExpression | null | undefined, b: ContextKeyExpression | null | undefined): boolean {
 		if (!b) {
 			return true;
 		}
@@ -189,11 +194,11 @@ export class KeybindingResolver {
 	/**
 	 * Returns true if it is provable `p` implies `q`.
 	 */
-	private static _implies(p: ContextKeyExpr, q: ContextKeyExpr): boolean {
+	private static _implies(p: ContextKeyExpression, q: ContextKeyExpression): boolean {
 		const notP = p.negate();
 
-		const terminals = (node: ContextKeyExpr) => {
-			if (node instanceof ContextKeyOrExpr) {
+		const terminals = (node: ContextKeyExpression) => {
+			if (node.type === ContextKeyExprType.Or) {
 				return node.expr;
 			}
 			return [node];
@@ -318,7 +323,7 @@ export class KeybindingResolver {
 		return null;
 	}
 
-	public static contextMatchesRules(context: IContext, rules: ContextKeyExpr | null | undefined): boolean {
+	public static contextMatchesRules(context: IContext, rules: ContextKeyExpression | null | undefined): boolean {
 		if (!rules) {
 			return true;
 		}

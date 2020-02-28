@@ -180,6 +180,13 @@ steps:
   displayName: Clean Archive
 
 - script: |
+    set -e
+    AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
+    AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
+    node build/azure-pipelines/common/createAsset.js darwin-unnotarized archive "VSCode-darwin-$VSCODE_QUALITY.zip" $(agent.builddirectory)/VSCode-darwin.zip
+  displayName: Publish Unnotarized Build
+
+- script: |
     APP_ROOT=$(agent.builddirectory)/VSCode-darwin
     APP_NAME="`ls $APP_ROOT | head -n 1`"
     BUNDLE_IDENTIFIER=$(node -p "require(\"$APP_ROOT/$APP_NAME/Contents/Resources/app/product.json\").darwinBundleIdentifier")

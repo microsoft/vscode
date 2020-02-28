@@ -430,15 +430,14 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 			return this._columnSelectData;
 		}
 		const primaryCursor = this._cursors.getPrimaryCursor();
-		const primaryPos = primaryCursor.viewState.selectionStart.getStartPosition();
-		const viewLineNumber = primaryPos.lineNumber;
-		const viewVisualColumn = CursorColumns.visibleColumnFromColumn2(this.context.config, this.context.viewModel, primaryPos);
+		const viewSelectionStart = primaryCursor.viewState.selectionStart.getStartPosition();
+		const viewPosition = primaryCursor.viewState.position;
 		return {
 			isReal: false,
-			fromViewLineNumber: viewLineNumber,
-			fromViewVisualColumn: viewVisualColumn,
-			toViewLineNumber: viewLineNumber,
-			toViewVisualColumn: viewVisualColumn,
+			fromViewLineNumber: viewSelectionStart.lineNumber,
+			fromViewVisualColumn: CursorColumns.visibleColumnFromColumn2(this.context.config, this.context.viewModel, viewSelectionStart),
+			toViewLineNumber: viewPosition.lineNumber,
+			toViewVisualColumn: CursorColumns.visibleColumnFromColumn2(this.context.config, this.context.viewModel, viewPosition),
 		};
 	}
 

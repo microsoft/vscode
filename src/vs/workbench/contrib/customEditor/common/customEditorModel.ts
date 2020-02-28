@@ -29,7 +29,7 @@ namespace HotExitState {
 		readonly type = Type.Pending;
 
 		constructor(
-			public readonly operation: CancelablePromise<boolean>,
+			public readonly operation: CancelablePromise<void>,
 		) { }
 	}
 
@@ -90,9 +90,9 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 	private readonly _onWillSaveAs = this._register(new Emitter<CustomEditorSaveAsEvent>());
 	public readonly onWillSaveAs = this._onWillSaveAs.event;
 
-	private _onBackup: undefined | (() => CancelablePromise<boolean>);
+	private _onBackup: undefined | (() => CancelablePromise<void>);
 
-	public onBackup(f: () => CancelablePromise<boolean>) {
+	public onBackup(f: () => CancelablePromise<void>) {
 		if (this._onBackup) {
 			throw new Error('Backup already implemented');
 		}
@@ -182,7 +182,11 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 		this._hotExitState = pendingState;
 
 		try {
-			this._hotExitState = await pendingState.operation ? HotExitState.Allowed : HotExitState.NotAllowed;
+			await pendingState.operation;
+			// Make sure state has not changed in the meantime
+			if (this._hotExitState === pendingState) {
+				this._hotExitState = HotExitState.Allowed;
+			}
 		} catch (e) {
 			// Make sure state has not changed in the meantime
 			if (this._hotExitState === pendingState) {

@@ -251,7 +251,7 @@ export class TimelinePane extends ViewPane {
 					}
 
 					this._tree.setChildren(null, undefined);
-					this.message = localize('timeline.loading', 'Loading timeline for ${0}...', basename(uri.fsPath));
+					this.message = localize('timeline.loading', 'Loading timeline for {0}...', basename(uri.fsPath));
 				}, 500, this._uri);
 			}
 		}
@@ -291,7 +291,7 @@ export class TimelinePane extends ViewPane {
 			if (!reset) {
 				// TODO: Handle pending request
 
-				if (cursors?.more === false) {
+				if (cursors?.more !== true) {
 					continue;
 				}
 
@@ -305,6 +305,10 @@ export class TimelinePane extends ViewPane {
 					},
 					request?.tokenSource ?? new CancellationTokenSource(), { cacheResults: true }
 				)!;
+
+				if (request === undefined) {
+					continue;
+				}
 
 				this._pendingRequests.set(source, request);
 				if (!reusingToken) {
@@ -321,6 +325,10 @@ export class TimelinePane extends ViewPane {
 					},
 					new CancellationTokenSource(), { cacheResults: true }
 				)!;
+
+				if (request === undefined) {
+					continue;
+				}
 
 				this._pendingRequests.set(source, request);
 				request.tokenSource.token.onCancellationRequested(() => this._pendingRequests.delete(source));

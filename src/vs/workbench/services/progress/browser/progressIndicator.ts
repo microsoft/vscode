@@ -45,7 +45,7 @@ export class ProgressBarIndicator extends Disposable implements IProgressIndicat
 		};
 	}
 
-	async showWhile(promise: Promise<any>, delay?: number): Promise<void> {
+	async showWhile(promise: Promise<unknown>, delay?: number): Promise<void> {
 		try {
 			this.progressbar.infinite().show(delay);
 
@@ -92,7 +92,7 @@ export class EditorProgressIndicator extends ProgressBarIndicator {
 		return super.show(infiniteOrTotal, delay);
 	}
 
-	async showWhile(promise: Promise<any>, delay?: number): Promise<void> {
+	async showWhile(promise: Promise<unknown>, delay?: number): Promise<void> {
 
 		// No editor open: ignore any progress reporting
 		if (this.group.isEmpty) {
@@ -125,7 +125,7 @@ namespace ProgressIndicatorState {
 		readonly type = Type.While;
 
 		constructor(
-			readonly whilePromise: Promise<any>,
+			readonly whilePromise: Promise<unknown>,
 			readonly whileStart: number,
 			readonly whileDelay: number,
 		) { }
@@ -311,7 +311,7 @@ export class CompositeProgressIndicator extends CompositeScope implements IProgr
 		};
 	}
 
-	async showWhile(promise: Promise<any>, delay?: number): Promise<void> {
+	async showWhile(promise: Promise<unknown>, delay?: number): Promise<void> {
 
 		// Join with existing running promise to ensure progress is accurate
 		if (this.progressState.type === ProgressIndicatorState.Type.While) {
