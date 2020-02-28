@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { isMacintosh, isLinux, isWindows } from 'vs/base/common/platform';
 
 function createContext(ctx: any) {
 	return {
@@ -124,10 +125,15 @@ suite('ContextKeyExpr', () => {
 			assert.strictEqual(actual, expected);
 		}
 		testNormalize('true', 'true');
+		testNormalize('!true', 'false');
 		testNormalize('false', 'false');
+		testNormalize('!false', 'true');
 		testNormalize('a && true', 'a');
 		testNormalize('a && false', 'false');
 		testNormalize('a || true', 'true');
 		testNormalize('a || false', 'a');
+		testNormalize('isMac', isMacintosh ? 'true' : 'false');
+		testNormalize('isLinux', isLinux ? 'true' : 'false');
+		testNormalize('isWindows', isWindows ? 'true' : 'false');
 	});
 });

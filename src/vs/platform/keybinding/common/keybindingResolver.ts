@@ -49,6 +49,11 @@ export class KeybindingResolver {
 				continue;
 			}
 
+			if (k.when && k.when.type === ContextKeyExprType.False) {
+				// when condition is false
+				continue;
+			}
+
 			// TODO@chords
 			this._addKeyPress(k.keypressParts[0], k);
 		}

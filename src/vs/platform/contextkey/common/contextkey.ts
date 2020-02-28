@@ -6,6 +6,14 @@
 import { Event } from 'vs/base/common/event';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { isMacintosh, isLinux, isWindows } from 'vs/base/common/platform';
+
+const STATIC_VALUES = new Map<string, boolean>();
+STATIC_VALUES.set('false', false);
+STATIC_VALUES.set('true', true);
+STATIC_VALUES.set('isMac', isMacintosh);
+STATIC_VALUES.set('isLinux', isLinux);
+STATIC_VALUES.set('isWindows', isWindows);
 
 export const enum ContextKeyExprType {
 	False = 0,
@@ -262,11 +270,9 @@ export class ContextKeyTrueExpr implements IContextKeyExpression {
 
 export class ContextKeyDefinedExpr implements IContextKeyExpression {
 	public static create(key: string): ContextKeyExpression {
-		if (key === 'false') {
-			return ContextKeyFalseExpr.INSTANCE;
-		}
-		if (key === 'true') {
-			return ContextKeyTrueExpr.INSTANCE;
+		const staticValue = STATIC_VALUES.get(key);
+		if (typeof staticValue === 'boolean') {
+			return staticValue ? ContextKeyTrueExpr.INSTANCE : ContextKeyFalseExpr.INSTANCE;
 		}
 		return new ContextKeyDefinedExpr(key);
 	}
@@ -321,18 +327,12 @@ export class ContextKeyEqualsExpr implements IContextKeyExpression {
 
 	public static create(key: string, value: any): ContextKeyExpression {
 		if (typeof value === 'boolean') {
-			if (value) {
-				return ContextKeyDefinedExpr.create(key);
-			}
-			return ContextKeyNotExpr.create(key);
+			return (value ? ContextKeyDefinedExpr.create(key) : ContextKeyNotExpr.create(key));
 		}
-		if (key === 'false') {
-			// false only equals false
-			return (value === 'false' ? ContextKeyTrueExpr.INSTANCE : ContextKeyFalseExpr.INSTANCE);
-		}
-		if (key === 'true') {
-			// true only equals true
-			return (value === 'true' ? ContextKeyTrueExpr.INSTANCE : ContextKeyFalseExpr.INSTANCE);
+		const staticValue = STATIC_VALUES.get(key);
+		if (typeof staticValue === 'boolean') {
+			const trueValue = staticValue ? 'true' : 'false';
+			return (value === trueValue ? ContextKeyTrueExpr.INSTANCE : ContextKeyFalseExpr.INSTANCE);
 		}
 		return new ContextKeyEqualsExpr(key, value);
 	}
@@ -400,13 +400,10 @@ export class ContextKeyNotEqualsExpr implements IContextKeyExpression {
 			}
 			return ContextKeyDefinedExpr.create(key);
 		}
-		if (key === 'false') {
-			// false only equals false
-			return (value === 'false' ? ContextKeyFalseExpr.INSTANCE : ContextKeyTrueExpr.INSTANCE);
-		}
-		if (key === 'true') {
-			// true only equals true
-			return (value === 'true' ? ContextKeyFalseExpr.INSTANCE : ContextKeyTrueExpr.INSTANCE);
+		const staticValue = STATIC_VALUES.get(key);
+		if (typeof staticValue === 'boolean') {
+			const falseValue = staticValue ? 'true' : 'false';
+			return (value === falseValue ? ContextKeyFalseExpr.INSTANCE : ContextKeyTrueExpr.INSTANCE);
 		}
 		return new ContextKeyNotEqualsExpr(key, value);
 	}
@@ -468,13 +465,9 @@ export class ContextKeyNotEqualsExpr implements IContextKeyExpression {
 export class ContextKeyNotExpr implements IContextKeyExpression {
 
 	public static create(key: string): ContextKeyExpression {
-		if (key === 'false') {
-			// !false
-			return ContextKeyTrueExpr.INSTANCE;
-		}
-		if (key === 'true') {
-			// !true
-			return ContextKeyFalseExpr.INSTANCE;
+		const staticValue = STATIC_VALUES.get(key);
+		if (typeof staticValue === 'boolean') {
+			return (staticValue ? ContextKeyFalseExpr.INSTANCE : ContextKeyTrueExpr.INSTANCE);
 		}
 		return new ContextKeyNotExpr(key);
 	}
