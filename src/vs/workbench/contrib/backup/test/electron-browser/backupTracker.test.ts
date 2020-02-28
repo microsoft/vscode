@@ -235,7 +235,7 @@ suite('BackupTracker', () => {
 		tracker.dispose();
 	});
 
-	test('confirm onWillShutdown - veto if user cancels', async function () {
+	test.skip('confirm onWillShutdown - veto if user cancels', async function () {
 		const [accessor, part, tracker] = await createTracker();
 
 		const resource = toResource.call(this, '/path/index.txt');
