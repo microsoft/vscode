@@ -31,7 +31,7 @@ import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandler
 import { StatusBarColorProvider } from 'vs/workbench/contrib/debug/browser/statusbarColorProvider';
 import { IViewsRegistry, Extensions as ViewExtensions, IViewContainersRegistry, ViewContainerLocation, ViewContainer } from 'vs/workbench/common/views';
 import { isMacintosh } from 'vs/base/common/platform';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
 import { DebugQuickOpenHandler } from 'vs/workbench/contrib/debug/browser/debugQuickOpen';
 import { DebugStatusContribution } from 'vs/workbench/contrib/debug/browser/debugStatus';
@@ -135,7 +135,7 @@ registry.registerWorkbenchAction(SyncActionDescriptor.create(DisableAllBreakpoin
 registry.registerWorkbenchAction(SyncActionDescriptor.create(SelectAndStartAction, SelectAndStartAction.ID, SelectAndStartAction.LABEL), 'Debug: Select and Start Debugging', debugCategory);
 registry.registerWorkbenchAction(SyncActionDescriptor.create(ClearReplAction, ClearReplAction.ID, ClearReplAction.LABEL), 'Debug: Clear Console', debugCategory);
 
-const registerDebugCommandPaletteItem = (id: string, title: string, when?: ContextKeyExpr, precondition?: ContextKeyExpr) => {
+const registerDebugCommandPaletteItem = (id: string, title: string, when?: ContextKeyExpression, precondition?: ContextKeyExpression) => {
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		when,
 		command: {
@@ -290,7 +290,7 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 
 // Debug toolbar
 
-const registerDebugToolBarItem = (id: string, title: string, order: number, icon: { light?: URI, dark?: URI } | ThemeIcon, when?: ContextKeyExpr, precondition?: ContextKeyExpr) => {
+const registerDebugToolBarItem = (id: string, title: string, order: number, icon: { light?: URI, dark?: URI } | ThemeIcon, when?: ContextKeyExpression, precondition?: ContextKeyExpression) => {
 	MenuRegistry.appendMenuItem(MenuId.DebugToolBar, {
 		group: 'navigation',
 		when,
@@ -316,7 +316,7 @@ registerDebugToolBarItem(STEP_BACK_ID, nls.localize('stepBackDebug', "Step Back"
 registerDebugToolBarItem(REVERSE_CONTINUE_ID, nls.localize('reverseContinue', "Reverse"), 60, { id: 'codicon/debug-reverse-continue' }, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
 
 // Debug callstack context menu
-const registerDebugCallstackItem = (id: string, title: string, order: number, when?: ContextKeyExpr, precondition?: ContextKeyExpr, group = 'navigation') => {
+const registerDebugCallstackItem = (id: string, title: string, order: number, when?: ContextKeyExpression, precondition?: ContextKeyExpression, group = 'navigation') => {
 	MenuRegistry.appendMenuItem(MenuId.DebugCallStackContext, {
 		group,
 		when,
@@ -558,7 +558,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
 // Touch Bar
 if (isMacintosh) {
 
-	const registerTouchBarEntry = (id: string, title: string, order: number, when: ContextKeyExpr | undefined, iconUri: URI) => {
+	const registerTouchBarEntry = (id: string, title: string, order: number, when: ContextKeyExpression | undefined, iconUri: URI) => {
 		MenuRegistry.appendMenuItem(MenuId.TouchBarContext, {
 			command: {
 				id,

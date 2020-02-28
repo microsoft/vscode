@@ -9,7 +9,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import * as nls from 'vs/nls';
 import { Action2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { WebviewEditorOverlay, webviewHasOwnEditFunctionsContextKey } from 'vs/workbench/contrib/webview/browser/webview';
@@ -42,7 +42,7 @@ export class CopyWebviewEditorCommand extends Action2 {
 	public static readonly ID = 'editor.action.webvieweditor.copy';
 	public static readonly LABEL = nls.localize('editor.action.webvieweditor.copy', "Copy2");
 
-	constructor(contextKeyExpr: ContextKeyExpr) {
+	constructor(contextKeyExpr: ContextKeyExpression) {
 		super({
 			id: CopyWebviewEditorCommand.ID,
 			title: CopyWebviewEditorCommand.LABEL,
@@ -63,7 +63,7 @@ export class PasteWebviewEditorCommand extends Action2 {
 	public static readonly ID = 'editor.action.webvieweditor.paste';
 	public static readonly LABEL = nls.localize('editor.action.webvieweditor.paste', 'Paste');
 
-	constructor(contextKeyExpr: ContextKeyExpr) {
+	constructor(contextKeyExpr: ContextKeyExpression) {
 		super({
 			id: PasteWebviewEditorCommand.ID,
 			title: PasteWebviewEditorCommand.LABEL,
@@ -84,7 +84,7 @@ export class CutWebviewEditorCommand extends Action2 {
 	public static readonly ID = 'editor.action.webvieweditor.cut';
 	public static readonly LABEL = nls.localize('editor.action.webvieweditor.cut', 'Cut');
 
-	constructor(contextKeyExpr: ContextKeyExpr) {
+	constructor(contextKeyExpr: ContextKeyExpression) {
 		super({
 			id: CutWebviewEditorCommand.ID,
 			title: CutWebviewEditorCommand.LABEL,
@@ -105,7 +105,7 @@ export class UndoWebviewEditorCommand extends Action2 {
 	public static readonly ID = 'editor.action.webvieweditor.undo';
 	public static readonly LABEL = nls.localize('editor.action.webvieweditor.undo', "Undo");
 
-	constructor(contextKeyExpr: ContextKeyExpr) {
+	constructor(contextKeyExpr: ContextKeyExpression) {
 		super({
 			id: UndoWebviewEditorCommand.ID,
 			title: UndoWebviewEditorCommand.LABEL,
@@ -126,7 +126,7 @@ export class RedoWebviewEditorCommand extends Action2 {
 	public static readonly ID = 'editor.action.webvieweditor.redo';
 	public static readonly LABEL = nls.localize('editor.action.webvieweditor.redo', "Redo");
 
-	constructor(contextKeyExpr: ContextKeyExpr) {
+	constructor(contextKeyExpr: ContextKeyExpression) {
 		super({
 			id: RedoWebviewEditorCommand.ID,
 			title: RedoWebviewEditorCommand.LABEL,

@@ -7,7 +7,7 @@ import { Action } from 'vs/base/common/actions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as nls from 'vs/nls';
 import { Action2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from 'vs/workbench/contrib/webview/browser/webview';
@@ -19,7 +19,7 @@ export class ShowWebViewEditorFindWidgetAction extends Action2 {
 	public static readonly ID = 'editor.action.webvieweditor.showFind';
 	public static readonly LABEL = nls.localize('editor.action.webvieweditor.showFind', "Show find");
 
-	constructor(contextKeyExpr: ContextKeyExpr) {
+	constructor(contextKeyExpr: ContextKeyExpression) {
 		super({
 			id: ShowWebViewEditorFindWidgetAction.ID,
 			title: ShowWebViewEditorFindWidgetAction.LABEL,
@@ -40,7 +40,7 @@ export class HideWebViewEditorFindCommand extends Action2 {
 	public static readonly ID = 'editor.action.webvieweditor.hideFind';
 	public static readonly LABEL = nls.localize('editor.action.webvieweditor.hideFind', "Stop find");
 
-	constructor(contextKeyExpr: ContextKeyExpr) {
+	constructor(contextKeyExpr: ContextKeyExpression) {
 		super({
 			id: HideWebViewEditorFindCommand.ID,
 			title: HideWebViewEditorFindCommand.LABEL,
@@ -61,7 +61,7 @@ export class WebViewEditorFindNextCommand extends Action2 {
 	public static readonly ID = 'editor.action.webvieweditor.findNext';
 	public static readonly LABEL = nls.localize('editor.action.webvieweditor.findNext', 'Find next');
 
-	constructor(contextKeyExpr: ContextKeyExpr) {
+	constructor(contextKeyExpr: ContextKeyExpression) {
 		super({
 			id: WebViewEditorFindNextCommand.ID,
 			title: WebViewEditorFindNextCommand.LABEL,
@@ -82,7 +82,7 @@ export class WebViewEditorFindPreviousCommand extends Action2 {
 	public static readonly ID = 'editor.action.webvieweditor.findPrevious';
 	public static readonly LABEL = nls.localize('editor.action.webvieweditor.findPrevious', 'Find previous');
 
-	constructor(contextKeyExpr: ContextKeyExpr) {
+	constructor(contextKeyExpr: ContextKeyExpression) {
 		super({
 			id: WebViewEditorFindPreviousCommand.ID,
 			title: WebViewEditorFindPreviousCommand.LABEL,
@@ -103,7 +103,7 @@ export class SelectAllWebviewEditorCommand extends Action2 {
 	public static readonly ID = 'editor.action.webvieweditor.selectAll';
 	public static readonly LABEL = nls.localize('editor.action.webvieweditor.selectAll', 'Select all');
 
-	constructor(contextKeyExpr: ContextKeyExpr) {
+	constructor(contextKeyExpr: ContextKeyExpression) {
 		const precondition = ContextKeyExpr.and(contextKeyExpr, ContextKeyExpr.not(InputFocusedContextKey));
 		super({
 			id: SelectAllWebviewEditorCommand.ID,

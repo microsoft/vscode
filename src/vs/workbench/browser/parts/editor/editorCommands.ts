@@ -84,7 +84,7 @@ function registerActiveEditorMoveCommand(): void {
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: EditorContextKeys.editorTextFocus,
 		primary: 0,
-		handler: (accessor, args: any) => moveActiveEditor(args, accessor),
+		handler: (accessor, args) => moveActiveEditor(args, accessor),
 		description: {
 			description: nls.localize('editorCommand.activeEditorMove.description', "Move the active editor by tabs or groups"),
 			args: [

@@ -297,6 +297,8 @@ export class SimpleFileDialog {
 
 			function doResolve(dialog: SimpleFileDialog, uri: URI | undefined) {
 				if (uri) {
+					uri = resources.addTrailingPathSeparator(uri, dialog.separator); // Ensures that c: is c:/ since this comes from user input and can be incorrect.
+					// To be consistent, we should never have a trailing path separator on directories (or anything else). Will not remove from c:/.
 					uri = resources.removeTrailingPathSeparator(uri);
 				}
 				resolve(uri);

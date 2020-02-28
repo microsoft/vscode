@@ -491,9 +491,9 @@ interface IEditorGroupTemplateData {
 class OpenEditorActionRunner extends ActionRunner {
 	public editor: OpenEditor | undefined;
 
-	run(action: IAction, context?: any): Promise<void> {
+	async run(action: IAction): Promise<void> {
 		if (!this.editor) {
-			return Promise.resolve();
+			return;
 		}
 
 		return super.run(action, { groupId: this.editor.groupId, editorIndex: this.editor.editorIndex });
