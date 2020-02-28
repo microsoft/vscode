@@ -2020,7 +2020,7 @@ declare module 'vscode' {
 		 * Base kind for source actions: `source`
 		 *
 		 * Source code actions apply to the entire file. They must be explicitly requested and will not show in the
-		 * normal [light bulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action) menu. Source actions
+		 * normal [lightbulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action) menu. Source actions
 		 * can be run on save using `editor.codeActionsOnSave` and are also shown in the `source` context menu.
 		 */
 		static readonly Source: CodeActionKind;
@@ -2086,7 +2086,7 @@ declare module 'vscode' {
 		/**
 		 * Requested kind of actions to return.
 		 *
-		 * Actions not of this kind are filtered out before being shown by the lightbulb.
+		 * Actions not of this kind are filtered out before being shown by the [lightbulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action).
 		 */
 		readonly only?: CodeActionKind;
 	}
@@ -2138,7 +2138,15 @@ declare module 'vscode' {
 		/**
 		 * Marks that the code action cannot currently be applied.
 		 *
-		 * Disabled code actions will be surfaced in the refactor UI but cannot be applied.
+		 * - Disabled code actions are not shown in automatic [lightbulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action)
+		 * code action menu.
+		 *
+		 * - Disabled actions are shown as faded out in the code action menu when the user request a more specific type
+		 * of code action, such as refactorings.
+		 *
+		 * - If the user has a [keybinding](https://code.visualstudio.com/docs/editor/refactoring#_keybindings-for-code-actions)
+		 * that auto applies a code action and only a disabled code actions are returned, VS Code will show the user a
+		 * message with `reason` in the editor.
 		 */
 		disabled?: {
 			/**
@@ -2163,7 +2171,7 @@ declare module 'vscode' {
 
 	/**
 	 * The code action interface defines the contract between extensions and
-	 * the [light bulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action) feature.
+	 * the [lightbulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action) feature.
 	 *
 	 * A code action can be any command that is [known](#commands.getCommands) to the system.
 	 */
