@@ -98,7 +98,7 @@ export class IframeUtils {
 	/**
 	 * Returns the position of `childWindow` relative to `ancestorWindow`
 	 */
-	public static getPositionOfChildWindowRelativeToAncestorWindow(childWindow: Window, ancestorWindow: Window) {
+	public static getPositionOfChildWindowRelativeToAncestorWindow(childWindow: Window, ancestorWindow: Window | null) {
 
 		if (!ancestorWindow || childWindow === ancestorWindow) {
 			return {
