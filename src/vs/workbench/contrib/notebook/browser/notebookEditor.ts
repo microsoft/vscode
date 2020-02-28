@@ -437,7 +437,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 		let relayout = (cell: CellViewModel, height: number) => {
 			let index = this.model!.getNotebook().cells.indexOf(cell.cell);
 			if (index >= 0) {
-				this.list?.updateElementHeight(index, cell, height);
+				this.list?.updateElementHeight(index, height);
 			}
 		};
 
