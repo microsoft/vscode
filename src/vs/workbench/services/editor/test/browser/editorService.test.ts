@@ -710,9 +710,9 @@ suite('EditorService', () => {
 	test('save, saveAll, revertAll', async function () {
 		const [part, service] = createEditorService();
 
-		const input1 = new TestFileEditorInput(URI.parse('my://resource1-openside'), TEST_EDITOR_INPUT_ID);
+		const input1 = new TestFileEditorInput(URI.parse('my://resource1'), TEST_EDITOR_INPUT_ID);
 		input1.dirty = true;
-		const input2 = new TestFileEditorInput(URI.parse('my://resource2-openside'), TEST_EDITOR_INPUT_ID);
+		const input2 = new TestFileEditorInput(URI.parse('my://resource2'), TEST_EDITOR_INPUT_ID);
 		input2.dirty = true;
 
 		const rootGroup = part.activeGroup;
@@ -753,9 +753,9 @@ suite('EditorService', () => {
 	async function testFileDeleteEditorClose(dirty: boolean): Promise<void> {
 		const [part, service, accessor] = createEditorService();
 
-		const input1 = new TestFileEditorInput(URI.parse('my://resource1-openside'), TEST_EDITOR_INPUT_ID);
+		const input1 = new TestFileEditorInput(URI.parse('my://resource1'), TEST_EDITOR_INPUT_ID);
 		input1.dirty = dirty;
-		const input2 = new TestFileEditorInput(URI.parse('my://resource2-openside'), TEST_EDITOR_INPUT_ID);
+		const input2 = new TestFileEditorInput(URI.parse('my://resource2'), TEST_EDITOR_INPUT_ID);
 		input2.dirty = dirty;
 
 		const rootGroup = part.activeGroup;
@@ -785,8 +785,8 @@ suite('EditorService', () => {
 	test('file move asks input to move', async function () {
 		const [part, service, accessor] = createEditorService();
 
-		const input1 = new TestFileEditorInput(URI.parse('my://resource1-openside'), TEST_EDITOR_INPUT_ID);
-		const movedInput = new TestFileEditorInput(URI.parse('my://resource2-openside'), TEST_EDITOR_INPUT_ID);
+		const input1 = new TestFileEditorInput(URI.parse('my://resource1'), TEST_EDITOR_INPUT_ID);
+		const movedInput = new TestFileEditorInput(URI.parse('my://resource2'), TEST_EDITOR_INPUT_ID);
 		input1.movedEditor = { editor: movedInput };
 
 		const rootGroup = part.activeGroup;
@@ -803,7 +803,7 @@ suite('EditorService', () => {
 			isDirectory: false,
 			isFile: true,
 			mtime: 0,
-			name: 'resource2-openside',
+			name: 'resource2',
 			size: 0,
 			isSymbolicLink: false
 		}));
@@ -823,8 +823,8 @@ suite('EditorService', () => {
 	test('file watcher gets installed for out of workspace files', async function () {
 		const [part, service, accessor] = createEditorService();
 
-		const input1 = new TestFileEditorInput(URI.parse('file://resource1-openside'), TEST_EDITOR_INPUT_ID);
-		const input2 = new TestFileEditorInput(URI.parse('file://resource2-openside'), TEST_EDITOR_INPUT_ID);
+		const input1 = new TestFileEditorInput(URI.parse('file://resource1'), TEST_EDITOR_INPUT_ID);
+		const input2 = new TestFileEditorInput(URI.parse('file://resource2'), TEST_EDITOR_INPUT_ID);
 
 		await part.whenRestored;
 
@@ -839,6 +839,55 @@ suite('EditorService', () => {
 		await editor?.group?.closeAllEditors();
 		assert.equal(accessor.fileService.watches.length, 0);
 
+		part.dispose();
+	});
+
+	test('invokeWithinEditorContext', async function () {
+		const [part, service] = createEditorService();
+
+		const input1 = new TestFileEditorInput(URI.parse('file://resource1'), TEST_EDITOR_INPUT_ID);
+		new TestFileEditorInput(URI.parse('file://resource2'), TEST_EDITOR_INPUT_ID);
+
+		await part.whenRestored;
+
+		await service.openEditor(input1, { pinned: true });
+
+		let hasAccessor = false;
+		service.invokeWithinEditorContext(accessor => {
+			hasAccessor = true;
+		});
+
+		assert.ok(hasAccessor);
+
+		part.dispose();
+	});
+
+	test('overrideOpenEditor', async function () {
+		const [part, service] = createEditorService();
+
+		const input1 = new TestFileEditorInput(URI.parse('file://resource1'), TEST_EDITOR_INPUT_ID);
+		const input2 = new TestFileEditorInput(URI.parse('file://resource2'), TEST_EDITOR_INPUT_ID);
+
+		await part.whenRestored;
+
+		let overrideCalled = false;
+
+		const handler = service.overrideOpenEditor(editor => {
+			if (editor === input1) {
+				overrideCalled = true;
+
+				return { override: service.openEditor(input2, { pinned: true }) };
+			}
+
+			return undefined;
+		});
+
+		await service.openEditor(input1, { pinned: true });
+
+		assert.ok(overrideCalled);
+		assert.equal(service.activeEditor, input2);
+
+		handler.dispose();
 		part.dispose();
 	});
 });

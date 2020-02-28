@@ -42,7 +42,7 @@ import { IPosition, Position as EditorPosition } from 'vs/editor/common/core/pos
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService, MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { ITextBufferFactory, DefaultEndOfLine, EndOfLinePreference, IModelDecorationOptions, ITextModel, ITextSnapshot } from 'vs/editor/common/model';
+import { ITextBufferFactory, DefaultEndOfLine, EndOfLinePreference, ITextSnapshot } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
 import { IDialogService, IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -54,9 +54,7 @@ import { IDisposable, toDisposable, Disposable, DisposableStore } from 'vs/base/
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IAddGroupOptions, IMergeGroupOptions, IMoveEditorOptions, ICopyEditorOptions, IEditorReplacement, IGroupChangeEvent, IFindGroupScope, EditorGroupLayout, ICloseEditorOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverrideHandler, IVisibleEditor, ISaveEditorsOptions, IRevertAllEditorsOptions, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorRegistry, EditorDescriptor, Extensions } from 'vs/workbench/browser/editor';
-import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import { EditorGroup } from 'vs/workbench/common/editor/editorGroup';
 import { Dimension } from 'vs/base/browser/dom';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
@@ -65,7 +63,7 @@ import { timeout } from 'vs/base/common/async';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ViewletDescriptor, Viewlet } from 'vs/workbench/browser/viewlet';
 import { IViewlet } from 'vs/workbench/common/viewlet';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { isLinux } from 'vs/base/common/platform';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { IDimension } from 'vs/platform/layout/browser/layoutService';
@@ -99,6 +97,8 @@ import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
+import { CodeEditorService } from 'vs/workbench/services/editor/browser/codeEditorService';
+import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 
 export import TestTextResourcePropertiesService = CommonWorkbenchTestServices.TestTextResourcePropertiesService;
 export import TestContextService = CommonWorkbenchTestServices.TestContextService;
@@ -151,14 +151,15 @@ export function workbenchInstantiationService(overrides?: { textFileService?: (i
 	instantiationService.stub(ITextFileService, overrides?.textFileService ? overrides.textFileService(instantiationService) : <ITextFileService>instantiationService.createInstance(TestTextFileService));
 	instantiationService.stub(IHostService, <IHostService>instantiationService.createInstance(TestHostService));
 	instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
-	instantiationService.stub(IThemeService, new TestThemeService());
+	const themeService = new TestThemeService();
+	instantiationService.stub(IThemeService, themeService);
 	instantiationService.stub(ILogService, new NullLogService());
 	const editorGroupService = new TestEditorGroupsService([new TestEditorGroupView(0)]);
 	instantiationService.stub(IEditorGroupsService, editorGroupService);
 	instantiationService.stub(ILabelService, <ILabelService>instantiationService.createInstance(LabelService));
 	const editorService = new TestEditorService(editorGroupService);
 	instantiationService.stub(IEditorService, editorService);
-	instantiationService.stub(ICodeEditorService, new TestCodeEditorService());
+	instantiationService.stub(ICodeEditorService, new CodeEditorService(editorService, themeService));
 	instantiationService.stub(IViewletService, new TestViewletService());
 
 	return instantiationService;
@@ -181,7 +182,8 @@ export class TestServiceAccessor {
 		@ITextModelService public textModelResolverService: ITextModelService,
 		@IUntitledTextEditorService public untitledTextEditorService: UntitledTextEditorService,
 		@IConfigurationService public testConfigurationService: TestConfigurationService,
-		@IBackupFileService public backupFileService: TestBackupFileService
+		@IBackupFileService public backupFileService: TestBackupFileService,
+		@IHostService public hostService: TestHostService
 	) { }
 }
 
@@ -791,32 +793,6 @@ export class TestBackupFileService implements IBackupFileService {
 	}
 }
 
-export class TestCodeEditorService implements ICodeEditorService {
-	_serviceBrand: undefined;
-
-	onCodeEditorAdd: Event<ICodeEditor> = Event.None;
-	onCodeEditorRemove: Event<ICodeEditor> = Event.None;
-	onDiffEditorAdd: Event<IDiffEditor> = Event.None;
-	onDiffEditorRemove: Event<IDiffEditor> = Event.None;
-	onDidChangeTransientModelProperty: Event<ITextModel> = Event.None;
-
-	addCodeEditor(_editor: ICodeEditor): void { }
-	removeCodeEditor(_editor: ICodeEditor): void { }
-	listCodeEditors(): ICodeEditor[] { return []; }
-	addDiffEditor(_editor: IDiffEditor): void { }
-	removeDiffEditor(_editor: IDiffEditor): void { }
-	listDiffEditors(): IDiffEditor[] { return []; }
-	getFocusedCodeEditor(): ICodeEditor | null { return null; }
-	registerDecorationType(_key: string, _options: IDecorationRenderOptions, _parentTypeKey?: string): void { }
-	removeDecorationType(_key: string): void { }
-	resolveDecorationOptions(_typeKey: string, _writable: boolean): IModelDecorationOptions { return Object.create(null); }
-	setTransientModelProperty(_model: ITextModel, _key: string, _value: any): void { }
-	getTransientModelProperty(_model: ITextModel, _key: string) { }
-	getTransientModelProperties(_model: ITextModel) { return undefined; }
-	getActiveCodeEditor(): ICodeEditor | null { return null; }
-	openCodeEditor(_input: IResourceInput, _source: ICodeEditor, _sideBySide?: boolean): Promise<ICodeEditor | null> { return Promise.resolve(null); }
-}
-
 export class TestLifecycleService implements ILifecycleService {
 
 	_serviceBrand: undefined;
@@ -906,9 +882,17 @@ export class TestHostService implements IHostService {
 
 	_serviceBrand: undefined;
 
-	readonly hasFocus: boolean = true;
-	async hadLastFocus(): Promise<boolean> { return true; }
-	readonly onDidChangeFocus: Event<boolean> = Event.None;
+	private _hasFocus = true;
+	get hasFocus() { return this._hasFocus; }
+	async hadLastFocus(): Promise<boolean> { return this._hasFocus; }
+
+	private _onDidChangeFocus = new Emitter<boolean>();
+	readonly onDidChangeFocus = this._onDidChangeFocus.event;
+
+	setFocus(focus: boolean) {
+		this._hasFocus = focus;
+		this._onDidChangeFocus.fire(this._hasFocus);
+	}
 
 	async restart(): Promise<void> { }
 	async reload(): Promise<void> { }
@@ -1058,4 +1042,23 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 	}
 	movedEditor: IMoveResult | undefined = undefined;
 	move(): IMoveResult | undefined { return this.movedEditor; }
+}
+
+export class TestEditorPart extends EditorPart {
+
+	saveState(): void {
+		return super.saveState();
+	}
+
+	clearState(): void {
+		const workspaceMemento = this.getMemento(StorageScope.WORKSPACE);
+		for (const key of Object.keys(workspaceMemento)) {
+			delete workspaceMemento[key];
+		}
+
+		const globalMemento = this.getMemento(StorageScope.GLOBAL);
+		for (const key of Object.keys(globalMemento)) {
+			delete globalMemento[key];
+		}
+	}
 }
