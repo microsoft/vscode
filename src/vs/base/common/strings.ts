@@ -240,7 +240,7 @@ export function regExpFlags(regexp: RegExp): string {
 	return (regexp.global ? 'g' : '')
 		+ (regexp.ignoreCase ? 'i' : '')
 		+ (regexp.multiline ? 'm' : '')
-		+ ((regexp as any).unicode ? 'u' : '');
+		+ (regexp.unicode ? 'u' : '');
 }
 
 /**
@@ -853,7 +853,7 @@ export function removeAnsiEscapeCodes(str: string): string {
 }
 
 export const removeAccents: (str: string) => string = (function () {
-	if (typeof (String.prototype as any).normalize !== 'function') {
+	if (typeof String.prototype.normalize !== 'function') {
 		// ☹️ no ES6 features...
 		return function (str: string) { return str; };
 	} else {
@@ -861,7 +861,7 @@ export const removeAccents: (str: string) => string = (function () {
 		// see: https://stackoverflow.com/questions/990904/remove-accents-diacritics-in-a-string-in-javascript/37511463#37511463
 		const regex = /[\u0300-\u036f]/g;
 		return function (str: string) {
-			return (str as any).normalize('NFD').replace(regex, '');
+			return str.normalize('NFD').replace(regex, '');
 		};
 	}
 })();
