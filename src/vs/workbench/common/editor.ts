@@ -12,7 +12,7 @@ import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle'
 import { IEditor as ICodeEditor, IEditorViewState, ScrollType, IDiffEditor } from 'vs/editor/common/editorCommon';
 import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, IResourceInput, EditorActivation, EditorOpenContext, ITextEditorSelection, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature0, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
-import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITextModel } from 'vs/editor/common/model';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -38,7 +38,7 @@ export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', 
 export const EditorPinnedContext = new RawContextKey<boolean>('editorPinned', false);
 export const EditorGroupActiveEditorDirtyContext = new RawContextKey<boolean>('groupActiveEditorDirty', false);
 export const EditorGroupEditorsCountContext = new RawContextKey<number>('groupEditorsCount', 0);
-export const NoEditorsVisibleContext: ContextKeyExpr = EditorsVisibleContext.toNegated();
+export const NoEditorsVisibleContext = EditorsVisibleContext.toNegated();
 export const TextCompareEditorVisibleContext = new RawContextKey<boolean>('textCompareEditorVisible', false);
 export const TextCompareEditorActiveContext = new RawContextKey<boolean>('textCompareEditorActive', false);
 export const ActiveEditorGroupEmptyContext = new RawContextKey<boolean>('activeEditorGroupEmpty', false);

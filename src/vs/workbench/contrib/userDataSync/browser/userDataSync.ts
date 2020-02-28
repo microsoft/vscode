@@ -23,7 +23,7 @@ import { localize } from 'vs/nls';
 import { MenuId, MenuRegistry, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey, ContextKeyRegexExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -835,7 +835,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private registerShowSettingsConflictsAction(): void {
-		const resolveSettingsConflictsWhenContext = ContextKeyRegexExpr.create(CONTEXT_CONFLICTS_SOURCES.keys()[0], /.*settings.*/i);
+		const resolveSettingsConflictsWhenContext = ContextKeyExpr.regex(CONTEXT_CONFLICTS_SOURCES.keys()[0], /.*settings.*/i);
 		CommandsRegistry.registerCommand(resolveSettingsConflictsCommand.id, () => this.handleConflicts(SyncSource.Settings));
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 			group: '5_sync',
@@ -862,7 +862,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private registerShowKeybindingsConflictsAction(): void {
-		const resolveKeybindingsConflictsWhenContext = ContextKeyRegexExpr.create(CONTEXT_CONFLICTS_SOURCES.keys()[0], /.*keybindings.*/i);
+		const resolveKeybindingsConflictsWhenContext = ContextKeyExpr.regex(CONTEXT_CONFLICTS_SOURCES.keys()[0], /.*keybindings.*/i);
 		CommandsRegistry.registerCommand(resolveKeybindingsConflictsCommand.id, () => this.handleConflicts(SyncSource.Keybindings));
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 			group: '5_sync',

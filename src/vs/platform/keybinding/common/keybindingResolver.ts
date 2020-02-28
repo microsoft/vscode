@@ -6,7 +6,7 @@
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { MenuRegistry } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr, IContext, ContextKeyOrExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContext, ContextKeyOrExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { keys } from 'vs/base/common/map';
 
@@ -175,7 +175,7 @@ export class KeybindingResolver {
 	/**
 	 * Returns true if it is provable `a` implies `b`.
 	 */
-	public static whenIsEntirelyIncluded(a: ContextKeyExpr | null | undefined, b: ContextKeyExpr | null | undefined): boolean {
+	public static whenIsEntirelyIncluded(a: ContextKeyExpression | null | undefined, b: ContextKeyExpression | null | undefined): boolean {
 		if (!b) {
 			return true;
 		}
@@ -189,10 +189,10 @@ export class KeybindingResolver {
 	/**
 	 * Returns true if it is provable `p` implies `q`.
 	 */
-	private static _implies(p: ContextKeyExpr, q: ContextKeyExpr): boolean {
+	private static _implies(p: ContextKeyExpression, q: ContextKeyExpression): boolean {
 		const notP = p.negate();
 
-		const terminals = (node: ContextKeyExpr) => {
+		const terminals = (node: ContextKeyExpression) => {
 			if (node instanceof ContextKeyOrExpr) {
 				return node.expr;
 			}
