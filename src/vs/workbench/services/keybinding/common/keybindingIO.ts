@@ -6,7 +6,7 @@
 import { SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { ScanCodeBinding } from 'vs/base/common/scanCode';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 
@@ -14,7 +14,7 @@ export interface IUserKeybindingItem {
 	parts: (SimpleKeybinding | ScanCodeBinding)[];
 	command: string | null;
 	commandArgs?: any;
-	when: ContextKeyExpr | undefined;
+	when: ContextKeyExpression | undefined;
 }
 
 export class KeybindingIO {

@@ -17,7 +17,7 @@ import { ActivityAction, ToggleCompositePinnedAction, ICompositeBar } from 'vs/w
 import { IActivity } from 'vs/workbench/common/activity';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ActivePanelContext, PanelPositionContext } from 'vs/workbench/common/panel';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 
 export class ClosePanelAction extends Action {
 
@@ -128,7 +128,7 @@ const PositionPanelActionId = {
 
 interface PanelActionConfig<T> {
 	id: string;
-	when: ContextKeyExpr;
+	when: ContextKeyExpression;
 	alias: string;
 	label: string;
 	value: T;
