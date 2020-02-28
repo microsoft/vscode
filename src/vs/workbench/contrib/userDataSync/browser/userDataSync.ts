@@ -511,7 +511,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				}
 			);
 			switch (result.choice) {
-				case 0: this.openerService.open(URI.parse('https://go.microsoft.com/fwlink/?LinkId=827846')); return;
+				case 0: this.openerService.open(URI.parse('https://aka.ms/vscode-settings-sync-help')); return;
 				case 2: return;
 			}
 		}

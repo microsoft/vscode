@@ -219,7 +219,6 @@ export abstract class AbstractSynchroniser extends Disposable {
 			const stat = await this.fileService.resolve(this.syncFolder);
 			if (stat.children) {
 				const all = stat.children.filter(stat => stat.isFile && /^\d{8}T\d{6}(\.json)?$/.test(stat.name)).sort();
-				console.log(all.map(a => a.name));
 				const backUpMaxAge = 1000 * 60 * 60 * 24 * (this.configurationService.getValue<number>('sync.localBackupDuration') || 30 /* Default 30 days */);
 				let toDelete = all.filter(stat => {
 					const ctime = stat.ctime || new Date(
