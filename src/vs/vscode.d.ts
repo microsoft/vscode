@@ -6781,6 +6781,30 @@ declare module 'vscode' {
 		 * @param callback A command handler function with access to an [editor](#TextEditor) and an [edit](#TextEditorEdit).
 		 * @param thisArg The `this` context used when invoking the handler function.
 		 * @return Disposable which unregisters this command on disposal.
+		 *
+		 *
+		 * **Note:**  The `registerTextEditorCommand` should run synchronously, as it gets passed in a
+		 * `TextEditor` and a `TextEditorEdit`, If you wish to show input boxes, then register a regular command
+		 * and initiate the edit operation when you have all the information (after checking the target editor is still
+		 * there or hasn't changed). i.e.:
+		 *
+		 * **Example:**
+		 * **Bad**
+		 * ```typescript
+		 * function run() {
+		 *   var ed = vscode.window.activeTextEditor;
+		 *   setTimeout(function() {
+		 *     // Don't use captured `ed` here, the editor might have been closed
+		 *   }, 10000);
+		 * ```
+		 * **Good**
+		 * ```typescript
+		 * function run() {
+		 *   setTimeout(function() {
+		 *      // Fine to use vscode.window.activeTextEditor (if it's not null, i.e. all editors closed)
+		 *   }, 10000);
+		 * }
+		 * ```
 		 */
 		export function registerTextEditorCommand(command: string, callback: (textEditor: TextEditor, edit: TextEditorEdit, ...args: any[]) => void, thisArg?: any): Disposable;
 
