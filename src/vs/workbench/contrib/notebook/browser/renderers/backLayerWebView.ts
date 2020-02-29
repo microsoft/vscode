@@ -207,7 +207,7 @@ export class BackLayerWebView extends Disposable {
 				break;
 			case 'view-scroll':
 				{
-					const date = new Date();
+					// const date = new Date();
 					// console.log('----- will scroll ----  ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
 
 					document.getElementById('container').style.top = event.data.top + 'px';
@@ -215,14 +215,6 @@ export class BackLayerWebView extends Disposable {
 						let widget = document.getElementById(event.data.widgets[i].id);
 						widget.style.top = event.data.widgets[i].top + 'px';
 					}
-
-					vscode.postMessage({
-						type: 'scroll-ack',
-						data: {
-							top: event.data.top,
-						},
-						version: event.data.version
-					});
 					break;
 				}
 			case 'clear':

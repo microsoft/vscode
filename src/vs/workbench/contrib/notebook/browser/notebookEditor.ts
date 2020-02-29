@@ -327,6 +327,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 					this.webview!.element.style.top = `${scrollTop}px`;
 					let updateItems: { cell: CellViewModel, output: IOutput, cellTop: number }[] = [];
 
+					// const date = new Date();
 					if (this.webview?.insetMapping) {
 						this.webview?.insetMapping.forEach((value, key) => {
 							let cell = value.cell;
@@ -341,16 +342,17 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 							}
 						});
 
-						this.webview?.updateViewScrollTop(-scrollTop, updateItems);
+						if (updateItems.length) {
+							// console.log('----- did scroll ----  ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
+							this.webview?.updateViewScrollTop(-scrollTop, updateItems);
+						}
 					}
 				};
 				this.localStore.add(this.list!.onWillScroll(e => {
 					// const date = new Date();
 					// console.log('----- will scroll ----  ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
-					this.webview?.updateViewScrollTop(-e.scrollTop, []);
-				}));
-				this.localStore.add(this.list!.onDidScroll(() => {
-					updateScrollPosition();
+					this.webview!.updateViewScrollTop(-e.scrollTop, []);
+					this.webview!.element.style.top = `${e.scrollTop}px`;
 				}));
 				this.localStore.add(this.list!.onDidChangeContentHeight(() => updateScrollPosition()));
 				this.localStore.add(this.list!.onFocusChange((e) => {
