@@ -5,7 +5,7 @@
 
 import { createCancelablePromise } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isWeb } from 'vs/base/common/platform';
 import { startsWith } from 'vs/base/common/strings';
@@ -98,6 +98,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 	private readonly _revivers = new Map<string, IDisposable>();
 	private readonly _editorProviders = new Map<string, IDisposable>();
 	private readonly _customEditorModels = new Map<string, { referenceCount: number }>();
+	private readonly _webviewFromDiffEditorHandles = new Set<string>();
 
 	constructor(
 		context: extHostProtocol.IExtHostContext,
@@ -114,8 +115,15 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		super();
 
 		this._proxy = context.getProxy(extHostProtocol.ExtHostContext.ExtHostWebviews);
-		this._register(_editorService.onDidActiveEditorChange(this.updateWebviewViewStates, this));
-		this._register(_editorService.onDidVisibleEditorsChange(this.updateWebviewViewStates, this));
+		this._register(_editorService.onDidActiveEditorChange(() => {
+			let activeInput = this._editorService.activeControl?.input;
+			if (activeInput instanceof DiffEditorInput && activeInput.master instanceof WebviewInput && activeInput.details instanceof WebviewInput) {
+				this.registerWebviewFromDiffEditorListeners(activeInput);
+			}
+
+			this.updateWebviewViewStates(activeInput);
+		}));
+		this._register(_editorService.onDidVisibleEditorsChange(() => this.updateWebviewViewStates(this._editorService.activeControl?.input)));
 
 		// This reviver's only job is to activate webview panel extensions
 		// This should trigger the real reviver to be registered from the extension host side.
@@ -415,12 +423,32 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		});
 	}
 
-	private updateWebviewViewStates() {
+	private registerWebviewFromDiffEditorListeners(diffEditorInput: DiffEditorInput): void {
+		const master = diffEditorInput.master as WebviewInput;
+		const details = diffEditorInput.details as WebviewInput;
+
+		if (this._webviewFromDiffEditorHandles.has(master.id) || this._webviewFromDiffEditorHandles.has(details.id)) {
+			return;
+		}
+
+		this._webviewFromDiffEditorHandles.add(master.id);
+		this._webviewFromDiffEditorHandles.add(details.id);
+
+		const disposables = new DisposableStore();
+		disposables.add(master.webview.onDidFocus(() => this.updateWebviewViewStates(master)));
+		disposables.add(details.webview.onDidFocus(() => this.updateWebviewViewStates(details)));
+		disposables.add(diffEditorInput.onDispose(() => {
+			this._webviewFromDiffEditorHandles.delete(master.id);
+			this._webviewFromDiffEditorHandles.delete(details.id);
+			dispose(disposables);
+		}));
+	}
+
+	private updateWebviewViewStates(activeEditorInput: IEditorInput | undefined) {
 		if (!this._webviewInputs.size) {
 			return;
 		}
 
-		const activeInput = this._editorService.activeControl && this._editorService.activeControl.input;
 		const viewStates: extHostProtocol.WebviewPanelViewStateData = {};
 
 		const updateViewStatesForInput = (group: IEditorGroup, topLevelInput: IEditorInput, editorInput: IEditorInput) => {
@@ -434,7 +462,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 			if (handle) {
 				viewStates[handle] = {
 					visible: topLevelInput === group.activeEditor,
-					active: topLevelInput === activeInput,
+					active: editorInput === activeEditorInput,
 					position: editorGroupToViewColumn(this._editorGroupService, group.id),
 				};
 			}
