@@ -16,6 +16,10 @@
 	flex-direction: column;
 }
 
+.monaco-pane-view > .horizontal .pane {
+	flex-direction: row;
+}
+
 .monaco-pane-view .pane > .pane-header {
 	font-size: 11px;
 	font-weight: bold;
@@ -24,6 +28,10 @@
 	display: flex;
 	cursor: pointer;
 	align-items: center;
+}
+
+.monaco-pane-view > .horizontal .pane-header {
+	flex-direction: column;
 }
 
 .monaco-pane-view .pane > .pane-header > .twisties {
@@ -36,8 +44,21 @@
 	flex-shrink: 0;
 }
 
+.monaco-pane-view .horizontal .pane > .pane-header > .twisties {
+	width: unset;
+	height: 20px;
+}
+
 .monaco-pane-view .pane > .pane-header.expanded > .twisties::before {
 	transform: rotate(90deg);
+}
+
+.monaco-pane-view > .horizontal .pane > .pane-header > .twisties::before {
+	transform: rotate(90deg);
+}
+
+.monaco-pane-view > .horizontal .pane > .pane-header.expanded > .twisties::before {
+	transform: unset;
 }
 
 /* TODO: actions should be part of the pane, but they aren't yet */
@@ -51,6 +72,14 @@
 .monaco-pane-view .pane > .pane-header.actions-always-visible.expanded > .actions,
 .monaco-pane-view .pane > .pane-header.focused.expanded > .actions {
 	display: initial;
+}
+
+.monaco-pane-view .horizontal .pane:hover > .pane-header.expanded > .actions,
+.monaco-pane-view .horizontal .pane > .pane-header.actions-always-visible.expanded > .actions,
+.monaco-pane-view .horizontal .pane > .pane-header.focused.expanded > .actions {
+	display: flex;
+	flex-direction: column;
+	justify-content: flex-end;
 }
 
 /* TODO: actions should be part of the pane, but they aren't yet */

@@ -19,3 +19,10 @@
 	-webkit-margin-before: 0;
 	-webkit-margin-after: 0;
 }
+
+.monaco-pane-view > .horizontal .pane h3.title {
+	writing-mode: vertical-lr;
+	border-top-width: unset !important;
+	border-top-style: unset !important;
+	height: unset;
+}
