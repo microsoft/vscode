@@ -86,14 +86,15 @@ export class StatefullMarkdownCell extends Disposable {
 
 						this.localDisposables.add(model.onDidChangeContent(() => {
 							viewCell.setText(model.getLinesContent());
-							const clientHeight = this.cellContainer.clientHeight;
+							let clientHeight = this.cellContainer.clientHeight;
 							this.cellContainer.innerHTML = '';
 							let renderedHTML = viewCell.getHTML();
 							if (renderedHTML) {
 								this.cellContainer.appendChild(renderedHTML);
+								clientHeight = this.cellContainer.clientHeight;
 							}
 
-							notebookEditor.layoutNotebookCell(viewCell, realContentHeight + 32 + clientHeight);
+							notebookEditor.layoutNotebookCell(viewCell, this.editor!.getContentHeight() + 32 + clientHeight);
 						}));
 
 						if (viewCell.isEditing) {
