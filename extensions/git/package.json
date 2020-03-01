@@ -1322,6 +1322,7 @@
         },
         "git.path": {
           "type": [
+            "array",
             "string",
             "null"
           ],

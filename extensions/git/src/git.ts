@@ -138,11 +138,30 @@ function findGitWin32(onLookup: (path: string) => void): Promise<IGit> {
 		.then(undefined, () => findGitWin32InPath(onLookup));
 }
 
-export function findGit(hint: string | undefined, onLookup: (path: string) => void): Promise<IGit> {
-	const first = hint ? findSpecificGit(hint, onLookup) : Promise.reject<IGit>(null);
+export function findGit(hints: string | string[] | undefined, onLookup: (path: string) => void): Promise<IGit> {
+	let firsts: Array<Promise<IGit>> = Array<Promise<IGit>>();
 
+	if (!!hints) {
+		if (Array.isArray(hints)) {
+			for (let hint of hints) {
+				firsts.push(findSpecificGit(hint, onLookup));
+			}
+		} else {
+			firsts.push(findSpecificGit(hints, onLookup));
+		}
+	} else {
+		firsts.push(Promise.reject<IGit>(null));
+	}
+
+	let first: Promise<IGit> = firsts.reduce((a, b) => {
+		return a.then((res) => {
+			return res;
+		}).catch(() => {
+			return b;
+		});
+	});
 	return first
-		.then(undefined, () => {
+		.then(null, () => {
 			switch (process.platform) {
 				case 'darwin': return findGitDarwin(onLookup);
 				case 'win32': return findGitWin32(onLookup);
