@@ -19,7 +19,7 @@ import { CallStackView } from 'vs/workbench/contrib/debug/browser/callStackView'
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import {
 	IDebugService, VIEWLET_ID, DEBUG_PANEL_ID, CONTEXT_IN_DEBUG_MODE, INTERNAL_CONSOLE_OPTIONS_SCHEMA,
-	CONTEXT_DEBUG_STATE, VARIABLES_VIEW_ID, CALLSTACK_VIEW_ID, WATCH_VIEW_ID, BREAKPOINTS_VIEW_ID, LOADED_SCRIPTS_VIEW_ID, CONTEXT_LOADED_SCRIPTS_SUPPORTED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_CALLSTACK_ITEM_TYPE, CONTEXT_RESTART_FRAME_SUPPORTED, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, CONTEXT_DEBUG_UX, BREAKPOINT_EDITOR_CONTRIBUTION_ID, REPL_VIEW_ID,
+	CONTEXT_DEBUG_STATE, VARIABLES_VIEW_ID, CALLSTACK_VIEW_ID, WATCH_VIEW_ID, BREAKPOINTS_VIEW_ID, LOADED_SCRIPTS_VIEW_ID, CONTEXT_LOADED_SCRIPTS_SUPPORTED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_CALLSTACK_ITEM_TYPE, CONTEXT_RESTART_FRAME_SUPPORTED, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, CONTEXT_DEBUG_UX, BREAKPOINT_EDITOR_CONTRIBUTION_ID, REPL_VIEW_ID, CONTEXT_BREAKPOINTS_EXIST,
 } from 'vs/workbench/contrib/debug/common/debug';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { StartAction, AddFunctionBreakpointAction, ConfigureAction, DisableAllBreakpointsAction, EnableAllBreakpointsAction, RemoveAllBreakpointsAction, RunAction, ReapplyBreakpointsAction, SelectAndStartAction } from 'vs/workbench/contrib/debug/browser/debugActions';
@@ -31,7 +31,7 @@ import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandler
 import { StatusBarColorProvider } from 'vs/workbench/contrib/debug/browser/statusbarColorProvider';
 import { IViewsRegistry, Extensions as ViewExtensions, IViewContainersRegistry, ViewContainerLocation, ViewContainer } from 'vs/workbench/common/views';
 import { isMacintosh } from 'vs/base/common/platform';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
 import { DebugQuickOpenHandler } from 'vs/workbench/contrib/debug/browser/debugQuickOpen';
 import { DebugStatusContribution } from 'vs/workbench/contrib/debug/browser/debugStatus';
@@ -70,9 +70,9 @@ class OpenDebugViewletAction extends ShowViewletAction {
 
 const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 	id: VIEWLET_ID,
-	name: nls.localize('runAndDebug', "Run and Debug"),
+	name: nls.localize('run', "Run"),
 	ctorDescriptor: new SyncDescriptor(DebugViewPaneContainer),
-	icon: 'codicon-debug-alt',
+	icon: 'codicon-debug-alt-2',
 	order: 3
 }, ViewContainerLocation.Sidebar);
 
@@ -104,12 +104,12 @@ Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([{
 
 // Register default debug views
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
-viewsRegistry.registerViews([{ id: VARIABLES_VIEW_ID, name: nls.localize('variables', "Variables"), ctorDescriptor: new SyncDescriptor(VariablesView), order: 10, weight: 40, canToggleVisibility: true, focusCommand: { id: 'workbench.debug.action.focusVariablesView' }, when: CONTEXT_DEBUG_UX.isEqualTo('default') }], viewContainer);
-viewsRegistry.registerViews([{ id: WATCH_VIEW_ID, name: nls.localize('watch', "Watch"), ctorDescriptor: new SyncDescriptor(WatchExpressionsView), order: 20, weight: 10, canToggleVisibility: true, focusCommand: { id: 'workbench.debug.action.focusWatchView' }, when: CONTEXT_DEBUG_UX.isEqualTo('default') }], viewContainer);
-viewsRegistry.registerViews([{ id: CALLSTACK_VIEW_ID, name: nls.localize('callStack', "Call Stack"), ctorDescriptor: new SyncDescriptor(CallStackView), order: 30, weight: 30, canToggleVisibility: true, focusCommand: { id: 'workbench.debug.action.focusCallStackView' }, when: CONTEXT_DEBUG_UX.isEqualTo('default') }], viewContainer);
-viewsRegistry.registerViews([{ id: BREAKPOINTS_VIEW_ID, name: nls.localize('breakpoints', "Breakpoints"), ctorDescriptor: new SyncDescriptor(BreakpointsView), order: 40, weight: 20, canToggleVisibility: true, focusCommand: { id: 'workbench.debug.action.focusBreakpointsView' }, when: CONTEXT_DEBUG_UX.isEqualTo('default') }], viewContainer);
+viewsRegistry.registerViews([{ id: VARIABLES_VIEW_ID, name: nls.localize('variables', "Variables"), ctorDescriptor: new SyncDescriptor(VariablesView), order: 10, weight: 40, canToggleVisibility: true, canMoveView: true, focusCommand: { id: 'workbench.debug.action.focusVariablesView' }, when: CONTEXT_DEBUG_UX.isEqualTo('default') }], viewContainer);
+viewsRegistry.registerViews([{ id: WATCH_VIEW_ID, name: nls.localize('watch', "Watch"), ctorDescriptor: new SyncDescriptor(WatchExpressionsView), order: 20, weight: 10, canToggleVisibility: true, canMoveView: true, focusCommand: { id: 'workbench.debug.action.focusWatchView' }, when: CONTEXT_DEBUG_UX.isEqualTo('default') }], viewContainer);
+viewsRegistry.registerViews([{ id: CALLSTACK_VIEW_ID, name: nls.localize('callStack', "Call Stack"), ctorDescriptor: new SyncDescriptor(CallStackView), order: 30, weight: 30, canToggleVisibility: true, canMoveView: true, focusCommand: { id: 'workbench.debug.action.focusCallStackView' }, when: CONTEXT_DEBUG_UX.isEqualTo('default') }], viewContainer);
+viewsRegistry.registerViews([{ id: BREAKPOINTS_VIEW_ID, name: nls.localize('breakpoints', "Breakpoints"), ctorDescriptor: new SyncDescriptor(BreakpointsView), order: 40, weight: 20, canToggleVisibility: true, canMoveView: true, focusCommand: { id: 'workbench.debug.action.focusBreakpointsView' }, when: ContextKeyExpr.or(CONTEXT_BREAKPOINTS_EXIST, CONTEXT_DEBUG_UX.isEqualTo('default')) }], viewContainer);
 viewsRegistry.registerViews([{ id: StartView.ID, name: StartView.LABEL, ctorDescriptor: new SyncDescriptor(StartView), order: 10, weight: 40, canToggleVisibility: true, when: CONTEXT_DEBUG_UX.isEqualTo('simple') }], viewContainer);
-viewsRegistry.registerViews([{ id: LOADED_SCRIPTS_VIEW_ID, name: nls.localize('loadedScripts', "Loaded Scripts"), ctorDescriptor: new SyncDescriptor(LoadedScriptsView), order: 35, weight: 5, canToggleVisibility: true, collapsed: true, when: ContextKeyExpr.and(CONTEXT_LOADED_SCRIPTS_SUPPORTED, CONTEXT_DEBUG_UX.isEqualTo('default')) }], viewContainer);
+viewsRegistry.registerViews([{ id: LOADED_SCRIPTS_VIEW_ID, name: nls.localize('loadedScripts', "Loaded Scripts"), ctorDescriptor: new SyncDescriptor(LoadedScriptsView), order: 35, weight: 5, canToggleVisibility: true, canMoveView: true, collapsed: true, when: ContextKeyExpr.and(CONTEXT_LOADED_SCRIPTS_SUPPORTED, CONTEXT_DEBUG_UX.isEqualTo('default')) }], viewContainer);
 
 registerCommands();
 
@@ -128,14 +128,14 @@ registry.registerWorkbenchAction(SyncActionDescriptor.create(StartAction, StartA
 registry.registerWorkbenchAction(SyncActionDescriptor.create(ConfigureAction, ConfigureAction.ID, ConfigureAction.LABEL), 'Debug: Open launch.json', debugCategory);
 registry.registerWorkbenchAction(SyncActionDescriptor.create(AddFunctionBreakpointAction, AddFunctionBreakpointAction.ID, AddFunctionBreakpointAction.LABEL), 'Debug: Add Function Breakpoint', debugCategory);
 registry.registerWorkbenchAction(SyncActionDescriptor.create(ReapplyBreakpointsAction, ReapplyBreakpointsAction.ID, ReapplyBreakpointsAction.LABEL), 'Debug: Reapply All Breakpoints', debugCategory);
-registry.registerWorkbenchAction(SyncActionDescriptor.create(RunAction, RunAction.ID, RunAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.F5, mac: { primary: KeyMod.WinCtrl | KeyCode.F5 } }), 'Debug: Start Without Debugging', debugCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.create(RunAction, RunAction.ID, RunAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.F5, mac: { primary: KeyMod.WinCtrl | KeyCode.F5 } }), 'Debug: Run (Start Without Debugging)', debugCategory);
 registry.registerWorkbenchAction(SyncActionDescriptor.create(RemoveAllBreakpointsAction, RemoveAllBreakpointsAction.ID, RemoveAllBreakpointsAction.LABEL), 'Debug: Remove All Breakpoints', debugCategory);
 registry.registerWorkbenchAction(SyncActionDescriptor.create(EnableAllBreakpointsAction, EnableAllBreakpointsAction.ID, EnableAllBreakpointsAction.LABEL), 'Debug: Enable All Breakpoints', debugCategory);
 registry.registerWorkbenchAction(SyncActionDescriptor.create(DisableAllBreakpointsAction, DisableAllBreakpointsAction.ID, DisableAllBreakpointsAction.LABEL), 'Debug: Disable All Breakpoints', debugCategory);
 registry.registerWorkbenchAction(SyncActionDescriptor.create(SelectAndStartAction, SelectAndStartAction.ID, SelectAndStartAction.LABEL), 'Debug: Select and Start Debugging', debugCategory);
 registry.registerWorkbenchAction(SyncActionDescriptor.create(ClearReplAction, ClearReplAction.ID, ClearReplAction.LABEL), 'Debug: Clear Console', debugCategory);
 
-const registerDebugCommandPaletteItem = (id: string, title: string, when?: ContextKeyExpr, precondition?: ContextKeyExpr) => {
+const registerDebugCommandPaletteItem = (id: string, title: string, when?: ContextKeyExpression, precondition?: ContextKeyExpression) => {
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		when,
 		command: {
@@ -250,6 +250,11 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('debug.console.wordWrap', "Controls if the lines should wrap in the debug console."),
 			default: true
 		},
+		'debug.console.historySuggestions': {
+			type: 'boolean',
+			description: nls.localize('debug.console.historySuggestions', "Controls if the debug console should suggest previously typed input."),
+			default: true
+		},
 		'launch': {
 			type: 'object',
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'launch' }, "Global debug launch configuration. Should be used as an alternative to 'launch.json' that is shared across workspaces."),
@@ -262,8 +267,8 @@ configurationRegistry.registerConfiguration({
 			default: true
 		},
 		'debug.onTaskErrors': {
-			enum: ['debugAnyway', 'showErrors', 'prompt'],
-			enumDescriptions: [nls.localize('debugAnyway', "Ignore task errors and start debugging."), nls.localize('showErrors', "Show the Problems view and do not start debugging."), nls.localize('prompt', "Prompt user.")],
+			enum: ['debugAnyway', 'showErrors', 'prompt', 'abort'],
+			enumDescriptions: [nls.localize('debugAnyway', "Ignore task errors and start debugging."), nls.localize('showErrors', "Show the Problems view and do not start debugging."), nls.localize('prompt', "Prompt user."), nls.localize('cancel', "Cancel debugging.")],
 			description: nls.localize('debug.onTaskErrors', "Controls what to do when errors are encountered after running a preLaunchTask."),
 			default: 'prompt'
 		},
@@ -285,7 +290,7 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 
 // Debug toolbar
 
-const registerDebugToolBarItem = (id: string, title: string, order: number, icon: { light?: URI, dark?: URI } | ThemeIcon, when?: ContextKeyExpr, precondition?: ContextKeyExpr) => {
+const registerDebugToolBarItem = (id: string, title: string, order: number, icon: { light?: URI, dark?: URI } | ThemeIcon, when?: ContextKeyExpression, precondition?: ContextKeyExpression) => {
 	MenuRegistry.appendMenuItem(MenuId.DebugToolBar, {
 		group: 'navigation',
 		when,
@@ -311,7 +316,7 @@ registerDebugToolBarItem(STEP_BACK_ID, nls.localize('stepBackDebug', "Step Back"
 registerDebugToolBarItem(REVERSE_CONTINUE_ID, nls.localize('reverseContinue', "Reverse"), 60, { id: 'codicon/debug-reverse-continue' }, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
 
 // Debug callstack context menu
-const registerDebugCallstackItem = (id: string, title: string, order: number, when?: ContextKeyExpr, precondition?: ContextKeyExpr, group = 'navigation') => {
+const registerDebugCallstackItem = (id: string, title: string, order: number, when?: ContextKeyExpression, precondition?: ContextKeyExpression, group = 'navigation') => {
 	MenuRegistry.appendMenuItem(MenuId.DebugCallStackContext, {
 		group,
 		when,
@@ -345,7 +350,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	group: '3_views',
 	command: {
 		id: VIEWLET_ID,
-		title: nls.localize({ key: 'miViewDebug', comment: ['&& denotes a mnemonic'] }, "&&Debug")
+		title: nls.localize({ key: 'miViewRun', comment: ['&& denotes a mnemonic'] }, "&&Run")
 	},
 	order: 4
 });
@@ -553,7 +558,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
 // Touch Bar
 if (isMacintosh) {
 
-	const registerTouchBarEntry = (id: string, title: string, order: number, when: ContextKeyExpr | undefined, iconUri: URI) => {
+	const registerTouchBarEntry = (id: string, title: string, order: number, when: ContextKeyExpression | undefined, iconUri: URI) => {
 		MenuRegistry.appendMenuItem(MenuId.TouchBarContext, {
 			command: {
 				id,

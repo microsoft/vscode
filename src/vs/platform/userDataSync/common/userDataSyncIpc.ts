@@ -5,7 +5,7 @@
 
 import { IServerChannel, IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Event } from 'vs/base/common/event';
-import { IUserDataSyncService, IUserDataSyncUtilService, ISettingsSyncService, IUserDataAuthTokenService, IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, IUserDataSyncUtilService, ISettingsSyncService, IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
 import { URI } from 'vs/base/common/uri';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
@@ -17,29 +17,25 @@ export class UserDataSyncChannel implements IServerChannel {
 	listen(_: unknown, event: string): Event<any> {
 		switch (event) {
 			case 'onDidChangeStatus': return this.service.onDidChangeStatus;
+			case 'onDidChangeConflicts': return this.service.onDidChangeConflicts;
 			case 'onDidChangeLocal': return this.service.onDidChangeLocal;
+			case 'onDidChangeLastSyncTime': return this.service.onDidChangeLastSyncTime;
+			case 'onSyncErrors': return this.service.onSyncErrors;
 		}
 		throw new Error(`Event not found: ${event}`);
 	}
 
 	call(context: any, command: string, args?: any): Promise<any> {
 		switch (command) {
+			case '_getInitialData': return Promise.resolve([this.service.status, this.service.conflictsSources, this.service.lastSyncTime]);
 			case 'sync': return this.service.sync();
-			case 'resolveConflictsAndContinueSync': return this.service.resolveConflictsAndContinueSync(args[0]);
+			case 'accept': return this.service.accept(args[0], args[1]);
 			case 'pull': return this.service.pull();
-			case 'push': return this.service.push();
-			case '_getInitialStatus': return Promise.resolve(this.service.status);
-			case 'getConflictsSource': return Promise.resolve(this.service.conflictsSource);
-			case 'removeExtension': return this.service.removeExtension(args[0]);
 			case 'stop': this.service.stop(); return Promise.resolve();
-			case 'restart': return this.service.restart().then(() => this.service.status);
 			case 'reset': return this.service.reset();
 			case 'resetLocal': return this.service.resetLocal();
-			case 'hasPreviouslySynced': return this.service.hasPreviouslySynced();
-			case 'hasRemoteData': return this.service.hasRemoteData();
-			case 'hasLocalData': return this.service.hasLocalData();
-			case 'getRemoteContent': return this.service.getRemoteContent(args[0]);
-			case 'isFirstTimeSyncAndHasUserData': return this.service.isFirstTimeSyncAndHasUserData();
+			case 'getRemoteContent': return this.service.getRemoteContent(args[0], args[1]);
+			case 'isFirstTimeSyncWithMerge': return this.service.isFirstTimeSyncWithMerge();
 		}
 		throw new Error('Invalid call');
 	}
@@ -61,19 +57,17 @@ export class SettingsSyncChannel implements IServerChannel {
 	call(context: any, command: string, args?: any): Promise<any> {
 		switch (command) {
 			case 'sync': return this.service.sync();
-			case 'resolveConflicts': return this.service.resolveConflicts(args[0]);
+			case 'accept': return this.service.accept(args[0]);
 			case 'pull': return this.service.pull();
 			case 'push': return this.service.push();
-			case 'restart': return this.service.restart().then(() => this.service.status);
 			case '_getInitialStatus': return Promise.resolve(this.service.status);
 			case '_getInitialConflicts': return Promise.resolve(this.service.conflicts);
 			case 'stop': this.service.stop(); return Promise.resolve();
 			case 'resetLocal': return this.service.resetLocal();
 			case 'hasPreviouslySynced': return this.service.hasPreviouslySynced();
-			case 'hasRemoteData': return this.service.hasRemoteData();
 			case 'hasLocalData': return this.service.hasLocalData();
 			case 'resolveSettingsConflicts': return this.service.resolveSettingsConflicts(args[0]);
-			case 'getRemoteContent': return this.service.getRemoteContent();
+			case 'getRemoteContent': return this.service.getRemoteContent(args[0]);
 		}
 		throw new Error('Invalid call');
 	}
@@ -92,26 +86,7 @@ export class UserDataAutoSyncChannel implements IServerChannel {
 
 	call(context: any, command: string, args?: any): Promise<any> {
 		switch (command) {
-			case 'triggerAutoSync': return this.service.triggerAutoSync();
-		}
-		throw new Error('Invalid call');
-	}
-}
-
-export class UserDataAuthTokenServiceChannel implements IServerChannel {
-	constructor(private readonly service: IUserDataAuthTokenService) { }
-
-	listen(_: unknown, event: string): Event<any> {
-		switch (event) {
-			case 'onDidChangeToken': return this.service.onDidChangeToken;
-		}
-		throw new Error(`Event not found: ${event}`);
-	}
-
-	call(context: any, command: string, args?: any): Promise<any> {
-		switch (command) {
-			case 'setToken': return this.service.setToken(args);
-			case 'getToken': return this.service.getToken();
+			case 'triggerAutoSync': return this.service.triggerAutoSync(args[0]);
 		}
 		throw new Error('Invalid call');
 	}
@@ -127,9 +102,9 @@ export class UserDataSycnUtilServiceChannel implements IServerChannel {
 
 	call(context: any, command: string, args?: any): Promise<any> {
 		switch (command) {
+			case 'resolveDefaultIgnoredSettings': return this.service.resolveDefaultIgnoredSettings();
 			case 'resolveUserKeybindings': return this.service.resolveUserBindings(args[0]);
 			case 'resolveFormattingOptions': return this.service.resolveFormattingOptions(URI.revive(args[0]));
-			case 'updateConfigurationValue': return this.service.updateConfigurationValue(args[0], args[1]);
 		}
 		throw new Error('Invalid call');
 	}
@@ -142,16 +117,16 @@ export class UserDataSyncUtilServiceClient implements IUserDataSyncUtilService {
 	constructor(private readonly channel: IChannel) {
 	}
 
+	async resolveDefaultIgnoredSettings(): Promise<string[]> {
+		return this.channel.call('resolveDefaultIgnoredSettings');
+	}
+
 	async resolveUserBindings(userbindings: string[]): Promise<IStringDictionary<string>> {
 		return this.channel.call('resolveUserKeybindings', [userbindings]);
 	}
 
 	async resolveFormattingOptions(file: URI): Promise<FormattingOptions> {
 		return this.channel.call('resolveFormattingOptions', [file]);
-	}
-
-	async updateConfigurationValue(key: string, value: any): Promise<void> {
-		return this.channel.call('updateConfigurationValue', [key, value]);
 	}
 
 }

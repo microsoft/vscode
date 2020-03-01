@@ -55,6 +55,7 @@ export const CONTEXT_FOCUSED_SESSION_IS_ATTACH = new RawContextKey<boolean>('foc
 export const CONTEXT_STEP_BACK_SUPPORTED = new RawContextKey<boolean>('stepBackSupported', false);
 export const CONTEXT_RESTART_FRAME_SUPPORTED = new RawContextKey<boolean>('restartFrameSupported', false);
 export const CONTEXT_JUMP_TO_CURSOR_SUPPORTED = new RawContextKey<boolean>('jumpToCursorSupported', false);
+export const CONTEXT_BREAKPOINTS_EXIST = new RawContextKey<boolean>('breakpointsExist', false);
 
 export const EDITOR_CONTRIBUTION_ID = 'editor.contrib.debug';
 export const BREAKPOINT_EDITOR_CONTRIBUTION_ID = 'editor.contrib.breakpoint';
@@ -198,9 +199,6 @@ export interface IDebugSession extends ITreeElement {
 
 	readonly onDidLoadedSource: Event<LoadedSourceEvent>;
 	readonly onDidCustomEvent: Event<DebugProtocol.Event>;
-
-	// Disconnects and clears state. Session can be initialized again for a new connection.
-	shutdown(): void;
 
 	// DAP request
 
@@ -464,9 +462,10 @@ export interface IDebugConfiguration {
 		lineHeight: number;
 		wordWrap: boolean;
 		closeOnEnd: boolean;
+		historySuggestions: boolean;
 	};
 	focusWindowOnBreak: boolean;
-	onTaskErrors: 'debugAnyway' | 'showErrors' | 'prompt';
+	onTaskErrors: 'debugAnyway' | 'showErrors' | 'prompt' | 'abort';
 	showBreakpointsInOverviewRuler: boolean;
 	showInlineBreakpointCandidates: boolean;
 }
@@ -648,7 +647,7 @@ export interface IConfigurationManager {
 
 	activateDebuggers(activationEvent: string, debugType?: string): Promise<void>;
 
-	getDebuggerLabelsForEditor(editor: editorCommon.IEditor | undefined): string[];
+	isDebuggerInterestedInLanguage(language: string): boolean;
 	hasDebugConfigurationProvider(debugType: string): boolean;
 
 	registerDebugConfigurationProvider(debugConfigurationProvider: IDebugConfigurationProvider): IDisposable;

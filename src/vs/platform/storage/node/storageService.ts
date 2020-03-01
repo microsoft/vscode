@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IWorkspaceStorageChangeEvent, IStorageService, StorageScope, IWillSaveStateEvent, WillSaveStateReason, logStorage } from 'vs/platform/storage/common/storage';
 import { SQLiteStorageDatabase, ISQLiteStorageDatabaseLoggingOptions } from 'vs/base/parts/storage/node/storage';
@@ -15,7 +15,7 @@ import { copy, exists, mkdirp, writeFile } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceInitializationPayload, isWorkspaceIdentifier, isSingleFolderWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
+import { assertIsDefined } from 'vs/base/common/types';
 import { RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
 
 export class NativeStorageService extends Disposable implements IStorageService {
@@ -25,11 +25,11 @@ export class NativeStorageService extends Disposable implements IStorageService 
 	private static readonly WORKSPACE_STORAGE_NAME = 'state.vscdb';
 	private static readonly WORKSPACE_META_NAME = 'workspace.json';
 
-	private readonly _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
-	readonly onDidChangeStorage: Event<IWorkspaceStorageChangeEvent> = this._onDidChangeStorage.event;
+	private readonly _onDidChangeStorage = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
+	readonly onDidChangeStorage = this._onDidChangeStorage.event;
 
-	private readonly _onWillSaveState: Emitter<IWillSaveStateEvent> = this._register(new Emitter<IWillSaveStateEvent>());
-	readonly onWillSaveState: Event<IWillSaveStateEvent> = this._onWillSaveState.event;
+	private readonly _onWillSaveState = this._register(new Emitter<IWillSaveStateEvent>());
+	readonly onWillSaveState = this._onWillSaveState.event;
 
 	private globalStorage: IStorage;
 
@@ -203,7 +203,7 @@ export class NativeStorageService extends Disposable implements IStorageService 
 	private doFlushWhenIdle(): void {
 
 		// Dispose any previous idle runner
-		this.runWhenIdleDisposable = dispose(this.runWhenIdleDisposable);
+		dispose(this.runWhenIdleDisposable);
 
 		// Run when idle
 		this.runWhenIdleDisposable = runWhenIdle(() => {
@@ -224,7 +224,8 @@ export class NativeStorageService extends Disposable implements IStorageService 
 
 		// Stop periodic scheduler and idle runner as we now collect state normally
 		this.periodicFlushScheduler.dispose();
-		this.runWhenIdleDisposable = dispose(this.runWhenIdleDisposable);
+		dispose(this.runWhenIdleDisposable);
+		this.runWhenIdleDisposable = undefined;
 
 		// Signal as event so that clients can still store data
 		this._onWillSaveState.fire({ reason: WillSaveStateReason.SHUTDOWN });
@@ -237,14 +238,11 @@ export class NativeStorageService extends Disposable implements IStorageService 
 	}
 
 	async logStorage(): Promise<void> {
-		const [workspaceStorage, workspaceStoragePath] = assertAllDefined(this.workspaceStorage, this.workspaceStoragePath);
-
-		const result = await Promise.all([
+		return logStorage(
 			this.globalStorage.items,
-			workspaceStorage.items
-		]);
-
-		logStorage(result[0], result[1], this.environmentService.globalStorageHome, workspaceStoragePath);
+			this.workspaceStorage ? this.workspaceStorage.items : new Map<string, string>(), // Shared process storage does not has workspace storage
+			this.environmentService.globalStorageHome,
+			this.workspaceStoragePath || '');
 	}
 
 	async migrate(toWorkspace: IWorkspaceInitializationPayload): Promise<void> {

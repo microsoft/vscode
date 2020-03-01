@@ -309,15 +309,16 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		return true;
 	}
 
-	private _onRequestAvailableShells(request: IAvailableShellsRequest): void {
+	private async _onRequestAvailableShells(req: IAvailableShellsRequest): Promise<void> {
 		if (this._isPrimaryExtHost()) {
-			this._proxy.$requestAvailableShells().then(e => request(e));
+			req.callback(await this._proxy.$getAvailableShells());
 		}
 	}
 
-	private _onRequestDefaultShellAndArgs(request: IDefaultShellAndArgsRequest): void {
+	private async _onRequestDefaultShellAndArgs(req: IDefaultShellAndArgsRequest): Promise<void> {
 		if (this._isPrimaryExtHost()) {
-			this._proxy.$requestDefaultShellAndArgs(request.useAutomationShell).then(e => request.callback(e.shell, e.args));
+			const res = await this._proxy.$getDefaultShellAndArgs(req.useAutomationShell);
+			req.callback(res.shell, res.args);
 		}
 	}
 

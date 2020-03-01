@@ -11,14 +11,93 @@ import * as pfs from 'vs/base/node/pfs';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { WorkspacesMainService, IStoredWorkspace } from 'vs/platform/workspaces/electron-main/workspacesMainService';
-import { WORKSPACE_EXTENSION, IRawFileWorkspaceFolder, IWorkspaceFolderCreationData, IRawUriWorkspaceFolder, rewriteWorkspaceFileForNewLocation } from 'vs/platform/workspaces/common/workspaces';
+import { WORKSPACE_EXTENSION, IRawFileWorkspaceFolder, IWorkspaceFolderCreationData, IRawUriWorkspaceFolder, rewriteWorkspaceFileForNewLocation, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { URI } from 'vs/base/common/uri';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { isWindows } from 'vs/base/common/platform';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { dirname, joinPath } from 'vs/base/common/resources';
-import { TestBackupMainService, TestDialogMainService } from 'vs/workbench/test/workbenchTestServices';
+import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
+import { INativeOpenDialogOptions } from 'vs/platform/dialogs/node/dialogs';
+import { IBackupMainService, IWorkspaceBackupInfo } from 'vs/platform/backup/electron-main/backup';
+import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
+
+export class TestDialogMainService implements IDialogMainService {
+	_serviceBrand: undefined;
+
+	pickFileFolder(options: INativeOpenDialogOptions, window?: Electron.BrowserWindow | undefined): Promise<string[] | undefined> {
+		throw new Error('Method not implemented.');
+	}
+
+	pickFolder(options: INativeOpenDialogOptions, window?: Electron.BrowserWindow | undefined): Promise<string[] | undefined> {
+		throw new Error('Method not implemented.');
+	}
+
+	pickFile(options: INativeOpenDialogOptions, window?: Electron.BrowserWindow | undefined): Promise<string[] | undefined> {
+		throw new Error('Method not implemented.');
+	}
+
+	pickWorkspace(options: INativeOpenDialogOptions, window?: Electron.BrowserWindow | undefined): Promise<string[] | undefined> {
+		throw new Error('Method not implemented.');
+	}
+
+	showMessageBox(options: Electron.MessageBoxOptions, window?: Electron.BrowserWindow | undefined): Promise<Electron.MessageBoxReturnValue> {
+		throw new Error('Method not implemented.');
+	}
+
+	showSaveDialog(options: Electron.SaveDialogOptions, window?: Electron.BrowserWindow | undefined): Promise<Electron.SaveDialogReturnValue> {
+		throw new Error('Method not implemented.');
+	}
+
+	showOpenDialog(options: Electron.OpenDialogOptions, window?: Electron.BrowserWindow | undefined): Promise<Electron.OpenDialogReturnValue> {
+		throw new Error('Method not implemented.');
+	}
+}
+
+export class TestBackupMainService implements IBackupMainService {
+	_serviceBrand: undefined;
+
+	isHotExitEnabled(): boolean {
+		throw new Error('Method not implemented.');
+	}
+
+	getWorkspaceBackups(): IWorkspaceBackupInfo[] {
+		throw new Error('Method not implemented.');
+	}
+
+	getFolderBackupPaths(): URI[] {
+		throw new Error('Method not implemented.');
+	}
+
+	getEmptyWindowBackupPaths(): IEmptyWindowBackupInfo[] {
+		throw new Error('Method not implemented.');
+	}
+
+	registerWorkspaceBackupSync(workspace: IWorkspaceBackupInfo, migrateFrom?: string | undefined): string {
+		throw new Error('Method not implemented.');
+	}
+
+	registerFolderBackupSync(folderUri: URI): string {
+		throw new Error('Method not implemented.');
+	}
+
+	registerEmptyWindowBackupSync(backupFolder?: string | undefined, remoteAuthority?: string | undefined): string {
+		throw new Error('Method not implemented.');
+	}
+
+	unregisterWorkspaceBackupSync(workspace: IWorkspaceIdentifier): void {
+		throw new Error('Method not implemented.');
+	}
+
+	unregisterFolderBackupSync(folderUri: URI): void {
+		throw new Error('Method not implemented.');
+	}
+
+	unregisterEmptyWindowBackupSync(backupFolder: string): void {
+		throw new Error('Method not implemented.');
+	}
+}
 
 suite('WorkspacesMainService', () => {
 	const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'workspacesservice');

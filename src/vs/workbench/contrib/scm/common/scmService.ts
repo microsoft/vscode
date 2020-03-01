@@ -97,6 +97,10 @@ class SCMRepository implements ISCMRepository {
 	}
 
 	setSelected(selected: boolean): void {
+		if (this._selected === selected) {
+			return;
+		}
+
 		this._selected = selected;
 		this._onDidChangeSelection.fire(selected);
 	}
@@ -157,11 +161,6 @@ export class SCMService implements ISCMService {
 
 		this._repositories.push(repository);
 		this._onDidAddProvider.fire(repository);
-
-		// automatically select the first repository
-		if (this._repositories.length === 1) {
-			repository.setSelected(true);
-		}
 
 		return repository;
 	}

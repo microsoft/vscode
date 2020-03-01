@@ -27,6 +27,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { assertType } from 'vs/base/common/types';
+import { IProgress } from 'vs/platform/progress/common/progress';
 
 export function alertFormattingEdits(edits: ISingleEditOperation[]): void {
 
@@ -178,10 +179,8 @@ export async function formatDocumentRangeWithProvider(
 
 	if (isCodeEditor(editorOrModel)) {
 		// use editor to apply edits
-		FormattingEdit.execute(editorOrModel, edits);
+		FormattingEdit.execute(editorOrModel, edits, true);
 		alertFormattingEdits(edits);
-		editorOrModel.pushUndoStop();
-		editorOrModel.focus();
 		editorOrModel.revealPositionInCenterIfOutsideViewport(editorOrModel.getPosition(), ScrollType.Immediate);
 
 	} else {
@@ -211,6 +210,7 @@ export async function formatDocumentWithSelectedProvider(
 	accessor: ServicesAccessor,
 	editorOrModel: ITextModel | IActiveCodeEditor,
 	mode: FormattingMode,
+	progress: IProgress<DocumentFormattingEditProvider>,
 	token: CancellationToken
 ): Promise<void> {
 
@@ -219,6 +219,7 @@ export async function formatDocumentWithSelectedProvider(
 	const provider = getRealAndSyntheticDocumentFormattersOrdered(model);
 	const selected = await FormattingConflicts.select(provider, model, mode);
 	if (selected) {
+		progress.report(selected);
 		await instaService.invokeFunction(formatDocumentWithProvider, selected, editorOrModel, mode, token);
 	}
 }
@@ -266,12 +267,10 @@ export async function formatDocumentWithProvider(
 
 	if (isCodeEditor(editorOrModel)) {
 		// use editor to apply edits
-		FormattingEdit.execute(editorOrModel, edits);
+		FormattingEdit.execute(editorOrModel, edits, mode !== FormattingMode.Silent);
 
 		if (mode !== FormattingMode.Silent) {
 			alertFormattingEdits(edits);
-			editorOrModel.pushUndoStop();
-			editorOrModel.focus();
 			editorOrModel.revealPositionInCenterIfOutsideViewport(editorOrModel.getPosition(), ScrollType.Immediate);
 		}
 

@@ -11,7 +11,7 @@ import { deepClone } from 'vs/base/common/objects';
 
 const _formatPIIRegexp = /{([^}]+)}/g;
 
-export function formatPII(value: string, excludePII: boolean, args: { [key: string]: string }): string {
+export function formatPII(value: string, excludePII: boolean, args: { [key: string]: string } | undefined): string {
 	return value.replace(_formatPIIRegexp, function (match, group) {
 		if (excludePII && group.length > 0 && group[0] !== '_') {
 			return match;
@@ -105,38 +105,43 @@ export function isUri(s: string | undefined): boolean {
 	return !!(s && s.match(_schemePattern));
 }
 
-function stringToUri(path: string): string {
-	if (typeof path === 'string') {
-		if (isUri(path)) {
-			return <string><unknown>uri.parse(path);
+function stringToUri(source: PathContainer): string | undefined {
+	if (typeof source.path === 'string') {
+		if (typeof source.sourceReference === 'number' && source.sourceReference > 0) {
+			// if there is a source reference, don't touch path
 		} else {
-			// assume path
-			if (isAbsolute(path)) {
-				return <string><unknown>uri.file(path);
+			if (isUri(source.path)) {
+				return <string><unknown>uri.parse(source.path);
 			} else {
-				// leave relative path as is
+				// assume path
+				if (isAbsolute(source.path)) {
+					return <string><unknown>uri.file(source.path);
+				} else {
+					// leave relative path as is
+				}
 			}
 		}
 	}
-	return path;
+	return source.path;
 }
 
-function uriToString(path: string): string {
-	if (typeof path === 'object') {
-		const u = uri.revive(path);
+function uriToString(source: PathContainer): string | undefined {
+	if (typeof source.path === 'object') {
+		const u = uri.revive(source.path);
 		if (u.scheme === 'file') {
 			return u.fsPath;
 		} else {
 			return u.toString();
 		}
 	}
-	return path;
+	return source.path;
 }
 
 // path hooks helpers
 
 interface PathContainer {
 	path?: string;
+	sourceReference?: number;
 }
 
 export function convertToDAPaths(message: DebugProtocol.ProtocolMessage, toUri: boolean): DebugProtocol.ProtocolMessage {
@@ -148,7 +153,7 @@ export function convertToDAPaths(message: DebugProtocol.ProtocolMessage, toUri: 
 
 	convertPaths(msg, (toDA: boolean, source: PathContainer | undefined) => {
 		if (toDA && source) {
-			source.path = source.path ? fixPath(source.path) : undefined;
+			source.path = fixPath(source);
 		}
 	});
 	return msg;
@@ -163,7 +168,7 @@ export function convertToVSCPaths(message: DebugProtocol.ProtocolMessage, toUri:
 
 	convertPaths(msg, (toDA: boolean, source: PathContainer | undefined) => {
 		if (!toDA && source) {
-			source.path = source.path ? fixPath(source.path) : undefined;
+			source.path = fixPath(source);
 		}
 	});
 	return msg;
@@ -246,6 +251,9 @@ export function getVisibleAndSorted<T extends { presentation?: IConfigPresentati
 			return -1;
 		}
 		if (!first.presentation.group) {
+			if (!second.presentation.group) {
+				return compareOrders(first.presentation.order, second.presentation.order);
+			}
 			return 1;
 		}
 		if (!second.presentation.group) {
@@ -254,13 +262,18 @@ export function getVisibleAndSorted<T extends { presentation?: IConfigPresentati
 		if (first.presentation.group !== second.presentation.group) {
 			return first.presentation.group.localeCompare(second.presentation.group);
 		}
-		if (typeof first.presentation.order !== 'number') {
-			return 1;
-		}
-		if (typeof second.presentation.order !== 'number') {
-			return -1;
-		}
 
-		return first.presentation.order - second.presentation.order;
+		return compareOrders(first.presentation.order, second.presentation.order);
 	});
+}
+
+function compareOrders(first: number | undefined, second: number | undefined): number {
+	if (typeof first !== 'number') {
+		return 1;
+	}
+	if (typeof second !== 'number') {
+		return -1;
+	}
+
+	return first - second;
 }

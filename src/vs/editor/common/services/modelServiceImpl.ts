@@ -8,13 +8,13 @@ import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecyc
 import * as platform from 'vs/base/common/platform';
 import * as errors from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
-import { EDITOR_MODEL_DEFAULTS, IEditorSemanticHighlightingOptions } from 'vs/editor/common/config/editorOptions';
+import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
-import { DefaultEndOfLine, EndOfLinePreference, EndOfLineSequence, IIdentifiedSingleEditOperation, ITextBuffer, ITextBufferFactory, ITextModel, ITextModelCreationOptions } from 'vs/editor/common/model';
+import { DefaultEndOfLine, EndOfLinePreference, EndOfLineSequence, IIdentifiedSingleEditOperation, ITextBuffer, ITextBufferFactory, ITextModel, ITextModelCreationOptions, IValidEditOperation } from 'vs/editor/common/model';
 import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
 import { IModelLanguageChangedEvent, IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { LanguageIdentifier, DocumentSemanticTokensProviderRegistry, DocumentSemanticTokensProvider, SemanticTokensLegend, SemanticTokens, SemanticTokensEdits, TokenMetadata } from 'vs/editor/common/modes';
+import { LanguageIdentifier, DocumentSemanticTokensProviderRegistry, DocumentSemanticTokensProvider, SemanticTokensLegend, SemanticTokens, SemanticTokensEdits, TokenMetadata, FontStyle, MetadataConsts } from 'vs/editor/common/modes';
 import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
 import { ILanguageSelection } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -25,6 +25,11 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { SparseEncodedTokens, MultilineTokens2 } from 'vs/editor/common/model/tokensStore';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
+import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
+
+export interface IEditorSemanticHighlightingOptions {
+	enabled?: boolean;
+}
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -99,6 +104,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 	private readonly _configurationService: IConfigurationService;
 	private readonly _configurationServiceSubscription: IDisposable;
 	private readonly _resourcePropertiesService: ITextResourcePropertiesService;
+	private readonly _undoRedoService: IUndoRedoService;
 
 	private readonly _onModelAdded: Emitter<ITextModel> = this._register(new Emitter<ITextModel>());
 	public readonly onModelAdded: Event<ITextModel> = this._onModelAdded.event;
@@ -122,11 +128,13 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITextResourcePropertiesService resourcePropertiesService: ITextResourcePropertiesService,
 		@IThemeService themeService: IThemeService,
-		@ILogService logService: ILogService
+		@ILogService logService: ILogService,
+		@IUndoRedoService undoRedoService: IUndoRedoService
 	) {
 		super();
 		this._configurationService = configurationService;
 		this._resourcePropertiesService = resourcePropertiesService;
+		this._undoRedoService = undoRedoService;
 		this._models = {};
 		this._modelCreationOptionsByLanguageAndResource = Object.create(null);
 
@@ -268,7 +276,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 	private _createModelData(value: string | ITextBufferFactory, languageIdentifier: LanguageIdentifier, resource: URI | undefined, isForSimpleWidget: boolean): ModelData {
 		// create & save the model
 		const options = this.getCreationOptions(languageIdentifier.language, resource, isForSimpleWidget);
-		const model: TextModel = new TextModel(value, options, languageIdentifier, resource);
+		const model: TextModel = new TextModel(value, options, languageIdentifier, resource, this._undoRedoService);
 		const modelId = MODEL_ID(model.uri);
 
 		if (this._models[modelId]) {
@@ -301,7 +309,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		model.pushEditOperations(
 			[],
 			ModelServiceImpl._computeEdits(model, textBuffer),
-			(inverseEditOperations: IIdentifiedSingleEditOperation[]) => []
+			(inverseEditOperations: IValidEditOperation[]) => []
 		);
 		model.pushStackElement();
 	}
@@ -629,7 +637,7 @@ class SemanticColoringProviderStyling {
 
 	public getMetadata(tokenTypeIndex: number, tokenModifierSet: number): number {
 		const entry = this._hashTable.get(tokenTypeIndex, tokenModifierSet);
-		let metadata: number | undefined;
+		let metadata: number;
 		if (entry) {
 			metadata = entry.metadata;
 		} else {
@@ -643,9 +651,31 @@ class SemanticColoringProviderStyling {
 				modifierSet = modifierSet >> 1;
 			}
 
-			metadata = this._themeService.getTheme().getTokenStyleMetadata(tokenType, tokenModifiers);
-			if (typeof metadata === 'undefined') {
+			const tokenStyle = this._themeService.getTheme().getTokenStyleMetadata(tokenType, tokenModifiers);
+			if (typeof tokenStyle === 'undefined') {
 				metadata = Constants.NO_STYLING;
+			} else {
+				metadata = 0;
+				if (typeof tokenStyle.italic !== 'undefined') {
+					const italicBit = (tokenStyle.italic ? FontStyle.Italic : 0) << MetadataConsts.FONT_STYLE_OFFSET;
+					metadata |= italicBit | MetadataConsts.SEMANTIC_USE_ITALIC;
+				}
+				if (typeof tokenStyle.bold !== 'undefined') {
+					const boldBit = (tokenStyle.bold ? FontStyle.Bold : 0) << MetadataConsts.FONT_STYLE_OFFSET;
+					metadata |= boldBit | MetadataConsts.SEMANTIC_USE_BOLD;
+				}
+				if (typeof tokenStyle.underline !== 'undefined') {
+					const underlineBit = (tokenStyle.underline ? FontStyle.Underline : 0) << MetadataConsts.FONT_STYLE_OFFSET;
+					metadata |= underlineBit | MetadataConsts.SEMANTIC_USE_UNDERLINE;
+				}
+				if (tokenStyle.foreground) {
+					const foregroundBits = (tokenStyle.foreground) << MetadataConsts.FOREGROUND_OFFSET;
+					metadata |= foregroundBits | MetadataConsts.SEMANTIC_USE_FOREGROUND;
+				}
+				if (metadata === 0) {
+					// Nothing!
+					metadata = Constants.NO_STYLING;
+				}
 			}
 			this._hashTable.add(tokenTypeIndex, tokenModifierSet, metadata);
 		}
@@ -763,10 +793,21 @@ class ModelSemanticColoring extends Disposable {
 			contentChangeListener.dispose();
 			this._setSemanticTokens(provider, res || null, styling, pendingChanges);
 		}, (err) => {
-			errors.onUnexpectedError(err);
+			if (!err || typeof err.message !== 'string' || err.message.indexOf('busy') === -1) {
+				errors.onUnexpectedError(err);
+			}
+
+			// Semantic tokens eats up all errors and considers errors to mean that the result is temporarily not available
+			// The API does not have a special error kind to express this...
 			this._currentRequestCancellationTokenSource = null;
 			contentChangeListener.dispose();
-			this._setSemanticTokens(provider, null, styling, pendingChanges);
+
+			if (pendingChanges.length > 0) {
+				// More changes occurred while the request was running
+				if (!this._fetchSemanticTokens.isScheduled()) {
+					this._fetchSemanticTokens.schedule();
+				}
+			}
 		});
 	}
 

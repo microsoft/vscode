@@ -5,16 +5,17 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { CancellationToken, Command, Disposable, env, Event, EventEmitter, LogLevel, Memento, OutputChannel, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, Decoration } from 'vscode';
+import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, OutputChannel, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, Decoration } from 'vscode';
 import * as nls from 'vscode-nls';
-import { Branch, Change, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status } from './api/git';
+import { Branch, Change, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status, CommitOptions } from './api/git';
 import { AutoFetcher } from './autofetch';
 import { debounce, memoize, throttle } from './decorators';
-import { Commit, CommitOptions, ForcePushMode, GitError, Repository as BaseRepository, Stash, Submodule } from './git';
+import { Commit, ForcePushMode, GitError, Repository as BaseRepository, Stash, Submodule, LogFileOptions } from './git';
 import { StatusBarCommands } from './statusbar';
 import { toGitUri } from './uri';
 import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, IDisposable, isDescendant, onceEvent } from './util';
 import { IFileWatcher, watch } from './watch';
+import { Log, LogLevel } from './log';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -38,6 +39,29 @@ export const enum ResourceGroupType {
 }
 
 export class Resource implements SourceControlResourceState {
+
+	static getStatusText(type: Status) {
+		switch (type) {
+			case Status.INDEX_MODIFIED: return localize('index modified', "Index Modified");
+			case Status.MODIFIED: return localize('modified', "Modified");
+			case Status.INDEX_ADDED: return localize('index added', "Index Added");
+			case Status.INDEX_DELETED: return localize('index deleted', "Index Deleted");
+			case Status.DELETED: return localize('deleted', "Deleted");
+			case Status.INDEX_RENAMED: return localize('index renamed', "Index Renamed");
+			case Status.INDEX_COPIED: return localize('index copied', "Index Copied");
+			case Status.UNTRACKED: return localize('untracked', "Untracked");
+			case Status.IGNORED: return localize('ignored', "Ignored");
+			case Status.INTENT_TO_ADD: return localize('intent to add', "Intent to Add");
+			case Status.BOTH_DELETED: return localize('both deleted', "Both Deleted");
+			case Status.ADDED_BY_US: return localize('added by us', "Added By Us");
+			case Status.DELETED_BY_THEM: return localize('deleted by them', "Deleted By Them");
+			case Status.ADDED_BY_THEM: return localize('added by them', "Added By Them");
+			case Status.DELETED_BY_US: return localize('deleted by us', "Deleted By Us");
+			case Status.BOTH_ADDED: return localize('both added', "Both Added");
+			case Status.BOTH_MODIFIED: return localize('both modified', "Both Modified");
+			default: return '';
+		}
+	}
 
 	@memoize
 	get resourceUri(): Uri {
@@ -109,26 +133,7 @@ export class Resource implements SourceControlResourceState {
 	}
 
 	private get tooltip(): string {
-		switch (this.type) {
-			case Status.INDEX_MODIFIED: return localize('index modified', "Index Modified");
-			case Status.MODIFIED: return localize('modified', "Modified");
-			case Status.INDEX_ADDED: return localize('index added', "Index Added");
-			case Status.INDEX_DELETED: return localize('index deleted', "Index Deleted");
-			case Status.DELETED: return localize('deleted', "Deleted");
-			case Status.INDEX_RENAMED: return localize('index renamed', "Index Renamed");
-			case Status.INDEX_COPIED: return localize('index copied', "Index Copied");
-			case Status.UNTRACKED: return localize('untracked', "Untracked");
-			case Status.IGNORED: return localize('ignored', "Ignored");
-			case Status.INTENT_TO_ADD: return localize('intent to add', "Intent to Add");
-			case Status.BOTH_DELETED: return localize('both deleted', "Both Deleted");
-			case Status.ADDED_BY_US: return localize('added by us', "Added By Us");
-			case Status.DELETED_BY_THEM: return localize('deleted by them', "Deleted By Them");
-			case Status.ADDED_BY_THEM: return localize('added by them', "Added By Them");
-			case Status.DELETED_BY_US: return localize('deleted by us', "Deleted By Us");
-			case Status.BOTH_ADDED: return localize('both added', "Both Added");
-			case Status.BOTH_MODIFIED: return localize('both modified', "Both Modified");
-			default: return '';
-		}
+		return Resource.getStatusText(this.type);
 	}
 
 	private get strikeThrough(): boolean {
@@ -303,15 +308,22 @@ export const enum Operation {
 	Apply = 'Apply',
 	Blame = 'Blame',
 	Log = 'Log',
+	LogFile = 'LogFile',
 }
 
 function isReadOnly(operation: Operation): boolean {
 	switch (operation) {
-		case Operation.Show:
-		case Operation.GetCommitTemplate:
+		case Operation.Blame:
 		case Operation.CheckIgnore:
+		case Operation.Diff:
+		case Operation.FindTrackingBranches:
+		case Operation.GetBranch:
+		case Operation.GetCommitTemplate:
 		case Operation.GetObjectDetails:
+		case Operation.Log:
+		case Operation.LogFile:
 		case Operation.MergeBase:
+		case Operation.Show:
 			return true;
 		default:
 			return false;
@@ -457,8 +469,8 @@ class FileEventLogger {
 		private onDotGitFileChange: Event<Uri>,
 		private outputChannel: OutputChannel
 	) {
-		this.logLevelDisposable = env.onDidChangeLogLevel(this.onDidChangeLogLevel, this);
-		this.onDidChangeLogLevel(env.logLevel);
+		this.logLevelDisposable = Log.onDidChangeLogLevel(this.onDidChangeLogLevel, this);
+		this.onDidChangeLogLevel(Log.logLevel);
 	}
 
 	private onDidChangeLogLevel(level: LogLevel): void {
@@ -519,7 +531,7 @@ class DotGitWatcher implements IFileWatcher {
 			this.transientDisposables.push(upstreamWatcher);
 			upstreamWatcher.event(this.emitter.fire, this.emitter, this.transientDisposables);
 		} catch (err) {
-			if (env.logLevel <= LogLevel.Error) {
+			if (Log.logLevel <= LogLevel.Error) {
 				this.outputChannel.appendLine(`Failed to watch ref '${upstreamPath}', is most likely packed.\n${err.stack || err}`);
 			}
 		}
@@ -682,7 +694,7 @@ export class Repository implements Disposable {
 			onDotGitFileChange = dotGitFileWatcher.event;
 			this.disposables.push(dotGitFileWatcher);
 		} catch (err) {
-			if (env.logLevel <= LogLevel.Error) {
+			if (Log.logLevel <= LogLevel.Error) {
 				outputChannel.appendLine(`Failed to watch '${this.dotGit}', reverting to legacy API file watched. Some events might be lost.\n${err.stack || err}`);
 			}
 
@@ -865,6 +877,11 @@ export class Repository implements Disposable {
 
 	log(options?: LogOptions): Promise<Commit[]> {
 		return this.run(Operation.Log, () => this.repository.log(options));
+	}
+
+	logFile(uri: Uri, options?: LogFileOptions): Promise<Commit[]> {
+		// TODO: This probably needs per-uri granularity
+		return this.run(Operation.LogFile, () => this.repository.logFile(uri, options));
 	}
 
 	@throttle

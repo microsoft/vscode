@@ -125,7 +125,15 @@ export const enum MetadataConsts {
 	FOREGROUND_MASK = 0b00000000011111111100000000000000,
 	BACKGROUND_MASK = 0b11111111100000000000000000000000,
 
-	LANG_TTYPE_CMPL = 0b11111111111111111111100000000000,
+	ITALIC_MASK = 0b00000000000000000000100000000000,
+	BOLD_MASK = 0b00000000000000000001000000000000,
+	UNDERLINE_MASK = 0b00000000000000000010000000000000,
+
+	SEMANTIC_USE_ITALIC = 0b00000000000000000000000000000001,
+	SEMANTIC_USE_BOLD = 0b00000000000000000000000000000010,
+	SEMANTIC_USE_UNDERLINE = 0b00000000000000000000000000000100,
+	SEMANTIC_USE_FOREGROUND = 0b00000000000000000000000000001000,
+	SEMANTIC_USE_BACKGROUND = 0b00000000000000000000000000010000,
 
 	LANGUAGEID_OFFSET = 0,
 	TOKEN_TYPE_OFFSET = 8,
@@ -255,6 +263,34 @@ export interface HoverProvider {
 	 * to the word range at the position when omitted.
 	 */
 	provideHover(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<Hover>;
+}
+
+/**
+ * An evaluatable expression represents additional information for an expression in a document. Evaluatable expression are
+ * evaluated by a debugger or runtime and their result is rendered in a tooltip-like widget.
+ */
+export interface EvaluatableExpression {
+	/**
+	 * The range to which this expression applies.
+	 */
+	range: IRange;
+	/*
+	 * This expression overrides the expression extracted from the range.
+	 */
+	expression?: string;
+}
+
+/**
+ * The hover provider interface defines the contract between extensions and
+ * the [hover](https://code.visualstudio.com/docs/editor/intellisense)-feature.
+ */
+export interface EvaluatableExpressionProvider {
+	/**
+	 * Provide a hover for the given position and document. Multiple hovers at the same
+	 * position will be merged by the editor. A hover can have a range which defaults
+	 * to the word range at the position when omitted.
+	 */
+	provideEvaluatableExpression(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<EvaluatableExpression>;
 }
 
 export const enum CompletionItemKind {
@@ -458,7 +494,7 @@ export interface CompletionItem {
 	preselect?: boolean;
 	/**
 	 * A string or snippet that should be inserted in a document when selecting
-	 * this completion. When `falsy` the [label](#CompletionItem.label)
+	 * this completion.
 	 * is used.
 	 */
 	insertText: string;
@@ -599,6 +635,9 @@ export interface CodeActionList extends IDisposable {
  * @internal
  */
 export interface CodeActionProvider {
+
+	displayName?: string
+
 	/**
 	 * Provide commands for the given document and range.
 	 */
@@ -607,7 +646,9 @@ export interface CodeActionProvider {
 	/**
 	 * Optional list of CodeActionKinds that this provider returns.
 	 */
-	providedCodeActionKinds?: ReadonlyArray<string>;
+	readonly providedCodeActionKinds?: ReadonlyArray<string>;
+
+	readonly documentation?: ReadonlyArray<{ readonly kind: string, readonly command: Command }>;
 
 	/**
 	 * @internal
@@ -1286,7 +1327,7 @@ export interface WorkspaceEditMetadata {
 	needsConfirmation: boolean;
 	label: string;
 	description?: string;
-	iconPath?: { id: string } | { light: URI, dark: URI };
+	iconPath?: { id: string } | URI | { light: URI, dark: URI };
 }
 
 export interface WorkspaceFileEditOptions {
@@ -1330,10 +1371,10 @@ export interface RenameProvider {
 /**
  * @internal
  */
-export interface Session {
+export interface AuthenticationSession {
 	id: string;
-	accessToken: string;
-	displayName: string;
+	getAccessToken(): Thenable<string>;
+	accountName: string;
 }
 
 export interface Command {
@@ -1584,6 +1625,11 @@ export const SignatureHelpProviderRegistry = new LanguageFeatureRegistry<Signatu
  * @internal
  */
 export const HoverProviderRegistry = new LanguageFeatureRegistry<HoverProvider>();
+
+/**
+ * @internal
+ */
+export const EvaluatableExpressionProviderRegistry = new LanguageFeatureRegistry<EvaluatableExpressionProvider>();
 
 /**
  * @internal

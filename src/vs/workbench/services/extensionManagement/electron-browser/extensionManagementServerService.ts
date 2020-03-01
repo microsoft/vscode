@@ -46,7 +46,8 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 		if (remoteAgentConnection) {
 			const extensionManagementService = new RemoteExtensionManagementChannelClient(remoteAgentConnection.getChannel<IChannel>('extensions'), this.localExtensionManagementServer.extensionManagementService, galleryService, logService, configurationService, productService);
 			this.remoteExtensionManagementServer = {
-				authority: remoteAgentConnection.remoteAuthority, extensionManagementService,
+				authority: remoteAgentConnection.remoteAuthority,
+				extensionManagementService,
 				get label() { return labelService.getHostLabel(REMOTE_HOST_SCHEME, remoteAgentConnection!.remoteAuthority) || localize('remote', "Remote"); }
 			};
 		}

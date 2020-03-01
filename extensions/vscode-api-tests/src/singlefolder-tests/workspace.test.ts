@@ -214,99 +214,94 @@ suite('workspace-namespace', () => {
 		});
 	});
 
-	test('eol, change via onWillSave', () => {
-
+	test('eol, change via onWillSave', async function () {
 		let called = false;
 		let sub = vscode.workspace.onWillSaveTextDocument(e => {
 			called = true;
 			e.waitUntil(Promise.resolve([vscode.TextEdit.setEndOfLine(vscode.EndOfLine.LF)]));
 		});
 
-		return createRandomFile('foo\r\nbar\r\nbar').then(file => {
-			return vscode.workspace.openTextDocument(file).then(doc => {
-				assert.equal(doc.eol, vscode.EndOfLine.CRLF);
-				const edit = new vscode.WorkspaceEdit();
-				edit.set(file, [vscode.TextEdit.insert(new vscode.Position(0, 0), '-changes-')]);
+		const file = await createRandomFile('foo\r\nbar\r\nbar');
+		const doc = await vscode.workspace.openTextDocument(file);
+		assert.equal(doc.eol, vscode.EndOfLine.CRLF);
 
-				return vscode.workspace.applyEdit(edit).then(success => {
-					assert.ok(success);
-					return doc.save();
+		const edit = new vscode.WorkspaceEdit();
+		edit.set(file, [vscode.TextEdit.insert(new vscode.Position(0, 0), '-changes-')]);
+		const successEdit = await vscode.workspace.applyEdit(edit);
+		assert.ok(successEdit);
 
-				}).then(success => {
-					assert.ok(success);
-					assert.ok(called);
-					assert.ok(!doc.isDirty);
-					assert.equal(doc.eol, vscode.EndOfLine.LF);
-					sub.dispose();
-				});
-			});
-		});
+		const successSave = await doc.save();
+		assert.ok(successSave);
+		assert.ok(called);
+		assert.ok(!doc.isDirty);
+		assert.equal(doc.eol, vscode.EndOfLine.LF);
+		sub.dispose();
 	});
 
-	test('events: onDidOpenTextDocument, onDidChangeTextDocument, onDidSaveTextDocument', () => {
-		return createRandomFile().then(file => {
-			let disposables: vscode.Disposable[] = [];
+	function assertEqualPath(a: string, b: string): void {
+		assert.ok(pathEquals(a, b), `${a} <-> ${b}`);
+	}
 
-			let onDidOpenTextDocument = false;
-			disposables.push(vscode.workspace.onDidOpenTextDocument(e => {
-				assert.ok(pathEquals(e.uri.fsPath, file.fsPath));
-				onDidOpenTextDocument = true;
-			}));
+	test('events: onDidOpenTextDocument, onDidChangeTextDocument, onDidSaveTextDocument', async () => {
+		const file = await createRandomFile();
+		let disposables: vscode.Disposable[] = [];
 
-			let onDidChangeTextDocument = false;
-			disposables.push(vscode.workspace.onDidChangeTextDocument(e => {
-				assert.ok(pathEquals(e.document.uri.fsPath, file.fsPath));
-				onDidChangeTextDocument = true;
-			}));
+		await vscode.workspace.saveAll();
 
-			let onDidSaveTextDocument = false;
-			disposables.push(vscode.workspace.onDidSaveTextDocument(e => {
-				assert.ok(pathEquals(e.uri.fsPath, file.fsPath));
-				onDidSaveTextDocument = true;
-			}));
+		let pendingAsserts: Function[] = [];
+		let onDidOpenTextDocument = false;
+		disposables.push(vscode.workspace.onDidOpenTextDocument(e => {
+			pendingAsserts.push(() => assertEqualPath(e.uri.fsPath, file.fsPath));
+			onDidOpenTextDocument = true;
+		}));
 
-			return vscode.workspace.openTextDocument(file).then(doc => {
-				return vscode.window.showTextDocument(doc).then((editor) => {
-					return editor.edit((builder) => {
-						builder.insert(new vscode.Position(0, 0), 'Hello World');
-					}).then(_applied => {
-						return doc.save().then(_saved => {
-							assert.ok(onDidOpenTextDocument);
-							assert.ok(onDidChangeTextDocument);
-							assert.ok(onDidSaveTextDocument);
+		let onDidChangeTextDocument = false;
+		disposables.push(vscode.workspace.onDidChangeTextDocument(e => {
+			pendingAsserts.push(() => assertEqualPath(e.document.uri.fsPath, file.fsPath));
+			onDidChangeTextDocument = true;
+		}));
 
-							disposeAll(disposables);
+		let onDidSaveTextDocument = false;
+		disposables.push(vscode.workspace.onDidSaveTextDocument(e => {
+			pendingAsserts.push(() => assertEqualPath(e.uri.fsPath, file.fsPath));
+			onDidSaveTextDocument = true;
+		}));
 
-							return deleteFile(file);
-						});
-					});
-				});
-			});
+		const doc = await vscode.workspace.openTextDocument(file);
+		const editor = await vscode.window.showTextDocument(doc);
+
+		await editor.edit((builder) => {
+			builder.insert(new vscode.Position(0, 0), 'Hello World');
 		});
+		await doc.save();
+
+		assert.ok(onDidOpenTextDocument);
+		assert.ok(onDidChangeTextDocument);
+		assert.ok(onDidSaveTextDocument);
+		pendingAsserts.forEach(assert => assert());
+		disposeAll(disposables);
+		return deleteFile(file);
 	});
 
-	test('events: onDidSaveTextDocument fires even for non dirty file when saved', () => {
-		return createRandomFile().then(file => {
-			let disposables: vscode.Disposable[] = [];
+	test('events: onDidSaveTextDocument fires even for non dirty file when saved', async () => {
+		const file = await createRandomFile();
+		let disposables: vscode.Disposable[] = [];
+		let pendingAsserts: Function[] = [];
 
-			let onDidSaveTextDocument = false;
-			disposables.push(vscode.workspace.onDidSaveTextDocument(e => {
-				assert.ok(pathEquals(e.uri.fsPath, file.fsPath));
-				onDidSaveTextDocument = true;
-			}));
+		let onDidSaveTextDocument = false;
+		disposables.push(vscode.workspace.onDidSaveTextDocument(e => {
+			pendingAsserts.push(() => assertEqualPath(e.uri.fsPath, file.fsPath));
+			onDidSaveTextDocument = true;
+		}));
 
-			return vscode.workspace.openTextDocument(file).then(doc => {
-				return vscode.window.showTextDocument(doc).then(() => {
-					return vscode.commands.executeCommand('workbench.action.files.save').then(() => {
-						assert.ok(onDidSaveTextDocument);
+		const doc = await vscode.workspace.openTextDocument(file);
+		await vscode.window.showTextDocument(doc);
+		await vscode.commands.executeCommand('workbench.action.files.save');
 
-						disposeAll(disposables);
-
-						return deleteFile(file);
-					});
-				});
-			});
-		});
+		assert.ok(onDidSaveTextDocument);
+		pendingAsserts.forEach(fn => fn());
+		disposeAll(disposables);
+		return deleteFile(file);
 	});
 
 	test('openTextDocument, with selection', function () {

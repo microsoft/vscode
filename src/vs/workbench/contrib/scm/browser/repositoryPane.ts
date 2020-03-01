@@ -67,6 +67,11 @@ import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { Schemas } from 'vs/base/common/network';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { ModesHoverController } from 'vs/editor/contrib/hover/hover';
+import { ColorDetector } from 'vs/editor/contrib/colorPicker/colorDetector';
+import { LinkDetector } from 'vs/editor/contrib/links/links';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 type TreeElement = ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -145,13 +150,16 @@ interface ResourceTemplate {
 	disposables: IDisposable;
 }
 
-class MultipleSelectionActionRunner extends ActionRunner {
+class RepositoryPaneActionRunner extends ActionRunner {
 
-	constructor(private getSelectedResources: () => (ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>)[]) {
+	constructor(
+		private getSelectedResources: () => (ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>)[],
+		private focus: () => void
+	) {
 		super();
 	}
 
-	runAction(action: IAction, context: ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>): Promise<any> {
+	async runAction(action: IAction, context: ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>): Promise<any> {
 		if (!(action instanceof MenuItemAction)) {
 			return super.runAction(action, context);
 		}
@@ -160,7 +168,8 @@ class MultipleSelectionActionRunner extends ActionRunner {
 		const contextIsSelected = selection.some(s => s === context);
 		const actualContext = contextIsSelected ? selection : [context];
 		const args = flatten(actualContext.map(e => ResourceTree.isResourceNode(e) ? ResourceTree.collect(e) : [e]));
-		return action.run(...args);
+		await action.run(...args);
+		this.focus();
 	}
 }
 
@@ -174,6 +183,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		private labels: ResourceLabels,
 		private actionViewItemProvider: IActionViewItemProvider,
 		private getSelectedResources: () => (ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>)[],
+		private focus: () => void,
 		private themeService: IThemeService,
 		private menus: SCMMenus
 	) { }
@@ -185,7 +195,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		const actionsContainer = append(fileLabel.element, $('.actions'));
 		const actionBar = new ActionBar(actionsContainer, {
 			actionViewItemProvider: this.actionViewItemProvider,
-			actionRunner: new MultipleSelectionActionRunner(this.getSelectedResources)
+			actionRunner: new RepositoryPaneActionRunner(this.getSelectedResources, this.focus)
 		});
 
 		const decorationIcon = append(element, $('.decoration-icon'));
@@ -606,6 +616,12 @@ class ViewModel {
 	dispose(): void {
 		this.visibilityDisposables.dispose();
 		this.disposables.dispose();
+
+		for (const item of this.items) {
+			item.disposable.dispose();
+		}
+
+		this.items = [];
 	}
 }
 
@@ -665,8 +681,10 @@ export class RepositoryPane extends ViewPane {
 		@IMenuService protected menuService: IMenuService,
 		@IStorageService private storageService: IStorageService,
 		@IModelService private modelService: IModelService,
+		@IOpenerService openerService: IOpenerService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
 		this.menus = instantiationService.createInstance(SCMMenus, this.repository.provider);
 		this._register(this.menus);
@@ -699,6 +717,8 @@ export class RepositoryPane extends ViewPane {
 	}
 
 	protected renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+
 		const focusTracker = trackFocus(container);
 		this._register(focusTracker.onDidFocus(() => this.repository.focus()));
 		this._register(focusTracker);
@@ -755,11 +775,11 @@ export class RepositoryPane extends ViewPane {
 			fontSize: 13,
 			lineHeight: 20,
 			fontFamily: ' -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif',
-			wrappingAlgorithm: 'dom',
+			wrappingStrategy: 'advanced',
 			wrappingIndent: 'none',
-			suggest: {
-				showWords: false
-			}
+			padding: { top: 3, bottom: 3 },
+			suggest: { showWords: false },
+			quickSuggestions: false
 		};
 
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
@@ -770,6 +790,9 @@ export class RepositoryPane extends ViewPane {
 				MenuPreventer.ID,
 				SelectionClipboardContributionID,
 				ContextMenuController.ID,
+				ColorDetector.ID,
+				ModesHoverController.ID,
+				LinkDetector.ID
 			])
 		};
 
@@ -797,15 +820,16 @@ export class RepositoryPane extends ViewPane {
 		this.inputModel = this.modelService.getModel(uri) || this.modelService.createModel('', null, uri);
 		this.inputEditor.setModel(this.inputModel);
 
-		this.inputEditor.changeViewZones(accessor => {
-			accessor.addZone({ afterLineNumber: 0, domNode: $('div'), heightInPx: 3 });
-		});
-
 		this._register(this.inputEditor.onDidChangeCursorPosition(triggerValidation));
 
 		// Keep model in sync with API
 		this.inputModel.setValue(this.repository.input.value);
-		this._register(this.repository.input.onDidChange(value => this.inputModel.setValue(value)));
+		this._register(this.repository.input.onDidChange(value => {
+			if (value === this.inputModel.getValue()) {
+				return;
+			}
+			this.inputModel.setValue(value);
+		}));
 
 		// Keep API in sync with model and update placeholder and validation
 		toggleClass(placeholderTextContainer, 'hidden', this.inputModel.getValueLength() > 0);
@@ -848,7 +872,7 @@ export class RepositoryPane extends ViewPane {
 
 		const renderers = [
 			new ResourceGroupRenderer(actionViewItemProvider, this.themeService, this.menus),
-			new ResourceRenderer(() => this.viewModel, this.listLabels, actionViewItemProvider, () => this.getSelectedResources(), this.themeService, this.menus)
+			new ResourceRenderer(() => this.viewModel, this.listLabels, actionViewItemProvider, () => this.getSelectedResources(), () => this.tree.domFocus(), this.themeService, this.menus)
 		];
 
 		const filter = new SCMTreeFilter();
@@ -856,7 +880,7 @@ export class RepositoryPane extends ViewPane {
 		const keyboardNavigationLabelProvider = new SCMTreeKeyboardNavigationLabelProvider();
 		const identityProvider = new SCMResourceIdentityProvider();
 
-		this.tree = this.instantiationService.createInstance<typeof WorkbenchCompressibleObjectTree, WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>>(
+		this.tree = <WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>>this.instantiationService.createInstance(
 			WorkbenchCompressibleObjectTree,
 			'SCM Tree Repo',
 			this.listContainer,
@@ -875,7 +899,7 @@ export class RepositoryPane extends ViewPane {
 
 		this._register(Event.chain(this.tree.onDidOpen)
 			.map(e => e.elements[0])
-			.filter(e => !!e && !isSCMResourceGroup(e) && !ResourceTree.isResourceNode(e))
+			.filter<ISCMResource>((e): e is ISCMResource => !!e && !isSCMResourceGroup(e) && !ResourceTree.isResourceNode(e))
 			.on(this.open, this));
 
 		this._register(Event.chain(this.tree.onDidPin)
@@ -959,7 +983,7 @@ export class RepositoryPane extends ViewPane {
 			removeClass(this.inputContainer, 'hidden');
 
 			const editorContentHeight = this.inputEditor.getContentHeight();
-			const editorHeight = Math.min(editorContentHeight + 3, 134);
+			const editorHeight = Math.min(editorContentHeight, 134);
 			this.inputEditor.layout({ height: editorHeight, width: width! - 12 - 16 - 2 });
 
 			this.validationContainer.style.top = `${editorHeight + 1}px`;
@@ -1040,7 +1064,7 @@ export class RepositoryPane extends ViewPane {
 		}
 	}
 
-	private onListContextMenu(e: ITreeContextMenuEvent<TreeElement>): void {
+	private onListContextMenu(e: ITreeContextMenuEvent<TreeElement | null>): void {
 		if (!e.element) {
 			return;
 		}
@@ -1064,7 +1088,7 @@ export class RepositoryPane extends ViewPane {
 			getAnchor: () => e.anchor,
 			getActions: () => actions,
 			getActionsContext: () => element,
-			actionRunner: new MultipleSelectionActionRunner(() => this.getSelectedResources())
+			actionRunner: new RepositoryPaneActionRunner(() => this.getSelectedResources(), () => this.tree.domFocus())
 		});
 	}
 

@@ -30,7 +30,7 @@ export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends 
 		renderers: ITreeRenderer<T, TFilterData, any>[],
 		options: IObjectTreeOptions<T, TFilterData> = {}
 	) {
-		super(user, container, delegate, renderers, options);
+		super(user, container, delegate, renderers, options as IObjectTreeOptions<T | null, TFilterData>);
 	}
 
 	setChildren(element: T | null, children?: ISequence<ITreeElement<T>>): void {
@@ -48,6 +48,10 @@ export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends 
 
 	resort(element: T, recursive = true): void {
 		this.model.resort(element, recursive);
+	}
+
+	hasElement(element: T): boolean {
+		return this.model.has(element);
 	}
 
 	protected createModel(user: string, view: ISpliceable<ITreeNode<T, TFilterData>>, options: IObjectTreeOptions<T, TFilterData>): ITreeModel<T | null, TFilterData, T | null> {
@@ -177,7 +181,7 @@ export class CompressibleObjectTree<T extends NonNullable<any>, TFilterData = vo
 	) {
 		const compressedTreeNodeProvider = () => this;
 		const compressibleRenderers = renderers.map(r => new CompressibleRenderer<T, TFilterData, any>(compressedTreeNodeProvider, r));
-		super(user, container, delegate, compressibleRenderers, asObjectTreeOptions(compressedTreeNodeProvider, options));
+		super(user, container, delegate, compressibleRenderers, asObjectTreeOptions<T, TFilterData>(compressedTreeNodeProvider, options));
 	}
 
 	setChildren(element: T | null, children?: ISequence<ICompressedTreeElement<T>>): void {

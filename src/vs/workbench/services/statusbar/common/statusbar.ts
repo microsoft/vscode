@@ -50,10 +50,10 @@ export interface IStatusbarEntry {
 	/**
 	 * Optional arguments for the command.
 	 */
-	readonly arguments?: any[];
+	readonly arguments?: unknown[];
 
 	/**
-	 * Wether to show a beak above the status bar entry.
+	 * Whether to show a beak above the status bar entry.
 	 */
 	readonly showBeak?: boolean;
 }

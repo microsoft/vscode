@@ -13,7 +13,7 @@ interface ExperimentalConfig {
 	};
 }
 
-export function getCustomDataPathsInAllWorkspaces(workspaceFolders: WorkspaceFolder[] | undefined): string[] {
+export function getCustomDataPathsInAllWorkspaces(workspaceFolders: readonly WorkspaceFolder[] | undefined): string[] {
 	const dataPaths: string[] = [];
 
 	if (!workspaceFolders) {

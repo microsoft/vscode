@@ -1,8 +1,8 @@
 {
 	"name": "vscode-account",
 	"publisher": "vscode",
-	"displayName": "Account",
-	"description": "",
+	"displayName": "%displayName%",
+	"description": "%description%",
 	"version": "0.0.1",
 	"engines": {
 		"vscode": "^1.42.0"
@@ -15,16 +15,32 @@
 		"*"
 	],
 	"main": "./out/extension.js",
+	"contributes": {
+		"commands": [
+			{
+				"command": "microsoft.signin",
+				"title": "%signIn%",
+				"category": "%displayName%"
+			},
+			{
+				"command": "microsoft.signout",
+				"title": "%signOut%",
+				"category": "%displayName%"
+			}
+		]
+	},
 	"scripts": {
 		"vscode:prepublish": "npm run compile",
-		"compile": "tsc -p ./",
-		"watch": "tsc -watch -p ./"
+		"compile": "gulp compile-extension:vscode-account",
+		"watch": "gulp watch-extension:vscode-account"
 	},
 	"devDependencies": {
 		"typescript": "^3.7.4",
 		"tslint": "^5.12.1",
 		"@types/node": "^10.12.21",
-		"@types/keytar": "^4.0.1",
-		"@types/vscode": "^1.41.0"
+		"@types/keytar": "^4.0.1"
+	},
+	"dependencies": {
+		"vscode-nls": "^4.1.1"
 	}
 }

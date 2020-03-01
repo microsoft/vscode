@@ -111,6 +111,42 @@
 	font-weight: bold;
 }
 
+/** Status Bar **/
+
+.monaco-editor .suggest-widget > .suggest-status-bar {
+	visibility: hidden;
+
+	position: absolute;
+	left: 0;
+
+	box-sizing: border-box;
+
+	display: flex;
+	flex-flow: row nowrap;
+	justify-content: space-between;
+
+	width: 100%;
+
+	font-size: 80%;
+
+	border-left-width: 1px;
+	border-left-style: solid;
+	border-right-width: 1px;
+	border-right-style: solid;
+	border-bottom-width: 1px;
+	border-bottom-style: solid;
+
+	padding: 0 8px 0 4px;
+}
+
+.monaco-editor .suggest-widget.list-right.docs-side > .suggest-status-bar {
+	left: auto;
+	right: 0;
+}
+.monaco-editor .suggest-widget.docs-side > .suggest-status-bar {
+	width: 50%;
+}
+
 /** ReadMore Icon styles **/
 
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .codicon-close,
@@ -137,6 +173,11 @@
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .left > .qualifier-label,
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .right > .details-label {
 	opacity: 0.7;
+}
+
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .left > .signature-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .left > .qualifier-label {
@@ -175,8 +216,8 @@
 
 /** Details: if using CompletionItemLabel#details, always show **/
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .right.always-show-details > .details-label,
-.monaco-editor .suggest-widget.docs-side .monaco-list .monaco-list-row.focused > .contents > .main > .right.always-show-details > .details-label {
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row:not(.string-label) > .contents > .main > .right > .details-label,
+.monaco-editor .suggest-widget.docs-side .monaco-list .monaco-list-row.focused:not(.string-label) > .contents > .main > .right > .details-label {
 	display: inline;
 }
 
@@ -187,10 +228,17 @@
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .left {
 	flex-shrink: 1;
+	flex-grow: 1;
 	overflow: hidden;
 }
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .left > .monaco-icon-label {
 	flex-shrink: 0;
+}
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row:not(.string-label) > .contents > .main > .left > .monaco-icon-label {
+	max-width: 100%;
+}
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row.string-label > .contents > .main > .left > .monaco-icon-label {
+	flex-shrink: 1;
 }
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .right {
 	overflow: hidden;
@@ -215,11 +263,11 @@
 }
 
 /** Do NOT display ReadMore when using plain CompletionItemLabel (details/documentation might not be resolved) **/
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .right:not(.always-show-details) > .readMore {
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row.string-label > .contents > .main > .right > .readMore {
 	display: none;
 }
 /** Focused item can show ReadMore, but can't when docs is side/below **/
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused > .contents > .main > .right:not(.always-show-details) > .readMore {
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused.string-label > .contents > .main > .right > .readMore {
 	display: inline-block;
 }
 
@@ -324,6 +372,7 @@
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .docs.markdown-docs {
 	padding: 0;
 	white-space: initial;
+	min-height: calc(1rem + 8px);
 }
 
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .docs.markdown-docs > div,
@@ -342,6 +391,10 @@
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .docs .code {
 	white-space: pre-wrap;
 	word-wrap: break-word;
+}
+
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .docs.markdown-docs .codicon {
+	vertical-align: sub;
 }
 
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > p:empty {

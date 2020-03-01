@@ -17,7 +17,7 @@ import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManage
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionTipsService } from 'vs/workbench/contrib/extensions/browser/extensionTipsService';
-import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/electron-browser/extensionEnablementService.test';
+import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/browser/extensionEnablementService.test';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { IURLService } from 'vs/platform/url/common/url';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -27,7 +27,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TestContextService, TestSharedProcessService } from 'vs/workbench/test/workbenchTestServices';
+import { TestContextService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestSharedProcessService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { URLService } from 'vs/platform/url/node/urlService';

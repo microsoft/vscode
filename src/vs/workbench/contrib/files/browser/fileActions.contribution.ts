@@ -5,14 +5,14 @@
 
 import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ToggleAutoSaveAction, GlobalNewUntitledFileAction, FocusFilesExplorer, GlobalCompareResourcesAction, SaveAllAction, ShowActiveFileInExplorer, CollapseExplorerView, RefreshExplorerView, CompareWithClipboardAction, NEW_FILE_COMMAND_ID, NEW_FILE_LABEL, NEW_FOLDER_COMMAND_ID, NEW_FOLDER_LABEL, TRIGGER_RENAME_LABEL, MOVE_FILE_TO_TRASH_LABEL, COPY_FILE_LABEL, PASTE_FILE_LABEL, FileCopiedContext, renameHandler, moveFileToTrashHandler, copyFileHandler, pasteFileHandler, deleteFileHandler, cutFileHandler, DOWNLOAD_COMMAND_ID, openFilePreserveFocusHandler, DOWNLOAD_LABEL } from 'vs/workbench/contrib/files/browser/fileActions';
+import { ToggleAutoSaveAction, GlobalNewUntitledFileAction, FocusFilesExplorer, GlobalCompareResourcesAction, SaveAllAction, ShowActiveFileInExplorer, CollapseExplorerView, RefreshExplorerView, CompareWithClipboardAction, NEW_FILE_COMMAND_ID, NEW_FILE_LABEL, NEW_FOLDER_COMMAND_ID, NEW_FOLDER_LABEL, TRIGGER_RENAME_LABEL, MOVE_FILE_TO_TRASH_LABEL, COPY_FILE_LABEL, PASTE_FILE_LABEL, FileCopiedContext, renameHandler, moveFileToTrashHandler, copyFileHandler, pasteFileHandler, deleteFileHandler, cutFileHandler, DOWNLOAD_COMMAND_ID, openFilePreserveFocusHandler, DOWNLOAD_LABEL, ShowOpenedFileInNewWindow } from 'vs/workbench/contrib/files/browser/fileActions';
 import { revertLocalChangesCommand, acceptLocalChangesCommand, CONFLICT_RESOLUTION_CONTEXT } from 'vs/workbench/contrib/files/browser/editors/textFileSaveErrorHandler';
 import { SyncActionDescriptor, MenuId, MenuRegistry, ILocalizedString } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { openWindowCommand, COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, OPEN_TO_SIDE_COMMAND_ID, REVERT_FILE_COMMAND_ID, SAVE_FILE_COMMAND_ID, SAVE_FILE_LABEL, SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_AS_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID, OpenEditorsGroupContext, COMPARE_WITH_SAVED_COMMAND_ID, COMPARE_RESOURCE_COMMAND_ID, SELECT_FOR_COMPARE_COMMAND_ID, ResourceSelectedForCompareContext, DirtyEditorContext, COMPARE_SELECTED_COMMAND_ID, REMOVE_ROOT_FOLDER_COMMAND_ID, REMOVE_ROOT_FOLDER_LABEL, SAVE_FILES_COMMAND_ID, COPY_RELATIVE_PATH_COMMAND_ID, SAVE_FILE_WITHOUT_FORMATTING_COMMAND_ID, SAVE_FILE_WITHOUT_FORMATTING_LABEL, newWindowCommand, ReadonlyEditorContext } from 'vs/workbench/contrib/files/browser/fileCommands';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { isMacintosh } from 'vs/base/common/platform';
 import { FilesExplorerFocusCondition, ExplorerRootContext, ExplorerFolderContext, ExplorerResourceNotReadonlyContext, ExplorerResourceCut, IExplorerService, ExplorerResourceMoveableToTrash, ExplorerViewletVisibleContext } from 'vs/workbench/contrib/files/common/files';
@@ -42,6 +42,7 @@ registry.registerWorkbenchAction(SyncActionDescriptor.create(RefreshExplorerView
 registry.registerWorkbenchAction(SyncActionDescriptor.create(GlobalNewUntitledFileAction, GlobalNewUntitledFileAction.ID, GlobalNewUntitledFileAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_N }), 'File: New Untitled File', category.value);
 registry.registerWorkbenchAction(SyncActionDescriptor.create(CompareWithClipboardAction, CompareWithClipboardAction.ID, CompareWithClipboardAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_C) }), 'File: Compare Active File with Clipboard', category.value);
 registry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleAutoSaveAction, ToggleAutoSaveAction.ID, ToggleAutoSaveAction.LABEL), 'File: Toggle Auto Save', category.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.create(ShowOpenedFileInNewWindow, ShowOpenedFileInNewWindow.ID, ShowOpenedFileInNewWindow.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_O) }), 'File: Open Active File in New Window', category.value);
 
 const workspacesCategory = nls.localize('workspaces', "Workspaces");
 registry.registerWorkbenchAction(SyncActionDescriptor.create(OpenWorkspaceAction, OpenWorkspaceAction.ID, OpenWorkspaceAction.LABEL), 'Workspaces: Open Workspace...', workspacesCategory);
@@ -169,7 +170,7 @@ appendEditorTitleContextMenuItem(COPY_PATH_COMMAND_ID, copyPathCommand.title, Re
 appendEditorTitleContextMenuItem(COPY_RELATIVE_PATH_COMMAND_ID, copyRelativePathCommand.title, ResourceContextKey.IsFileSystemResource, '1_cutcopypaste');
 appendEditorTitleContextMenuItem(REVEAL_IN_EXPLORER_COMMAND_ID, nls.localize('revealInSideBar', "Reveal in Side Bar"), ResourceContextKey.IsFileSystemResource);
 
-export function appendEditorTitleContextMenuItem(id: string, title: string, when: ContextKeyExpr | undefined, group?: string): void {
+export function appendEditorTitleContextMenuItem(id: string, title: string, when: ContextKeyExpression | undefined, group?: string): void {
 
 	// Menu
 	MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, {
@@ -199,7 +200,7 @@ function appendSaveConflictEditorTitleAction(id: string, title: string, icon: Th
 
 // Menu registration - command palette
 
-export function appendToCommandPalette(id: string, title: ILocalizedString, category: ILocalizedString, when?: ContextKeyExpr): void {
+export function appendToCommandPalette(id: string, title: ILocalizedString, category: ILocalizedString, when?: ContextKeyExpression): void {
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		command: {
 			id,

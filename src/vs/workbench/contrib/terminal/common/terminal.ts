@@ -6,38 +6,38 @@
 import * as nls from 'vs/nls';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IOpenFileRequest } from 'vs/platform/windows/common/windows';
 
-export const TERMINAL_PANEL_ID = 'workbench.panel.terminal';
+export const TERMINAL_VIEW_ID = 'workbench.panel.terminal';
 
 /** A context key that is set when there is at least one opened integrated terminal. */
 export const KEYBINDING_CONTEXT_TERMINAL_IS_OPEN = new RawContextKey<boolean>('terminalIsOpen', false);
 /** A context key that is set when the integrated terminal has focus. */
 export const KEYBINDING_CONTEXT_TERMINAL_FOCUS = new RawContextKey<boolean>('terminalFocus', false);
 /** A context key that is set when the integrated terminal does not have focus. */
-export const KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_TERMINAL_FOCUS.toNegated();
+export const KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED = KEYBINDING_CONTEXT_TERMINAL_FOCUS.toNegated();
 /** A context key that is set when the user is navigating the accessibility tree */
 export const KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS = new RawContextKey<boolean>('terminalA11yTreeFocus', false);
 
 /** A keybinding context key that is set when the integrated terminal has text selected. */
 export const KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED = new RawContextKey<boolean>('terminalTextSelected', false);
 /** A keybinding context key that is set when the integrated terminal does not have text selected. */
-export const KEYBINDING_CONTEXT_TERMINAL_TEXT_NOT_SELECTED: ContextKeyExpr = KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED.toNegated();
+export const KEYBINDING_CONTEXT_TERMINAL_TEXT_NOT_SELECTED = KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED.toNegated();
 
 /**  A context key that is set when the find widget in integrated terminal is visible. */
 export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE = new RawContextKey<boolean>('terminalFindWidgetVisible', false);
 /**  A context key that is set when the find widget in integrated terminal is not visible. */
-export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_NOT_VISIBLE: ContextKeyExpr = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE.toNegated();
+export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_NOT_VISIBLE = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE.toNegated();
 /**  A context key that is set when the find widget find input in integrated terminal is focused. */
 export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED = new RawContextKey<boolean>('terminalFindWidgetInputFocused', false);
 /**  A context key that is set when the find widget in integrated terminal is focused. */
 export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('terminalFindWidgetFocused', false);
 /**  A context key that is set when the find widget find input in integrated terminal is not focused. */
-export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED.toNegated();
+export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_NOT_FOCUSED = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED.toNegated();
 
 export const IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY = 'terminal.integrated.isWorkspaceShellAllowed';
 export const NEVER_MEASURE_RENDER_TIME_STORAGE_KEY = 'terminal.integrated.neverMeasureRenderTime';
@@ -119,9 +119,9 @@ export interface ITerminalConfiguration {
 	showExitAlert: boolean;
 	splitCwd: 'workspaceRoot' | 'initial' | 'inherited';
 	windowsEnableConpty: boolean;
-	experimentalRefreshOnResume: boolean;
 	experimentalUseTitleEvent: boolean;
 	enableFileLinks: boolean;
+	unicodeVersion: '6' | '11';
 }
 
 export interface ITerminalConfigHelper {
@@ -359,7 +359,7 @@ export interface IStartExtensionTerminalRequest {
 }
 
 export interface IAvailableShellsRequest {
-	(shells: IShellDefinition[]): void;
+	callback: (shells: IShellDefinition[]) => void;
 }
 
 export interface IDefaultShellAndArgsRequest {

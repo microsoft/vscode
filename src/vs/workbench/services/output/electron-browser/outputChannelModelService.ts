@@ -52,7 +52,7 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannelModel implement
 		this.rotatingFilePath = resources.joinPath(rotatingFilePathDirectory, `${id}.1.log`);
 
 		this._register(fileService.watch(rotatingFilePathDirectory));
-		this._register(fileService.onFileChanges(e => {
+		this._register(fileService.onDidFilesChange(e => {
 			if (e.contains(this.rotatingFilePath)) {
 				this.resettingDelayer.trigger(() => this.resetModel());
 			}

@@ -16,6 +16,7 @@ export interface IBulkEditOptions {
 	progress?: IProgress<IProgressStep>;
 	showPreview?: boolean;
 	label?: string;
+	quotableLabel?: string;
 }
 
 export interface IBulkEditResult {
@@ -26,6 +27,8 @@ export type IBulkEditPreviewHandler = (edit: WorkspaceEdit, options?: IBulkEditO
 
 export interface IBulkEditService {
 	_serviceBrand: undefined;
+
+	hasPreviewHandler(): boolean;
 
 	setPreviewHandler(handler: IBulkEditPreviewHandler): IDisposable;
 

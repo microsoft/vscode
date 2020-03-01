@@ -12,13 +12,13 @@ import { URI } from 'vs/base/common/uri';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { EditorInput, IEditor, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
+import { IEditor, IRevertOptions, ISaveOptions, IEditorInput } from 'vs/workbench/common/editor';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 export const ICustomEditorService = createDecorator<ICustomEditorService>('customEditorService');
 
-export const CONTEXT_HAS_CUSTOM_EDITORS = new RawContextKey<boolean>('hasCustomEditors', false);
+export const CONTEXT_CUSTOM_EDITORS = new RawContextKey<string>('customEditors', '');
 export const CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE = new RawContextKey<boolean>('focusedCustomEditorIsEditable', false);
 
 export interface ICustomEditor {
@@ -37,13 +37,11 @@ export interface ICustomEditorService {
 	getContributedCustomEditors(resource: URI): CustomEditorInfoCollection;
 	getUserConfiguredCustomEditors(resource: URI): CustomEditorInfoCollection;
 
-	createInput(resource: URI, viewType: string, group: IEditorGroup | undefined, options?: { readonly customClasses: string }): EditorInput;
+	createInput(resource: URI, viewType: string, group: IEditorGroup | undefined, options?: { readonly customClasses: string }): IEditorInput;
 
 	openWith(resource: URI, customEditorViewType: string, options?: ITextEditorOptions, group?: IEditorGroup): Promise<IEditor | undefined>;
 	promptOpenWith(resource: URI, options?: ITextEditorOptions, group?: IEditorGroup): Promise<IEditor | undefined>;
 }
-
-export type CustomEditorEdit = number;
 
 export interface ICustomEditorModelManager {
 	get(resource: URI, viewType: string): ICustomEditorModel | undefined;
@@ -69,23 +67,22 @@ export interface CustomEditorSaveAsEvent {
 export interface ICustomEditorModel extends IWorkingCopy {
 	readonly viewType: string;
 
-	readonly onUndo: Event<{ edits: readonly CustomEditorEdit[], trigger: any | undefined }>;
-	readonly onApplyEdit: Event<{ edits: readonly CustomEditorEdit[], trigger: any | undefined }>;
-	readonly onDisposeEdits: Event<{ edits: readonly CustomEditorEdit[] }>;
+	readonly onUndo: Event<void>;
+	readonly onRedo: Event<void>;
+	readonly onRevert: Event<void>;
 
 	readonly onWillSave: Event<CustomEditorSaveEvent>;
 	readonly onWillSaveAs: Event<CustomEditorSaveAsEvent>;
 
-	onBackup(f: () => CancelablePromise<boolean>): void;
+	onBackup(f: () => CancelablePromise<void>): void;
 
+	setDirty(dirty: boolean): void;
 	undo(): void;
 	redo(): void;
 	revert(options?: IRevertOptions): Promise<boolean>;
 
 	save(options?: ISaveOptions): Promise<boolean>;
 	saveAs(resource: URI, targetResource: URI, currentOptions?: ISaveOptions): Promise<boolean>;
-
-	pushEdit(edit: CustomEditorEdit, trigger: any): void;
 }
 
 export const enum CustomEditorPriority {

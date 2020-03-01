@@ -79,35 +79,47 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 		const insertedElements = new Set<T | null>();
 		const insertedElementIds = new Set<string>();
 
-		const _onDidCreateNode = (node: ITreeNode<T, TFilterData>) => {
-			insertedElements.add(node.element);
-			this.nodes.set(node.element, node);
+		const _onDidCreateNode = (node: ITreeNode<T | null, TFilterData>) => {
+			if (node.element === null) {
+				return;
+			}
+
+			const tnode = node as ITreeNode<T, TFilterData>;
+
+			insertedElements.add(tnode.element);
+			this.nodes.set(tnode.element, tnode);
 
 			if (this.identityProvider) {
-				const id = this.identityProvider.getId(node.element).toString();
+				const id = this.identityProvider.getId(tnode.element).toString();
 				insertedElementIds.add(id);
-				this.nodesByIdentity.set(id, node);
+				this.nodesByIdentity.set(id, tnode);
 			}
 
 			if (onDidCreateNode) {
-				onDidCreateNode(node);
+				onDidCreateNode(tnode);
 			}
 		};
 
-		const _onDidDeleteNode = (node: ITreeNode<T, TFilterData>) => {
-			if (!insertedElements.has(node.element)) {
-				this.nodes.delete(node.element);
+		const _onDidDeleteNode = (node: ITreeNode<T | null, TFilterData>) => {
+			if (node.element === null) {
+				return;
+			}
+
+			const tnode = node as ITreeNode<T, TFilterData>;
+
+			if (!insertedElements.has(tnode.element)) {
+				this.nodes.delete(tnode.element);
 			}
 
 			if (this.identityProvider) {
-				const id = this.identityProvider.getId(node.element).toString();
+				const id = this.identityProvider.getId(tnode.element).toString();
 				if (!insertedElementIds.has(id)) {
 					this.nodesByIdentity.delete(id);
 				}
 			}
 
 			if (onDidDeleteNode) {
-				onDidDeleteNode(node);
+				onDidDeleteNode(tnode);
 			}
 		};
 
@@ -193,6 +205,10 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 	getLastElementAncestor(ref: T | null = null): T | null | undefined {
 		const location = this.getElementLocation(ref);
 		return this.model.getLastElementAncestor(location);
+	}
+
+	has(element: T | null): boolean {
+		return this.nodes.has(element);
 	}
 
 	getListIndex(element: T | null): number {

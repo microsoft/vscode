@@ -45,7 +45,11 @@ export class RequestChannelClient {
 	constructor(private readonly channel: IChannel) { }
 
 	async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
-		const [res, buffer] = await this.channel.call<RequestResponse>('request', [options]);
+		return RequestChannelClient.request(this.channel, options, token);
+	}
+
+	static async request(channel: IChannel, options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
+		const [res, buffer] = await channel.call<RequestResponse>('request', [options]);
 		return { res, stream: bufferToStream(buffer) };
 	}
 

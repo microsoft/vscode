@@ -28,12 +28,14 @@ import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { Gesture } from 'vs/base/browser/touch';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 const $ = dom.$;
 
@@ -63,24 +65,29 @@ export class BreakpointsView extends ViewPane {
 		@IDebugService private readonly debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IThemeService private readonly themeService: IThemeService,
+		@IThemeService themeService: IThemeService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IOpenerService openerService: IOpenerService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: nls.localize('breakpointsSection', "Breakpoints Section") }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService);
+		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: nls.localize('breakpointsSection', "Breakpoints Section") }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
 		this.minimumBodySize = this.maximumBodySize = getExpandedBodySize(this.debugService.getModel());
 		this._register(this.debugService.getModel().onDidChangeBreakpoints(() => this.onBreakpointsChange()));
 	}
 
 	public renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+
+		dom.addClass(this.element, 'debug-pane');
 		dom.addClass(container, 'debug-breakpoints');
 		const delegate = new BreakpointsDelegate(this.debugService);
 
-		this.list = this.instantiationService.createInstance(WorkbenchList, 'Breakpoints', container, delegate, [
+		this.list = <WorkbenchList<IEnablement>>this.instantiationService.createInstance(WorkbenchList, 'Breakpoints', container, delegate, [
 			this.instantiationService.createInstance(BreakpointsRenderer),
 			new ExceptionBreakpointsRenderer(this.debugService),
 			this.instantiationService.createInstance(FunctionBreakpointsRenderer),
@@ -97,7 +104,7 @@ export class BreakpointsView extends ViewPane {
 				isChecked: (breakpoint: IEnablement) => breakpoint.enabled
 			},
 			overrideStyles: {
-				listBackground: SIDE_BAR_BACKGROUND
+				listBackground: this.getBackgroundColor()
 			}
 		});
 
@@ -633,7 +640,7 @@ export function openBreakpointSource(breakpoint: IBreakpoint, sideBySide: boolea
 			preserveFocus,
 			selection,
 			revealIfOpened: true,
-			revealInCenterIfOutsideViewport: true,
+			selectionRevealType: TextEditorSelectionRevealType.CenterIfOutsideViewport,
 			pinned: !preserveFocus
 		}
 	}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);

@@ -10,17 +10,15 @@ import * as path from 'vs/base/common/path';
 import * as pfs from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { hashPath } from 'vs/workbench/services/backup/node/backupFileService';
 import { NativeBackupTracker } from 'vs/workbench/contrib/backup/electron-browser/backupTracker';
-import { TestTextFileService, workbenchInstantiationService, TestLifecycleService, TestFilesConfigurationService, TestContextService, TestFileService, TestElectronService, TestFileDialogService } from 'vs/workbench/test/workbenchTestServices';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorInput } from 'vs/workbench/common/editor';
+import { EditorInput, IUntitledTextResourceInput } from 'vs/workbench/common/editor';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
@@ -32,16 +30,21 @@ import { toResource } from 'vs/base/test/common/utils';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { INewUntitledTextEditorOptions } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
-import { HotExitConfiguration, IFileService } from 'vs/platform/files/common/files';
+import { HotExitConfiguration } from 'vs/platform/files/common/files';
 import { ShutdownReason, ILifecycleService, BeforeShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IFileDialogService, ConfirmResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkspaceContextService, Workspace } from 'vs/platform/workspace/common/workspace';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { BackupTracker } from 'vs/workbench/contrib/backup/common/backupTracker';
-import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/electron-browser/workbenchTestServices';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestFilesConfigurationService, TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 const userdataDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backuprestorer');
 const backupHome = path.join(userdataDir, 'Backups');
@@ -49,23 +52,6 @@ const workspacesJsonPath = path.join(backupHome, 'workspaces.json');
 
 const workspaceResource = URI.file(platform.isWindows ? 'c:\\workspace' : '/workspace');
 const workspaceBackupPath = path.join(backupHome, hashPath(workspaceResource));
-
-class ServiceAccessor {
-	constructor(
-		@ILifecycleService public lifecycleService: TestLifecycleService,
-		@ITextFileService public textFileService: TestTextFileService,
-		@IFilesConfigurationService public filesConfigurationService: TestFilesConfigurationService,
-		@IWorkspaceContextService public contextService: TestContextService,
-		@IModelService public modelService: ModelServiceImpl,
-		@IFileService public fileService: TestFileService,
-		@IElectronService public electronService: TestElectronService,
-		@IFileDialogService public fileDialogService: TestFileDialogService,
-		@IBackupFileService public backupFileService: NodeTestBackupFileService,
-		@IWorkingCopyService public workingCopyService: IWorkingCopyService,
-		@IEditorService public editorService: IEditorService
-	) {
-	}
-}
 
 class TestBackupTracker extends NativeBackupTracker {
 
@@ -100,12 +86,12 @@ class BeforeShutdownEventImpl implements BeforeShutdownEvent {
 }
 
 suite('BackupTracker', () => {
-	let accessor: ServiceAccessor;
+	let accessor: TestServiceAccessor;
 	let disposables: IDisposable[] = [];
 
 	setup(async () => {
 		const instantiationService = workbenchInstantiationService();
-		accessor = instantiationService.createInstance(ServiceAccessor);
+		accessor = instantiationService.createInstance(TestServiceAccessor);
 
 		disposables.push(Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 			EditorDescriptor.create(
@@ -132,10 +118,22 @@ suite('BackupTracker', () => {
 		return pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
 	});
 
-	async function createTracker(): Promise<[ServiceAccessor, EditorPart, BackupTracker]> {
+	async function createTracker(autoSaveEnabled = false): Promise<[TestServiceAccessor, EditorPart, BackupTracker, IInstantiationService]> {
 		const backupFileService = new NodeTestBackupFileService(workspaceBackupPath);
 		const instantiationService = workbenchInstantiationService();
 		instantiationService.stub(IBackupFileService, backupFileService);
+
+		const configurationService = new TestConfigurationService();
+		if (autoSaveEnabled) {
+			configurationService.setUserConfiguration('files', { autoSave: 'afterDelay', autoSaveDelay: 1 });
+		}
+		instantiationService.stub(IConfigurationService, configurationService);
+
+		instantiationService.stub(IFilesConfigurationService, new TestFilesConfigurationService(
+			<IContextKeyService>instantiationService.createInstance(MockContextKeyService),
+			configurationService,
+			TestEnvironmentService
+		));
 
 		const part = instantiationService.createInstance(EditorPart);
 		part.create(document.createElement('div'));
@@ -146,36 +144,35 @@ suite('BackupTracker', () => {
 		const editorService: EditorService = instantiationService.createInstance(EditorService);
 		instantiationService.stub(IEditorService, editorService);
 
-		accessor = instantiationService.createInstance(ServiceAccessor);
+		accessor = instantiationService.createInstance(TestServiceAccessor);
 
 		await part.whenRestored;
 
 		const tracker = instantiationService.createInstance(TestBackupTracker);
 
-		return [accessor, part, tracker];
+		return [accessor, part, tracker, instantiationService];
 	}
 
-	async function untitledBackupTest(options?: INewUntitledTextEditorOptions): Promise<void> {
+	async function untitledBackupTest(untitled: IUntitledTextResourceInput = {}): Promise<void> {
 		const [accessor, part, tracker] = await createTracker();
 
-		const untitledEditor = accessor.textFileService.untitled.create(options);
-		await accessor.editorService.openEditor(untitledEditor, { pinned: true });
+		const untitledEditor = (await accessor.editorService.openEditor(untitled))?.input as UntitledTextEditorInput;
 
 		const untitledModel = await untitledEditor.resolve();
 
-		if (!options?.initialValue) {
+		if (!untitled?.contents) {
 			untitledModel.textEditorModel.setValue('Super Good');
 		}
 
 		await accessor.backupFileService.joinBackupResource();
 
-		assert.equal(accessor.backupFileService.hasBackupSync(untitledEditor.getResource()), true);
+		assert.equal(accessor.backupFileService.hasBackupSync(untitledEditor.resource), true);
 
 		untitledModel.dispose();
 
 		await accessor.backupFileService.joinDiscardBackup();
 
-		assert.equal(accessor.backupFileService.hasBackupSync(untitledEditor.getResource()), false);
+		assert.equal(accessor.backupFileService.hasBackupSync(untitledEditor.resource), false);
 
 		part.dispose();
 		tracker.dispose();
@@ -190,7 +187,7 @@ suite('BackupTracker', () => {
 	test('Track backups (untitled with initial contents)', function () {
 		this.timeout(20000);
 
-		return untitledBackupTest({ initialValue: 'Foo Bar' });
+		return untitledBackupTest({ contents: 'Foo Bar' });
 	});
 
 	test('Track backups (file)', async function () {
@@ -238,7 +235,7 @@ suite('BackupTracker', () => {
 		tracker.dispose();
 	});
 
-	test('confirm onWillShutdown - veto if user cancels', async function () {
+	test.skip('confirm onWillShutdown - veto if user cancels', async function () {
 		const [accessor, part, tracker] = await createTracker();
 
 		const resource = toResource.call(this, '/path/index.txt');
@@ -254,7 +251,41 @@ suite('BackupTracker', () => {
 
 		const event = new BeforeShutdownEventImpl();
 		accessor.lifecycleService.fireWillShutdown(event);
-		assert.ok(event.value);
+
+		const veto = event.value;
+		if (typeof veto === 'boolean') {
+			assert.ok(veto);
+		} else {
+			assert.ok((await veto));
+		}
+
+		part.dispose();
+		tracker.dispose();
+	});
+
+	test('onWillShutdown - no veto if auto save is on', async function () {
+		const [accessor, part, tracker] = await createTracker(true /* auto save enabled */);
+
+		const resource = toResource.call(this, '/path/index.txt');
+		await accessor.editorService.openEditor({ resource, options: { pinned: true } });
+
+		const model = accessor.textFileService.files.get(resource);
+
+		await model?.load();
+		model?.textEditorModel?.setValue('foo');
+		assert.equal(accessor.workingCopyService.dirtyCount, 1);
+
+		const event = new BeforeShutdownEventImpl();
+		accessor.lifecycleService.fireWillShutdown(event);
+
+		const veto = event.value;
+		if (typeof veto === 'boolean') {
+			assert.ok(!veto);
+		} else {
+			assert.ok(!(await veto));
+		}
+
+		assert.equal(accessor.workingCopyService.dirtyCount, 0);
 
 		part.dispose();
 		tracker.dispose();

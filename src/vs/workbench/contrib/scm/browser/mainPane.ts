@@ -11,7 +11,7 @@ import { IDisposable, dispose, Disposable, DisposableStore, combinedDisposable }
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { append, $, toggleClass } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
-import { ISCMService, ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -32,6 +32,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IViewDescriptor, IViewDescriptorService } from 'vs/workbench/common/views';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export interface ISpliceEvent<T> {
 	index: number;
@@ -182,22 +184,26 @@ export class MainPane extends ViewPane {
 		options: IViewPaneOptions,
 		@IKeybindingService protected keybindingService: IKeybindingService,
 		@IContextMenuService protected contextMenuService: IContextMenuService,
-		@ISCMService protected scmService: ISCMService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IMenuService private readonly menuService: IMenuService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IOpenerService openerService: IOpenerService,
+		@IThemeService themeService: IThemeService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 	}
 
 	protected renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+
 		const delegate = new ProvidersListDelegate();
 		const renderer = this.instantiationService.createInstance(ProviderRenderer);
 		const identityProvider = { getId: (r: ISCMRepository) => r.provider.id };
 
-		this.list = this.instantiationService.createInstance<typeof WorkbenchList, WorkbenchList<ISCMRepository>>(WorkbenchList, `SCM Main`, container, delegate, [renderer], {
+		this.list = <WorkbenchList<ISCMRepository>>this.instantiationService.createInstance(WorkbenchList, `SCM Main`, container, delegate, [renderer], {
 			identityProvider,
 			horizontalScrolling: false,
 			overrideStyles: {

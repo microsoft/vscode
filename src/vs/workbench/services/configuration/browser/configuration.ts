@@ -10,7 +10,7 @@ import * as errors from 'vs/base/common/errors';
 import { Disposable, IDisposable, dispose, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
 import { FileChangeType, FileChangesEvent, IFileService, whenProviderRegistered, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { ConfigurationModel, ConfigurationModelParser } from 'vs/platform/configuration/common/configurationModels';
+import { ConfigurationModel, ConfigurationModelParser, UserSettings } from 'vs/platform/configuration/common/configurationModels';
 import { WorkspaceConfigurationModelParser, StandaloneConfigurationModelParser } from 'vs/workbench/services/configuration/common/configurationModels';
 import { TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY, IConfigurationCache, ConfigurationKey, REMOTE_MACHINE_SCOPES, FOLDER_SCOPES, WORKSPACE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
 import { IStoredWorkspaceFolder, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
@@ -64,38 +64,6 @@ export class UserConfiguration extends Disposable {
 	}
 }
 
-class UserSettings extends Disposable {
-
-	private readonly parser: ConfigurationModelParser;
-	protected readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidChange: Event<void> = this._onDidChange.event;
-
-	constructor(
-		private readonly userSettingsResource: URI,
-		private readonly scopes: ConfigurationScope[] | undefined,
-		private readonly fileService: IFileService
-	) {
-		super();
-		this.parser = new ConfigurationModelParser(this.userSettingsResource.toString(), this.scopes);
-		this._register(Event.filter(this.fileService.onFileChanges, e => e.contains(this.userSettingsResource))(() => this._onDidChange.fire()));
-	}
-
-	async loadConfiguration(): Promise<ConfigurationModel> {
-		try {
-			const content = await this.fileService.readFile(this.userSettingsResource);
-			this.parser.parseContent(content.value.toString() || '{}');
-			return this.parser.configurationModel;
-		} catch (e) {
-			return new ConfigurationModel();
-		}
-	}
-
-	reprocess(): ConfigurationModel {
-		this.parser.parse();
-		return this.parser.configurationModel;
-	}
-}
-
 class FileServiceBasedConfigurationWithNames extends Disposable {
 
 	private _folderSettingsModelParser: ConfigurationModelParser;
@@ -118,7 +86,7 @@ class FileServiceBasedConfigurationWithNames extends Disposable {
 		this._cache = new ConfigurationModel();
 
 		this.changeEventTriggerScheduler = this._register(new RunOnceScheduler(() => this._onDidChange.fire(), 50));
-		this._register(this.fileService.onFileChanges((e) => this.handleFileEvents(e)));
+		this._register(this.fileService.onDidFilesChange((e) => this.handleFileEvents(e)));
 	}
 
 	async loadConfiguration(): Promise<ConfigurationModel> {
@@ -300,7 +268,7 @@ class FileServiceBasedRemoteUserConfiguration extends Disposable {
 		super();
 
 		this.parser = new ConfigurationModelParser(this.configurationResource.toString(), this.scopes);
-		this._register(fileService.onFileChanges(e => this.handleFileEvents(e)));
+		this._register(fileService.onDidFilesChange(e => this.handleFileEvents(e)));
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.reload().then(configurationModel => this._onDidChangeConfiguration.fire(configurationModel)), 50));
 		this._register(toDisposable(() => {
 			this.stopWatchingResource();
@@ -555,7 +523,7 @@ class FileServiceBasedWorkspaceConfiguration extends Disposable implements IWork
 		this.workspaceConfigurationModelParser = new WorkspaceConfigurationModelParser('');
 		this.workspaceSettings = new ConfigurationModel();
 
-		this._register(fileService.onFileChanges(e => this.handleWorkspaceFileEvents(e)));
+		this._register(fileService.onDidFilesChange(e => this.handleWorkspaceFileEvents(e)));
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this._onDidChange.fire(), 50));
 		this.workspaceConfigWatcher = this._register(this.watchWorkspaceConfigurationFile());
 	}

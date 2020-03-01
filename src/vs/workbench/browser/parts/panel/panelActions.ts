@@ -17,7 +17,7 @@ import { ActivityAction, ToggleCompositePinnedAction, ICompositeBar } from 'vs/w
 import { IActivity } from 'vs/workbench/common/activity';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ActivePanelContext, PanelPositionContext } from 'vs/workbench/common/panel';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 
 export class ClosePanelAction extends Action {
 
@@ -32,9 +32,8 @@ export class ClosePanelAction extends Action {
 		super(id, name, 'codicon-close');
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<void> {
 		this.layoutService.setPanelHidden(true);
-		return Promise.resolve();
 	}
 }
 
@@ -51,9 +50,8 @@ export class TogglePanelAction extends Action {
 		super(id, name, layoutService.isVisible(Parts.PANEL_PART) ? 'panel expanded' : 'panel');
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<void> {
 		this.layoutService.setPanelHidden(this.layoutService.isVisible(Parts.PANEL_PART));
-		return Promise.resolve();
 	}
 }
 
@@ -71,12 +69,12 @@ class FocusPanelAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<void> {
 
 		// Show panel
 		if (!this.layoutService.isVisible(Parts.PANEL_PART)) {
 			this.layoutService.setPanelHidden(false);
-			return Promise.resolve();
+			return;
 		}
 
 		// Focus into active panel
@@ -84,8 +82,6 @@ class FocusPanelAction extends Action {
 		if (panel) {
 			panel.focus();
 		}
-
-		return Promise.resolve();
 	}
 }
 
@@ -115,13 +111,12 @@ export class ToggleMaximizedPanelAction extends Action {
 		}));
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<void> {
 		if (!this.layoutService.isVisible(Parts.PANEL_PART)) {
 			this.layoutService.setPanelHidden(false);
 		}
 
 		this.layoutService.toggleMaximizedPanel();
-		return Promise.resolve();
 	}
 }
 
@@ -133,7 +128,7 @@ const PositionPanelActionId = {
 
 interface PanelActionConfig<T> {
 	id: string;
-	when: ContextKeyExpr;
+	when: ContextKeyExpression;
 	alias: string;
 	label: string;
 	value: T;
@@ -150,9 +145,9 @@ function createPositionPanelActionConfig(id: string, alias: string, label: strin
 }
 
 export const PositionPanelActionConfigs: PanelActionConfig<Position>[] = [
-	createPositionPanelActionConfig(PositionPanelActionId.LEFT, 'View: Panel Position Left', nls.localize('positionPanelLeft', 'Move Panel Left'), Position.LEFT),
-	createPositionPanelActionConfig(PositionPanelActionId.RIGHT, 'View: Panel Position Right', nls.localize('positionPanelRight', 'Move Panel Right'), Position.RIGHT),
-	createPositionPanelActionConfig(PositionPanelActionId.BOTTOM, 'View: Panel Position Bottom', nls.localize('positionPanelBottom', 'Move Panel To Bottom'), Position.BOTTOM),
+	createPositionPanelActionConfig(PositionPanelActionId.LEFT, 'View: Move Panel Left', nls.localize('positionPanelLeft', 'Move Panel Left'), Position.LEFT),
+	createPositionPanelActionConfig(PositionPanelActionId.RIGHT, 'View: Move Panel Right', nls.localize('positionPanelRight', 'Move Panel Right'), Position.RIGHT),
+	createPositionPanelActionConfig(PositionPanelActionId.BOTTOM, 'View: Move Panel To Bottom', nls.localize('positionPanelBottom', 'Move Panel To Bottom'), Position.BOTTOM),
 ];
 
 const positionByActionId = new Map(PositionPanelActionConfigs.map(config => [config.id, config.value]));
@@ -166,10 +161,9 @@ export class SetPanelPositionAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<void> {
 		const position = positionByActionId.get(this.id);
 		this.layoutService.setPanelPosition(position === undefined ? Position.BOTTOM : position);
-		return Promise.resolve();
 	}
 }
 
@@ -182,10 +176,9 @@ export class PanelActivityAction extends ActivityAction {
 		super(activity);
 	}
 
-	run(event: any): Promise<any> {
-		this.panelService.openPanel(this.activity.id, true);
+	async run(): Promise<void> {
+		await this.panelService.openPanel(this.activity.id, true);
 		this.activate();
-		return Promise.resolve();
 	}
 
 	setActivity(activity: IActivity): void {
@@ -225,11 +218,11 @@ export class SwitchPanelViewAction extends Action {
 		super(id, name);
 	}
 
-	run(offset: number): Promise<any> {
+	async run(offset: number): Promise<void> {
 		const pinnedPanels = this.panelService.getPinnedPanels();
 		const activePanel = this.panelService.getActivePanel();
 		if (!activePanel) {
-			return Promise.resolve();
+			return;
 		}
 		let targetPanelId: string | undefined;
 		for (let i = 0; i < pinnedPanels.length; i++) {
@@ -239,9 +232,8 @@ export class SwitchPanelViewAction extends Action {
 			}
 		}
 		if (typeof targetPanelId === 'string') {
-			this.panelService.openPanel(targetPanelId, true);
+			await this.panelService.openPanel(targetPanelId, true);
 		}
-		return Promise.resolve();
 	}
 }
 
@@ -258,7 +250,7 @@ export class PreviousPanelViewAction extends SwitchPanelViewAction {
 		super(id, name, panelService);
 	}
 
-	run(): Promise<any> {
+	run(): Promise<void> {
 		return super.run(-1);
 	}
 }
@@ -276,7 +268,7 @@ export class NextPanelViewAction extends SwitchPanelViewAction {
 		super(id, name, panelService);
 	}
 
-	run(): Promise<any> {
+	run(): Promise<void> {
 		return super.run(1);
 	}
 }

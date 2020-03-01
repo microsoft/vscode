@@ -76,10 +76,10 @@ export class DiskFileSystemProvider extends Disposable implements
 
 	async stat(resource: URI): Promise<IStat> {
 		try {
-			const { stat, isSymbolicLink } = await statLink(this.toFilePath(resource)); // cannot use fs.stat() here to support links properly
+			const { stat, symbolicLink } = await statLink(this.toFilePath(resource)); // cannot use fs.stat() here to support links properly
 
 			return {
-				type: this.toType(stat, isSymbolicLink),
+				type: this.toType(stat, symbolicLink),
 				ctime: stat.birthtime.getTime(), // intentionally not using ctime here, we want the creation time
 				mtime: stat.mtime.getTime(),
 				size: stat.size
@@ -115,12 +115,28 @@ export class DiskFileSystemProvider extends Disposable implements
 		}
 	}
 
-	private toType(entry: Stats | Dirent, isSymbolicLink = entry.isSymbolicLink()): FileType {
-		if (isSymbolicLink) {
-			return FileType.SymbolicLink | (entry.isDirectory() ? FileType.Directory : FileType.File);
+	private toType(entry: Stats | Dirent, symbolicLink?: { dangling: boolean }): FileType {
+
+		// Signal file type by checking for file / directory, except:
+		// - symbolic links pointing to non-existing files are FileType.Unknown
+		// - files that are neither file nor directory are FileType.Unknown
+		let type: FileType;
+		if (symbolicLink?.dangling) {
+			type = FileType.Unknown;
+		} else if (entry.isFile()) {
+			type = FileType.File;
+		} else if (entry.isDirectory()) {
+			type = FileType.Directory;
+		} else {
+			type = FileType.Unknown;
 		}
 
-		return entry.isFile() ? FileType.File : entry.isDirectory() ? FileType.Directory : FileType.Unknown;
+		// Always signal symbolic link as file type additionally
+		if (symbolicLink) {
+			type |= FileType.SymbolicLink;
+		}
+
+		return type;
 	}
 
 	//#endregion

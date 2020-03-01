@@ -82,7 +82,7 @@ const viewDescriptor: IJSONSchema = {
 	type: 'object',
 	properties: {
 		id: {
-			description: localize('vscode.extension.contributes.view.id', 'Identifier of the view. Use this to register a data provider through `vscode.window.registerTreeDataProviderForView` API. Also to trigger activating your extension by registering `onView:${id}` event to `activationEvents`.'),
+			description: localize('vscode.extension.contributes.view.id', 'Identifier of the view. This should be unique across all views. It is recommended to include your extension id as part of the view id. Use this to register a data provider through `vscode.window.registerTreeDataProviderForView` API. Also to trigger activating your extension by registering `onView:${id}` event to `activationEvents`.'),
 			type: 'string'
 		},
 		name: {
@@ -100,7 +100,7 @@ const remoteViewDescriptor: IJSONSchema = {
 	type: 'object',
 	properties: {
 		id: {
-			description: localize('vscode.extension.contributes.view.id', 'Identifier of the view. Use this to register a data provider through `vscode.window.registerTreeDataProviderForView` API. Also to trigger activating your extension by registering `onView:${id}` event to `activationEvents`.'),
+			description: localize('vscode.extension.contributes.view.id', 'Identifier of the view. This should be unique across all views. It is recommended to include your extension id as part of the view id. Use this to register a data provider through `vscode.window.registerTreeDataProviderForView` API. Also to trigger activating your extension by registering `onView:${id}` event to `activationEvents`.'),
 			type: 'string'
 		},
 		name: {
@@ -235,7 +235,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 		for (const viewContainer of viewContainersRegistry.all) {
 			if (viewContainer.extensionId && removedExtensions.has(ExtensionIdentifier.toKey(viewContainer.extensionId))) {
 				// move only those views that do not belong to the removed extension
-				const views = this.viewsRegistry.getViews(viewContainer).filter((view: ICustomViewDescriptor) => !removedExtensions.has(ExtensionIdentifier.toKey(view.extensionId)));
+				const views = this.viewsRegistry.getViews(viewContainer).filter(view => !removedExtensions.has(ExtensionIdentifier.toKey((view as ICustomViewDescriptor).extensionId)));
 				if (views.length) {
 					this.viewsRegistry.moveViews(views, this.getDefaultViewContainer());
 				}
@@ -290,7 +290,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 				const viewsToMove: IViewDescriptor[] = [];
 				for (const existingViewContainer of existingViewContainers) {
 					if (viewContainer !== existingViewContainer) {
-						viewsToMove.push(...this.viewsRegistry.getViews(existingViewContainer).filter((view: ICustomViewDescriptor) => view.originalContainerId === descriptor.id));
+						viewsToMove.push(...this.viewsRegistry.getViews(existingViewContainer).filter(view => (view as ICustomViewDescriptor).originalContainerId === descriptor.id));
 					}
 				}
 				if (viewsToMove.length) {
@@ -314,6 +314,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 					[id, `${id}.state`, { mergeViewWithContainerWhenSingleView: true }]
 				),
 				hideIfEmpty: true,
+				order,
 				icon,
 			}, ViewContainerLocation.Sidebar);
 
@@ -374,16 +375,15 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 					collector.warn(localize('ViewContainerDoesnotExist', "View container '{0}' does not exist and all views registered to it will be added to 'Explorer'.", entry.key));
 				}
 				const container = viewContainer || this.getDefaultViewContainer();
-				const registeredViews = this.viewsRegistry.getViews(container);
 				const viewIds: string[] = [];
 				const viewDescriptors = coalesce(entry.value.map((item, index) => {
 					// validate
 					if (viewIds.indexOf(item.id) !== -1) {
-						collector.error(localize('duplicateView1', "Cannot register multiple views with same id `{0}` in the view container `{1}`", item.id, container.id));
+						collector.error(localize('duplicateView1', "Cannot register multiple views with same id `{0}`", item.id));
 						return null;
 					}
-					if (registeredViews.some(v => v.id === item.id)) {
-						collector.error(localize('duplicateView2', "A view with id `{0}` is already registered in the view container `{1}`", item.id, container.id));
+					if (this.viewsRegistry.getView(item.id) !== null) {
+						collector.error(localize('duplicateView2', "A view with id `{0}` is already registered.", item.id));
 						return null;
 					}
 
@@ -399,8 +399,9 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						ctorDescriptor: new SyncDescriptor(CustomTreeViewPane),
 						when: ContextKeyExpr.deserialize(item.when),
 						canToggleVisibility: true,
+						canMoveView: true,
+						treeView: this.instantiationService.createInstance(CustomTreeView, item.id, item.name),
 						collapsed: this.showCollapsed(container),
-						treeView: this.instantiationService.createInstance(CustomTreeView, item.id, item.name, container),
 						order: order,
 						extensionId: extension.description.identifier,
 						originalContainerId: entry.key,
@@ -423,7 +424,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 	private removeViews(extensions: readonly IExtensionPointUser<ViewExtensionPointType>[]): void {
 		const removedExtensions: Set<string> = extensions.reduce((result, e) => { result.add(ExtensionIdentifier.toKey(e.description.identifier)); return result; }, new Set<string>());
 		for (const viewContainer of this.viewContainersRegistry.all) {
-			const removedViews = this.viewsRegistry.getViews(viewContainer).filter((v: ICustomViewDescriptor) => v.extensionId && removedExtensions.has(ExtensionIdentifier.toKey(v.extensionId)));
+			const removedViews = this.viewsRegistry.getViews(viewContainer).filter(v => (v as ICustomViewDescriptor).extensionId && removedExtensions.has(ExtensionIdentifier.toKey((v as ICustomViewDescriptor).extensionId)));
 			if (removedViews.length) {
 				this.viewsRegistry.deregisterViews(removedViews, viewContainer);
 			}

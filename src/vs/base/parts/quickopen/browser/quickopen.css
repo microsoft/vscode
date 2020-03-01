@@ -85,6 +85,10 @@
 	opacity: 1;
 }
 
+.monaco-quick-open-widget .quick-open-tree .quick-open-entry .monaco-highlighted-label .codicon {
+	vertical-align: sub; /* vertically align codicon */
+}
+
 .monaco-quick-open-widget .quick-open-tree .quick-open-entry-meta {
 	opacity: 0.7;
 	line-height: normal;

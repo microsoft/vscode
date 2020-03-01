@@ -5,7 +5,7 @@
 import * as assert from 'assert';
 import { KeyChord, KeyCode, KeyMod, SimpleKeybinding, createKeybinding, createSimpleKeybinding } from 'vs/base/common/keyCodes';
 import { OS } from 'vs/base/common/platform';
-import { ContextKeyExpr, IContext } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContext, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
@@ -20,7 +20,7 @@ function createContext(ctx: any) {
 
 suite('KeybindingResolver', () => {
 
-	function kbItem(keybinding: number, command: string, commandArgs: any, when: ContextKeyExpr | undefined, isDefault: boolean): ResolvedKeybindingItem {
+	function kbItem(keybinding: number, command: string, commandArgs: any, when: ContextKeyExpression | undefined, isDefault: boolean): ResolvedKeybindingItem {
 		const resolvedKeybinding = (keybinding !== 0 ? new USLayoutResolvedKeybinding(createKeybinding(keybinding, OS)!, OS) : undefined);
 		return new ResolvedKeybindingItem(
 			resolvedKeybinding,
@@ -225,7 +225,7 @@ suite('KeybindingResolver', () => {
 
 	test('resolve command', function () {
 
-		function _kbItem(keybinding: number, command: string, when: ContextKeyExpr | undefined): ResolvedKeybindingItem {
+		function _kbItem(keybinding: number, command: string, when: ContextKeyExpression | undefined): ResolvedKeybindingItem {
 			return kbItem(keybinding, command, null, when, true);
 		}
 

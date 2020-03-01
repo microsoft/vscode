@@ -16,6 +16,9 @@ import { Event } from 'vs/base/common/event';
 import { isEmptyObject } from 'vs/base/common/types';
 import { DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 import { MementoObject } from 'vs/workbench/common/memento';
+import { isEqualOrParent, joinPath } from 'vs/base/common/resources';
+import { isLinux } from 'vs/base/common/platform';
+import { indexOfPath } from 'vs/base/common/extpath';
 
 /**
  * The base class of editors in the workbench. Editors register themselves for specific editor inputs.
@@ -39,7 +42,7 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	readonly minimumHeight = DEFAULT_EDITOR_MIN_DIMENSIONS.height;
 	readonly maximumHeight = DEFAULT_EDITOR_MAX_DIMENSIONS.height;
 
-	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; } | undefined> = Event.None;
+	readonly onDidSizeConstraintsChange = Event.None;
 
 	protected _input: EditorInput | undefined;
 	protected _options: EditorOptions | undefined;
@@ -249,9 +252,37 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 		}
 	}
 
+	moveEditorState(source: URI, target: URI): void {
+		const cache = this.doLoad();
+
+		const cacheKeys = cache.keys();
+		for (const cacheKey of cacheKeys) {
+			const resource = URI.parse(cacheKey);
+
+			if (!isEqualOrParent(resource, source)) {
+				continue; // not matching our resource
+			}
+
+			// Determine new resulting target resource
+			let targetResource: URI;
+			if (source.toString() === resource.toString()) {
+				targetResource = target; // file got moved
+			} else {
+				const index = indexOfPath(resource.path, source.path, !isLinux);
+				targetResource = joinPath(target, resource.path.substr(index + source.path.length + 1)); // parent folder got moved
+			}
+
+			const value = cache.get(cacheKey);
+			if (value) {
+				cache.delete(cacheKey);
+				cache.set(targetResource.toString(), value);
+			}
+		}
+	}
+
 	private doGetResource(resourceOrEditor: URI | EditorInput): URI | undefined {
 		if (resourceOrEditor instanceof EditorInput) {
-			return resourceOrEditor.getResource();
+			return resourceOrEditor.resource;
 		}
 
 		return resourceOrEditor;

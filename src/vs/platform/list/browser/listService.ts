@@ -243,11 +243,13 @@ export class WorkbenchList<T> extends List<T> {
 
 	readonly contextKeyService: IContextKeyService;
 	private readonly configurationService: IConfigurationService;
+	private readonly themeService: IThemeService;
 
 	private listHasSelectionOrFocus: IContextKey<boolean>;
 	private listDoubleSelection: IContextKey<boolean>;
 	private listMultiSelection: IContextKey<boolean>;
 
+	private _styler: IDisposable | undefined;
 	private _useAltAsMultipleSelectionModifier: boolean;
 
 	constructor(
@@ -278,6 +280,7 @@ export class WorkbenchList<T> extends List<T> {
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
 		this.configurationService = configurationService;
+		this.themeService = themeService;
 
 		const listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
 		listSupportsMultiSelect.set(!(options.multipleSelectionSupport === false));
@@ -292,7 +295,7 @@ export class WorkbenchList<T> extends List<T> {
 		this.disposables.add((listService as ListService).register(this));
 
 		if (options.overrideStyles) {
-			this.disposables.add(attachListStyler(this, themeService, options.overrideStyles));
+			this.updateStyles(options.overrideStyles);
 		}
 
 		this.disposables.add(this.onSelectionChange(() => {
@@ -311,6 +314,29 @@ export class WorkbenchList<T> extends List<T> {
 		}));
 
 		this.registerListeners();
+	}
+
+	updateOptions(options: IWorkbenchListOptions<T>): void {
+		super.updateOptions(options);
+
+		if (options.overrideStyles) {
+			this.updateStyles(options.overrideStyles);
+		}
+	}
+
+	dispose(): void {
+		super.dispose();
+		if (this._styler) {
+			this._styler.dispose();
+		}
+	}
+
+	private updateStyles(styles: IColorMapping): void {
+		if (this._styler) {
+			this._styler.dispose();
+		}
+
+		this._styler = attachListStyler(this, this.themeService, styles);
 	}
 
 	private registerListeners(): void {
@@ -738,7 +764,7 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IAccessibilityService accessibilityService: IAccessibilityService
 	) {
-		const { options: treeOptions, getAutomaticKeyboardNavigation, disposable } = workbenchTreeDataPreamble(container, options, contextKeyService, configurationService, keybindingService, accessibilityService);
+		const { options: treeOptions, getAutomaticKeyboardNavigation, disposable } = workbenchTreeDataPreamble<T, TFilterData, IWorkbenchObjectTreeOptions<T, TFilterData>>(container, options, contextKeyService, configurationService, keybindingService, accessibilityService);
 		super(user, container, delegate, renderers, treeOptions);
 		this.disposables.add(disposable);
 		this.internals = new WorkbenchTreeInternals(this, treeOptions, getAutomaticKeyboardNavigation, options.overrideStyles, contextKeyService, listService, themeService, configurationService, accessibilityService);
@@ -769,11 +795,19 @@ export class WorkbenchCompressibleObjectTree<T extends NonNullable<any>, TFilter
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IAccessibilityService accessibilityService: IAccessibilityService
 	) {
-		const { options: treeOptions, getAutomaticKeyboardNavigation, disposable } = workbenchTreeDataPreamble(container, options, contextKeyService, configurationService, keybindingService, accessibilityService);
+		const { options: treeOptions, getAutomaticKeyboardNavigation, disposable } = workbenchTreeDataPreamble<T, TFilterData, IWorkbenchCompressibleObjectTreeOptions<T, TFilterData>>(container, options, contextKeyService, configurationService, keybindingService, accessibilityService);
 		super(user, container, delegate, renderers, treeOptions);
 		this.disposables.add(disposable);
 		this.internals = new WorkbenchTreeInternals(this, treeOptions, getAutomaticKeyboardNavigation, options.overrideStyles, contextKeyService, listService, themeService, configurationService, accessibilityService);
 		this.disposables.add(this.internals);
+	}
+
+	updateOptions(options: IWorkbenchAsyncDataTreeOptions<T, TFilterData> = {}): void {
+		super.updateOptions(options);
+
+		if (options.overrideStyles) {
+			this.internals.updateStyleOverrides(options.overrideStyles);
+		}
 	}
 }
 
@@ -801,11 +835,19 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IAccessibilityService accessibilityService: IAccessibilityService
 	) {
-		const { options: treeOptions, getAutomaticKeyboardNavigation, disposable } = workbenchTreeDataPreamble(container, options, contextKeyService, configurationService, keybindingService, accessibilityService);
+		const { options: treeOptions, getAutomaticKeyboardNavigation, disposable } = workbenchTreeDataPreamble<T, TFilterData, IWorkbenchDataTreeOptions<T, TFilterData>>(container, options, contextKeyService, configurationService, keybindingService, accessibilityService);
 		super(user, container, delegate, renderers, dataSource, treeOptions);
 		this.disposables.add(disposable);
 		this.internals = new WorkbenchTreeInternals(this, treeOptions, getAutomaticKeyboardNavigation, options.overrideStyles, contextKeyService, listService, themeService, configurationService, accessibilityService);
 		this.disposables.add(this.internals);
+	}
+
+	updateOptions(options: IWorkbenchAsyncDataTreeOptions<T, TFilterData> = {}): void {
+		super.updateOptions(options);
+
+		if (options.overrideStyles) {
+			this.internals.updateStyleOverrides(options.overrideStyles);
+		}
 	}
 }
 
@@ -833,11 +875,19 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IAccessibilityService accessibilityService: IAccessibilityService
 	) {
-		const { options: treeOptions, getAutomaticKeyboardNavigation, disposable } = workbenchTreeDataPreamble(container, options, contextKeyService, configurationService, keybindingService, accessibilityService);
+		const { options: treeOptions, getAutomaticKeyboardNavigation, disposable } = workbenchTreeDataPreamble<T, TFilterData, IWorkbenchAsyncDataTreeOptions<T, TFilterData>>(container, options, contextKeyService, configurationService, keybindingService, accessibilityService);
 		super(user, container, delegate, renderers, dataSource, treeOptions);
 		this.disposables.add(disposable);
 		this.internals = new WorkbenchTreeInternals(this, treeOptions, getAutomaticKeyboardNavigation, options.overrideStyles, contextKeyService, listService, themeService, configurationService, accessibilityService);
 		this.disposables.add(this.internals);
+	}
+
+	updateOptions(options: IWorkbenchAsyncDataTreeOptions<T, TFilterData> = {}): void {
+		super.updateOptions(options);
+
+		if (options.overrideStyles) {
+			this.internals.updateStyleOverrides(options.overrideStyles);
+		}
 	}
 }
 
@@ -866,7 +916,7 @@ export class WorkbenchCompressibleAsyncDataTree<TInput, T, TFilterData = void> e
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IAccessibilityService accessibilityService: IAccessibilityService
 	) {
-		const { options: treeOptions, getAutomaticKeyboardNavigation, disposable } = workbenchTreeDataPreamble(container, options, contextKeyService, configurationService, keybindingService, accessibilityService);
+		const { options: treeOptions, getAutomaticKeyboardNavigation, disposable } = workbenchTreeDataPreamble<T, TFilterData, IWorkbenchCompressibleAsyncDataTreeOptions<T, TFilterData>>(container, options, contextKeyService, configurationService, keybindingService, accessibilityService);
 		super(user, container, virtualDelegate, compressionDelegate, renderers, dataSource, treeOptions);
 		this.disposables.add(disposable);
 		this.internals = new WorkbenchTreeInternals(this, treeOptions, getAutomaticKeyboardNavigation, options.overrideStyles, contextKeyService, listService, themeService, configurationService, accessibilityService);
@@ -936,15 +986,16 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 	private hasMultiSelection: IContextKey<boolean>;
 	private _useAltAsMultipleSelectionModifier: boolean;
 	private disposables: IDisposable[] = [];
+	private styler: IDisposable | undefined;
 
 	constructor(
-		tree: WorkbenchObjectTree<T, TFilterData> | CompressibleObjectTree<T, TFilterData> | WorkbenchDataTree<TInput, T, TFilterData> | WorkbenchAsyncDataTree<TInput, T, TFilterData> | WorkbenchCompressibleAsyncDataTree<TInput, T, TFilterData>,
+		private tree: WorkbenchObjectTree<T, TFilterData> | CompressibleObjectTree<T, TFilterData> | WorkbenchDataTree<TInput, T, TFilterData> | WorkbenchAsyncDataTree<TInput, T, TFilterData> | WorkbenchCompressibleAsyncDataTree<TInput, T, TFilterData>,
 		options: IAbstractTreeOptions<T, TFilterData> | IAsyncDataTreeOptions<T, TFilterData>,
 		getAutomaticKeyboardNavigation: () => boolean | undefined,
 		overrideStyles: IColorMapping | undefined,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
-		@IThemeService themeService: IThemeService,
+		@IThemeService private themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 	) {
@@ -970,10 +1021,11 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 			});
 		};
 
+		this.updateStyleOverrides(overrideStyles);
+
 		this.disposables.push(
 			this.contextKeyService,
 			(listService as ListService).register(tree),
-			overrideStyles ? attachListStyler(tree, themeService, overrideStyles) : Disposable.None,
 			tree.onDidChangeSelection(() => {
 				const selection = tree.getSelection();
 				const focus = tree.getFocus();
@@ -1023,8 +1075,15 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 		return this._useAltAsMultipleSelectionModifier;
 	}
 
+	updateStyleOverrides(overrideStyles?: IColorMapping): void {
+		dispose(this.styler);
+		this.styler = overrideStyles ? attachListStyler(this.tree, this.themeService, overrideStyles) : Disposable.None;
+	}
+
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
+		dispose(this.styler);
+		this.styler = undefined;
 	}
 }
 

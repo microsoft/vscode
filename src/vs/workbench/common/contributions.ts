@@ -38,15 +38,17 @@ export interface IWorkbenchContributionsRegistry {
 }
 
 class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry {
+
 	private instantiationService: IInstantiationService | undefined;
 	private lifecycleService: ILifecycleService | undefined;
 
-	private readonly toBeInstantiated: Map<LifecyclePhase, IConstructorSignature0<IWorkbenchContribution>[]> = new Map<LifecyclePhase, IConstructorSignature0<IWorkbenchContribution>[]>();
+	private readonly toBeInstantiated = new Map<LifecyclePhase, IConstructorSignature0<IWorkbenchContribution>[]>();
 
-	registerWorkbenchContribution<Services extends BrandedService[]>(ctor: { new(...services: Services): IWorkbenchContribution }, phase: LifecyclePhase = LifecyclePhase.Starting): void {
+	registerWorkbenchContribution<Services extends BrandedService[]>(ctor: new (...services: Services) => IWorkbenchContribution, phase: LifecyclePhase = LifecyclePhase.Starting): void {
+
 		// Instantiate directly if we are already matching the provided phase
 		if (this.instantiationService && this.lifecycleService && this.lifecycleService.phase >= phase) {
-			this.instantiationService.createInstance(ctor);
+			this.instantiationService.createInstance<Services, typeof ctor, IWorkbenchContribution>(ctor);
 		}
 
 		// Otherwise keep contributions by lifecycle phase
@@ -57,7 +59,7 @@ class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry 
 				this.toBeInstantiated.set(phase, toBeInstantiated);
 			}
 
-			toBeInstantiated.push(ctor);
+			toBeInstantiated.push(ctor as IConstructorSignature0<IWorkbenchContribution>);
 		}
 	}
 
@@ -118,7 +120,7 @@ class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry 
 		try {
 			instantiationService.createInstance(ctor);
 		} catch (error) {
-			console.error(`Unable to instantiate workbench contribution ${(ctor as any).name}.`, error);
+			console.error(`Unable to instantiate workbench contribution ${ctor.name}.`, error);
 		}
 	}
 }

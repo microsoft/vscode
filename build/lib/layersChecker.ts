@@ -39,6 +39,7 @@ const CORE_TYPES = [
 	'group',
 	'groupEnd',
 	'table',
+	'assert',
 	'Error',
 	'String',
 	'throws',
@@ -106,6 +107,15 @@ const RULES = [
 	// Browser
 	{
 		target: '**/vs/**/browser/**',
+		allowedTypes: CORE_TYPES,
+		disallowedDefinitions: [
+			'@types/node'	// no node.js
+		]
+	},
+
+	// Browser (editor contrib)
+	{
+		target: '**/src/vs/editor/contrib/**',
 		allowedTypes: CORE_TYPES,
 		disallowedDefinitions: [
 			'@types/node'	// no node.js

@@ -10,22 +10,26 @@ import { withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IEditor as ICodeEditor, IEditorViewState, ScrollType, IDiffEditor } from 'vs/editor/common/editorCommon';
-import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, IResourceInput, EditorActivation, EditorOpenContext, ITextEditorSelection } from 'vs/platform/editor/common/editor';
+import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, IResourceInput, EditorActivation, EditorOpenContext, ITextEditorSelection, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature0, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
-import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITextModel } from 'vs/editor/common/model';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ICompositeControl } from 'vs/workbench/common/composite';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
-import { IFileService } from 'vs/platform/files/common/files';
+import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { IPathData } from 'vs/platform/windows/common/windows';
 import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
 import { ITextFileSaveOptions, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { isEqual } from 'vs/base/common/resources';
+import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
+import { isEqual, dirname } from 'vs/base/common/resources';
 import { IPanel } from 'vs/workbench/common/panel';
 import { IRange } from 'vs/editor/common/core/range';
+import { createMemoizer } from 'vs/base/common/decorators';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { Schemas } from 'vs/base/common/network';
+import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export const DirtyWorkingCopiesContext = new RawContextKey<boolean>('dirtyWorkingCopies', false);
 export const ActiveEditorContext = new RawContextKey<string | null>('activeEditor', null);
@@ -34,7 +38,7 @@ export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', 
 export const EditorPinnedContext = new RawContextKey<boolean>('editorPinned', false);
 export const EditorGroupActiveEditorDirtyContext = new RawContextKey<boolean>('groupActiveEditorDirty', false);
 export const EditorGroupEditorsCountContext = new RawContextKey<number>('groupEditorsCount', 0);
-export const NoEditorsVisibleContext: ContextKeyExpr = EditorsVisibleContext.toNegated();
+export const NoEditorsVisibleContext = EditorsVisibleContext.toNegated();
 export const TextCompareEditorVisibleContext = new RawContextKey<boolean>('textCompareEditorVisible', false);
 export const TextCompareEditorActiveContext = new RawContextKey<boolean>('textCompareEditorActive', false);
 export const ActiveEditorGroupEmptyContext = new RawContextKey<boolean>('activeEditorGroupEmpty', false);
@@ -161,7 +165,7 @@ export interface IFileInputFactory {
 
 	createFileInput(resource: URI, encoding: string | undefined, mode: string | undefined, instantiationService: IInstantiationService): IFileEditorInput;
 
-	isFileInput(obj: any): obj is IFileEditorInput;
+	isFileInput(obj: unknown): obj is IFileEditorInput;
 }
 
 export interface IEditorInputFactoryRegistry {
@@ -201,7 +205,7 @@ export interface IEditorInputFactoryRegistry {
 export interface IEditorInputFactory {
 
 	/**
-	 * Determines wether the given editor input can be serialized by the factory.
+	 * Determines whether the given editor input can be serialized by the factory.
 	 */
 	canSerialize(editorInput: IEditorInput): boolean;
 
@@ -226,22 +230,22 @@ export interface IUntitledTextResourceInput extends IBaseResourceInput {
 	 * force use the provided resource as associated path. As such, the resource will be used when saving
 	 * the untitled editor.
 	 */
-	resource?: URI;
+	readonly resource?: URI;
 
 	/**
 	 * Optional language of the untitled resource.
 	 */
-	mode?: string;
+	readonly mode?: string;
 
 	/**
 	 * Optional contents of the untitled resource.
 	 */
-	contents?: string;
+	readonly contents?: string;
 
 	/**
 	 * Optional encoding of the untitled resource.
 	 */
-	encoding?: string;
+	readonly encoding?: string;
 }
 
 export interface IResourceDiffInput extends IBaseResourceInput {
@@ -249,12 +253,12 @@ export interface IResourceDiffInput extends IBaseResourceInput {
 	/**
 	 * The left hand side URI to open inside a diff editor.
 	 */
-	leftResource: URI;
+	readonly leftResource: URI;
 
 	/**
 	 * The right hand side URI to open inside a diff editor.
 	 */
-	rightResource: URI;
+	readonly rightResource: URI;
 }
 
 export interface IResourceSideBySideInput extends IBaseResourceInput {
@@ -262,12 +266,12 @@ export interface IResourceSideBySideInput extends IBaseResourceInput {
 	/**
 	 * The right hand side URI to open inside a side by side editor.
 	 */
-	masterResource: URI;
+	readonly masterResource: URI;
 
 	/**
 	 * The left hand side URI to open inside a side by side editor.
 	 */
-	detailResource: URI;
+	readonly detailResource: URI;
 }
 
 export const enum Verbosity {
@@ -299,15 +303,6 @@ export const enum SaveReason {
 	WINDOW_CHANGE = 4
 }
 
-export const enum SaveContext {
-
-	/**
-	 * Indicates that the editor is saved because it
-	 * is being closed by the user.
-	 */
-	EDITOR_CLOSE = 1,
-}
-
 export interface ISaveOptions {
 
 	/**
@@ -316,25 +311,20 @@ export interface ISaveOptions {
 	reason?: SaveReason;
 
 	/**
-	 * Additional information about the context of the save.
-	 */
-	context?: SaveContext;
-
-	/**
 	 * Forces to save the contents of the working copy
 	 * again even if the working copy is not dirty.
 	 */
-	force?: boolean;
+	readonly force?: boolean;
 
 	/**
 	 * Instructs the save operation to skip any save participants.
 	 */
-	skipSaveParticipants?: boolean;
+	readonly skipSaveParticipants?: boolean;
 
 	/**
 	 * A hint as to which file systems should be available for saving.
 	 */
-	availableFileSystems?: string[];
+	readonly availableFileSystems?: string[];
 }
 
 export interface IRevertOptions {
@@ -343,7 +333,7 @@ export interface IRevertOptions {
 	 * Forces to load the contents of the working copy
 	 * again even if the working copy is not dirty.
 	 */
-	force?: boolean;
+	readonly force?: boolean;
 
 	/**
 	 * A soft revert will clear dirty state of a working copy
@@ -352,7 +342,12 @@ export interface IRevertOptions {
 	 * This option may be used in scenarios where an editor is
 	 * closed and where we do not require to load the contents.
 	 */
-	soft?: boolean;
+	readonly soft?: boolean;
+}
+
+export interface IMoveResult {
+	editor: EditorInput | IResourceEditor;
+	options?: IEditorOptions;
 }
 
 export interface IEditorInput extends IDisposable {
@@ -363,9 +358,23 @@ export interface IEditorInput extends IDisposable {
 	readonly onDispose: Event<void>;
 
 	/**
-	 * Returns the associated resource of this input.
+	 * Triggered when this input changes its dirty state.
 	 */
-	getResource(): URI | undefined;
+	readonly onDidChangeDirty: Event<void>;
+
+	/**
+	 * Triggered when this input changes its label
+	 */
+	readonly onDidChangeLabel: Event<void>;
+
+	/**
+	 * Returns the optional associated resource of this input.
+	 *
+	 * This resource should be unique for all editors of the same
+	 * kind and is often used to identify the editor input among
+	 * others.
+	 */
+	readonly resource: URI | undefined;
 
 	/**
 	 * Unique type identifier for this inpput.
@@ -416,23 +425,41 @@ export interface IEditorInput extends IDisposable {
 	isSaving(): boolean;
 
 	/**
-	 * Saves the editor. The provided groupId helps
-	 * implementors to e.g. preserve view state of the editor
-	 * and re-open it in the correct group after saving.
+	 * Saves the editor. The provided groupId helps implementors
+	 * to e.g. preserve view state of the editor and re-open it
+	 * in the correct group after saving.
+	 *
+	 * @returns the resulting editor input (typically the same) of
+	 * this operation or `undefined` to indicate that the operation
+	 * failed or was canceled.
 	 */
-	save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean>;
+	save(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined>;
 
 	/**
-	 * Saves the editor to a different location. The provided groupId
+	 * Saves the editor to a different location. The provided `group`
 	 * helps implementors to e.g. preserve view state of the editor
 	 * and re-open it in the correct group after saving.
+	 *
+	 * @returns the resulting editor input (typically a different one)
+	 * of this operation or `undefined` to indicate that the operation
+	 * failed or was canceled.
 	 */
-	saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean>;
+	saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined>;
 
 	/**
-	 * Reverts this input.
+	 * Reverts this input from the provided group.
 	 */
-	revert(options?: IRevertOptions): Promise<boolean>;
+	revert(group: GroupIdentifier, options?: IRevertOptions): Promise<boolean>;
+
+	/**
+	 * Called to determine how to handle a resource that is moved that matches
+	 * the editors resource (or is a child of).
+	 *
+	 * Implementors are free to not implement this method to signal no intent
+	 * to participate. If an editor is returned though, it will replace the
+	 * current one with that editor and optional options.
+	 */
+	move(group: GroupIdentifier, target: URI): IMoveResult | undefined;
 
 	/**
 	 * Returns if the other object matches this input.
@@ -462,11 +489,9 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 
 	private disposed: boolean = false;
 
-	abstract getTypeId(): string;
+	abstract get resource(): URI | undefined;
 
-	getResource(): URI | undefined {
-		return undefined;
-	}
+	abstract getTypeId(): string;
 
 	getName(): string {
 		return `Editor ${this.getTypeId()}`;
@@ -524,16 +549,20 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 		return false;
 	}
 
-	async save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
+	async save(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
+		return this;
+	}
+
+	async saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
+		return this;
+	}
+
+	async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<boolean> {
 		return true;
 	}
 
-	async saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
-		return true;
-	}
-
-	async revert(options?: IRevertOptions): Promise<boolean> {
-		return true;
+	move(group: GroupIdentifier, target: URI): IMoveResult | undefined {
+		return undefined;
 	}
 
 	/**
@@ -561,58 +590,153 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	}
 }
 
-export abstract class TextEditorInput extends EditorInput {
+export abstract class TextResourceEditorInput extends EditorInput {
+
+	private static readonly MEMOIZER = createMemoizer();
 
 	constructor(
-		protected readonly resource: URI,
+		public readonly resource: URI,
 		@IEditorService protected readonly editorService: IEditorService,
 		@IEditorGroupsService protected readonly editorGroupService: IEditorGroupsService,
-		@ITextFileService protected readonly textFileService: ITextFileService
+		@ITextFileService protected readonly textFileService: ITextFileService,
+		@ILabelService protected readonly labelService: ILabelService,
+		@IFileService protected readonly fileService: IFileService,
+		@IFilesConfigurationService protected readonly filesConfigurationService: IFilesConfigurationService
 	) {
 		super();
+
+		this.registerListeners();
 	}
 
-	getResource(): URI {
-		return this.resource;
+	protected registerListeners(): void {
+
+		// Clear label memoizer on certain events that have impact
+		this._register(this.labelService.onDidChangeFormatters(() => TextResourceEditorInput.MEMOIZER.clear()));
+		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(() => TextResourceEditorInput.MEMOIZER.clear()));
 	}
 
-	async save(groupId: GroupIdentifier, options?: ITextFileSaveOptions): Promise<boolean> {
-		return this.textFileService.save(this.resource, options);
+	getName(): string {
+		return this.basename;
 	}
 
-	saveAs(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<boolean> {
-		return this.doSaveAs(group, options, () => this.textFileService.saveAs(this.resource, undefined, options));
+	@TextResourceEditorInput.MEMOIZER
+	private get basename(): string {
+		return this.labelService.getUriBasenameLabel(this.resource);
 	}
 
-	protected async doSaveAs(group: GroupIdentifier, options: ISaveOptions | undefined, saveRunnable: () => Promise<URI | undefined>, replaceAllEditors?: boolean): Promise<boolean> {
+	getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string | undefined {
+		switch (verbosity) {
+			case Verbosity.SHORT:
+				return this.shortDescription;
+			case Verbosity.LONG:
+				return this.longDescription;
+			case Verbosity.MEDIUM:
+			default:
+				return this.mediumDescription;
+		}
+	}
 
-		// Preserve view state by opening the editor first. In addition
-		// this allows the user to review the contents of the editor.
-		let viewState: IEditorViewState | undefined = undefined;
-		const editor = await this.editorService.openEditor(this, undefined, group);
-		if (isTextEditor(editor)) {
-			viewState = editor.getViewState();
+	@TextResourceEditorInput.MEMOIZER
+	private get shortDescription(): string {
+		return this.labelService.getUriBasenameLabel(dirname(this.resource));
+	}
+
+	@TextResourceEditorInput.MEMOIZER
+	private get mediumDescription(): string {
+		return this.labelService.getUriLabel(dirname(this.resource), { relative: true });
+	}
+
+	@TextResourceEditorInput.MEMOIZER
+	private get longDescription(): string {
+		return this.labelService.getUriLabel(dirname(this.resource));
+	}
+
+	@TextResourceEditorInput.MEMOIZER
+	private get shortTitle(): string {
+		return this.getName();
+	}
+
+	@TextResourceEditorInput.MEMOIZER
+	private get mediumTitle(): string {
+		return this.labelService.getUriLabel(this.resource, { relative: true });
+	}
+
+	@TextResourceEditorInput.MEMOIZER
+	private get longTitle(): string {
+		return this.labelService.getUriLabel(this.resource);
+	}
+
+	getTitle(verbosity: Verbosity): string {
+		switch (verbosity) {
+			case Verbosity.SHORT:
+				return this.shortTitle;
+			case Verbosity.LONG:
+				return this.longTitle;
+			default:
+			case Verbosity.MEDIUM:
+				return this.mediumTitle;
+		}
+	}
+
+	isUntitled(): boolean {
+		return this.resource.scheme === Schemas.untitled;
+	}
+
+	isReadonly(): boolean {
+		if (this.isUntitled()) {
+			return false; // untitled is never readonly
 		}
 
-		// Save as
-		const target = await saveRunnable();
+		if (!this.fileService.canHandleResource(this.resource)) {
+			return true; // resources without file support are always readonly
+		}
+
+		return this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
+	}
+
+	isSaving(): boolean {
+		if (this.isUntitled()) {
+			return false; // untitled is never saving automatically
+		}
+
+		if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
+			return true; // a short auto save is configured, treat this as being saved
+		}
+
+		return false;
+	}
+
+	async save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IEditorInput | undefined> {
+		return this.doSave(group, options, false);
+	}
+
+	saveAs(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IEditorInput | undefined> {
+		return this.doSave(group, options, true);
+	}
+
+	private async doSave(group: GroupIdentifier, options: ISaveOptions | undefined, saveAs: boolean): Promise<IEditorInput | undefined> {
+
+		// Save / Save As
+		let target: URI | undefined;
+		if (saveAs) {
+			target = await this.textFileService.saveAs(this.resource, undefined, options);
+		} else {
+			target = await this.textFileService.save(this.resource, options);
+		}
+
 		if (!target) {
-			return false; // save cancelled
+			return undefined; // save cancelled
 		}
 
-		// Replace editor preserving viewstate (either across all groups or
-		// only selected group) if the target is different from the current resource
-		// and if the editor is not being saved because it is being closed
-		// (because in that case we do not want to open a different editor anyway)
-		if (options?.context !== SaveContext.EDITOR_CLOSE && !isEqual(target, this.resource)) {
-			const replacement = this.editorService.createInput({ resource: target });
-			const targetGroups = replaceAllEditors ? this.editorGroupService.groups.map(group => group.id) : [group];
-			for (const group of targetGroups) {
-				await this.editorService.replaceEditors([{ editor: this, replacement, options: { pinned: true, viewState } }], group);
-			}
+		if (!isEqual(target, this.resource)) {
+			return this.editorService.createInput({ resource: target });
 		}
 
-		return true;
+		return this;
+	}
+
+	revert(group: GroupIdentifier, options?: IRevertOptions): Promise<boolean> {
+		return this.textFileService.revert(this.resource, options);
 	}
 }
 
@@ -659,7 +783,7 @@ export interface IFileEditorInput extends IEditorInput, IEncodingSupport, IModeS
 	/**
 	 * Gets the resource this editor is about.
 	 */
-	getResource(): URI;
+	readonly resource: URI;
 
 	/**
 	 * Sets the preferred encoding to use for this input.
@@ -675,6 +799,11 @@ export interface IFileEditorInput extends IEditorInput, IEncodingSupport, IModeS
 	 * Forces this file input to open as binary instead of text.
 	 */
 	setForceOpenAsBinary(): void;
+
+	/**
+	 * Figure out if the input has been resolved or not.
+	 */
+	isResolved(): boolean;
 }
 
 /**
@@ -693,6 +822,10 @@ export class SideBySideEditorInput extends EditorInput {
 		super();
 
 		this.registerListeners();
+	}
+
+	get resource(): URI | undefined {
+		return undefined;
 	}
 
 	get master(): EditorInput {
@@ -735,16 +868,16 @@ export class SideBySideEditorInput extends EditorInput {
 		return this.master.isSaving();
 	}
 
-	save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
-		return this.master.save(groupId, options);
+	save(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
+		return this.master.save(group, options);
 	}
 
-	saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
-		return this.master.saveAs(groupId, options);
+	saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
+		return this.master.saveAs(group, options);
 	}
 
-	revert(options?: IRevertOptions): Promise<boolean> {
-		return this.master.revert(options);
+	revert(group: GroupIdentifier, options?: IRevertOptions): Promise<boolean> {
+		return this.master.revert(group, options);
 	}
 
 	getTelemetryDescriptor(): { [key: string]: unknown } {
@@ -1006,9 +1139,9 @@ export class TextEditorOptions extends EditorOptions implements ITextEditorOptio
 	editorViewState: IEditorViewState | undefined;
 
 	/**
-	 * Option to scroll vertically or horizontally as necessary and reveal a range centered vertically only if it lies outside the viewport.
+	 * Option to control the text editor selection reveal type.
 	 */
-	revealInCenterIfOutsideViewport: boolean | undefined;
+	selectionRevealType: TextEditorSelectionRevealType | undefined;
 
 	static from(input?: IBaseResourceInput): TextEditorOptions | undefined {
 		if (!input || !input.options) {
@@ -1047,8 +1180,8 @@ export class TextEditorOptions extends EditorOptions implements ITextEditorOptio
 			this.editorViewState = options.viewState as IEditorViewState;
 		}
 
-		if (typeof options.revealInCenterIfOutsideViewport === 'boolean') {
-			this.revealInCenterIfOutsideViewport = options.revealInCenterIfOutsideViewport;
+		if (typeof options.selectionRevealType !== 'undefined') {
+			this.selectionRevealType = options.selectionRevealType;
 		}
 
 		return this;
@@ -1058,7 +1191,7 @@ export class TextEditorOptions extends EditorOptions implements ITextEditorOptio
 	 * Returns if this options object has objects defined for the editor.
 	 */
 	hasOptionsDefined(): boolean {
-		return !!this.editorViewState || !!this.revealInCenterIfOutsideViewport || !!this.selection;
+		return !!this.editorViewState || !!this.selectionRevealType || !!this.selection;
 	}
 
 	/**
@@ -1098,7 +1231,11 @@ export class TextEditorOptions extends EditorOptions implements ITextEditorOptio
 
 			editor.setSelection(range);
 
-			if (this.revealInCenterIfOutsideViewport) {
+			if (this.selectionRevealType === TextEditorSelectionRevealType.NearTop) {
+				editor.revealRangeNearTop(range, scrollType);
+			} else if (this.selectionRevealType === TextEditorSelectionRevealType.NearTopIfOutsideViewport) {
+				editor.revealRangeNearTopIfOutsideViewport(range, scrollType);
+			} else if (this.selectionRevealType === TextEditorSelectionRevealType.CenterIfOutsideViewport) {
 				editor.revealRangeInCenterIfOutsideViewport(range, scrollType);
 			} else {
 				editor.revealRangeInCenter(range, scrollType);
@@ -1206,7 +1343,7 @@ export function toResource(editor: IEditorInput | undefined, options?: IResource
 		editor = options.supportSideBySide === SideBySideEditor.MASTER ? editor.master : editor.details;
 	}
 
-	const resource = editor.getResource();
+	const resource = editor.resource;
 	if (!resource || !options || !options.filterByScheme) {
 		return resource;
 	}
@@ -1237,6 +1374,8 @@ export interface IEditorMemento<T> {
 
 	clearEditorState(resource: URI, group?: IEditorGroup): void;
 	clearEditorState(editor: EditorInput, group?: IEditorGroup): void;
+
+	moveEditorState(source: URI, target: URI): void;
 }
 
 class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {

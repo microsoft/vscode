@@ -74,6 +74,7 @@ export class ViewLineOptions {
 	public readonly renderControlCharacters: boolean;
 	public readonly spaceWidth: number;
 	public readonly middotWidth: number;
+	public readonly wsmiddotWidth: number;
 	public readonly useMonospaceOptimizations: boolean;
 	public readonly canUseHalfwidthRightwardsArrow: boolean;
 	public readonly lineHeight: number;
@@ -88,6 +89,7 @@ export class ViewLineOptions {
 		this.renderControlCharacters = options.get(EditorOption.renderControlCharacters);
 		this.spaceWidth = fontInfo.spaceWidth;
 		this.middotWidth = fontInfo.middotWidth;
+		this.wsmiddotWidth = fontInfo.wsmiddotWidth;
 		this.useMonospaceOptimizations = (
 			fontInfo.isMonospace
 			&& !options.get(EditorOption.disableMonospaceOptimizations)
@@ -105,6 +107,7 @@ export class ViewLineOptions {
 			&& this.renderControlCharacters === other.renderControlCharacters
 			&& this.spaceWidth === other.spaceWidth
 			&& this.middotWidth === other.middotWidth
+			&& this.wsmiddotWidth === other.wsmiddotWidth
 			&& this.useMonospaceOptimizations === other.useMonospaceOptimizations
 			&& this.canUseHalfwidthRightwardsArrow === other.canUseHalfwidthRightwardsArrow
 			&& this.lineHeight === other.lineHeight
@@ -192,7 +195,7 @@ export class ViewLine implements IVisibleLine {
 				const endColumn = (selection.endLineNumber === lineNumber ? selection.endColumn : lineData.maxColumn);
 
 				if (startColumn < endColumn) {
-					if (this._options.renderWhitespace !== 'selection') {
+					if (options.themeType === HIGH_CONTRAST || this._options.renderWhitespace !== 'selection') {
 						actualInlineDecorations.push(new LineDecoration(startColumn, endColumn, 'inline-selected-text', InlineDecorationType.Regular));
 					} else {
 						if (!selectionsOnLine) {
@@ -219,6 +222,7 @@ export class ViewLine implements IVisibleLine {
 			lineData.startVisibleColumn,
 			options.spaceWidth,
 			options.middotWidth,
+			options.wsmiddotWidth,
 			options.stopRenderingLineAfter,
 			options.renderWhitespace,
 			options.renderControlCharacters,

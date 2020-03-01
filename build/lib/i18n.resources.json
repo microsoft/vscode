@@ -111,6 +111,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/openInDesktop",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/performance",
 			"project": "vscode-workbench"
 		},
@@ -140,6 +144,10 @@
 		},
 		{
 			"name": "vs/workbench/contrib/search",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/searchEditor",
 			"project": "vscode-workbench"
 		},
 		{
@@ -295,6 +303,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/workingCopy",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/workspaces",
 			"project": "vscode-workbench"
 		},
@@ -320,6 +332,10 @@
 		},
 		{
 			"name": "vs/workbench/services/userDataSync",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/timeline",
 			"project": "vscode-workbench"
 		}
 	]

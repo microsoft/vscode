@@ -216,14 +216,16 @@ export abstract class ReferencesController implements IEditorContribution {
 		}
 	}
 
-	closeWidget(): void {
+	closeWidget(focusEditor = true): void {
 		this._referenceSearchVisible.reset();
 		this._disposables.clear();
 		dispose(this._widget);
 		dispose(this._model);
 		this._widget = undefined;
 		this._model = undefined;
-		this._editor.focus();
+		if (focusEditor) {
+			this._editor.focus();
+		}
 		this._requestIdPool += 1; // Cancel pending requests
 	}
 
@@ -300,7 +302,7 @@ function withController(accessor: ServicesAccessor, fn: (controller: ReferencesC
 }
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'changePeekFocus',
+	id: 'togglePeekWidgetFocus',
 	weight: KeybindingWeight.EditorContrib,
 	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.F2),
 	when: ContextKeyExpr.or(ctxReferenceSearchVisible, PeekContext.inPeekEditor),

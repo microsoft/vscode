@@ -15,7 +15,7 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWo
 import { IEditorInputFactory, EditorInput, IFileEditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions } from 'vs/workbench/common/editor';
 import { AutoSaveConfiguration, HotExitConfiguration } from 'vs/platform/files/common/files';
 import { VIEWLET_ID, SortOrder, FILE_EDITOR_INPUT_ID, IExplorerService } from 'vs/workbench/contrib/files/common/files';
-import { FileEditorTracker } from 'vs/workbench/contrib/files/browser/editors/fileEditorTracker';
+import { TextFileEditorTracker } from 'vs/workbench/contrib/files/browser/editors/textFileEditorTracker';
 import { TextFileSaveErrorHandler } from 'vs/workbench/contrib/files/browser/editors/textFileSaveErrorHandler';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { BinaryFileEditor } from 'vs/workbench/contrib/files/browser/editors/binaryFileEditor';
@@ -113,8 +113,7 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 });
 
 interface ISerializedFileInput {
-	resource: string;
-	resourceJSON: object;
+	resourceJSON: UriComponents;
 	encoding?: string;
 	modeId?: string;
 }
@@ -128,9 +127,8 @@ class FileEditorInputFactory implements IEditorInputFactory {
 
 	serialize(editorInput: EditorInput): string {
 		const fileEditorInput = <FileEditorInput>editorInput;
-		const resource = fileEditorInput.getResource();
+		const resource = fileEditorInput.resource;
 		const fileInput: ISerializedFileInput = {
-			resource: resource.toString(), // Keep for backwards compatibility
 			resourceJSON: resource.toJSON(),
 			encoding: fileEditorInput.getEncoding(),
 			modeId: fileEditorInput.getPreferredMode() // only using the preferred user associated mode here if available to not store redundant data
@@ -142,7 +140,7 @@ class FileEditorInputFactory implements IEditorInputFactory {
 	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): FileEditorInput {
 		return instantiationService.invokeFunction<FileEditorInput>(accessor => {
 			const fileInput: ISerializedFileInput = JSON.parse(serializedEditorInput);
-			const resource = !!fileInput.resourceJSON ? URI.revive(<UriComponents>fileInput.resourceJSON) : URI.parse(fileInput.resource);
+			const resource = URI.revive(fileInput.resourceJSON);
 			const encoding = fileInput.encoding;
 			const mode = fileInput.modeId;
 
@@ -156,8 +154,8 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 // Register Explorer views
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ExplorerViewletViewsContribution, LifecyclePhase.Starting);
 
-// Register File Editor Tracker
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(FileEditorTracker, LifecyclePhase.Starting);
+// Register Text File Editor Tracker
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TextFileEditorTracker, LifecyclePhase.Starting);
 
 // Register Text File Save Error Handler
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TextFileSaveErrorHandler, LifecyclePhase.Starting);
@@ -292,18 +290,18 @@ configurationRegistry.registerConfiguration({
 			'type': 'string',
 			'enum': [AutoSaveConfiguration.OFF, AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, AutoSaveConfiguration.ON_WINDOW_CHANGE],
 			'markdownEnumDescriptions': [
-				nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'files.autoSave.off' }, "A dirty file is never automatically saved."),
-				nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'files.autoSave.afterDelay' }, "A dirty file is automatically saved after the configured `#files.autoSaveDelay#`."),
-				nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'files.autoSave.onFocusChange' }, "A dirty file is automatically saved when the editor loses focus."),
-				nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'files.autoSave.onWindowChange' }, "A dirty file is automatically saved when the window loses focus.")
+				nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'files.autoSave.off' }, "A dirty editor is never automatically saved."),
+				nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'files.autoSave.afterDelay' }, "A dirty editor is automatically saved after the configured `#files.autoSaveDelay#`."),
+				nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'files.autoSave.onFocusChange' }, "A dirty editor is automatically saved when the editor loses focus."),
+				nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'files.autoSave.onWindowChange' }, "A dirty editor is automatically saved when the window loses focus.")
 			],
 			'default': platform.isWeb ? AutoSaveConfiguration.AFTER_DELAY : AutoSaveConfiguration.OFF,
-			'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'autoSave' }, "Controls auto save of dirty files. Read more about autosave [here](https://code.visualstudio.com/docs/editor/codebasics#_save-auto-save).", AutoSaveConfiguration.OFF, AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, AutoSaveConfiguration.ON_WINDOW_CHANGE, AutoSaveConfiguration.AFTER_DELAY)
+			'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'autoSave' }, "Controls auto save of dirty editors. Read more about autosave [here](https://code.visualstudio.com/docs/editor/codebasics#_save-auto-save).", AutoSaveConfiguration.OFF, AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, AutoSaveConfiguration.ON_WINDOW_CHANGE, AutoSaveConfiguration.AFTER_DELAY)
 		},
 		'files.autoSaveDelay': {
 			'type': 'number',
 			'default': 1000,
-			'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'autoSaveDelay' }, "Controls the delay in ms after which a dirty file is saved automatically. Only applies when `#files.autoSave#` is set to `{0}`.", AutoSaveConfiguration.AFTER_DELAY)
+			'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'autoSaveDelay' }, "Controls the delay in ms after which a dirty editor is saved automatically. Only applies when `#files.autoSave#` is set to `{0}`.", AutoSaveConfiguration.AFTER_DELAY)
 		},
 		'files.watcherExclude': {
 			'type': 'object',
@@ -314,7 +312,7 @@ configurationRegistry.registerConfiguration({
 		'files.hotExit': hotExitConfiguration,
 		'files.defaultLanguage': {
 			'type': 'string',
-			'description': nls.localize('defaultLanguage', "The default language mode that is assigned to new files. If configured to `${activeEditorLanguage}`, will use the language mode of the currently active text editor if any.")
+			'markdownDescription': nls.localize('defaultLanguage', "The default language mode that is assigned to new files. If configured to `${activeEditorLanguage}`, will use the language mode of the currently active text editor if any.")
 		},
 		'files.maxMemoryForLargeFilesMB': {
 			'type': 'number',
@@ -322,10 +320,18 @@ configurationRegistry.registerConfiguration({
 			'markdownDescription': nls.localize('maxMemoryForLargeFilesMB', "Controls the memory available to VS Code after restart when trying to open large files. Same effect as specifying `--max-memory=NEWSIZE` on the command line."),
 			included: platform.isNative
 		},
-		'files.preventSaveConflicts': {
-			'type': 'boolean',
-			'description': nls.localize('files.preventSaveConflicts', "When enabled, will prevent to save a file that has been changed since it was last edited. Instead, a diff editor is provided to compare the changes and accept or revert them. This setting should only be disabled if you frequently encounter save conflict errors and may result in data loss if used without caution."),
-			'default': true,
+		'files.saveConflictResolution': {
+			'type': 'string',
+			'enum': [
+				'askUser',
+				'overwriteFileOnDisk'
+			],
+			'enumDescriptions': [
+				nls.localize('askUser', "Will refuse to save and ask for resolving the save conflict manually."),
+				nls.localize('overwriteFileOnDisk', "Will resolve the save conflict by overwriting the file on disk with the changes in the editor.")
+			],
+			'description': nls.localize('files.saveConflictResolution', "A save conflict can occur when a file is saved to disk that was changed by another program in the meantime. To prevent data loss, the user is asked to compare the changes in the editor with the version on disk. This setting should only be changed if you frequently encounter save conflict errors and may result in data loss if used without caution."),
+			'default': 'askUser',
 			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE
 		},
 		'files.simpleDialog.enable': {

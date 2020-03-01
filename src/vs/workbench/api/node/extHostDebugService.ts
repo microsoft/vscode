@@ -96,10 +96,8 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 					// shellArgs: this._terminalService._getDefaultShellArgs(configProvider),
 					cwd: args.cwd,
 					name: args.title || nls.localize('debug.terminal.title', "debuggee"),
-					env: args.env
 				};
 				delete args.cwd;
-				delete args.env;
 				this._integratedTerminalInstance = this._terminalService.createTerminalFromOptions(options);
 			}
 

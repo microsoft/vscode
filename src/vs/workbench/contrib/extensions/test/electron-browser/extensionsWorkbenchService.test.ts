@@ -18,7 +18,7 @@ import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManage
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionTipsService } from 'vs/workbench/contrib/extensions/browser/extensionTipsService';
-import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/electron-browser/extensionEnablementService.test';
+import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/browser/extensionEnablementService.test';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { IURLService } from 'vs/platform/url/common/url';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -27,7 +27,8 @@ import { IPager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TestContextService, TestSharedProcessService } from 'vs/workbench/test/workbenchTestServices';
+import { TestContextService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestSharedProcessService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IProgressService } from 'vs/platform/progress/common/progress';
@@ -942,16 +943,6 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			});
 	});
 
-	test('test installing an extension re-eanbles it when disabled globally', async () => {
-		testObject = await aWorkbenchService();
-		const local = aLocalExtension('pub.a');
-		await instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally);
-		didInstallEvent.fire({ local, identifier: local.identifier, operation: InstallOperation.Install });
-		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
-		const actual = await testObject.queryLocal();
-		assert.equal(actual[0].enablementState, EnablementState.EnabledGlobally);
-	});
-
 	test('test updating an extension does not re-eanbles it when disabled globally', async () => {
 		testObject = await aWorkbenchService();
 		const local = aLocalExtension('pub.a');
@@ -960,16 +951,6 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 		const actual = await testObject.queryLocal();
 		assert.equal(actual[0].enablementState, EnablementState.DisabledGlobally);
-	});
-
-	test('test installing an extension re-eanbles it when workspace disabled', async () => {
-		testObject = await aWorkbenchService();
-		const local = aLocalExtension('pub.a');
-		await instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([local], EnablementState.DisabledWorkspace);
-		didInstallEvent.fire({ local, identifier: local.identifier, operation: InstallOperation.Install });
-		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
-		const actual = await testObject.queryLocal();
-		assert.equal(actual[0].enablementState, EnablementState.EnabledGlobally);
 	});
 
 	test('test updating an extension does not re-eanbles it when workspace disabled', async () => {

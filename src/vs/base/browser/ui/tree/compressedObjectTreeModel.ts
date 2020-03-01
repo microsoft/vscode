@@ -205,6 +205,10 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 		this.model.setChildren(node, children, _onDidCreateNode, _onDidDeleteNode);
 	}
 
+	has(element: T | null): boolean {
+		return this.nodes.has(element);
+	}
+
 	getListIndex(location: T | null): number {
 		const node = this.getCompressedNode(location);
 		return this.model.getListIndex(node);
@@ -419,6 +423,10 @@ export class CompressibleObjectTreeModel<T extends NonNullable<any>, TFilterData
 
 	setCompressionEnabled(enabled: boolean): void {
 		this.model.setCompressionEnabled(enabled);
+	}
+
+	has(location: T | null): boolean {
+		return this.model.has(location);
 	}
 
 	getListIndex(location: T | null): number {
