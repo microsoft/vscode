@@ -80,7 +80,7 @@ export class GitTimelineProvider implements TimelineProvider {
 	constructor(private readonly _model: Model) {
 		this._disposable = Disposable.from(
 			_model.onDidOpenRepository(this.onRepositoriesChanged, this),
-			workspace.registerTimelineProvider('*', this),
+			workspace.registerTimelineProvider(['file', 'git', 'gitlens-git'], this),
 		);
 	}
 
