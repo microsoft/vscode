@@ -182,7 +182,7 @@ export class GitTimelineProvider implements TimelineProvider {
 				const item = new GitTimelineItem('~', 'HEAD', localize('git.timeline.stagedChanges', 'Staged Changes'), date.getTime(), 'index', 'git:file:index');
 				// TODO[ECA]: Replace with a better icon -- reflecting its status maybe?
 				item.iconPath = new (ThemeIcon as any)('git-commit');
-				item.description = you;
+				item.description = '';
 				item.detail = localize('git.timeline.detail', '{0}  \u2014 {1}\n{2}\n\n{3}', you, localize('git.index', 'Index'), dateFormatter.format('MMMM Do, YYYY h:mma'), Resource.getStatusText(index.type));
 				item.command = {
 					title: 'Open Comparison',
@@ -201,7 +201,7 @@ export class GitTimelineProvider implements TimelineProvider {
 				const item = new GitTimelineItem('', index ? '~' : 'HEAD', localize('git.timeline.uncommitedChanges', 'Uncommited Changes'), date.getTime(), 'working', 'git:file:working');
 				// TODO[ECA]: Replace with a better icon -- reflecting its status maybe?
 				item.iconPath = new (ThemeIcon as any)('git-commit');
-				item.description = you;
+				item.description = '';
 				item.detail = localize('git.timeline.detail', '{0}  \u2014 {1}\n{2}\n\n{3}', you, localize('git.workingTree', 'Working Tree'), dateFormatter.format('MMMM Do, YYYY h:mma'), Resource.getStatusText(working.type));
 				item.command = {
 					title: 'Open Comparison',
