@@ -1246,11 +1246,11 @@ export interface SelectionRangeProvider {
 export interface FoldingContext {
 }
 /**
- * A provider of colors for editor models.
+ * A provider of folding ranges for editor models.
  */
 export interface FoldingRangeProvider {
 	/**
-	 * Provides the color ranges for a specific model.
+	 * Provides the folding ranges for a specific model.
 	 */
 	provideFoldingRanges(model: model.ITextModel, context: FoldingContext, token: CancellationToken): ProviderResult<FoldingRange[]>;
 }

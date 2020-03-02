@@ -6040,7 +6040,7 @@ declare namespace monaco.languages {
 	 */
 	export interface FoldingRangeProvider {
 		/**
-		 * Provides the color ranges for a specific model.
+		 * Provides the folding ranges for a specific model.
 		 */
 		provideFoldingRanges(model: editor.ITextModel, context: FoldingContext, token: CancellationToken): ProviderResult<FoldingRange[]>;
 	}
