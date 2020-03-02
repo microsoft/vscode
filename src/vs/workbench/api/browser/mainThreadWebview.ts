@@ -22,7 +22,7 @@ import { IEditorInput } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { CustomEditorInput, ModelType } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
-import { WebviewExtensionDescription } from 'vs/workbench/contrib/webview/browser/webview';
+import { WebviewExtensionDescription, WebviewIcons } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
 import { ICreateWebViewShowOptions, IWebviewWorkbenchService, WebviewInputOptions } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -510,13 +510,8 @@ function reviveWebviewOptions(options: modes.IWebviewOptions): WebviewInputOptio
 
 function reviveWebviewIcon(
 	value: { light: UriComponents, dark: UriComponents; } | undefined
-): { light: URI, dark: URI; } | undefined {
-	if (!value) {
-		return undefined;
-	}
-
-	return {
-		light: URI.revive(value.light),
-		dark: URI.revive(value.dark)
-	};
+): WebviewIcons | undefined {
+	return value
+		? { light: URI.revive(value.light), dark: URI.revive(value.dark) }
+		: undefined;
 }
