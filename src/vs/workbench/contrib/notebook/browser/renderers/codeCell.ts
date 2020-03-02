@@ -311,11 +311,7 @@ export class CodeCell extends Disposable {
 	}
 
 	generateRendererInfo(renderId: number | undefined): string {
-		if (renderId === undefined) {
-			return '';
-		}
-
-		if (renderId === -1) {
+		if (renderId === undefined || renderId === -1) {
 			return 'builtin';
 		}
 
@@ -325,7 +321,7 @@ export class CodeCell extends Disposable {
 			return renderInfo.id.value;
 		}
 
-		return '';
+		return 'builtin';
 	}
 
 	async pickActiveMimeTypeRenderer(output: ITransformedDisplayOutputDto) {
