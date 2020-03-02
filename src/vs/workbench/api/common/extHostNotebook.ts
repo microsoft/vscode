@@ -339,7 +339,7 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument, vscode.
 			let handlers = this.renderingHandler.findBestMatchedRenderer(mimeType);
 
 			if (handlers.length) {
-				let renderedOutput = handlers[0].render(this, cell, output);
+				let renderedOutput = handlers[0].render(this, cell, output, mimeType);
 
 				orderMimeTypes.push({
 					mimeType: mimeType,
@@ -551,8 +551,8 @@ export class ExtHostNotebookOutputRenderer {
 		return false;
 	}
 
-	render(document: ExtHostNotebookDocument, cell: ExtHostCell, output: vscode.CellOutput): string {
-		let html = this.renderer.render(document, cell, output);
+	render(document: ExtHostNotebookDocument, cell: ExtHostCell, output: vscode.CellOutput, mimeType: string): string {
+		let html = this.renderer.render(document, cell, output, mimeType);
 
 		return html;
 		// return {
