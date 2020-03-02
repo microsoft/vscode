@@ -457,7 +457,7 @@ class ViewModel {
 			}
 		}
 
-		this.refresh();
+		this.refresh(undefined, this._treeViewState);
 		this._onDidChangeMode.fire(mode);
 	}
 
@@ -479,7 +479,9 @@ class ViewModel {
 		private _treeViewState: ITreeViewState | undefined,
 		@IEditorService protected editorService: IEditorService,
 		@IConfigurationService protected configurationService: IConfigurationService
-	) { }
+	) {
+		this.disposables.add(this.tree.onDidChangeCollapseState(() => this.updateViewState()));
+	}
 
 	private onDidSpliceGroups({ start, deleteCount, toInsert }: ISplice<ISCMResourceGroup>): void {
 		const itemsToInsert: IGroupItem[] = [];
@@ -509,7 +511,7 @@ class ViewModel {
 			item.disposable.dispose();
 		}
 
-		this.refresh(undefined, toInsert.length > 0 ? this._treeViewState : undefined);
+		this.refresh(undefined, this._treeViewState);
 	}
 
 	private onDidSpliceGroup(item: IGroupItem, { start, deleteCount, toInsert }: ISplice<ISCMResource>): void {
@@ -551,7 +553,7 @@ class ViewModel {
 
 	private refresh(item?: IGroupItem, treeViewState?: ITreeViewState): void {
 		if (item) {
-			this.tree.setChildren(item.group, groupItemAsTreeElement(item, this.mode).children);
+			this.tree.setChildren(item.group, groupItemAsTreeElement(item, this.mode, treeViewState).children);
 		} else {
 			this.tree.setChildren(null, this.items.map(item => groupItemAsTreeElement(item, this.mode, treeViewState)));
 		}
