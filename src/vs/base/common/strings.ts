@@ -15,7 +15,7 @@ export function isFalsyOrWhitespace(str: string | undefined): boolean {
 }
 
 /**
- * @returns the provided number with the given number of preceding zeros.
+ * @deprecated ES6: use `String.padStart`
  */
 export function pad(n: number, l: number, char: string = '0'): string {
 	const str = '' + n;
@@ -146,7 +146,7 @@ export function stripWildcards(pattern: string): string {
 }
 
 /**
- * Determines if haystack starts with needle.
+ * @deprecated ES6: use `String.startsWith`
  */
 export function startsWith(haystack: string, needle: string): boolean {
 	if (haystack.length < needle.length) {
@@ -167,7 +167,7 @@ export function startsWith(haystack: string, needle: string): boolean {
 }
 
 /**
- * Determines if haystack ends with needle.
+ * @deprecated ES6: use `String.endsWith`
  */
 export function endsWith(haystack: string, needle: string): boolean {
 	const diff = haystack.length - needle.length;
