@@ -149,6 +149,8 @@ export class SearchView extends ViewPane {
 	private triggerQueryDelayer: Delayer<void>;
 	private pauseSearching = false;
 
+	private treeAccessibilityProvider: SearchAccessibilityProvider;
+
 	constructor(
 		options: IViewPaneOptions,
 		@IFileService private readonly fileService: IFileService,
@@ -240,6 +242,8 @@ export class SearchView extends ViewPane {
 		this.refreshAction = this._register(this.instantiationService.createInstance(RefreshAction, RefreshAction.ID, RefreshAction.LABEL));
 		this.cancelAction = this._register(this.instantiationService.createInstance(CancelSearchAction, CancelSearchAction.ID, CancelSearchAction.LABEL));
 		this.toggleCollapseAction = this._register(this.instantiationService.createInstance(ToggleCollapseAndExpandAction, ToggleCollapseAndExpandAction.ID, ToggleCollapseAndExpandAction.LABEL, collapseDeepestExpandedLevelAction, expandAllAction));
+
+		this.treeAccessibilityProvider = this.instantiationService.createInstance(SearchAccessibilityProvider, this.viewModel);
 	}
 
 	getContainer(): HTMLElement {
@@ -716,7 +720,7 @@ export class SearchView extends ViewPane {
 			],
 			{
 				identityProvider,
-				accessibilityProvider: this.instantiationService.createInstance(SearchAccessibilityProvider, this.viewModel),
+				accessibilityProvider: this.treeAccessibilityProvider,
 				dnd: this.instantiationService.createInstance(SearchDND),
 				multipleSelectionSupport: false,
 				overrideStyles: {
@@ -819,6 +823,8 @@ export class SearchView extends ViewPane {
 			}
 			this.tree.setFocus([next], getSelectionKeyboardEvent(undefined, false));
 			this.tree.reveal(next);
+			const ariaLabel = this.treeAccessibilityProvider.getAriaLabel(next);
+			if (ariaLabel) { aria.alert(ariaLabel); }
 		}
 	}
 
@@ -848,6 +854,8 @@ export class SearchView extends ViewPane {
 			}
 			this.tree.setFocus([prev], getSelectionKeyboardEvent(undefined, false));
 			this.tree.reveal(prev);
+			const ariaLabel = this.treeAccessibilityProvider.getAriaLabel(prev);
+			if (ariaLabel) { aria.alert(ariaLabel); }
 		}
 	}
 
