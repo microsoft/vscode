@@ -51,7 +51,7 @@ export class WebviewIconManager {
 		try {
 			const cssRules: string[] = [];
 			if (this._configService.getValue('workbench.iconTheme') !== null) {
-				this._icons.forEach((value, key) => {
+				for (const [key, value] of this._icons) {
 					const webviewSelector = `.show-file-icons .webview-${key}-name-file-icon::before`;
 					if (URI.isUri(value)) {
 						cssRules.push(`${webviewSelector} { content: ""; background-image: ${dom.asCSSUrl(value)}; }`);
@@ -59,7 +59,7 @@ export class WebviewIconManager {
 						cssRules.push(`.vs ${webviewSelector} { content: ""; background-image: ${dom.asCSSUrl(value.light)}; }`);
 						cssRules.push(`.vs-dark ${webviewSelector} { content: ""; background-image: ${dom.asCSSUrl(value.dark)}; }`);
 					}
-				});
+				}
 			}
 			this._styleElement.innerHTML = cssRules.join('\n');
 		} catch {

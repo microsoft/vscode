@@ -38,13 +38,13 @@ export class CustomEditorModelManager implements ICustomEditorModelManager {
 
 	public disposeModel(model: ICustomEditorModel): void {
 		let foundKey: string | undefined;
-		this._models.forEach((value, key) => {
+		for (const [key, value] of this._models) {
 			if (model === value.model) {
 				value.disposables.dispose();
 				value.model.dispose();
 				foundKey = key;
 			}
-		});
+		}
 		if (typeof foundKey === 'string') {
 			this._models.delete(foundKey);
 		}
@@ -52,11 +52,11 @@ export class CustomEditorModelManager implements ICustomEditorModelManager {
 	}
 
 	public disposeAllModelsForView(viewType: string): void {
-		this._models.forEach((value) => {
+		for (const [, value] of this._models) {
 			if (value.model.viewType === viewType) {
 				this.disposeModel(value.model);
 			}
-		});
+		}
 	}
 
 	private key(resource: URI, viewType: string): string {
