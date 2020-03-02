@@ -260,6 +260,17 @@ export class BulkFileOperations {
 			}
 		}
 
+		// sort (once) categories atop which have unconfirmed edits
+		this.categories.sort((a, b) => {
+			if (a.metadata.needsConfirmation === b.metadata.needsConfirmation) {
+				return a.metadata.label.localeCompare(b.metadata.label);
+			} else if (a.metadata.needsConfirmation) {
+				return -1;
+			} else {
+				return 1;
+			}
+		});
+
 		return this;
 	}
 
