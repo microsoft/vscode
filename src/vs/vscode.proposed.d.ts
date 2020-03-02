@@ -1600,7 +1600,7 @@ declare module 'vscode' {
 		/**
 		 * The maximum number or the ending cursor of timeline items that should be returned.
 		 */
-		limit?: number | string;
+		limit?: number | { cursor: string };
 	}
 
 	export interface TimelineProvider {

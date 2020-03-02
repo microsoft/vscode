@@ -40,7 +40,7 @@ export interface TimelineChangeEvent {
 export interface TimelineOptions {
 	cursor?: string;
 	before?: boolean;
-	limit?: number | string;
+	limit?: number | { cursor: string };
 }
 
 export interface InternalTimelineOptions {

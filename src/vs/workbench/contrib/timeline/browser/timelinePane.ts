@@ -80,8 +80,8 @@ interface TimelineActionContext {
 }
 
 interface TimelineCursors {
-	startCursors?: { before: any; after?: any };
-	endCursors?: { before: any; after?: any };
+	startCursors?: { before: string; after?: string };
+	endCursors?: { before: string; after?: string };
 	more: boolean;
 }
 
@@ -308,7 +308,9 @@ export class TimelinePane extends ViewPane {
 					{
 						cursor: options.before ? cursors?.startCursors?.before : (cursors?.endCursors ?? cursors?.startCursors)?.after,
 						...options,
-						limit: options.limit === 0 ? undefined : options.limit ?? defaultPageSize
+						limit: options.limit === 0
+							? undefined
+							: options.limit ?? defaultPageSize
 					},
 					request?.tokenSource ?? new CancellationTokenSource(), { cacheResults: true, resetCache: false }
 				)!;
@@ -329,7 +331,11 @@ export class TimelinePane extends ViewPane {
 					source, this._uri,
 					{
 						...options,
-						limit: options.limit === 0 ? undefined : (reset ? cursors?.endCursors?.after : undefined) ?? options.limit ?? defaultPageSize
+						limit: options.limit === 0
+							? undefined
+							: (reset && cursors?.endCursors?.after !== undefined
+								? { cursor: cursors.endCursors.after }
+								: undefined) ?? options.limit ?? defaultPageSize
 					},
 					new CancellationTokenSource(), { cacheResults: true, resetCache: true }
 				)!;

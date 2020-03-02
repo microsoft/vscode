@@ -114,9 +114,9 @@ export class GitTimelineProvider implements TimelineProvider {
 		// TODO[ECA]: Ensure that the uri is a file -- if not we could get the history of the repo?
 
 		let limit: number | undefined;
-		if (typeof options.limit === 'string') {
+		if (options.limit !== undefined && typeof options.limit !== 'number') {
 			try {
-				const result = await this._model.git.exec(repo.root, ['rev-list', '--count', `${options.limit}..`, '--', uri.fsPath]);
+				const result = await this._model.git.exec(repo.root, ['rev-list', '--count', `${options.limit.cursor}..`, '--', uri.fsPath]);
 				if (!result.exitCode) {
 					// Ask for 1 more than so we can determine if there are more commits
 					limit = Number(result.stdout) + 1;
