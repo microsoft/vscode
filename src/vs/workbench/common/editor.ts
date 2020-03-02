@@ -66,17 +66,12 @@ export interface IEditor extends IPanel {
 	/**
 	 * The assigned input of this editor.
 	 */
-	input: IEditorInput | undefined;
-
-	/**
-	 * The assigned options of this editor.
-	 */
-	options: IEditorOptions | undefined;
+	readonly input: IEditorInput | undefined;
 
 	/**
 	 * The assigned group this editor is showing in.
 	 */
-	group: IEditorGroup | undefined;
+	readonly group: IEditorGroup | undefined;
 
 	/**
 	 * The minimum width of this editor.
@@ -112,6 +107,14 @@ export interface IEditor extends IPanel {
 	 * Finds out if this editor is visible or not.
 	 */
 	isVisible(): boolean;
+}
+
+/**
+ * Overrides `IEditor` where `input` and `group` are known to be set.
+ */
+export interface IVisibleEditor extends IEditor {
+	readonly input: IEditorInput;
+	readonly group: IEditorGroup;
 }
 
 export interface ITextEditor extends IEditor {

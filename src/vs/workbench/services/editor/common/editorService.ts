@@ -5,7 +5,7 @@
 
 import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceInput, IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorInput, IEditor, GroupIdentifier, IEditorInputWithOptions, IUntitledTextResourceInput, IResourceDiffInput, IResourceSideBySideInput, ITextEditor, ITextDiffEditor, ITextSideBySideEditor, IEditorIdentifier, ISaveOptions, IRevertOptions, EditorsOrder } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditor, GroupIdentifier, IEditorInputWithOptions, IUntitledTextResourceInput, IResourceDiffInput, IResourceSideBySideInput, ITextEditor, ITextDiffEditor, ITextSideBySideEditor, IEditorIdentifier, ISaveOptions, IRevertOptions, EditorsOrder, IVisibleEditor } from 'vs/workbench/common/editor';
 import { Event } from 'vs/base/common/event';
 import { IEditor as ICodeEditor, IDiffEditor } from 'vs/editor/common/editorCommon';
 import { IEditorGroup, IEditorReplacement } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -16,8 +16,8 @@ export const IEditorService = createDecorator<IEditorService>('editorService');
 export type IResourceEditor = IResourceInput | IUntitledTextResourceInput | IResourceDiffInput | IResourceSideBySideInput;
 
 export interface IResourceEditorReplacement {
-	editor: IResourceEditor;
-	replacement: IResourceEditor;
+	readonly editor: IResourceEditor;
+	readonly replacement: IResourceEditor;
 }
 
 export const ACTIVE_GROUP = -1;
@@ -39,17 +39,12 @@ export interface IOpenEditorOverride {
 	override?: Promise<IEditor | undefined>;
 }
 
-export interface IVisibleEditor extends IEditor {
-	input: IEditorInput;
-	group: IEditorGroup;
-}
-
 export interface ISaveEditorsOptions extends ISaveOptions {
 
 	/**
 	 * If true, will ask for a location of the editor to save to.
 	 */
-	saveAs?: boolean;
+	readonly saveAs?: boolean;
 }
 
 export interface IBaseSaveRevertAllEditorOptions {
@@ -57,7 +52,7 @@ export interface IBaseSaveRevertAllEditorOptions {
 	/**
 	 * Whether to include untitled editors as well.
 	 */
-	includeUntitled?: boolean;
+	readonly includeUntitled?: boolean;
 }
 
 export interface ISaveAllEditorsOptions extends ISaveEditorsOptions, IBaseSaveRevertAllEditorOptions { }

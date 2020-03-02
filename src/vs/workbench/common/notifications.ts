@@ -529,16 +529,12 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 	}
 
 	private setActions(actions: INotificationActions = { primary: [], secondary: [] }): void {
-		if (!Array.isArray(actions.primary)) {
-			actions.primary = [];
-		}
+		this._actions = {
+			primary: Array.isArray(actions.primary) ? actions.primary : [],
+			secondary: Array.isArray(actions.secondary) ? actions.secondary : []
+		};
 
-		if (!Array.isArray(actions.secondary)) {
-			actions.secondary = [];
-		}
-
-		this._actions = actions;
-		this._expanded = actions.primary.length > 0;
+		this._expanded = actions.primary && actions.primary.length > 0;
 	}
 
 	get canCollapse(): boolean {
