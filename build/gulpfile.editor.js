@@ -73,7 +73,7 @@ const extractEditorSrcTask = task.define('extract-editor-src', () => {
 			extrausages
 		],
 		shakeLevel: 2, // 0-Files, 1-InnerFile, 2-ClassMembers
-		importIgnorePattern: /(^vs\/css!)|(promise-polyfill\/polyfill)/,
+		importIgnorePattern: /(^vs\/css!)/,
 		destRoot: path.join(root, 'out-editor-src'),
 		redirects: []
 	});
