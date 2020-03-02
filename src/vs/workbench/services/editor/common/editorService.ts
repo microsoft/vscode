@@ -122,7 +122,7 @@ export interface IEditorService {
 	 * All text editor widgets that are currently visible across all editor groups. A text editor
 	 * widget is either a text or a diff editor.
 	 */
-	readonly visibleTextEditorWidgets: ReadonlyArray<ICodeEditor>;
+	readonly visibleTextEditorWidgets: ReadonlyArray<ICodeEditor | IDiffEditor>;
 
 	/**
 	 * All editors that are opened across all editor groups in sequential order
