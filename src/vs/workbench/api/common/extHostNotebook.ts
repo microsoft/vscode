@@ -329,6 +329,7 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument, vscode.
 	transformMimeTypes(cell: ExtHostCell, output: vscode.CellDisplayOutput): ITransformedDisplayOutputDto {
 		let mimeTypes = Object.keys(output.data);
 
+		// TODO@rebornix, the document display order might be assigned a bit later. We need to postpone sending the outputs to the core side.
 		const sorted = mimeTypes.sort((a, b) => {
 			return this.getMimeTypeOrder(a) - this.getMimeTypeOrder(b);
 		});
