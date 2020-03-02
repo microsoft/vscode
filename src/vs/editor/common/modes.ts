@@ -1589,6 +1589,7 @@ export interface SemanticTokensEdits {
 }
 
 export interface DocumentSemanticTokensProvider {
+	onDidChange?: Event<void>;
 	getLegend(): SemanticTokensLegend;
 	provideDocumentSemanticTokens(model: model.ITextModel, lastResultId: string | null, token: CancellationToken): ProviderResult<SemanticTokens | SemanticTokensEdits>;
 	releaseDocumentSemanticTokens(resultId: string | undefined): void;

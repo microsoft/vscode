@@ -161,12 +161,10 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 
 				// Backup does not exist
 				else {
-					if (typeof workingCopy.backup === 'function') {
-						const backup = await workingCopy.backup();
-						await this.backupFileService.backup(workingCopy.resource, backup.content, contentVersion, backup.meta);
+					const backup = await workingCopy.backup();
+					await this.backupFileService.backup(workingCopy.resource, backup.content, contentVersion, backup.meta);
 
-						backups.push(workingCopy);
-					}
+					backups.push(workingCopy);
 				}
 			}));
 		}

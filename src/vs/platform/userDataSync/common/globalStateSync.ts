@@ -124,17 +124,10 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		return null;
 	}
 
-	protected async doSync(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<void> {
-		try {
-			const result = await this.getPreview(remoteUserData, lastSyncUserData);
-			await this.apply(result);
-			this.logService.trace('UI State: Finished synchronizing ui state.');
-		} catch (e) {
-			this.setStatus(SyncStatus.Idle);
-			throw e;
-		} finally {
-			this.setStatus(SyncStatus.Idle);
-		}
+	protected async performSync(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<SyncStatus> {
+		const result = await this.getPreview(remoteUserData, lastSyncUserData);
+		await this.apply(result);
+		return SyncStatus.Idle;
 	}
 
 	private async getPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null,): Promise<ISyncPreviewResult> {

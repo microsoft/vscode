@@ -6,6 +6,7 @@
 import * as fs from 'fs';
 import * as gracefulFs from 'graceful-fs';
 import { createHash } from 'crypto';
+import { webFrame } from 'electron';
 import { importEntries, mark } from 'vs/base/common/performance';
 import { Workbench } from 'vs/workbench/browser/workbench';
 import { ElectronWindow } from 'vs/workbench/electron-browser/window';
@@ -20,8 +21,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { stat } from 'vs/base/node/pfs';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/nativeKeymapService';
-import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
-import { webFrame } from 'electron';
+import { INativeWindowConfiguration } from 'vs/platform/windows/node/window';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ConsoleLogService, MultiplexLogService, ILogService, ConsoleLogInMainService } from 'vs/platform/log/common/log';
 import { NativeStorageService } from 'vs/platform/storage/node/storageService';
@@ -57,7 +57,7 @@ class DesktopMain extends Disposable {
 
 	private readonly environmentService: NativeWorkbenchEnvironmentService;
 
-	constructor(private configuration: IWindowConfiguration) {
+	constructor(private configuration: INativeWindowConfiguration) {
 		super();
 
 		this.environmentService = new NativeWorkbenchEnvironmentService(configuration, configuration.execPath, configuration.windowId);
@@ -373,7 +373,7 @@ class DesktopMain extends Disposable {
 	}
 }
 
-export function main(configuration: IWindowConfiguration): Promise<void> {
+export function main(configuration: INativeWindowConfiguration): Promise<void> {
 	const renderer = new DesktopMain(configuration);
 
 	return renderer.open();

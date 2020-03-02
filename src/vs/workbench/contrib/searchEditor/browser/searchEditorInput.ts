@@ -53,7 +53,7 @@ export class SearchEditorInput extends EditorInput {
 	private _cachedContentsModel: ITextModel | undefined;
 	private _cachedConfig?: SearchConfiguration;
 
-	private readonly _onDidChangeContent = new Emitter<void>();
+	private readonly _onDidChangeContent = this._register(new Emitter<void>());
 	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 
 	private oldDecorationsIDs: string[] = [];
