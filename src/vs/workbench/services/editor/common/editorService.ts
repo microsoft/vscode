@@ -196,7 +196,13 @@ export interface IEditorService {
 	 * Find out if the provided editor is opened in any editor group.
 	 *
 	 * Note: An editor can be opened but not actively visible.
+	 *
+	 * @param editor the editor to check for being opened. If a
+	 * `IResourceInput` is passed in, the resource is checked on
+	 * all opened editors. In case of a side by side editor, the
+	 * right hand side resource is considered only.
 	 */
+	isOpen(editor: IResourceInput): boolean;
 	isOpen(editor: IEditorInput): boolean;
 
 	/**
@@ -218,21 +224,25 @@ export interface IEditorService {
 
 	/**
 	 * Save the provided list of editors.
+	 *
+	 * @returns `true` if all editors saved and `false` otherwise.
 	 */
 	save(editors: IEditorIdentifier | IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<boolean>;
 
 	/**
 	 * Save all editors.
+	 *
+	 * @returns `true` if all editors saved and `false` otherwise.
 	 */
 	saveAll(options?: ISaveAllEditorsOptions): Promise<boolean>;
 
 	/**
 	 * Reverts the provided list of editors.
 	 */
-	revert(editors: IEditorIdentifier | IEditorIdentifier[], options?: IRevertOptions): Promise<boolean>;
+	revert(editors: IEditorIdentifier | IEditorIdentifier[], options?: IRevertOptions): Promise<void>;
 
 	/**
 	 * Reverts all editors.
 	 */
-	revertAll(options?: IRevertAllEditorsOptions): Promise<boolean>;
+	revertAll(options?: IRevertAllEditorsOptions): Promise<void>;
 }

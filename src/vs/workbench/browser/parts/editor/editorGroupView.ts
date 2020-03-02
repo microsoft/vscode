@@ -1075,7 +1075,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Update model and make sure to continue to use the editor we get from
 		// the model. It is possible that the editor was already opened and we
 		// want to ensure that we use the existing instance in that case.
-		const editor = this.group.getEditorByIndex(currentIndex)!;
+		const editor = this._group.getEditorByIndex(currentIndex);
+		if (!editor) {
+			return;
+		}
 
 		// Update model
 		this._group.moveEditor(editor, moveToIndex);
@@ -1278,7 +1281,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			return false; // editor must be dirty and not saving
 		}
 
-		if (editor instanceof SideBySideEditorInput && this.isOpened(editor.master)) {
+		if (editor instanceof SideBySideEditorInput && this._group.contains(editor.master)) {
 			return false; // master-side of editor is still opened somewhere else
 		}
 
@@ -1329,25 +1332,24 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Otherwise, handle accordingly
 		switch (res) {
 			case ConfirmResult.SAVE:
-				const result = await editor.save(this.id, { reason: SaveReason.EXPLICIT });
+				await editor.save(this.id, { reason: SaveReason.EXPLICIT });
 
-				return !result;
+				return editor.isDirty(); // veto if still dirty
 			case ConfirmResult.DONT_SAVE:
-
 				try {
 
 					// first try a normal revert where the contents of the editor are restored
-					const result = await editor.revert(this.id);
+					await editor.revert(this.id);
 
-					return !result;
+					return editor.isDirty(); // veto if still dirty
 				} catch (error) {
 					// if that fails, since we are about to close the editor, we accept that
 					// the editor cannot be reverted and instead do a soft revert that just
 					// enables us to close the editor. With this, a user can always close a
 					// dirty editor even when reverting fails.
-					const result = await editor.revert(this.id, { soft: true });
+					await editor.revert(this.id, { soft: true });
 
-					return !result;
+					return editor.isDirty(); // veto if still dirty
 				}
 			case ConfirmResult.CANCEL:
 				return true; // veto

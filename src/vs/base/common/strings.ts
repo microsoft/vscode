@@ -5,6 +5,7 @@
 
 import { CharCode } from 'vs/base/common/charCode';
 import { Constants } from 'vs/base/common/uint';
+import { canNormalize, normalizeNFD } from 'vs/base/common/normalization';
 
 export function isFalsyOrWhitespace(str: string | undefined): boolean {
 	if (!str || typeof str !== 'string') {
@@ -240,7 +241,7 @@ export function regExpFlags(regexp: RegExp): string {
 	return (regexp.global ? 'g' : '')
 		+ (regexp.ignoreCase ? 'i' : '')
 		+ (regexp.multiline ? 'm' : '')
-		+ ((regexp as any).unicode ? 'u' : '');
+		+ ((regexp as any /* standalone editor compilation */).unicode ? 'u' : '');
 }
 
 /**
@@ -853,15 +854,15 @@ export function removeAnsiEscapeCodes(str: string): string {
 }
 
 export const removeAccents: (str: string) => string = (function () {
-	if (typeof (String.prototype as any).normalize !== 'function') {
-		// ☹️ no ES6 features...
+	if (!canNormalize) {
+		// no ES6 features...
 		return function (str: string) { return str; };
 	} else {
 		// transform into NFD form and remove accents
 		// see: https://stackoverflow.com/questions/990904/remove-accents-diacritics-in-a-string-in-javascript/37511463#37511463
 		const regex = /[\u0300-\u036f]/g;
 		return function (str: string) {
-			return (str as any).normalize('NFD').replace(regex, '');
+			return normalizeNFD(str).replace(regex, '');
 		};
 	}
 })();

@@ -1046,10 +1046,11 @@ export class ChangeModeAction extends Action {
 		super(actionId, actionLabel);
 	}
 
-	async run(): Promise<any> {
+	async run(): Promise<void> {
 		const activeTextEditorWidget = getCodeEditor(this.editorService.activeTextEditorWidget);
 		if (!activeTextEditorWidget) {
-			return this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
+			await this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
+			return;
 		}
 
 		const textModel = activeTextEditorWidget.getModel();
@@ -1246,14 +1247,16 @@ export class ChangeEOLAction extends Action {
 		super(actionId, actionLabel);
 	}
 
-	async run(): Promise<any> {
+	async run(): Promise<void> {
 		const activeTextEditorWidget = getCodeEditor(this.editorService.activeTextEditorWidget);
 		if (!activeTextEditorWidget) {
-			return this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
+			await this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
+			return;
 		}
 
 		if (this.editorService.activeEditor?.isReadonly()) {
-			return this.quickInputService.pick([{ label: nls.localize('noWritableCodeEditor', "The active code editor is read-only.") }]);
+			await this.quickInputService.pick([{ label: nls.localize('noWritableCodeEditor', "The active code editor is read-only.") }]);
+			return;
 		}
 
 		let textModel = activeTextEditorWidget.getModel();
@@ -1295,19 +1298,22 @@ export class ChangeEncodingAction extends Action {
 		super(actionId, actionLabel);
 	}
 
-	async run(): Promise<any> {
+	async run(): Promise<void> {
 		if (!getCodeEditor(this.editorService.activeTextEditorWidget)) {
-			return this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
+			await this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
+			return;
 		}
 
 		const activeControl = this.editorService.activeControl;
 		if (!activeControl) {
-			return this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
+			await this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
+			return;
 		}
 
 		const encodingSupport: IEncodingSupport | null = toEditorWithEncodingSupport(activeControl.input);
 		if (!encodingSupport) {
-			return this.quickInputService.pick([{ label: nls.localize('noFileEditor', "No file active at this time") }]);
+			await this.quickInputService.pick([{ label: nls.localize('noFileEditor', "No file active at this time") }]);
+			return;
 		}
 
 		const saveWithEncodingPick: IQuickPickItem = { label: nls.localize('saveWithEncoding', "Save with Encoding") };
@@ -1342,7 +1348,7 @@ export class ChangeEncodingAction extends Action {
 
 		const resource = toResource(activeControl.input, { supportSideBySide: SideBySideEditor.MASTER });
 		if (!resource || (!this.fileService.canHandleResource(resource) && resource.scheme !== Schemas.untitled)) {
-			return null; // encoding detection only possible for resources the file service can handle or that are untitled
+			return; // encoding detection only possible for resources the file service can handle or that are untitled
 		}
 
 		let guessedEncoding: string | undefined = undefined;

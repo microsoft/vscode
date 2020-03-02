@@ -12,7 +12,7 @@ import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle'
 import { IEditor as ICodeEditor, IEditorViewState, ScrollType, IDiffEditor } from 'vs/editor/common/editorCommon';
 import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, IResourceInput, EditorActivation, EditorOpenContext, ITextEditorSelection, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature0, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
-import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITextModel } from 'vs/editor/common/model';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -38,7 +38,7 @@ export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', 
 export const EditorPinnedContext = new RawContextKey<boolean>('editorPinned', false);
 export const EditorGroupActiveEditorDirtyContext = new RawContextKey<boolean>('groupActiveEditorDirty', false);
 export const EditorGroupEditorsCountContext = new RawContextKey<number>('groupEditorsCount', 0);
-export const NoEditorsVisibleContext: ContextKeyExpr = EditorsVisibleContext.toNegated();
+export const NoEditorsVisibleContext = EditorsVisibleContext.toNegated();
 export const TextCompareEditorVisibleContext = new RawContextKey<boolean>('textCompareEditorVisible', false);
 export const TextCompareEditorActiveContext = new RawContextKey<boolean>('textCompareEditorActive', false);
 export const ActiveEditorGroupEmptyContext = new RawContextKey<boolean>('activeEditorGroupEmpty', false);
@@ -449,7 +449,7 @@ export interface IEditorInput extends IDisposable {
 	/**
 	 * Reverts this input from the provided group.
 	 */
-	revert(group: GroupIdentifier, options?: IRevertOptions): Promise<boolean>;
+	revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void>;
 
 	/**
 	 * Called to determine how to handle a resource that is moved that matches
@@ -557,9 +557,7 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 		return this;
 	}
 
-	async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<boolean> {
-		return true;
-	}
+	async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> { }
 
 	move(group: GroupIdentifier, target: URI): IMoveResult | undefined {
 		return undefined;
@@ -611,8 +609,20 @@ export abstract class TextResourceEditorInput extends EditorInput {
 	protected registerListeners(): void {
 
 		// Clear label memoizer on certain events that have impact
-		this._register(this.labelService.onDidChangeFormatters(() => TextResourceEditorInput.MEMOIZER.clear()));
-		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(() => TextResourceEditorInput.MEMOIZER.clear()));
+		this._register(this.labelService.onDidChangeFormatters(e => this.onLabelEvent(e.scheme)));
+		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => this.onLabelEvent(e.scheme)));
+		this._register(this.fileService.onDidChangeFileSystemProviderCapabilities(e => this.onLabelEvent(e.scheme)));
+	}
+
+	private onLabelEvent(scheme: string): void {
+		if (scheme === this.resource.scheme) {
+
+			// Clear any cached labels from before
+			TextResourceEditorInput.MEMOIZER.clear();
+
+			// Trigger recompute of label
+			this._onDidChangeLabel.fire();
+		}
 	}
 
 	getName(): string {
@@ -687,10 +697,6 @@ export abstract class TextResourceEditorInput extends EditorInput {
 			return false; // untitled is never readonly
 		}
 
-		if (!this.fileService.canHandleResource(this.resource)) {
-			return true; // resources without file support are always readonly
-		}
-
 		return this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
 	}
 
@@ -735,8 +741,8 @@ export abstract class TextResourceEditorInput extends EditorInput {
 		return this;
 	}
 
-	revert(group: GroupIdentifier, options?: IRevertOptions): Promise<boolean> {
-		return this.textFileService.revert(this.resource, options);
+	async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
+		await this.textFileService.revert(this.resource, options);
 	}
 }
 
@@ -876,7 +882,7 @@ export class SideBySideEditorInput extends EditorInput {
 		return this.master.saveAs(group, options);
 	}
 
-	revert(group: GroupIdentifier, options?: IRevertOptions): Promise<boolean> {
+	revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
 		return this.master.revert(group, options);
 	}
 

@@ -74,15 +74,15 @@ export class ViewletActivityAction extends ActivityAction {
 		this.activity = activity;
 	}
 
-	async run(event: any): Promise<any> {
+	async run(event: unknown): Promise<void> {
 		if (event instanceof MouseEvent && event.button === 2) {
-			return false; // do not run on right click
+			return; // do not run on right click
 		}
 
 		// prevent accident trigger on a doubleclick (to help nervous people)
 		const now = Date.now();
 		if (now > this.lastRun /* https://github.com/Microsoft/vscode/issues/25830 */ && now - this.lastRun < ViewletActivityAction.preventDoubleClickDelay) {
-			return true;
+			return;
 		}
 		this.lastRun = now;
 
@@ -93,7 +93,7 @@ export class ViewletActivityAction extends ActivityAction {
 		if (sideBarVisible && activeViewlet?.getId() === this.activity.id) {
 			this.logAction('hide');
 			this.layoutService.setSideBarHidden(true);
-			return true;
+			return;
 		}
 
 		this.logAction('show');
@@ -120,17 +120,17 @@ export class ToggleViewletAction extends Action {
 		super(_viewlet.id, _viewlet.name);
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<void> {
 		const sideBarVisible = this.layoutService.isVisible(Parts.SIDEBAR_PART);
 		const activeViewlet = this.viewletService.getActiveViewlet();
 
 		// Hide sidebar if selected viewlet already visible
 		if (sideBarVisible && activeViewlet?.getId() === this._viewlet.id) {
 			this.layoutService.setSideBarHidden(true);
-			return Promise.resolve();
+			return;
 		}
 
-		return this.viewletService.openViewlet(this._viewlet.id, true);
+		await this.viewletService.openViewlet(this._viewlet.id, true);
 	}
 }
 
@@ -226,7 +226,7 @@ class SwitchSideBarViewAction extends Action {
 		super(id, name);
 	}
 
-	run(offset: number): Promise<any> {
+	async run(offset: number): Promise<void> {
 		const pinnedViewletIds = this.activityBarService.getPinnedViewletIds();
 
 		const activeViewlet = this.viewletService.getActiveViewlet();
@@ -240,7 +240,8 @@ class SwitchSideBarViewAction extends Action {
 				break;
 			}
 		}
-		return this.viewletService.openViewlet(targetViewletId, true);
+
+		await this.viewletService.openViewlet(targetViewletId, true);
 	}
 }
 
@@ -258,7 +259,7 @@ export class PreviousSideBarViewAction extends SwitchSideBarViewAction {
 		super(id, name, viewletService, activityBarService);
 	}
 
-	run(): Promise<any> {
+	run(): Promise<void> {
 		return super.run(-1);
 	}
 }
@@ -277,7 +278,7 @@ export class NextSideBarViewAction extends SwitchSideBarViewAction {
 		super(id, name, viewletService, activityBarService);
 	}
 
-	run(): Promise<any> {
+	run(): Promise<void> {
 		return super.run(1);
 	}
 }

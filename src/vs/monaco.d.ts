@@ -3754,9 +3754,14 @@ declare namespace monaco.editor {
 		 */
 		showSnippets?: boolean;
 		/**
-		 * Controls the visibility of the status bar at the bottom of the suggest widget.
+		 * Status bar related settings.
 		 */
-		hideStatusBar?: boolean;
+		statusBar?: {
+			/**
+			 * Controls the visibility of the status bar at the bottom of the suggest widget.
+			 */
+			visible?: boolean;
+		};
 	}
 
 	export type InternalSuggestOptions = Readonly<Required<ISuggestOptions>>;
@@ -6031,11 +6036,11 @@ declare namespace monaco.languages {
 	}
 
 	/**
-	 * A provider of colors for editor models.
+	 * A provider of folding ranges for editor models.
 	 */
 	export interface FoldingRangeProvider {
 		/**
-		 * Provides the color ranges for a specific model.
+		 * Provides the folding ranges for a specific model.
 		 */
 		provideFoldingRanges(model: editor.ITextModel, context: FoldingContext, token: CancellationToken): ProviderResult<FoldingRange[]>;
 	}

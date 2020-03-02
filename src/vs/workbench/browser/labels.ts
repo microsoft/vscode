@@ -137,14 +137,14 @@ export class ResourceLabels extends Disposable {
 		}));
 
 		// notify when label formatters change
-		this._register(this.labelService.onDidChangeFormatters(() => {
-			this._widgets.forEach(widget => widget.notifyFormattersChange());
+		this._register(this.labelService.onDidChangeFormatters(e => {
+			this._widgets.forEach(widget => widget.notifyFormattersChange(e.scheme));
 		}));
 
 		// notify when untitled labels change
-		this.textFileService.untitled.onDidChangeLabel(model => {
+		this._register(this.textFileService.untitled.onDidChangeLabel(model => {
 			this._widgets.forEach(widget => widget.notifyUntitledLabelChange(model.resource));
-		});
+		}));
 	}
 
 	get(index: number): IResourceLabel {
@@ -311,8 +311,10 @@ class ResourceLabelWidget extends IconLabel {
 		this.render(true);
 	}
 
-	notifyFormattersChange(): void {
-		this.render(false);
+	notifyFormattersChange(scheme: string): void {
+		if (this.label?.resource?.scheme === scheme) {
+			this.render(false);
+		}
 	}
 
 	notifyUntitledLabelChange(resource: URI): void {

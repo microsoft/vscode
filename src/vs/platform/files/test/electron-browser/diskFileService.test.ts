@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { tmpdir } from 'os';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { Schemas } from 'vs/base/common/network';
-import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
+import { DiskFileSystemProvider } from 'vs/platform/files/electron-browser/diskFileSystemProvider';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { generateUuid } from 'vs/base/common/uuid';
 import { join, basename, dirname, posix } from 'vs/base/common/path';
@@ -67,6 +67,7 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 				FileSystemProviderCapabilities.FileReadWrite |
 				FileSystemProviderCapabilities.FileOpenReadWriteClose |
 				FileSystemProviderCapabilities.FileReadStream |
+				FileSystemProviderCapabilities.Trash |
 				FileSystemProviderCapabilities.FileFolderCopy;
 
 			if (isLinux) {
@@ -459,13 +460,21 @@ suite('Disk File Service', function () {
 	});
 
 	test('deleteFile', async () => {
+		return testDeleteFile(false);
+	});
+
+	(isLinux /* trash is unreliable on Linux */ ? test.skip : test)('deleteFile (useTrash)', async () => {
+		return testDeleteFile(true);
+	});
+
+	async function testDeleteFile(useTrash: boolean): Promise<void> {
 		let event: FileOperationEvent;
 		disposables.add(service.onDidRunOperation(e => event = e));
 
 		const resource = URI.file(join(testDir, 'deep', 'conway.js'));
 		const source = await service.resolve(resource);
 
-		await service.del(source.resource);
+		await service.del(source.resource, { useTrash });
 
 		assert.equal(existsSync(source.resource.fsPath), false);
 
@@ -475,14 +484,14 @@ suite('Disk File Service', function () {
 
 		let error: Error | undefined = undefined;
 		try {
-			await service.del(source.resource);
+			await service.del(source.resource, { useTrash });
 		} catch (e) {
 			error = e;
 		}
 
 		assert.ok(error);
 		assert.equal((<FileOperationError>error).fileOperationResult, FileOperationResult.FILE_NOT_FOUND);
-	});
+	}
 
 	test('deleteFile - symbolic link (exists)', async () => {
 		if (isWindows) {
@@ -531,19 +540,27 @@ suite('Disk File Service', function () {
 	});
 
 	test('deleteFolder (recursive)', async () => {
+		return testDeleteFolderRecursive(false);
+	});
+
+	(isLinux /* trash is unreliable on Linux */ ? test.skip : test)('deleteFolder (recursive, useTrash)', async () => {
+		return testDeleteFolderRecursive(true);
+	});
+
+	async function testDeleteFolderRecursive(useTrash: boolean): Promise<void> {
 		let event: FileOperationEvent;
 		disposables.add(service.onDidRunOperation(e => event = e));
 
 		const resource = URI.file(join(testDir, 'deep'));
 		const source = await service.resolve(resource);
 
-		await service.del(source.resource, { recursive: true });
+		await service.del(source.resource, { recursive: true, useTrash });
 
 		assert.equal(existsSync(source.resource.fsPath), false);
 		assert.ok(event!);
 		assert.equal(event!.resource.fsPath, resource.fsPath);
 		assert.equal(event!.operation, FileOperation.DELETE);
-	});
+	}
 
 	test('deleteFolder (non recursive)', async () => {
 		const resource = URI.file(join(testDir, 'deep'));

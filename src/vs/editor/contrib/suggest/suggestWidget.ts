@@ -144,10 +144,9 @@ class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTemplateD
 		const text = append(container, $('.contents'));
 		const main = append(text, $('.main'));
 
+		data.iconContainer = append(main, $('.icon-label.codicon'));
 		data.left = append(main, $('span.left'));
 		data.right = append(main, $('span.right'));
-
-		data.iconContainer = append(data.left, $('.icon-label.codicon'));
 
 		data.iconLabel = new IconLabel(data.left, { supportHighlights: true, supportCodicons: true });
 		data.disposables.add(data.iconLabel);
@@ -552,7 +551,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.messageElement = append(this.element, $('.message'));
 		this.listElement = append(this.element, $('.tree'));
 
-		const applyStatusBarStyle = () => toggleClass(this.element, 'with-status-bar', !this.editor.getOption(EditorOption.suggest).hideStatusBar);
+		const applyStatusBarStyle = () => toggleClass(this.element, 'with-status-bar', this.editor.getOption(EditorOption.suggest).statusBar.visible);
 		applyStatusBarStyle();
 
 		this.statusBarElement = append(this.element, $('.suggest-status-bar'));

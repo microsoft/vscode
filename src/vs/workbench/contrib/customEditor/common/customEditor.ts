@@ -74,12 +74,12 @@ export interface ICustomEditorModel extends IWorkingCopy {
 	readonly onWillSave: Event<CustomEditorSaveEvent>;
 	readonly onWillSaveAs: Event<CustomEditorSaveAsEvent>;
 
-	onBackup(f: () => CancelablePromise<boolean>): void;
+	onBackup(f: () => CancelablePromise<void>): void;
 
 	setDirty(dirty: boolean): void;
 	undo(): void;
 	redo(): void;
-	revert(options?: IRevertOptions): Promise<boolean>;
+	revert(options?: IRevertOptions): Promise<void>;
 
 	save(options?: ISaveOptions): Promise<boolean>;
 	saveAs(resource: URI, targetResource: URI, currentOptions?: ISaveOptions): Promise<boolean>;

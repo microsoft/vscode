@@ -18,7 +18,7 @@ import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { getMenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { isWindows, isLinux, isWeb } from 'vs/base/common/platform';
-import { IsMacNativeContext } from 'vs/workbench/browser/contextkeys';
+import { IsMacNativeContext } from 'vs/platform/contextkey/common/contextkeys';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { InEditorZenModeContext, IsCenteredLayoutContext, EditorAreaVisibleContext } from 'vs/workbench/common/editor';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -50,10 +50,8 @@ export class CloseSidebarAction extends Action {
 		this.enabled = !!this.layoutService;
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<void> {
 		this.layoutService.setSideBarHidden(true);
-
-		return Promise.resolve();
 	}
 }
 
@@ -79,7 +77,7 @@ export class ToggleActivityBarVisibilityAction extends Action {
 		this.enabled = !!this.layoutService;
 	}
 
-	run(): Promise<any> {
+	run(): Promise<void> {
 		const visibility = this.layoutService.isVisible(Parts.ACTIVITYBAR_PART);
 		const newVisibilityValue = !visibility;
 
@@ -115,10 +113,8 @@ class ToggleCenteredLayout extends Action {
 		this.enabled = !!this.layoutService;
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<void> {
 		this.layoutService.centerEditorLayout(!this.layoutService.isEditorLayoutCentered());
-
-		return Promise.resolve();
 	}
 }
 
@@ -165,11 +161,9 @@ export class ToggleEditorLayoutAction extends Action {
 		this.enabled = this.editorGroupService.count > 1;
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<void> {
 		const newOrientation = (this.editorGroupService.orientation === GroupOrientation.VERTICAL) ? GroupOrientation.HORIZONTAL : GroupOrientation.VERTICAL;
 		this.editorGroupService.setGroupOrientation(newOrientation);
-
-		return Promise.resolve();
 	}
 }
 
@@ -205,7 +199,7 @@ export class ToggleSidebarPositionAction extends Action {
 		this.enabled = !!this.layoutService && !!this.configurationService;
 	}
 
-	run(): Promise<any> {
+	run(): Promise<void> {
 		const position = this.layoutService.getSideBarPosition();
 		const newPositionValue = (position === Position.LEFT) ? 'right' : 'left';
 
@@ -255,10 +249,8 @@ export class ToggleEditorVisibilityAction extends Action {
 		this.enabled = !!this.layoutService;
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<void> {
 		this.layoutService.toggleMaximizedPanel();
-
-		return Promise.resolve();
 	}
 }
 
@@ -289,11 +281,9 @@ export class ToggleSidebarVisibilityAction extends Action {
 		this.enabled = !!this.layoutService;
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<void> {
 		const hideSidebar = this.layoutService.isVisible(Parts.SIDEBAR_PART);
 		this.layoutService.setSideBarHidden(hideSidebar);
-
-		return Promise.resolve();
 	}
 }
 
@@ -336,7 +326,7 @@ export class ToggleStatusbarVisibilityAction extends Action {
 		this.enabled = !!this.layoutService;
 	}
 
-	run(): Promise<any> {
+	run(): Promise<void> {
 		const visibility = this.layoutService.isVisible(Parts.STATUSBAR_PART);
 		const newVisibilityValue = !visibility;
 
@@ -373,7 +363,7 @@ class ToggleTabsVisibilityAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<any> {
+	run(): Promise<void> {
 		const visibility = this.configurationService.getValue<string>(ToggleTabsVisibilityAction.tabsVisibleKey);
 		const newVisibilityValue = !visibility;
 
@@ -403,10 +393,8 @@ class ToggleZenMode extends Action {
 		this.enabled = !!this.layoutService;
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<void> {
 		this.layoutService.toggleZenMode();
-
-		return Promise.resolve();
 	}
 }
 
@@ -466,9 +454,7 @@ export class ToggleMenuBarAction extends Action {
 			newVisibilityValue = (isWeb && currentVisibilityValue === 'hidden') ? 'compact' : 'default';
 		}
 
-		this.configurationService.updateValue(ToggleMenuBarAction.menuBarVisibilityKey, newVisibilityValue, ConfigurationTarget.USER);
-
-		return Promise.resolve();
+		return this.configurationService.updateValue(ToggleMenuBarAction.menuBarVisibilityKey, newVisibilityValue, ConfigurationTarget.USER);
 	}
 }
 
@@ -501,7 +487,7 @@ export class ResetViewLocationsAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<void> {
+	async run(): Promise<void> {
 		const viewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 		viewContainerRegistry.all.forEach(viewContainer => {
 			const viewDescriptors = this.viewDescriptorService.getViewDescriptors(viewContainer);
@@ -515,8 +501,6 @@ export class ResetViewLocationsAction extends Action {
 				}
 			});
 		});
-
-		return Promise.resolve();
 	}
 }
 
@@ -541,20 +525,20 @@ export class MoveFocusedViewAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<void> {
+	async run(): Promise<void> {
 		const viewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 
 		const focusedViewId = FocusedViewContext.getValue(this.contextKeyService);
 
 		if (focusedViewId === undefined || focusedViewId.trim() === '') {
 			this.notificationService.error(nls.localize('moveFocusedView.error.noFocusedView', "There is no view currently focused."));
-			return Promise.resolve();
+			return;
 		}
 
 		const viewDescriptor = this.viewDescriptorService.getViewDescriptor(focusedViewId);
 		if (!viewDescriptor || !viewDescriptor.canMoveView) {
 			this.notificationService.error(nls.localize('moveFocusedView.error.nonMovableView', "The currently focused view is not movable."));
-			return Promise.resolve();
+			return;
 		}
 
 		const quickPick = this.quickInputService.createQuickPick();
@@ -608,12 +592,10 @@ export class MoveFocusedViewAction extends Action {
 		});
 
 		quickPick.show();
-
-		return Promise.resolve();
 	}
 }
 
-registry.registerWorkbenchAction(SyncActionDescriptor.create(MoveFocusedViewAction, MoveFocusedViewAction.ID, MoveFocusedViewAction.LABEL), 'View: Move Focused View', viewCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.create(MoveFocusedViewAction, MoveFocusedViewAction.ID, MoveFocusedViewAction.LABEL), 'View: Move Focused View', viewCategory, FocusedViewContext.notEqualsTo(''));
 
 
 // --- Resize View

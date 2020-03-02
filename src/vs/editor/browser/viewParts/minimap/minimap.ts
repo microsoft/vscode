@@ -163,7 +163,7 @@ class MinimapOptions {
 			&& this.fontScale === other.fontScale
 			&& this.minimapLineHeight === other.minimapLineHeight
 			&& this.minimapCharWidth === other.minimapCharWidth
-			&& this.backgroundColor.equals(other.backgroundColor)
+			&& this.backgroundColor && this.backgroundColor.equals(other.backgroundColor)
 		);
 	}
 }
@@ -1111,7 +1111,7 @@ class InnerMinimap extends Disposable {
 			if (!this._lastRenderData) {
 				return;
 			}
-			if (this._model.options.minimapHeightIsEditorHeight) {
+			if (this._model.options.size !== 'proportional') {
 				if (e.leftButton && this._lastRenderData) {
 					// pretend the click occured in the center of the slider
 					const position = dom.getDomNodePagePosition(this._slider.domNode);

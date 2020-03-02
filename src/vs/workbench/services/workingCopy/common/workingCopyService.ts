@@ -91,7 +91,7 @@ export interface IWorkingCopy {
 
 	save(options?: ISaveOptions): Promise<boolean>;
 
-	revert(options?: IRevertOptions): Promise<boolean>;
+	revert(options?: IRevertOptions): Promise<void>;
 
 	//#endregion
 }
