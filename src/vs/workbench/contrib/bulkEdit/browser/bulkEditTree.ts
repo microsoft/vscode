@@ -27,6 +27,7 @@ import { WorkspaceFileEdit } from 'vs/editor/common/modes';
 import { compare } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
+import { Iterable } from 'vs/base/common/iterator';
 
 // --- VIEW MODEL
 
@@ -201,7 +202,7 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 
 		// category
 		if (element instanceof CategoryElement) {
-			return element.category.fileOperations.map(op => new FileElement(element, op));
+			return [...Iterable.map(element.category.fileOperations, op => new FileElement(element, op))];
 		}
 
 		// file: text edit
@@ -283,7 +284,7 @@ export class BulkEditSorter implements ITreeSorter<BulkEditElement> {
 	}
 
 	private static _needsConfirmation(a: BulkCategory): boolean {
-		return a.fileOperations.some(ops => ops.needsConfirmation());
+		return Iterable.some(a.fileOperations, ops => ops.needsConfirmation());
 	}
 }
 
