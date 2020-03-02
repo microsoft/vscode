@@ -113,7 +113,7 @@ export class BackLayerWebView extends Disposable {
 				</script>
 				<script src="${loader}"></script>
 				<div id="__vscode_preloads"></div>
-				<div id='container' class="widgetarea" style="position: absolute;width:100%;"></div>
+				<div id='container' class="widgetarea" style="position: absolute;width:100%;top: 0px"></div>
 <script>
 (function () {
 	// eslint-disable-next-line no-undef
@@ -210,7 +210,6 @@ export class BackLayerWebView extends Disposable {
 					// const date = new Date();
 					// console.log('----- will scroll ----  ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
 
-					document.getElementById('container').style.top = event.data.top + 'px';
 					for (let i = 0; i < event.data.widgets.length; i++) {
 						let widget = document.getElementById(event.data.widgets[i].id);
 						widget.style.top = event.data.widgets[i].top + 'px';

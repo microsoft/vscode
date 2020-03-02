@@ -323,8 +323,9 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 				}));
 
 				const updateScrollPosition = () => {
-					let scrollTop = this.list?.scrollTop || 0;
-					this.webview!.element.style.top = `${scrollTop}px`;
+					const scrollTop = this.list?.scrollTop || 0;
+					const scrollHeight = this.list?.scrollHeight || 0;
+					this.webview!.element.style.height = `${scrollHeight}px`;
 					let updateItems: { cell: CellViewModel, output: IOutput, cellTop: number }[] = [];
 
 					// const date = new Date();
@@ -352,7 +353,6 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 					// const date = new Date();
 					// console.log('----- will scroll ----  ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
 					this.webview!.updateViewScrollTop(-e.scrollTop, []);
-					this.webview!.element.style.top = `${e.scrollTop}px`;
 				}));
 				this.localStore.add(this.list!.onDidChangeContentHeight(() => updateScrollPosition()));
 				this.localStore.add(this.list!.onFocusChange((e) => {
