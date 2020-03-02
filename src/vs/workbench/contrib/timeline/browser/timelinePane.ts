@@ -354,6 +354,8 @@ export class TimelinePane extends ViewPane {
 
 		if (noRequests) {
 			this.refresh();
+		} else if (this.message !== undefined) {
+			this.setLoadingUriMessage();
 		}
 	}
 
@@ -458,8 +460,7 @@ export class TimelinePane extends ViewPane {
 		// If we have items already and there are other pending requests, debounce for a bit to wait for other requests
 		if (alreadyHadItems && this._pendingRequests.size !== 0) {
 			this.refreshDebounced();
-		}
-		else {
+		} else {
 			this.refresh();
 		}
 	}
@@ -538,21 +539,22 @@ export class TimelinePane extends ViewPane {
 	}
 
 	private refresh() {
-		this._pendingAnyResults = false;
-
 		if (this._uri === undefined) {
 			this.titleDescription = undefined;
 			this.message = localize('timeline.editorCannotProvideTimeline', 'The active editor cannot provide timeline information.');
-		}
-		else {
-			this.titleDescription = basename(this._uri.fsPath);
-			if (this._items.length === 0) {
-				this.message = localize('timeline.noTimelineInfo', 'No timeline information was provided.');
+		} else if (this._items.length === 0) {
+			if (this._pendingRequests.size !== 0) {
+				this.setLoadingUriMessage();
 			} else {
-				this.message = undefined;
+				this.titleDescription = basename(this._uri.fsPath);
+				this.message = localize('timeline.noTimelineInfo', 'No timeline information was provided.');
 			}
+		} else {
+			this.titleDescription = basename(this._uri.fsPath);
+			this.message = undefined;
 		}
 
+		this._pendingAnyResults = false;
 		this._tree.setChildren(null, this._items);
 	}
 
