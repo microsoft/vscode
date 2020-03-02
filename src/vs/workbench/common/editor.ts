@@ -609,8 +609,20 @@ export abstract class TextResourceEditorInput extends EditorInput {
 	protected registerListeners(): void {
 
 		// Clear label memoizer on certain events that have impact
-		this._register(this.labelService.onDidChangeFormatters(() => TextResourceEditorInput.MEMOIZER.clear()));
-		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(() => TextResourceEditorInput.MEMOIZER.clear()));
+		this._register(this.labelService.onDidChangeFormatters(e => this.onLabelEvent(e.scheme)));
+		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => this.onLabelEvent(e.scheme)));
+		this._register(this.fileService.onDidChangeFileSystemProviderCapabilities(e => this.onLabelEvent(e.scheme)));
+	}
+
+	private onLabelEvent(scheme: string): void {
+		if (scheme === this.resource.scheme) {
+
+			// Clear any cached labels from before
+			TextResourceEditorInput.MEMOIZER.clear();
+
+			// Trigger recompute of label
+			this._onDidChangeLabel.fire();
+		}
 	}
 
 	getName(): string {
@@ -683,10 +695,6 @@ export abstract class TextResourceEditorInput extends EditorInput {
 	isReadonly(): boolean {
 		if (this.isUntitled()) {
 			return false; // untitled is never readonly
-		}
-
-		if (!this.fileService.canHandleResource(this.resource)) {
-			return true; // resources without file support are always readonly
 		}
 
 		return this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);

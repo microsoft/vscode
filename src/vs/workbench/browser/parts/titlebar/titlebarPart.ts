@@ -86,7 +86,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	private readonly properties: ITitleProperties = { isPure: true, isAdmin: false };
 	private readonly activeEditorListeners = this._register(new DisposableStore());
 
-	private titleUpdater: RunOnceScheduler = this._register(new RunOnceScheduler(() => this.doUpdateTitle(), 0));
+	private readonly titleUpdater = this._register(new RunOnceScheduler(() => this.doUpdateTitle(), 0));
 
 	private contextMenu: IMenu;
 
