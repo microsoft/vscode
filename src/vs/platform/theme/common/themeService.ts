@@ -114,7 +114,7 @@ export interface ITheme {
 	readonly tokenColorMap: string[];
 }
 
-export interface IIconTheme {
+export interface IFileIconTheme {
 	readonly hasFileIcons: boolean;
 	readonly hasFolderIcons: boolean;
 	readonly hidesExplorerArrows: boolean;
@@ -135,9 +135,9 @@ export interface IThemeService {
 
 	readonly onThemeChange: Event<ITheme>;
 
-	getIconTheme(): IIconTheme;
+	getFileIconTheme(): IFileIconTheme;
 
-	readonly onIconThemeChange: Event<IIconTheme>;
+	readonly onDidFileIconThemeChange: Event<IFileIconTheme>;
 
 }
 

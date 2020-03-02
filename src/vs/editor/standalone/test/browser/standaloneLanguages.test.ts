@@ -12,7 +12,7 @@ import { TokenTheme } from 'vs/editor/common/modes/supports/tokenization';
 import { ILineTokens, IToken, TokenizationSupport2Adapter, TokensProvider } from 'vs/editor/standalone/browser/standaloneLanguages';
 import { IStandaloneTheme, IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
-import { IIconTheme, ITheme, LIGHT, ITokenStyle } from 'vs/platform/theme/common/themeService';
+import { IFileIconTheme, ITheme, LIGHT, ITokenStyle } from 'vs/platform/theme/common/themeService';
 
 suite('TokenizationSupport2Adapter', () => {
 
@@ -64,7 +64,7 @@ suite('TokenizationSupport2Adapter', () => {
 			};
 		}
 
-		public getIconTheme(): IIconTheme {
+		public getFileIconTheme(): IFileIconTheme {
 			return {
 				hasFileIcons: false,
 				hasFolderIcons: false,
@@ -72,7 +72,7 @@ suite('TokenizationSupport2Adapter', () => {
 			};
 		}
 		public readonly onThemeChange = new Emitter<ITheme>().event;
-		public readonly onIconThemeChange = new Emitter<IIconTheme>().event;
+		public readonly onDidFileIconThemeChange = new Emitter<IFileIconTheme>().event;
 	}
 
 	class MockState implements IState {

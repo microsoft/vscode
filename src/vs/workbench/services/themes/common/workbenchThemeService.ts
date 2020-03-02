@@ -6,7 +6,7 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { Color } from 'vs/base/common/color';
-import { ITheme, IThemeService, IIconTheme } from 'vs/platform/theme/common/themeService';
+import { ITheme, IThemeService, IFileIconTheme } from 'vs/platform/theme/common/themeService';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { URI } from 'vs/base/common/uri';
 
@@ -38,7 +38,7 @@ export interface IColorMap {
 	[id: string]: Color;
 }
 
-export interface IFileIconTheme extends IIconTheme {
+export interface IWorkbenchFileIconTheme extends IFileIconTheme {
 	readonly id: string;
 	readonly label: string;
 	readonly settingsId: string | null;
@@ -51,6 +51,7 @@ export interface IFileIconTheme extends IIconTheme {
 	readonly hidesExplorerArrows: boolean;
 }
 
+
 export interface IWorkbenchThemeService extends IThemeService {
 	_serviceBrand: undefined;
 	setColorTheme(themeId: string | undefined, settingsTarget: ConfigurationTarget | undefined): Promise<IColorTheme | null>;
@@ -59,10 +60,10 @@ export interface IWorkbenchThemeService extends IThemeService {
 	onDidColorThemeChange: Event<IColorTheme>;
 	restoreColorTheme(): void;
 
-	setFileIconTheme(iconThemeId: string | undefined, settingsTarget: ConfigurationTarget | undefined): Promise<IFileIconTheme>;
-	getFileIconTheme(): IFileIconTheme;
-	getFileIconThemes(): Promise<IFileIconTheme[]>;
-	onDidFileIconThemeChange: Event<IFileIconTheme>;
+	setFileIconTheme(iconThemeId: string | undefined, settingsTarget: ConfigurationTarget | undefined): Promise<IWorkbenchFileIconTheme>;
+	getFileIconTheme(): IWorkbenchFileIconTheme;
+	getFileIconThemes(): Promise<IWorkbenchFileIconTheme[]>;
+	onDidFileIconThemeChange: Event<IWorkbenchFileIconTheme>;
 }
 
 export interface IColorCustomizations {

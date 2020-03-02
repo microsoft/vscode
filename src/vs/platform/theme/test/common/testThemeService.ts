@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { IThemeService, ITheme, DARK, IIconTheme, ITokenStyle } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ITheme, DARK, IFileIconTheme, ITokenStyle } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 
 export class TestTheme implements ITheme {
@@ -33,7 +33,7 @@ export class TestTheme implements ITheme {
 	}
 }
 
-export class TestIconTheme implements IIconTheme {
+export class TestFileIconTheme implements IFileIconTheme {
 	hasFileIcons = false;
 	hasFolderIcons = false;
 	hidesExplorerArrows = false;
@@ -42,38 +42,38 @@ export class TestIconTheme implements IIconTheme {
 export class TestThemeService implements IThemeService {
 
 	_serviceBrand: undefined;
-	_theme: ITheme;
-	_iconTheme: IIconTheme;
+	_colorTheme: ITheme;
+	_fileIconTheme: IFileIconTheme;
 	_onThemeChange = new Emitter<ITheme>();
-	_onIconThemeChange = new Emitter<IIconTheme>();
+	_onFileIconThemeChange = new Emitter<IFileIconTheme>();
 
-	constructor(theme = new TestTheme(), iconTheme = new TestIconTheme()) {
-		this._theme = theme;
-		this._iconTheme = iconTheme;
+	constructor(theme = new TestTheme(), iconTheme = new TestFileIconTheme()) {
+		this._colorTheme = theme;
+		this._fileIconTheme = iconTheme;
 	}
 
 	getTheme(): ITheme {
-		return this._theme;
+		return this._colorTheme;
 	}
 
 	setTheme(theme: ITheme) {
-		this._theme = theme;
+		this._colorTheme = theme;
 		this.fireThemeChange();
 	}
 
 	fireThemeChange() {
-		this._onThemeChange.fire(this._theme);
+		this._onThemeChange.fire(this._colorTheme);
 	}
 
 	public get onThemeChange(): Event<ITheme> {
 		return this._onThemeChange.event;
 	}
 
-	getIconTheme(): IIconTheme {
-		return this._iconTheme;
+	getFileIconTheme(): IFileIconTheme {
+		return this._fileIconTheme;
 	}
 
-	public get onIconThemeChange(): Event<IIconTheme> {
-		return this._onIconThemeChange.event;
+	public get onDidFileIconThemeChange(): Event<IFileIconTheme> {
+		return this._onFileIconThemeChange.event;
 	}
 }
