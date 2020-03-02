@@ -1075,7 +1075,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Update model and make sure to continue to use the editor we get from
 		// the model. It is possible that the editor was already opened and we
 		// want to ensure that we use the existing instance in that case.
-		const editor = this.group.getEditorByIndex(currentIndex)!;
+		const editor = this._group.getEditorByIndex(currentIndex);
+		if (!editor) {
+			return;
+		}
 
 		// Update model
 		this._group.moveEditor(editor, moveToIndex);
@@ -1278,7 +1281,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			return false; // editor must be dirty and not saving
 		}
 
-		if (editor instanceof SideBySideEditorInput && this.isOpened(editor.master)) {
+		if (editor instanceof SideBySideEditorInput && this._group.contains(editor.master)) {
 			return false; // master-side of editor is still opened somewhere else
 		}
 

@@ -84,7 +84,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		this.editorGroupService.whenRestored.then(() => this.onEditorsRestored());
 		this.editorGroupService.onDidActiveGroupChange(group => this.handleActiveEditorChange(group));
 		this.editorGroupService.onDidAddGroup(group => this.registerGroupListeners(group as IEditorGroupView));
-		this.editorsObserver.onDidChange(() => this._onDidMostRecentlyActiveEditorsChange.fire());
+		this.editorsObserver.onDidMostRecentlyActiveEditorsChange(() => this._onDidMostRecentlyActiveEditorsChange.fire());
 
 		// Out of workspace file watchers
 		this._register(this.onDidVisibleEditorsChange(() => this.handleVisibleEditorsChange()));
@@ -705,8 +705,18 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#region isOpen()
 
-	isOpen(editor: IEditorInput): boolean {
-		return this.editorGroupService.groups.some(group => group.isOpened(editor));
+	isOpen(editor: IEditorInput): boolean;
+	isOpen(editor: IResourceInput): boolean;
+	isOpen(editor: IEditorInput | IResourceInput): boolean {
+		if (editor instanceof EditorInput) {
+			return this.editorGroupService.groups.some(group => group.isOpened(editor));
+		}
+
+		if (editor.resource) {
+			return this.editorsObserver.hasEditor(editor.resource);
+		}
+
+		return false;
 	}
 
 	//#endregion
@@ -1169,7 +1179,9 @@ export class DelegatingEditorService implements IEditorService {
 		return this.editorService.replaceEditors(editors as IResourceEditorReplacement[] /* TS fail */, group);
 	}
 
-	isOpen(editor: IEditorInput): boolean { return this.editorService.isOpen(editor); }
+	isOpen(editor: IEditorInput): boolean;
+	isOpen(editor: IResourceInput): boolean;
+	isOpen(editor: IEditorInput | IResourceInput): boolean { return this.editorService.isOpen(editor as IResourceInput /* TS fail */); }
 
 	overrideOpenEditor(handler: IOpenEditorOverrideHandler): IDisposable { return this.editorService.overrideOpenEditor(handler); }
 

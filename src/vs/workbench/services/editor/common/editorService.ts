@@ -196,7 +196,13 @@ export interface IEditorService {
 	 * Find out if the provided editor is opened in any editor group.
 	 *
 	 * Note: An editor can be opened but not actively visible.
+	 *
+	 * @param editor the editor to check for being opened. If a
+	 * `IResourceInput` is passed in, the resource is checked on
+	 * all opened editors. In case of a side by side editor, the
+	 * right hand side resource is considered only.
 	 */
+	isOpen(editor: IResourceInput): boolean;
 	isOpen(editor: IEditorInput): boolean;
 
 	/**

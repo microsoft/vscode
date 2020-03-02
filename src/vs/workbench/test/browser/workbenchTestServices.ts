@@ -623,7 +623,7 @@ export class TestEditorService implements EditorServiceImpl {
 		return [this.editorGroupService.activeGroup, editor as EditorInput, undefined];
 	}
 	openEditors(_editors: any, _group?: any): Promise<IEditor[]> { throw new Error('not implemented'); }
-	isOpen(_editor: IEditorInput): boolean { return false; }
+	isOpen(_editor: IEditorInput | IResourceInput): boolean { return false; }
 	replaceEditors(_editors: any, _group: any) { return Promise.resolve(undefined); }
 	invokeWithinEditorContext<T>(fn: (accessor: ServicesAccessor) => T): T { throw new Error('not implemented'); }
 	createInput(_input: IResourceInput | IUntitledTextResourceInput | IResourceDiffInput | IResourceSideBySideInput): EditorInput { throw new Error('not implemented'); }
