@@ -47,7 +47,7 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 	}
 
 	async pull(): Promise<void> {
-		if (!this.enabled) {
+		if (!this.isEnabled()) {
 			this.logService.info('Keybindings: Skipped pulling keybindings as it is disabled.');
 			return;
 		}
@@ -89,7 +89,7 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 	}
 
 	async push(): Promise<void> {
-		if (!this.enabled) {
+		if (!this.isEnabled()) {
 			this.logService.info('Keybindings: Skipped pushing keybindings as it is disabled.');
 			return;
 		}

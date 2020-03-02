@@ -47,7 +47,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 	}
 
 	async pull(): Promise<void> {
-		if (!this.enabled) {
+		if (!this.isEnabled()) {
 			this.logService.info('UI State: Skipped pulling ui state as it is disabled.');
 			return;
 		}
@@ -79,7 +79,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 	}
 
 	async push(): Promise<void> {
-		if (!this.enabled) {
+		if (!this.isEnabled()) {
 			this.logService.info('UI State: Skipped pushing UI State as it is disabled.');
 			return;
 		}
