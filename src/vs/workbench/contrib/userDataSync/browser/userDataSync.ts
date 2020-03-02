@@ -34,7 +34,7 @@ import { CONTEXT_SYNC_STATE, getSyncSourceFromRemoteContentResource, getUserData
 import { FloatingClickWidget } from 'vs/workbench/browser/parts/editor/editorWidgets';
 import { GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import type { IEditorInput } from 'vs/workbench/common/editor';
+import { IEditorInput, toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
@@ -468,7 +468,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			return;
 		}
 		const resource = source === SyncSource.Settings ? this.workbenchEnvironmentService.settingsResource : this.workbenchEnvironmentService.keybindingsResource;
-		if (isEqual(resource, this.editorService.activeEditor?.resource)) {
+		if (isEqual(resource, toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER }))) {
 			// Do not show notification if the file in error is active
 			return;
 		}
