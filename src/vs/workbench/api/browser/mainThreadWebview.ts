@@ -8,7 +8,6 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isWeb } from 'vs/base/common/platform';
-import { startsWith } from 'vs/base/common/strings';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as modes from 'vs/editor/common/modes';
 import { localize } from 'vs/nls';
@@ -74,7 +73,7 @@ class WebviewViewTypeTransformer {
 	}
 
 	public toExternal(viewType: string): string | undefined {
-		return startsWith(viewType, this.prefix)
+		return viewType.startsWith(this.prefix)
 			? viewType.substr(this.prefix.length)
 			: undefined;
 	}

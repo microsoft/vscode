@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { distinct, find, mergeSort } from 'vs/base/common/arrays';
+import { distinct, mergeSort } from 'vs/base/common/arrays';
 import { CancelablePromise } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
@@ -145,7 +145,7 @@ export class CustomEditorInfoCollection {
 	 * other contributed editors.
 	 */
 	public get defaultEditor(): CustomEditorInfo | undefined {
-		return find(this.allEditors, editor => {
+		return this.allEditors.find(editor => {
 			switch (editor.priority) {
 				case CustomEditorPriority.default:
 				case CustomEditorPriority.builtin:
