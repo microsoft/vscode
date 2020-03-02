@@ -47,20 +47,20 @@ export class WebviewIconManager {
 	private async updateStyleSheet() {
 		await this._lifecycleService.when(LifecyclePhase.Starting);
 
-		try {
-			const cssRules: string[] = [];
-			if (this._configService.getValue('workbench.iconTheme') !== null) {
-				for (const [key, value] of this._icons) {
-					const webviewSelector = `.show-file-icons .webview-${key}-name-file-icon::before`;
+		const cssRules: string[] = [];
+		if (this._configService.getValue('workbench.iconTheme') !== null) {
+			for (const [key, value] of this._icons) {
+				const webviewSelector = `.show-file-icons .webview-${key}-name-file-icon::before`;
+				try {
 					cssRules.push(
 						`.vs ${webviewSelector} { content: ""; background-image: ${dom.asCSSUrl(value.light)}; }`,
 						`.vs-dark ${webviewSelector} { content: ""; background-image: ${dom.asCSSUrl(value.dark)}; }`
 					);
+				} catch {
+					// noop
 				}
 			}
-			this._styleElement.innerHTML = cssRules.join('\n');
-		} catch {
-			// noop
 		}
+		this._styleElement.innerHTML = cssRules.join('\n');
 	}
 }
