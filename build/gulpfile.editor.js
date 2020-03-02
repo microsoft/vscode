@@ -74,7 +74,17 @@ const extractEditorSrcTask = task.define('extract-editor-src', () => {
 		],
 		libs: [
 			`lib.es5.d.ts`,
+			`lib.es2015.core.d.ts`,
+			`lib.es2015.collection.d.ts`,
+			`lib.es2015.generator.d.ts`,
+			`lib.es2015.promise.d.ts`,
+			`lib.es2015.iterable.d.ts`,
+			`lib.es2015.proxy.d.ts`,
+			`lib.es2015.reflect.d.ts`,
+			`lib.es2015.symbol.d.ts`,
+			`lib.es2015.symbol.wellknown.d.ts`,
 			`lib.dom.d.ts`,
+			`lib.dom.iterable.d.ts`,
 			`lib.webworker.importscripts.d.ts`
 		],
 		shakeLevel: 2, // 0-Files, 1-InnerFile, 2-ClassMembers
