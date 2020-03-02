@@ -5,6 +5,7 @@
 
 import { CharCode } from 'vs/base/common/charCode';
 import { Constants } from 'vs/base/common/uint';
+import { canNormalize, normalizeNFD } from 'vs/base/common/normalization';
 
 export function isFalsyOrWhitespace(str: string | undefined): boolean {
 	if (!str || typeof str !== 'string') {
@@ -14,7 +15,7 @@ export function isFalsyOrWhitespace(str: string | undefined): boolean {
 }
 
 /**
- * @returns the provided number with the given number of preceding zeros.
+ * @deprecated ES6: use `String.padStart`
  */
 export function pad(n: number, l: number, char: string = '0'): string {
 	const str = '' + n;
@@ -145,7 +146,7 @@ export function stripWildcards(pattern: string): string {
 }
 
 /**
- * Determines if haystack starts with needle.
+ * @deprecated ES6: use `String.startsWith`
  */
 export function startsWith(haystack: string, needle: string): boolean {
 	if (haystack.length < needle.length) {
@@ -166,7 +167,7 @@ export function startsWith(haystack: string, needle: string): boolean {
 }
 
 /**
- * Determines if haystack ends with needle.
+ * @deprecated ES6: use `String.endsWith`
  */
 export function endsWith(haystack: string, needle: string): boolean {
 	const diff = haystack.length - needle.length;
@@ -853,15 +854,15 @@ export function removeAnsiEscapeCodes(str: string): string {
 }
 
 export const removeAccents: (str: string) => string = (function () {
-	if (typeof (String.prototype as any /* standalone editor compilation */).normalize !== 'function') {
-		// ☹️ no ES6 features...
+	if (!canNormalize) {
+		// no ES6 features...
 		return function (str: string) { return str; };
 	} else {
 		// transform into NFD form and remove accents
 		// see: https://stackoverflow.com/questions/990904/remove-accents-diacritics-in-a-string-in-javascript/37511463#37511463
 		const regex = /[\u0300-\u036f]/g;
 		return function (str: string) {
-			return (str as any /* standalone editor compilation */).normalize('NFD').replace(regex, '');
+			return normalizeNFD(str).replace(regex, '');
 		};
 	}
 })();

@@ -66,17 +66,12 @@ export interface IEditor extends IPanel {
 	/**
 	 * The assigned input of this editor.
 	 */
-	input: IEditorInput | undefined;
-
-	/**
-	 * The assigned options of this editor.
-	 */
-	options: IEditorOptions | undefined;
+	readonly input: IEditorInput | undefined;
 
 	/**
 	 * The assigned group this editor is showing in.
 	 */
-	group: IEditorGroup | undefined;
+	readonly group: IEditorGroup | undefined;
 
 	/**
 	 * The minimum width of this editor.
@@ -112,6 +107,14 @@ export interface IEditor extends IPanel {
 	 * Finds out if this editor is visible or not.
 	 */
 	isVisible(): boolean;
+}
+
+/**
+ * Overrides `IEditor` where `input` and `group` are known to be set.
+ */
+export interface IVisibleEditor extends IEditor {
+	readonly input: IEditorInput;
+	readonly group: IEditorGroup;
 }
 
 export interface ITextEditor extends IEditor {
@@ -449,7 +452,7 @@ export interface IEditorInput extends IDisposable {
 	/**
 	 * Reverts this input from the provided group.
 	 */
-	revert(group: GroupIdentifier, options?: IRevertOptions): Promise<boolean>;
+	revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void>;
 
 	/**
 	 * Called to determine how to handle a resource that is moved that matches
@@ -557,9 +560,7 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 		return this;
 	}
 
-	async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<boolean> {
-		return true;
-	}
+	async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> { }
 
 	move(group: GroupIdentifier, target: URI): IMoveResult | undefined {
 		return undefined;
@@ -611,8 +612,20 @@ export abstract class TextResourceEditorInput extends EditorInput {
 	protected registerListeners(): void {
 
 		// Clear label memoizer on certain events that have impact
-		this._register(this.labelService.onDidChangeFormatters(() => TextResourceEditorInput.MEMOIZER.clear()));
-		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(() => TextResourceEditorInput.MEMOIZER.clear()));
+		this._register(this.labelService.onDidChangeFormatters(e => this.onLabelEvent(e.scheme)));
+		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => this.onLabelEvent(e.scheme)));
+		this._register(this.fileService.onDidChangeFileSystemProviderCapabilities(e => this.onLabelEvent(e.scheme)));
+	}
+
+	private onLabelEvent(scheme: string): void {
+		if (scheme === this.resource.scheme) {
+
+			// Clear any cached labels from before
+			TextResourceEditorInput.MEMOIZER.clear();
+
+			// Trigger recompute of label
+			this._onDidChangeLabel.fire();
+		}
 	}
 
 	getName(): string {
@@ -687,10 +700,6 @@ export abstract class TextResourceEditorInput extends EditorInput {
 			return false; // untitled is never readonly
 		}
 
-		if (!this.fileService.canHandleResource(this.resource)) {
-			return true; // resources without file support are always readonly
-		}
-
 		return this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
 	}
 
@@ -735,8 +744,8 @@ export abstract class TextResourceEditorInput extends EditorInput {
 		return this;
 	}
 
-	revert(group: GroupIdentifier, options?: IRevertOptions): Promise<boolean> {
-		return this.textFileService.revert(this.resource, options);
+	async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
+		await this.textFileService.revert(this.resource, options);
 	}
 }
 
@@ -876,7 +885,7 @@ export class SideBySideEditorInput extends EditorInput {
 		return this.master.saveAs(group, options);
 	}
 
-	revert(group: GroupIdentifier, options?: IRevertOptions): Promise<boolean> {
+	revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
 		return this.master.revert(group, options);
 	}
 

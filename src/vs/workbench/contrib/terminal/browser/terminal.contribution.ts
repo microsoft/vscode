@@ -282,6 +282,11 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: true
 		},
+		'terminal.integrated.allowMenubarMnemonics': {
+			markdownDescription: nls.localize('terminal.integrated.allowMenubarMnemonics', "Whether to allow menubar mnemonics (eg. alt+f) to trigger the open the menubar. Note that this will cause all alt keystrokes will skip the shell when true."),
+			type: 'boolean',
+			default: false
+		},
 		'terminal.integrated.inheritEnv': {
 			markdownDescription: nls.localize('terminal.integrated.inheritEnv', "Whether new shells should inherit their environment from VS Code. This is not supported on Windows."),
 			type: 'boolean',

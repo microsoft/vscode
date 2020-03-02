@@ -80,7 +80,7 @@ export class GitTimelineProvider implements TimelineProvider {
 	constructor(private readonly _model: Model) {
 		this._disposable = Disposable.from(
 			_model.onDidOpenRepository(this.onRepositoriesChanged, this),
-			workspace.registerTimelineProvider('*', this),
+			workspace.registerTimelineProvider(['file', 'git', 'gitlens-git'], this),
 		);
 	}
 
@@ -114,9 +114,9 @@ export class GitTimelineProvider implements TimelineProvider {
 		// TODO[ECA]: Ensure that the uri is a file -- if not we could get the history of the repo?
 
 		let limit: number | undefined;
-		if (typeof options.limit === 'string') {
+		if (options.limit !== undefined && typeof options.limit !== 'number') {
 			try {
-				const result = await this._model.git.exec(repo.root, ['rev-list', '--count', `${options.limit}..`, '--', uri.fsPath]);
+				const result = await this._model.git.exec(repo.root, ['rev-list', '--count', `${options.limit.cursor}..`, '--', uri.fsPath]);
 				if (!result.exitCode) {
 					// Ask for 1 more than so we can determine if there are more commits
 					limit = Number(result.stdout) + 1;
@@ -182,7 +182,7 @@ export class GitTimelineProvider implements TimelineProvider {
 				const item = new GitTimelineItem('~', 'HEAD', localize('git.timeline.stagedChanges', 'Staged Changes'), date.getTime(), 'index', 'git:file:index');
 				// TODO[ECA]: Replace with a better icon -- reflecting its status maybe?
 				item.iconPath = new (ThemeIcon as any)('git-commit');
-				item.description = you;
+				item.description = '';
 				item.detail = localize('git.timeline.detail', '{0}  \u2014 {1}\n{2}\n\n{3}', you, localize('git.index', 'Index'), dateFormatter.format('MMMM Do, YYYY h:mma'), Resource.getStatusText(index.type));
 				item.command = {
 					title: 'Open Comparison',
@@ -201,7 +201,7 @@ export class GitTimelineProvider implements TimelineProvider {
 				const item = new GitTimelineItem('', index ? '~' : 'HEAD', localize('git.timeline.uncommitedChanges', 'Uncommited Changes'), date.getTime(), 'working', 'git:file:working');
 				// TODO[ECA]: Replace with a better icon -- reflecting its status maybe?
 				item.iconPath = new (ThemeIcon as any)('git-commit');
-				item.description = you;
+				item.description = '';
 				item.detail = localize('git.timeline.detail', '{0}  \u2014 {1}\n{2}\n\n{3}', you, localize('git.workingTree', 'Working Tree'), dateFormatter.format('MMMM Do, YYYY h:mma'), Resource.getStatusText(working.type));
 				item.command = {
 					title: 'Open Comparison',

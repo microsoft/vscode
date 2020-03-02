@@ -6,6 +6,7 @@
 .search-view .search-widgets-container {
 	margin: 0px 12px 0 2px;
 	padding-top: 6px;
+	padding-bottom: 6px;
 }
 
 .search-view .search-widget .toggle-replace-button {
@@ -132,7 +133,7 @@
 }
 
 .search-view .query-details.more .file-types:last-child {
-	padding-bottom: 10px;
+	padding-bottom: 4px;
 }
 
 .search-view .query-details.more h4 {

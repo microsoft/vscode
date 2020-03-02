@@ -390,7 +390,7 @@ export class SearchService extends Disposable implements ISearchService {
 				}
 
 				// Skip files that are not opened as text file
-				if (!this.editorService.isOpen(this.editorService.createInput({ resource, forceFile: resource.scheme !== Schemas.untitled, forceUntitled: resource.scheme === Schemas.untitled }))) {
+				if (!this.editorService.isOpen({ resource })) {
 					return;
 				}
 

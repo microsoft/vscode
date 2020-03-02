@@ -77,7 +77,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 	}
 
 	async pull(): Promise<void> {
-		if (!this.enabled) {
+		if (!this.isEnabled()) {
 			this.logService.info('Settings: Skipped pulling settings as it is disabled.');
 			return;
 		}
@@ -123,7 +123,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 	}
 
 	async push(): Promise<void> {
-		if (!this.enabled) {
+		if (!this.isEnabled()) {
 			this.logService.info('Settings: Skipped pushing settings as it is disabled.');
 			return;
 		}
@@ -220,33 +220,26 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 		if (this.status === SyncStatus.HasConflicts) {
 			const preview = await this.syncPreviewResultPromise!;
 			this.cancel();
-			await this.doSync(preview.remoteUserData, preview.lastSyncUserData, resolvedConflicts);
+			await this.performSync(preview.remoteUserData, preview.lastSyncUserData, resolvedConflicts);
 		}
 	}
 
-	protected async doSync(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, resolvedConflicts: { key: string, value: any | undefined }[] = []): Promise<void> {
+	protected async performSync(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, resolvedConflicts: { key: string, value: any | undefined }[] = []): Promise<SyncStatus> {
 		try {
 			const result = await this.getPreview(remoteUserData, lastSyncUserData, resolvedConflicts);
 			if (result.hasConflicts) {
-				this.logService.info('Settings: Detected conflicts while synchronizing settings.');
-				this.setStatus(SyncStatus.HasConflicts);
-				return;
+				return SyncStatus.HasConflicts;
 			}
-			try {
-				await this.apply();
-				this.logService.trace('Settings: Finished synchronizing settings.');
-			} finally {
-				this.setStatus(SyncStatus.Idle);
-			}
+			await this.apply();
+			return SyncStatus.Idle;
 		} catch (e) {
 			this.syncPreviewResultPromise = null;
-			this.setStatus(SyncStatus.Idle);
 			if (e instanceof UserDataSyncError) {
 				switch (e.code) {
 					case UserDataSyncErrorCode.LocalPreconditionFailed:
 						// Rejected as there is a new local version. Syncing again.
 						this.logService.info('Settings: Failed to synchronize settings as there is a new local version available. Synchronizing again...');
-						return this.sync(remoteUserData.ref);
+						return this.performSync(remoteUserData, lastSyncUserData, resolvedConflicts);
 				}
 			}
 			throw e;

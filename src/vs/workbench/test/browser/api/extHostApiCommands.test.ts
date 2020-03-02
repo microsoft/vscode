@@ -895,7 +895,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		disposables.push(extHost.registerCallHierarchyProvider(nullExtensionDescription, defaultSelector, new class implements vscode.CallHierarchyProvider {
 
-			prepareCallHierarchy(document: vscode.TextDocument, position: vscode.Position, ): vscode.ProviderResult<vscode.CallHierarchyItem> {
+			prepareCallHierarchy(document: vscode.TextDocument, position: vscode.Position,): vscode.ProviderResult<vscode.CallHierarchyItem> {
 				return new types.CallHierarchyItem(types.SymbolKind.Constant, 'ROOT', 'ROOT', document.uri, new types.Range(0, 0, 0, 0), new types.Range(0, 0, 0, 0));
 			}
 

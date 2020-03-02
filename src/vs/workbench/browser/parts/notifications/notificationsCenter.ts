@@ -7,7 +7,7 @@ import 'vs/css!./media/notificationsCenter';
 import 'vs/css!./media/notificationsActions';
 import { Themable, NOTIFICATIONS_BORDER, NOTIFICATIONS_CENTER_HEADER_FOREGROUND, NOTIFICATIONS_CENTER_HEADER_BACKGROUND, NOTIFICATIONS_CENTER_BORDER } from 'vs/workbench/common/theme';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { INotificationsModel, INotificationChangeEvent, NotificationChangeType } from 'vs/workbench/common/notifications';
+import { INotificationsModel, INotificationChangeEvent, NotificationChangeType, NotificationViewItemContentChangeKind } from 'vs/workbench/common/notifications';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { Emitter } from 'vs/base/common/event';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -177,7 +177,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 
 		let focusEditor = false;
 
-		// Update notifications list based on event
+		// Update notifications list based on event kind
 		const [notificationsList, notificationsCenterContainer] = assertAllDefined(this.notificationsList, this.notificationsCenterContainer);
 		switch (e.kind) {
 			case NotificationChangeType.ADD:
@@ -185,6 +185,22 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 				e.item.updateVisibility(true);
 				break;
 			case NotificationChangeType.CHANGE:
+				// Handle content changes
+				// - actions: re-draw to properly show them
+				// - message: update notification height unless collapsed
+				switch (e.detail) {
+					case NotificationViewItemContentChangeKind.ACTIONS:
+						notificationsList.updateNotificationsList(e.index, 1, [e.item]);
+						break;
+					case NotificationViewItemContentChangeKind.MESSAGE:
+						if (e.item.expanded) {
+							notificationsList.updateNotificationHeight(e.item);
+						}
+						break;
+				}
+				break;
+			case NotificationChangeType.EXPAND_COLLAPSE:
+				// Re-draw entire item when expansion changes to reveal or hide details
 				notificationsList.updateNotificationsList(e.index, 1, [e.item]);
 				break;
 			case NotificationChangeType.REMOVE:

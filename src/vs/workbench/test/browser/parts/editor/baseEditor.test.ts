@@ -103,11 +103,9 @@ suite('Workbench base editor', () => {
 
 		assert(!e.isVisible());
 		assert(!e.input);
-		assert(!e.options);
 
 		await e.setInput(input, options, CancellationToken.None);
 		assert.strictEqual(input, e.input);
-		assert.strictEqual(options, e.options);
 		const group = new TestEditorGroupView(1);
 		e.setVisible(true, group);
 		assert(e.isVisible());
@@ -120,7 +118,6 @@ suite('Workbench base editor', () => {
 		e.setVisible(false, group);
 		assert(!e.isVisible());
 		assert(!e.input);
-		assert(!e.options);
 		assert(!e.getControl());
 	});
 
