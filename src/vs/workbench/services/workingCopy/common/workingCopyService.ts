@@ -42,10 +42,20 @@ export interface IWorkingCopyBackup {
 
 export interface IWorkingCopy {
 
+	/**
+	 * The unique resource of the working copy. There can only be one
+	 * working copy in the system with the same URI.
+	 */
 	readonly resource: URI;
 
+	/**
+	 * Human readable name of the working copy.
+	 */
 	readonly name: string;
 
+	/**
+	 * The capabilities of the working copy.
+	 */
 	readonly capabilities: WorkingCopyCapabilities;
 
 
@@ -83,14 +93,21 @@ export interface IWorkingCopy {
 	 *
 	 * Providers of working copies should use `IBackupFileService.resolve(workingCopy.resource)`
 	 * to retrieve the backup metadata associated when loading the working copy.
-	 *
-	 * Not providing this method from the working copy will disable any
-	 * backups and hot-exit functionality for those working copies.
 	 */
-	backup?(): Promise<IWorkingCopyBackup>;
+	backup(): Promise<IWorkingCopyBackup>;
 
+	/**
+	 * Asks the working copy to save. If the working copy was dirty, it is
+	 * expected to be non-dirty after this operation has finished.
+	 *
+	 * @returns `true` if the operation was successful and `false` otherwise.
+	 */
 	save(options?: ISaveOptions): Promise<boolean>;
 
+	/**
+	 * Asks the working copy to revert. If the working copy was dirty, it is
+	 * expected to be non-dirty after this operation has finished.
+	 */
 	revert(options?: IRevertOptions): Promise<void>;
 
 	//#endregion
