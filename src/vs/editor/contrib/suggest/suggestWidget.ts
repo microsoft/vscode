@@ -473,7 +473,8 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	readonly allowEditorOverflow = true;
 	readonly suppressMouseDown = false;
 
-	private state: State | null = null;
+	private state: State = State.Hidden;
+	private isAddedAsContentWidget: boolean = false;
 	private isAuto: boolean = false;
 	private loadingTimeout: IDisposable = Disposable.None;
 	private currentSuggestionDetails: CancelablePromise<void> | null = null;
@@ -644,9 +645,6 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.ctxSuggestWidgetDetailsVisible = SuggestContext.DetailsVisible.bindTo(contextKeyService);
 		this.ctxSuggestWidgetMultipleSuggestions = SuggestContext.MultipleSuggestions.bindTo(contextKeyService);
 
-		this.editor.addContentWidget(this);
-		this.setState(State.Hidden);
-
 		this.onThemeChange(themeService.getTheme());
 
 		this.toDispose.add(addStandardDisposableListener(this.details.element, 'keydown', e => {
@@ -808,6 +806,11 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	private setState(state: State): void {
 		if (!this.element) {
 			return;
+		}
+
+		if (!this.isAddedAsContentWidget && state !== State.Hidden) {
+			this.isAddedAsContentWidget = true;
+			this.editor.addContentWidget(this);
 		}
 
 		const stateChanged = this.state !== state;
@@ -1290,6 +1293,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.toDispose.dispose();
 		this.loadingTimeout.dispose();
 		this.showTimeout.dispose();
+		this.editor.removeContentWidget(this);
 	}
 }
 
