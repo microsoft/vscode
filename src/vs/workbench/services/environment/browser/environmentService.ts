@@ -230,16 +230,10 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 
 	args = { _: [] };
 
-	wait!: boolean;
-	status!: boolean;
-	log?: string;
-
 	mainIPCHandle!: string;
 	sharedIPCHandle!: string;
 
 	nodeCachedDataDir?: string;
-
-	disableCrashReporter!: boolean;
 
 	driverHandle?: string;
 	driverVerbose!: boolean;
@@ -253,7 +247,6 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 
 	backupWorkspacesPath!: string;
 
-	machineSettingsHome!: URI;
 	machineSettingsResource!: URI;
 
 	userHome!: string;
@@ -261,7 +254,6 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	appRoot!: string;
 	appSettingsHome!: URI;
 	execPath!: string;
-	cliPath!: string;
 
 	//#endregion
 }

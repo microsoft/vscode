@@ -16,6 +16,10 @@ import { INativeWindowConfiguration } from 'vs/platform/windows/node/window';
 export interface INativeWorkbenchEnvironmentService extends IWorkbenchEnvironmentService {
 
 	readonly configuration: INativeWindowConfiguration;
+
+	log?: string;
+	cliPath: string;
+	disableCrashReporter: boolean;
 }
 
 export class NativeWorkbenchEnvironmentService extends EnvironmentService implements INativeWorkbenchEnvironmentService {
