@@ -218,21 +218,25 @@ export interface IEditorService {
 
 	/**
 	 * Save the provided list of editors.
+	 *
+	 * @returns `true` if all editors saved and `false` otherwise.
 	 */
 	save(editors: IEditorIdentifier | IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<boolean>;
 
 	/**
 	 * Save all editors.
+	 *
+	 * @returns `true` if all editors saved and `false` otherwise.
 	 */
 	saveAll(options?: ISaveAllEditorsOptions): Promise<boolean>;
 
 	/**
 	 * Reverts the provided list of editors.
 	 */
-	revert(editors: IEditorIdentifier | IEditorIdentifier[], options?: IRevertOptions): Promise<boolean>;
+	revert(editors: IEditorIdentifier | IEditorIdentifier[], options?: IRevertOptions): Promise<void>;
 
 	/**
 	 * Reverts all editors.
 	 */
-	revertAll(options?: IRevertAllEditorsOptions): Promise<boolean>;
+	revertAll(options?: IRevertAllEditorsOptions): Promise<void>;
 }

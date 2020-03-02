@@ -112,7 +112,7 @@ export class SearchEditorInput extends EditorInput {
 			isDirty(): boolean { return input.isDirty(); }
 			backup(): Promise<IWorkingCopyBackup> { return input.backup(); }
 			save(options?: ISaveOptions): Promise<boolean> { return input.save(0, options).then(editor => !!editor); }
-			revert(options?: IRevertOptions): Promise<boolean> { return input.revert(0, options); }
+			revert(options?: IRevertOptions): Promise<void> { return input.revert(0, options); }
 		};
 
 		this.workingCopyService.registerWorkingCopy(workingCopyAdapter);
@@ -261,7 +261,6 @@ export class SearchEditorInput extends EditorInput {
 		// TODO: this should actually revert the contents. But it needs to set dirty false.
 		super.revert(group, options);
 		this.setDirty(false);
-		return true;
 	}
 
 	private async backup(): Promise<IWorkingCopyBackup> {

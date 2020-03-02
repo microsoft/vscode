@@ -733,6 +733,8 @@ suite('EditorService', () => {
 		input1.dirty = true;
 		const input2 = new TestFileEditorInput(URI.parse('my://resource2'), TEST_EDITOR_INPUT_ID);
 		input2.dirty = true;
+		const sameInput1 = new TestFileEditorInput(URI.parse('my://resource1'), TEST_EDITOR_INPUT_ID);
+		sameInput1.dirty = true;
 
 		const rootGroup = part.activeGroup;
 
@@ -740,23 +742,49 @@ suite('EditorService', () => {
 
 		await service.openEditor(input1, { pinned: true });
 		await service.openEditor(input2, { pinned: true });
+		await service.openEditor(sameInput1, { pinned: true }, SIDE_GROUP);
 
 		await service.save({ groupId: rootGroup.id, editor: input1 });
 		assert.equal(input1.gotSaved, true);
 
+		input1.gotSaved = false;
+		input1.gotSavedAs = false;
+		input1.gotReverted = false;
+
 		await service.save({ groupId: rootGroup.id, editor: input1 }, { saveAs: true });
 		assert.equal(input1.gotSavedAs, true);
 
+		input1.gotSaved = false;
+		input1.gotSavedAs = false;
+		input1.gotReverted = false;
+
 		await service.revertAll();
 		assert.equal(input1.gotReverted, true);
+
+		input1.gotSaved = false;
+		input1.gotSavedAs = false;
+		input1.gotReverted = false;
 
 		await service.saveAll();
 		assert.equal(input1.gotSaved, true);
 		assert.equal(input2.gotSaved, true);
 
+		input1.gotSaved = false;
+		input1.gotSavedAs = false;
+		input1.gotReverted = false;
+		input2.gotSaved = false;
+		input2.gotSavedAs = false;
+		input2.gotReverted = false;
+
 		await service.saveAll({ saveAs: true });
+
 		assert.equal(input1.gotSavedAs, true);
 		assert.equal(input2.gotSavedAs, true);
+
+		// services dedupes inputs automatically
+		assert.equal(sameInput1.gotSaved, false);
+		assert.equal(sameInput1.gotSavedAs, false);
+		assert.equal(sameInput1.gotReverted, false);
 
 		part.dispose();
 	});

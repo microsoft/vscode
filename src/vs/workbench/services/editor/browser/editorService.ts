@@ -1022,28 +1022,23 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return this.save(this.getAllDirtyEditors(options), options);
 	}
 
-	async revert(editors: IEditorIdentifier | IEditorIdentifier[], options?: IRevertOptions): Promise<boolean> {
+	async revert(editors: IEditorIdentifier | IEditorIdentifier[], options?: IRevertOptions): Promise<void> {
 
 		// Convert to array
 		if (!Array.isArray(editors)) {
 			editors = [editors];
 		}
 
-		const result = await Promise.all(editors.map(async ({ groupId, editor }) => {
-			if (editor.isDisposed()) {
-				return true; // might have been disposed from from the revert already
-			}
+		await Promise.all(editors.map(async ({ groupId, editor }) => {
 
 			// Use revert as a hint to pin the editor
 			this.editorGroupService.getGroup(groupId)?.pinEditor(editor);
 
 			return editor.revert(groupId, options);
 		}));
-
-		return result.every(success => !!success);
 	}
 
-	async revertAll(options?: IRevertAllEditorsOptions): Promise<boolean> {
+	async revertAll(options?: IRevertAllEditorsOptions): Promise<void> {
 		return this.revert(this.getAllDirtyEditors(options), options);
 	}
 
@@ -1162,8 +1157,8 @@ export class DelegatingEditorService implements IEditorService {
 	save(editors: IEditorIdentifier | IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<boolean> { return this.editorService.save(editors, options); }
 	saveAll(options?: ISaveAllEditorsOptions): Promise<boolean> { return this.editorService.saveAll(options); }
 
-	revert(editors: IEditorIdentifier | IEditorIdentifier[], options?: IRevertOptions): Promise<boolean> { return this.editorService.revert(editors, options); }
-	revertAll(options?: IRevertAllEditorsOptions): Promise<boolean> { return this.editorService.revertAll(options); }
+	revert(editors: IEditorIdentifier | IEditorIdentifier[], options?: IRevertOptions): Promise<void> { return this.editorService.revert(editors, options); }
+	revertAll(options?: IRevertAllEditorsOptions): Promise<void> { return this.editorService.revertAll(options); }
 
 	//#endregion
 }

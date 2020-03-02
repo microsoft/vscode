@@ -449,7 +449,7 @@ export interface IEditorInput extends IDisposable {
 	/**
 	 * Reverts this input from the provided group.
 	 */
-	revert(group: GroupIdentifier, options?: IRevertOptions): Promise<boolean>;
+	revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void>;
 
 	/**
 	 * Called to determine how to handle a resource that is moved that matches
@@ -557,9 +557,7 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 		return this;
 	}
 
-	async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<boolean> {
-		return true;
-	}
+	async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> { }
 
 	move(group: GroupIdentifier, target: URI): IMoveResult | undefined {
 		return undefined;
@@ -735,8 +733,8 @@ export abstract class TextResourceEditorInput extends EditorInput {
 		return this;
 	}
 
-	revert(group: GroupIdentifier, options?: IRevertOptions): Promise<boolean> {
-		return this.textFileService.revert(this.resource, options);
+	async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
+		await this.textFileService.revert(this.resource, options);
 	}
 }
 
@@ -876,7 +874,7 @@ export class SideBySideEditorInput extends EditorInput {
 		return this.master.saveAs(group, options);
 	}
 
-	revert(group: GroupIdentifier, options?: IRevertOptions): Promise<boolean> {
+	revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
 		return this.master.revert(group, options);
 	}
 

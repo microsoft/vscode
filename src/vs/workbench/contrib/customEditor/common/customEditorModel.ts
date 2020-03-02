@@ -113,12 +113,9 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 	}
 
 	public async revert(_options?: IRevertOptions) {
-		if (!this._dirty) {
-			return true;
+		if (this._dirty) {
+			this._onRevert.fire();
 		}
-
-		this._onRevert.fire();
-		return true;
 	}
 
 	public undo() {

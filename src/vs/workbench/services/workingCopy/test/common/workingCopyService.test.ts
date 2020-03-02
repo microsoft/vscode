@@ -56,10 +56,8 @@ suite('WorkingCopyService', () => {
 			return true;
 		}
 
-		async revert(options?: IRevertOptions): Promise<boolean> {
+		async revert(options?: IRevertOptions): Promise<void> {
 			this.setDirty(false);
-
-			return true;
 		}
 
 		async backup(): Promise<IWorkingCopyBackup> {
