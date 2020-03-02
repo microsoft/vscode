@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { IThemeService, ITheme, DARK, IFileIconTheme, ITokenStyle } from 'vs/platform/theme/common/themeService';
+import { IThemeService, IColorTheme, DARK, IFileIconTheme, ITokenStyle } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 
-export class TestTheme implements ITheme {
+export class TestColorTheme implements IColorTheme {
 
 	constructor(private colors: { [id: string]: string; } = {}, public type = DARK) {
 	}
@@ -42,21 +42,21 @@ export class TestFileIconTheme implements IFileIconTheme {
 export class TestThemeService implements IThemeService {
 
 	_serviceBrand: undefined;
-	_colorTheme: ITheme;
+	_colorTheme: IColorTheme;
 	_fileIconTheme: IFileIconTheme;
-	_onThemeChange = new Emitter<ITheme>();
+	_onThemeChange = new Emitter<IColorTheme>();
 	_onFileIconThemeChange = new Emitter<IFileIconTheme>();
 
-	constructor(theme = new TestTheme(), iconTheme = new TestFileIconTheme()) {
+	constructor(theme = new TestColorTheme(), iconTheme = new TestFileIconTheme()) {
 		this._colorTheme = theme;
 		this._fileIconTheme = iconTheme;
 	}
 
-	getTheme(): ITheme {
+	getColorTheme(): IColorTheme {
 		return this._colorTheme;
 	}
 
-	setTheme(theme: ITheme) {
+	setTheme(theme: IColorTheme) {
 		this._colorTheme = theme;
 		this.fireThemeChange();
 	}
@@ -65,7 +65,7 @@ export class TestThemeService implements IThemeService {
 		this._onThemeChange.fire(this._colorTheme);
 	}
 
-	public get onThemeChange(): Event<ITheme> {
+	public get onDidColorThemeChange(): Event<IColorTheme> {
 		return this._onThemeChange.event;
 	}
 

@@ -823,7 +823,7 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 
 		const { element: item } = node;
 
-		const icon = this._themeService.getTheme().type === LIGHT ? item.icon : item.iconDark;
+		const icon = this._themeService.getColorTheme().type === LIGHT ? item.icon : item.iconDark;
 		const iconUrl = icon ? URI.revive(icon) : null;
 
 		if (iconUrl) {

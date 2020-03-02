@@ -516,7 +516,7 @@ class SemanticStyling extends Disposable {
 		this._caches = new WeakMap<DocumentSemanticTokensProvider, SemanticColoringProviderStyling>();
 		if (this._themeService) {
 			// workaround for tests which use undefined... :/
-			this._register(this._themeService.onThemeChange(() => {
+			this._register(this._themeService.onDidColorThemeChange(() => {
 				this._caches = new WeakMap<DocumentSemanticTokensProvider, SemanticColoringProviderStyling>();
 			}));
 		}
@@ -651,7 +651,7 @@ class SemanticColoringProviderStyling {
 				modifierSet = modifierSet >> 1;
 			}
 
-			const tokenStyle = this._themeService.getTheme().getTokenStyleMetadata(tokenType, tokenModifiers);
+			const tokenStyle = this._themeService.getColorTheme().getTokenStyleMetadata(tokenType, tokenModifiers);
 			if (typeof tokenStyle === 'undefined') {
 				metadata = Constants.NO_STYLING;
 			} else {
@@ -759,7 +759,7 @@ class ModelSemanticColoring extends Disposable {
 
 		if (themeService) {
 			// workaround for tests which use undefined... :/
-			this._register(themeService.onThemeChange(_ => {
+			this._register(themeService.onDidColorThemeChange(_ => {
 				// clear out existing tokens
 				this._setSemanticTokens(null, null, null, []);
 				this._fetchSemanticTokens.schedule();

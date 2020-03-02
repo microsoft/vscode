@@ -208,7 +208,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 
 		const elementDisposables = new DisposableStore();
 		const resourceOrFolder = node.element;
-		const theme = this.themeService.getTheme();
+		const theme = this.themeService.getColorTheme();
 		const iconResource = ResourceTree.isResourceNode(resourceOrFolder) ? resourceOrFolder.element : resourceOrFolder;
 		const icon = iconResource && (theme.type === LIGHT ? iconResource.decorations.icon : iconResource.decorations.iconDark);
 

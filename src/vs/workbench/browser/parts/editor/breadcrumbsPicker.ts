@@ -87,7 +87,7 @@ export abstract class BreadcrumbsPicker {
 
 	show(input: any, maxHeight: number, width: number, arrowSize: number, arrowOffset: number): void {
 
-		const theme = this._themeService.getTheme();
+		const theme = this._themeService.getColorTheme();
 		const color = theme.getColor(breadcrumbsPickerBackground);
 
 		this._arrow = document.createElement('div');
@@ -98,7 +98,7 @@ export abstract class BreadcrumbsPicker {
 		this._treeContainer = document.createElement('div');
 		this._treeContainer.style.background = color ? color.toString() : '';
 		this._treeContainer.style.paddingTop = '2px';
-		this._treeContainer.style.boxShadow = `0px 5px 8px ${this._themeService.getTheme().getColor(widgetShadow)}`;
+		this._treeContainer.style.boxShadow = `0px 5px 8px ${this._themeService.getColorTheme().getColor(widgetShadow)}`;
 		this._domNode.appendChild(this._treeContainer);
 
 		this._layoutInfo = { maxHeight, width, arrowSize, arrowOffset, inputHeight: 0 };

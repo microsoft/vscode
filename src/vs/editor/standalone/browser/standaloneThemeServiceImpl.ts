@@ -168,8 +168,8 @@ export class StandaloneThemeServiceImpl extends Disposable implements IStandalon
 
 	_serviceBrand: undefined;
 
-	private readonly _onThemeChange = this._register(new Emitter<IStandaloneTheme>());
-	public readonly onThemeChange = this._onThemeChange.event;
+	private readonly _onColorThemeChange = this._register(new Emitter<IStandaloneTheme>());
+	public readonly onDidColorThemeChange = this._onColorThemeChange.event;
 
 	private readonly _onFileIconThemeChange = this._register(new Emitter<IFileIconTheme>());
 	public readonly onDidFileIconThemeChange = this._onFileIconThemeChange.event;
@@ -250,7 +250,7 @@ export class StandaloneThemeServiceImpl extends Disposable implements IStandalon
 		}
 	}
 
-	public getTheme(): IStandaloneTheme {
+	public getColorTheme(): IStandaloneTheme {
 		return this._theme;
 	}
 
@@ -287,7 +287,7 @@ export class StandaloneThemeServiceImpl extends Disposable implements IStandalon
 		this._styleElements.forEach(styleElement => styleElement.innerHTML = this._css);
 
 		TokenizationRegistry.setColorMap(colorMap);
-		this._onThemeChange.fire(theme);
+		this._onColorThemeChange.fire(theme);
 
 		return theme.id;
 	}

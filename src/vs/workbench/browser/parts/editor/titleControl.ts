@@ -26,7 +26,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { listActiveSelectionBackground, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
-import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { prepareActions } from 'vs/workbench/browser/actions';
 import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillResourceDataTransfers, LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -388,7 +388,7 @@ export abstract class TitleControl extends Themable {
 	}
 }
 
-registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 
 	// Drag Feedback
 	const dragImageBackground = theme.getColor(listActiveSelectionBackground);

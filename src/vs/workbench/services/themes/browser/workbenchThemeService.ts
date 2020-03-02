@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkbenchThemeService, IColorTheme, ITokenColorCustomizations, IWorkbenchFileIconTheme, ExtensionData, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, COLOR_THEME_SETTING, ICON_THEME_SETTING, CUSTOM_WORKBENCH_COLORS_SETTING, CUSTOM_EDITOR_COLORS_SETTING, IColorCustomizations, CUSTOM_EDITOR_TOKENSTYLES_SETTING, IExperimentalTokenStyleCustomizations } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IWorkbenchThemeService, IWorkbenchColorTheme, ITokenColorCustomizations, IWorkbenchFileIconTheme, ExtensionData, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, COLOR_THEME_SETTING, ICON_THEME_SETTING, CUSTOM_WORKBENCH_COLORS_SETTING, CUSTOM_EDITOR_COLORS_SETTING, IColorCustomizations, CUSTOM_EDITOR_TOKENSTYLES_SETTING, IExperimentalTokenStyleCustomizations } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -14,7 +14,7 @@ import * as errors from 'vs/base/common/errors';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
 import { ColorThemeData } from 'vs/workbench/services/themes/common/colorThemeData';
-import { ITheme, Extensions as ThemingExtensions, IThemingRegistry, ThemeType, LIGHT, DARK, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, Extensions as ThemingExtensions, IThemingRegistry, ThemeType, LIGHT, DARK, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
 import { Event, Emitter } from 'vs/base/common/event';
 import { registerFileIconThemeSchemas } from 'vs/workbench/services/themes/common/fileIconThemeSchema';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -85,7 +85,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	private colorThemeStore: ColorThemeStore;
 	private currentColorTheme: ColorThemeData;
 	private container: HTMLElement;
-	private readonly onColorThemeChange: Emitter<IColorTheme>;
+	private readonly onColorThemeChange: Emitter<IWorkbenchColorTheme>;
 	private watchedColorThemeLocation: URI | undefined;
 	private watchedColorThemeDisposable: IDisposable | undefined;
 
@@ -124,7 +124,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		this.colorThemeStore = new ColorThemeStore(extensionService);
 		this.onFileIconThemeChange = new Emitter<IWorkbenchFileIconTheme>();
 		this.iconThemeStore = new FileIconThemeStore(extensionService);
-		this.onColorThemeChange = new Emitter<IColorTheme>({ leakWarningThreshold: 400 });
+		this.onColorThemeChange = new Emitter<IWorkbenchColorTheme>({ leakWarningThreshold: 400 });
 
 		this.currentColorTheme = ColorThemeData.createUnloadedTheme('');
 		this.currentFileIconTheme = FileIconThemeData.createUnloadedTheme('');
@@ -262,7 +262,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		});
 	}
 
-	public get onDidColorThemeChange(): Event<IColorTheme> {
+	public get onDidColorThemeChange(): Event<IWorkbenchColorTheme> {
 		return this.onColorThemeChange.event;
 	}
 
@@ -270,11 +270,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return this.onFileIconThemeChange.event;
 	}
 
-	public get onThemeChange(): Event<ITheme> {
-		return this.onColorThemeChange.event;
-	}
-
-	private initialize(): Promise<[IColorTheme | null, IWorkbenchFileIconTheme | null]> {
+	private initialize(): Promise<[IWorkbenchColorTheme | null, IWorkbenchFileIconTheme | null]> {
 		const colorThemeSetting = this.configurationService.getValue<string>(COLOR_THEME_SETTING);
 		const iconThemeSetting = this.configurationService.getValue<string | null>(ICON_THEME_SETTING);
 
@@ -395,7 +391,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return undefined;
 	}
 
-	private async applyPreferredColorTheme(type: ThemeType): Promise<IColorTheme | null> {
+	private async applyPreferredColorTheme(type: ThemeType): Promise<IWorkbenchColorTheme | null> {
 		const settingId = type === DARK ? PREFERRED_DARK_THEME_SETTING : type === LIGHT ? PREFERRED_LIGHT_THEME_SETTING : PREFERRED_HC_THEME_SETTING;
 		const themeSettingId = this.configurationService.getValue<string>(settingId);
 		if (themeSettingId) {
@@ -407,19 +403,15 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return null;
 	}
 
-	public getColorTheme(): IColorTheme {
+	public getColorTheme(): IWorkbenchColorTheme {
 		return this.currentColorTheme;
 	}
 
-	public getColorThemes(): Promise<IColorTheme[]> {
+	public getColorThemes(): Promise<IWorkbenchColorTheme[]> {
 		return this.colorThemeStore.getColorThemes();
 	}
 
-	public getTheme(): ITheme {
-		return this.getColorTheme();
-	}
-
-	public setColorTheme(themeId: string | undefined, settingsTarget: ConfigurationTarget | undefined | 'auto'): Promise<IColorTheme | null> {
+	public setColorTheme(themeId: string | undefined, settingsTarget: ConfigurationTarget | undefined | 'auto'): Promise<IWorkbenchColorTheme | null> {
 		if (!themeId) {
 			return Promise.resolve(null);
 		}
@@ -474,7 +466,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		}
 	}
 
-	private updateDynamicCSSRules(themeData: ITheme) {
+	private updateDynamicCSSRules(themeData: IColorTheme) {
 		const cssRules = new Set<string>();
 		const ruleCollector = {
 			addRule: (rule: string) => {
@@ -487,7 +479,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		_applyRules([...cssRules].join('\n'), colorThemeRulesClassName);
 	}
 
-	private applyTheme(newTheme: ColorThemeData, settingsTarget: ConfigurationTarget | undefined | 'auto', silent = false): Promise<IColorTheme | null> {
+	private applyTheme(newTheme: ColorThemeData, settingsTarget: ConfigurationTarget | undefined | 'auto', silent = false): Promise<IWorkbenchColorTheme | null> {
 		if (this.currentColorTheme.id) {
 			removeClasses(this.container, this.currentColorTheme.id);
 		} else {
@@ -527,7 +519,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return this.writeColorThemeConfiguration(settingsTarget);
 	}
 
-	private writeColorThemeConfiguration(settingsTarget: ConfigurationTarget | undefined | 'auto'): Promise<IColorTheme> {
+	private writeColorThemeConfiguration(settingsTarget: ConfigurationTarget | undefined | 'auto'): Promise<IWorkbenchColorTheme> {
 		if (!types.isUndefinedOrNull(settingsTarget)) {
 			return this.writeConfiguration(COLOR_THEME_SETTING, this.currentColorTheme.settingsId, settingsTarget).then(_ => this.currentColorTheme);
 		}

@@ -12,7 +12,7 @@ import { TokenTheme } from 'vs/editor/common/modes/supports/tokenization';
 import { ILineTokens, IToken, TokenizationSupport2Adapter, TokensProvider } from 'vs/editor/standalone/browser/standaloneLanguages';
 import { IStandaloneTheme, IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
-import { IFileIconTheme, ITheme, LIGHT, ITokenStyle } from 'vs/platform/theme/common/themeService';
+import { IFileIconTheme, IColorTheme, LIGHT, ITokenStyle } from 'vs/platform/theme/common/themeService';
 
 suite('TokenizationSupport2Adapter', () => {
 
@@ -40,7 +40,7 @@ suite('TokenizationSupport2Adapter', () => {
 		public defineTheme(themeName: string, themeData: IStandaloneThemeData): void {
 			throw new Error('Not implemented');
 		}
-		public getTheme(): IStandaloneTheme {
+		public getColorTheme(): IStandaloneTheme {
 			return {
 				tokenTheme: new MockTokenTheme(),
 
@@ -71,7 +71,7 @@ suite('TokenizationSupport2Adapter', () => {
 				hidesExplorerArrows: false
 			};
 		}
-		public readonly onThemeChange = new Emitter<ITheme>().event;
+		public readonly onDidColorThemeChange = new Emitter<IColorTheme>().event;
 		public readonly onDidFileIconThemeChange = new Emitter<IFileIconTheme>().event;
 	}
 

@@ -127,7 +127,7 @@ export class ResourceLabels extends Disposable {
 		this._register(this.decorationsService.onDidChangeDecorations(e => this._widgets.forEach(widget => widget.notifyFileDecorationsChanges(e))));
 
 		// notify when theme changes
-		this._register(this.themeService.onThemeChange(() => this._widgets.forEach(widget => widget.notifyThemeChange())));
+		this._register(this.themeService.onDidColorThemeChange(() => this._widgets.forEach(widget => widget.notifyThemeChange())));
 
 		// notify when files.associations changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => {

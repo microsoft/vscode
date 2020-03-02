@@ -274,7 +274,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// Theme changes
-		this._register(this.themeService.onThemeChange(theme => this.updateStyles()));
+		this._register(this.themeService.onDidColorThemeChange(theme => this.updateStyles()));
 
 		// Window focus changes
 		this._register(this.hostService.onDidChangeFocus(e => this.onWindowFocusChanged(e)));
@@ -403,7 +403,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return;
 		}
 
-		const theme = this.themeService.getTheme();
+		const theme = this.themeService.getColorTheme();
 
 		const activeBorder = theme.getColor(WINDOW_ACTIVE_BORDER);
 		const inactiveBorder = theme.getColor(WINDOW_INACTIVE_BORDER);

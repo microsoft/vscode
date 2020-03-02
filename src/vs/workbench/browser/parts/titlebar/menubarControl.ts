@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { IMenuService, MenuId, IMenu, SubmenuItemAction } from 'vs/platform/actions/common/actions';
-import { registerThemingParticipant, ITheme, ICssStyleCollector, IThemeService } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, IColorTheme, ICssStyleCollector, IThemeService } from 'vs/platform/theme/common/themeService';
 import { MenuBarVisibility, getTitleBarStyle, IWindowOpenable, getMenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IAction, Action } from 'vs/base/common/actions';
@@ -313,7 +313,7 @@ export class CustomMenubarControl extends MenubarControl {
 
 		this.registerListeners();
 
-		registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+		registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 			const menubarActiveWindowFgColor = theme.getColor(TITLE_BAR_ACTIVE_FOREGROUND);
 			if (menubarActiveWindowFgColor) {
 				collector.addRule(`

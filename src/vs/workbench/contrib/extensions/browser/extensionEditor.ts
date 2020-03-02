@@ -597,7 +597,7 @@ export class ExtensionEditor extends BaseEditor {
 			let isDisposed = false;
 			this.contentDisposables.add(toDisposable(() => { isDisposed = true; }));
 
-			this.contentDisposables.add(this.themeService.onThemeChange(async () => {
+			this.contentDisposables.add(this.themeService.onDidColorThemeChange(async () => {
 				// Render again since syntax highlighting of code blocks may have changed
 				const body = await this.renderMarkdown(cacheResult, template);
 				if (!isDisposed) { // Make sure we weren't disposed of in the meantime

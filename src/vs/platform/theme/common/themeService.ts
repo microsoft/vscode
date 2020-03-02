@@ -86,7 +86,7 @@ export interface ITokenStyle {
 	readonly italic?: boolean;
 }
 
-export interface ITheme {
+export interface IColorTheme {
 	readonly type: ThemeType;
 
 	/**
@@ -125,15 +125,15 @@ export interface ICssStyleCollector {
 }
 
 export interface IThemingParticipant {
-	(theme: ITheme, collector: ICssStyleCollector, environment: IEnvironmentService): void;
+	(theme: IColorTheme, collector: ICssStyleCollector, environment: IEnvironmentService): void;
 }
 
 export interface IThemeService {
 	_serviceBrand: undefined;
 
-	getTheme(): ITheme;
+	getColorTheme(): IColorTheme;
 
-	readonly onThemeChange: Event<ITheme>;
+	readonly onDidColorThemeChange: Event<IColorTheme>;
 
 	getFileIconTheme(): IFileIconTheme;
 
@@ -151,7 +151,7 @@ export interface IThemingRegistry {
 	/**
 	 * Register a theming participant that is invoked on every theme change.
 	 */
-	onThemeChange(participant: IThemingParticipant): IDisposable;
+	onColorThemeChange(participant: IThemingParticipant): IDisposable;
 
 	getThemingParticipants(): IThemingParticipant[];
 
@@ -167,7 +167,7 @@ class ThemingRegistry implements IThemingRegistry {
 		this.onThemingParticipantAddedEmitter = new Emitter<IThemingParticipant>();
 	}
 
-	public onThemeChange(participant: IThemingParticipant): IDisposable {
+	public onColorThemeChange(participant: IThemingParticipant): IDisposable {
 		this.themingParticipants.push(participant);
 		this.onThemingParticipantAddedEmitter.fire(participant);
 		return toDisposable(() => {
@@ -189,5 +189,5 @@ let themingRegistry = new ThemingRegistry();
 platform.Registry.add(Extensions.ThemingContribution, themingRegistry);
 
 export function registerThemingParticipant(participant: IThemingParticipant): IDisposable {
-	return themingRegistry.onThemeChange(participant);
+	return themingRegistry.onColorThemeChange(participant);
 }
