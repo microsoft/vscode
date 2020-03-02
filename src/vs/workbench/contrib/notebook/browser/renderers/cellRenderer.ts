@@ -311,6 +311,10 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	}
 
 	renderElement(element: CellViewModel, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
+		if (height === undefined) {
+			return;
+		}
+
 		if (templateData.outputContainer) {
 			templateData.outputContainer!.innerHTML = '';
 		}

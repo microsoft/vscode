@@ -1134,6 +1134,10 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			return 0;
 		}
 
+		if (!!this.virtualDelegate.hasDynamicHeight && !this.virtualDelegate.hasDynamicHeight(item.element)) {
+			return 0;
+		}
+
 		const size = item.size;
 
 		if (item.row && item.row.domNode) {

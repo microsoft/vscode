@@ -104,16 +104,18 @@ export class CodeCell extends Disposable {
 
 		this._register(templateData.editor!.onDidContentSizeChange((e) => {
 			if (e.contentHeightChanged) {
-				let layout = templateData.editor!.getLayoutInfo();
-				if (layout.height !== e.contentHeight) {
+				let currContentHeight = templateData.editor!.getContentHeight();
+				if (currContentHeight !== e.contentHeight) {
 					templateData.editor?.layout(
 						{
-							width: layout.width,
+							width: currContentHeight,
 							height: e.contentHeight
 
 						}
 					);
+				}
 
+				if (viewCell.editorHeight !== currContentHeight) {
 					viewCell.editorHeight = e.contentHeight;
 
 					if (viewCell.outputs.length) {
@@ -122,7 +124,9 @@ export class CodeCell extends Disposable {
 					} else {
 						notebookEditor.layoutNotebookCell(viewCell, viewCell.editorHeight + 32);
 					}
+
 				}
+
 			}
 		}));
 
@@ -252,6 +256,7 @@ export class CodeCell extends Disposable {
 		}
 
 		if (result.shadowContent) {
+			this.viewCell.selfSizeMonitoring = true;
 			let editorHeight = this.viewCell.editorHeight;
 			this.notebookEditor.createInset(this.viewCell, currOutput, result.shadowContent, editorHeight + 8 + this.viewCell.getOutputOffset(index));
 		} else {
@@ -284,7 +289,6 @@ export class CodeCell extends Disposable {
 					this.viewCell.updateOutputHeight(currIndex, height);
 					const editorHeight = this.viewCell.editorHeight;
 					const totalOutputHeight = this.viewCell.getOutputTotalHeight();
-					this.viewCell.dynamicHeight = editorHeight + 32 + totalOutputHeight;
 					this.notebookEditor.layoutNotebookCell(this.viewCell, editorHeight + 32 + totalOutputHeight);
 				}
 			});

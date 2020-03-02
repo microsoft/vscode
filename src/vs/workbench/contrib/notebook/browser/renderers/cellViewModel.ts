@@ -21,7 +21,6 @@ export class CellViewModel extends Disposable {
 
 	private _mdRenderer: MarkdownRenderer | null = null;
 	private _html: HTMLElement | null = null;
-	private _dynamicHeight: number | null = null;
 	protected readonly _onDidDispose = new Emitter<void>();
 	readonly onDidDispose = this._onDidDispose.event;
 	protected readonly _onDidChangeEditingState = new Emitter<void>();
@@ -49,14 +48,15 @@ export class CellViewModel extends Disposable {
 		this._onDidChangeEditingState.fire();
 	}
 
-	set dynamicHeight(height: number | null) {
-		this._dynamicHeight = height;
+	private _selfSizeMonitoring: boolean = false;
+
+	set selfSizeMonitoring(newVal: boolean) {
+		this._selfSizeMonitoring = newVal;
 	}
 
-	get dynamicHeight(): number | null {
-		return this._dynamicHeight;
+	get selfSizeMonitoring() {
+		return this._selfSizeMonitoring;
 	}
-
 
 	private _editorHeight = 0;
 	set editorHeight(height: number) {
@@ -146,7 +146,7 @@ export class CellViewModel extends Disposable {
 	//#endregion
 
 	hasDynamicHeight() {
-		if (this._dynamicHeight !== null) {
+		if (this.selfSizeMonitoring) {
 			// if there is an output rendered in the webview, it should always be false
 			return false;
 		}
