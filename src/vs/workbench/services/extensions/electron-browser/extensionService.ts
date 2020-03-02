@@ -600,7 +600,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		const extension = allExtensions.filter(e => e.identifier.value === resolverExtensionId)[0];
 		if (extension) {
 			if (this._isDisabled(extension)) {
-				const message = nls.localize('enableResolver', "Extension '{0}' is required to open the remote window.\nOk to enable?", recommendation.friendlyName);
+				const message = nls.localize('enableResolver', "Extension '{0}' is required to open the remote window.\nOK to enable?", recommendation.friendlyName);
 				this._notificationService.prompt(Severity.Info, message,
 					[{
 						label: nls.localize('enable', 'Enable and Reload'),
@@ -615,7 +615,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			}
 		} else {
 			// Install the Extension and reload the window to handle.
-			const message = nls.localize('installResolver', "Extension '{0}' is required to open the remote window.\nOk to install?", recommendation.friendlyName);
+			const message = nls.localize('installResolver', "Extension '{0}' is required to open the remote window.\nnOK to install?", recommendation.friendlyName);
 			this._notificationService.prompt(Severity.Info, message,
 				[{
 					label: nls.localize('install', 'Install and Reload'),

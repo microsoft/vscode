@@ -511,7 +511,7 @@ export class CodeApplication extends Disposable {
 						type: 'info',
 						message: localize('trace.message', "Successfully created trace."),
 						detail: localize('trace.detail', "Please create an issue and manually attach the following file:\n{0}", path),
-						buttons: [localize('trace.ok', "Ok")]
+						buttons: [localize('trace.ok', "OK")]
 					}, withNullAsUndefined(BrowserWindow.getFocusedWindow()));
 				}
 			} else {
