@@ -15,6 +15,7 @@
 		},
 		"lib": [
 			"ES2015",
+			"ES2018.Promise",
 			"DOM",
 			"DOM.Iterable",
 			"WebWorker.ImportScripts"
