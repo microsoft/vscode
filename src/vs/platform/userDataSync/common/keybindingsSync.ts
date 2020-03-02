@@ -161,29 +161,22 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 		return content !== null ? this.getKeybindingsContentFromSyncContent(content) : null;
 	}
 
-	protected async doSync(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<void> {
+	protected async performSync(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<SyncStatus> {
 		try {
 			const result = await this.getPreview(remoteUserData, lastSyncUserData);
 			if (result.hasConflicts) {
-				this.logService.info('Keybindings: Detected conflicts while synchronizing keybindings.');
-				this.setStatus(SyncStatus.HasConflicts);
-				return;
+				return SyncStatus.HasConflicts;
 			}
-			try {
-				await this.apply();
-				this.logService.trace('Keybindings: Finished synchronizing keybindings...');
-			} finally {
-				this.setStatus(SyncStatus.Idle);
-			}
+			await this.apply();
+			return SyncStatus.Idle;
 		} catch (e) {
 			this.syncPreviewResultPromise = null;
-			this.setStatus(SyncStatus.Idle);
 			if (e instanceof UserDataSyncError) {
 				switch (e.code) {
 					case UserDataSyncErrorCode.LocalPreconditionFailed:
 						// Rejected as there is a new local version. Syncing again.
 						this.logService.info('Keybindings: Failed to synchronize keybindings as there is a new local version available. Synchronizing again...');
-						return this.sync(remoteUserData.ref);
+						return this.performSync(remoteUserData, lastSyncUserData);
 				}
 			}
 			throw e;
