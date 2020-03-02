@@ -215,7 +215,7 @@ suite('BackupTracker', () => {
 		tracker.dispose();
 	});
 
-	test('confirm onWillShutdown - no veto', async function () {
+	test('onWillShutdown - no veto if no dirty files', async function () {
 		const [accessor, part, tracker] = await createTracker();
 
 		const resource = toResource.call(this, '/path/index.txt');
@@ -224,18 +224,14 @@ suite('BackupTracker', () => {
 		const event = new BeforeShutdownEventImpl();
 		accessor.lifecycleService.fireWillShutdown(event);
 
-		const veto = event.value;
-		if (typeof veto === 'boolean') {
-			assert.ok(!veto);
-		} else {
-			assert.ok(!(await veto));
-		}
+		const veto = await event.value;
+		assert.ok(!veto);
 
 		part.dispose();
 		tracker.dispose();
 	});
 
-	test.skip('confirm onWillShutdown - veto if user cancels', async function () {
+	test('onWillShutdown - veto if user cancels (hot.exit: off)', async function () {
 		const [accessor, part, tracker] = await createTracker();
 
 		const resource = toResource.call(this, '/path/index.txt');
@@ -244,6 +240,7 @@ suite('BackupTracker', () => {
 		const model = accessor.textFileService.files.get(resource);
 
 		accessor.fileDialogService.setConfirmResult(ConfirmResult.CANCEL);
+		accessor.filesConfigurationService.onFilesConfigurationChange({ files: { hotExit: 'off' } });
 
 		await model?.load();
 		model?.textEditorModel?.setValue('foo');
@@ -252,12 +249,8 @@ suite('BackupTracker', () => {
 		const event = new BeforeShutdownEventImpl();
 		accessor.lifecycleService.fireWillShutdown(event);
 
-		const veto = event.value;
-		if (typeof veto === 'boolean') {
-			assert.ok(veto);
-		} else {
-			assert.ok((await veto));
-		}
+		const veto = await event.value;
+		assert.ok(veto);
 
 		part.dispose();
 		tracker.dispose();
@@ -278,12 +271,8 @@ suite('BackupTracker', () => {
 		const event = new BeforeShutdownEventImpl();
 		accessor.lifecycleService.fireWillShutdown(event);
 
-		const veto = event.value;
-		if (typeof veto === 'boolean') {
-			assert.ok(!veto);
-		} else {
-			assert.ok(!(await veto));
-		}
+		const veto = await event.value;
+		assert.ok(!veto);
 
 		assert.equal(accessor.workingCopyService.dirtyCount, 0);
 
@@ -291,7 +280,7 @@ suite('BackupTracker', () => {
 		tracker.dispose();
 	});
 
-	test('confirm onWillShutdown - no veto and backups cleaned up if user does not want to save (hot.exit: off)', async function () {
+	test('onWillShutdown - no veto and backups cleaned up if user does not want to save (hot.exit: off)', async function () {
 		const [accessor, part, tracker] = await createTracker();
 
 		const resource = toResource.call(this, '/path/index.txt');
@@ -308,21 +297,15 @@ suite('BackupTracker', () => {
 		const event = new BeforeShutdownEventImpl();
 		accessor.lifecycleService.fireWillShutdown(event);
 
-		let veto = event.value;
-		if (typeof veto === 'boolean') {
-			assert.ok(accessor.backupFileService.discardedBackups.length > 0);
-			assert.ok(!veto);
-		} else {
-			veto = await veto;
-			assert.ok(accessor.backupFileService.discardedBackups.length > 0);
-			assert.ok(!veto);
-		}
+		const veto = await event.value;
+		assert.ok(!veto);
+		assert.ok(accessor.backupFileService.discardedBackups.length > 0);
 
 		part.dispose();
 		tracker.dispose();
 	});
 
-	test('confirm onWillShutdown - save (hot.exit: off)', async function () {
+	test('onWillShutdown - save (hot.exit: off)', async function () {
 		const [accessor, part, tracker] = await createTracker();
 
 		const resource = toResource.call(this, '/path/index.txt');
@@ -339,7 +322,7 @@ suite('BackupTracker', () => {
 		const event = new BeforeShutdownEventImpl();
 		accessor.lifecycleService.fireWillShutdown(event);
 
-		const veto = await (<Promise<boolean>>event.value);
+		const veto = await event.value;
 		assert.ok(!veto);
 		assert.ok(!model?.isDirty());
 
@@ -482,7 +465,7 @@ suite('BackupTracker', () => {
 			event.reason = shutdownReason;
 			accessor.lifecycleService.fireWillShutdown(event);
 
-			const veto = await (<Promise<boolean>>event.value);
+			const veto = await event.value;
 			assert.equal(accessor.backupFileService.discardedBackups.length, 0); // When hot exit is set, backups should never be cleaned since the confirm result is cancel
 			assert.equal(veto, shouldVeto);
 
