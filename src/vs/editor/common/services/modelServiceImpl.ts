@@ -207,11 +207,22 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		};
 	}
 
+	private _getEOL(resource: URI | undefined, language: string): string {
+		if (resource) {
+			return this._resourcePropertiesService.getEOL(resource, language);
+		}
+		const eol = this._configurationService.getValue<string>('files.eol', { overrideIdentifier: language });
+		if (eol && eol !== 'auto') {
+			return eol;
+		}
+		return platform.OS === platform.OperatingSystem.Linux || platform.OS === platform.OperatingSystem.Macintosh ? '\n' : '\r\n';
+	}
+
 	public getCreationOptions(language: string, resource: URI | undefined, isForSimpleWidget: boolean): ITextModelCreationOptions {
 		let creationOptions = this._modelCreationOptionsByLanguageAndResource[language + resource];
 		if (!creationOptions) {
 			const editor = this._configurationService.getValue<IRawEditorConfig>('editor', { overrideIdentifier: language, resource });
-			const eol = this._resourcePropertiesService.getEOL(resource, language);
+			const eol = this._getEOL(resource, language);
 			creationOptions = ModelServiceImpl._readModelOptions({ editor, eol }, isForSimpleWidget);
 			this._modelCreationOptionsByLanguageAndResource[language + resource] = creationOptions;
 		}
