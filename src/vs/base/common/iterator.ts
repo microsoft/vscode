@@ -34,6 +34,24 @@ export interface NativeIterator<T> {
 	next(): NativeIteratorResult<T>;
 }
 
+export namespace Iterable {
+
+	export function some<T>(iterable: IterableIterator<T>, predicate: (t: T) => boolean): boolean {
+		for (const element of iterable) {
+			if (predicate(element)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	export function* map<T, R>(iterable: IterableIterator<T>, fn: (t: T) => R): IterableIterator<R> {
+		for (const element of iterable) {
+			return yield fn(element);
+		}
+	}
+}
+
 export module Iterator {
 	const _empty: Iterator<any> = {
 		next() {

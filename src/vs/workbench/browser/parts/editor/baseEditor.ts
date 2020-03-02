@@ -62,10 +62,6 @@ export abstract class BaseEditor extends Panel implements IEditor {
 		return this._input;
 	}
 
-	get options(): EditorOptions | undefined {
-		return this._options;
-	}
-
 	get group(): IEditorGroup | undefined {
 		return this._group;
 	}

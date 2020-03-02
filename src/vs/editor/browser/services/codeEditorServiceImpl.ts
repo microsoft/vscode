@@ -12,7 +12,7 @@ import { AbstractCodeEditorService } from 'vs/editor/browser/services/abstractCo
 import { IContentDecorationRenderOptions, IDecorationRenderOptions, IThemeDecorationRenderOptions, isThemeColor } from 'vs/editor/common/editorCommon';
 import { IModelDecorationOptions, IModelDecorationOverviewRulerOptions, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
-import { ITheme, IThemeService, ThemeColor } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, IThemeService, ThemeColor } from 'vs/platform/theme/common/themeService';
 
 class RefCountedStyleSheet {
 
@@ -320,7 +320,7 @@ const _CSS_MAP: { [prop: string]: string; } = {
 
 class DecorationCSSRules {
 
-	private _theme: ITheme;
+	private _theme: IColorTheme;
 	private readonly _className: string;
 	private readonly _unThemedSelector: string;
 	private _hasContent: boolean;
@@ -331,7 +331,7 @@ class DecorationCSSRules {
 	private _usesThemeColors: boolean;
 
 	public constructor(ruleType: ModelDecorationCSSRuleType, providerArgs: ProviderArguments, themeService: IThemeService) {
-		this._theme = themeService.getTheme();
+		this._theme = themeService.getColorTheme();
 		this._ruleType = ruleType;
 		this._providerArgs = providerArgs;
 		this._usesThemeColors = false;
@@ -349,8 +349,8 @@ class DecorationCSSRules {
 		this._buildCSS();
 
 		if (this._usesThemeColors) {
-			this._themeListener = themeService.onThemeChange(theme => {
-				this._theme = themeService.getTheme();
+			this._themeListener = themeService.onDidColorThemeChange(theme => {
+				this._theme = themeService.getColorTheme();
 				this._removeCSS();
 				this._buildCSS();
 			});

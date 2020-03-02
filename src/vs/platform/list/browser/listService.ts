@@ -270,7 +270,7 @@ export class WorkbenchList<T> extends List<T> {
 		super(user, container, delegate, renderers,
 			{
 				keyboardSupport: false,
-				...computeStyles(themeService.getTheme(), defaultListStyles),
+				...computeStyles(themeService.getColorTheme(), defaultListStyles),
 				...workbenchListOptions,
 				horizontalScrolling
 			}
@@ -378,7 +378,7 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		super(user, container, delegate, renderers,
 			{
 				keyboardSupport: false,
-				...computeStyles(themeService.getTheme(), defaultListStyles),
+				...computeStyles(themeService.getColorTheme(), defaultListStyles),
 				...workbenchListOptions,
 				horizontalScrolling
 			}
@@ -482,7 +482,7 @@ export class WorkbenchTree extends Tree {
 		const opts = {
 			horizontalScrollMode,
 			keyboardSupport: false,
-			...computeStyles(themeService.getTheme(), defaultListStyles),
+			...computeStyles(themeService.getColorTheme(), defaultListStyles),
 			...options
 		};
 

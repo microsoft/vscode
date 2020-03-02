@@ -442,7 +442,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 	//#region revert
 
-	async revert(resource: URI, options?: IRevertOptions): Promise<boolean> {
+	async revert(resource: URI, options?: IRevertOptions): Promise<void> {
 
 		// Untitled
 		if (resource.scheme === Schemas.untitled) {
@@ -450,17 +450,15 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			if (model) {
 				return model.revert(options);
 			}
-
-			return false;
 		}
 
 		// File
-		const model = this.files.get(resource);
-		if (model && (model.isDirty() || options?.force)) {
-			return model.revert(options);
+		else {
+			const model = this.files.get(resource);
+			if (model && (model.isDirty() || options?.force)) {
+				return model.revert(options);
+			}
 		}
-
-		return false;
 	}
 
 	//#endregion

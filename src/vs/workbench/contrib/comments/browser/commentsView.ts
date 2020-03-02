@@ -75,7 +75,7 @@ export class CommentsPanel extends ViewPane {
 
 		const styleElement = dom.createStyleSheet(container);
 		this.applyStyles(styleElement);
-		this._register(this.themeService.onThemeChange(_ => this.applyStyles(styleElement)));
+		this._register(this.themeService.onDidColorThemeChange(_ => this.applyStyles(styleElement)));
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible) {
@@ -89,7 +89,7 @@ export class CommentsPanel extends ViewPane {
 	private applyStyles(styleElement: HTMLStyleElement) {
 		const content: string[] = [];
 
-		const theme = this.themeService.getTheme();
+		const theme = this.themeService.getColorTheme();
 		const linkColor = theme.getColor(textLinkForeground);
 		if (linkColor) {
 			content.push(`.comments-panel .comments-panel-container a { color: ${linkColor}; }`);

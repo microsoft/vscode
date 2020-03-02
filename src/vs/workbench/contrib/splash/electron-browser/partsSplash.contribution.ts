@@ -63,7 +63,7 @@ class PartsSplash {
 			}
 		}, this, this._disposables);
 
-		_themeService.onThemeChange(_ => {
+		_themeService.onDidColorThemeChange(_ => {
 			this._savePartsSplash();
 		}, this, this._disposables);
 	}
@@ -73,7 +73,7 @@ class PartsSplash {
 	}
 
 	private _savePartsSplash() {
-		const baseTheme = getThemeTypeSelector(this._themeService.getTheme().type);
+		const baseTheme = getThemeTypeSelector(this._themeService.getColorTheme().type);
 		const colorInfo = {
 			foreground: this._getThemeColor(foreground),
 			editorBackground: this._getThemeColor(editorBackground),
@@ -111,14 +111,14 @@ class PartsSplash {
 			this._lastBackground = colorInfo.editorBackground;
 
 			// the color needs to be in hex
-			const backgroundColor = this._themeService.getTheme().getColor(editorBackground) || themes.WORKBENCH_BACKGROUND(this._themeService.getTheme());
+			const backgroundColor = this._themeService.getColorTheme().getColor(editorBackground) || themes.WORKBENCH_BACKGROUND(this._themeService.getColorTheme());
 			const payload = JSON.stringify({ baseTheme, background: Color.Format.CSS.formatHex(backgroundColor) });
 			ipc.send('vscode:changeColorTheme', this._electronEnvService.windowId, payload);
 		}
 	}
 
 	private _getThemeColor(id: ColorIdentifier): string | undefined {
-		const theme = this._themeService.getTheme();
+		const theme = this._themeService.getColorTheme();
 		const color = theme.getColor(id);
 		return color ? color.toString() : undefined;
 	}

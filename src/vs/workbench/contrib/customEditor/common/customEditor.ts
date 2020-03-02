@@ -79,7 +79,7 @@ export interface ICustomEditorModel extends IWorkingCopy {
 	setDirty(dirty: boolean): void;
 	undo(): void;
 	redo(): void;
-	revert(options?: IRevertOptions): Promise<boolean>;
+	revert(options?: IRevertOptions): Promise<void>;
 
 	save(options?: ISaveOptions): Promise<boolean>;
 	saveAs(resource: URI, targetResource: URI, currentOptions?: ISaveOptions): Promise<boolean>;

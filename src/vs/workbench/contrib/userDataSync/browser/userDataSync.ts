@@ -34,7 +34,7 @@ import { CONTEXT_SYNC_STATE, getSyncSourceFromRemoteContentResource, getUserData
 import { FloatingClickWidget } from 'vs/workbench/browser/parts/editor/editorWidgets';
 import { GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import type { IEditorInput } from 'vs/workbench/common/editor';
+import { IEditorInput, toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
@@ -65,7 +65,7 @@ type ConfigureSyncQuickPickItem = { id: ResourceKey, label: string, description?
 function getSyncAreaLabel(source: SyncSource): string {
 	switch (source) {
 		case SyncSource.Settings: return localize('settings', "Settings");
-		case SyncSource.Keybindings: return localize('keybindings', "Keybindings");
+		case SyncSource.Keybindings: return localize('keybindings', "Keyboard Shortcuts");
 		case SyncSource.Extensions: return localize('extensions', "Extensions");
 		case SyncSource.GlobalState: return localize('ui state label', "UI State");
 	}
@@ -468,7 +468,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			return;
 		}
 		const resource = source === SyncSource.Settings ? this.workbenchEnvironmentService.settingsResource : this.workbenchEnvironmentService.keybindingsResource;
-		if (isEqual(resource, this.editorService.activeEditor?.resource)) {
+		if (isEqual(resource, toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER }))) {
 			// Do not show notification if the file in error is active
 			return;
 		}
@@ -1146,8 +1146,8 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 							? localize('Sync accept remote', "Sync: {0}", acceptRemoteLabel)
 							: localize('Sync accept local', "Sync: {0}", acceptLocalLabel),
 						message: isRemote
-							? localize('confirm replace and overwrite local', "Would you like to accept Remote {0} and replace Local {1}?", syncAreaLabel.toLowerCase(), syncAreaLabel.toLowerCase())
-							: localize('confirm replace and overwrite remote', "Would you like to accept Local {0} and replace Remote {1}?", syncAreaLabel.toLowerCase(), syncAreaLabel.toLowerCase()),
+							? localize('confirm replace and overwrite local', "Would you like to accept remote {0} and replace local {1}?", syncAreaLabel.toLowerCase(), syncAreaLabel.toLowerCase())
+							: localize('confirm replace and overwrite remote', "Would you like to accept local {0} and replace remote {1}?", syncAreaLabel.toLowerCase(), syncAreaLabel.toLowerCase()),
 						primaryButton: isRemote ? acceptRemoteLabel : acceptLocalLabel
 					});
 					if (result.confirmed) {
