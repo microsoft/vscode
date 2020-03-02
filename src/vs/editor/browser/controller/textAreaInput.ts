@@ -229,14 +229,6 @@ export class TextAreaInput extends Disposable {
 				return true;
 			}
 
-			// https://github.com/Microsoft/monaco-editor/issues/545
-			// On IE11, we can't trust composition data when typing Chinese as IE11 doesn't emit correct
-			// events when users type numbers in IME.
-			// Chinese: zh-Hans-CN, zh-Hans-SG, zh-Hant-TW, zh-Hant-HK
-			if (browser.isIE && locale.indexOf('zh-Han') === 0) {
-				return true;
-			}
-
 			return false;
 		};
 
