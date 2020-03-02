@@ -630,6 +630,7 @@ export class MouseController<T> implements IDisposable {
 			return;
 		}
 
+		console.log('unfocus on double click happens here');
 		const focus = this.list.getFocus();
 		this.list.setSelection(focus, e.browserEvent);
 		this.list.pin(focus);
