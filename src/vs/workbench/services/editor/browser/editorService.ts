@@ -953,6 +953,10 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			editors = [editors];
 		}
 
+		// Make sure to not save the same editor multiple times
+		// by using the `matches()` method to find duplicates
+		const uniqueEditors = this.getUniqueEditors(editors);
+
 		// Split editors up into a bucket that is saved in parallel
 		// and sequentially. Unless "Save As", all non-untitled editors
 		// can be saved in parallel to speed up the operation. Remaining
@@ -961,9 +965,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		const editorsToSaveParallel: IEditorIdentifier[] = [];
 		const editorsToSaveSequentially: IEditorIdentifier[] = [];
 		if (options?.saveAs) {
-			editorsToSaveSequentially.push(...editors);
+			editorsToSaveSequentially.push(...uniqueEditors);
 		} else {
-			for (const { groupId, editor } of editors) {
+			for (const { groupId, editor } of uniqueEditors) {
 				if (editor.isUntitled()) {
 					editorsToSaveSequentially.push({ groupId, editor });
 				} else {
@@ -973,7 +977,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		// Editors to save in parallel
-		await Promise.all(editorsToSaveParallel.map(({ groupId, editor }) => {
+		const saveResults = await Promise.all(editorsToSaveParallel.map(({ groupId, editor }) => {
 
 			// Use save as a hint to pin the editor if used explicitly
 			if (options?.reason === SaveReason.EXPLICIT) {
@@ -1000,8 +1004,10 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			}
 
 			const result = options?.saveAs ? await editor.saveAs(groupId, options) : await editor.save(groupId, options);
+			saveResults.push(result);
+
 			if (!result) {
-				return false; // failed or cancelled, abort
+				break; // failed or cancelled, abort
 			}
 
 			// Replace editor preserving viewstate (either across all groups or
@@ -1015,7 +1021,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			}
 		}
 
-		return true;
+		return saveResults.every(result => !!result);
 	}
 
 	saveAll(options?: ISaveAllEditorsOptions): Promise<boolean> {
@@ -1029,7 +1035,11 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			editors = [editors];
 		}
 
-		await Promise.all(editors.map(async ({ groupId, editor }) => {
+		// Make sure to not revert the same editor multiple times
+		// by using the `matches()` method to find duplicates
+		const uniqueEditors = this.getUniqueEditors(editors);
+
+		await Promise.all(uniqueEditors.map(async ({ groupId, editor }) => {
 
 			// Use revert as a hint to pin the editor
 			this.editorGroupService.getGroup(groupId)?.pinEditor(editor);
@@ -1054,6 +1064,19 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		return editors;
+	}
+
+	private getUniqueEditors(editors: IEditorIdentifier[]): IEditorIdentifier[] {
+		const uniqueEditors: IEditorIdentifier[] = [];
+		for (const { editor, groupId } of editors) {
+			if (uniqueEditors.some(uniqueEditor => uniqueEditor.editor.matches(editor))) {
+				continue;
+			}
+
+			uniqueEditors.push({ editor, groupId });
+		}
+
+		return uniqueEditors;
 	}
 
 	//#endregion
