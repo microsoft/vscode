@@ -459,16 +459,13 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			} catch (err) {
 				const remoteName = getRemoteName(remoteAuthority);
 				if (RemoteAuthorityResolverError.isNoResolverFound(err)) {
-					this._handleNoResolverFound(remoteName, allExtensions);
+					err.isHandled = await this._handleNoResolverFound(remoteName, allExtensions);
 				} else {
 					console.log(err);
-					if (RemoteAuthorityResolverError.isHandledNotAvailable(err)) {
-						console.log(`Not showing a notification for the error`);
-					} else {
-						this._notificationService.notify({ severity: Severity.Error, message: nls.localize('resolveAuthorityFailure', "Resolving the authority `{0}` failed", remoteName) });
+					if (RemoteAuthorityResolverError.isHandled(err)) {
+						console.log(`Error handled: Not showing a notification for the error`);
 					}
 				}
-
 				this._remoteAuthorityResolverService.setResolvedAuthorityError(remoteAuthority, err);
 
 				// Proceed with the local extension host
@@ -584,10 +581,10 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		}
 	}
 
-	private async _handleNoResolverFound(remoteName: string, allExtensions: IExtensionDescription[]): Promise<void> {
+	private async _handleNoResolverFound(remoteName: string, allExtensions: IExtensionDescription[]): Promise<boolean> {
 		const recommendation = this._productService.remoteExtensionTips?.[remoteName];
 		if (!recommendation) {
-			return;
+			return false;
 		}
 		const sendTelemetry = (userReaction: 'install' | 'enable' | 'cancel') => {
 			/* __GDPR__
@@ -641,6 +638,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			);
 
 		}
+		return true;
 
 	}
 }
