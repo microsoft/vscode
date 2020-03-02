@@ -5,7 +5,7 @@
 
 import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceInput, IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorInput, IEditor, GroupIdentifier, IEditorInputWithOptions, IUntitledTextResourceInput, IResourceDiffInput, IResourceSideBySideInput, ITextEditor, ITextDiffEditor, ITextSideBySideEditor, IEditorIdentifier, ISaveOptions, IRevertOptions, EditorsOrder } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditor, GroupIdentifier, IEditorInputWithOptions, IUntitledTextResourceInput, IResourceDiffInput, IResourceSideBySideInput, ITextEditor, ITextDiffEditor, ITextSideBySideEditor, IEditorIdentifier, ISaveOptions, IRevertOptions, EditorsOrder, IVisibleEditor } from 'vs/workbench/common/editor';
 import { Event } from 'vs/base/common/event';
 import { IEditor as ICodeEditor, IDiffEditor } from 'vs/editor/common/editorCommon';
 import { IEditorGroup, IEditorReplacement } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -16,8 +16,8 @@ export const IEditorService = createDecorator<IEditorService>('editorService');
 export type IResourceEditor = IResourceInput | IUntitledTextResourceInput | IResourceDiffInput | IResourceSideBySideInput;
 
 export interface IResourceEditorReplacement {
-	editor: IResourceEditor;
-	replacement: IResourceEditor;
+	readonly editor: IResourceEditor;
+	readonly replacement: IResourceEditor;
 }
 
 export const ACTIVE_GROUP = -1;
@@ -39,17 +39,12 @@ export interface IOpenEditorOverride {
 	override?: Promise<IEditor | undefined>;
 }
 
-export interface IVisibleEditor extends IEditor {
-	input: IEditorInput;
-	group: IEditorGroup;
-}
-
 export interface ISaveEditorsOptions extends ISaveOptions {
 
 	/**
 	 * If true, will ask for a location of the editor to save to.
 	 */
-	saveAs?: boolean;
+	readonly saveAs?: boolean;
 }
 
 export interface IBaseSaveRevertAllEditorOptions {
@@ -57,7 +52,7 @@ export interface IBaseSaveRevertAllEditorOptions {
 	/**
 	 * Whether to include untitled editors as well.
 	 */
-	includeUntitled?: boolean;
+	readonly includeUntitled?: boolean;
 }
 
 export interface ISaveAllEditorsOptions extends ISaveEditorsOptions, IBaseSaveRevertAllEditorOptions { }
@@ -127,7 +122,7 @@ export interface IEditorService {
 	 * All text editor widgets that are currently visible across all editor groups. A text editor
 	 * widget is either a text or a diff editor.
 	 */
-	readonly visibleTextEditorWidgets: ReadonlyArray<ICodeEditor>;
+	readonly visibleTextEditorWidgets: ReadonlyArray<ICodeEditor | IDiffEditor>;
 
 	/**
 	 * All editors that are opened across all editor groups in sequential order
@@ -196,7 +191,13 @@ export interface IEditorService {
 	 * Find out if the provided editor is opened in any editor group.
 	 *
 	 * Note: An editor can be opened but not actively visible.
+	 *
+	 * @param editor the editor to check for being opened. If a
+	 * `IResourceInput` is passed in, the resource is checked on
+	 * all opened editors. In case of a side by side editor, the
+	 * right hand side resource is considered only.
 	 */
+	isOpen(editor: IResourceInput): boolean;
 	isOpen(editor: IEditorInput): boolean;
 
 	/**
@@ -218,21 +219,25 @@ export interface IEditorService {
 
 	/**
 	 * Save the provided list of editors.
+	 *
+	 * @returns `true` if all editors saved and `false` otherwise.
 	 */
 	save(editors: IEditorIdentifier | IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<boolean>;
 
 	/**
 	 * Save all editors.
+	 *
+	 * @returns `true` if all editors saved and `false` otherwise.
 	 */
 	saveAll(options?: ISaveAllEditorsOptions): Promise<boolean>;
 
 	/**
 	 * Reverts the provided list of editors.
 	 */
-	revert(editors: IEditorIdentifier | IEditorIdentifier[], options?: IRevertOptions): Promise<boolean>;
+	revert(editors: IEditorIdentifier | IEditorIdentifier[], options?: IRevertOptions): Promise<void>;
 
 	/**
 	 * Reverts all editors.
 	 */
-	revertAll(options?: IRevertAllEditorsOptions): Promise<boolean>;
+	revertAll(options?: IRevertAllEditorsOptions): Promise<void>;
 }

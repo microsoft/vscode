@@ -184,7 +184,7 @@ export class AzureActiveDirectoryService {
 	private convertToSession(token: IToken): vscode.AuthenticationSession {
 		return {
 			id: token.sessionId,
-			accessToken: () => this.resolveAccessToken(token),
+			getAccessToken: () => this.resolveAccessToken(token),
 			accountName: token.accountName,
 			scopes: token.scope.split(' ')
 		};
@@ -192,7 +192,9 @@ export class AzureActiveDirectoryService {
 
 	private async resolveAccessToken(token: IToken): Promise<string> {
 		if (token.accessToken && (!token.expiresAt || token.expiresAt > Date.now())) {
-			Logger.info('Token available from cache');
+			token.expiresAt
+				? Logger.info(`Token available from cache, expires in ${token.expiresAt - Date.now()} milliseconds`)
+				: Logger.info('Token available from cache');
 			return Promise.resolve(token.accessToken);
 		}
 
@@ -295,8 +297,8 @@ export class AzureActiveDirectoryService {
 
 	private getCallbackEnvironment(callbackUri: vscode.Uri): string {
 		switch (callbackUri.authority) {
-			case 'online.visualstudio.com,':
-				return 'vso';
+			case 'online.visualstudio.com':
+				return 'vso,';
 			case 'online-ppe.core.vsengsaas.visualstudio.com':
 				return 'vsoppe,';
 			case 'online.dev.core.vsengsaas.visualstudio.com':
@@ -397,7 +399,7 @@ export class AzureActiveDirectoryService {
 		const claims = this.getTokenClaims(json.access_token);
 		return {
 			expiresIn: json.expires_in,
-			expiresAt: Date.now() + json.expires_in * 1000,
+			expiresAt: json.expires_in ? Date.now() + json.expires_in * 1000 : undefined,
 			accessToken: json.access_token,
 			refreshToken: json.refresh_token,
 			scope,

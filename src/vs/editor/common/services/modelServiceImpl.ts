@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import * as errors from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
@@ -724,6 +724,7 @@ class ModelSemanticColoring extends Disposable {
 	private readonly _fetchSemanticTokens: RunOnceScheduler;
 	private _currentResponse: SemanticTokensResponse | null;
 	private _currentRequestCancellationTokenSource: CancellationTokenSource | null;
+	private _providersChangeListeners: IDisposable[];
 
 	constructor(model: ITextModel, themeService: IThemeService, stylingProvider: SemanticStyling) {
 		super();
@@ -734,13 +735,28 @@ class ModelSemanticColoring extends Disposable {
 		this._fetchSemanticTokens = this._register(new RunOnceScheduler(() => this._fetchSemanticTokensNow(), 300));
 		this._currentResponse = null;
 		this._currentRequestCancellationTokenSource = null;
+		this._providersChangeListeners = [];
 
 		this._register(this._model.onDidChangeContent(e => {
 			if (!this._fetchSemanticTokens.isScheduled()) {
 				this._fetchSemanticTokens.schedule();
 			}
 		}));
-		this._register(DocumentSemanticTokensProviderRegistry.onDidChange(e => this._fetchSemanticTokens.schedule()));
+		const bindChangeListeners = () => {
+			dispose(this._providersChangeListeners);
+			this._providersChangeListeners = [];
+			for (const provider of DocumentSemanticTokensProviderRegistry.all(model)) {
+				if (typeof provider.onDidChange === 'function') {
+					this._providersChangeListeners.push(provider.onDidChange(() => this._fetchSemanticTokens.schedule(0)));
+				}
+			}
+		};
+		bindChangeListeners();
+		this._register(DocumentSemanticTokensProviderRegistry.onDidChange(e => {
+			bindChangeListeners();
+			this._fetchSemanticTokens.schedule();
+		}));
+
 		if (themeService) {
 			// workaround for tests which use undefined... :/
 			this._register(themeService.onThemeChange(_ => {

@@ -39,7 +39,7 @@ import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry
 import { combinedAppender, LogAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
-import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { INativeWindowConfiguration } from 'vs/platform/windows/node/window';
 
 const MAX_URL_LENGTH = 2045;
 
@@ -49,7 +49,7 @@ interface SearchResult {
 	state?: string;
 }
 
-export interface IssueReporterConfiguration extends IWindowConfiguration {
+export interface IssueReporterConfiguration extends INativeWindowConfiguration {
 	data: IssueReporterData;
 	features: IssueReporterFeatures;
 }
@@ -316,7 +316,7 @@ export class IssueReporter extends Disposable {
 		}
 	}
 
-	private initServices(configuration: IWindowConfiguration): void {
+	private initServices(configuration: INativeWindowConfiguration): void {
 		const serviceCollection = new ServiceCollection();
 		const mainProcessService = new MainProcessService(configuration.windowId);
 		serviceCollection.set(IMainProcessService, mainProcessService);

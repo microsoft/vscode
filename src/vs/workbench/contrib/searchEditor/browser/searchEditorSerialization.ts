@@ -42,7 +42,7 @@ const matchToSearchResultFormat = (match: Match): { line: string, ranges: Range[
 
 			const rangeOnThisLine = ({ start, end }: { start?: number; end?: number; }) => new Range(1, (start ?? 1) + prefixOffset, 1, (end ?? sourceLine.length + 1) + prefixOffset);
 
-			const matchRange = match.range();
+			const matchRange = match.rangeInPreview();
 			const matchIsSingleLine = matchRange.startLineNumber === matchRange.endLineNumber;
 
 			let lineRange;
@@ -211,9 +211,12 @@ export const serializeSearchResultForEditor =
 			? contentPatternToSearchResultHeader(searchResult.query, rawIncludePattern, rawExcludePattern, contextLines)
 			: [];
 
+		const filecount = searchResult.fileCount() > 1 ? localize('numFiles', "{0} files", searchResult.fileCount()) : localize('oneFile', "1 file");
+		const resultcount = searchResult.count() > 1 ? localize('numResults', "{0} results", searchResult.count()) : localize('oneResult', "1 result");
+
 		const info = [
 			searchResult.count()
-				? localize('resultCount', "{0} results in {1} files", searchResult.count(), searchResult.fileCount())
+				? `${resultcount} - ${filecount}`
 				: localize('noResults', "No Results"),
 			''];
 

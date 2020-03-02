@@ -13,7 +13,6 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { RunOnceWorker } from 'vs/base/common/async';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { Schemas } from 'vs/base/common/network';
 
 export class TextFileEditorTracker extends Disposable implements IWorkbenchContribution {
 
@@ -45,7 +44,7 @@ export class TextFileEditorTracker extends Disposable implements IWorkbenchContr
 
 	//#region Text File: Ensure every dirty text and untitled file is opened in an editor
 
-	private readonly ensureDirtyFilesAreOpenedWorker = this._register(new RunOnceWorker<URI>(units => this.ensureDirtyTextFilesAreOpened(units), 250));
+	private readonly ensureDirtyFilesAreOpenedWorker = this._register(new RunOnceWorker<URI>(units => this.ensureDirtyTextFilesAreOpened(units), 50));
 
 	private ensureDirtyTextFilesAreOpened(resources: URI[]): void {
 		this.doEnsureDirtyTextFilesAreOpened(distinct(resources.filter(resource => {
@@ -58,7 +57,7 @@ export class TextFileEditorTracker extends Disposable implements IWorkbenchContr
 				return false; // resource must not be pending to save
 			}
 
-			if (this.editorService.isOpen(this.editorService.createInput({ resource, forceFile: resource.scheme !== Schemas.untitled, forceUntitled: resource.scheme === Schemas.untitled }))) {
+			if (this.editorService.isOpen({ resource })) {
 				return false; // model must not be opened already as file
 			}
 

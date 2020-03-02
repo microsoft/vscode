@@ -68,7 +68,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 	) {
 		super();
 		this.syncFolder = joinPath(environmentService.userDataSyncHome, source);
-		this.lastSyncResource = joinPath(this.syncFolder, `.lastSync${source}.json`);
+		this.lastSyncResource = joinPath(this.syncFolder, `lastSync${source}.json`);
 		this.cleanUpDelayer = new ThrottledDelayer(50);
 		this.cleanUpBackup();
 	}
@@ -89,10 +89,10 @@ export abstract class AbstractSynchroniser extends Disposable {
 		}
 	}
 
-	protected get enabled(): boolean { return this.userDataSyncEnablementService.isResourceEnabled(this.resourceKey); }
+	protected isEnabled(): boolean { return this.userDataSyncEnablementService.isResourceEnabled(this.resourceKey); }
 
-	async sync(ref?: string, donotUseLastSyncUserData?: boolean): Promise<void> {
-		if (!this.enabled) {
+	async sync(ref?: string): Promise<void> {
+		if (!this.isEnabled()) {
 			this.logService.info(`${this.source}: Skipped synchronizing ${this.source.toLowerCase()} as it is disabled.`);
 			return;
 		}
@@ -108,24 +108,40 @@ export abstract class AbstractSynchroniser extends Disposable {
 		this.logService.trace(`${this.source}: Started synchronizing ${this.source.toLowerCase()}...`);
 		this.setStatus(SyncStatus.Syncing);
 
-		const lastSyncUserData = donotUseLastSyncUserData ? null : await this.getLastSyncUserData();
+		const lastSyncUserData = await this.getLastSyncUserData();
 		const remoteUserData = ref && lastSyncUserData && lastSyncUserData.ref === ref ? lastSyncUserData : await this.getRemoteUserData(lastSyncUserData);
 
+		let status: SyncStatus = SyncStatus.Idle;
+		try {
+			status = await this.doSync(remoteUserData, lastSyncUserData);
+			if (status === SyncStatus.HasConflicts) {
+				this.logService.info(`${this.source}: Detected conflicts while synchronizing ${this.source.toLowerCase()}.`);
+			} else if (status === SyncStatus.Idle) {
+				this.logService.trace(`${this.source}: Finished synchronizing ${this.source.toLowerCase()}.`);
+			}
+		} finally {
+			this.setStatus(status);
+		}
+	}
+
+	protected async doSync(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<SyncStatus> {
 		if (remoteUserData.syncData && remoteUserData.syncData.version > this.version) {
 			// current version is not compatible with cloud version
 			this.telemetryService.publicLog2<{ source: string }, SyncSourceClassification>('sync/incompatible', { source: this.source });
 			throw new UserDataSyncError(localize('incompatible', "Cannot sync {0} as its version {1} is not compatible with cloud {2}", this.source, this.version, remoteUserData.syncData.version), UserDataSyncErrorCode.Incompatible, this.source);
 		}
-
 		try {
-			await this.doSync(remoteUserData, lastSyncUserData);
+			const status = await this.performSync(remoteUserData, lastSyncUserData);
+			return status;
 		} catch (e) {
 			if (e instanceof UserDataSyncError) {
 				switch (e.code) {
 					case UserDataSyncErrorCode.RemotePreconditionFailed:
 						// Rejected as there is a new remote version. Syncing again,
 						this.logService.info(`${this.source}: Failed to synchronize as there is a new remote version available. Synchronizing again...`);
-						return this.sync(undefined, true);
+						// Avoid cache and get latest remote user data - https://github.com/microsoft/vscode/issues/90624
+						remoteUserData = await this.getRemoteUserData(null);
+						return this.doSync(remoteUserData, lastSyncUserData);
 				}
 			}
 			throw e;
@@ -202,7 +218,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 	}
 
 	protected async backupLocal(content: VSBuffer): Promise<void> {
-		const resource = joinPath(this.syncFolder, toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, ''));
+		const resource = joinPath(this.syncFolder, `${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}.json`);
 		try {
 			await this.fileService.writeFile(resource, content);
 		} catch (e) {
@@ -213,9 +229,12 @@ export abstract class AbstractSynchroniser extends Disposable {
 
 	private async cleanUpBackup(): Promise<void> {
 		try {
+			if (!(await this.fileService.exists(this.syncFolder))) {
+				return;
+			}
 			const stat = await this.fileService.resolve(this.syncFolder);
 			if (stat.children) {
-				const all = stat.children.filter(stat => stat.isFile && /^\d{8}T\d{6}$/.test(stat.name)).sort();
+				const all = stat.children.filter(stat => stat.isFile && /^\d{8}T\d{6}(\.json)?$/.test(stat.name)).sort();
 				const backUpMaxAge = 1000 * 60 * 60 * 24 * (this.configurationService.getValue<number>('sync.localBackupDuration') || 30 /* Default 30 days */);
 				let toDelete = all.filter(stat => {
 					const ctime = stat.ctime || new Date(
@@ -244,7 +263,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 
 	abstract readonly resourceKey: ResourceKey;
 	protected abstract readonly version: number;
-	protected abstract doSync(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<void>;
+	protected abstract performSync(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<SyncStatus>;
 }
 
 export interface IFileSyncPreviewResult {
@@ -329,7 +348,7 @@ export abstract class AbstractFileSynchroniser extends AbstractSynchroniser {
 			return;
 		}
 
-		if (!this.enabled) {
+		if (!this.isEnabled()) {
 			return;
 		}
 
@@ -337,7 +356,7 @@ export abstract class AbstractFileSynchroniser extends AbstractSynchroniser {
 		if (this.status === SyncStatus.HasConflicts) {
 			this.syncPreviewResultPromise?.then(result => {
 				this.cancel();
-				this.doSync(result.remoteUserData, result.lastSyncUserData);
+				this.doSync(result.remoteUserData, result.lastSyncUserData).then(status => this.setStatus(status));
 			});
 		}
 

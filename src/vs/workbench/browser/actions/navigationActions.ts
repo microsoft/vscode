@@ -30,7 +30,7 @@ abstract class BaseNavigationAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<boolean | IViewlet | IPanel> {
 		const isEditorFocus = this.layoutService.hasFocus(Parts.EDITOR_PART);
 		const isPanelFocus = this.layoutService.hasFocus(Parts.PANEL_PART);
 		const isSidebarFocus = this.layoutService.hasFocus(Parts.SIDEBAR_PART);
@@ -39,7 +39,7 @@ abstract class BaseNavigationAction extends Action {
 		if (isEditorFocus) {
 			const didNavigate = this.navigateAcrossEditorGroup(this.toGroupDirection(this.direction));
 			if (didNavigate) {
-				return Promise.resolve(true);
+				return true;
 			}
 
 			neighborPart = this.layoutService.getVisibleNeighborPart(Parts.EDITOR_PART, this.direction);
@@ -54,7 +54,7 @@ abstract class BaseNavigationAction extends Action {
 		}
 
 		if (neighborPart === Parts.EDITOR_PART) {
-			return Promise.resolve(this.navigateToEditorGroup(this.direction === Direction.Right ? GroupLocation.FIRST : GroupLocation.LAST));
+			return this.navigateToEditorGroup(this.direction === Direction.Right ? GroupLocation.FIRST : GroupLocation.LAST);
 		}
 
 		if (neighborPart === Parts.SIDEBAR_PART) {
@@ -65,7 +65,7 @@ abstract class BaseNavigationAction extends Action {
 			return this.navigateToPanel();
 		}
 
-		return Promise.resolve(false);
+		return false;
 	}
 
 	private async navigateToPanel(): Promise<IPanel | boolean> {
@@ -90,12 +90,12 @@ abstract class BaseNavigationAction extends Action {
 
 	private async navigateToSidebar(): Promise<IViewlet | boolean> {
 		if (!this.layoutService.isVisible(Parts.SIDEBAR_PART)) {
-			return Promise.resolve(false);
+			return false;
 		}
 
 		const activeViewlet = this.viewletService.getActiveViewlet();
 		if (!activeViewlet) {
-			return Promise.resolve(false);
+			return false;
 		}
 		const activeViewletId = activeViewlet.getId();
 

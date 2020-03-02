@@ -116,6 +116,24 @@ export class OpenResultsInEditorAction extends Action {
 	}
 }
 
+export class RerunSearchEditorSearchAction extends Action {
+	static readonly ID: string = Constants.RerunSearchEditorSearchCommandId;
+	static readonly LABEL = localize('search.rerunSearchInEditor', "Search Again");
+
+	constructor(id: string, label: string,
+		@IEditorService private readonly editorService: IEditorService,
+	) {
+		super(id, label, 'codicon-refresh');
+	}
+
+	async run() {
+		const input = this.editorService.activeEditor;
+		if (input instanceof SearchEditorInput) {
+			(this.editorService.activeControl as SearchEditor).triggerSearch({ resetCursor: false });
+		}
+	}
+}
+
 const openNewSearchEditor =
 	async (accessor: ServicesAccessor) => {
 		const editorService = accessor.get(IEditorService);

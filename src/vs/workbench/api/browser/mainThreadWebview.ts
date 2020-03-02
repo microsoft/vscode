@@ -122,7 +122,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		this._register(_webviewWorkbenchService.registerResolver({
 			canResolve: (webview: WebviewInput) => {
 				if (webview instanceof CustomEditorInput) {
-					extensionService.activateByEvent(`onWebviewEditor:${webview.viewType}`);
+					extensionService.activateByEvent(`onCustomEditor:${webview.viewType}`);
 					return false;
 				}
 

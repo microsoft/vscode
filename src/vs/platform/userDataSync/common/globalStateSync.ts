@@ -47,7 +47,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 	}
 
 	async pull(): Promise<void> {
-		if (!this.enabled) {
+		if (!this.isEnabled()) {
 			this.logService.info('UI State: Skipped pulling ui state as it is disabled.');
 			return;
 		}
@@ -79,7 +79,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 	}
 
 	async push(): Promise<void> {
-		if (!this.enabled) {
+		if (!this.isEnabled()) {
 			this.logService.info('UI State: Skipped pushing UI State as it is disabled.');
 			return;
 		}
@@ -124,20 +124,13 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		return null;
 	}
 
-	protected async doSync(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<void> {
-		try {
-			const result = await this.getPreview(remoteUserData, lastSyncUserData);
-			await this.apply(result);
-			this.logService.trace('UI State: Finished synchronizing ui state.');
-		} catch (e) {
-			this.setStatus(SyncStatus.Idle);
-			throw e;
-		} finally {
-			this.setStatus(SyncStatus.Idle);
-		}
+	protected async performSync(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<SyncStatus> {
+		const result = await this.getPreview(remoteUserData, lastSyncUserData);
+		await this.apply(result);
+		return SyncStatus.Idle;
 	}
 
-	private async getPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, ): Promise<ISyncPreviewResult> {
+	private async getPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null,): Promise<ISyncPreviewResult> {
 		const remoteGlobalState: IGlobalState = remoteUserData.syncData ? JSON.parse(remoteUserData.syncData.content) : null;
 		const lastSyncGlobalState = lastSyncUserData && lastSyncUserData.syncData ? JSON.parse(lastSyncUserData.syncData.content) : null;
 
@@ -165,7 +158,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		if (local) {
 			// update local
 			this.logService.trace('UI State: Updating local ui state...');
-			await this.backupLocal(VSBuffer.fromString(JSON.stringify(localUserData)));
+			await this.backupLocal(VSBuffer.fromString(JSON.stringify(localUserData, null, '\t')));
 			await this.writeLocalGlobalState(local);
 			this.logService.info('UI State: Updated local ui state');
 		}

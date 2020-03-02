@@ -21,4 +21,5 @@ export class CompositeDragAndDropData implements IDragAndDropData {
 export interface ICompositeDragAndDrop {
 	drop(data: IDragAndDropData, target: string | undefined, originalEvent: DragEvent): void;
 	onDragOver(data: IDragAndDropData, target: string | undefined, originalEvent: DragEvent): boolean;
+	onDragEnter(data: IDragAndDropData, target: string | undefined, originalEvent: DragEvent): boolean;
 }

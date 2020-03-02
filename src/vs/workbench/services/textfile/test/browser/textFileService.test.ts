@@ -97,8 +97,7 @@ suite('Files - TextFileService', () => {
 		model!.textEditorModel!.setValue('foo');
 		assert.ok(accessor.textFileService.isDirty(model.resource));
 
-		const res = await accessor.textFileService.revert(model.resource);
-		assert.ok(res);
+		await accessor.textFileService.revert(model.resource);
 		assert.ok(!accessor.textFileService.isDirty(model.resource));
 	});
 

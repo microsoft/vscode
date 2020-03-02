@@ -67,6 +67,9 @@ import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { Schemas } from 'vs/base/common/network';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { ModesHoverController } from 'vs/editor/contrib/hover/hover';
+import { ColorDetector } from 'vs/editor/contrib/colorPicker/colorDetector';
+import { LinkDetector } from 'vs/editor/contrib/links/links';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
@@ -621,8 +624,6 @@ export class RepositoryPane extends ViewPane {
 	protected contextKeyService: IContextKeyService;
 	private commitTemplate = '';
 
-	shouldShowWelcome() { return true; }
-
 	constructor(
 		readonly repository: ISCMRepository,
 		options: IViewPaneOptions,
@@ -749,6 +750,9 @@ export class RepositoryPane extends ViewPane {
 				MenuPreventer.ID,
 				SelectionClipboardContributionID,
 				ContextMenuController.ID,
+				ColorDetector.ID,
+				ModesHoverController.ID,
+				LinkDetector.ID
 			])
 		};
 

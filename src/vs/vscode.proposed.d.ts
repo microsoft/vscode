@@ -20,7 +20,7 @@ declare module 'vscode' {
 
 	export interface AuthenticationSession {
 		id: string;
-		accessToken(): Promise<string>;
+		getAccessToken(): Thenable<string>;
 		accountName: string;
 		scopes: string[]
 	}
@@ -58,13 +58,13 @@ declare module 'vscode' {
 		/**
 		 * Returns an array of current sessions.
 		 */
-		getSessions(): Promise<ReadonlyArray<AuthenticationSession>>;
+		getSessions(): Thenable<ReadonlyArray<AuthenticationSession>>;
 
 		/**
 		 * Prompts a user to login.
 		 */
-		login(scopes: string[]): Promise<AuthenticationSession>;
-		logout(sessionId: string): Promise<void>;
+		login(scopes: string[]): Thenable<AuthenticationSession>;
+		logout(sessionId: string): Thenable<void>;
 	}
 
 	export namespace authentication {
@@ -258,6 +258,11 @@ declare module 'vscode' {
 	 */
 	export interface DocumentSemanticTokensProvider {
 		/**
+		 * An optional event to signal that the semantic tokens from this provider have changed.
+		 */
+		onDidChangeSemanticTokens?: Event<void>;
+
+		/**
 		 * A file can contain many tokens, perhaps even hundreds of thousands of tokens. Therefore, to improve
 		 * the memory consumption around describing semantic tokens, we have decided to avoid allocating an object
 		 * for each token and we represent tokens from a file as an array of integers. Furthermore, the position
@@ -314,6 +319,9 @@ declare module 'vscode' {
 		 *    // 1st token,  2nd token,  3rd token
 		 *    [  2,5,3,0,3,  0,5,4,1,0,  3,2,7,2,0 ]
 		 * ```
+		 *
+		 * *NOTE*: When doing edits, it is possible that multiple edits occur until VS Code decides to invoke the semantic tokens provider.
+		 * *NOTE*: If the provider cannot temporarily compute semantic tokens, it can indicate this by throwing an error with the message 'Busy'.
 		 */
 		provideDocumentSemanticTokens(document: TextDocument, token: CancellationToken): ProviderResult<SemanticTokens>;
 
@@ -366,7 +374,6 @@ declare module 'vscode' {
 		 *    edit: { start: 10, deleteCount: 1, data: [1,3,5,0,2,2] } // replace integer at offset 10 with [1,3,5,0,2,2]
 		 * ```
 		 *
-		 * *NOTE*: When doing edits, it is possible that multiple edits occur until VS Code decides to invoke the semantic tokens provider.
 		 * *NOTE*: If the provider cannot compute `SemanticTokensEdits`, it can "give up" and return all the tokens in the document again.
 		 * *NOTE*: All edits in `SemanticTokensEdits` contain indices in the old integers array, so they all refer to the previous result state.
 		 */
@@ -1188,22 +1195,21 @@ declare module 'vscode' {
 	//#region Custom editors: https://github.com/microsoft/vscode/issues/77131
 
 	// TODO:
-	// - Naming!
 	// - Think about where a rename would live.
-	// - Think about handling go to line?
+	// - Think about handling go to line? (add other editor options? reveal?)
 	// - Should we expose edits?
 	// - More properties from `TextDocument`?
 
 	/**
 	 * Defines the capabilities of a custom webview editor.
 	 */
-	interface WebviewCustomEditorCapabilities {
+	interface CustomEditorCapabilities {
 		/**
 		 * Defines the editing capability of a custom webview document.
 		 *
 		 * When not provided, the document is considered readonly.
 		 */
-		readonly editing?: WebviewCustomEditorEditingCapability;
+		readonly editing?: CustomEditorEditingCapability;
 	}
 
 	/**
@@ -1212,7 +1218,7 @@ declare module 'vscode' {
 	 *
 	 * @param EditType Type of edits.
 	 */
-	interface WebviewCustomEditorEditingCapability<EditType = unknown> {
+	interface CustomEditorEditingCapability<EditType = unknown> {
 		/**
 		 * Save the resource.
 		 *
@@ -1274,19 +1280,19 @@ declare module 'vscode' {
 		 * in an operation that takes time to complete, your extension may decide to finish the ongoing backup rather
 		 * than cancelling it to ensure that VS Code has some valid backup.
 		 */
-		backup(cancellation: CancellationToken): Thenable<boolean>;
+		backup(cancellation: CancellationToken): Thenable<void>;
 	}
 
 	/**
 	 * Represents a custom document for a custom webview editor.
 	 *
-	 * Custom documents are only used within a given `WebviewCustomEditorProvider`. The lifecycle of a
-	 * `WebviewEditorCustomDocument` is managed by VS Code. When more more references remain to a given `WebviewEditorCustomDocument`
+	 * Custom documents are only used within a given `CustomEditorProvider`. The lifecycle of a
+	 * `CustomDocument` is managed by VS Code. When more more references remain to a given `CustomDocument`
 	 * then it is disposed of.
 	 *
 	 * @param UserDataType Type of custom object that extensions can store on the document.
 	 */
-	interface WebviewEditorCustomDocument<UserDataType = unknown> {
+	interface CustomDocument<UserDataType = unknown> {
 		/**
 		 * The associated viewType for this document.
 		 */
@@ -1298,14 +1304,14 @@ declare module 'vscode' {
 		readonly uri: Uri;
 
 		/**
-		 * Event fired when there are no more references to the `WebviewEditorCustomDocument`.
+		 * Event fired when there are no more references to the `CustomDocument`.
 		 */
 		readonly onDidDispose: Event<void>;
 
 		/**
 		 * Custom data that an extension can store on the document.
 		 */
-		readonly userData: UserDataType;
+		userData?: UserDataType;
 
 		// TODO: Should we expose edits here?
 		// This could be helpful for tracking the life cycle of edits
@@ -1314,32 +1320,34 @@ declare module 'vscode' {
 	/**
 	 * Provider for webview editors that use a custom data model.
 	 *
-	 * Custom webview editors use [`WebviewEditorCustomDocument`](#WebviewEditorCustomDocument) as their data model.
+	 * Custom webview editors use [`CustomDocument`](#CustomDocument) as their data model.
 	 * This gives extensions full control over actions such as edit, save, and backup.
 	 *
 	 * You should use custom text based editors when dealing with binary files or more complex scenarios. For simple text
 	 * based documents, use [`WebviewTextEditorProvider`](#WebviewTextEditorProvider) instead.
 	 */
-	export interface WebviewCustomEditorProvider {
+	export interface CustomEditorProvider {
 		/**
-		 * Create the model for a given
+		 * Resolve the model for a given resource.
 		 *
-		 * @param document Resource being resolved.
+		 * @param document Document to resolve.
+		 *
+		 * @return The capabilities of the resolved document.
 		 */
-		provideWebviewCustomEditorDocument(resource: Uri): Thenable<WebviewEditorCustomDocument>;
+		resolveCustomDocument(document: CustomDocument): Thenable<CustomEditorCapabilities>;
 
 		/**
 		 * Resolve a webview editor for a given resource.
 		 *
-		 * To resolve a webview editor, a provider must fill in its initial html content and hook up all
+		 * To resolve a webview editor, the provider must fill in its initial html content and hook up all
 		 * the event listeners it is interested it. The provider should also take ownership of the passed in `WebviewPanel`.
 		 *
-		 * @param document Document for resource being resolved.
-		 * @param webview Webview being resolved. The provider should take ownership of this webview.
+		 * @param document Document for the resource being resolved.
+		 * @param webviewPanel Webview to resolve. The provider should take ownership of this webview.
 		 *
 		 * @return Thenable indicating that the webview editor has been resolved.
 		 */
-		resolveWebviewCustomEditor(document: WebviewEditorCustomDocument, webview: WebviewPanel): Thenable<void>;
+		resolveCustomEditor(document: CustomDocument, webviewPanel: WebviewPanel): Thenable<void>;
 	}
 
 	/**
@@ -1350,9 +1358,9 @@ declare module 'vscode' {
 	 * undo and backup. The provider is responsible for synchronizing text changes between the webview and the `TextDocument`.
 	 *
 	 * You should use text based webview editors when dealing with text based file formats, such as `xml` or `json`.
-	 * For binary files or more specialized use cases, see [WebviewCustomEditorProvider](#WebviewCustomEditorProvider).
+	 * For binary files or more specialized use cases, see [CustomEditorProvider](#CustomEditorProvider).
 	 */
-	export interface WebviewTextEditorProvider {
+	export interface CustomTextEditorProvider {
 		/**
 		 * Resolve a webview editor for a given resource.
 		 *
@@ -1360,68 +1368,29 @@ declare module 'vscode' {
 		 * the event listeners it is interested it. The provider should also take ownership of the passed in `WebviewPanel`.
 		 *
 		 * @param document Resource being resolved.
-		 * @param webview Webview being resolved. The provider should take ownership of this webview.
+		 * @param webviewPanel Webview to resolve. The provider should take ownership of this webview.
 		 *
 		 * @return Thenable indicating that the webview editor has been resolved.
 		 */
-		resolveWebviewTextEditor(document: TextDocument, webview: WebviewPanel): Thenable<void>;
+		resolveCustomTextEditor(document: TextDocument, webviewPanel: WebviewPanel): Thenable<void>;
 	}
 
 	namespace window {
 		/**
-		 * Register a new provider for text based webview editors.
-		 *
-		 * @param viewType Type of the webview editor provider. This should match the `viewType` from the
-		 *   `package.json` contributions
-		 * @param provider Provider that resolves webview editors.
-		 * @param webviewOptions Content settings for the webview panels that provider is given.
-		 *
-		 * @return Disposable that unregisters the `WebviewTextEditorProvider`.
-		 */
-		export function registerWebviewTextEditorProvider(
-			viewType: string,
-			provider: WebviewTextEditorProvider,
-			webviewOptions?: WebviewPanelOptions,
-		): Disposable;
-
-		/**
-		 * Register a new provider for custom webview editors.
+		 * Register a new provider for a custom editor.
 		 *
 		 * @param viewType Type of the webview editor provider. This should match the `viewType` from the
 		 *   `package.json` contributions.
-		 * @param provider Provider that resolves webview editors.
-		 * @param webviewOptions Content settings for the webview panels that provider is given.
+		 * @param provider Provider that resolves editors.
+		 * @param webviewOptions Content settings for the webview panels that the provider is given.
 		 *
-		 * @return Disposable that unregisters the `WebviewCustomEditorProvider`.
+		 * @return Disposable that unregisters the provider.
 		 */
-		export function registerWebviewCustomEditorProvider(
+		export function registerCustomEditorProvider(
 			viewType: string,
-			provider: WebviewCustomEditorProvider,
+			provider: CustomEditorProvider | CustomTextEditorProvider,
 			webviewOptions?: WebviewPanelOptions,
 		): Disposable;
-
-		/**
-		 * Create a new `WebviewEditorCustomDocument`.
-		 *
-		 * Note that this method only creates a custom document object. To have it be registered with VS Code, you
-		 * must return the document from `WebviewCustomEditorProvider.provideWebviewCustomEditorDocument`.
-		 *
-		 * @param viewType Type of the webview editor provider. This should match the `viewType` from the
-		 *   `package.json` contributions.
-		 * @param uri The document's resource.
-		 * @param userData Custom data attached to the document.
-		 * @param capabilities Controls the editing functionality of a webview editor. This allows the webview
-		 * editor to hook into standard editor events such as `undo` or `save`.
-		 *
-		 * WebviewEditors that do not have `editingCapability` are considered to be readonly. Users can still interact
-		 * with readonly editors, but these editors will not integrate with VS Code's standard editor functionality.
-		 */
-		export function createWebviewEditorCustomDocument<UserDataType>(
-			viewType: string,
-			uri: Uri,
-			userData: UserDataType,
-			capabilities: WebviewCustomEditorCapabilities
-		): WebviewEditorCustomDocument<UserDataType>;
 	}
 
 	//#endregion
@@ -1521,28 +1490,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-
-	//#region Diagnostic links https://github.com/microsoft/vscode/issues/11847
-
-	export interface Diagnostic {
-		/**
-		 * Will be merged into `Diagnostic#code`
-		 */
-		code2?: {
-			/**
-			 * A code or identifier for this diagnostic.
-			 * Should be used for later processing, e.g. when providing [code actions](#CodeActionContext).
-			 */
-			value: string | number;
-
-			/**
-			 * A target URI to open with more information about the diagnostic error.
-			 */
-			target: Uri;
-		}
-	}
-
-	//#endregion
 
 	//#region eamodio - timeline: https://github.com/microsoft/vscode/issues/84297
 
@@ -1660,7 +1607,7 @@ declare module 'vscode' {
 		/**
 		 * The maximum number or the ending cursor of timeline items that should be returned.
 		 */
-		limit?: number | string;
+		limit?: number | { cursor: string };
 	}
 
 	export interface TimelineProvider {
@@ -1742,9 +1689,10 @@ declare module 'vscode' {
 		 *
 		 * The documentation is shown in the code actions menu if either:
 		 *
-		 * - Code actions of `kind` are requested by VS Code. Note that in this case, we always pick the most specific
-		 *  documentation. For example, if documentation for both `Refactor` and `RefactorExtract` is provided, and we
-		 *  request code actions for `RefactorExtract`, we prefer the more specific documentation for `RefactorExtract`.
+		 * - Code actions of `kind` are requested by VS Code. In this case, VS Code will show the documentation that
+		 *   most closely matches the requested code action kind. For example, if a provider has documentation for
+		 *   both `Refactor` and `RefactorExtract`, when the user requests code actions for `RefactorExtract`,
+		 *   VS Code will use the documentation for `RefactorExtract` intead of the documentation for `Refactor`.
 		 *
 		 * - Any code actions of `kind` are returned by the provider.
 		 */
@@ -1765,7 +1713,10 @@ declare module 'vscode' {
 	 */
 	export interface OpenDialogOptions {
 		/**
-		 * Dialog title
+		 * Dialog title.
+		 *
+		 * Depending on the underlying operating system this parameter might be ignored, since some
+		 * systems do not present title on open dialogs.
 		 */
 		title?: string;
 	}
@@ -1775,7 +1726,10 @@ declare module 'vscode' {
 	 */
 	export interface SaveDialogOptions {
 		/**
-		 * Dialog title
+		 * Dialog title.
+		 *
+		 * Depending on the underlying operating system this parameter might be ignored, since some
+		 * systems do not present title on save dialogs.
 		 */
 		title?: string;
 	}

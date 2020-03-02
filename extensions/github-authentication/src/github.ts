@@ -10,6 +10,13 @@ import Logger from './common/logger';
 
 export const onDidChangeSessions = new vscode.EventEmitter<void>();
 
+interface SessionData {
+	id: string;
+	accountName: string;
+	scopes: string[];
+	accessToken: string;
+}
+
 export class GitHubAuthenticationProvider {
 	private _sessions: vscode.AuthenticationSession[] = [];
 	private _githubServer = new GitHubServer();
@@ -58,7 +65,15 @@ export class GitHubAuthenticationProvider {
 		const storedSessions = await keychain.getToken();
 		if (storedSessions) {
 			try {
-				return JSON.parse(storedSessions);
+				const sessionData: SessionData[] = JSON.parse(storedSessions);
+				return sessionData.map(session => {
+					return {
+						id: session.id,
+						accountName: session.accountName,
+						scopes: session.scopes,
+						getAccessToken: () => Promise.resolve(session.accessToken)
+					};
+				});
 			} catch (e) {
 				Logger.error(`Error reading sessions: ${e}`);
 			}
@@ -68,7 +83,17 @@ export class GitHubAuthenticationProvider {
 	}
 
 	private async storeSessions(): Promise<void> {
-		await keychain.setToken(JSON.stringify(this._sessions));
+		const sessionData: SessionData[] = await Promise.all(this._sessions.map(async session => {
+			const resolvedAccessToken = await session.getAccessToken();
+			return {
+				id: session.id,
+				accountName: session.accountName,
+				scopes: session.scopes,
+				accessToken: resolvedAccessToken
+			};
+		}));
+
+		await keychain.setToken(JSON.stringify(sessionData));
 	}
 
 	get sessions(): vscode.AuthenticationSession[] {
@@ -86,7 +111,7 @@ export class GitHubAuthenticationProvider {
 		const userInfo = await this._githubServer.getUserInfo(token);
 		return {
 			id: userInfo.id,
-			accessToken: () => Promise.resolve(token),
+			getAccessToken: () => Promise.resolve(token),
 			accountName: userInfo.accountName,
 			scopes: scopes
 		};

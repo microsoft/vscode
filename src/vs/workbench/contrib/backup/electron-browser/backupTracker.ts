@@ -161,12 +161,10 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 
 				// Backup does not exist
 				else {
-					if (typeof workingCopy.backup === 'function') {
-						const backup = await workingCopy.backup();
-						await this.backupFileService.backup(workingCopy.resource, backup.content, contentVersion, backup.meta);
+					const backup = await workingCopy.backup();
+					await this.backupFileService.backup(workingCopy.resource, backup.content, contentVersion, backup.meta);
 
-						backups.push(workingCopy);
-					}
+					backups.push(workingCopy);
 				}
 			}));
 		}
@@ -235,16 +233,13 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 		const revertOptions = { soft: true };
 
 		// First revert through the editor service if we revert all
-		let result: boolean | undefined = undefined;
 		if (workingCopies.length === this.workingCopyService.dirtyCount) {
-			result = await this.editorService.revertAll(revertOptions);
+			await this.editorService.revertAll(revertOptions);
 		}
 
 		// If we still have dirty working copies, revert those directly
 		// unless the revert operation was not successful (e.g. cancelled)
-		if (result !== false) {
-			await Promise.all(workingCopies.map(workingCopy => workingCopy.isDirty() ? workingCopy.revert(revertOptions) : Promise.resolve(true)));
-		}
+		await Promise.all(workingCopies.map(workingCopy => workingCopy.isDirty() ? workingCopy.revert(revertOptions) : Promise.resolve()));
 	}
 
 	private noVeto(backupsToDiscard: IWorkingCopy[]): boolean | Promise<boolean> {

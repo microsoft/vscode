@@ -21,6 +21,7 @@ import { URI } from 'vs/base/common/uri';
 import { isEqual, joinPath } from 'vs/base/common/resources';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { distinct } from 'vs/base/common/arrays';
 
 export const CONFIGURATION_SYNC_STORE_KEY = 'configurationSync.store';
 
@@ -37,10 +38,16 @@ export interface ISyncConfiguration {
 	}
 }
 
+export function getDisallowedIgnoredSettings(): string[] {
+	const allSettings = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
+	return Object.keys(allSettings).filter(setting => !!allSettings[setting].disallowSyncIgnore);
+}
+
 export function getDefaultIgnoredSettings(): string[] {
 	const allSettings = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 	const machineSettings = Object.keys(allSettings).filter(setting => allSettings[setting].scope === ConfigurationScope.MACHINE || allSettings[setting].scope === ConfigurationScope.MACHINE_OVERRIDABLE);
-	return [CONFIGURATION_SYNC_STORE_KEY, ...machineSettings];
+	const disallowedSettings = getDisallowedIgnoredSettings();
+	return distinct([CONFIGURATION_SYNC_STORE_KEY, ...machineSettings, ...disallowedSettings]);
 }
 
 export function registerConfiguration(): IDisposable {
@@ -53,36 +60,6 @@ export function registerConfiguration(): IDisposable {
 		title: localize('sync', "Sync"),
 		type: 'object',
 		properties: {
-			'sync.enable': {
-				type: 'boolean',
-				default: false,
-				scope: ConfigurationScope.APPLICATION,
-				deprecationMessage: 'deprecated'
-			},
-			'sync.enableSettings': {
-				type: 'boolean',
-				default: true,
-				scope: ConfigurationScope.APPLICATION,
-				deprecationMessage: 'deprecated'
-			},
-			'sync.enableKeybindings': {
-				type: 'boolean',
-				default: true,
-				scope: ConfigurationScope.APPLICATION,
-				deprecationMessage: 'Deprecated'
-			},
-			'sync.enableUIState': {
-				type: 'boolean',
-				default: true,
-				scope: ConfigurationScope.APPLICATION,
-				deprecationMessage: 'deprecated'
-			},
-			'sync.enableExtensions': {
-				type: 'boolean',
-				default: true,
-				scope: ConfigurationScope.APPLICATION,
-				deprecationMessage: 'deprecated'
-			},
 			'sync.keybindingsPerPlatform': {
 				type: 'boolean',
 				description: localize('sync.keybindingsPerPlatform', "Synchronize keybindings per platform."),
@@ -115,11 +92,14 @@ export function registerConfiguration(): IDisposable {
 	});
 	const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 	const registerIgnoredSettingsSchema = () => {
-		const defaultIgnoreSettings = getDefaultIgnoredSettings().filter(s => s !== CONFIGURATION_SYNC_STORE_KEY);
+		const disallowedIgnoredSettings = getDisallowedIgnoredSettings();
+		const defaultIgnoredSettings = getDefaultIgnoredSettings().filter(s => s !== CONFIGURATION_SYNC_STORE_KEY);
+		const settings = Object.keys(allSettings.properties).filter(setting => defaultIgnoredSettings.indexOf(setting) === -1);
+		const ignoredSettings = defaultIgnoredSettings.filter(setting => disallowedIgnoredSettings.indexOf(setting) === -1);
 		const ignoredSettingsSchema: IJSONSchema = {
 			items: {
 				type: 'string',
-				enum: [...Object.keys(allSettings.properties).filter(setting => defaultIgnoreSettings.indexOf(setting) === -1), ...defaultIgnoreSettings.map(setting => `-${setting}`)]
+				enum: [...settings, ...ignoredSettings.map(setting => `-${setting}`)]
 			},
 		};
 		jsonRegistry.registerSchema(ignoredSettingsSchemaId, ignoredSettingsSchema);
@@ -297,7 +277,7 @@ export interface IUserDataSyncService {
 	readonly conflictsSources: SyncSource[];
 	readonly onDidChangeConflicts: Event<SyncSource[]>;
 
-	readonly onDidChangeLocal: Event<void>;
+	readonly onDidChangeLocal: Event<SyncSource>;
 	readonly onSyncErrors: Event<[SyncSource, UserDataSyncError][]>;
 
 	readonly lastSyncTime: number | undefined;
@@ -318,7 +298,7 @@ export const IUserDataAutoSyncService = createDecorator<IUserDataAutoSyncService
 export interface IUserDataAutoSyncService {
 	_serviceBrand: any;
 	readonly onError: Event<UserDataSyncError>;
-	triggerAutoSync(): Promise<void>;
+	triggerAutoSync(sources: string[]): Promise<void>;
 }
 
 export const IUserDataSyncUtilService = createDecorator<IUserDataSyncUtilService>('IUserDataSyncUtilService');

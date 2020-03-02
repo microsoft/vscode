@@ -142,23 +142,7 @@
 				}
 			}
 		},
-		"dockerFileAndContext": {
-			"type": "object",
-			"properties": {
-				"dockerFile": {
-					"type": "string",
-					"description": "The location of the Dockerfile that defines the contents of the container. The path is relative to the folder containing the `devcontainer.json` file."
-				},
-				"context": {
-					"type": "string",
-					"description": "The location of the context folder for building the Docker image. The path is relative to the folder containing the `devcontainer.json` file."
-				}
-			},
-			"required": [
-				"dockerFile"
-			]
-		},
-		"dockerFileContainer": {
+		"dockerfileContainer": {
 			"oneOf": [
 				{
 					"type": "object",
@@ -168,7 +152,20 @@
 							"description": "Docker build-related options.",
 							"allOf": [
 								{
-									"$ref": "#/definitions/dockerFileAndContext"
+									"type": "object",
+									"properties": {
+										"dockerfile": {
+											"type": "string",
+											"description": "The location of the Dockerfile that defines the contents of the container. The path is relative to the folder containing the `devcontainer.json` file."
+										},
+										"context": {
+											"type": "string",
+											"description": "The location of the context folder for building the Docker image. The path is relative to the folder containing the `devcontainer.json` file."
+										}
+									},
+									"required": [
+										"dockerfile"
+									]
 								},
 								{
 									"$ref": "#/definitions/buildOptions"
@@ -183,7 +180,20 @@
 				{
 					"allOf": [
 						{
-							"$ref": "#/definitions/dockerFileAndContext"
+							"type": "object",
+							"properties": {
+								"dockerFile": {
+									"type": "string",
+									"description": "The location of the Dockerfile that defines the contents of the container. The path is relative to the folder containing the `devcontainer.json` file."
+								},
+								"context": {
+									"type": "string",
+									"description": "The location of the context folder for building the Docker image. The path is relative to the folder containing the `devcontainer.json` file."
+								}
+							},
+							"required": [
+								"dockerFile"
+							]
 						},
 						{
 							"type": "object",
@@ -280,7 +290,7 @@
 						{
 							"oneOf": [
 								{
-									"$ref": "#/definitions/dockerFileContainer"
+									"$ref": "#/definitions/dockerfileContainer"
 								},
 								{
 									"$ref": "#/definitions/imageContainer"

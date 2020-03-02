@@ -16,6 +16,7 @@ import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textF
 import { timeout } from 'vs/base/common/async';
 import { ModesRegistry, PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 
 suite('Files - FileEditorInput', () => {
 	let instantiationService: IInstantiationService;
@@ -148,7 +149,7 @@ suite('Files - FileEditorInput', () => {
 		resolved.textEditorModel!.setValue('changed');
 		assert.ok(input.isDirty());
 
-		assert.ok(await input.revert(0));
+		await input.revert(0);
 		assert.ok(!input.isDirty());
 
 		input.dispose();
@@ -195,5 +196,20 @@ suite('Files - FileEditorInput', () => {
 
 		input.dispose();
 		listener.dispose();
+	});
+
+	test('force open text/binary', async function () {
+		const input = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/foo/bar/updatefile.js'), undefined, undefined);
+		input.setForceOpenAsBinary();
+
+		let resolved = await input.resolve();
+		assert.ok(resolved instanceof BinaryEditorModel);
+
+		input.setForceOpenAsText();
+
+		resolved = await input.resolve();
+		assert.ok(resolved instanceof TextFileEditorModel);
+
+		resolved.dispose();
 	});
 });
