@@ -21,6 +21,7 @@ import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 export class NotificationsList extends Themable {
 	private listContainer: HTMLElement | undefined;
 	private list: WorkbenchList<INotificationViewItem> | undefined;
+	private listDelegate: NotificationsListDelegate | undefined;
 	private viewModel: INotificationViewItem[];
 	private isVisible: boolean | undefined;
 
@@ -73,11 +74,12 @@ export class NotificationsList extends Themable {
 		const renderer = this.instantiationService.createInstance(NotificationRenderer, actionRunner);
 
 		// List
+		const listDelegate = this.listDelegate = new NotificationsListDelegate(this.listContainer);
 		const list = this.list = <WorkbenchList<INotificationViewItem>>this._register(this.instantiationService.createInstance(
 			WorkbenchList,
 			'NotificationsList',
 			this.listContainer,
-			new NotificationsListDelegate(this.listContainer),
+			listDelegate,
 			[renderer],
 			{
 				...this.options,
@@ -184,6 +186,17 @@ export class NotificationsList extends Themable {
 		if (this.isVisible && listHasDOMFocus) {
 			list.domFocus();
 		}
+	}
+
+	updateNotificationHeight(item: INotificationViewItem): void {
+		const index = this.viewModel.indexOf(item);
+		if (index === -1) {
+			return;
+		}
+
+		const [list, listDelegate] = assertAllDefined(this.list, this.listDelegate);
+		list.updateElementHeight(index, listDelegate.getHeight(item));
+		list.layout();
 	}
 
 	hide(): void {
