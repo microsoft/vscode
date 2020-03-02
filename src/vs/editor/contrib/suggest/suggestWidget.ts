@@ -144,10 +144,9 @@ class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTemplateD
 		const text = append(container, $('.contents'));
 		const main = append(text, $('.main'));
 
+		data.iconContainer = append(main, $('.icon-label.codicon'));
 		data.left = append(main, $('span.left'));
 		data.right = append(main, $('span.right'));
-
-		data.iconContainer = append(data.left, $('.icon-label.codicon'));
 
 		data.iconLabel = new IconLabel(data.left, { supportHighlights: true, supportCodicons: true });
 		data.disposables.add(data.iconLabel);
@@ -474,7 +473,8 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	readonly allowEditorOverflow = true;
 	readonly suppressMouseDown = false;
 
-	private state: State | null = null;
+	private state: State = State.Hidden;
+	private isAddedAsContentWidget: boolean = false;
 	private isAuto: boolean = false;
 	private loadingTimeout: IDisposable = Disposable.None;
 	private currentSuggestionDetails: CancelablePromise<void> | null = null;
@@ -552,7 +552,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.messageElement = append(this.element, $('.message'));
 		this.listElement = append(this.element, $('.tree'));
 
-		const applyStatusBarStyle = () => toggleClass(this.element, 'with-status-bar', !this.editor.getOption(EditorOption.suggest).hideStatusBar);
+		const applyStatusBarStyle = () => toggleClass(this.element, 'with-status-bar', this.editor.getOption(EditorOption.suggest).statusBar.visible);
 		applyStatusBarStyle();
 
 		this.statusBarElement = append(this.element, $('.suggest-status-bar'));
@@ -644,9 +644,6 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.ctxSuggestWidgetVisible = SuggestContext.Visible.bindTo(contextKeyService);
 		this.ctxSuggestWidgetDetailsVisible = SuggestContext.DetailsVisible.bindTo(contextKeyService);
 		this.ctxSuggestWidgetMultipleSuggestions = SuggestContext.MultipleSuggestions.bindTo(contextKeyService);
-
-		this.editor.addContentWidget(this);
-		this.setState(State.Hidden);
 
 		this.onThemeChange(themeService.getTheme());
 
@@ -809,6 +806,11 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	private setState(state: State): void {
 		if (!this.element) {
 			return;
+		}
+
+		if (!this.isAddedAsContentWidget && state !== State.Hidden) {
+			this.isAddedAsContentWidget = true;
+			this.editor.addContentWidget(this);
 		}
 
 		const stateChanged = this.state !== state;
@@ -1291,6 +1293,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.toDispose.dispose();
 		this.loadingTimeout.dispose();
 		this.showTimeout.dispose();
+		this.editor.removeContentWidget(this);
 	}
 }
 

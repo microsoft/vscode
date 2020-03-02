@@ -22,7 +22,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	private _onDidChangeStatus: Emitter<SyncStatus> = this._register(new Emitter<SyncStatus>());
 	readonly onDidChangeStatus: Event<SyncStatus> = this._onDidChangeStatus.event;
 
-	get onDidChangeLocal(): Event<void> { return this.channel.listen('onDidChangeLocal'); }
+	get onDidChangeLocal(): Event<SyncSource> { return this.channel.listen<SyncSource>('onDidChangeLocal'); }
 
 	private _conflictsSources: SyncSource[] = [];
 	get conflictsSources(): SyncSource[] { return this._conflictsSources; }

@@ -209,7 +209,7 @@ export class DebugHoverWidget implements IContentWidget {
 
 				if (!matchingExpression) {
 					const lineContent = model.getLineContent(pos.lineNumber);
-					matchingExpression = lineContent.substring(rng.startColumn - 1, rng.endColumn);
+					matchingExpression = lineContent.substring(rng.startColumn - 1, rng.endColumn - 1);
 				}
 			}
 

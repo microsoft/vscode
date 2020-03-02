@@ -35,7 +35,7 @@ import { InputBoxFocusedKey } from 'vs/workbench/contrib/search/common/constants
 import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/common/search';
 import { SearchModel } from 'vs/workbench/contrib/search/common/searchModel';
-import { InSearchEditor, SearchEditorFindMatchClass } from 'vs/workbench/contrib/searchEditor/browser/constants';
+import { InSearchEditor, SearchEditorFindMatchClass, SearchEditorID } from 'vs/workbench/contrib/searchEditor/browser/constants';
 import type { SearchConfiguration, SearchEditorInput } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
 import { extractSearchQuery, serializeSearchConfiguration, serializeSearchResultForEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
 import { IPatternInfo, ISearchConfigurationProperties, ITextQuery } from 'vs/workbench/services/search/common/search';
@@ -56,7 +56,7 @@ const FILE_LINE_REGEX = /^(\S.*):$/;
 type SearchEditorViewState = ICodeEditorViewState & { focused: 'input' | 'editor' };
 
 export class SearchEditor extends BaseTextEditor {
-	static readonly ID: string = 'workbench.editor.searchEditor';
+	static readonly ID: string = SearchEditorID;
 
 	static readonly SEARCH_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'searchEditorViewState';
 
@@ -194,6 +194,7 @@ export class SearchEditor extends BaseTextEditor {
 			const runAgainLink = DOM.append(this.messageBox, DOM.$('a.pointer.prominent.message', {}, localize('runSearch', "Run Search")));
 			this.messageDisposables.push(DOM.addDisposableListener(runAgainLink, DOM.EventType.CLICK, async () => {
 				await this.triggerSearch();
+				this.searchResultEditor.focus();
 				this.toggleRunAgainMessage(false);
 			}));
 		}

@@ -69,7 +69,7 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 		throw new Error('Not implemented');
 	}
 
-	public getDefaultShellAndArgs(useAutomationShell: boolean, ): Promise<{ shell: string, args: string[] | string | undefined }> {
+	public getDefaultShellAndArgs(useAutomationShell: boolean,): Promise<{ shell: string, args: string[] | string | undefined }> {
 		return new Promise(r => this._onRequestDefaultShellAndArgs.fire({
 			useAutomationShell,
 			callback: (shell, args) => r({ shell, args })

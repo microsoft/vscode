@@ -6,14 +6,25 @@
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
+export const IActivityService = createDecorator<IActivityService>('activityService');
+
+export interface IActivityService {
+
+	_serviceBrand: undefined;
+
+	/**
+	 * Show activity in the panel for the given panel or in the activitybar for the given viewlet or global action.
+	 */
+	showActivity(compositeOrActionId: string, badge: IBadge, clazz?: string, priority?: number): IDisposable;
+}
+
 export interface IBadge {
 	getDescription(): string;
 }
 
-export class BaseBadge implements IBadge {
-	descriptorFn: (args: any) => string;
+class BaseBadge implements IBadge {
 
-	constructor(descriptorFn: (args: any) => string) {
+	constructor(public readonly descriptorFn: (arg: any) => string) {
 		this.descriptorFn = descriptorFn;
 	}
 
@@ -23,9 +34,8 @@ export class BaseBadge implements IBadge {
 }
 
 export class NumberBadge extends BaseBadge {
-	number: number;
 
-	constructor(number: number, descriptorFn: (args: any) => string) {
+	constructor(public readonly number: number, descriptorFn: (num: number) => string) {
 		super(descriptorFn);
 
 		this.number = number;
@@ -37,31 +47,17 @@ export class NumberBadge extends BaseBadge {
 }
 
 export class TextBadge extends BaseBadge {
-	text: string;
 
-	constructor(text: string, descriptorFn: (args: any) => string) {
+	constructor(public readonly text: string, descriptorFn: () => string) {
 		super(descriptorFn);
-
-		this.text = text;
 	}
 }
 
 export class IconBadge extends BaseBadge {
 
-	constructor(descriptorFn: (args: any) => string) {
+	constructor(descriptorFn: () => string) {
 		super(descriptorFn);
 	}
 }
 
 export class ProgressBadge extends BaseBadge { }
-
-export const IActivityService = createDecorator<IActivityService>('activityService');
-
-export interface IActivityService {
-	_serviceBrand: undefined;
-
-	/**
-	 * Show activity in the panel for the given panel or in the activitybar for the given viewlet or global action.
-	 */
-	showActivity(compositeOrActionId: string, badge: IBadge, clazz?: string, priority?: number): IDisposable;
-}

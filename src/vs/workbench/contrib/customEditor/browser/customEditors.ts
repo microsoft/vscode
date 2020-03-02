@@ -25,7 +25,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { EditorInput, EditorOptions, IEditor, IEditorInput } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { webviewEditorsExtensionPoint } from 'vs/workbench/contrib/customEditor/browser/extensionPoint';
-import { CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CONTEXT_HAS_CUSTOM_EDITORS, CustomEditorInfo, CustomEditorInfoCollection, CustomEditorPriority, CustomEditorSelector, ICustomEditor, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
+import { CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CONTEXT_CUSTOM_EDITORS, CustomEditorInfo, CustomEditorInfoCollection, CustomEditorPriority, CustomEditorSelector, ICustomEditor, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { CustomEditorModelManager } from 'vs/workbench/contrib/customEditor/common/customEditorModelManager';
 import { IWebviewService, webviewHasOwnEditFunctionsContext } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -98,7 +98,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 
 	private readonly _models: CustomEditorModelManager;
 
-	private readonly _hasCustomEditor: IContextKey<boolean>;
+	private readonly _customEditorContextKey: IContextKey<string>;
 	private readonly _focusedCustomEditorIsEditable: IContextKey<boolean>;
 	private readonly _webviewHasOwnEditFunctions: IContextKey<boolean>;
 
@@ -118,7 +118,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 
 		this._models = new CustomEditorModelManager(workingCopyService, labelService);
 
-		this._hasCustomEditor = CONTEXT_HAS_CUSTOM_EDITORS.bindTo(contextKeyService);
+		this._customEditorContextKey = CONTEXT_CUSTOM_EDITORS.bindTo(contextKeyService);
 		this._focusedCustomEditorIsEditable = CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE.bindTo(contextKeyService);
 		this._webviewHasOwnEditFunctions = webviewHasOwnEditFunctionsContext.bindTo(contextKeyService);
 
@@ -310,7 +310,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		const activeControl = this.editorService.activeControl;
 		const resource = activeControl?.input.resource;
 		if (!resource) {
-			this._hasCustomEditor.reset();
+			this._customEditorContextKey.reset();
 			this._focusedCustomEditorIsEditable.reset();
 			this._webviewHasOwnEditFunctions.reset();
 			return;
@@ -320,7 +320,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 			...this.getContributedCustomEditors(resource).allEditors,
 			...this.getUserConfiguredCustomEditors(resource).allEditors,
 		];
-		this._hasCustomEditor.set(possibleEditors.length > 0);
+		this._customEditorContextKey.set(possibleEditors.map(x => x.id).join(','));
 		this._focusedCustomEditorIsEditable.set(activeControl?.input instanceof CustomEditorInput);
 		this._webviewHasOwnEditFunctions.set(possibleEditors.length > 0);
 	}
@@ -333,11 +333,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 				}
 
 				const editorInfo = this._editorInfoStore.get(editor.viewType);
-				if (!editorInfo) {
-					continue;
-				}
-
-				if (!editorInfo.matches(newResource)) {
+				if (!editorInfo?.matches(newResource)) {
 					continue;
 				}
 

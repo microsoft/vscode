@@ -62,6 +62,7 @@ import { IElectronEnvironmentService } from 'vs/workbench/services/electron/elec
 import { IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { Event } from 'vs/base/common/event';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 
 export class ElectronWindow extends Disposable {
 
@@ -94,7 +95,7 @@ export class ElectronWindow extends Disposable {
 		@IMenuService private readonly menuService: IMenuService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IIntegrityService private readonly integrityService: IIntegrityService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -613,6 +614,8 @@ export class ElectronWindow extends Disposable {
 	}
 
 	private trackClosedWaitFiles(waitMarkerFile: URI, resourcesToWaitFor: URI[]): IDisposable {
+		let remainingResourcesToWaitFor = resourcesToWaitFor.slice(0);
+
 		// In wait mode, listen to changes to the editors and wait until the files
 		// are closed that the user wants to wait for. When this happens we delete
 		// the wait marker file to signal to the outside that editing is done.
@@ -622,7 +625,7 @@ export class ElectronWindow extends Disposable {
 
 			// Remove from resources to wait for based on the
 			// resources from editors that got closed
-			resourcesToWaitFor = resourcesToWaitFor.filter(resourceToWaitFor => {
+			remainingResourcesToWaitFor = remainingResourcesToWaitFor.filter(resourceToWaitFor => {
 				if (isEqual(resourceToWaitFor, masterResource) || isEqual(resourceToWaitFor, detailsResource)) {
 					return false; // remove - the closing editor matches this resource
 				}
@@ -630,7 +633,7 @@ export class ElectronWindow extends Disposable {
 				return true; // keep - not yet closed
 			});
 
-			if (resourcesToWaitFor.length === 0) {
+			if (remainingResourcesToWaitFor.length === 0) {
 				// If auto save is configured with the default delay (1s) it is possible
 				// to close the editor while the save still continues in the background. As such
 				// we have to also check if the files to wait for are dirty and if so wait

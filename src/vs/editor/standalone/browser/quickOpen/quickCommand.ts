@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as strings from 'vs/base/common/strings';
-import * as browser from 'vs/base/browser/browser';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { matchesFuzzy } from 'vs/base/common/filters';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { IHighlight, QuickOpenEntryGroup, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IAutoFocus, Mode, IEntryRunContext } from 'vs/base/parts/quickopen/common/quickOpen';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -85,7 +84,7 @@ export class QuickCommandAction extends BaseEditorQuickOpenAction {
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
-				primary: (browser.isIE ? KeyMod.Alt | KeyCode.F1 : KeyCode.F1),
+				primary: KeyCode.F1,
 				weight: KeybindingWeight.EditorContrib
 			},
 			contextMenuOpts: {

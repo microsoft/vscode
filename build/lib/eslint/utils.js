@@ -4,6 +4,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.createImportRuleListener = void 0;
 function createImportRuleListener(validateImport) {
     function _checkImport(node) {
         if (node && node.type === 'Literal' && typeof node.value === 'string') {

@@ -55,11 +55,11 @@
 	align-items: center;
 }
 
-.explorer-viewlet .pane-header .monaco-count-badge.hidden {
+.pane-header .dirty-count.monaco-count-badge.hidden {
 	display: none;
 }
 
-.explorer-viewlet .monaco-count-badge {
+.dirty-count.monaco-count-badge {
 	padding: 1px 6px 2px;
 	margin-left: 6px;
 	min-height: auto;

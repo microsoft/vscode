@@ -40,7 +40,6 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IFileService } from 'vs/platform/files/common/files';
 import { withNullAsUndefined, withUndefinedAsNull, assertIsDefined } from 'vs/base/common/types';
-import { ILabelService } from 'vs/platform/label/common/label';
 import { isFirefox } from 'vs/base/browser/browser';
 
 export interface IToolbarActions {
@@ -82,8 +81,7 @@ export abstract class TitleControl extends Themable {
 		@IThemeService themeService: IThemeService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IConfigurationService protected configurationService: IConfigurationService,
-		@IFileService private readonly fileService: IFileService,
-		@ILabelService private readonly labelService: ILabelService
+		@IFileService private readonly fileService: IFileService
 	) {
 		super(themeService);
 
@@ -97,8 +95,9 @@ export abstract class TitleControl extends Themable {
 	}
 
 	private registerListeners(): void {
+
+		// Update actions toolbar when extension register that may contribute them
 		this._register(this.extensionService.onDidRegisterExtensions(() => this.updateEditorActionsToolbar()));
-		this._register(this.labelService.onDidChangeFormatters(() => this.updateEditorLabels()));
 	}
 
 	protected abstract create(parent: HTMLElement): void;

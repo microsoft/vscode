@@ -62,7 +62,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 	private readonly editor: ICodeEditor;
 	private _isEnabled: boolean;
 	private _useFoldingProviders: boolean;
-	private _unfoldOnClickInEmptyContent: boolean;
+	private _unfoldOnClickAfterEndOfLine: boolean;
 
 	private readonly foldingDecorationProvider: FoldingDecorationProvider;
 
@@ -92,7 +92,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 		const options = this.editor.getOptions();
 		this._isEnabled = options.get(EditorOption.folding);
 		this._useFoldingProviders = options.get(EditorOption.foldingStrategy) !== 'indentation';
-		this._unfoldOnClickInEmptyContent = options.get(EditorOption.unfoldOnClickInEmptyContent);
+		this._unfoldOnClickAfterEndOfLine = options.get(EditorOption.unfoldOnClickAfterEndOfLine);
 
 		this.foldingModel = null;
 		this.hiddenRangeModel = null;
@@ -114,8 +114,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 
 		this._register(this.editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
 			if (e.hasChanged(EditorOption.folding)) {
-				const options = this.editor.getOptions();
-				this._isEnabled = options.get(EditorOption.folding);
+				this._isEnabled = this.editor.getOptions().get(EditorOption.folding);
 				this.foldingEnabled.set(this._isEnabled);
 				this.onModelChanged();
 			}
@@ -126,12 +125,11 @@ export class FoldingController extends Disposable implements IEditorContribution
 				this.onModelContentChanged();
 			}
 			if (e.hasChanged(EditorOption.foldingStrategy)) {
-				const options = this.editor.getOptions();
-				this._useFoldingProviders = options.get(EditorOption.foldingStrategy) !== 'indentation';
+				this._useFoldingProviders = this.editor.getOptions().get(EditorOption.foldingStrategy) !== 'indentation';
 				this.onFoldingStrategyChanged();
 			}
-			if (e.hasChanged(EditorOption.unfoldOnClickInEmptyContent)) {
-				this._unfoldOnClickInEmptyContent = options.get(EditorOption.unfoldOnClickInEmptyContent);
+			if (e.hasChanged(EditorOption.unfoldOnClickAfterEndOfLine)) {
+				this._unfoldOnClickAfterEndOfLine = this.editor.getOptions().get(EditorOption.unfoldOnClickAfterEndOfLine);
 			}
 		}));
 		this.onModelChanged();
@@ -370,7 +368,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 				iconClicked = true;
 				break;
 			case MouseTargetType.CONTENT_EMPTY: {
-				if (this._unfoldOnClickInEmptyContent && this.hiddenRangeModel.hasRanges()) {
+				if (this._unfoldOnClickAfterEndOfLine && this.hiddenRangeModel.hasRanges()) {
 					const data = e.target.detail as IEmptyContentData;
 					if (!data.isAfterLines) {
 						break;

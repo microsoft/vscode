@@ -17,7 +17,7 @@ import * as strings from 'vs/base/common/strings';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { compareItemsByScore, IItemAccessor, prepareQuery, ScorerCache } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 import { MAX_FILE_SIZE } from 'vs/base/node/pfs';
-import { ICachedSearchStats, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, IRawFileQuery, IRawQuery, IRawTextQuery, ITextQuery, IFileSearchProgressItem, IRawFileMatch, IRawSearchService, ISearchEngine, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess } from 'vs/workbench/services/search/common/search';
+import { ICachedSearchStats, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, IRawFileQuery, IRawQuery, IRawTextQuery, ITextQuery, IFileSearchProgressItem, IRawFileMatch, IRawSearchService, ISearchEngine, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess, isFilePatternMatch } from 'vs/workbench/services/search/common/search';
 import { Engine as FileSearchEngine } from 'vs/workbench/services/search/node/fileSearch';
 import { TextSearchEngineAdapter } from 'vs/workbench/services/search/node/textSearchAdapter';
 
@@ -316,7 +316,7 @@ export class SearchService implements IRawSearchService {
 			for (const entry of cachedEntries) {
 
 				// Check if this entry is a match for the search value
-				if (!strings.fuzzyContains(entry.relativePath, normalizedSearchValueLowercase)) {
+				if (!isFilePatternMatch(entry, normalizedSearchValueLowercase)) {
 					continue;
 				}
 

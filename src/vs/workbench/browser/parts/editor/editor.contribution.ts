@@ -42,7 +42,7 @@ import * as editorCommands from 'vs/workbench/browser/parts/editor/editorCommand
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { getQuickNavigateHandler, inQuickOpenContext } from 'vs/workbench/browser/parts/quickopen/quickopen';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { isMacintosh } from 'vs/base/common/platform';
 import { AllEditorsByAppearancePicker, ActiveGroupEditorsByMostRecentlyUsedPicker, AllEditorsByMostRecentlyUsedPicker } from 'vs/workbench/browser/parts/editor/editorPicker';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
@@ -273,13 +273,13 @@ export class QuickOpenActionContributor extends ActionBarContributor {
 		super();
 	}
 
-	hasActions(context: any): boolean {
+	hasActions(context: unknown): boolean {
 		const entry = this.getEntry(context);
 
 		return !!entry;
 	}
 
-	getActions(context: any): ReadonlyArray<IAction> {
+	getActions(context: unknown): ReadonlyArray<IAction> {
 		const actions: Action[] = [];
 
 		const entry = this.getEntry(context);
@@ -511,7 +511,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.
 
 interface IEditorToolItem { id: string; title: string; icon?: { dark?: URI; light?: URI; } | ThemeIcon; }
 
-function appendEditorToolItem(primary: IEditorToolItem, when: ContextKeyExpr | undefined, order: number, alternative?: IEditorToolItem, precondition?: ContextKeyExpr | undefined): void {
+function appendEditorToolItem(primary: IEditorToolItem, when: ContextKeyExpression | undefined, order: number, alternative?: IEditorToolItem, precondition?: ContextKeyExpression | undefined): void {
 	const item: IMenuItem = {
 		command: {
 			id: primary.id,

@@ -167,7 +167,11 @@ export class OpenFileHandler extends QuickOpenHandler {
 		}
 
 		else {
-			complete = await this.searchService.fileSearch(this.queryBuilder.file(this.contextService.getWorkspace().folders.map(folder => folder.uri), queryOptions), token);
+			let fileQuery = this.queryBuilder.file(
+				this.contextService.getWorkspace().folders,
+				queryOptions
+			);
+			complete = await this.searchService.fileSearch(fileQuery, token);
 		}
 
 		const results: QuickOpenEntry[] = [];
@@ -238,10 +242,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 			sortByScore: true,
 		};
 
-		const folderResources = this.contextService.getWorkspace().folders.map(folder => folder.uri);
-		const query = this.queryBuilder.file(folderResources, options);
-
-		return query;
+		return this.queryBuilder.file(this.contextService.getWorkspace().folders, options);
 	}
 
 	get isCacheLoaded(): boolean {

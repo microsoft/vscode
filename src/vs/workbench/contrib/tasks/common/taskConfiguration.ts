@@ -681,12 +681,21 @@ export namespace RunOnOptions {
 }
 
 export namespace RunOptions {
+	const properties: MetaData<Tasks.RunOptions, void>[] = [{ property: 'reevaluateOnRerun' }, { property: 'runOn' }, { property: 'instanceLimit' }];
 	export function fromConfiguration(value: RunOptionsConfig | undefined): Tasks.RunOptions {
 		return {
 			reevaluateOnRerun: value ? value.reevaluateOnRerun : true,
 			runOn: value ? RunOnOptions.fromString(value.runOn) : Tasks.RunOnOptions.default,
 			instanceLimit: value ? value.instanceLimit : 1
 		};
+	}
+
+	export function assignProperties(target: Tasks.RunOptions, source: Tasks.RunOptions | undefined): Tasks.RunOptions {
+		return _assignProperties(target, source, properties)!;
+	}
+
+	export function fillProperties(target: Tasks.RunOptions, source: Tasks.RunOptions | undefined): Tasks.RunOptions {
+		return _fillProperties(target, source, properties)!;
 	}
 }
 
@@ -1609,6 +1618,7 @@ namespace CustomTask {
 		result.command.presentation = CommandConfiguration.PresentationOptions.assignProperties(
 			result.command.presentation!, configuredProps.configurationProperties.presentation)!;
 		result.command.options = CommandOptions.assignProperties(result.command.options, configuredProps.configurationProperties.options);
+		result.runOptions = RunOptions.assignProperties(result.runOptions, configuredProps.runOptions);
 
 		let contributedConfigProps: Tasks.ConfigurationProperties = contributedTask.configurationProperties;
 		fillProperty(resultConfigProps, contributedConfigProps, 'group');
@@ -1621,6 +1631,7 @@ namespace CustomTask {
 		result.command.presentation = CommandConfiguration.PresentationOptions.fillProperties(
 			result.command.presentation!, contributedConfigProps.presentation)!;
 		result.command.options = CommandOptions.fillProperties(result.command.options, contributedConfigProps.options);
+		result.runOptions = RunOptions.fillProperties(result.runOptions, contributedTask.runOptions);
 
 		if (contributedTask.hasDefinedMatchers === true) {
 			result.hasDefinedMatchers = true;

@@ -364,10 +364,8 @@ export class CompositeOverflowActivityAction extends ActivityAction {
 		});
 	}
 
-	run(event: any): Promise<any> {
+	async run(): Promise<void> {
 		this.showMenu();
-
-		return Promise.resolve(true);
 	}
 }
 
@@ -442,7 +440,7 @@ class ManageExtensionAction extends Action {
 		super('activitybar.manage.extension', nls.localize('manageExtension', "Manage Extension"));
 	}
 
-	run(id: string): Promise<any> {
+	run(id: string): Promise<void> {
 		return this.commandService.executeCommand('_extensions.manage', id);
 	}
 }
@@ -544,14 +542,16 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 				if (this.compositeTransfer.hasData(DraggedCompositeIdentifier.prototype)) {
 					const data = this.compositeTransfer.getData(DraggedCompositeIdentifier.prototype);
 					if (Array.isArray(data) && data[0].id !== this.activity.id) {
-						this.updateFromDragging(container, true);
+						const validDropTarget = this.dndHandler.onDragEnter(new CompositeDragAndDropData('composite', data[0].id), this.activity.id, e);
+						this.updateFromDragging(container, validDropTarget);
 					}
 				}
 
 				if (this.compositeTransfer.hasData(DraggedViewIdentifier.prototype)) {
 					const data = this.compositeTransfer.getData(DraggedViewIdentifier.prototype);
 					if (Array.isArray(data) && data[0].id !== this.activity.id) {
-						this.updateFromDragging(container, true);
+						const validDropTarget = this.dndHandler.onDragEnter(new CompositeDragAndDropData('view', data[0].id), this.activity.id, e);
+						this.updateFromDragging(container, validDropTarget);
 					}
 				}
 			},
@@ -616,6 +616,8 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 					const data = this.compositeTransfer.getData(DraggedViewIdentifier.prototype);
 					if (Array.isArray(data)) {
 						const draggedViewId = data[0].id;
+						this.updateFromDragging(container, false);
+						this.compositeTransfer.clearData(DraggedViewIdentifier.prototype);
 
 						this.dndHandler.drop(new CompositeDragAndDropData('view', draggedViewId), this.activity.id, e);
 					}
@@ -729,7 +731,7 @@ export class ToggleCompositePinnedAction extends Action {
 		this.checked = !!this.activity && this.compositeBar.isPinned(this.activity.id);
 	}
 
-	run(context: string): Promise<any> {
+	async run(context: string): Promise<void> {
 		const id = this.activity ? this.activity.id : context;
 
 		if (this.compositeBar.isPinned(id)) {
@@ -737,7 +739,5 @@ export class ToggleCompositePinnedAction extends Action {
 		} else {
 			this.compositeBar.pin(id);
 		}
-
-		return Promise.resolve(true);
 	}
 }

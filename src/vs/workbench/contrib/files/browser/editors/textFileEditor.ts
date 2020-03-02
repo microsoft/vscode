@@ -31,6 +31,7 @@ import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
 import { MutableDisposable } from 'vs/base/common/lifecycle';
 import { EditorActivation, IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 /**
  * An implementation of editor for file system resources.
@@ -49,14 +50,15 @@ export class TextFileEditor extends BaseTextEditor {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IStorageService storageService: IStorageService,
-		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
+		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IEditorService editorService: IEditorService,
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITextFileService private readonly textFileService: ITextFileService,
-		@IExplorerService private readonly explorerService: IExplorerService
+		@IExplorerService private readonly explorerService: IExplorerService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
-		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, editorService, editorGroupService);
+		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService);
 
 		this.updateRestoreViewStateConfiguration();
 
@@ -87,7 +89,7 @@ export class TextFileEditor extends BaseTextEditor {
 	}
 
 	private updateRestoreViewStateConfiguration(): void {
-		this.restoreViewState = this.textResourceConfigurationService.getValue(undefined, 'workbench.editor.restoreViewState');
+		this.restoreViewState = this.configurationService.getValue('workbench.editor.restoreViewState') ?? true /* default */;
 	}
 
 	getTitle(): string {
