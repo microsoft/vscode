@@ -507,6 +507,7 @@ export class ExtensionEditor extends BaseEditor {
 			if (e.enabled === false) {
 				hide(template.subtextContainer);
 			}
+			this.layout();
 		}));
 	}
 
