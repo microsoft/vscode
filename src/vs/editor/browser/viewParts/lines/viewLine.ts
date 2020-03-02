@@ -42,7 +42,7 @@ const canUseFastRenderedViewLine = (function () {
 	return true;
 })();
 
-const alwaysRenderInlineSelection = (browser.isEdgeOrIE);
+const alwaysRenderInlineSelection = (browser.isEdge);
 
 export class DomReadingContext {
 

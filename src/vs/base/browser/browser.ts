@@ -111,8 +111,6 @@ export const onDidChangeFullscreen = WindowManager.INSTANCE.onDidChangeFullscree
 const userAgent = navigator.userAgent;
 
 export const isEdge = (userAgent.indexOf('Edge/') >= 0);
-export const isEdgeOrIE = isEdge;
-
 export const isOpera = (userAgent.indexOf('Opera') >= 0);
 export const isFirefox = (userAgent.indexOf('Firefox') >= 0);
 export const isWebKit = (userAgent.indexOf('AppleWebKit') >= 0);

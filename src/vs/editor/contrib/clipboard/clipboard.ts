@@ -23,7 +23,7 @@ const CLIPBOARD_CONTEXT_MENU_GROUP = '9_cutcopypaste';
 const supportsCut = (platform.isNative || document.queryCommandSupported('cut'));
 const supportsCopy = (platform.isNative || document.queryCommandSupported('copy'));
 // IE and Edge have trouble with setting html content in clipboard
-const supportsCopyWithSyntaxHighlighting = (supportsCopy && !browser.isEdgeOrIE);
+const supportsCopyWithSyntaxHighlighting = (supportsCopy && !browser.isEdge);
 // Chrome incorrectly returns true for document.queryCommandSupported('paste')
 // when the paste feature is available but the calling script has insufficient
 // privileges to actually perform the action

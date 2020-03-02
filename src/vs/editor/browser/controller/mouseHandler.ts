@@ -119,7 +119,7 @@ export class MouseHandler extends ViewEventHandler {
 				e.stopPropagation();
 			}
 		};
-		this._register(dom.addDisposableListener(this.viewHelper.viewDomNode, browser.isEdgeOrIE ? 'mousewheel' : 'wheel', onMouseWheel, { capture: true, passive: false }));
+		this._register(dom.addDisposableListener(this.viewHelper.viewDomNode, browser.isEdge ? 'mousewheel' : 'wheel', onMouseWheel, { capture: true, passive: false }));
 
 		this._context.addEventHandler(this);
 	}
