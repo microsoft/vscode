@@ -330,6 +330,7 @@ export class CodeCell extends Disposable {
 			label: mimeType.mimeType,
 			id: mimeType.mimeType,
 			index: index,
+			picked: index === currIndex,
 			description: this.generateRendererInfo(mimeType.rendererId) + (index === currIndex
 				? nls.localize('curruentActiveMimeType', " (Currently Active)")
 				: ''),
@@ -337,6 +338,7 @@ export class CodeCell extends Disposable {
 
 		const picker = this.quickInputService.createQuickPick();
 		picker.items = items;
+		picker.activeItems = items.filter(item => !!item.picked);
 		picker.placeholder = nls.localize('promptChooseMimeType.placeHolder', "Select output mimetype to render for current output");
 
 		const pick = await new Promise<number | undefined>(resolve => {
