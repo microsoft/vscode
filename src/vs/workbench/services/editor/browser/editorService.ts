@@ -393,12 +393,12 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return this.editorGroupService.activeGroup?.activeEditorPane;
 	}
 
-	get activeTextEditorWidget(): ICodeEditor | IDiffEditor | undefined {
+	get activeTextEditorControl(): ICodeEditor | IDiffEditor | undefined {
 		const activeEditorPane = this.activeEditorPane;
 		if (activeEditorPane) {
-			const activeControlWidget = activeEditorPane.getControl();
-			if (isCodeEditor(activeControlWidget) || isDiffEditor(activeControlWidget)) {
-				return activeControlWidget;
+			const activeControl = activeEditorPane.getControl();
+			if (isCodeEditor(activeControl) || isDiffEditor(activeControl)) {
+				return activeControl;
 			}
 		}
 
@@ -408,11 +408,11 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	get activeTextEditorMode(): string | undefined {
 		let activeCodeEditor: ICodeEditor | undefined = undefined;
 
-		const activeTextEditorWidget = this.activeTextEditorWidget;
-		if (isDiffEditor(activeTextEditorWidget)) {
-			activeCodeEditor = activeTextEditorWidget.getModifiedEditor();
+		const activeTextEditorControl = this.activeTextEditorControl;
+		if (isDiffEditor(activeTextEditorControl)) {
+			activeCodeEditor = activeTextEditorControl.getModifiedEditor();
 		} else {
-			activeCodeEditor = activeTextEditorWidget;
+			activeCodeEditor = activeTextEditorControl;
 		}
 
 		return activeCodeEditor?.getModel()?.getLanguageIdentifier().language;
@@ -450,8 +450,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return coalesce(this.editorGroupService.groups.map(group => group.activeEditorPane));
 	}
 
-	get visibleTextEditorWidgets(): Array<ICodeEditor | IDiffEditor> {
-		return this.visibleEditorPanes.map(editorPane => editorPane.getControl() as ICodeEditor | IDiffEditor).filter(widget => isCodeEditor(widget) || isDiffEditor(widget));
+	get visibleTextEditorControls(): Array<ICodeEditor | IDiffEditor> {
+		return this.visibleEditorPanes.map(editorPane => editorPane.getControl() as ICodeEditor | IDiffEditor).filter(control => isCodeEditor(control) || isDiffEditor(control));
 	}
 
 	get visibleEditors(): IEditorInput[] {
@@ -760,9 +760,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	//#region invokeWithinEditorContext()
 
 	invokeWithinEditorContext<T>(fn: (accessor: ServicesAccessor) => T): T {
-		const activeTextEditorWidget = this.activeTextEditorWidget;
-		if (isCodeEditor(activeTextEditorWidget)) {
-			return activeTextEditorWidget.invokeWithinContext(fn);
+		const activeTextEditorControl = this.activeTextEditorControl;
+		if (isCodeEditor(activeTextEditorControl)) {
+			return activeTextEditorControl.invokeWithinContext(fn);
 		}
 
 		const activeGroup = this.editorGroupService.activeGroup;
@@ -1141,11 +1141,11 @@ export class DelegatingEditorService implements IEditorService {
 
 	get activeEditor(): IEditorInput | undefined { return this.editorService.activeEditor; }
 	get activeEditorPane(): IVisibleEditorPane | undefined { return this.editorService.activeEditorPane; }
-	get activeTextEditorWidget(): ICodeEditor | IDiffEditor | undefined { return this.editorService.activeTextEditorWidget; }
+	get activeTextEditorControl(): ICodeEditor | IDiffEditor | undefined { return this.editorService.activeTextEditorControl; }
 	get activeTextEditorMode(): string | undefined { return this.editorService.activeTextEditorMode; }
 	get visibleEditors(): ReadonlyArray<IEditorInput> { return this.editorService.visibleEditors; }
 	get visibleEditorPanes(): ReadonlyArray<IVisibleEditorPane> { return this.editorService.visibleEditorPanes; }
-	get visibleTextEditorWidgets(): ReadonlyArray<ICodeEditor | IDiffEditor> { return this.editorService.visibleTextEditorWidgets; }
+	get visibleTextEditorControls(): ReadonlyArray<ICodeEditor | IDiffEditor> { return this.editorService.visibleTextEditorControls; }
 	get editors(): ReadonlyArray<IEditorInput> { return this.editorService.editors; }
 	get count(): number { return this.editorService.count; }
 

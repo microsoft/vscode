@@ -101,9 +101,9 @@ suite('EditorService', () => {
 		assert.equal(input, service.activeEditor);
 		assert.equal(service.visibleEditorPanes.length, 1);
 		assert.equal(service.visibleEditorPanes[0], editor);
-		assert.ok(!service.activeTextEditorWidget);
+		assert.ok(!service.activeTextEditorControl);
 		assert.ok(!service.activeTextEditorMode);
-		assert.equal(service.visibleTextEditorWidgets.length, 0);
+		assert.equal(service.visibleTextEditorControls.length, 0);
 		assert.equal(service.isOpen(input), true);
 		assert.equal(service.isOpen({ resource: input.resource }), true);
 		assert.equal(activeEditorChangeEventCounter, 1);
@@ -732,7 +732,7 @@ suite('EditorService', () => {
 		part.dispose();
 	});
 
-	test('activeTextEditorWidget / activeTextEditorMode', async () => {
+	test('activeTextEditorControl / activeTextEditorMode', async () => {
 		const [part, service] = createEditorService();
 
 		await part.whenRestored;
@@ -741,7 +741,7 @@ suite('EditorService', () => {
 		let editor = await service.openEditor({});
 
 		assert.equal(service.activeEditorPane, editor);
-		assert.equal(service.activeTextEditorWidget, editor?.getControl());
+		assert.equal(service.activeTextEditorControl, editor?.getControl());
 		assert.equal(service.activeTextEditorMode, 'plaintext');
 
 		part.dispose();

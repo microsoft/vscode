@@ -594,13 +594,13 @@ export class TestEditorService implements EditorServiceImpl {
 	onDidMostRecentlyActiveEditorsChange: Event<void> = Event.None;
 
 	activeEditorPane: IVisibleEditorPane | undefined;
-	activeTextEditorWidget: ICodeEditor | IDiffEditor | undefined;
+	activeTextEditorControl: ICodeEditor | IDiffEditor | undefined;
 	activeTextEditorMode: string | undefined;
 	activeEditor: IEditorInput | undefined;
 	editors: ReadonlyArray<IEditorInput> = [];
 	mostRecentlyActiveEditors: ReadonlyArray<IEditorIdentifier> = [];
 	visibleEditorPanes: ReadonlyArray<IVisibleEditorPane> = [];
-	visibleTextEditorWidgets = [];
+	visibleTextEditorControls = [];
 	visibleEditors: ReadonlyArray<IEditorInput> = [];
 	count = this.editors.length;
 

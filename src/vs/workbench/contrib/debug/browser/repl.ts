@@ -244,12 +244,12 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			return;
 		}
 
-		const activeEditor = this.editorService.activeTextEditorWidget;
-		if (isCodeEditor(activeEditor)) {
+		const activeEditorControl = this.editorService.activeTextEditorControl;
+		if (isCodeEditor(activeEditorControl)) {
 			this.modelChangeListener.dispose();
-			this.modelChangeListener = activeEditor.onDidChangeModelLanguage(() => this.setMode());
-			if (activeEditor.hasModel()) {
-				this.model.setMode(activeEditor.getModel().getLanguageIdentifier());
+			this.modelChangeListener = activeEditorControl.onDidChangeModelLanguage(() => this.setMode());
+			if (activeEditorControl.hasModel()) {
+				this.model.setMode(activeEditorControl.getModel().getLanguageIdentifier());
 			}
 		}
 	}

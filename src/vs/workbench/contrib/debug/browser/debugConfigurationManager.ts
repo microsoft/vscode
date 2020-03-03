@@ -443,10 +443,10 @@ export class ConfigurationManager implements IConfigurationManager {
 			return Promise.resolve(adapter);
 		}
 
-		const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
+		const activeTextEditorControl = this.editorService.activeTextEditorControl;
 		let candidates: Debugger[] | undefined;
-		if (isCodeEditor(activeTextEditorWidget)) {
-			const model = activeTextEditorWidget.getModel();
+		if (isCodeEditor(activeTextEditorControl)) {
+			const model = activeTextEditorControl.getModel();
 			const language = model ? model.getLanguageIdentifier().language : undefined;
 			const adapters = this.debuggers.filter(a => language && a.languages && a.languages.indexOf(language) >= 0);
 			if (adapters.length === 1) {

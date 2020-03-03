@@ -93,16 +93,16 @@ export interface IEditorService {
 	readonly activeEditor: IEditorInput | undefined;
 
 	/**
-	 * The currently active text editor widget or `undefined` if there is currently no active
+	 * The currently active text editor control or `undefined` if there is currently no active
 	 * editor or the active editor widget is neither a text nor a diff editor.
 	 *
 	 * @see `IEditorService.activeEditor`
 	 */
-	readonly activeTextEditorWidget: IEditor | IDiffEditor | undefined;
+	readonly activeTextEditorControl: IEditor | IDiffEditor | undefined;
 
 	/**
 	 * The currently active text editor mode or `undefined` if there is currently no active
-	 * editor or the active editor widget is neither a text nor a diff editor. If the active
+	 * editor or the active editor control is neither a text nor a diff editor. If the active
 	 * editor is a diff editor, the modified side's mode will be taken.
 	 */
 	readonly activeTextEditorMode: string | undefined;
@@ -122,7 +122,7 @@ export interface IEditorService {
 	 * All text editor widgets that are currently visible across all editor groups. A text editor
 	 * widget is either a text or a diff editor.
 	 */
-	readonly visibleTextEditorWidgets: ReadonlyArray<IEditor | IDiffEditor>;
+	readonly visibleTextEditorControls: ReadonlyArray<IEditor | IDiffEditor>;
 
 	/**
 	 * All editors that are opened across all editor groups in sequential order

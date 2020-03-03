@@ -141,18 +141,18 @@ const openNewSearchEditor =
 		const instantiationService = accessor.get(IInstantiationService);
 		const configurationService = accessor.get(IConfigurationService);
 
-		const activeEditor = editorService.activeTextEditorWidget;
+		const activeEditorControl = editorService.activeTextEditorControl;
 		let activeModel: ICodeEditor | undefined;
 		let selected = '';
-		if (activeEditor) {
-			if (isDiffEditor(activeEditor)) {
-				if (activeEditor.getOriginalEditor().hasTextFocus()) {
-					activeModel = activeEditor.getOriginalEditor();
+		if (activeEditorControl) {
+			if (isDiffEditor(activeEditorControl)) {
+				if (activeEditorControl.getOriginalEditor().hasTextFocus()) {
+					activeModel = activeEditorControl.getOriginalEditor();
 				} else {
-					activeModel = activeEditor.getModifiedEditor();
+					activeModel = activeEditorControl.getModifiedEditor();
 				}
 			} else {
-				activeModel = activeEditor as ICodeEditor;
+				activeModel = activeEditorControl as ICodeEditor;
 			}
 			const selection = activeModel?.getSelection();
 			selected = (selection && activeModel?.getModel()?.getValueInRange(selection)) ?? '';

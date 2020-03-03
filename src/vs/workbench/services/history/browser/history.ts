@@ -184,23 +184,23 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.handleActiveEditorChange(activeEditorPane);
 
 		// Apply listener for selection changes if this is a text editor
-		const activeTextEditorWidget = getCodeEditor(this.editorService.activeTextEditorWidget);
+		const activeTextEditorControl = getCodeEditor(this.editorService.activeTextEditorControl);
 		const activeEditor = this.editorService.activeEditor;
-		if (activeTextEditorWidget) {
+		if (activeTextEditorControl) {
 
 			// Debounce the event with a timeout of 0ms so that multiple calls to
 			// editor.setSelection() are folded into one. We do not want to record
 			// subsequent history navigations for such API calls.
-			this.activeEditorListeners.add(Event.debounce(activeTextEditorWidget.onDidChangeCursorPosition, (last, event) => event, 0)((event => {
+			this.activeEditorListeners.add(Event.debounce(activeTextEditorControl.onDidChangeCursorPosition, (last, event) => event, 0)((event => {
 				this.handleEditorSelectionChangeEvent(activeEditorPane, event);
 			})));
 
 			// Track the last edit location by tracking model content change events
 			// Use a debouncer to make sure to capture the correct cursor position
 			// after the model content has changed.
-			this.activeEditorListeners.add(Event.debounce(activeTextEditorWidget.onDidChangeModelContent, (last, event) => event, 0)((event => {
+			this.activeEditorListeners.add(Event.debounce(activeTextEditorControl.onDidChangeModelContent, (last, event) => event, 0)((event => {
 				if (activeEditor) {
-					this.rememberLastEditLocation(activeEditor, activeTextEditorWidget);
+					this.rememberLastEditLocation(activeEditor, activeTextEditorControl);
 				}
 			})));
 		}
@@ -677,11 +677,11 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	private lastEditLocation: IStackEntry | undefined;
 
-	private rememberLastEditLocation(activeEditor: IEditorInput, activeTextEditorWidget: ICodeEditor): void {
+	private rememberLastEditLocation(activeEditor: IEditorInput, activeTextEditorControl: ICodeEditor): void {
 		this.lastEditLocation = { input: activeEditor };
 		this.canNavigateToLastEditLocationContextKey.set(true);
 
-		const position = activeTextEditorWidget.getPosition();
+		const position = activeTextEditorControl.getPosition();
 		if (position) {
 			this.lastEditLocation.selection = new Selection(position.lineNumber, position.column, position.lineNumber, position.column);
 		}

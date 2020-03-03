@@ -291,11 +291,11 @@ class MainThreadDocumentAndEditorStateComputer {
 	}
 
 	private _getActiveEditorFromEditorPart(): IEditor | undefined {
-		let result = this._editorService.activeTextEditorWidget;
-		if (isDiffEditor(result)) {
-			result = result.getModifiedEditor();
+		let activeTextEditorControl = this._editorService.activeTextEditorControl;
+		if (isDiffEditor(activeTextEditorControl)) {
+			activeTextEditorControl = activeTextEditorControl.getModifiedEditor();
 		}
-		return result;
+		return activeTextEditorControl;
 	}
 }
 

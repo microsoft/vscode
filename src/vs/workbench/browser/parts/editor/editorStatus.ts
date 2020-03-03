@@ -363,8 +363,8 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	}
 
 	private async showIndentationPicker(): Promise<unknown> {
-		const activeTextEditorWidget = getCodeEditor(this.editorService.activeTextEditorWidget);
-		if (!activeTextEditorWidget) {
+		const activeTextEditorControl = getCodeEditor(this.editorService.activeTextEditorControl);
+		if (!activeTextEditorControl) {
 			return this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
 		}
 
@@ -373,19 +373,19 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		}
 
 		const picks: QuickPickInput<IQuickPickItem & { run(): void; }>[] = [
-			activeTextEditorWidget.getAction(IndentUsingSpaces.ID),
-			activeTextEditorWidget.getAction(IndentUsingTabs.ID),
-			activeTextEditorWidget.getAction(DetectIndentation.ID),
-			activeTextEditorWidget.getAction(IndentationToSpacesAction.ID),
-			activeTextEditorWidget.getAction(IndentationToTabsAction.ID),
-			activeTextEditorWidget.getAction(TrimTrailingWhitespaceAction.ID)
+			activeTextEditorControl.getAction(IndentUsingSpaces.ID),
+			activeTextEditorControl.getAction(IndentUsingTabs.ID),
+			activeTextEditorControl.getAction(DetectIndentation.ID),
+			activeTextEditorControl.getAction(IndentationToSpacesAction.ID),
+			activeTextEditorControl.getAction(IndentationToTabsAction.ID),
+			activeTextEditorControl.getAction(TrimTrailingWhitespaceAction.ID)
 		].map((a: IEditorAction) => {
 			return {
 				id: a.id,
 				label: a.label,
 				detail: (Language.isDefaultVariant() || a.label === a.alias) ? undefined : a.alias,
 				run: () => {
-					activeTextEditorWidget.focus();
+					activeTextEditorControl.focus();
 					a.run();
 				}
 			};
@@ -1047,13 +1047,13 @@ export class ChangeModeAction extends Action {
 	}
 
 	async run(): Promise<void> {
-		const activeTextEditorWidget = getCodeEditor(this.editorService.activeTextEditorWidget);
-		if (!activeTextEditorWidget) {
+		const activeTextEditorControl = getCodeEditor(this.editorService.activeTextEditorControl);
+		if (!activeTextEditorControl) {
 			await this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
 			return;
 		}
 
-		const textModel = activeTextEditorWidget.getModel();
+		const textModel = activeTextEditorControl.getModel();
 		const resource = this.editorService.activeEditor ? toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER }) : null;
 
 		let hasLanguageSupport = !!resource;
@@ -1248,8 +1248,8 @@ export class ChangeEOLAction extends Action {
 	}
 
 	async run(): Promise<void> {
-		const activeTextEditorWidget = getCodeEditor(this.editorService.activeTextEditorWidget);
-		if (!activeTextEditorWidget) {
+		const activeTextEditorControl = getCodeEditor(this.editorService.activeTextEditorControl);
+		if (!activeTextEditorControl) {
 			await this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
 			return;
 		}
@@ -1259,7 +1259,7 @@ export class ChangeEOLAction extends Action {
 			return;
 		}
 
-		let textModel = activeTextEditorWidget.getModel();
+		let textModel = activeTextEditorControl.getModel();
 
 		const EOLOptions: IChangeEOLEntry[] = [
 			{ label: nlsEOLLF, eol: EndOfLineSequence.LF },
@@ -1270,7 +1270,7 @@ export class ChangeEOLAction extends Action {
 
 		const eol = await this.quickInputService.pick(EOLOptions, { placeHolder: nls.localize('pickEndOfLine', "Select End of Line Sequence"), activeItem: EOLOptions[selectedIndex] });
 		if (eol) {
-			const activeCodeEditor = getCodeEditor(this.editorService.activeTextEditorWidget);
+			const activeCodeEditor = getCodeEditor(this.editorService.activeTextEditorControl);
 			if (activeCodeEditor?.hasModel() && !this.editorService.activeEditor?.isReadonly()) {
 				textModel = activeCodeEditor.getModel();
 				textModel.pushStackElement();
@@ -1299,7 +1299,7 @@ export class ChangeEncodingAction extends Action {
 	}
 
 	async run(): Promise<void> {
-		if (!getCodeEditor(this.editorService.activeTextEditorWidget)) {
+		if (!getCodeEditor(this.editorService.activeTextEditorControl)) {
 			await this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
 			return;
 		}

@@ -24,7 +24,7 @@ import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environ
 
 const mockLineNumber = 10;
 class TestEditorServiceWithActiveEditor extends TestEditorService {
-	get activeTextEditorWidget(): any {
+	get activeTextEditorControl(): any {
 		return {
 			getEditorType() {
 				return EditorType.ICodeEditor;
