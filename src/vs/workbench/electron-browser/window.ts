@@ -308,8 +308,8 @@ export class ElectronWindow extends Disposable {
 		// Close when empty: check if we should close the window based on the setting
 		// Overruled by: window has a workspace opened or this window is for extension development
 		// or setting is disabled. Also enabled when running with --wait from the command line.
-		const visibleEditors = this.editorService.visibleControls;
-		if (visibleEditors.length === 0 && this.contextService.getWorkbenchState() === WorkbenchState.EMPTY && !this.environmentService.isExtensionDevelopment) {
+		const visibleEditorPanes = this.editorService.visibleEditorPanes;
+		if (visibleEditorPanes.length === 0 && this.contextService.getWorkbenchState() === WorkbenchState.EMPTY && !this.environmentService.isExtensionDevelopment) {
 			const closeWhenEmpty = this.configurationService.getValue<boolean>('window.closeWhenEmpty');
 			if (closeWhenEmpty || this.environmentService.args.wait) {
 				this.closeEmptyWindowScheduler.schedule();
@@ -318,8 +318,8 @@ export class ElectronWindow extends Disposable {
 	}
 
 	private onAllEditorsClosed(): void {
-		const visibleEditors = this.editorService.visibleControls.length;
-		if (visibleEditors === 0) {
+		const visibleEditorPanes = this.editorService.visibleEditorPanes.length;
+		if (visibleEditorPanes === 0) {
 			this.electronService.closeWindow();
 		}
 	}

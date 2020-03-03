@@ -402,9 +402,9 @@ export interface IEditorGroup {
 	readonly ariaLabel: string;
 
 	/**
-	 * The active control is the currently visible control of the group.
+	 * The active ediotr pane is the currently visible editor pane of the group.
 	 */
-	readonly activeControl: IVisibleEditorPane | undefined;
+	readonly activeEditorPane: IVisibleEditorPane | undefined;
 
 	/**
 	 * The active editor is the currently visible editor of the group

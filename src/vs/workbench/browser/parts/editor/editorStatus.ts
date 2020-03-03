@@ -608,8 +608,8 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 
 	private updateStatusBar(): void {
 		const activeInput = this.editorService.activeEditor;
-		const activeControl = this.editorService.activeControl;
-		const activeCodeEditor = activeControl ? withNullAsUndefined(getCodeEditor(activeControl.getControl())) : undefined;
+		const activeEditorPane = this.editorService.activeEditorPane;
+		const activeCodeEditor = activeEditorPane ? withNullAsUndefined(getCodeEditor(activeEditorPane.getControl())) : undefined;
 
 		// Update all states
 		this.onColumnSelectionModeChange(activeCodeEditor);
@@ -617,9 +617,9 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		this.onSelectionChange(activeCodeEditor);
 		this.onModeChange(activeCodeEditor, activeInput);
 		this.onEOLChange(activeCodeEditor);
-		this.onEncodingChange(activeControl, activeCodeEditor);
+		this.onEncodingChange(activeEditorPane, activeCodeEditor);
 		this.onIndentationChange(activeCodeEditor);
-		this.onMetadataChange(activeControl);
+		this.onMetadataChange(activeEditorPane);
 		this.currentProblemStatus.update(activeCodeEditor);
 
 		// Dispose old active editor listeners
@@ -672,25 +672,25 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		}
 
 		// Handle binary editors
-		else if (activeControl instanceof BaseBinaryResourceEditor || activeControl instanceof BinaryResourceDiffEditor) {
+		else if (activeEditorPane instanceof BaseBinaryResourceEditor || activeEditorPane instanceof BinaryResourceDiffEditor) {
 			const binaryEditors: BaseBinaryResourceEditor[] = [];
-			if (activeControl instanceof BinaryResourceDiffEditor) {
-				const details = activeControl.getDetailsEditor();
+			if (activeEditorPane instanceof BinaryResourceDiffEditor) {
+				const details = activeEditorPane.getDetailsEditorPane();
 				if (details instanceof BaseBinaryResourceEditor) {
 					binaryEditors.push(details);
 				}
 
-				const master = activeControl.getMasterEditor();
+				const master = activeEditorPane.getMasterEditorPane();
 				if (master instanceof BaseBinaryResourceEditor) {
 					binaryEditors.push(master);
 				}
 			} else {
-				binaryEditors.push(activeControl);
+				binaryEditors.push(activeEditorPane);
 			}
 
 			binaryEditors.forEach(editor => {
 				this.activeEditorListeners.add(editor.onMetadataChanged(metadata => {
-					this.onMetadataChange(activeControl);
+					this.onMetadataChange(activeEditorPane);
 				}));
 
 				this.activeEditorListeners.add(editor.onDidOpenInPlace(() => {
@@ -859,13 +859,13 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	}
 
 	private onResourceEncodingChange(resource: URI): void {
-		const activeControl = this.editorService.activeControl;
-		if (activeControl) {
-			const activeResource = toResource(activeControl.input, { supportSideBySide: SideBySideEditor.MASTER });
+		const activeEditorPane = this.editorService.activeEditorPane;
+		if (activeEditorPane) {
+			const activeResource = toResource(activeEditorPane.input, { supportSideBySide: SideBySideEditor.MASTER });
 			if (activeResource && isEqual(activeResource, resource)) {
-				const activeCodeEditor = withNullAsUndefined(getCodeEditor(activeControl.getControl()));
+				const activeCodeEditor = withNullAsUndefined(getCodeEditor(activeEditorPane.getControl()));
 
-				return this.onEncodingChange(activeControl, activeCodeEditor); // only update if the encoding changed for the active resource
+				return this.onEncodingChange(activeEditorPane, activeCodeEditor); // only update if the encoding changed for the active resource
 			}
 		}
 	}
@@ -877,9 +877,9 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	}
 
 	private isActiveEditor(control: IEditorPane): boolean {
-		const activeControl = this.editorService.activeControl;
+		const activeEditorPane = this.editorService.activeEditorPane;
 
-		return !!activeControl && activeControl === control;
+		return !!activeEditorPane && activeEditorPane === control;
 	}
 }
 
@@ -1304,13 +1304,13 @@ export class ChangeEncodingAction extends Action {
 			return;
 		}
 
-		const activeControl = this.editorService.activeControl;
-		if (!activeControl) {
+		const activeEditorPane = this.editorService.activeEditorPane;
+		if (!activeEditorPane) {
 			await this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
 			return;
 		}
 
-		const encodingSupport: IEncodingSupport | null = toEditorWithEncodingSupport(activeControl.input);
+		const encodingSupport: IEncodingSupport | null = toEditorWithEncodingSupport(activeEditorPane.input);
 		if (!encodingSupport) {
 			await this.quickInputService.pick([{ label: nls.localize('noFileEditor', "No file active at this time") }]);
 			return;
@@ -1334,7 +1334,7 @@ export class ChangeEncodingAction extends Action {
 		let action: IQuickPickItem;
 		if (encodingSupport instanceof UntitledTextEditorInput) {
 			action = saveWithEncodingPick;
-		} else if (activeControl.input.isReadonly()) {
+		} else if (activeEditorPane.input.isReadonly()) {
 			action = reopenWithEncodingPick;
 		} else {
 			action = await this.quickInputService.pick([reopenWithEncodingPick, saveWithEncodingPick], { placeHolder: nls.localize('pickAction', "Select Action"), matchOnDetail: true });
@@ -1346,7 +1346,7 @@ export class ChangeEncodingAction extends Action {
 
 		await timeout(50); // quick open is sensitive to being opened so soon after another
 
-		const resource = toResource(activeControl.input, { supportSideBySide: SideBySideEditor.MASTER });
+		const resource = toResource(activeEditorPane.input, { supportSideBySide: SideBySideEditor.MASTER });
 		if (!resource || (!this.fileService.canHandleResource(resource) && resource.scheme !== Schemas.untitled)) {
 			return; // encoding detection only possible for resources the file service can handle or that are untitled
 		}
@@ -1409,11 +1409,11 @@ export class ChangeEncodingAction extends Action {
 			return;
 		}
 
-		if (!this.editorService.activeControl) {
+		if (!this.editorService.activeEditorPane) {
 			return;
 		}
 
-		const activeEncodingSupport = toEditorWithEncodingSupport(this.editorService.activeControl.input);
+		const activeEncodingSupport = toEditorWithEncodingSupport(this.editorService.activeEditorPane.input);
 		if (typeof encoding.id !== 'undefined' && activeEncodingSupport && activeEncodingSupport.getEncoding() !== encoding.id) {
 			activeEncodingSupport.setEncoding(encoding.id, isReopenWithEncoding ? EncodingMode.Decode : EncodingMode.Encode); // Set new encoding
 		}

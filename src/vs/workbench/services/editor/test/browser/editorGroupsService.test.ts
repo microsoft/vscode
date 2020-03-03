@@ -123,7 +123,7 @@ suite('EditorGroupsService', () => {
 		assert.equal(groupAddedCounter, 2);
 		assert.equal(part.groups.length, 3);
 		assert.ok(part.activeGroup === rightGroup);
-		assert.ok(!downGroup.activeControl);
+		assert.ok(!downGroup.activeEditorPane);
 		assert.equal(rootGroup.label, 'Group 1');
 		assert.equal(rightGroup.label, 'Group 2');
 		assert.equal(downGroup.label, 'Group 3');
@@ -425,7 +425,7 @@ suite('EditorGroupsService', () => {
 		assert.ok(!group.previewEditor);
 
 		assert.equal(group.activeEditor, input);
-		assert.equal(group.activeControl?.getId(), TEST_EDITOR_ID);
+		assert.equal(group.activeEditorPane?.getId(), TEST_EDITOR_ID);
 		assert.equal(group.count, 2);
 
 		const mru = group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE);

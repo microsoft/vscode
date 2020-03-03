@@ -436,9 +436,9 @@ export class MainThreadDocumentsAndEditors {
 	}
 
 	private _findEditorPosition(editor: MainThreadTextEditor): EditorViewColumn | undefined {
-		for (const workbenchEditor of this._editorService.visibleControls) {
-			if (editor.matches(workbenchEditor)) {
-				return editorGroupToViewColumn(this._editorGroupService, workbenchEditor.group);
+		for (const editorPane of this._editorService.visibleEditorPanes) {
+			if (editor.matches(editorPane)) {
+				return editorGroupToViewColumn(this._editorGroupService, editorPane.group);
 			}
 		}
 		return undefined;

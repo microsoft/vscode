@@ -176,13 +176,13 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 	private updateEditorContextKeys(): void {
 		const activeGroup = this.editorGroupService.activeGroup;
-		const activeControl = this.editorService.activeControl;
-		const visibleEditors = this.editorService.visibleControls;
+		const activeEditorPane = this.editorService.activeEditorPane;
+		const visibleEditorPanes = this.editorService.visibleEditorPanes;
 
-		this.textCompareEditorActiveContext.set(activeControl?.getId() === TEXT_DIFF_EDITOR_ID);
-		this.textCompareEditorVisibleContext.set(visibleEditors.some(control => control.getId() === TEXT_DIFF_EDITOR_ID));
+		this.textCompareEditorActiveContext.set(activeEditorPane?.getId() === TEXT_DIFF_EDITOR_ID);
+		this.textCompareEditorVisibleContext.set(visibleEditorPanes.some(editorPane => editorPane.getId() === TEXT_DIFF_EDITOR_ID));
 
-		if (visibleEditors.length > 0) {
+		if (visibleEditorPanes.length > 0) {
 			this.editorsVisibleContext.set(true);
 		} else {
 			this.editorsVisibleContext.reset();
@@ -204,9 +204,9 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		this.activeEditorGroupIndex.set(activeGroup.index + 1); // not zero-indexed
 		this.activeEditorGroupLast.set(activeGroup.index === groupCount - 1);
 
-		if (activeControl) {
-			this.activeEditorContext.set(activeControl.getId());
-			this.activeEditorIsReadonly.set(activeControl.input.isReadonly());
+		if (activeEditorPane) {
+			this.activeEditorContext.set(activeEditorPane.getId());
+			this.activeEditorIsReadonly.set(activeEditorPane.input.isReadonly());
 		} else {
 			this.activeEditorContext.reset();
 			this.activeEditorIsReadonly.reset();

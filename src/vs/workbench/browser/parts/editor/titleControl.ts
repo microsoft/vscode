@@ -158,12 +158,12 @@ export abstract class TitleControl extends Themable {
 	}
 
 	private actionViewItemProvider(action: IAction): IActionViewItem | undefined {
-		const activeControl = this.group.activeControl;
+		const activeEditorPane = this.group.activeEditorPane;
 
 		// Check Active Editor
 		let actionViewItem: IActionViewItem | undefined = undefined;
-		if (activeControl instanceof BaseEditor) {
-			actionViewItem = activeControl.getActionViewItem(action);
+		if (activeEditorPane instanceof BaseEditor) {
+			actionViewItem = activeEditorPane.getActionViewItem(action);
 		}
 
 		// Check extensions
@@ -225,9 +225,9 @@ export abstract class TitleControl extends Themable {
 		this.editorPinnedContext.set(this.group.activeEditor ? this.group.isPinned(this.group.activeEditor) : false);
 
 		// Editor actions require the editor control to be there, so we retrieve it via service
-		const activeControl = this.group.activeControl;
-		if (activeControl instanceof BaseEditor) {
-			const codeEditor = getCodeEditor(activeControl.getControl());
+		const activeEditorPane = this.group.activeEditorPane;
+		if (activeEditorPane instanceof BaseEditor) {
+			const codeEditor = getCodeEditor(activeEditorPane.getControl());
 			const scopedContextKeyService = codeEditor?.invokeWithinContext(accessor => accessor.get(IContextKeyService)) || this.contextKeyService;
 			const titleBarMenu = this.menuService.createMenu(MenuId.EditorTitle, scopedContextKeyService);
 			this.editorToolBarMenuDisposables.add(titleBarMenu);

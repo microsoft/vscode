@@ -290,10 +290,10 @@ export class FileEditorInput extends TextResourceEditorInput implements IFileEdi
 	}
 
 	private getViewStateFor(group: GroupIdentifier): IEditorViewState | undefined {
-		for (const editor of this.editorService.visibleControls) {
-			if (editor.group.id === group && isEqual(editor.input.resource, this.resource)) {
-				if (isTextEditorPane(editor)) {
-					return editor.getViewState();
+		for (const editorPane of this.editorService.visibleEditorPanes) {
+			if (editorPane.group.id === group && isEqual(editorPane.input.resource, this.resource)) {
+				if (isTextEditorPane(editorPane)) {
+					return editorPane.getViewState();
 				}
 			}
 		}

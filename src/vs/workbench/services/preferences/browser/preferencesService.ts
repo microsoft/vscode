@@ -215,7 +215,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	private openSettings2(options?: ISettingsEditorOptions): Promise<IEditorPane> {
 		const input = this.settingsEditor2Input;
 		return this.editorService.openEditor(input, options ? SettingsEditorOptions.create(options) : undefined)
-			.then(() => this.editorGroupService.activeGroup.activeControl!);
+			.then(() => this.editorGroupService.activeGroup.activeEditorPane!);
 	}
 
 	openGlobalSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditorPane | undefined> {
@@ -271,9 +271,9 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			return this.doOpenSettings2(target, resource).then(() => undefined);
 		}
 
-		const activeControl = this.editorService.activeControl;
-		if (activeControl && activeControl.input instanceof PreferencesEditorInput) {
-			return this.doSwitchSettings(target, resource, activeControl.input, activeControl.group).then(() => undefined);
+		const activeEditorPane = this.editorService.activeEditorPane;
+		if (activeEditorPane?.input instanceof PreferencesEditorInput) {
+			return this.doSwitchSettings(target, resource, activeEditorPane.input, activeEditorPane.group).then(() => undefined);
 		} else {
 			return this.doOpenSettings(target, resource).then(() => undefined);
 		}
@@ -420,7 +420,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 						options: options ? SettingsEditorOptions.create(options) : undefined
 					}]).then(() => {
 						this.lastOpenedSettingsInput = replaceWith;
-						return group.activeControl!;
+						return group.activeEditorPane!;
 					});
 				});
 			});

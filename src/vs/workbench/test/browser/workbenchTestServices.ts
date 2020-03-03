@@ -508,7 +508,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 	constructor(public id: number) { }
 
 	get group(): EditorGroup { throw new Error('not implemented'); }
-	activeControl!: IVisibleEditorPane;
+	activeEditorPane!: IVisibleEditorPane;
 	activeEditor!: IEditorInput;
 	previewEditor!: IEditorInput;
 	count!: number;
@@ -593,13 +593,13 @@ export class TestEditorService implements EditorServiceImpl {
 	onDidOpenEditorFail: Event<IEditorIdentifier> = Event.None;
 	onDidMostRecentlyActiveEditorsChange: Event<void> = Event.None;
 
-	activeControl: IVisibleEditorPane | undefined;
+	activeEditorPane: IVisibleEditorPane | undefined;
 	activeTextEditorWidget: ICodeEditor | IDiffEditor | undefined;
 	activeTextEditorMode: string | undefined;
 	activeEditor: IEditorInput | undefined;
 	editors: ReadonlyArray<IEditorInput> = [];
 	mostRecentlyActiveEditors: ReadonlyArray<IEditorIdentifier> = [];
-	visibleControls: ReadonlyArray<IVisibleEditorPane> = [];
+	visibleEditorPanes: ReadonlyArray<IVisibleEditorPane> = [];
 	visibleTextEditorWidgets = [];
 	visibleEditors: ReadonlyArray<IEditorInput> = [];
 	count = this.editors.length;

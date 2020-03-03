@@ -1463,9 +1463,9 @@ registerAction2(class StartExtensionEditorFindPreviousAction extends Action2 {
 });
 
 function getExtensionEditor(accessor: ServicesAccessor): ExtensionEditor | null {
-	const activeControl = accessor.get(IEditorService).activeControl as ExtensionEditor;
-	if (activeControl instanceof ExtensionEditor) {
-		return activeControl;
+	const activeEditorPane = accessor.get(IEditorService).activeEditorPane;
+	if (activeEditorPane instanceof ExtensionEditor) {
+		return activeEditorPane;
 	}
 	return null;
 }

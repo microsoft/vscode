@@ -521,10 +521,10 @@ export class RevertAndCloseEditorAction extends Action {
 	}
 
 	async run(): Promise<void> {
-		const activeControl = this.editorService.activeControl;
-		if (activeControl) {
-			const editor = activeControl.input;
-			const group = activeControl.group;
+		const activeEditorPane = this.editorService.activeEditorPane;
+		if (activeEditorPane) {
+			const editor = activeEditorPane.input;
+			const group = activeEditorPane.group;
 
 			// first try a normal revert where the contents of the editor are restored
 			try {

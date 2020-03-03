@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { TextCompareEditorVisibleContext, EditorInput, IEditorIdentifier, IEditorCommandsContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, CloseDirection, IEditorPane, IEditorInput, IVisibleEditorPane } from 'vs/workbench/common/editor';
+import { TextCompareEditorVisibleContext, EditorInput, IEditorIdentifier, IEditorCommandsContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, CloseDirection, IEditorInput, IVisibleEditorPane } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
@@ -120,13 +120,13 @@ function moveActiveEditor(args: ActiveEditorMoveArguments = Object.create(null),
 	args.by = args.by || 'tab';
 	args.value = typeof args.value === 'number' ? args.value : 1;
 
-	const activeControl = accessor.get(IEditorService).activeControl;
-	if (activeControl) {
+	const activeEditorPane = accessor.get(IEditorService).activeEditorPane;
+	if (activeEditorPane) {
 		switch (args.by) {
 			case 'tab':
-				return moveActiveTab(args, activeControl, accessor);
+				return moveActiveTab(args, activeEditorPane, accessor);
 			case 'group':
-				return moveActiveEditorToGroup(args, activeControl, accessor);
+				return moveActiveEditorToGroup(args, activeEditorPane, accessor);
 		}
 	}
 }
@@ -261,7 +261,7 @@ function registerDiffEditorCommands(): void {
 
 	function navigateInDiffEditor(accessor: ServicesAccessor, next: boolean): void {
 		const editorService = accessor.get(IEditorService);
-		const candidates = [editorService.activeControl, ...editorService.visibleControls].filter(e => e instanceof TextDiffEditor);
+		const candidates = [editorService.activeEditorPane, ...editorService.visibleEditorPanes].filter(e => e instanceof TextDiffEditor);
 
 		if (candidates.length > 0) {
 			const navigator = (<TextDiffEditor>candidates[0]).getDiffNavigator();
@@ -317,9 +317,9 @@ function registerDiffEditorCommands(): void {
 function registerOpenEditorAtIndexCommands(): void {
 	const openEditorAtIndex: ICommandHandler = (accessor: ServicesAccessor, editorIndex: number): void => {
 		const editorService = accessor.get(IEditorService);
-		const activeControl = editorService.activeControl;
-		if (activeControl) {
-			const editor = activeControl.group.getEditorByIndex(editorIndex);
+		const activeEditorPane = editorService.activeEditorPane;
+		if (activeEditorPane) {
+			const editor = activeEditorPane.group.getEditorByIndex(editorIndex);
 			if (editor) {
 				editorService.openEditor(editor);
 			}
@@ -708,21 +708,19 @@ function getCommandsContext(resourceOrContext: URI | IEditorCommandsContext, con
 	return undefined;
 }
 
-function resolveCommandsContext(editorGroupService: IEditorGroupsService, context?: IEditorCommandsContext): { group: IEditorGroup, editor?: IEditorInput, control?: IEditorPane } {
+function resolveCommandsContext(editorGroupService: IEditorGroupsService, context?: IEditorCommandsContext): { group: IEditorGroup, editor?: IEditorInput } {
 
 	// Resolve from context
 	let group = context && typeof context.groupId === 'number' ? editorGroupService.getGroup(context.groupId) : undefined;
 	let editor = group && context && typeof context.editorIndex === 'number' ? types.withNullAsUndefined(group.getEditorByIndex(context.editorIndex)) : undefined;
-	let control = group ? group.activeControl : undefined;
 
 	// Fallback to active group as needed
 	if (!group) {
 		group = editorGroupService.activeGroup;
 		editor = <EditorInput>group.activeEditor;
-		control = group.activeControl;
 	}
 
-	return { group, editor, control };
+	return { group, editor };
 }
 
 export function getMultiSelectedEditorContexts(editorContext: IEditorCommandsContext | undefined, listService: IListService, editorGroupService: IEditorGroupsService): IEditorCommandsContext[] {

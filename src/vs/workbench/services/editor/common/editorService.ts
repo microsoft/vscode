@@ -78,19 +78,19 @@ export interface IEditorService {
 	readonly onDidVisibleEditorsChange: Event<void>;
 
 	/**
+	 * The currently active editor pane or `undefined` if none. The editor pane is
+	 * the workbench container for editors of any kind.
+	 *
+	 * @see `IEditorService.activeEditor`
+	 */
+	readonly activeEditorPane: IVisibleEditorPane | undefined;
+
+	/**
 	 * The currently active editor or `undefined` if none. An editor is active when it is
 	 * located in the currently active editor group. It will be `undefined` if the active
 	 * editor group has no editors open.
 	 */
 	readonly activeEditor: IEditorInput | undefined;
-
-	/**
-	 * The currently active editor control or `undefined` if none. The editor control is
-	 * the workbench container for editors of any kind.
-	 *
-	 * @see `IEditorService.activeEditor`
-	 */
-	readonly activeControl: IVisibleEditorPane | undefined;
 
 	/**
 	 * The currently active text editor widget or `undefined` if there is currently no active
@@ -108,15 +108,15 @@ export interface IEditorService {
 	readonly activeTextEditorMode: string | undefined;
 
 	/**
+	 * All editor panes that are currently visible across all editor groups.
+	 */
+	readonly visibleEditorPanes: ReadonlyArray<IVisibleEditorPane>;
+
+	/**
 	 * All editors that are currently visible. An editor is visible when it is opened in an
 	 * editor group and active in that group. Multiple editor groups can be opened at the same time.
 	 */
 	readonly visibleEditors: ReadonlyArray<IEditorInput>;
-
-	/**
-	 * All editor controls that are currently visible across all editor groups.
-	 */
-	readonly visibleControls: ReadonlyArray<IVisibleEditorPane>;
 
 	/**
 	 * All text editor widgets that are currently visible across all editor groups. A text editor

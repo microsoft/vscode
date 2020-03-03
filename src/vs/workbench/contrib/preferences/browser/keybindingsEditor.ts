@@ -551,7 +551,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditorP
 					this.unAssignedKeybindingItemToRevealAndFocus = null;
 				} else if (currentSelectedIndex !== -1 && currentSelectedIndex < this.listEntries.length) {
 					this.selectEntry(currentSelectedIndex, preserveFocus);
-				} else if (this.editorService.activeControl === this && !preserveFocus) {
+				} else if (this.editorService.activeEditorPane === this && !preserveFocus) {
 					this.focus();
 				}
 			}

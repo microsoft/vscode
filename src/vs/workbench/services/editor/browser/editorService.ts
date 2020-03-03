@@ -389,14 +389,14 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	private readonly editorsObserver = this._register(this.instantiationService.createInstance(EditorsObserver));
 
-	get activeControl(): IVisibleEditorPane | undefined {
-		return this.editorGroupService.activeGroup?.activeControl;
+	get activeEditorPane(): IVisibleEditorPane | undefined {
+		return this.editorGroupService.activeGroup?.activeEditorPane;
 	}
 
 	get activeTextEditorWidget(): ICodeEditor | IDiffEditor | undefined {
-		const activeControl = this.activeControl;
-		if (activeControl) {
-			const activeControlWidget = activeControl.getControl();
+		const activeEditorPane = this.activeEditorPane;
+		if (activeEditorPane) {
+			const activeControlWidget = activeEditorPane.getControl();
 			if (isCodeEditor(activeControlWidget) || isDiffEditor(activeControlWidget)) {
 				return activeControlWidget;
 			}
@@ -446,12 +446,12 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return activeGroup ? withNullAsUndefined(activeGroup.activeEditor) : undefined;
 	}
 
-	get visibleControls(): IVisibleEditorPane[] {
-		return coalesce(this.editorGroupService.groups.map(group => group.activeControl));
+	get visibleEditorPanes(): IVisibleEditorPane[] {
+		return coalesce(this.editorGroupService.groups.map(group => group.activeEditorPane));
 	}
 
 	get visibleTextEditorWidgets(): Array<ICodeEditor | IDiffEditor> {
-		return this.visibleControls.map(control => control.getControl() as ICodeEditor | IDiffEditor).filter(widget => isCodeEditor(widget) || isDiffEditor(widget));
+		return this.visibleEditorPanes.map(editorPane => editorPane.getControl() as ICodeEditor | IDiffEditor).filter(widget => isCodeEditor(widget) || isDiffEditor(widget));
 	}
 
 	get visibleEditors(): IEditorInput[] {
@@ -993,9 +993,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			// is untitled or we "Save As". This also allows the user to review
 			// the contents of the editor before making a decision.
 			let viewState: IEditorViewState | undefined = undefined;
-			const control = await this.openEditor(editor, undefined, groupId);
-			if (isTextEditorPane(control)) {
-				viewState = control.getViewState();
+			const editorPane = await this.openEditor(editor, undefined, groupId);
+			if (isTextEditorPane(editorPane)) {
+				viewState = editorPane.getViewState();
 			}
 
 			const result = options?.saveAs ? await editor.saveAs(groupId, options) : await editor.save(groupId, options);
@@ -1117,15 +1117,15 @@ export class DelegatingEditorService implements IEditorService {
 			const [resolvedGroup, resolvedEditor, resolvedOptions] = result;
 
 			// Pass on to editor open handler
-			const control = await this.editorOpenHandler(
+			const editorPane = await this.editorOpenHandler(
 				(group: IEditorGroup, editor: IEditorInput, options?: IEditorOptions) => group.openEditor(editor, options),
 				resolvedGroup,
 				resolvedEditor,
 				resolvedOptions
 			);
 
-			if (control) {
-				return control; // the opening was handled, so return early
+			if (editorPane) {
+				return editorPane; // the opening was handled, so return early
 			}
 
 			return withNullAsUndefined(await resolvedGroup.openEditor(resolvedEditor, resolvedOptions));
@@ -1140,11 +1140,11 @@ export class DelegatingEditorService implements IEditorService {
 	get onDidVisibleEditorsChange(): Event<void> { return this.editorService.onDidVisibleEditorsChange; }
 
 	get activeEditor(): IEditorInput | undefined { return this.editorService.activeEditor; }
-	get activeControl(): IVisibleEditorPane | undefined { return this.editorService.activeControl; }
+	get activeEditorPane(): IVisibleEditorPane | undefined { return this.editorService.activeEditorPane; }
 	get activeTextEditorWidget(): ICodeEditor | IDiffEditor | undefined { return this.editorService.activeTextEditorWidget; }
 	get activeTextEditorMode(): string | undefined { return this.editorService.activeTextEditorMode; }
 	get visibleEditors(): ReadonlyArray<IEditorInput> { return this.editorService.visibleEditors; }
-	get visibleControls(): ReadonlyArray<IVisibleEditorPane> { return this.editorService.visibleControls; }
+	get visibleEditorPanes(): ReadonlyArray<IVisibleEditorPane> { return this.editorService.visibleEditorPanes; }
 	get visibleTextEditorWidgets(): ReadonlyArray<ICodeEditor | IDiffEditor> { return this.editorService.visibleTextEditorWidgets; }
 	get editors(): ReadonlyArray<IEditorInput> { return this.editorService.editors; }
 	get count(): number { return this.editorService.count; }

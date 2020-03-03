@@ -192,8 +192,8 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 			activeTextEditorWidget.revealRangeInCenter(range, ScrollType.Smooth);
 
 			// Decorate if possible
-			if (this.editorService.activeControl && types.isFunction(activeTextEditorWidget.changeDecorations)) {
-				this.handler.decorateOutline(range, activeTextEditorWidget, this.editorService.activeControl.group);
+			if (this.editorService.activeEditorPane && types.isFunction(activeTextEditorWidget.changeDecorations)) {
+				this.handler.decorateOutline(range, activeTextEditorWidget, this.editorService.activeEditorPane.group);
 			}
 		}
 
@@ -305,9 +305,9 @@ export class GotoLineHandler extends QuickOpenHandler {
 	clearDecorations(): void {
 		const rangeHighlightDecorationId = this.rangeHighlightDecorationId;
 		if (rangeHighlightDecorationId) {
-			this.editorService.visibleControls.forEach(editor => {
-				if (editor.group && editor.group.id === rangeHighlightDecorationId.groupId) {
-					const editorControl = <IEditor>editor.getControl();
+			this.editorService.visibleEditorPanes.forEach(editorPane => {
+				if (editorPane.group && editorPane.group.id === rangeHighlightDecorationId.groupId) {
+					const editorControl = <IEditor>editorPane.getControl();
 					editorControl.changeDecorations(changeAccessor => {
 						changeAccessor.deltaDecorations([
 							rangeHighlightDecorationId.lineDecorationId,

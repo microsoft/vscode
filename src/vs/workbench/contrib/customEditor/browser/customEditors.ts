@@ -133,7 +133,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 	public get models() { return this._models; }
 
 	public get activeCustomEditor(): ICustomEditor | undefined {
-		const activeInput = this.editorService.activeControl?.input;
+		const activeInput = this.editorService.activeEditorPane?.input;
 		if (!(activeInput instanceof CustomEditorInput)) {
 			return undefined;
 		}
@@ -303,8 +303,8 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 	}
 
 	private updateContexts() {
-		const activeControl = this.editorService.activeControl;
-		const resource = activeControl?.input.resource;
+		const activeEditorPane = this.editorService.activeEditorPane;
+		const resource = activeEditorPane?.input.resource;
 		if (!resource) {
 			this._customEditorContextKey.reset();
 			this._focusedCustomEditorIsEditable.reset();
@@ -317,7 +317,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 			...this.getUserConfiguredCustomEditors(resource).allEditors,
 		];
 		this._customEditorContextKey.set(possibleEditors.map(x => x.id).join(','));
-		this._focusedCustomEditorIsEditable.set(activeControl?.input instanceof CustomEditorInput);
+		this._focusedCustomEditorIsEditable.set(activeEditorPane?.input instanceof CustomEditorInput);
 		this._webviewHasOwnEditFunctions.set(possibleEditors.length > 0);
 	}
 

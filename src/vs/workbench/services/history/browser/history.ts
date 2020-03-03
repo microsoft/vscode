@@ -130,7 +130,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		// if the service is created late enough that an editor is already opened
 		// make sure to trigger the onActiveEditorChanged() to track the editor
 		// properly (fixes https://github.com/Microsoft/vscode/issues/59908)
-		if (this.editorService.activeControl) {
+		if (this.editorService.activeEditorPane) {
 			this.onActiveEditorChanged();
 		}
 
@@ -169,19 +169,19 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private onActiveEditorChanged(): void {
-		const activeControl = this.editorService.activeControl;
-		if (this.lastActiveEditor && this.matchesEditor(this.lastActiveEditor, activeControl)) {
+		const activeEditorPane = this.editorService.activeEditorPane;
+		if (this.lastActiveEditor && this.matchesEditor(this.lastActiveEditor, activeEditorPane)) {
 			return; // return if the active editor is still the same
 		}
 
 		// Remember as last active editor (can be undefined if none opened)
-		this.lastActiveEditor = activeControl?.input && activeControl.group ? { editor: activeControl.input, groupId: activeControl.group.id } : undefined;
+		this.lastActiveEditor = activeEditorPane?.input && activeEditorPane.group ? { editor: activeEditorPane.input, groupId: activeEditorPane.group.id } : undefined;
 
 		// Dispose old listeners
 		this.activeEditorListeners.clear();
 
 		// Propagate to history
-		this.handleActiveEditorChange(activeControl);
+		this.handleActiveEditorChange(activeEditorPane);
 
 		// Apply listener for selection changes if this is a text editor
 		const activeTextEditorWidget = getCodeEditor(this.editorService.activeTextEditorWidget);
@@ -192,7 +192,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 			// editor.setSelection() are folded into one. We do not want to record
 			// subsequent history navigations for such API calls.
 			this.activeEditorListeners.add(Event.debounce(activeTextEditorWidget.onDidChangeCursorPosition, (last, event) => event, 0)((event => {
-				this.handleEditorSelectionChangeEvent(activeControl, event);
+				this.handleEditorSelectionChangeEvent(activeEditorPane, event);
 			})));
 
 			// Track the last edit location by tracking model content change events

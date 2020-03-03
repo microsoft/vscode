@@ -733,8 +733,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this._group.count;
 	}
 
-	get activeControl(): IVisibleEditorPane | undefined {
-		return this.editorControl ? withNullAsUndefined(this.editorControl.activeControl) : undefined;
+	get activeEditorPane(): IVisibleEditorPane | undefined {
+		return this.editorControl ? withNullAsUndefined(this.editorControl.activeEditorPane) : undefined;
 	}
 
 	get activeEditor(): EditorInput | null {
@@ -771,9 +771,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	focus(): void {
 
-		// Pass focus to widgets
-		if (this.activeControl) {
-			this.activeControl.focus();
+		// Pass focus to editor panes
+		if (this.activeEditorPane) {
+			this.activeEditorPane.focus();
 		} else {
 			this.element.focus();
 		}
@@ -909,7 +909,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 						this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_ACTIVE, editor });
 					}
 
-					return result.control;
+					return result.editorPane;
 				} catch (error) {
 
 					// Handle errors but do not bubble them up
@@ -1041,7 +1041,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Opening many editors at once can put any editor to be
 		// the active one depending on options. As such, we simply
 		// return the active control after this operation.
-		return this.editorControl.activeControl;
+		return this.editorControl.activeEditorPane;
 	}
 
 	//#endregion

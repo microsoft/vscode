@@ -249,7 +249,7 @@ export class PreferencesEditor extends BaseEditor {
 
 	private switchSettings(target: SettingsTarget): void {
 		// Focus the editor if this editor is not active editor
-		if (this.editorService.activeControl !== this) {
+		if (this.editorService.activeEditorPane !== this) {
 			this.focus();
 		}
 		const promise = this.input && this.input.isDirty() ? this.editorService.save({ editor: this.input, groupId: this.group!.id }) : Promise.resolve(true);
