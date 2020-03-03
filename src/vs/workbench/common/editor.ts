@@ -687,10 +687,6 @@ export abstract class TextResourceEditorInput extends EditorInput {
 			return false; // untitled is never readonly
 		}
 
-		if (!this.fileService.canHandleResource(this.resource)) {
-			return true; // resources without file support are always readonly
-		}
-
 		return this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
 	}
 
