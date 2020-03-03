@@ -19,6 +19,8 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { StorageManager } from 'vs/platform/extensionManagement/common/extensionEnablementService';
 
+const SOURCE = 'IWorkbenchExtensionEnablementService';
+
 export class ExtensionEnablementService extends Disposable implements IWorkbenchExtensionEnablementService {
 
 	_serviceBrand: undefined;
@@ -40,7 +42,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 	) {
 		super();
 		this.storageManger = this._register(new StorageManager(storageService));
-		this._register(this.globalExtensionEnablementService.onDidChangeEnablement(extensions => this.onDidChangeExtensions(extensions)));
+		this._register(this.globalExtensionEnablementService.onDidChangeEnablement(({ extensions, source }) => this.onDidChangeExtensions(extensions, source)));
 		this._register(extensionManagementService.onDidUninstallExtension(this._onDidUninstallExtension, this));
 	}
 
@@ -169,13 +171,13 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 	private _enableExtension(identifier: IExtensionIdentifier): Promise<boolean> {
 		this._removeFromWorkspaceDisabledExtensions(identifier);
 		this._removeFromWorkspaceEnabledExtensions(identifier);
-		return this.globalExtensionEnablementService.enableExtension(identifier);
+		return this.globalExtensionEnablementService.enableExtension(identifier, SOURCE);
 	}
 
 	private _disableExtension(identifier: IExtensionIdentifier): Promise<boolean> {
 		this._removeFromWorkspaceDisabledExtensions(identifier);
 		this._removeFromWorkspaceEnabledExtensions(identifier);
-		return this.globalExtensionEnablementService.disableExtension(identifier);
+		return this.globalExtensionEnablementService.disableExtension(identifier, SOURCE);
 	}
 
 	private _enableExtensionInWorkspace(identifier: IExtensionIdentifier): void {
@@ -273,10 +275,12 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		this.storageManger.set(storageId, extensions, StorageScope.WORKSPACE);
 	}
 
-	private async onDidChangeExtensions(extensionIdentifiers: ReadonlyArray<IExtensionIdentifier>): Promise<void> {
-		const installedExtensions = await this.extensionManagementService.getInstalled();
-		const extensions = installedExtensions.filter(installedExtension => extensionIdentifiers.some(identifier => areSameExtensions(identifier, installedExtension.identifier)));
-		this._onEnablementChanged.fire(extensions);
+	private async onDidChangeExtensions(extensionIdentifiers: ReadonlyArray<IExtensionIdentifier>, source?: string): Promise<void> {
+		if (source !== SOURCE) {
+			const installedExtensions = await this.extensionManagementService.getInstalled();
+			const extensions = installedExtensions.filter(installedExtension => extensionIdentifiers.some(identifier => areSameExtensions(identifier, installedExtension.identifier)));
+			this._onEnablementChanged.fire(extensions);
+		}
 	}
 
 	private _onDidUninstallExtension({ identifier, error }: DidUninstallExtensionEvent): void {

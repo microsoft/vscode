@@ -39,6 +39,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { clearAllFontInfos } from 'vs/editor/browser/config/configuration';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
 
@@ -122,7 +123,7 @@ export function createDiffEditor(domElement: HTMLElement, options?: IDiffEditorC
 			services.get(IConfigurationService),
 			services.get(IContextMenuService),
 			services.get(IEditorProgressService),
-			null
+			services.get(IClipboardService)
 		);
 	});
 }

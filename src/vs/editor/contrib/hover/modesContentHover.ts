@@ -40,6 +40,7 @@ import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Constants } from 'vs/base/common/uint';
 import { textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { Progress } from 'vs/platform/progress/common/progress';
 
 const $ = dom.$;
 
@@ -516,10 +517,10 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 						sourceElement.innerText = source;
 					}
 					this._codeLink = dom.append(sourceAndCodeElement, $('a.code-link'));
-					this._codeLink.setAttribute('href', code.link.toString());
+					this._codeLink.setAttribute('href', code.target.toString());
 
 					this._codeLink.onclick = (e) => {
-						this._openerService.open(code.link);
+						this._openerService.open(code.target);
 						e.preventDefault();
 						e.stopPropagation();
 					};
@@ -626,6 +627,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				this._editor.getModel()!,
 				new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn),
 				markerCodeActionTrigger,
+				Progress.None,
 				cancellationToken);
 		});
 	}

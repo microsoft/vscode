@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { FindInPageOptions, OnBeforeRequestDetails, OnHeadersReceivedDetails, Response, WebContents, WebviewTag } from 'electron';
+import { FindInPageOptions, OnBeforeRequestListenerDetails, OnHeadersReceivedListenerDetails, Response, WebContents, WebviewTag } from 'electron';
 import { addDisposableListener } from 'vs/base/browser/dom';
 import { Emitter, Event } from 'vs/base/common/event';
 import { once } from 'vs/base/common/functional';
@@ -65,8 +65,8 @@ class WebviewTagHandle extends Disposable {
 	}
 }
 
-type OnBeforeRequestDelegate = (details: OnBeforeRequestDetails) => Promise<Response | undefined>;
-type OnHeadersReceivedDelegate = (details: OnHeadersReceivedDetails) => { cancel: boolean; } | undefined;
+type OnBeforeRequestDelegate = (details: OnBeforeRequestListenerDetails) => Promise<Response | undefined>;
+type OnHeadersReceivedDelegate = (details: OnHeadersReceivedListenerDetails) => { cancel: boolean; } | undefined;
 
 class WebviewSession extends Disposable {
 
@@ -113,23 +113,29 @@ class WebviewSession extends Disposable {
 }
 
 class WebviewProtocolProvider extends Disposable {
+
+	private _resolve!: () => void;
+	private _reject!: () => void;
+
+	public readonly ready: Promise<void>;
+
 	constructor(
 		handle: WebviewTagHandle,
-		private readonly _getExtensionLocation: () => URI | undefined,
-		private readonly _getLocalResourceRoots: () => ReadonlyArray<URI>,
-		private readonly _fileService: IFileService,
+		getExtensionLocation: () => URI | undefined,
+		getLocalResourceRoots: () => ReadonlyArray<URI>,
+		fileService: IFileService,
 	) {
 		super();
 
-		this._register(handle.onFirstLoad(contents => {
-			this.registerProtocols(contents);
-		}));
-	}
+		this.ready = new Promise((resolve, reject) => {
+			this._resolve = resolve;
+			this._reject = reject;
+		});
 
-	private registerProtocols(contents: WebContents) {
-		registerFileProtocol(contents, WebviewResourceScheme, this._fileService, this._getExtensionLocation(), () =>
-			this._getLocalResourceRoots()
-		);
+		this._register(handle.onFirstLoad(contents => {
+			registerFileProtocol(contents, WebviewResourceScheme, fileService, getExtensionLocation(), getLocalResourceRoots)
+				.then(this._resolve, this._reject);
+		}));
 	}
 }
 
@@ -204,6 +210,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 	private _findStarted: boolean = false;
 
 	public extension: WebviewExtensionDescription | undefined;
+	private readonly _protocolProvider: WebviewProtocolProvider;
 
 	constructor(
 		id: string,
@@ -222,11 +229,12 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		const webviewAndContents = this._register(new WebviewTagHandle(this.element!));
 		const session = this._register(new WebviewSession(webviewAndContents));
 
-		this._register(new WebviewProtocolProvider(
-			webviewAndContents,
-			() => this.extension ? this.extension.location : undefined,
-			() => (this.content.options.localResourceRoots || []),
-			fileService));
+		this._protocolProvider = new WebviewProtocolProvider
+			(webviewAndContents,
+				() => this.extension ? this.extension.location : undefined,
+				() => (this.content.options.localResourceRoots || []),
+				fileService);
+		this._register(this._protocolProvider);
 
 		this._register(new WebviewPortMappingProvider(
 			session,
@@ -322,7 +330,8 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		parent.appendChild(this.element);
 	}
 
-	protected postMessage(channel: string, data?: any): void {
+	protected async postMessage(channel: string, data?: any): Promise<void> {
+		await this._protocolProvider.ready;
 		this.element?.send(channel, data);
 	}
 

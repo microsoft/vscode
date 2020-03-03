@@ -216,14 +216,16 @@ export abstract class ReferencesController implements IEditorContribution {
 		}
 	}
 
-	closeWidget(): void {
-		this._referenceSearchVisible.reset();
-		this._disposables.clear();
+	closeWidget(focusEditor = true): void {
 		dispose(this._widget);
 		dispose(this._model);
+		this._referenceSearchVisible.reset();
+		this._disposables.clear();
 		this._widget = undefined;
 		this._model = undefined;
-		this._editor.focus();
+		if (focusEditor) {
+			this._editor.focus();
+		}
 		this._requestIdPool += 1; // Cancel pending requests
 	}
 

@@ -136,7 +136,7 @@ export class BrowserStorageService extends Disposable implements IStorageService
 	private doFlushWhenIdle(): void {
 
 		// Dispose any previous idle runner
-		this.runWhenIdleDisposable = dispose(this.runWhenIdleDisposable);
+		dispose(this.runWhenIdleDisposable);
 
 		// Run when idle
 		this.runWhenIdleDisposable = runWhenIdle(() => {
@@ -180,7 +180,8 @@ export class BrowserStorageService extends Disposable implements IStorageService
 	}
 
 	dispose(): void {
-		this.runWhenIdleDisposable = dispose(this.runWhenIdleDisposable);
+		dispose(this.runWhenIdleDisposable);
+		this.runWhenIdleDisposable = undefined;
 
 		super.dispose();
 	}
@@ -223,7 +224,7 @@ export class FileStorageDatabase extends Disposable implements IStorageDatabase 
 		this.isWatching = true;
 
 		this._register(this.fileService.watch(this.file));
-		this._register(this.fileService.onFileChanges(e => {
+		this._register(this.fileService.onDidFilesChange(e => {
 			if (document.hasFocus()) {
 				return; // optimization: ignore changes from ourselves by checking for focus
 			}
@@ -239,9 +240,36 @@ export class FileStorageDatabase extends Disposable implements IStorageDatabase 
 	private async onDidStorageChangeExternal(): Promise<void> {
 		const items = await this.doGetItemsFromFile();
 
+		// pervious cache, diff for changes
+		let changed = new Map<string, string>();
+		let deleted = new Set<string>();
+		if (this.cache) {
+			items.forEach((value, key) => {
+				const existingValue = this.cache?.get(key);
+				if (existingValue !== value) {
+					changed.set(key, value);
+				}
+			});
+
+			this.cache.forEach((_, key) => {
+				if (!items.has(key)) {
+					deleted.add(key);
+				}
+			});
+		}
+
+		// no previous cache, consider all as changed
+		else {
+			changed = items;
+		}
+
+		// Update cache
 		this.cache = items;
 
-		this._onDidChangeItemsExternal.fire({ items });
+		// Emit as event as needed
+		if (changed.size > 0 || deleted.size > 0) {
+			this._onDidChangeItemsExternal.fire({ changed, deleted });
+		}
 	}
 
 	async getItems(): Promise<Map<string, string>> {

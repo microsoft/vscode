@@ -31,7 +31,7 @@ exports.load = function (modulePaths, resultCallback, options) {
 
 	const args = parseURLQueryArgs();
 	/**
-	 * // configuration: IWindowConfiguration
+	 * // configuration: INativeWindowConfiguration
 	 * @type {{
 	 * zoomLevel?: number,
 	 * extensionDevelopmentPath?: string[],
@@ -212,7 +212,7 @@ function onUnexpectedError(error, enableDeveloperTools) {
 
 	console.error('[uncaught exception]: ' + error);
 
-	if (error.stack) {
+	if (error && error.stack) {
 		console.error(error.stack);
 	}
 }

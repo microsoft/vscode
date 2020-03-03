@@ -42,6 +42,7 @@ export class TestConfiguration extends CommonEditorConfiguration {
 			canUseHalfwidthRightwardsArrow: true,
 			spaceWidth: 10,
 			middotWidth: 10,
+			wsmiddotWidth: 10,
 			maxDigitWidth: 10,
 		}, true);
 	}

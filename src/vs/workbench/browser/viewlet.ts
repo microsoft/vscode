@@ -68,7 +68,7 @@ export abstract class Viewlet extends PaneComposite implements IViewlet {
  */
 export class ViewletDescriptor extends CompositeDescriptor<Viewlet> {
 
-	public static create<Services extends BrandedService[]>(
+	static create<Services extends BrandedService[]>(
 		ctor: { new(...services: Services): Viewlet },
 		id: string,
 		name: string,
@@ -165,17 +165,16 @@ export class ShowViewletAction extends Action {
 		this.enabled = !!this.viewletService && !!this.editorGroupService;
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<void> {
 
 		// Pass focus to viewlet if not open or focused
 		if (this.otherViewletShowing() || !this.sidebarHasFocus()) {
-			return this.viewletService.openViewlet(this.viewletId, true);
+			await this.viewletService.openViewlet(this.viewletId, true);
+			return;
 		}
 
 		// Otherwise pass focus to editor group
 		this.editorGroupService.activeGroup.focus();
-
-		return Promise.resolve(true);
 	}
 
 	private otherViewletShowing(): boolean {

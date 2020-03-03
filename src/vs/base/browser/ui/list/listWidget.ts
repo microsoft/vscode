@@ -847,6 +847,7 @@ export interface IListOptions<T> {
 	readonly useShadows?: boolean;
 	readonly verticalScrollMode?: ScrollbarVisibility;
 	readonly setRowLineHeight?: boolean;
+	readonly setRowHeight?: boolean;
 	readonly supportDynamicHeights?: boolean;
 	readonly mouseSupport?: boolean;
 	readonly horizontalScrolling?: boolean;
@@ -1114,7 +1115,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	private focus: Trait<T>;
 	private selection: Trait<T>;
 	private eventBufferer = new EventBufferer();
-	private view: ListView<T>;
+	protected view: ListView<T>;
 	private spliceable: ISpliceable<T>;
 	private styleController: IStyleController;
 	private typeLabelController?: TypeLabelController<T>;
@@ -1307,6 +1308,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	updateWidth(index: number): void {
 		this.view.updateWidth(index);
+	}
+
+	updateElementHeight(index: number, size: number): void {
+		this.view.updateElementHeight(index, size);
 	}
 
 	rerender(): void {

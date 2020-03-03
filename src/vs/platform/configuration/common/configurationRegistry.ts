@@ -113,6 +113,7 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	scope?: ConfigurationScope;
 	included?: boolean;
 	tags?: string[];
+	disallowSyncIgnore?: boolean;
 }
 
 export interface IConfigurationExtensionInfo {
@@ -394,7 +395,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 			const resourceLanguagePropertiesSchema: IJSONSchema = {
 				type: 'object',
 				description: nls.localize('overrideSettings.defaultDescription', "Configure editor settings to be overridden for a language."),
-				errorMessage: 'Unknown Identifier. Use language identifiers',
+				errorMessage: nls.localize('overrideSettings.errorMessage', "This setting does not support per-language configuration."),
 				$ref: resourceLanguageSettingsSchemaId,
 				default: this.defaultOverridesConfigurationNode.properties![overrideIdentifierProperty]?.default
 			};

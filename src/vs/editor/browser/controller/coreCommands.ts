@@ -24,7 +24,8 @@ import { MenuId } from 'vs/platform/actions/common/actions';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingWeight, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 const CORE_WEIGHT = KeybindingWeight.EditorCore;
 
@@ -1529,6 +1530,122 @@ export namespace CoreNavigationCommands {
 	});
 }
 
+const columnSelectionCondition = ContextKeyExpr.and(
+	EditorContextKeys.textInputFocus,
+	EditorContextKeys.columnSelection
+);
+function registerColumnSelection(id: string, keybinding: number): void {
+	KeybindingsRegistry.registerKeybindingRule({
+		id: id,
+		primary: keybinding,
+		when: columnSelectionCondition,
+		weight: CORE_WEIGHT + 1
+	});
+}
+
+registerColumnSelection(CoreNavigationCommands.CursorColumnSelectLeft.id, KeyMod.Shift | KeyCode.LeftArrow);
+registerColumnSelection(CoreNavigationCommands.CursorColumnSelectRight.id, KeyMod.Shift | KeyCode.RightArrow);
+registerColumnSelection(CoreNavigationCommands.CursorColumnSelectUp.id, KeyMod.Shift | KeyCode.UpArrow);
+registerColumnSelection(CoreNavigationCommands.CursorColumnSelectPageUp.id, KeyMod.Shift | KeyCode.PageUp);
+registerColumnSelection(CoreNavigationCommands.CursorColumnSelectDown.id, KeyMod.Shift | KeyCode.DownArrow);
+registerColumnSelection(CoreNavigationCommands.CursorColumnSelectPageDown.id, KeyMod.Shift | KeyCode.PageDown);
+
+/**
+ * A command that will:
+ *  1. invoke a command on the focused editor.
+ *  2. otherwise, invoke a browser built-in command on the `activeElement`.
+ *  3. otherwise, invoke a command on the workbench active editor.
+ */
+abstract class EditorOrNativeTextInputCommand extends Command {
+
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+
+		const focusedEditor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
+		// Only if editor text focus (i.e. not if editor has widget focus).
+		if (focusedEditor && focusedEditor.hasTextFocus()) {
+			return this.runEditorCommand(accessor, focusedEditor, args);
+		}
+
+		// Ignore this action when user is focused on an element that allows for entering text
+		const activeElement = <HTMLElement>document.activeElement;
+		if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
+			return this.runDOMCommand();
+		}
+
+		// Redirecting to active editor
+		const activeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor();
+		if (activeEditor) {
+			activeEditor.focus();
+			return this.runEditorCommand(accessor, activeEditor, args);
+		}
+	}
+
+	public abstract runDOMCommand(): void;
+	public abstract runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void;
+}
+
+class SelectAllCommand extends EditorOrNativeTextInputCommand {
+	constructor() {
+		super({
+			id: 'editor.action.selectAll',
+			precondition: EditorContextKeys.textInputFocus,
+			kbOpts: {
+				weight: CORE_WEIGHT,
+				kbExpr: null,
+				primary: KeyMod.CtrlCmd | KeyCode.KEY_A
+			},
+			menuOpts: [{
+				menuId: MenuId.MenubarSelectionMenu,
+				group: '1_basic',
+				title: nls.localize({ key: 'miSelectAll', comment: ['&& denotes a mnemonic'] }, "&&Select All"),
+				order: 1
+			}, {
+				menuId: MenuId.CommandPalette,
+				group: '',
+				title: nls.localize('selectAll', "Select All"),
+				order: 1
+			}]
+		});
+	}
+	public runDOMCommand(): void {
+		document.execCommand('selectAll');
+	}
+	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+		args = args || {};
+		args.source = 'keyboard';
+		CoreNavigationCommands.SelectAll.runEditorCommand(accessor, editor, args);
+	}
+}
+
+class UndoCommand extends EditorOrNativeTextInputCommand {
+	public runDOMCommand(): void {
+		document.execCommand('undo');
+	}
+	public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void {
+		if (!editor.hasModel() || editor.getOption(EditorOption.readOnly) === true) {
+			return;
+		}
+		editor.getModel().undo();
+	}
+}
+
+class RedoCommand extends EditorOrNativeTextInputCommand {
+	public runDOMCommand(): void {
+		document.execCommand('redo');
+	}
+	public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void {
+		if (!editor.hasModel() || editor.getOption(EditorOption.readOnly) === true) {
+			return;
+		}
+		editor.getModel().redo();
+	}
+}
+
+function registerCommand<T extends Command>(command: T): T {
+	command.register();
+	return command;
+}
+
 export namespace CoreEditingCommands {
 
 	export abstract class CoreEditingCommand extends EditorCommand {
@@ -1614,7 +1731,7 @@ export namespace CoreEditingCommands {
 		constructor() {
 			super({
 				id: 'deleteLeft',
-				precondition: EditorContextKeys.writable,
+				precondition: undefined,
 				kbOpts: {
 					weight: CORE_WEIGHT,
 					kbExpr: EditorContextKeys.textInputFocus,
@@ -1639,7 +1756,7 @@ export namespace CoreEditingCommands {
 		constructor() {
 			super({
 				id: 'deleteRight',
-				precondition: EditorContextKeys.writable,
+				precondition: undefined,
 				kbOpts: {
 					weight: CORE_WEIGHT,
 					kbExpr: EditorContextKeys.textInputFocus,
@@ -1659,62 +1776,53 @@ export namespace CoreEditingCommands {
 		}
 	});
 
-}
+	export const Undo: UndoCommand = registerCommand(new UndoCommand({
+		id: 'undo',
+		precondition: EditorContextKeys.writable,
+		kbOpts: {
+			weight: CORE_WEIGHT,
+			kbExpr: EditorContextKeys.textInputFocus,
+			primary: KeyMod.CtrlCmd | KeyCode.KEY_Z
+		},
+		menuOpts: [{
+			menuId: MenuId.MenubarEditMenu,
+			group: '1_do',
+			title: nls.localize({ key: 'miUndo', comment: ['&& denotes a mnemonic'] }, "&&Undo"),
+			order: 1
+		}, {
+			menuId: MenuId.CommandPalette,
+			group: '',
+			title: nls.localize('undo', "Undo"),
+			order: 1
+		}]
+	}));
 
-function registerCommand(command: Command) {
-	command.register();
-}
+	export const DefaultUndo: UndoCommand = registerCommand(new UndoCommand({ id: 'default:undo', precondition: EditorContextKeys.writable }));
 
-/**
- * A command that will:
- *  1. invoke a command on the focused editor.
- *  2. otherwise, invoke a browser built-in command on the `activeElement`.
- *  3. otherwise, invoke a command on the workbench active editor.
- */
-class EditorOrNativeTextInputCommand extends Command {
+	export const Redo: RedoCommand = registerCommand(new RedoCommand({
+		id: 'redo',
+		precondition: EditorContextKeys.writable,
+		kbOpts: {
+			weight: CORE_WEIGHT,
+			kbExpr: EditorContextKeys.textInputFocus,
+			primary: KeyMod.CtrlCmd | KeyCode.KEY_Y,
+			secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z],
+			mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z }
+		},
+		menuOpts: [{
+			menuId: MenuId.MenubarEditMenu,
+			group: '1_do',
+			title: nls.localize({ key: 'miRedo', comment: ['&& denotes a mnemonic'] }, "&&Redo"),
+			order: 2
+		}, {
+			menuId: MenuId.CommandPalette,
+			group: '',
+			title: nls.localize('redo', "Redo"),
+			order: 1
+		}]
+	}));
 
-	private readonly _editorHandler: string | EditorCommand;
-	private readonly _inputHandler: string;
-
-	constructor(opts: ICommandOptions & { editorHandler: string | EditorCommand; inputHandler: string; }) {
-		super(opts);
-		this._editorHandler = opts.editorHandler;
-		this._inputHandler = opts.inputHandler;
-	}
-
-	public runCommand(accessor: ServicesAccessor, args: any): void {
-
-		const focusedEditor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
-		// Only if editor text focus (i.e. not if editor has widget focus).
-		if (focusedEditor && focusedEditor.hasTextFocus()) {
-			return this._runEditorHandler(accessor, focusedEditor, args);
-		}
-
-		// Ignore this action when user is focused on an element that allows for entering text
-		const activeElement = <HTMLElement>document.activeElement;
-		if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
-			document.execCommand(this._inputHandler);
-			return;
-		}
-
-		// Redirecting to active editor
-		const activeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor();
-		if (activeEditor) {
-			activeEditor.focus();
-			return this._runEditorHandler(accessor, activeEditor, args);
-		}
-	}
-
-	private _runEditorHandler(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-		const HANDLER = this._editorHandler;
-		if (typeof HANDLER === 'string') {
-			editor.trigger('keyboard', HANDLER, args);
-		} else {
-			args = args || {};
-			args.source = 'keyboard';
-			HANDLER.runEditorCommand(accessor, editor, args);
-		}
-	}
+	export const DefaultRedo: RedoCommand = registerCommand(new RedoCommand({ id: 'default:redo', precondition: EditorContextKeys.writable }));
 }
 
 /**
@@ -1743,63 +1851,7 @@ class EditorHandlerCommand extends Command {
 	}
 }
 
-registerCommand(new EditorOrNativeTextInputCommand({
-	editorHandler: CoreNavigationCommands.SelectAll,
-	inputHandler: 'selectAll',
-	id: 'editor.action.selectAll',
-	precondition: EditorContextKeys.textInputFocus,
-	kbOpts: {
-		weight: CORE_WEIGHT,
-		kbExpr: null,
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_A
-	},
-	menuOpts: {
-		menuId: MenuId.MenubarSelectionMenu,
-		group: '1_basic',
-		title: nls.localize({ key: 'miSelectAll', comment: ['&& denotes a mnemonic'] }, "&&Select All"),
-		order: 1
-	}
-}));
-
-registerCommand(new EditorOrNativeTextInputCommand({
-	editorHandler: Handler.Undo,
-	inputHandler: 'undo',
-	id: Handler.Undo,
-	precondition: EditorContextKeys.writable,
-	kbOpts: {
-		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.textInputFocus,
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_Z
-	},
-	menuOpts: {
-		menuId: MenuId.MenubarEditMenu,
-		group: '1_do',
-		title: nls.localize({ key: 'miUndo', comment: ['&& denotes a mnemonic'] }, "&&Undo"),
-		order: 1
-	}
-}));
-registerCommand(new EditorHandlerCommand('default:' + Handler.Undo, Handler.Undo));
-
-registerCommand(new EditorOrNativeTextInputCommand({
-	editorHandler: Handler.Redo,
-	inputHandler: 'redo',
-	id: Handler.Redo,
-	precondition: EditorContextKeys.writable,
-	kbOpts: {
-		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.textInputFocus,
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_Y,
-		secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z],
-		mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z }
-	},
-	menuOpts: {
-		menuId: MenuId.MenubarEditMenu,
-		group: '1_do',
-		title: nls.localize({ key: 'miRedo', comment: ['&& denotes a mnemonic'] }, "&&Redo"),
-		order: 2
-	}
-}));
-registerCommand(new EditorHandlerCommand('default:' + Handler.Redo, Handler.Redo));
+registerCommand(new SelectAllCommand());
 
 function registerOverwritableCommand(handlerId: string, description?: ICommandHandlerDescription): void {
 	registerCommand(new EditorHandlerCommand('default:' + handlerId, handlerId));

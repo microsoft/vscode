@@ -15,7 +15,7 @@ import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes,
 import { CancellationToken, Progress, Uri } from 'vscode';
 import { URI } from 'vscode-uri';
 import { detectEncoding } from './encoding';
-import { Ref, RefType, Branch, Remote, GitErrorCodes, LogOptions, Change, Status } from './api/git';
+import { Ref, RefType, Branch, Remote, GitErrorCodes, LogOptions, Change, Status, CommitOptions } from './api/git';
 import * as byline from 'byline';
 import { StringDecoder } from 'string_decoder';
 
@@ -50,8 +50,13 @@ interface MutableRemote extends Remote {
  * Log file options.
  */
 export interface LogFileOptions {
-	/** Max number of log entries to retrieve. If not specified, the default is 32. */
-	readonly maxEntries?: number;
+	/** Optional. The maximum number of log entries to retrieve. */
+	readonly maxEntries?: number | string;
+	/** Optional. The Git sha (hash) to start retrieving log entries from. */
+	readonly hash?: string;
+	/** Optional. Specifies whether to start retrieving log entries in reverse order. */
+	readonly reverse?: boolean;
+	readonly sortByAuthorDate?: boolean;
 }
 
 function parseVersion(raw: string): string {
@@ -327,7 +332,13 @@ function getGitErrorCode(stderr: string): string | undefined {
 	return undefined;
 }
 
-const COMMIT_FORMAT = '%H\n%aN\n%aE\n%at\n%P\n%B';
+// https://github.com/microsoft/vscode/issues/89373
+// https://github.com/git-for-windows/git/issues/2478
+function sanitizePath(path: string): string {
+	return path.replace(/^([a-z]):\\/i, (_, letter) => `${letter.toUpperCase()}:\\`);
+}
+
+const COMMIT_FORMAT = '%H%n%aN%n%aE%n%at%n%ct%n%P%n%B';
 
 export class Git {
 
@@ -496,6 +507,10 @@ export class Git {
 			LANG: 'en_US.UTF-8'
 		});
 
+		if (options.cwd) {
+			options.cwd = sanitizePath(options.cwd);
+		}
+
 		if (options.log !== false) {
 			this.log(`> git ${args.join(' ')}\n`);
 		}
@@ -515,6 +530,7 @@ export interface Commit {
 	authorDate?: Date;
 	authorName?: string;
 	authorEmail?: string;
+	commitDate?: Date;
 }
 
 export class GitStatusParser {
@@ -645,15 +661,16 @@ export function parseGitmodules(raw: string): Submodule[] {
 	return result;
 }
 
-const commitRegex = /([0-9a-f]{40})\n(.*)\n(.*)\n(.*)\n(.*)(?:\n([^]*?))?(?:\x00)/gm;
+const commitRegex = /([0-9a-f]{40})\n(.*)\n(.*)\n(.*)\n(.*)\n(.*)(?:\n([^]*?))?(?:\x00)/gm;
 
 export function parseGitCommits(data: string): Commit[] {
 	let commits: Commit[] = [];
 
 	let ref;
-	let name;
-	let email;
-	let date;
+	let authorName;
+	let authorEmail;
+	let authorDate;
+	let commitDate;
 	let parents;
 	let message;
 	let match;
@@ -664,7 +681,7 @@ export function parseGitCommits(data: string): Commit[] {
 			break;
 		}
 
-		[, ref, name, email, date, parents, message] = match;
+		[, ref, authorName, authorEmail, authorDate, commitDate, parents, message] = match;
 
 		if (message[message.length - 1] === '\n') {
 			message = message.substr(0, message.length - 1);
@@ -675,9 +692,10 @@ export function parseGitCommits(data: string): Commit[] {
 			hash: ` ${ref}`.substr(1),
 			message: ` ${message}`.substr(1),
 			parents: parents ? parents.split(' ') : [],
-			authorDate: new Date(Number(date) * 1000),
-			authorName: ` ${name}`.substr(1),
-			authorEmail: ` ${email}`.substr(1)
+			authorDate: new Date(Number(authorDate) * 1000),
+			authorName: ` ${authorName}`.substr(1),
+			authorEmail: ` ${authorEmail}`.substr(1),
+			commitDate: new Date(Number(commitDate) * 1000),
 		});
 	} while (true);
 
@@ -713,14 +731,6 @@ export function parseLsFiles(raw: string): LsFilesElement[] {
 		.map(line => /^(\S+)\s+(\S+)\s+(\S+)\s+(.*)$/.exec(line)!)
 		.filter(m => !!m)
 		.map(([, mode, object, stage, file]) => ({ mode, object, stage, file }));
-}
-
-export interface CommitOptions {
-	all?: boolean | 'tracked';
-	amend?: boolean;
-	signoff?: boolean;
-	signCommit?: boolean;
-	empty?: boolean;
 }
 
 export interface PullOptions {
@@ -799,8 +809,8 @@ export class Repository {
 	}
 
 	async log(options?: LogOptions): Promise<Commit[]> {
-		const maxEntries = options && typeof options.maxEntries === 'number' && options.maxEntries > 0 ? options.maxEntries : 32;
-		const args = ['log', '-' + maxEntries, `--format:${COMMIT_FORMAT}`, '-z'];
+		const maxEntries = options?.maxEntries ?? 32;
+		const args = ['log', `-n${maxEntries}`, `--format=${COMMIT_FORMAT}`, '-z', '--'];
 
 		const result = await this.run(args);
 		if (result.exitCode) {
@@ -812,8 +822,26 @@ export class Repository {
 	}
 
 	async logFile(uri: Uri, options?: LogFileOptions): Promise<Commit[]> {
-		const maxEntries = options?.maxEntries ?? 32;
-		const args = ['log', `-${maxEntries}`, `--format=${COMMIT_FORMAT}`, '-z', '--', uri.fsPath];
+		const args = ['log', `--format=${COMMIT_FORMAT}`, '-z'];
+
+		if (options?.maxEntries && !options?.reverse) {
+			args.push(`-n${options.maxEntries}`);
+		}
+
+		if (options?.hash) {
+			// If we are reversing, we must add a range (with HEAD) because we are using --ancestry-path for better reverse walking
+			if (options?.reverse) {
+				args.push('--reverse', '--ancestry-path', `${options.hash}..HEAD`);
+			} else {
+				args.push(options.hash);
+			}
+		}
+
+		if (options?.sortByAuthorDate) {
+			args.push('--author-date-order');
+		}
+
+		args.push('--', uri.fsPath);
 
 		const result = await this.run(args);
 		if (result.exitCode) {
@@ -887,12 +915,12 @@ export class Repository {
 	}
 
 	async lstree(treeish: string, path: string): Promise<LsTreeElement[]> {
-		const { stdout } = await this.run(['ls-tree', '-l', treeish, '--', path]);
+		const { stdout } = await this.run(['ls-tree', '-l', treeish, '--', sanitizePath(path)]);
 		return parseLsTree(stdout);
 	}
 
 	async lsfiles(path: string): Promise<LsFilesElement[]> {
-		const { stdout } = await this.run(['ls-files', '--stage', '--', path]);
+		const { stdout } = await this.run(['ls-files', '--stage', '--', sanitizePath(path)]);
 		return parseLsFiles(stdout);
 	}
 
@@ -986,7 +1014,7 @@ export class Repository {
 			return await this.diffFiles(false);
 		}
 
-		const args = ['diff', '--', path];
+		const args = ['diff', '--', sanitizePath(path)];
 		const result = await this.run(args);
 		return result.stdout;
 	}
@@ -999,7 +1027,7 @@ export class Repository {
 			return await this.diffFiles(false, ref);
 		}
 
-		const args = ['diff', ref, '--', path];
+		const args = ['diff', ref, '--', sanitizePath(path)];
 		const result = await this.run(args);
 		return result.stdout;
 	}
@@ -1012,7 +1040,7 @@ export class Repository {
 			return await this.diffFiles(true);
 		}
 
-		const args = ['diff', '--cached', '--', path];
+		const args = ['diff', '--cached', '--', sanitizePath(path)];
 		const result = await this.run(args);
 		return result.stdout;
 	}
@@ -1025,7 +1053,7 @@ export class Repository {
 			return await this.diffFiles(true, ref);
 		}
 
-		const args = ['diff', '--cached', ref, '--', path];
+		const args = ['diff', '--cached', ref, '--', sanitizePath(path)];
 		const result = await this.run(args);
 		return result.stdout;
 	}
@@ -1045,7 +1073,7 @@ export class Repository {
 			return await this.diffFiles(false, range);
 		}
 
-		const args = ['diff', range, '--', path];
+		const args = ['diff', range, '--', sanitizePath(path)];
 		const result = await this.run(args);
 
 		return result.stdout.trim();
@@ -1158,7 +1186,7 @@ export class Repository {
 		args.push('--');
 
 		if (paths && paths.length) {
-			args.push.apply(args, paths);
+			args.push.apply(args, paths.map(sanitizePath));
 		} else {
 			args.push('.');
 		}
@@ -1173,13 +1201,13 @@ export class Repository {
 			return;
 		}
 
-		args.push(...paths);
+		args.push(...paths.map(sanitizePath));
 
 		await this.run(args);
 	}
 
 	async stage(path: string, data: string): Promise<void> {
-		const child = this.stream(['hash-object', '--stdin', '-w', '--path', path], { stdio: [null, null, null] });
+		const child = this.stream(['hash-object', '--stdin', '-w', '--path', sanitizePath(path)], { stdio: [null, null, null] });
 		child.stdin!.end(data, 'utf8');
 
 		const { exitCode, stdout } = await exec(child);
@@ -1224,7 +1252,7 @@ export class Repository {
 
 		try {
 			if (paths && paths.length > 0) {
-				for (const chunk of splitInChunks(paths, MAX_CLI_LENGTH)) {
+				for (const chunk of splitInChunks(paths.map(sanitizePath), MAX_CLI_LENGTH)) {
 					await this.run([...args, '--', ...chunk]);
 				}
 			} else {
@@ -1363,7 +1391,7 @@ export class Repository {
 	}
 
 	async clean(paths: string[]): Promise<void> {
-		const pathsByGroup = groupBy(paths, p => path.dirname(p));
+		const pathsByGroup = groupBy(paths.map(sanitizePath), p => path.dirname(p));
 		const groups = Object.keys(pathsByGroup).map(k => pathsByGroup[k]);
 
 		const limiter = new Limiter(5);
@@ -1409,7 +1437,7 @@ export class Repository {
 		}
 
 		if (paths && paths.length) {
-			args.push.apply(args, paths);
+			args.push.apply(args, paths.map(sanitizePath));
 		} else {
 			args.push('.');
 		}
@@ -1560,11 +1588,8 @@ export class Repository {
 
 	async blame(path: string): Promise<string> {
 		try {
-			const args = ['blame'];
-			args.push(path);
-
-			let result = await this.run(args);
-
+			const args = ['blame', sanitizePath(path)];
+			const result = await this.run(args);
 			return result.stdout.trim();
 		} catch (err) {
 			if (/^fatal: no such path/.test(err.stderr || '')) {
@@ -1894,7 +1919,7 @@ export class Repository {
 	async updateSubmodules(paths: string[]): Promise<void> {
 		const args = ['submodule', 'update', '--'];
 
-		for (const chunk of splitInChunks(paths, MAX_CLI_LENGTH)) {
+		for (const chunk of splitInChunks(paths.map(sanitizePath), MAX_CLI_LENGTH)) {
 			await this.run([...args, ...chunk]);
 		}
 	}

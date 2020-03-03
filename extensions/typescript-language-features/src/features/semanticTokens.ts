@@ -35,12 +35,6 @@ class DocumentSemanticTokensProvider implements vscode.DocumentSemanticTokensPro
 	}
 
 	getLegend(): vscode.SemanticTokensLegend {
-		if (tokenTypes.length !== TokenType._) {
-			console.warn('typescript-vscode-sh-plugin has added new tokens types.');
-		}
-		if (tokenModifiers.length !== TokenModifier._) {
-			console.warn('typescript-vscode-sh-plugin has added new tokens modifiers.');
-		}
 		return new vscode.SemanticTokensLegend(tokenTypes, tokenModifiers);
 	}
 
@@ -80,7 +74,11 @@ class DocumentSemanticTokensProvider implements vscode.DocumentSemanticTokensPro
 		if (versionBeforeRequest !== versionAfterRequest) {
 			// cannot convert result's offsets to (line;col) values correctly
 			// a new request will come in soon...
-			return null;
+			//
+			// here we cannot return null, because returning null would remove all semantic tokens.
+			// we must throw to indicate that the semantic tokens should not be removed.
+			// using the string busy here because it is not logged to error telemetry if the error text contains busy.
+			throw new Error('busy');
 		}
 
 		const tokenSpan = response.body.spans;
@@ -142,6 +140,7 @@ tokenTypes[TokenType.typeParameter] = 'typeParameter';
 tokenTypes[TokenType.type] = 'type';
 tokenTypes[TokenType.parameter] = 'parameter';
 tokenTypes[TokenType.variable] = 'variable';
+tokenTypes[TokenType.enumMember] = 'enumMember';
 tokenTypes[TokenType.property] = 'property';
 tokenTypes[TokenType.function] = 'function';
 tokenTypes[TokenType.member] = 'member';
@@ -151,6 +150,15 @@ tokenModifiers[TokenModifier.async] = 'async';
 tokenModifiers[TokenModifier.declaration] = 'declaration';
 tokenModifiers[TokenModifier.readonly] = 'readonly';
 tokenModifiers[TokenModifier.static] = 'static';
+tokenModifiers[TokenModifier.local] = 'local';
+
+// make sure token types and modifiers are complete
+if (tokenTypes.filter(t => !!t).length !== TokenType._) {
+	console.warn('typescript-vscode-sh-plugin has added new tokens types.');
+}
+if (tokenModifiers.filter(t => !!t).length !== TokenModifier._) {
+	console.warn('typescript-vscode-sh-plugin has added new tokens modifiers.');
+}
 
 // mapping for the original ExperimentalProtocol.ClassificationType from TypeScript (only used when plugin is not available)
 const tokenTypeMap: number[] = [];

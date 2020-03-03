@@ -16,6 +16,7 @@ export class SettingsSyncService extends Disposable implements ISettingsSyncServ
 
 	private readonly channel: IChannel;
 
+	readonly resourceKey = 'settings';
 	readonly source = SyncSource.Settings;
 
 	private _status: SyncStatus = SyncStatus.Uninitialized;
@@ -63,11 +64,6 @@ export class SettingsSyncService extends Disposable implements ISettingsSyncServ
 		return this.channel.call('stop');
 	}
 
-	async restart(): Promise<void> {
-		const status = await this.channel.call<SyncStatus>('restart');
-		await this.updateStatus(status);
-	}
-
 	resetLocal(): Promise<void> {
 		return this.channel.call('resetLocal');
 	}
@@ -76,24 +72,20 @@ export class SettingsSyncService extends Disposable implements ISettingsSyncServ
 		return this.channel.call('hasPreviouslySynced');
 	}
 
-	hasRemoteData(): Promise<boolean> {
-		return this.channel.call('hasRemoteData');
-	}
-
 	hasLocalData(): Promise<boolean> {
 		return this.channel.call('hasLocalData');
 	}
 
-	resolveConflicts(content: string): Promise<void> {
-		return this.channel.call('resolveConflicts', [content]);
+	accept(content: string): Promise<void> {
+		return this.channel.call('accept', [content]);
 	}
 
 	resolveSettingsConflicts(conflicts: { key: string, value: any | undefined }[]): Promise<void> {
 		return this.channel.call('resolveConflicts', [conflicts]);
 	}
 
-	getRemoteContent(): Promise<string | null> {
-		return this.channel.call('getRemoteContent');
+	getRemoteContent(preview?: boolean): Promise<string | null> {
+		return this.channel.call('getRemoteContent', [!!preview]);
 	}
 
 	private async updateStatus(status: SyncStatus): Promise<void> {

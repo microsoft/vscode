@@ -6,23 +6,22 @@
 import { basename } from 'vs/base/common/path';
 import * as Json from 'vs/base/common/json';
 import { Color } from 'vs/base/common/color';
-import { ExtensionData, ITokenColorCustomizations, ITextMateThemingRule, IColorTheme, IColorMap, IThemeExtensionPoint, VS_LIGHT_THEME, VS_HC_THEME, IColorCustomizations, IExperimentalTokenStyleCustomizations, ITokenColorizationSetting } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { ExtensionData, ITokenColorCustomizations, ITextMateThemingRule, IWorkbenchColorTheme, IColorMap, IThemeExtensionPoint, VS_LIGHT_THEME, VS_HC_THEME, IColorCustomizations, IExperimentalTokenStyleCustomizations, ITokenColorizationSetting } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { convertSettings } from 'vs/workbench/services/themes/common/themeCompatibility';
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import * as objects from 'vs/base/common/objects';
 import * as resources from 'vs/base/common/resources';
 import { Extensions as ColorRegistryExtensions, IColorRegistry, ColorIdentifier, editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
-import { ThemeType } from 'vs/platform/theme/common/themeService';
+import { ThemeType, ITokenStyle } from 'vs/platform/theme/common/themeService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import { URI } from 'vs/base/common/uri';
 import { parse as parsePList } from 'vs/workbench/services/themes/common/plistParser';
 import { startsWith } from 'vs/base/common/strings';
-import { TokenStyle, TokenClassification, ProbeScope, TokenStylingRule, getTokenClassificationRegistry, TokenStyleValue, TokenStyleData } from 'vs/platform/theme/common/tokenClassificationRegistry';
+import { TokenStyle, ProbeScope, TokenStylingRule, getTokenClassificationRegistry, TokenStyleValue, TokenStyleData } from 'vs/platform/theme/common/tokenClassificationRegistry';
 import { MatcherWithPriority, Matcher, createMatchers } from 'vs/workbench/services/themes/common/textMateScopeMatcher';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
-import { FontStyle, ColorId, MetadataConsts } from 'vs/editor/common/modes';
 import { CharCode } from 'vs/base/common/charCode';
 
 let colorRegistry = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution);
@@ -43,7 +42,7 @@ const tokenGroupToScopesMap = {
 export type TokenStyleDefinition = TokenStylingRule | ProbeScope[] | TokenStyleValue;
 export type TokenStyleDefinitions = { [P in keyof TokenStyleData]?: TokenStyleDefinition | undefined };
 
-export class ColorThemeData implements IColorTheme {
+export class ColorThemeData implements IWorkbenchColorTheme {
 
 	id: string;
 	label: string;
@@ -125,7 +124,7 @@ export class ColorThemeData implements IColorTheme {
 		return color;
 	}
 
-	public getTokenStyle(classification: TokenClassification, useDefault = true, definitions: TokenStyleDefinitions = {}): TokenStyle | undefined {
+	public getTokenStyle(type: string, modifiers: string[], useDefault = true, definitions: TokenStyleDefinitions = {}): TokenStyle | undefined {
 		let result: any = {
 			foreground: undefined,
 			bold: undefined,
@@ -159,7 +158,7 @@ export class ColorThemeData implements IColorTheme {
 		}
 		if (this.tokenStylingRules === undefined) {
 			for (const rule of tokenClassificationRegistry.getTokenStylingDefaultRules()) {
-				const matchScore = rule.match(classification);
+				const matchScore = rule.selector.match(type, modifiers);
 				if (matchScore >= 0) {
 					let style: TokenStyle | undefined;
 					if (rule.defaults.scopesToProbe) {
@@ -179,16 +178,16 @@ export class ColorThemeData implements IColorTheme {
 			}
 		} else {
 			for (const rule of this.tokenStylingRules) {
-				const matchScore = rule.match(classification);
+				const matchScore = rule.selector.match(type, modifiers);
 				if (matchScore >= 0) {
-					_processStyle(matchScore, rule.value, rule);
+					_processStyle(matchScore, rule.style, rule);
 				}
 			}
 		}
 		for (const rule of this.customTokenStylingRules) {
-			const matchScore = rule.match(classification);
+			const matchScore = rule.selector.match(type, modifiers);
 			if (matchScore >= 0) {
-				_processStyle(matchScore, rule.value, rule);
+				_processStyle(matchScore, rule.style, rule);
 			}
 		}
 		return TokenStyle.fromData(result);
@@ -203,10 +202,7 @@ export class ColorThemeData implements IColorTheme {
 			return undefined;
 		} else if (typeof tokenStyleValue === 'string') {
 			const [type, ...modifiers] = tokenStyleValue.split('.');
-			const classification = tokenClassificationRegistry.getTokenClassification(type, modifiers);
-			if (classification) {
-				return this.getTokenStyle(classification);
-			}
+			return this.getTokenStyle(type, modifiers);
 		} else if (typeof tokenStyleValue === 'object') {
 			return tokenStyleValue;
 		}
@@ -223,7 +219,7 @@ export class ColorThemeData implements IColorTheme {
 			});
 
 			if (this.tokenStylingRules) {
-				this.tokenStylingRules.forEach(r => index.add(r.value.foreground));
+				this.tokenStylingRules.forEach(r => index.add(r.style.foreground));
 			} else {
 				tokenClassificationRegistry.getTokenStylingDefaultRules().forEach(r => {
 					const defaultColor = r.defaults[this.type];
@@ -232,7 +228,7 @@ export class ColorThemeData implements IColorTheme {
 					}
 				});
 			}
-			this.customTokenStylingRules.forEach(r => index.add(r.value.foreground));
+			this.customTokenStylingRules.forEach(r => index.add(r.style.foreground));
 
 			this.tokenColorIndex = index;
 		}
@@ -243,27 +239,18 @@ export class ColorThemeData implements IColorTheme {
 		return this.getTokenColorIndex().asArray();
 	}
 
-	public getTokenStyleMetadata(type: string, modifiers: string[], useDefault = true, definitions: TokenStyleDefinitions = {}): number | undefined {
-		const classification = tokenClassificationRegistry.getTokenClassification(type, modifiers);
-		if (!classification) {
+	public getTokenStyleMetadata(type: string, modifiers: string[], useDefault = true, definitions: TokenStyleDefinitions = {}): ITokenStyle | undefined {
+		const style = this.getTokenStyle(type, modifiers, useDefault, definitions);
+		if (!style) {
 			return undefined;
 		}
-		const style = this.getTokenStyle(classification, useDefault, definitions);
-		let fontStyle = FontStyle.None;
-		let foreground = 0;
-		if (style) {
-			if (style.bold) {
-				fontStyle |= FontStyle.Bold;
-			}
-			if (style.underline) {
-				fontStyle |= FontStyle.Underline;
-			}
-			if (style.italic) {
-				fontStyle |= FontStyle.Italic;
-			}
-			foreground = this.getTokenColorIndex().get(style.foreground);
-		}
-		return toMetadata(fontStyle, foreground, 0);
+
+		return {
+			foreground: this.getTokenColorIndex().get(style.foreground),
+			bold: style.bold,
+			underline: style.underline,
+			italic: style.italic
+		};
 	}
 
 	public getTokenStylingRuleScope(rule: TokenStylingRule): 'setting' | 'theme' | undefined {
@@ -710,9 +697,8 @@ function getScopeMatcher(rule: ITextMateThemingRule): Matcher<ProbeScope> {
 function readCustomTokenStyleRules(tokenStylingRuleSection: IExperimentalTokenStyleCustomizations, result: TokenStylingRule[] = []) {
 	for (let key in tokenStylingRuleSection) {
 		if (key[0] !== '[') {
-			const [type, ...modifiers] = key.split('.');
-			const classification = tokenClassificationRegistry.getTokenClassification(type, modifiers);
-			if (classification) {
+			try {
+				const selector = tokenClassificationRegistry.parseTokenSelector(key);
 				const settings = tokenStylingRuleSection[key];
 				let style: TokenStyle | undefined;
 				if (typeof settings === 'string') {
@@ -721,8 +707,10 @@ function readCustomTokenStyleRules(tokenStylingRuleSection: IExperimentalTokenSt
 					style = TokenStyle.fromSettings(settings.foreground, settings.fontStyle);
 				}
 				if (style) {
-					result.push(tokenClassificationRegistry.getTokenStylingRule(classification, style));
+					result.push({ selector, style });
 				}
+			} catch (e) {
+				// invalid selector, ignore
 			}
 		}
 	}
@@ -818,20 +806,4 @@ function hexUpper(charCode: CharCode): number {
 		return charCode - CharCode.a + CharCode.A;
 	}
 	return 0;
-}
-
-function toMetadata(fontStyle: FontStyle, foreground: ColorId | number, background: ColorId | number) {
-	const fontStyleBits = fontStyle << MetadataConsts.FONT_STYLE_OFFSET;
-	const foregroundBits = foreground << MetadataConsts.FOREGROUND_OFFSET;
-	const backgroundBits = background << MetadataConsts.BACKGROUND_OFFSET;
-	if ((fontStyleBits & MetadataConsts.FONT_STYLE_MASK) !== fontStyleBits) {
-		console.log(`Can not express fontStyle ${fontStyle} in metadata`);
-	}
-	if ((backgroundBits & MetadataConsts.BACKGROUND_MASK) !== backgroundBits) {
-		console.log(`Can not express background ${background} in metadata`);
-	}
-	if ((foregroundBits & MetadataConsts.FOREGROUND_MASK) !== foregroundBits) {
-		console.log(`Can not express foreground ${foreground} in metadata`);
-	}
-	return (fontStyleBits | foregroundBits | backgroundBits) >>> 0;
 }

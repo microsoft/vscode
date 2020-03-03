@@ -46,15 +46,15 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 
 	public createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
 		const terminal = new ExtHostTerminal(this._proxy, { name, shellPath, shellArgs }, name);
-		terminal.create(shellPath, shellArgs);
 		this._terminals.push(terminal);
+		terminal.create(shellPath, shellArgs);
 		return terminal;
 	}
 
 	public createTerminalFromOptions(options: vscode.TerminalOptions): vscode.Terminal {
 		const terminal = new ExtHostTerminal(this._proxy, options, options.name);
-		terminal.create(options.shellPath, options.shellArgs, options.cwd, options.env, /*options.waitOnExit*/ undefined, options.strictEnv, options.hideFromUser);
 		this._terminals.push(terminal);
+		terminal.create(options.shellPath, options.shellArgs, options.cwd, options.env, /*options.waitOnExit*/ undefined, options.strictEnv, options.hideFromUser);
 		return terminal;
 	}
 
@@ -200,16 +200,16 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		this._setupExtHostProcessListeners(id, new TerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, enableConpty, this._logService));
 	}
 
-	public $requestAvailableShells(): Promise<IShellDefinitionDto[]> {
+	public $getAvailableShells(): Promise<IShellDefinitionDto[]> {
 		return detectAvailableShells();
 	}
 
-	public async $requestDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto> {
+	public async $getDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto> {
 		const configProvider = await this._extHostConfiguration.getConfigProvider();
-		return Promise.resolve({
+		return {
 			shell: this.getDefaultShell(useAutomationShell, configProvider),
 			args: this.getDefaultShellArgs(useAutomationShell, configProvider)
-		});
+		};
 	}
 
 	public $acceptWorkspacePermissionsChanged(isAllowed: boolean): void {

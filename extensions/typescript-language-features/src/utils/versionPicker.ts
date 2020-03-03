@@ -66,7 +66,7 @@ export class TypeScriptVersionPicker {
 
 		for (const version of this.versionProvider.localVersions) {
 			pickOptions.push({
-				label: (this.useWorkspaceTsdkSetting && this.currentVersion.path === version.path
+				label: (this.useWorkspaceTsdkSetting && this.currentVersion.eq(version)
 					? '• '
 					: '') + localize('useWorkspaceVersionOption', "Use Workspace Version"),
 				description: version.displayName,

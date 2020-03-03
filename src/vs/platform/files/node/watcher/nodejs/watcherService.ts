@@ -20,7 +20,7 @@ export class FileWatcher extends Disposable {
 
 	constructor(
 		private path: string,
-		private onFileChanges: (changes: IDiskFileChange[]) => void,
+		private onDidFilesChange: (changes: IDiskFileChange[]) => void,
 		private onLogMessage: (msg: ILogMessage) => void,
 		private verboseLogging: boolean
 	) {
@@ -35,14 +35,14 @@ export class FileWatcher extends Disposable {
 
 	private async startWatching(): Promise<void> {
 		try {
-			const { stat, isSymbolicLink } = await statLink(this.path);
+			const { stat, symbolicLink } = await statLink(this.path);
 
 			if (this.isDisposed) {
 				return;
 			}
 
 			let pathToWatch = this.path;
-			if (isSymbolicLink) {
+			if (symbolicLink) {
 				try {
 					pathToWatch = await realpath(pathToWatch);
 				} catch (error) {
@@ -101,7 +101,7 @@ export class FileWatcher extends Disposable {
 
 			// Fire
 			if (normalizedFileChanges.length > 0) {
-				this.onFileChanges(normalizedFileChanges);
+				this.onDidFilesChange(normalizedFileChanges);
 			}
 
 			return Promise.resolve();

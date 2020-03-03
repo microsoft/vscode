@@ -16,17 +16,20 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILabelService } from 'vs/platform/label/common/label';
 import { GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, Verbosity } from 'vs/workbench/common/editor';
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
-import { WebviewEditorOverlay, IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewService, WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
-import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { IReference } from 'vs/base/common/lifecycle';
 
-export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
+export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 
 	public static typeId = 'workbench.editors.webviewEditor';
 
 	private readonly _editorResource: URI;
-	private _model?: ICustomEditorModel;
+	get resource() { return this._editorResource; }
+
+	private _modelRef?: IReference<ICustomEditorModel>;
 
 	constructor(
 		resource: URI,
@@ -40,18 +43,14 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 		@ICustomEditorService private readonly customEditorService: ICustomEditorService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
-		@IEditorService private readonly editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super(id, viewType, '', webview, webviewService, webviewWorkbenchService);
 		this._editorResource = resource;
 	}
 
 	public getTypeId(): string {
-		return CustomFileEditorInput.typeId;
-	}
-
-	public getResource(): URI {
-		return this._editorResource;
+		return CustomEditorInput.typeId;
 	}
 
 	public supportsSplitEditor() {
@@ -60,18 +59,13 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 
 	@memoize
 	getName(): string {
-		return basename(this.labelService.getUriLabel(this.getResource()));
-	}
-
-	@memoize
-	getDescription(): string | undefined {
-		return super.getDescription();
+		return basename(this.labelService.getUriLabel(this.resource));
 	}
 
 	matches(other: IEditorInput): boolean {
-		return this === other || (other instanceof CustomFileEditorInput
+		return this === other || (other instanceof CustomEditorInput
 			&& this.viewType === other.viewType
-			&& isEqual(this.getResource(), other.getResource()));
+			&& isEqual(this.resource, other.resource));
 	}
 
 	@memoize
@@ -81,12 +75,12 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 
 	@memoize
 	private get mediumTitle(): string {
-		return this.labelService.getUriLabel(this.getResource(), { relative: true });
+		return this.labelService.getUriLabel(this.resource, { relative: true });
 	}
 
 	@memoize
 	private get longTitle(): string {
-		return this.labelService.getUriLabel(this.getResource());
+		return this.labelService.getUriLabel(this.resource);
 	}
 
 	public getTitle(verbosity?: Verbosity): string {
@@ -102,11 +96,14 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 	}
 
 	public isReadonly(): boolean {
-		return false;
+		return false; // TODO
 	}
 
 	public isDirty(): boolean {
-		return this._model ? this._model.isDirty() : false;
+		if (!this._modelRef) {
+			return false;
+		}
+		return this._modelRef.object.isDirty();
 	}
 
 	public isSaving(): boolean {
@@ -122,20 +119,16 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 	}
 
 	public async save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
-		if (!this._model) {
+		if (!this._modelRef) {
 			return undefined;
 		}
 
-		const result = await this._model.save(options);
-		if (!result) {
-			return undefined;
-		}
-
-		return this;
+		const result = await this._modelRef.object.save(options);
+		return result ? this : undefined;
 	}
 
 	public async saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
-		if (!this._model) {
+		if (!this._modelRef) {
 			return undefined;
 		}
 
@@ -145,31 +138,40 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 			return undefined; // save cancelled
 		}
 
-		if (!await this._model.saveAs(this._editorResource, target, options)) {
+		if (!await this._modelRef.object.saveAs(this._editorResource, target, options)) {
 			return undefined;
 		}
 
 		return this.handleMove(groupId, target) || this.editorService.createInput({ resource: target, forceFile: true });
 	}
 
-	public revert(group: GroupIdentifier, options?: IRevertOptions): Promise<boolean> {
-		return this._model ? this._model.revert(options) : Promise.resolve(false);
+	public async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
+		return this._modelRef?.object.revert(options);
 	}
 
 	public async resolve(): Promise<IEditorModel> {
-		this._model = await this.customEditorService.models.resolve(this.getResource(), this.viewType);
-		this._register(this._model.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
+		const editorModel = await super.resolve();
+		if (!this._modelRef) {
+			const modelRef = await this.customEditorService.models.tryRetain(this.resource, this.viewType);
+			if (modelRef) {
+				this._modelRef = modelRef;
+				this._register(this._modelRef);
+				this._register(this._modelRef.object.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
+			}
+		}
+
 		if (this.isDirty()) {
 			this._onDidChangeDirty.fire();
 		}
-		return await super.resolve();
+
+		return editorModel;
 	}
 
 	public handleMove(groupId: GroupIdentifier, uri: URI, options?: ITextEditorOptions): IEditorInput | undefined {
 		const editorInfo = this.customEditorService.getCustomEditor(this.viewType);
 		if (editorInfo?.matches(uri)) {
 			const webview = assertIsDefined(this.takeOwnershipOfWebview());
-			const newInput = this.instantiationService.createInstance(CustomFileEditorInput,
+			const newInput = this.instantiationService.createInstance(CustomEditorInput,
 				uri,
 				this.viewType,
 				generateUuid(),
@@ -178,5 +180,13 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 			return newInput;
 		}
 		return undefined;
+	}
+
+	public undo(): void {
+		this._modelRef?.object.undo();
+	}
+
+	public redo(): void {
+		this._modelRef?.object.redo();
 	}
 }

@@ -12,7 +12,6 @@ import { mkdirp, rimraf } from 'vs/base/node/pfs';
 import { open as _openZip, Entry, ZipFile } from 'yauzl';
 import * as yazl from 'yazl';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
 
 export interface IExtractOptions {
 	overwrite?: boolean;
@@ -80,7 +79,7 @@ function extractEntry(stream: Readable, fileName: string, mode: number, targetPa
 
 	let istream: WriteStream;
 
-	Event.once(token.onCancellationRequested)(() => {
+	token.onCancellationRequested(() => {
 		if (istream) {
 			istream.destroy();
 		}
@@ -107,7 +106,7 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, tok
 	let last = createCancelablePromise<void>(() => Promise.resolve());
 	let extractedEntriesCount = 0;
 
-	Event.once(token.onCancellationRequested)(() => {
+	token.onCancellationRequested(() => {
 		last.cancel();
 		zipfile.close();
 	});

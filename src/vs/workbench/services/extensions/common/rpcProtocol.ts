@@ -27,6 +27,10 @@ function safeStringify(obj: any, replacer: JSONStringifyReplacer | null): string
 	}
 }
 
+function stringify(obj: any, replacer: JSONStringifyReplacer | null): string {
+	return JSON.stringify(obj, <(key: string, value: any) => any>replacer);
+}
+
 function createURIReplacer(transformer: IURITransformer | null): JSONStringifyReplacer | null {
 	if (!transformer) {
 		return null;
@@ -180,8 +184,8 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 
 	private _createProxy<T>(rpcId: number): T {
 		let handler = {
-			get: (target: any, name: string) => {
-				if (!target[name] && name.charCodeAt(0) === CharCode.DollarSign) {
+			get: (target: any, name: PropertyKey) => {
+				if (typeof name === 'string' && !target[name] && name.charCodeAt(0) === CharCode.DollarSign) {
 					target[name] = (...myArgs: any[]) => {
 						return this._remoteCall(rpcId, name, myArgs);
 					};
@@ -412,6 +416,8 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 			return Promise.reject<any>(errors.canceled());
 		}
 
+		const serializedRequestArguments = MessageIO.serializeRequestArguments(args, this._uriReplacer);
+
 		const req = ++this._lastMessageId;
 		const callId = String(req);
 		const result = new LazyPromise();
@@ -428,7 +434,7 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 
 		this._pendingRPCReplies[callId] = result;
 		this._onWillSendRequest(req);
-		const msg = MessageIO.serializeRequest(req, rpcId, methodName, args, !!cancellationToken, this._uriReplacer);
+		const msg = MessageIO.serializeRequest(req, rpcId, methodName, serializedRequestArguments, !!cancellationToken);
 		if (this._logger) {
 			this._logger.logOutgoing(msg.byteLength, req, RequestInitiator.LocalSide, `request: ${getStringIdentifierForProxy(rpcId)}.${methodName}(`, args);
 		}
@@ -600,6 +606,8 @@ class MessageBuffer {
 	}
 }
 
+type SerializedRequestArguments = { type: 'mixed'; args: VSBuffer[]; argsType: ArgType[]; } | { type: 'simple'; args: string; };
+
 class MessageIO {
 
 	private static _arrayContainsBufferOrUndefined(arr: any[]): boolean {
@@ -614,7 +622,7 @@ class MessageIO {
 		return false;
 	}
 
-	public static serializeRequest(req: number, rpcId: number, method: string, args: any[], usesCancellationToken: boolean, replacer: JSONStringifyReplacer | null): VSBuffer {
+	public static serializeRequestArguments(args: any[], replacer: JSONStringifyReplacer | null): SerializedRequestArguments {
 		if (this._arrayContainsBufferOrUndefined(args)) {
 			let massagedArgs: VSBuffer[] = [];
 			let massagedArgsType: ArgType[] = [];
@@ -627,13 +635,27 @@ class MessageIO {
 					massagedArgs[i] = VSBuffer.alloc(0);
 					massagedArgsType[i] = ArgType.Undefined;
 				} else {
-					massagedArgs[i] = VSBuffer.fromString(safeStringify(arg, replacer));
+					massagedArgs[i] = VSBuffer.fromString(stringify(arg, replacer));
 					massagedArgsType[i] = ArgType.String;
 				}
 			}
-			return this._requestMixedArgs(req, rpcId, method, massagedArgs, massagedArgsType, usesCancellationToken);
+			return {
+				type: 'mixed',
+				args: massagedArgs,
+				argsType: massagedArgsType
+			};
 		}
-		return this._requestJSONArgs(req, rpcId, method, safeStringify(args, replacer), usesCancellationToken);
+		return {
+			type: 'simple',
+			args: stringify(args, replacer)
+		};
+	}
+
+	public static serializeRequest(req: number, rpcId: number, method: string, serializedArgs: SerializedRequestArguments, usesCancellationToken: boolean): VSBuffer {
+		if (serializedArgs.type === 'mixed') {
+			return this._requestMixedArgs(req, rpcId, method, serializedArgs.args, serializedArgs.argsType, usesCancellationToken);
+		}
+		return this._requestJSONArgs(req, rpcId, method, serializedArgs.args, usesCancellationToken);
 	}
 
 	private static _requestJSONArgs(req: number, rpcId: number, method: string, args: string, usesCancellationToken: boolean): VSBuffer {

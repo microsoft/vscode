@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.shake = exports.toStringShakeLevel = exports.ShakeLevel = void 0;
 const fs = require("fs");
 const path = require("path");
 const ts = require("typescript");
@@ -75,11 +76,7 @@ function createTypeScriptLanguageService(options) {
         FILES[typing] = fs.readFileSync(filePath).toString();
     });
     // Resolve libs
-    const RESOLVED_LIBS = {};
-    options.libs.forEach((filename) => {
-        const filepath = path.join(TYPESCRIPT_LIB_FOLDER, filename);
-        RESOLVED_LIBS[`defaultLib:${filename}`] = fs.readFileSync(filepath).toString();
-    });
+    const RESOLVED_LIBS = processLibFiles(options);
     const compilerOptions = ts.convertCompilerOptionsFromJson(options.compilerOptions, options.sourcesRoot).options;
     const host = new TypeScriptLanguageServiceHost(RESOLVED_LIBS, FILES, compilerOptions);
     return ts.createLanguageService(host);
@@ -136,6 +133,29 @@ function discoverAndReadFiles(options) {
         FILES[`${moduleId}.ts`] = ts_filecontents;
     }
     return FILES;
+}
+/**
+ * Read lib files and follow lib references
+ */
+function processLibFiles(options) {
+    const stack = [...options.compilerOptions.lib];
+    const result = {};
+    while (stack.length > 0) {
+        const filename = `lib.${stack.shift().toLowerCase()}.d.ts`;
+        const key = `defaultLib:${filename}`;
+        if (!result[key]) {
+            // add this file
+            const filepath = path.join(TYPESCRIPT_LIB_FOLDER, filename);
+            const sourceText = fs.readFileSync(filepath).toString();
+            result[key] = sourceText;
+            // precess dependencies and "recurse"
+            const info = ts.preProcessFile(sourceText);
+            for (let ref of info.libReferenceDirectives) {
+                stack.push(ref.fileName);
+            }
+        }
+    }
+    return result;
 }
 /**
  * A TypeScript language service host

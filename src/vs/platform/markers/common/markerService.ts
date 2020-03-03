@@ -64,7 +64,7 @@ class MarkerStats implements MarkerStatistics {
 		this._data = undefined;
 	}
 
-	private _update(resources: URI[]): void {
+	private _update(resources: readonly URI[]): void {
 		if (!this._data) {
 			return;
 		}
@@ -343,7 +343,7 @@ export class MarkerService implements IMarkerService {
 
 	private static _dedupeMap: { [uri: string]: boolean };
 
-	private static _debouncer(last: URI[], event: URI[]): URI[] {
+	private static _debouncer(last: URI[] | undefined, event: readonly URI[]): URI[] {
 		if (!last) {
 			MarkerService._dedupeMap = Object.create(null);
 			last = [];

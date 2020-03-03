@@ -21,7 +21,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	configureHttpRequest();
 	let d = vscode.workspace.onDidChangeConfiguration((e) => {
 		configureHttpRequest();
-		if (e.affectsConfiguration('npm.exclude')) {
+		if (e.affectsConfiguration('npm.exclude') || e.affectsConfiguration('npm.autoDetect')) {
 			invalidateTasksCache();
 			if (treeDataProvider) {
 				treeDataProvider.refresh();
@@ -70,7 +70,7 @@ function registerTaskProvider(context: vscode.ExtensionContext): vscode.Disposab
 		context.subscriptions.push(workspaceWatcher);
 
 		let provider: vscode.TaskProvider = new NpmTaskProvider();
-		let disposable = vscode.workspace.registerTaskProvider('npm', provider);
+		let disposable = vscode.tasks.registerTaskProvider('npm', provider);
 		context.subscriptions.push(disposable);
 		return disposable;
 	}

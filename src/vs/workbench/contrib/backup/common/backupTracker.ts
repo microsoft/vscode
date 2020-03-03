@@ -46,16 +46,19 @@ export abstract class BackupTracker extends Disposable {
 		// Figure out initial auto save config
 		this.onAutoSaveConfigurationChange(filesConfigurationService.getAutoSaveConfiguration());
 
+		// Fill in initial dirty working copies
+		this.workingCopyService.dirtyWorkingCopies.forEach(workingCopy => this.onDidRegister(workingCopy));
+
 		this.registerListeners();
 	}
 
 	private registerListeners() {
 
 		// Working Copy events
-		this._register(this.workingCopyService.onDidRegister(c => this.onDidRegister(c)));
-		this._register(this.workingCopyService.onDidUnregister(c => this.onDidUnregister(c)));
-		this._register(this.workingCopyService.onDidChangeDirty(c => this.onDidChangeDirty(c)));
-		this._register(this.workingCopyService.onDidChangeContent(c => this.onDidChangeContent(c)));
+		this._register(this.workingCopyService.onDidRegister(workingCopy => this.onDidRegister(workingCopy)));
+		this._register(this.workingCopyService.onDidUnregister(workingCopy => this.onDidUnregister(workingCopy)));
+		this._register(this.workingCopyService.onDidChangeDirty(workingCopy => this.onDidChangeDirty(workingCopy)));
+		this._register(this.workingCopyService.onDidChangeContent(workingCopy => this.onDidChangeContent(workingCopy)));
 
 		// Listen to auto save config changes
 		this._register(this.filesConfigurationService.onAutoSaveConfigurationChange(c => this.onAutoSaveConfigurationChange(c)));
@@ -65,7 +68,9 @@ export abstract class BackupTracker extends Disposable {
 	}
 
 	private onDidRegister(workingCopy: IWorkingCopy): void {
-		this.scheduleBackup(workingCopy);
+		if (workingCopy.isDirty()) {
+			this.scheduleBackup(workingCopy);
+		}
 	}
 
 	private onDidUnregister(workingCopy: IWorkingCopy): void {
@@ -78,7 +83,9 @@ export abstract class BackupTracker extends Disposable {
 	}
 
 	private onDidChangeDirty(workingCopy: IWorkingCopy): void {
-		if (!workingCopy.isDirty()) {
+		if (workingCopy.isDirty()) {
+			this.scheduleBackup(workingCopy);
+		} else {
 			this.discardBackup(workingCopy);
 		}
 	}
@@ -91,6 +98,9 @@ export abstract class BackupTracker extends Disposable {
 
 		// Schedule backup if dirty
 		if (workingCopy.isDirty()) {
+			// this listener will make sure that the backup is
+			// pushed out for as long as the user is still changing
+			// the content of the working copy.
 			this.scheduleBackup(workingCopy);
 		}
 	}
@@ -102,10 +112,6 @@ export abstract class BackupTracker extends Disposable {
 	private scheduleBackup(workingCopy: IWorkingCopy): void {
 		if (this.backupsDisabledForAutoSaveables && !(workingCopy.capabilities & WorkingCopyCapabilities.Untitled)) {
 			return; // skip if auto save is enabled with a short delay
-		}
-
-		if (typeof workingCopy.backup !== 'function') {
-			return; // skip if working copy does not support backups
 		}
 
 		// Clear any running backup operation
@@ -121,7 +127,7 @@ export abstract class BackupTracker extends Disposable {
 			this.pendingBackups.delete(workingCopy);
 
 			// Backup if dirty
-			if (workingCopy.isDirty() && typeof workingCopy.backup === 'function') {
+			if (workingCopy.isDirty()) {
 				this.logService.trace(`[backup tracker] running backup`, workingCopy.resource.toString());
 
 				const backup = await workingCopy.backup();

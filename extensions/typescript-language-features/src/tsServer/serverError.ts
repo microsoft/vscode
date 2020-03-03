@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as Proto from '../protocol';
+import type * as Proto from '../protocol';
 import { escapeRegExp } from '../utils/regexp';
 import { TypeScriptVersion } from '../utils/versionProvider';
 
@@ -20,7 +20,7 @@ export class TypeScriptServerError extends Error {
 
 	private constructor(
 		serverId: string,
-		version: TypeScriptVersion,
+		public readonly version: TypeScriptVersion,
 		private readonly response: Proto.Response,
 		public readonly serverMessage: string | undefined,
 		public readonly serverStack: string | undefined

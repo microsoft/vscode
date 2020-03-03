@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { IMenuService, MenuId, IMenu, SubmenuItemAction } from 'vs/platform/actions/common/actions';
-import { registerThemingParticipant, ITheme, ICssStyleCollector, IThemeService } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, IColorTheme, ICssStyleCollector, IThemeService } from 'vs/platform/theme/common/themeService';
 import { MenuBarVisibility, getTitleBarStyle, IWindowOpenable, getMenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IAction, Action } from 'vs/base/common/actions';
@@ -35,14 +35,6 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { isFullscreen } from 'vs/base/browser/browser';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-
-// TODO@sbatten https://github.com/microsoft/vscode/issues/81360
-// eslint-disable-next-line code-layering, code-import-patterns
-import { IElectronService } from 'vs/platform/electron/node/electron';
-import { optional } from 'vs/platform/instantiation/common/instantiation';
-// TODO@sbatten
-// eslint-disable-next-line code-layering, code-import-patterns
-import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 
 export abstract class MenubarControl extends Disposable {
@@ -61,7 +53,7 @@ export abstract class MenubarControl extends Disposable {
 		'Selection': IMenu;
 		'View': IMenu;
 		'Go': IMenu;
-		'Debug': IMenu;
+		'Run': IMenu;
 		'Terminal': IMenu;
 		'Window'?: IMenu;
 		'Help': IMenu;
@@ -74,7 +66,7 @@ export abstract class MenubarControl extends Disposable {
 		'Selection': nls.localize({ key: 'mSelection', comment: ['&& denotes a mnemonic'] }, "&&Selection"),
 		'View': nls.localize({ key: 'mView', comment: ['&& denotes a mnemonic'] }, "&&View"),
 		'Go': nls.localize({ key: 'mGoto', comment: ['&& denotes a mnemonic'] }, "&&Go"),
-		'Debug': nls.localize({ key: 'mDebug', comment: ['&& denotes a mnemonic'] }, "&&Debug"),
+		'Run': nls.localize({ key: 'mRun', comment: ['&& denotes a mnemonic'] }, "&&Run"),
 		'Terminal': nls.localize({ key: 'mTerminal', comment: ['&& denotes a mnemonic'] }, "&&Terminal"),
 		'Help': nls.localize({ key: 'mHelp', comment: ['&& denotes a mnemonic'] }, "&&Help")
 	};
@@ -109,7 +101,7 @@ export abstract class MenubarControl extends Disposable {
 			'Selection': this._register(this.menuService.createMenu(MenuId.MenubarSelectionMenu, this.contextKeyService)),
 			'View': this._register(this.menuService.createMenu(MenuId.MenubarViewMenu, this.contextKeyService)),
 			'Go': this._register(this.menuService.createMenu(MenuId.MenubarGoMenu, this.contextKeyService)),
-			'Debug': this._register(this.menuService.createMenu(MenuId.MenubarDebugMenu, this.contextKeyService)),
+			'Run': this._register(this.menuService.createMenu(MenuId.MenubarDebugMenu, this.contextKeyService)),
 			'Terminal': this._register(this.menuService.createMenu(MenuId.MenubarTerminalMenu, this.contextKeyService)),
 			'Help': this._register(this.menuService.createMenu(MenuId.MenubarHelpMenu, this.contextKeyService))
 		};
@@ -155,14 +147,14 @@ export abstract class MenubarControl extends Disposable {
 		return label;
 	}
 
-	protected getOpenRecentActions(): IAction[] {
+	protected getOpenRecentActions(): (Separator | IAction & { uri: URI })[] {
 		if (!this.recentlyOpened) {
 			return [];
 		}
 
 		const { workspaces, files } = this.recentlyOpened;
 
-		const result: IAction[] = [];
+		const result = [];
 
 		if (workspaces.length > 0) {
 			for (let i = 0; i < MenubarControl.MAX_MENU_RECENT_ENTRIES && i < workspaces.length; i++) {
@@ -293,9 +285,7 @@ export class CustomMenubarControl extends MenubarControl {
 		@IThemeService private readonly themeService: IThemeService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IHostService protected readonly hostService: IHostService,
-		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
-		@optional(IElectronService) private readonly electronService: IElectronService,
-		@optional(IElectronEnvironmentService) private readonly electronEnvironmentService: IElectronEnvironmentService
+		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService
 	) {
 
 		super(
@@ -323,7 +313,7 @@ export class CustomMenubarControl extends MenubarControl {
 
 		this.registerListeners();
 
-		registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+		registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 			const menubarActiveWindowFgColor = theme.getColor(TITLE_BAR_ACTIVE_FOREGROUND);
 			if (menubarActiveWindowFgColor) {
 				collector.addRule(`
@@ -573,9 +563,9 @@ export class CustomMenubarControl extends MenubarControl {
 				for (let action of actions) {
 					this.insertActionsBefore(action, target);
 					if (action instanceof SubmenuItemAction) {
-						let submenu = this.menus[action.item.submenu];
+						let submenu = this.menus[action.item.submenu.id];
 						if (!submenu) {
-							submenu = this.menus[action.item.submenu] = this.menuService.createMenu(action.item.submenu, this.contextKeyService);
+							submenu = this.menus[action.item.submenu.id] = this.menuService.createMenu(action.item.submenu, this.contextKeyService);
 							this._register(submenu.onDidChange(() => {
 								if (!this.focusInsideMenubar) {
 									const actions: IAction[] = [];
@@ -648,14 +638,6 @@ export class CustomMenubarControl extends MenubarControl {
 
 	protected registerListeners(): void {
 		super.registerListeners();
-
-		// Listen for maximize/unmaximize
-		if (!isWeb) {
-			this._register(Event.any(
-				Event.map(Event.filter(this.electronService.onWindowMaximize, id => id === this.electronEnvironmentService.windowId), _ => true),
-				Event.map(Event.filter(this.electronService.onWindowUnmaximize, id => id === this.electronEnvironmentService.windowId), _ => false)
-			)(e => this.updateMenubar()));
-		}
 
 		this._register(DOM.addDisposableListener(window, DOM.EventType.RESIZE, () => {
 			if (this.menubar && !(isIOS && BrowserFeatures.pointerEvents)) {

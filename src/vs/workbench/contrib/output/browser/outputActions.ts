@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IAction, Action } from 'vs/base/common/actions';
 import { IOutputChannelRegistry, Extensions as OutputExt, IOutputChannelDescriptor, IFileOutputChannelDescriptor } from 'vs/workbench/services/output/common/output';
-import { IOutputService, OUTPUT_PANEL_ID } from 'vs/workbench/contrib/output/common/output';
+import { IOutputService, OUTPUT_VIEW_ID } from 'vs/workbench/contrib/output/common/output';
 import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -34,7 +34,7 @@ export class ToggleOutputAction extends TogglePanelAction {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IPanelService panelService: IPanelService,
 	) {
-		super(id, label, OUTPUT_PANEL_ID, panelService, layoutService);
+		super(id, label, OUTPUT_VIEW_ID, panelService, layoutService);
 	}
 }
 
@@ -62,7 +62,7 @@ export class ClearOutputAction extends Action {
 
 // this action can be triggered in two ways:
 // 1. user clicks the action icon, In which case the action toggles the lock state
-// 2. user clicks inside the output panel, which sets the lock, Or unsets it if they click the last line.
+// 2. user clicks inside the output view, which sets the lock, Or unsets it if they click the last line.
 export class ToggleOrSetOutputScrollLockAction extends Action {
 
 	static readonly ID = 'workbench.output.action.toggleOutputScrollLock';

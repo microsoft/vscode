@@ -21,11 +21,11 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
-import { Context as SuggestContext, CompletionItem } from './suggest';
+import { Context as SuggestContext, CompletionItem, suggestWidgetStatusbarMenu } from './suggest';
 import { CompletionModel } from './completionModel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService, ITheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IThemeService, IColorTheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { registerColor, editorWidgetBackground, listFocusBackground, activeContrastBorder, listHighlightForeground, editorForeground, editorWidgetBorder, focusBorder, textLinkForeground, textCodeBlockBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
@@ -40,9 +40,11 @@ import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { FileKind } from 'vs/platform/files/common/files';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { flatten } from 'vs/base/common/arrays';
+import { flatten, isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { Position } from 'vs/editor/common/core/position';
+import { IMenuService } from 'vs/platform/actions/common/actions';
+import { ActionBar, IActionViewItemProvider, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IAction } from 'vs/base/common/actions';
 
 const expandSuggestionDocsByDefault = false;
 
@@ -51,8 +53,8 @@ interface ISuggestionTemplateData {
 
 	/**
 	 * Flexbox
-	 * < ------- left ------- >     < -------- right -------- >
-	 * <icon><label><signature>     <qualifier><type><readmore>
+	 * < ------------- left ------------ >     < --- right -- >
+	 * <icon><label><signature><qualifier>     <type><readmore>
 	 */
 	left: HTMLElement;
 	right: HTMLElement;
@@ -142,10 +144,9 @@ class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTemplateD
 		const text = append(container, $('.contents'));
 		const main = append(text, $('.main'));
 
+		data.iconContainer = append(main, $('.icon-label.codicon'));
 		data.left = append(main, $('span.left'));
 		data.right = append(main, $('span.right'));
-
-		data.iconContainer = append(data.left, $('.icon-label.codicon'));
 
 		data.iconLabel = new IconLabel(data.left, { supportHighlights: true, supportCodicons: true });
 		data.disposables.add(data.iconLabel);
@@ -209,7 +210,7 @@ class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTemplateD
 			data.iconContainer.className = 'icon hide';
 			data.colorspan.style.backgroundColor = color[0];
 
-		} else if (suggestion.kind === CompletionItemKind.File && this._themeService.getIconTheme().hasFileIcons) {
+		} else if (suggestion.kind === CompletionItemKind.File && this._themeService.getFileIconTheme().hasFileIcons) {
 			// special logic for 'file' completion items
 			data.icon.className = 'icon hide';
 			data.iconContainer.className = 'icon hide';
@@ -217,7 +218,7 @@ class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTemplateD
 			const detailClasses = getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: suggestion.detail }), FileKind.FILE);
 			labelOptions.extraClasses = labelClasses.length > detailClasses.length ? labelClasses : detailClasses;
 
-		} else if (suggestion.kind === CompletionItemKind.Folder && this._themeService.getIconTheme().hasFolderIcons) {
+		} else if (suggestion.kind === CompletionItemKind.Folder && this._themeService.getFileIconTheme().hasFolderIcons) {
 			// special logic for 'folder' completion items
 			data.icon.className = 'icon hide';
 			data.iconContainer.className = 'icon hide';
@@ -242,12 +243,12 @@ class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTemplateD
 			data.signatureLabel.textContent = '';
 			data.qualifierLabel.textContent = '';
 			data.detailsLabel.textContent = (suggestion.detail || '').replace(/\n.*$/m, '');
-			removeClass(data.right, 'always-show-details');
+			addClass(data.root, 'string-label');
 		} else {
 			data.signatureLabel.textContent = (suggestion.label.signature || '').replace(/\n.*$/m, '');
 			data.qualifierLabel.textContent = (suggestion.label.qualifier || '').replace(/\n.*$/m, '');
 			data.detailsLabel.textContent = (suggestion.label.type || '').replace(/\n.*$/m, '');
-			addClass(data.right, 'always-show-details');
+			removeClass(data.root, 'string-label');
 		}
 
 		if (canExpandCompletionItem(element)) {
@@ -342,7 +343,8 @@ class SuggestionDetails {
 	}
 
 	renderItem(item: CompletionItem, explainMode: boolean): void {
-		this.renderDisposeable = dispose(this.renderDisposeable);
+		dispose(this.renderDisposeable);
+		this.renderDisposeable = undefined;
 
 		let { documentation, detail } = item.completion;
 		// --- documentation
@@ -449,7 +451,8 @@ class SuggestionDetails {
 
 	dispose(): void {
 		this.disposables.dispose();
-		this.renderDisposeable = dispose(this.renderDisposeable);
+		dispose(this.renderDisposeable);
+		this.renderDisposeable = undefined;
 	}
 }
 
@@ -470,10 +473,8 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	readonly allowEditorOverflow = true;
 	readonly suppressMouseDown = false;
 
-	private readonly msgDetailMore: string;
-	private readonly msgDetailsLess: string;
-
-	private state: State | null = null;
+	private state: State = State.Hidden;
+	private isAddedAsContentWidget: boolean = false;
 	private isAuto: boolean = false;
 	private loadingTimeout: IDisposable = Disposable.None;
 	private currentSuggestionDetails: CancelablePromise<void> | null = null;
@@ -485,14 +486,13 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	private messageElement: HTMLElement;
 	private listElement: HTMLElement;
 	private statusBarElement: HTMLElement;
-	private statusBarLeftSpan: HTMLSpanElement;
-	private statusBarRightSpan: HTMLSpanElement;
 	private details: SuggestionDetails;
 	private list: List<CompletionItem>;
 	private listHeight?: number;
 
-	private readonly suggestWidgetVisible: IContextKey<boolean>;
-	private readonly suggestWidgetMultipleSuggestions: IContextKey<boolean>;
+	private readonly ctxSuggestWidgetVisible: IContextKey<boolean>;
+	private readonly ctxSuggestWidgetDetailsVisible: IContextKey<boolean>;
+	private readonly ctxSuggestWidgetMultipleSuggestions: IContextKey<boolean>;
 
 	private readonly showTimeout = new TimeoutTimer();
 	private readonly toDispose = new DisposableStore();
@@ -525,19 +525,18 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	constructor(
 		private readonly editor: ICodeEditor,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
 		@IModeService modeService: IModeService,
 		@IOpenerService openerService: IOpenerService,
+		@IMenuService menuService: IMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		const markdownRenderer = this.toDispose.add(new MarkdownRenderer(editor, modeService, openerService));
 
 		const kbToggleDetails = keybindingService.lookupKeybinding('toggleSuggestionDetails')?.getLabel() ?? '';
-		this.msgDetailsLess = nls.localize('detail.less', "{0} for less...", kbToggleDetails);
-		this.msgDetailMore = nls.localize('detail.more', "{0} for more...", kbToggleDetails);
 
 		this.isAuto = false;
 		this.focusedItem = null;
@@ -553,15 +552,47 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.messageElement = append(this.element, $('.message'));
 		this.listElement = append(this.element, $('.tree'));
 
-		const applyStatusBarStyle = () => toggleClass(this.element, 'with-status-bar', !this.editor.getOption(EditorOption.suggest).hideStatusBar);
+		const applyStatusBarStyle = () => toggleClass(this.element, 'with-status-bar', this.editor.getOption(EditorOption.suggest).statusBar.visible);
 		applyStatusBarStyle();
 
 		this.statusBarElement = append(this.element, $('.suggest-status-bar'));
-		this.statusBarLeftSpan = append(this.statusBarElement, $('span'));
-		this.statusBarRightSpan = append(this.statusBarElement, $('span'));
-
-		this.setStatusBarLeftText('');
-		this.setStatusBarRightText('');
+		const actionViewItemProvider = <IActionViewItemProvider>(action => {
+			const kb = keybindingService.lookupKeybindings(action.id);
+			return new class extends ActionViewItem {
+				constructor() {
+					super(undefined, action, { label: true, icon: false });
+				}
+				updateLabel() {
+					if (isFalsyOrEmpty(kb) || !this.label) {
+						return super.updateLabel();
+					}
+					const { label } = this.getAction();
+					this.label.textContent = /{\d}/.test(label)
+						? strings.format(this.getAction().label, kb[0].getLabel())
+						: `${this.getAction().label} (${kb[0].getLabel()})`;
+				}
+			};
+		});
+		const leftActions = new ActionBar(this.statusBarElement, { actionViewItemProvider });
+		const rightActions = new ActionBar(this.statusBarElement, { actionViewItemProvider });
+		const menu = menuService.createMenu(suggestWidgetStatusbarMenu, contextKeyService);
+		const renderMenu = () => {
+			const left: IAction[] = [];
+			const right: IAction[] = [];
+			for (let [group, actions] of menu.getActions()) {
+				if (group === 'left') {
+					left.push(...actions);
+				} else {
+					right.push(...actions);
+				}
+			}
+			leftActions.clear();
+			leftActions.push(left);
+			rightActions.clear();
+			rightActions.push(right);
+		};
+		this.toDispose.add(menu.onDidChange(() => renderMenu()));
+		this.toDispose.add(menu);
 
 		this.details = instantiationService.createInstance(SuggestionDetails, this.element, this, this.editor, markdownRenderer, kbToggleDetails);
 
@@ -596,7 +627,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			listInactiveFocusBackground: editorSuggestWidgetSelectedBackground,
 			listInactiveFocusOutline: activeContrastBorder
 		}));
-		this.toDispose.add(themeService.onThemeChange(t => this.onThemeChange(t)));
+		this.toDispose.add(themeService.onDidColorThemeChange(t => this.onThemeChange(t)));
 		this.toDispose.add(editor.onDidLayoutChange(() => this.onEditorLayoutChange()));
 		this.toDispose.add(this.list.onMouseDown(e => this.onListMouseDownOrTap(e)));
 		this.toDispose.add(this.list.onTap(e => this.onListMouseDownOrTap(e)));
@@ -610,13 +641,11 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			}
 		}));
 
-		this.suggestWidgetVisible = SuggestContext.Visible.bindTo(contextKeyService);
-		this.suggestWidgetMultipleSuggestions = SuggestContext.MultipleSuggestions.bindTo(contextKeyService);
+		this.ctxSuggestWidgetVisible = SuggestContext.Visible.bindTo(contextKeyService);
+		this.ctxSuggestWidgetDetailsVisible = SuggestContext.DetailsVisible.bindTo(contextKeyService);
+		this.ctxSuggestWidgetMultipleSuggestions = SuggestContext.MultipleSuggestions.bindTo(contextKeyService);
 
-		this.editor.addContentWidget(this);
-		this.setState(State.Hidden);
-
-		this.onThemeChange(themeService.getTheme());
+		this.onThemeChange(themeService.getColorTheme());
 
 		this.toDispose.add(addStandardDisposableListener(this.details.element, 'keydown', e => {
 			this._onDetailsKeydown.fire(e);
@@ -683,7 +712,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.editor.focus();
 	}
 
-	private onThemeChange(theme: ITheme) {
+	private onThemeChange(theme: IColorTheme) {
 		const backgroundColor = theme.getColor(editorSuggestWidgetBackground);
 		if (backgroundColor) {
 			this.listElement.style.backgroundColor = backgroundColor.toString();
@@ -732,23 +761,6 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.firstFocusInCurrentList = !this.focusedItem;
 		if (item !== this.focusedItem) {
 
-			// update statusbar
-			// todo@joh,pine -> this should a toolbar with actions so that these things become
-			// mouse clickable and fit for accessibility...
-			const wantsInsert = this.editor.getOption(EditorOption.suggest).insertMode === 'insert';
-			const kbAccept = this.keybindingService.lookupKeybinding('acceptSelectedSuggestion')?.getLabel();
-			const kbAcceptAlt = this.keybindingService.lookupKeybinding('acceptAlternativeSelectedSuggestion')?.getLabel();
-			if (!Position.equals(item.editInsertEnd, item.editReplaceEnd)) {
-				// insert AND replace
-				if (wantsInsert) {
-					this.setStatusBarLeftText(nls.localize('insert', "{0} to insert, {1} to replace", kbAccept, kbAcceptAlt));
-				} else {
-					this.setStatusBarLeftText(nls.localize('replace', "{0} to replace, {1} to insert", kbAccept, kbAcceptAlt));
-				}
-			} else {
-				this.setStatusBarLeftText(nls.localize('accept', "{0} to accept", kbAccept));
-			}
-
 			if (this.currentSuggestionDetails) {
 				this.currentSuggestionDetails.cancel();
 				this.currentSuggestionDetails = null;
@@ -783,16 +795,6 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 					removeClass(this.element, 'docs-side');
 				}
 
-				if (canExpandCompletionItem(this.focusedItem)) {
-					if (this.expandDocsSettingFromStorage()) {
-						this.setStatusBarRightText(this.msgDetailsLess);
-					} else {
-						this.setStatusBarRightText(this.msgDetailMore);
-					}
-				} else {
-					this.statusBarRightSpan.innerText = '';
-				}
-
 				this.editor.setAriaOptions({ activeDescendant: getAriaId(index) });
 			}).catch(onUnexpectedError);
 		}
@@ -804,6 +806,11 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	private setState(state: State): void {
 		if (!this.element) {
 			return;
+		}
+
+		if (!this.isAddedAsContentWidget && state !== State.Hidden) {
+			this.isAddedAsContentWidget = true;
+			this.editor.addContentWidget(this);
 		}
 
 		const stateChanged = this.state !== state;
@@ -890,7 +897,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		let visibleCount = this.completionModel.items.length;
 
 		const isEmpty = visibleCount === 0;
-		this.suggestWidgetMultipleSuggestions.set(visibleCount > 1);
+		this.ctxSuggestWidgetMultipleSuggestions.set(visibleCount > 1);
 
 		if (isEmpty) {
 			if (isAuto) {
@@ -1057,27 +1064,30 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		}
 
 		if (this.expandDocsSettingFromStorage()) {
+			this.ctxSuggestWidgetDetailsVisible.set(false);
 			this.updateExpandDocsSetting(false);
 			hide(this.details.element);
 			removeClass(this.element, 'docs-side');
 			removeClass(this.element, 'docs-below');
 			this.editor.layoutContentWidget(this);
-			this.setStatusBarRightText(this.msgDetailMore);
 			this.telemetryService.publicLog2('suggestWidget:collapseDetails');
 		} else {
 			if (this.state !== State.Open && this.state !== State.Details && this.state !== State.Frozen) {
 				return;
 			}
 
+			this.ctxSuggestWidgetDetailsVisible.set(true);
 			this.updateExpandDocsSetting(true);
 			this.showDetails(false);
-			this.setStatusBarRightText(this.msgDetailsLess);
 			this.telemetryService.publicLog2('suggestWidget:expandDetails');
 		}
 	}
 
 	showDetails(loading: boolean): void {
-		this.expandSideOrBelow();
+		if (!loading) {
+			// When loading, don't re-layout docs, as item is not resolved yet #88731
+			this.expandSideOrBelow();
+		}
 
 		show(this.details.element);
 
@@ -1114,7 +1124,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			this.listHeight = newHeight;
 		}
 
-		this.suggestWidgetVisible.set(true);
+		this.ctxSuggestWidgetVisible.set(true);
 
 		this.showTimeout.cancelAndSet(() => {
 			addClass(this.element, 'visible');
@@ -1123,8 +1133,8 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	}
 
 	private hide(): void {
-		this.suggestWidgetVisible.reset();
-		this.suggestWidgetMultipleSuggestions.reset();
+		this.ctxSuggestWidgetVisible.reset();
+		this.ctxSuggestWidgetMultipleSuggestions.reset();
 		removeClass(this.element, 'visible');
 	}
 
@@ -1229,7 +1239,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	}
 
 	/**
-	 * Adds the proper classes for positioning the docs to the side or below
+	 * Adds the proper classes for positioning the docs to the side or below depending on item
 	 */
 	private expandSideOrBelow() {
 		if (!canExpandCompletionItem(this.focusedItem) && this.firstFocusInCurrentList) {
@@ -1277,20 +1287,13 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.storageService.store('expandSuggestionDocs', value, StorageScope.GLOBAL);
 	}
 
-	private setStatusBarLeftText(s: string) {
-		this.statusBarLeftSpan.innerText = s;
-	}
-
-	private setStatusBarRightText(s: string) {
-		this.statusBarRightSpan.innerText = s;
-	}
-
 	dispose(): void {
 		this.details.dispose();
 		this.list.dispose();
 		this.toDispose.dispose();
 		this.loadingTimeout.dispose();
 		this.showTimeout.dispose();
+		this.editor.removeContentWidget(this);
 	}
 }
 

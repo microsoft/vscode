@@ -19,7 +19,6 @@
 }
 
 .explorer-viewlet .explorer-item,
-.explorer-viewlet .open-editor,
 .explorer-viewlet .editor-group {
 	height: 22px;
 	line-height: 22px;
@@ -31,7 +30,6 @@
 }
 
 .explorer-viewlet .explorer-item > a,
-.explorer-viewlet .open-editor > a,
 .explorer-viewlet .editor-group {
 	text-overflow: ellipsis;
 	overflow: hidden;
@@ -50,17 +48,6 @@
 	flex: 0; /* do not steal space when label is hidden because we are in edit mode */
 }
 
-.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row {
-	padding-left: 22px;
-	display: flex;
-}
-
-.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row > .monaco-action-bar {
-	visibility: hidden;
-	display: flex;
-	align-items: center;
-}
-
 .explorer-viewlet .pane-header .count {
 	min-width: fit-content;
 	min-width: -moz-fit-content;
@@ -68,62 +55,15 @@
 	align-items: center;
 }
 
-.explorer-viewlet .pane-header .monaco-count-badge.hidden {
+.pane-header .dirty-count.monaco-count-badge.hidden {
 	display: none;
 }
 
-.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row:hover > .monaco-action-bar,
-.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row.focused > .monaco-action-bar,
-.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row.dirty > .monaco-action-bar {
-	visibility: visible;
-}
-
-.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row > .monaco-action-bar .action-label {
-	display: block;
-}
-
-.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row > .monaco-action-bar .codicon {
-	color: inherit;
-}
-
-.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row > .monaco-action-bar .codicon-close {
-	width: 8px;
-	height: 22px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-}
-
-.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row > .monaco-action-bar .action-close-all-files,
-.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row > .monaco-action-bar .save-all {
-	width: 23px;
-	height: 22px;
-}
-
-.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row > .open-editor {
-	flex: 1;
-}
-
-.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row > .editor-group {
-	flex: 1;
-}
-
-.explorer-viewlet .monaco-count-badge {
+.dirty-count.monaco-count-badge {
 	padding: 1px 6px 2px;
 	margin-left: 6px;
 	min-height: auto;
 	border-radius: 0; /* goes better when ellipsis shows up on narrow sidebar */
-}
-
-.explorer-viewlet .explorer-empty-view {
-	padding: 0 20px 0 20px;
-}
-
-.explorer-viewlet .explorer-empty-view .monaco-button {
-	max-width: 260px;
-	margin-left: auto;
-	margin-right: auto;
-	display: block;
 }
 
 .explorer-viewlet .explorer-item.nonexistent-root {
@@ -155,24 +95,7 @@
 	height: 20px;
 }
 
-.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row .editor-group {
-	font-size: 11px;
-	font-weight: bold;
-	text-transform: uppercase;
-	cursor: default;
-}
-
-/* Bold font style does not go well with CJK fonts */
-.explorer-viewlet:lang(zh-Hans) .explorer-open-editors .monaco-list .monaco-list-row .editor-group,
-.explorer-viewlet:lang(zh-Hant) .explorer-open-editors .monaco-list .monaco-list-row .editor-group,
-.explorer-viewlet:lang(ja) .explorer-open-editors .monaco-list .monaco-list-row .editor-group,
-.explorer-viewlet:lang(ko) .explorer-open-editors .monaco-list .monaco-list-row .editor-group {
-	font-weight: normal;
-}
-
 /* High Contrast Theming */
-.hc-black .monaco-workbench .explorer-viewlet .explorer-item,
-.hc-black .monaco-workbench .explorer-viewlet .open-editor,
-.hc-black .monaco-workbench .explorer-viewlet .editor-group {
+.hc-black .monaco-workbench .explorer-viewlet .explorer-item {
 	line-height: 20px;
 }

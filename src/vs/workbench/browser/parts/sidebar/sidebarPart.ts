@@ -33,6 +33,9 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { LayoutPriority } from 'vs/base/browser/ui/grid/grid';
 import { assertIsDefined } from 'vs/base/common/types';
+import { LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
+import { DraggedViewIdentifier } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { DraggedCompositeIdentifier } from 'vs/workbench/browser/parts/compositeBarActions';
 
 export class SidebarPart extends CompositePart<Viewlet> implements IViewletService {
 
@@ -161,6 +164,29 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 
 		this._register(addDisposableListener(titleArea, EventType.CONTEXT_MENU, e => {
 			this.onTitleAreaContextMenu(new StandardMouseEvent(e));
+		}));
+
+		this.titleLabelElement!.draggable = true;
+		this._register(addDisposableListener(this.titleLabelElement!, EventType.DRAG_START, e => {
+			const activeViewlet = this.getActiveViewlet();
+			if (activeViewlet) {
+				const visibleViews = activeViewlet.getViewPaneContainer().views.filter(v => v.isVisible());
+				if (visibleViews.length === 1) {
+					LocalSelectionTransfer.getInstance<DraggedViewIdentifier>().setData([new DraggedViewIdentifier(visibleViews[0].id)], DraggedViewIdentifier.prototype);
+				} else {
+					LocalSelectionTransfer.getInstance<DraggedCompositeIdentifier>().setData([new DraggedCompositeIdentifier(activeViewlet.getId())], DraggedCompositeIdentifier.prototype);
+				}
+			}
+		}));
+
+		this._register(addDisposableListener(this.titleLabelElement!, EventType.DRAG_END, e => {
+			if (LocalSelectionTransfer.getInstance<DraggedViewIdentifier>().hasData(DraggedViewIdentifier.prototype)) {
+				LocalSelectionTransfer.getInstance<DraggedViewIdentifier>().clearData(DraggedViewIdentifier.prototype);
+			}
+
+			if (LocalSelectionTransfer.getInstance<DraggedCompositeIdentifier>().hasData(DraggedCompositeIdentifier.prototype)) {
+				LocalSelectionTransfer.getInstance<DraggedCompositeIdentifier>().clearData(DraggedCompositeIdentifier.prototype);
+			}
 		}));
 
 		return titleArea;
@@ -302,11 +328,12 @@ class FocusSideBarAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<void> {
 
 		// Show side bar
 		if (!this.layoutService.isVisible(Parts.SIDEBAR_PART)) {
-			return Promise.resolve(this.layoutService.setSideBarHidden(false));
+			this.layoutService.setSideBarHidden(false);
+			return;
 		}
 
 		// Focus into active viewlet
@@ -314,8 +341,6 @@ class FocusSideBarAction extends Action {
 		if (viewlet) {
 			viewlet.focus();
 		}
-
-		return Promise.resolve(true);
 	}
 }
 

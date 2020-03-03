@@ -14,7 +14,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { CodeActionProviderRegistry, CodeActionTriggerType } from 'vs/editor/common/modes';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { IEditorProgressService } from 'vs/platform/progress/common/progress';
+import { IEditorProgressService, Progress } from 'vs/platform/progress/common/progress';
 import { getCodeActions, CodeActionSet } from './codeAction';
 import { CodeActionTrigger } from './types';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -213,7 +213,7 @@ export class CodeActionModel extends Disposable {
 					return;
 				}
 
-				const actions = createCancelablePromise(token => getCodeActions(model, trigger.selection, trigger.trigger, token));
+				const actions = createCancelablePromise(token => getCodeActions(model, trigger.selection, trigger.trigger, Progress.None, token));
 				if (this._progressService && trigger.trigger.type === CodeActionTriggerType.Manual) {
 					this._progressService.showWhile(actions, 250);
 				}

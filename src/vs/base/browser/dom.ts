@@ -8,7 +8,6 @@ import { domEvent } from 'vs/base/browser/event';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { TimeoutTimer } from 'vs/base/common/async';
-import { CharCode } from 'vs/base/common/charCode';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -49,117 +48,7 @@ interface IDomClassList {
 	toggleClass(node: HTMLElement | SVGElement, className: string, shouldHaveIt?: boolean): void;
 }
 
-const _manualClassList = new class implements IDomClassList {
-
-	private _lastStart: number = -1;
-	private _lastEnd: number = -1;
-
-	private _findClassName(node: HTMLElement, className: string): void {
-
-		let classes = node.className;
-		if (!classes) {
-			this._lastStart = -1;
-			return;
-		}
-
-		className = className.trim();
-
-		let classesLen = classes.length,
-			classLen = className.length;
-
-		if (classLen === 0) {
-			this._lastStart = -1;
-			return;
-		}
-
-		if (classesLen < classLen) {
-			this._lastStart = -1;
-			return;
-		}
-
-		if (classes === className) {
-			this._lastStart = 0;
-			this._lastEnd = classesLen;
-			return;
-		}
-
-		let idx = -1,
-			idxEnd: number;
-
-		while ((idx = classes.indexOf(className, idx + 1)) >= 0) {
-
-			idxEnd = idx + classLen;
-
-			// a class that is followed by another class
-			if ((idx === 0 || classes.charCodeAt(idx - 1) === CharCode.Space) && classes.charCodeAt(idxEnd) === CharCode.Space) {
-				this._lastStart = idx;
-				this._lastEnd = idxEnd + 1;
-				return;
-			}
-
-			// last class
-			if (idx > 0 && classes.charCodeAt(idx - 1) === CharCode.Space && idxEnd === classesLen) {
-				this._lastStart = idx - 1;
-				this._lastEnd = idxEnd;
-				return;
-			}
-
-			// equal - duplicate of cmp above
-			if (idx === 0 && idxEnd === classesLen) {
-				this._lastStart = 0;
-				this._lastEnd = idxEnd;
-				return;
-			}
-		}
-
-		this._lastStart = -1;
-	}
-
-	hasClass(node: HTMLElement, className: string): boolean {
-		this._findClassName(node, className);
-		return this._lastStart !== -1;
-	}
-
-	addClasses(node: HTMLElement, ...classNames: string[]): void {
-		classNames.forEach(nameValue => nameValue.split(' ').forEach(name => this.addClass(node, name)));
-	}
-
-	addClass(node: HTMLElement, className: string): void {
-		if (!node.className) { // doesn't have it for sure
-			node.className = className;
-		} else {
-			this._findClassName(node, className); // see if it's already there
-			if (this._lastStart === -1) {
-				node.className = node.className + ' ' + className;
-			}
-		}
-	}
-
-	removeClass(node: HTMLElement, className: string): void {
-		this._findClassName(node, className);
-		if (this._lastStart === -1) {
-			return; // Prevent styles invalidation if not necessary
-		} else {
-			node.className = node.className.substring(0, this._lastStart) + node.className.substring(this._lastEnd);
-		}
-	}
-
-	removeClasses(node: HTMLElement, ...classNames: string[]): void {
-		classNames.forEach(nameValue => nameValue.split(' ').forEach(name => this.removeClass(node, name)));
-	}
-
-	toggleClass(node: HTMLElement, className: string, shouldHaveIt?: boolean): void {
-		this._findClassName(node, className);
-		if (this._lastStart !== -1 && (shouldHaveIt === undefined || !shouldHaveIt)) {
-			this.removeClass(node, className);
-		}
-		if (this._lastStart === -1 && (shouldHaveIt === undefined || shouldHaveIt)) {
-			this.addClass(node, className);
-		}
-	}
-};
-
-const _nativeClassList = new class implements IDomClassList {
+const _classList: IDomClassList = new class implements IDomClassList {
 	hasClass(node: HTMLElement, className: string): boolean {
 		return Boolean(className) && node.classList && node.classList.contains(className);
 	}
@@ -191,9 +80,6 @@ const _nativeClassList = new class implements IDomClassList {
 	}
 };
 
-// In IE11 there is only partial support for `classList` which makes us keep our
-// custom implementation. Otherwise use the native implementation, see: http://caniuse.com/#search=classlist
-const _classList: IDomClassList = browser.isIE ? _manualClassList : _nativeClassList;
 export const hasClass: (node: HTMLElement | SVGElement, className: string) => boolean = _classList.hasClass.bind(_classList);
 export const addClass: (node: HTMLElement | SVGElement, className: string) => void = _classList.addClass.bind(_classList);
 export const addClasses: (node: HTMLElement | SVGElement, ...classNames: string[]) => void = _classList.addClasses.bind(_classList);
@@ -1313,7 +1199,22 @@ export function asCSSUrl(uri: URI): string {
 	return `url('${asDomUri(uri).toString(true).replace(/'/g, '%27')}')`;
 }
 
-export function triggerDownload(uri: URI, name: string): void {
+
+export function triggerDownload(dataOrUri: Uint8Array | URI, name: string): void {
+
+	// If the data is provided as Buffer, we create a
+	// blog URL out of it to produce a valid link
+	let url: string;
+	if (URI.isUri(dataOrUri)) {
+		url = dataOrUri.toString(true);
+	} else {
+		const blob = new Blob([dataOrUri]);
+		url = URL.createObjectURL(blob);
+
+		// Ensure to free the data from DOM eventually
+		setTimeout(() => URL.revokeObjectURL(url));
+	}
+
 	// In order to download from the browser, the only way seems
 	// to be creating a <a> element with download attribute that
 	// points to the file to download.
@@ -1321,7 +1222,7 @@ export function triggerDownload(uri: URI, name: string): void {
 	const anchor = document.createElement('a');
 	document.body.appendChild(anchor);
 	anchor.download = name;
-	anchor.href = uri.toString(true);
+	anchor.href = url;
 	anchor.click();
 
 	// Ensure to remove the element from DOM eventually
