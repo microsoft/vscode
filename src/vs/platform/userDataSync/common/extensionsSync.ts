@@ -37,6 +37,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 
 	readonly resourceKey: ResourceKey = 'extensions';
 	protected readonly version: number = 2;
+	protected isEnabled(): boolean { return super.isEnabled() && this.extensionGalleryService.isEnabled(); }
 
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,
@@ -61,7 +62,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 	}
 
 	async pull(): Promise<void> {
-		if (!this.enabled) {
+		if (!this.isEnabled()) {
 			this.logService.info('Extensions: Skipped pulling extensions as it is disabled.');
 			return;
 		}
@@ -94,7 +95,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 	}
 
 	async push(): Promise<void> {
-		if (!this.enabled) {
+		if (!this.isEnabled()) {
 			this.logService.info('Extensions: Skipped pushing extensions as it is disabled.');
 			return;
 		}
@@ -116,14 +117,6 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 			this.setStatus(SyncStatus.Idle);
 		}
 
-	}
-
-	async sync(ref?: string): Promise<void> {
-		if (!this.extensionGalleryService.isEnabled()) {
-			this.logService.info('Extensions: Skipping synchronizing extensions as gallery is disabled.');
-			return;
-		}
-		return super.sync(ref);
 	}
 
 	async stop(): Promise<void> { }
@@ -148,17 +141,10 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		return null;
 	}
 
-	protected async doSync(remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null): Promise<void> {
-		try {
-			const previewResult = await this.getPreview(remoteUserData, lastSyncUserData);
-			await this.apply(previewResult);
-		} catch (e) {
-			this.setStatus(SyncStatus.Idle);
-			throw e;
-		}
-
-		this.logService.trace('Extensions: Finished synchronizing extensions.');
-		this.setStatus(SyncStatus.Idle);
+	protected async performSync(remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null): Promise<SyncStatus> {
+		const previewResult = await this.getPreview(remoteUserData, lastSyncUserData);
+		await this.apply(previewResult);
+		return SyncStatus.Idle;
 	}
 
 	private async getPreview(remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null): Promise<ISyncPreviewResult> {

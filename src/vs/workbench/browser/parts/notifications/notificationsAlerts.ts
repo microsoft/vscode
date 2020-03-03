@@ -5,7 +5,7 @@
 
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { localize } from 'vs/nls';
-import { INotificationViewItem, INotificationsModel, NotificationChangeType, INotificationChangeEvent, NotificationViewItemLabelKind } from 'vs/workbench/common/notifications';
+import { INotificationViewItem, INotificationsModel, NotificationChangeType, INotificationChangeEvent, NotificationViewItemContentChangeKind } from 'vs/workbench/common/notifications';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Severity } from 'vs/platform/notification/common/notification';
@@ -45,9 +45,9 @@ export class NotificationsAlerts extends Disposable {
 
 	private triggerAriaAlert(notifiation: INotificationViewItem): void {
 
-		// Trigger the alert again whenever the label changes
-		const listener = notifiation.onDidChangeLabel(e => {
-			if (e.kind === NotificationViewItemLabelKind.MESSAGE) {
+		// Trigger the alert again whenever the message changes
+		const listener = notifiation.onDidChangeContent(e => {
+			if (e.kind === NotificationViewItemContentChangeKind.MESSAGE) {
 				this.doTriggerAriaAlert(notifiation);
 			}
 		});

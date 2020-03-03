@@ -6,12 +6,12 @@
 import * as nls from 'vs/nls';
 import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder, editorWidgetForeground, editorErrorForeground, editorWarningForeground, editorInfoForeground } from 'vs/platform/theme/common/colorRegistry';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
+import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 
 // < --- Workbench (not customizable) --- >
 
-export function WORKBENCH_BACKGROUND(theme: ITheme): Color {
+export function WORKBENCH_BACKGROUND(theme: IColorTheme): Color {
 	switch (theme.type) {
 		case 'dark':
 			return Color.fromHex('#252526');
@@ -611,20 +611,20 @@ export const WINDOW_INACTIVE_BORDER = registerColor('window.inactiveBorder', {
  * Base class for all themable workbench components.
  */
 export class Themable extends Disposable {
-	protected theme: ITheme;
+	protected theme: IColorTheme;
 
 	constructor(
 		protected themeService: IThemeService
 	) {
 		super();
 
-		this.theme = themeService.getTheme();
+		this.theme = themeService.getColorTheme();
 
 		// Hook up to theme changes
-		this._register(this.themeService.onThemeChange(theme => this.onThemeChange(theme)));
+		this._register(this.themeService.onDidColorThemeChange(theme => this.onThemeChange(theme)));
 	}
 
-	protected onThemeChange(theme: ITheme): void {
+	protected onThemeChange(theme: IColorTheme): void {
 		this.theme = theme;
 
 		this.updateStyles();
@@ -634,7 +634,7 @@ export class Themable extends Disposable {
 		// Subclasses to override
 	}
 
-	protected getColor(id: string, modify?: (color: Color, theme: ITheme) => Color): string | null {
+	protected getColor(id: string, modify?: (color: Color, theme: IColorTheme) => Color): string | null {
 		let color = this.theme.getColor(id);
 
 		if (color && modify) {

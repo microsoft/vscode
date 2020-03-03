@@ -11,7 +11,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
-import { toResource, IUntitledTextResourceInput, SideBySideEditor, pathsToEditors } from 'vs/workbench/common/editor';
+import { toResource, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors } from 'vs/workbench/common/editor';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowSettings, IOpenFileRequest, IWindowsConfiguration, IAddFoldersRequest, IRunActionInWindowRequest, IRunKeybindingInWindowRequest, getTitleBarStyle } from 'vs/platform/windows/common/windows';
@@ -19,7 +19,7 @@ import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { IWorkbenchThemeService, VS_HC_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import * as browser from 'vs/base/browser/browser';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IResourceInput } from 'vs/platform/editor/common/editor';
+import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/nativeKeymapService';
 import { ipcRenderer as ipc, webFrame, crashReporter, CrashReporterStartOptions, Event as IpcEvent } from 'electron';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
@@ -31,7 +31,7 @@ import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecyc
 import { LifecyclePhase, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
-import { isRootUser, isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
+import { isRootUser, isWindows, isMacintosh, isLinux, isWeb } from 'vs/base/common/platform';
 import product from 'vs/platform/product/common/product';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
@@ -40,7 +40,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { coalesce } from 'vs/base/common/arrays';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { isEqual } from 'vs/base/common/resources';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MenubarControl } from '../browser/parts/titlebar/menubarControl';
@@ -58,10 +58,15 @@ import { getBaseLabel } from 'vs/base/common/labels';
 import { ITunnelService, extractLocalHostUriMetaDataForPortMapping } from 'vs/platform/remote/common/tunnel';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
 import { IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { Event } from 'vs/base/common/event';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
+import { TitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class ElectronWindow extends Disposable {
 
@@ -94,7 +99,7 @@ export class ElectronWindow extends Disposable {
 		@IMenuService private readonly menuService: IMenuService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IIntegrityService private readonly integrityService: IIntegrityService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -102,7 +107,6 @@ export class ElectronWindow extends Disposable {
 		@IElectronService private readonly electronService: IElectronService,
 		@ITunnelService private readonly tunnelService: ITunnelService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IElectronEnvironmentService private readonly electronEnvironmentService: IElectronEnvironmentService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
 	) {
@@ -280,8 +284,8 @@ export class ElectronWindow extends Disposable {
 
 		// Detect minimize / maximize
 		this._register(Event.any(
-			Event.map(Event.filter(this.electronService.onWindowMaximize, id => id === this.electronEnvironmentService.windowId), () => true),
-			Event.map(Event.filter(this.electronService.onWindowUnmaximize, id => id === this.electronEnvironmentService.windowId), () => false)
+			Event.map(Event.filter(this.electronService.onWindowMaximize, id => id === this.environmentService.configuration.windowId), () => true),
+			Event.map(Event.filter(this.electronService.onWindowUnmaximize, id => id === this.environmentService.configuration.windowId), () => false)
 		)(e => this.onDidChangeMaximized(e)));
 
 		this.onDidChangeMaximized(this.environmentService.configuration.maximized ?? false);
@@ -304,8 +308,8 @@ export class ElectronWindow extends Disposable {
 		// Close when empty: check if we should close the window based on the setting
 		// Overruled by: window has a workspace opened or this window is for extension development
 		// or setting is disabled. Also enabled when running with --wait from the command line.
-		const visibleEditors = this.editorService.visibleControls;
-		if (visibleEditors.length === 0 && this.contextService.getWorkbenchState() === WorkbenchState.EMPTY && !this.environmentService.isExtensionDevelopment) {
+		const visibleEditorPanes = this.editorService.visibleEditorPanes;
+		if (visibleEditorPanes.length === 0 && this.contextService.getWorkbenchState() === WorkbenchState.EMPTY && !this.environmentService.isExtensionDevelopment) {
 			const closeWhenEmpty = this.configurationService.getValue<boolean>('window.closeWhenEmpty');
 			if (closeWhenEmpty || this.environmentService.args.wait) {
 				this.closeEmptyWindowScheduler.schedule();
@@ -314,8 +318,8 @@ export class ElectronWindow extends Disposable {
 	}
 
 	private onAllEditorsClosed(): void {
-		const visibleEditors = this.editorService.visibleControls.length;
-		if (visibleEditors === 0) {
+		const visibleEditorPanes = this.editorService.visibleEditorPanes.length;
+		if (visibleEditorPanes === 0) {
 			this.electronService.closeWindow();
 		}
 	}
@@ -395,7 +399,7 @@ export class ElectronWindow extends Disposable {
 		this.setupOpenHandlers();
 
 		// Emit event when vscode is ready
-		this.lifecycleService.when(LifecyclePhase.Ready).then(() => ipc.send('vscode:workbenchReady', this.electronEnvironmentService.windowId));
+		this.lifecycleService.when(LifecyclePhase.Ready).then(() => ipc.send('vscode:workbenchReady', this.environmentService.configuration.windowId));
 
 		// Integrity warning
 		this.integrityService.isPure().then(res => this.titleService.updateProperties({ isPure: res.isPure }));
@@ -667,7 +671,7 @@ export class ElectronWindow extends Disposable {
 		});
 	}
 
-	private async openResources(resources: Array<IResourceInput | IUntitledTextResourceInput>, diffMode: boolean): Promise<unknown> {
+	private async openResources(resources: Array<IResourceEditorInput | IUntitledTextResourceEditorInput>, diffMode: boolean): Promise<unknown> {
 		await this.lifecycleService.when(LifecyclePhase.Ready);
 
 		// In diffMode we open 2 resources as diff
@@ -697,11 +701,10 @@ class NativeMenubarControl extends MenubarControl {
 		@IStorageService storageService: IStorageService,
 		@INotificationService notificationService: INotificationService,
 		@IPreferencesService preferencesService: IPreferencesService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService protected readonly environmentService: INativeWorkbenchEnvironmentService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@IMenubarService private readonly menubarService: IMenubarService,
 		@IHostService hostService: IHostService,
-		@IElectronEnvironmentService private readonly electronEnvironmentService: IElectronEnvironmentService
 	) {
 		super(
 			menuService,
@@ -750,7 +753,7 @@ class NativeMenubarControl extends MenubarControl {
 		// Send menus to main process to be rendered by Electron
 		const menubarData = { menus: {}, keybindings: {} };
 		if (this.getMenubarMenus(menubarData)) {
-			this.menubarService.updateMenubar(this.electronEnvironmentService.windowId, menubarData);
+			this.menubarService.updateMenubar(this.environmentService.configuration.windowId, menubarData);
 		}
 	}
 
@@ -880,3 +883,224 @@ class NativeMenubarControl extends MenubarControl {
 		return undefined;
 	}
 }
+
+export class ElectronTitlebarPart extends TitlebarPart {
+	private appIcon: HTMLElement | undefined;
+	private windowControls: HTMLElement | undefined;
+	private maxRestoreControl: HTMLElement | undefined;
+	private dragRegion: HTMLElement | undefined;
+	private resizer: HTMLElement | undefined;
+
+	constructor(
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IConfigurationService protected readonly configurationService: IConfigurationService,
+		@IEditorService editorService: IEditorService,
+		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService,
+		@ILabelService labelService: ILabelService,
+		@IStorageService storageService: IStorageService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@IMenuService menuService: IMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IHostService hostService: IHostService,
+		@IProductService productService: IProductService,
+		@IElectronService private readonly electronService: IElectronService
+	) {
+		super(contextMenuService, configurationService, editorService, environmentService, contextService, instantiationService, themeService, labelService, storageService, layoutService, menuService, contextKeyService, hostService, productService);
+	}
+
+	private onUpdateAppIconDragBehavior() {
+		const setting = this.configurationService.getValue('window.doubleClickIconToClose');
+		if (setting && this.appIcon) {
+			(this.appIcon.style as any)['-webkit-app-region'] = 'no-drag';
+		} else if (this.appIcon) {
+			(this.appIcon.style as any)['-webkit-app-region'] = 'drag';
+		}
+	}
+
+	private onDidChangeMaximized(maximized: boolean) {
+		if (this.maxRestoreControl) {
+			if (maximized) {
+				DOM.removeClass(this.maxRestoreControl, 'codicon-chrome-maximize');
+				DOM.addClass(this.maxRestoreControl, 'codicon-chrome-restore');
+			} else {
+				DOM.removeClass(this.maxRestoreControl, 'codicon-chrome-restore');
+				DOM.addClass(this.maxRestoreControl, 'codicon-chrome-maximize');
+			}
+		}
+
+		if (this.resizer) {
+			if (maximized) {
+				DOM.hide(this.resizer);
+			} else {
+				DOM.show(this.resizer);
+			}
+		}
+
+		this.adjustTitleMarginToCenter();
+	}
+
+	private onMenubarFocusChanged(focused: boolean) {
+		if (!isWeb && (isWindows || isLinux) && this.currentMenubarVisibility !== 'compact' && this.dragRegion) {
+			if (focused) {
+				DOM.hide(this.dragRegion);
+			} else {
+				DOM.show(this.dragRegion);
+			}
+		}
+	}
+
+	protected onMenubarVisibilityChanged(visible: boolean) {
+		// Hide title when toggling menu bar
+		if (!isWeb && (isWindows || isLinux) && this.currentMenubarVisibility === 'toggle' && visible) {
+			// Hack to fix issue #52522 with layered webkit-app-region elements appearing under cursor
+			if (this.dragRegion) {
+				DOM.hide(this.dragRegion);
+				setTimeout(() => DOM.show(this.dragRegion!), 50);
+			}
+		}
+
+		super.onMenubarVisibilityChanged(visible);
+	}
+
+	protected onConfigurationChanged(event: IConfigurationChangeEvent): void {
+
+		super.onConfigurationChanged(event);
+
+		if (event.affectsConfiguration('window.doubleClickIconToClose')) {
+			if (this.appIcon) {
+				this.onUpdateAppIconDragBehavior();
+			}
+		}
+	}
+
+	protected adjustTitleMarginToCenter(): void {
+		if (this.customMenubar && this.menubar) {
+			const leftMarker = (this.appIcon ? this.appIcon.clientWidth : 0) + this.menubar.clientWidth + 10;
+			const rightMarker = this.element.clientWidth - (this.windowControls ? this.windowControls.clientWidth : 0) - 10;
+
+			// Not enough space to center the titlebar within window,
+			// Center between menu and window controls
+			if (leftMarker > (this.element.clientWidth - this.title.clientWidth) / 2 ||
+				rightMarker < (this.element.clientWidth + this.title.clientWidth) / 2) {
+				this.title.style.position = '';
+				this.title.style.left = '';
+				this.title.style.transform = '';
+				return;
+			}
+		}
+
+		this.title.style.position = 'absolute';
+		this.title.style.left = '50%';
+		this.title.style.transform = 'translate(-50%, 0)';
+	}
+
+	protected installMenubar(): void {
+		super.installMenubar();
+
+		if (this.menubar) {
+			return;
+		}
+
+		if (this.customMenubar) {
+			this._register(this.customMenubar.onFocusStateChange(e => this.onMenubarFocusChanged(e)));
+		}
+	}
+
+	createContentArea(parent: HTMLElement): HTMLElement {
+		const ret = super.createContentArea(parent);
+
+		// App Icon (Native Windows/Linux)
+		if (!isMacintosh && !isWeb) {
+			this.appIcon = DOM.prepend(this.element, DOM.$('div.window-appicon'));
+			this.onUpdateAppIconDragBehavior();
+
+			this._register(DOM.addDisposableListener(this.appIcon, DOM.EventType.DBLCLICK, (e => {
+				this.electronService.closeWindow();
+			})));
+		}
+
+		// Draggable region that we can manipulate for #52522
+		if (!isWeb) {
+			this.dragRegion = DOM.prepend(this.element, DOM.$('div.titlebar-drag-region'));
+		}
+
+		// Window Controls (Native Windows/Linux)
+		if (!isMacintosh && !isWeb) {
+			this.windowControls = DOM.append(this.element, DOM.$('div.window-controls-container'));
+
+			// Minimize
+			const minimizeIcon = DOM.append(this.windowControls, DOM.$('div.window-icon.window-minimize.codicon.codicon-chrome-minimize'));
+			this._register(DOM.addDisposableListener(minimizeIcon, DOM.EventType.CLICK, e => {
+				this.electronService.minimizeWindow();
+			}));
+
+			// Restore
+			this.maxRestoreControl = DOM.append(this.windowControls, DOM.$('div.window-icon.window-max-restore.codicon'));
+			this._register(DOM.addDisposableListener(this.maxRestoreControl, DOM.EventType.CLICK, async e => {
+				const maximized = await this.electronService.isMaximized();
+				if (maximized) {
+					return this.electronService.unmaximizeWindow();
+				}
+
+				return this.electronService.maximizeWindow();
+			}));
+
+			// Close
+			const closeIcon = DOM.append(this.windowControls, DOM.$('div.window-icon.window-close.codicon.codicon-chrome-close'));
+			this._register(DOM.addDisposableListener(closeIcon, DOM.EventType.CLICK, e => {
+				this.electronService.closeWindow();
+			}));
+
+			// Resizer
+			this.resizer = DOM.append(this.element, DOM.$('div.resizer'));
+
+			this._register(this.layoutService.onMaximizeChange(maximized => this.onDidChangeMaximized(maximized)));
+			this.onDidChangeMaximized(this.layoutService.isWindowMaximized());
+		}
+
+		return ret;
+	}
+
+	updateLayout(dimension: DOM.Dimension): void {
+		this.lastLayoutDimensions = dimension;
+
+		if (getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
+			// Only prevent zooming behavior on macOS or when the menubar is not visible
+			if ((!isWeb && isMacintosh) || this.currentMenubarVisibility === 'hidden') {
+				this.title.style.zoom = `${1 / browser.getZoomFactor()}`;
+				if (!isWeb && (isWindows || isLinux)) {
+					if (this.appIcon) {
+						this.appIcon.style.zoom = `${1 / browser.getZoomFactor()}`;
+					}
+
+					if (this.windowControls) {
+						this.windowControls.style.zoom = `${1 / browser.getZoomFactor()}`;
+					}
+				}
+			} else {
+				this.title.style.zoom = null;
+				if (!isWeb && (isWindows || isLinux)) {
+					if (this.appIcon) {
+						this.appIcon.style.zoom = null;
+					}
+
+					if (this.windowControls) {
+						this.windowControls.style.zoom = null;
+					}
+				}
+			}
+
+			DOM.runAtThisOrScheduleAtNextAnimationFrame(() => this.adjustTitleMarginToCenter());
+
+			if (this.customMenubar) {
+				const menubarDimension = new DOM.Dimension(0, dimension.height);
+				this.customMenubar.layout(menubarDimension);
+			}
+		}
+	}
+}
+
+registerSingleton(ITitleService, ElectronTitlebarPart);

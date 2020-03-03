@@ -9,7 +9,7 @@ import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IListOptions } from 'vs/base/browser/ui/list/listWidget';
 import { Themable, NOTIFICATIONS_LINKS, NOTIFICATIONS_BACKGROUND, NOTIFICATIONS_FOREGROUND, NOTIFICATIONS_ERROR_ICON_FOREGROUND, NOTIFICATIONS_WARNING_ICON_FOREGROUND, NOTIFICATIONS_INFO_ICON_FOREGROUND } from 'vs/workbench/common/theme';
-import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { contrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { INotificationViewItem } from 'vs/workbench/common/notifications';
 import { NotificationsListDelegate, NotificationRenderer } from 'vs/workbench/browser/parts/notifications/notificationsViewer';
@@ -21,6 +21,7 @@ import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 export class NotificationsList extends Themable {
 	private listContainer: HTMLElement | undefined;
 	private list: WorkbenchList<INotificationViewItem> | undefined;
+	private listDelegate: NotificationsListDelegate | undefined;
 	private viewModel: INotificationViewItem[];
 	private isVisible: boolean | undefined;
 
@@ -73,11 +74,12 @@ export class NotificationsList extends Themable {
 		const renderer = this.instantiationService.createInstance(NotificationRenderer, actionRunner);
 
 		// List
+		const listDelegate = this.listDelegate = new NotificationsListDelegate(this.listContainer);
 		const list = this.list = <WorkbenchList<INotificationViewItem>>this._register(this.instantiationService.createInstance(
 			WorkbenchList,
 			'NotificationsList',
 			this.listContainer,
-			new NotificationsListDelegate(this.listContainer),
+			listDelegate,
 			[renderer],
 			{
 				...this.options,
@@ -186,6 +188,17 @@ export class NotificationsList extends Themable {
 		}
 	}
 
+	updateNotificationHeight(item: INotificationViewItem): void {
+		const index = this.viewModel.indexOf(item);
+		if (index === -1) {
+			return;
+		}
+
+		const [list, listDelegate] = assertAllDefined(this.list, this.listDelegate);
+		list.updateElementHeight(index, listDelegate.getHeight(item));
+		list.layout();
+	}
+
 	hide(): void {
 		if (!this.isVisible || !this.list) {
 			return; // already hidden
@@ -250,7 +263,7 @@ export class NotificationsList extends Themable {
 	}
 }
 
-registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 	const linkColor = theme.getColor(NOTIFICATIONS_LINKS);
 	if (linkColor) {
 		collector.addRule(`.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-message a { color: ${linkColor}; }`);

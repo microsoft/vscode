@@ -127,7 +127,7 @@ export class ResourceLabels extends Disposable {
 		this._register(this.decorationsService.onDidChangeDecorations(e => this._widgets.forEach(widget => widget.notifyFileDecorationsChanges(e))));
 
 		// notify when theme changes
-		this._register(this.themeService.onThemeChange(() => this._widgets.forEach(widget => widget.notifyThemeChange())));
+		this._register(this.themeService.onDidColorThemeChange(() => this._widgets.forEach(widget => widget.notifyThemeChange())));
 
 		// notify when files.associations changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -137,14 +137,14 @@ export class ResourceLabels extends Disposable {
 		}));
 
 		// notify when label formatters change
-		this._register(this.labelService.onDidChangeFormatters(() => {
-			this._widgets.forEach(widget => widget.notifyFormattersChange());
+		this._register(this.labelService.onDidChangeFormatters(e => {
+			this._widgets.forEach(widget => widget.notifyFormattersChange(e.scheme));
 		}));
 
 		// notify when untitled labels change
-		this.textFileService.untitled.onDidChangeLabel(model => {
+		this._register(this.textFileService.untitled.onDidChangeLabel(model => {
 			this._widgets.forEach(widget => widget.notifyUntitledLabelChange(model.resource));
-		});
+		}));
 	}
 
 	get(index: number): IResourceLabel {
@@ -311,8 +311,10 @@ class ResourceLabelWidget extends IconLabel {
 		this.render(true);
 	}
 
-	notifyFormattersChange(): void {
-		this.render(false);
+	notifyFormattersChange(scheme: string): void {
+		if (this.label?.resource?.scheme === scheme) {
+			this.render(false);
+		}
 	}
 
 	notifyUntitledLabelChange(resource: URI): void {

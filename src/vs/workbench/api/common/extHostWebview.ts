@@ -104,19 +104,20 @@ export class ExtHostWebviewEditor extends Disposable implements vscode.WebviewPa
 	private _title: string;
 	private _iconPath?: IconPath;
 
-	private readonly _options: vscode.WebviewPanelOptions;
-	private readonly _webview: ExtHostWebview;
-	private _viewColumn: vscode.ViewColumn | undefined;
-	private _visible: boolean = true;
-	private _active: boolean = true;
+	readonly #options: vscode.WebviewPanelOptions;
+	readonly #webview: ExtHostWebview;
 
-	_isDisposed: boolean = false;
+	#viewColumn: vscode.ViewColumn | undefined = undefined;
+	#visible: boolean = true;
+	#active: boolean = true;
 
-	readonly _onDisposeEmitter = this._register(new Emitter<void>());
-	public readonly onDidDispose: Event<void> = this._onDisposeEmitter.event;
+	#isDisposed: boolean = false;
 
-	readonly _onDidChangeViewStateEmitter = this._register(new Emitter<vscode.WebviewPanelOnDidChangeViewStateEvent>());
-	public readonly onDidChangeViewState: Event<vscode.WebviewPanelOnDidChangeViewStateEvent> = this._onDidChangeViewStateEmitter.event;
+	readonly #onDidDispose = this._register(new Emitter<void>());
+	public readonly onDidDispose = this.#onDidDispose.event;
+
+	readonly #onDidChangeViewState = this._register(new Emitter<vscode.WebviewPanelOnDidChangeViewStateEvent>());
+	public readonly onDidChangeViewState = this.#onDidChangeViewState.event;
 
 	constructor(
 		handle: WebviewPanelHandle,
@@ -131,27 +132,28 @@ export class ExtHostWebviewEditor extends Disposable implements vscode.WebviewPa
 		this._handle = handle;
 		this._proxy = proxy;
 		this._viewType = viewType;
-		this._options = editorOptions;
-		this._viewColumn = viewColumn;
+		this.#options = editorOptions;
+		this.#viewColumn = viewColumn;
 		this._title = title;
-		this._webview = webview;
+		this.#webview = webview;
 	}
 
 	public dispose() {
-		if (this._isDisposed) {
+		if (this.#isDisposed) {
 			return;
 		}
-		this._isDisposed = true;
-		this._onDisposeEmitter.fire();
+
+		this.#isDisposed = true;
+		this.#onDidDispose.fire();
 		this._proxy.$disposeWebview(this._handle);
-		this._webview.dispose();
+		this.#webview.dispose();
 
 		super.dispose();
 	}
 
 	get webview() {
 		this.assertNotDisposed();
-		return this._webview;
+		return this.#webview;
 	}
 
 	get viewType(): string {
@@ -187,42 +189,40 @@ export class ExtHostWebviewEditor extends Disposable implements vscode.WebviewPa
 	}
 
 	get options() {
-		return this._options;
+		return this.#options;
 	}
 
 	get viewColumn(): vscode.ViewColumn | undefined {
 		this.assertNotDisposed();
-		if (typeof this._viewColumn === 'number' && this._viewColumn < 0) {
+		if (typeof this.#viewColumn === 'number' && this.#viewColumn < 0) {
 			// We are using a symbolic view column
 			// Return undefined instead to indicate that the real view column is currently unknown but will be resolved.
 			return undefined;
 		}
-		return this._viewColumn;
-	}
-
-	_setViewColumn(value: vscode.ViewColumn) {
-		this.assertNotDisposed();
-		this._viewColumn = value;
+		return this.#viewColumn;
 	}
 
 	public get active(): boolean {
 		this.assertNotDisposed();
-		return this._active;
-	}
-
-	_setActive(value: boolean) {
-		this.assertNotDisposed();
-		this._active = value;
+		return this.#active;
 	}
 
 	public get visible(): boolean {
 		this.assertNotDisposed();
-		return this._visible;
+		return this.#visible;
 	}
 
-	_setVisible(value: boolean) {
-		this.assertNotDisposed();
-		this._visible = value;
+	_updateViewState(newState: { active: boolean; visible: boolean; viewColumn: vscode.ViewColumn; }) {
+		if (this.#isDisposed) {
+			return;
+		}
+
+		if (this.active !== newState.active || this.visible !== newState.visible || this.viewColumn !== newState.viewColumn) {
+			this.#active = newState.active;
+			this.#visible = newState.visible;
+			this.#viewColumn = newState.viewColumn;
+			this.#onDidChangeViewState.fire({ webviewPanel: this });
+		}
 	}
 
 	public postMessage(message: any): Promise<boolean> {
@@ -239,7 +239,7 @@ export class ExtHostWebviewEditor extends Disposable implements vscode.WebviewPa
 	}
 
 	private assertNotDisposed() {
-		if (this._isDisposed) {
+		if (this.#isDisposed) {
 			throw new Error('Webview is disposed');
 		}
 	}
@@ -585,18 +585,16 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 
 		for (const handle of handles) {
 			const panel = this.getWebviewPanel(handle);
-			if (!panel || panel._isDisposed) {
+			if (!panel) {
 				continue;
 			}
 
 			const newState = newStates[handle];
-			const viewColumn = typeConverters.ViewColumn.to(newState.position);
-			if (panel.active !== newState.active || panel.visible !== newState.visible || panel.viewColumn !== viewColumn) {
-				panel._setActive(newState.active);
-				panel._setVisible(newState.visible);
-				panel._setViewColumn(viewColumn);
-				panel._onDidChangeViewStateEmitter.fire({ webviewPanel: panel });
-			}
+			panel._updateViewState({
+				active: newState.active,
+				visible: newState.visible,
+				viewColumn: typeConverters.ViewColumn.to(newState.position),
+			});
 		}
 	}
 
@@ -659,7 +657,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		}
 
 		const revivedResource = URI.revive(resource);
-		const document = this.getDocument(viewType, revivedResource);
+		const document = this.getCustomDocument(viewType, revivedResource);
 		this._documents.delete(document);
 		document.dispose();
 	}
@@ -686,12 +684,11 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		switch (entry.type) {
 			case WebviewEditorType.Custom:
 				{
-					const document = this.getDocument(viewType, revivedResource);
+					const document = this.getCustomDocument(viewType, revivedResource);
 					return entry.provider.resolveCustomEditor(document, revivedPanel);
 				}
 			case WebviewEditorType.Text:
 				{
-					await this._extHostDocuments.ensureDocumentData(revivedResource);
 					const document = this._extHostDocuments.getDocument(revivedResource);
 					return entry.provider.resolveCustomTextEditor(document, revivedPanel);
 				}
@@ -703,32 +700,32 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 	}
 
 	async $undo(resourceComponents: UriComponents, viewType: string): Promise<void> {
-		const document = this.getDocument(viewType, resourceComponents);
+		const document = this.getCustomDocument(viewType, resourceComponents);
 		document._undo();
 	}
 
 	async $redo(resourceComponents: UriComponents, viewType: string): Promise<void> {
-		const document = this.getDocument(viewType, resourceComponents);
+		const document = this.getCustomDocument(viewType, resourceComponents);
 		document._redo();
 	}
 
 	async $revert(resourceComponents: UriComponents, viewType: string): Promise<void> {
-		const document = this.getDocument(viewType, resourceComponents);
+		const document = this.getCustomDocument(viewType, resourceComponents);
 		document._revert();
 	}
 
 	async $onSave(resourceComponents: UriComponents, viewType: string): Promise<void> {
-		const document = this.getDocument(viewType, resourceComponents);
+		const document = this.getCustomDocument(viewType, resourceComponents);
 		document._save();
 	}
 
 	async $onSaveAs(resourceComponents: UriComponents, viewType: string, targetResource: UriComponents): Promise<void> {
-		const document = this.getDocument(viewType, resourceComponents);
+		const document = this.getCustomDocument(viewType, resourceComponents);
 		return document._saveAs(URI.revive(targetResource));
 	}
 
 	async $backup(resourceComponents: UriComponents, viewType: string, cancellation: CancellationToken): Promise<void> {
-		const document = this.getDocument(viewType, resourceComponents);
+		const document = this.getCustomDocument(viewType, resourceComponents);
 		return document._backup(cancellation);
 	}
 
@@ -736,7 +733,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		return this._webviewPanels.get(handle);
 	}
 
-	private getDocument(viewType: string, resource: UriComponents): CustomDocument {
+	private getCustomDocument(viewType: string, resource: UriComponents): CustomDocument {
 		const document = this._documents.get(viewType, URI.revive(resource));
 		if (!document) {
 			throw new Error('No webview editor custom document found');

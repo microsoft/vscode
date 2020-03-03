@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Panel } from 'vs/workbench/browser/panel';
-import { EditorInput, EditorOptions, IEditor, GroupIdentifier, IEditorMemento } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, IEditorPane, GroupIdentifier, IEditorMemento } from 'vs/workbench/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -33,7 +33,7 @@ import { indexOfPath } from 'vs/base/common/extpath';
  *
  * This class is only intended to be subclassed and not instantiated.
  */
-export abstract class BaseEditor extends Panel implements IEditor {
+export abstract class BaseEditor extends Panel implements IEditorPane {
 
 	private static readonly EDITOR_MEMENTOS: Map<string, EditorMemento<any>> = new Map<string, EditorMemento<any>>();
 
@@ -60,10 +60,6 @@ export abstract class BaseEditor extends Panel implements IEditor {
 
 	get input(): EditorInput | undefined {
 		return this._input;
-	}
-
-	get options(): EditorOptions | undefined {
-		return this._options;
 	}
 
 	get group(): IEditorGroup | undefined {

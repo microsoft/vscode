@@ -6,10 +6,10 @@
 import 'vs/css!./media/progressService';
 
 import { localize } from 'vs/nls';
-import { IDisposable, dispose, DisposableStore, MutableDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, DisposableStore, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IProgressService, IProgressOptions, IProgressStep, ProgressLocation, IProgress, Progress, IProgressCompositeOptions, IProgressNotificationOptions, IProgressRunner, IProgressIndicator, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { StatusbarAlignment, IStatusbarService } from 'vs/workbench/services/statusbar/common/statusbar';
+import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/common/statusbar';
 import { timeout } from 'vs/base/common/async';
 import { ProgressBadge, IActivityService } from 'vs/workbench/services/activity/common/activity';
 import { INotificationService, Severity, INotificationHandle } from 'vs/platform/notification/common/notification';
@@ -29,9 +29,6 @@ import { parseLinkedText } from 'vs/base/common/linkedText';
 export class ProgressService extends Disposable implements IProgressService {
 
 	_serviceBrand: undefined;
-
-	private readonly stack: [IProgressOptions, Progress<IProgressStep>][] = [];
-	private readonly globalStatusEntry = this._register(new MutableDisposable());
 
 	constructor(
 		@IActivityService private readonly activityService: IActivityService,
@@ -78,6 +75,9 @@ export class ProgressService extends Disposable implements IProgressService {
 		}
 	}
 
+	private readonly windowProgressStack: [IProgressOptions, Progress<IProgressStep>][] = [];
+	private windowProgressStatusEntry: IStatusbarEntryAccessor | undefined = undefined;
+
 	private withWindowProgress<R = unknown>(options: IProgressWindowOptions, callback: (progress: IProgress<{ message?: string }>) => Promise<R>): Promise<R> {
 		const task: [IProgressWindowOptions, Progress<IProgressStep>] = [options, new Progress<IProgressStep>(() => this.updateWindowProgress())];
 
@@ -85,7 +85,7 @@ export class ProgressService extends Disposable implements IProgressService {
 
 		let delayHandle: any = setTimeout(() => {
 			delayHandle = undefined;
-			this.stack.unshift(task);
+			this.windowProgressStack.unshift(task);
 			this.updateWindowProgress();
 
 			// show progress for at least 150ms
@@ -93,8 +93,8 @@ export class ProgressService extends Disposable implements IProgressService {
 				timeout(150),
 				promise
 			]).finally(() => {
-				const idx = this.stack.indexOf(task);
-				this.stack.splice(idx, 1);
+				const idx = this.windowProgressStack.indexOf(task);
+				this.windowProgressStack.splice(idx, 1);
 				this.updateWindowProgress();
 			});
 		}, 150);
@@ -104,10 +104,10 @@ export class ProgressService extends Disposable implements IProgressService {
 	}
 
 	private updateWindowProgress(idx: number = 0) {
-		this.globalStatusEntry.clear();
 
-		if (idx < this.stack.length) {
-			const [options, progress] = this.stack[idx];
+		// We still have progress to show
+		if (idx < this.windowProgressStack.length) {
+			const [options, progress] = this.windowProgressStack[idx];
 
 			let progressTitle = options.title;
 			let progressMessage = progress.value && progress.value.message;
@@ -136,11 +136,23 @@ export class ProgressService extends Disposable implements IProgressService {
 				return;
 			}
 
-			this.globalStatusEntry.value = this.statusbarService.addEntry({
+			const statusEntryProperties: IStatusbarEntry = {
 				text: `$(sync~spin) ${text}`,
 				tooltip: title,
 				command: progressCommand
-			}, 'status.progress', localize('status.progress', "Progress Message"), StatusbarAlignment.LEFT);
+			};
+
+			if (this.windowProgressStatusEntry) {
+				this.windowProgressStatusEntry.update(statusEntryProperties);
+			} else {
+				this.windowProgressStatusEntry = this.statusbarService.addEntry(statusEntryProperties, 'status.progress', localize('status.progress', "Progress Message"), StatusbarAlignment.LEFT);
+			}
+		}
+
+		// Progress is done so we remove the status entry
+		else {
+			this.windowProgressStatusEntry?.dispose();
+			this.windowProgressStatusEntry = undefined;
 		}
 	}
 

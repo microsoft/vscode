@@ -115,7 +115,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 
 	public runCommand(accessor: ServicesAccessor): void {
 		const editorService = accessor.get<IEditorService>(IEditorService);
-		const activeInput = editorService.activeControl?.input;
+		const activeInput = editorService.activeEditorPane?.input;
 		if (activeInput instanceof CustomEditorInput) {
 			activeInput.undo();
 		}
@@ -142,7 +142,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 
 	public runCommand(accessor: ServicesAccessor): void {
 		const editorService = accessor.get<IEditorService>(IEditorService);
-		const activeInput = editorService.activeControl?.input;
+		const activeInput = editorService.activeEditorPane?.input;
 		if (activeInput instanceof CustomEditorInput) {
 			activeInput.redo();
 		}
@@ -161,13 +161,13 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 
 	public runCommand(accessor: ServicesAccessor): void {
 		const editorService = accessor.get<IEditorService>(IEditorService);
-		const activeControl = editorService.activeControl;
-		if (!activeControl) {
+		const activeEditorPane = editorService.activeEditorPane;
+		if (!activeEditorPane) {
 			return;
 		}
 
-		const activeGroup = activeControl.group;
-		const activeEditor = activeControl.input;
+		const activeGroup = activeEditorPane.group;
+		const activeEditor = activeEditorPane.input;
 		const targetResource = activeEditor.resource;
 
 		if (!targetResource) {

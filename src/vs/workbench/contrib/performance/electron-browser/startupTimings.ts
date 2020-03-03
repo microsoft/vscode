@@ -98,8 +98,8 @@ export class StartupTimings implements IWorkbenchContribution {
 		if (!activeViewlet || activeViewlet.getId() !== files.VIEWLET_ID) {
 			return false;
 		}
-		const visibleControls = this._editorService.visibleControls;
-		if (visibleControls.length !== 1 || !isCodeEditor(visibleControls[0].getControl())) {
+		const visibleEditorPanes = this._editorService.visibleEditorPanes;
+		if (visibleEditorPanes.length !== 1 || !isCodeEditor(visibleEditorPanes[0].getControl())) {
 			return false;
 		}
 		if (this._panelService.getActivePanel()) {

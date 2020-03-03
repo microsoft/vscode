@@ -461,10 +461,10 @@ export class CommandsHandler extends QuickOpenHandler implements IDisposable {
 		lastCommandPaletteInput = searchValue;
 
 		// Editor Actions
-		const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
+		const activeTextEditorControl = this.editorService.activeTextEditorControl;
 		let editorActions: IEditorAction[] = [];
-		if (activeTextEditorWidget && isFunction(activeTextEditorWidget.getSupportedActions)) {
-			editorActions = activeTextEditorWidget.getSupportedActions();
+		if (activeTextEditorControl && isFunction(activeTextEditorControl.getSupportedActions)) {
+			editorActions = activeTextEditorControl.getSupportedActions();
 		}
 
 		const editorEntries = this.editorActionsToEntries(editorActions, searchValue);

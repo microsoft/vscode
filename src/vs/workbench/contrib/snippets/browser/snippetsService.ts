@@ -5,7 +5,6 @@
 
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { combinedDisposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { values } from 'vs/base/common/map';
 import * as resources from 'vs/base/common/resources';
 import { endsWith, isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
@@ -162,8 +161,9 @@ class SnippetsService implements ISnippetsService {
 		return Promise.all(promises);
 	}
 
-	getSnippetFiles(): Promise<SnippetFile[]> {
-		return this._joinSnippets().then(() => values(this._files));
+	async getSnippetFiles(): Promise<Iterable<SnippetFile>> {
+		await this._joinSnippets();
+		return this._files.values();
 	}
 
 	getSnippets(languageId: LanguageId): Promise<Snippet[]> {

@@ -9,8 +9,8 @@ import { assign } from 'vs/base/common/objects';
 import { withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IEditor as ICodeEditor, IEditorViewState, ScrollType, IDiffEditor } from 'vs/editor/common/editorCommon';
-import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, IResourceInput, EditorActivation, EditorOpenContext, ITextEditorSelection, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
+import { IEditor, IEditorViewState, ScrollType, IDiffEditor } from 'vs/editor/common/editorCommon';
+import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceEditorInput, IResourceEditorInput, EditorActivation, EditorOpenContext, ITextEditorSelection, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature0, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -61,22 +61,20 @@ export const TEXT_DIFF_EDITOR_ID = 'workbench.editors.textDiffEditor';
  */
 export const BINARY_DIFF_EDITOR_ID = 'workbench.editors.binaryResourceDiffEditor';
 
-export interface IEditor extends IPanel {
+/**
+ * The editor pane is the container for workbench editors.
+ */
+export interface IEditorPane extends IPanel {
 
 	/**
 	 * The assigned input of this editor.
 	 */
-	input: IEditorInput | undefined;
-
-	/**
-	 * The assigned options of this editor.
-	 */
-	options: IEditorOptions | undefined;
+	readonly input: IEditorInput | undefined;
 
 	/**
 	 * The assigned group this editor is showing in.
 	 */
-	group: IEditorGroup | undefined;
+	readonly group: IEditorGroup | undefined;
 
 	/**
 	 * The minimum width of this editor.
@@ -114,12 +112,20 @@ export interface IEditor extends IPanel {
 	isVisible(): boolean;
 }
 
-export interface ITextEditor extends IEditor {
+/**
+ * Overrides `IEditorPane` where `input` and `group` are known to be set.
+ */
+export interface IVisibleEditorPane extends IEditorPane {
+	readonly input: IEditorInput;
+	readonly group: IEditorGroup;
+}
+
+export interface ITextEditorPane extends IEditorPane {
 
 	/**
 	 * Returns the underlying text editor widget of this editor.
 	 */
-	getControl(): ICodeEditor | undefined;
+	getControl(): IEditor | undefined;
 
 	/**
 	 * Returns the current view state of the text editor if any.
@@ -127,13 +133,13 @@ export interface ITextEditor extends IEditor {
 	getViewState(): IEditorViewState | undefined;
 }
 
-export function isTextEditor(thing: IEditor | undefined): thing is ITextEditor {
-	const candidate = thing as ITextEditor | undefined;
+export function isTextEditorPane(thing: IEditorPane | undefined): thing is ITextEditorPane {
+	const candidate = thing as ITextEditorPane | undefined;
 
 	return typeof candidate?.getViewState === 'function';
 }
 
-export interface ITextDiffEditor extends IEditor {
+export interface ITextDiffEditorPane extends IEditorPane {
 
 	/**
 	 * Returns the underlying text editor widget of this editor.
@@ -141,31 +147,18 @@ export interface ITextDiffEditor extends IEditor {
 	getControl(): IDiffEditor | undefined;
 }
 
-export interface ITextSideBySideEditor extends IEditor {
-
-	/**
-	 * Returns the underlying text editor widget of the master side
-	 * of this side-by-side editor.
-	 */
-	getMasterEditor(): ITextEditor;
-
-	/**
-	 * Returns the underlying text editor widget of the details side
-	 * of this side-by-side editor.
-	 */
-	getDetailsEditor(): ITextEditor;
-}
-
 /**
- * Marker interface for the base editor control
+ * Marker interface for the control inside an editor pane. Callers
+ * have to cast the control to work with it, e.g. via methods
+ * such as `isCodeEditor(control)`.
  */
 export interface IEditorControl extends ICompositeControl { }
 
 export interface ICompositeCodeEditor {
 	readonly onDidChangeActiveEditor: Event<ICompositeCodeEditor>;
-	readonly activeCodeEditor: ICodeEditor | undefined;
+	readonly activeCodeEditor: IEditor | undefined;
 	// readonly editors: readonly ICodeEditor[] maybe supported with uris
-	activate(input: IResourceInput): ICodeEditor | undefined;
+	activate(input: IResourceEditorInput): IEditor | undefined;
 }
 
 export namespace ICompositeCodeEditor {
@@ -178,24 +171,24 @@ export namespace ICompositeCodeEditor {
 	}
 }
 
-export interface IFileInputFactory {
+export interface IFileEditorInputFactory {
 
-	createFileInput(resource: URI, encoding: string | undefined, mode: string | undefined, instantiationService: IInstantiationService): IFileEditorInput;
+	createFileEditorInput(resource: URI, encoding: string | undefined, mode: string | undefined, instantiationService: IInstantiationService): IFileEditorInput;
 
-	isFileInput(obj: unknown): obj is IFileEditorInput;
+	isFileEditorInput(obj: unknown): obj is IFileEditorInput;
 }
 
 export interface IEditorInputFactoryRegistry {
 
 	/**
-	 * Registers the file input factory to use for file inputs.
+	 * Registers the file editor input factory to use for file inputs.
 	 */
-	registerFileInputFactory(factory: IFileInputFactory): void;
+	registerFileEditorInputFactory(factory: IFileEditorInputFactory): void;
 
 	/**
-	 * Returns the file input factory to use for file inputs.
+	 * Returns the file editor input factory to use for file inputs.
 	 */
-	getFileInputFactory(): IFileInputFactory;
+	getFileEditorInputFactory(): IFileEditorInputFactory;
 
 	/**
 	 * Registers a editor input factory for the given editor input to the registry. An editor input factory
@@ -239,7 +232,7 @@ export interface IEditorInputFactory {
 	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput | undefined;
 }
 
-export interface IUntitledTextResourceInput extends IBaseResourceInput {
+export interface IUntitledTextResourceEditorInput extends IBaseResourceEditorInput {
 
 	/**
 	 * Optional resource. If the resource is not provided a new untitled file is created (e.g. Untitled-1).
@@ -265,7 +258,7 @@ export interface IUntitledTextResourceInput extends IBaseResourceInput {
 	readonly encoding?: string;
 }
 
-export interface IResourceDiffInput extends IBaseResourceInput {
+export interface IResourceDiffEditorInput extends IBaseResourceEditorInput {
 
 	/**
 	 * The left hand side URI to open inside a diff editor.
@@ -276,19 +269,6 @@ export interface IResourceDiffInput extends IBaseResourceInput {
 	 * The right hand side URI to open inside a diff editor.
 	 */
 	readonly rightResource: URI;
-}
-
-export interface IResourceSideBySideInput extends IBaseResourceInput {
-
-	/**
-	 * The right hand side URI to open inside a side by side editor.
-	 */
-	readonly masterResource: URI;
-
-	/**
-	 * The left hand side URI to open inside a side by side editor.
-	 */
-	readonly detailResource: URI;
 }
 
 export const enum Verbosity {
@@ -466,7 +446,7 @@ export interface IEditorInput extends IDisposable {
 	/**
 	 * Reverts this input from the provided group.
 	 */
-	revert(group: GroupIdentifier, options?: IRevertOptions): Promise<boolean>;
+	revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void>;
 
 	/**
 	 * Called to determine how to handle a resource that is moved that matches
@@ -574,9 +554,7 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 		return this;
 	}
 
-	async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<boolean> {
-		return true;
-	}
+	async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> { }
 
 	move(group: GroupIdentifier, target: URI): IMoveResult | undefined {
 		return undefined;
@@ -628,8 +606,20 @@ export abstract class TextResourceEditorInput extends EditorInput {
 	protected registerListeners(): void {
 
 		// Clear label memoizer on certain events that have impact
-		this._register(this.labelService.onDidChangeFormatters(() => TextResourceEditorInput.MEMOIZER.clear()));
-		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(() => TextResourceEditorInput.MEMOIZER.clear()));
+		this._register(this.labelService.onDidChangeFormatters(e => this.onLabelEvent(e.scheme)));
+		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => this.onLabelEvent(e.scheme)));
+		this._register(this.fileService.onDidChangeFileSystemProviderCapabilities(e => this.onLabelEvent(e.scheme)));
+	}
+
+	private onLabelEvent(scheme: string): void {
+		if (scheme === this.resource.scheme) {
+
+			// Clear any cached labels from before
+			TextResourceEditorInput.MEMOIZER.clear();
+
+			// Trigger recompute of label
+			this._onDidChangeLabel.fire();
+		}
 	}
 
 	getName(): string {
@@ -704,10 +694,6 @@ export abstract class TextResourceEditorInput extends EditorInput {
 			return false; // untitled is never readonly
 		}
 
-		if (!this.fileService.canHandleResource(this.resource)) {
-			return true; // resources without file support are always readonly
-		}
-
 		return this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
 	}
 
@@ -746,14 +732,14 @@ export abstract class TextResourceEditorInput extends EditorInput {
 		}
 
 		if (!isEqual(target, this.resource)) {
-			return this.editorService.createInput({ resource: target });
+			return this.editorService.createEditorInput({ resource: target });
 		}
 
 		return this;
 	}
 
-	revert(group: GroupIdentifier, options?: IRevertOptions): Promise<boolean> {
-		return this.textFileService.revert(this.resource, options);
+	async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
+		await this.textFileService.revert(this.resource, options);
 	}
 }
 
@@ -893,7 +879,7 @@ export class SideBySideEditorInput extends EditorInput {
 		return this.master.saveAs(group, options);
 	}
 
-	revert(group: GroupIdentifier, options?: IRevertOptions): Promise<boolean> {
+	revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
 		return this.master.revert(group, options);
 	}
 
@@ -1160,7 +1146,7 @@ export class TextEditorOptions extends EditorOptions implements ITextEditorOptio
 	 */
 	selectionRevealType: TextEditorSelectionRevealType | undefined;
 
-	static from(input?: IBaseResourceInput): TextEditorOptions | undefined {
+	static from(input?: IBaseResourceEditorInput): TextEditorOptions | undefined {
 		if (!input || !input.options) {
 			return undefined;
 		}
@@ -1214,7 +1200,7 @@ export class TextEditorOptions extends EditorOptions implements ITextEditorOptio
 	/**
 	 * Create a TextEditorOptions inline to be used when the editor is opening.
 	 */
-	static fromEditor(editor: ICodeEditor, settings?: IEditorOptions): TextEditorOptions {
+	static fromEditor(editor: IEditor, settings?: IEditorOptions): TextEditorOptions {
 		const options = TextEditorOptions.create(settings);
 
 		// View state
@@ -1228,7 +1214,7 @@ export class TextEditorOptions extends EditorOptions implements ITextEditorOptio
 	 *
 	 * @return if something was applied
 	 */
-	apply(editor: ICodeEditor, scrollType: ScrollType): boolean {
+	apply(editor: IEditor, scrollType: ScrollType): boolean {
 		let gotApplied = false;
 
 		// First try viewstate
@@ -1397,7 +1383,7 @@ export interface IEditorMemento<T> {
 
 class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
 	private instantiationService: IInstantiationService | undefined;
-	private fileInputFactory: IFileInputFactory | undefined;
+	private fileEditorInputFactory: IFileEditorInputFactory | undefined;
 
 	private readonly editorInputFactoryConstructors: Map<string, IConstructorSignature0<IEditorInputFactory>> = new Map();
 	private readonly editorInputFactoryInstances: Map<string, IEditorInputFactory> = new Map();
@@ -1417,12 +1403,12 @@ class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
 		this.editorInputFactoryInstances.set(editorInputId, instance);
 	}
 
-	registerFileInputFactory(factory: IFileInputFactory): void {
-		this.fileInputFactory = factory;
+	registerFileEditorInputFactory(factory: IFileEditorInputFactory): void {
+		this.fileEditorInputFactory = factory;
 	}
 
-	getFileInputFactory(): IFileInputFactory {
-		return assertIsDefined(this.fileInputFactory);
+	getFileEditorInputFactory(): IFileEditorInputFactory {
+		return assertIsDefined(this.fileEditorInputFactory);
 	}
 
 	registerEditorInputFactory(editorInputId: string, ctor: IConstructorSignature0<IEditorInputFactory>): IDisposable {
@@ -1450,7 +1436,7 @@ export const Extensions = {
 
 Registry.add(Extensions.EditorInputFactories, new EditorInputFactoryRegistry());
 
-export async function pathsToEditors(paths: IPathData[] | undefined, fileService: IFileService): Promise<(IResourceInput | IUntitledTextResourceInput)[]> {
+export async function pathsToEditors(paths: IPathData[] | undefined, fileService: IFileService): Promise<(IResourceEditorInput | IUntitledTextResourceEditorInput)[]> {
 	if (!paths || !paths.length) {
 		return [];
 	}
@@ -1471,7 +1457,7 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 			pinned: true
 		} : { pinned: true };
 
-		let input: IResourceInput | IUntitledTextResourceInput;
+		let input: IResourceEditorInput | IUntitledTextResourceEditorInput;
 		if (!exists) {
 			input = { resource, options, forceUntitled: true };
 		} else {

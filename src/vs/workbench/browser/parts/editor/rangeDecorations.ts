@@ -63,7 +63,7 @@ export class RangeHighlightDecorations extends Disposable {
 		const resource = activeEditor && activeEditor.resource;
 		if (resource) {
 			if (resource.toString() === resourceRange.resource.toString()) {
-				return this.editorService.activeTextEditorWidget as ICodeEditor;
+				return this.editorService.activeTextEditorControl as ICodeEditor;
 			}
 		}
 
