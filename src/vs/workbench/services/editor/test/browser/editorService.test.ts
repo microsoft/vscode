@@ -94,17 +94,18 @@ suite('EditorService', () => {
 		let editor = await service.openEditor(input, { pinned: true });
 
 		assert.equal(editor?.getId(), TEST_EDITOR_ID);
-		assert.equal(editor, service.activeControl);
+		assert.equal(editor, service.activeEditorPane);
 		assert.equal(1, service.count);
 		assert.equal(input, service.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)[0].editor);
 		assert.equal(input, service.getEditors(EditorsOrder.SEQUENTIAL)[0].editor);
 		assert.equal(input, service.activeEditor);
-		assert.equal(service.visibleControls.length, 1);
-		assert.equal(service.visibleControls[0], editor);
-		assert.ok(!service.activeTextEditorWidget);
+		assert.equal(service.visibleEditorPanes.length, 1);
+		assert.equal(service.visibleEditorPanes[0], editor);
+		assert.ok(!service.activeTextEditorControl);
 		assert.ok(!service.activeTextEditorMode);
-		assert.equal(service.visibleTextEditorWidgets.length, 0);
+		assert.equal(service.visibleTextEditorControls.length, 0);
 		assert.equal(service.isOpen(input), true);
+		assert.equal(service.isOpen({ resource: input.resource }), true);
 		assert.equal(activeEditorChangeEventCounter, 1);
 		assert.equal(visibleEditorChangeEventCounter, 1);
 
@@ -135,9 +136,11 @@ suite('EditorService', () => {
 		assert.equal(input, service.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)[1].editor);
 		assert.equal(input, service.getEditors(EditorsOrder.SEQUENTIAL)[0].editor);
 		assert.equal(otherInput, service.getEditors(EditorsOrder.SEQUENTIAL)[1].editor);
-		assert.equal(service.visibleControls.length, 1);
+		assert.equal(service.visibleEditorPanes.length, 1);
 		assert.equal(service.isOpen(input), true);
+		assert.equal(service.isOpen({ resource: input.resource }), true);
 		assert.equal(service.isOpen(otherInput), true);
+		assert.equal(service.isOpen({ resource: otherInput.resource }), true);
 
 		assert.equal(activeEditorChangeEventCounter, 4);
 		assert.equal(visibleEditorChangeEventCounter, 4);
@@ -145,6 +148,53 @@ suite('EditorService', () => {
 		activeEditorChangeListener.dispose();
 		visibleEditorChangeListener.dispose();
 		didCloseEditorListener.dispose();
+
+		part.dispose();
+	});
+
+	test('isOpen() with side by side editor', async () => {
+		const [part, service] = createEditorService();
+
+		const input = new TestFileEditorInput(URI.parse('my://resource-openEditors'), TEST_EDITOR_INPUT_ID);
+		const otherInput = new TestFileEditorInput(URI.parse('my://resource2-openEditors'), TEST_EDITOR_INPUT_ID);
+		const sideBySideInput = new SideBySideEditorInput('sideBySide', '', input, otherInput);
+
+		await part.whenRestored;
+
+		const editor1 = await service.openEditor(sideBySideInput, { pinned: true });
+		assert.equal(part.activeGroup.count, 1);
+
+		assert.equal(service.isOpen(input), false);
+		assert.equal(service.isOpen(otherInput), false);
+		assert.equal(service.isOpen(sideBySideInput), true);
+		assert.equal(service.isOpen({ resource: input.resource }), false);
+		assert.equal(service.isOpen({ resource: otherInput.resource }), true);
+
+		const editor2 = await service.openEditor(input, { pinned: true });
+		assert.equal(part.activeGroup.count, 2);
+
+		assert.equal(service.isOpen(input), true);
+		assert.equal(service.isOpen(otherInput), false);
+		assert.equal(service.isOpen(sideBySideInput), true);
+		assert.equal(service.isOpen({ resource: input.resource }), true);
+		assert.equal(service.isOpen({ resource: otherInput.resource }), true);
+
+		await editor2?.group?.closeEditor(input);
+		assert.equal(part.activeGroup.count, 1);
+
+		assert.equal(service.isOpen(input), false);
+		assert.equal(service.isOpen(otherInput), false);
+		assert.equal(service.isOpen(sideBySideInput), true);
+		assert.equal(service.isOpen({ resource: input.resource }), false);
+		assert.equal(service.isOpen({ resource: otherInput.resource }), true);
+
+		await editor1?.group?.closeEditor(sideBySideInput);
+
+		assert.equal(service.isOpen(input), false);
+		assert.equal(service.isOpen(otherInput), false);
+		assert.equal(service.isOpen(sideBySideInput), false);
+		assert.equal(service.isOpen({ resource: input.resource }), false);
+		assert.equal(service.isOpen({ resource: otherInput.resource }), false);
 
 		part.dispose();
 	});
@@ -294,13 +344,6 @@ suite('EditorService', () => {
 		// Untyped Input (resource)
 		input = service.createInput({ resource: URI.parse('custom:resource') });
 		assert(input instanceof ResourceEditorInput);
-
-		// Untyped Input (side by side)
-		input = service.createInput({
-			masterResource: toResource.call(this, '/master.html'),
-			detailResource: toResource.call(this, '/detail.html')
-		});
-		assert(input instanceof SideBySideEditorInput);
 
 		// Untyped Input (diff)
 		input = service.createInput({
@@ -689,7 +732,7 @@ suite('EditorService', () => {
 		part.dispose();
 	});
 
-	test('activeTextEditorWidget / activeTextEditorMode', async () => {
+	test('activeTextEditorControl / activeTextEditorMode', async () => {
 		const [part, service] = createEditorService();
 
 		await part.whenRestored;
@@ -697,8 +740,8 @@ suite('EditorService', () => {
 		// Open untitled input
 		let editor = await service.openEditor({});
 
-		assert.equal(service.activeControl, editor);
-		assert.equal(service.activeTextEditorWidget, editor?.getControl());
+		assert.equal(service.activeEditorPane, editor);
+		assert.equal(service.activeTextEditorControl, editor?.getControl());
 		assert.equal(service.activeTextEditorMode, 'plaintext');
 
 		part.dispose();
@@ -733,6 +776,8 @@ suite('EditorService', () => {
 		input1.dirty = true;
 		const input2 = new TestFileEditorInput(URI.parse('my://resource2'), TEST_EDITOR_INPUT_ID);
 		input2.dirty = true;
+		const sameInput1 = new TestFileEditorInput(URI.parse('my://resource1'), TEST_EDITOR_INPUT_ID);
+		sameInput1.dirty = true;
 
 		const rootGroup = part.activeGroup;
 
@@ -740,23 +785,49 @@ suite('EditorService', () => {
 
 		await service.openEditor(input1, { pinned: true });
 		await service.openEditor(input2, { pinned: true });
+		await service.openEditor(sameInput1, { pinned: true }, SIDE_GROUP);
 
 		await service.save({ groupId: rootGroup.id, editor: input1 });
 		assert.equal(input1.gotSaved, true);
 
+		input1.gotSaved = false;
+		input1.gotSavedAs = false;
+		input1.gotReverted = false;
+
 		await service.save({ groupId: rootGroup.id, editor: input1 }, { saveAs: true });
 		assert.equal(input1.gotSavedAs, true);
 
+		input1.gotSaved = false;
+		input1.gotSavedAs = false;
+		input1.gotReverted = false;
+
 		await service.revertAll();
 		assert.equal(input1.gotReverted, true);
+
+		input1.gotSaved = false;
+		input1.gotSavedAs = false;
+		input1.gotReverted = false;
 
 		await service.saveAll();
 		assert.equal(input1.gotSaved, true);
 		assert.equal(input2.gotSaved, true);
 
+		input1.gotSaved = false;
+		input1.gotSavedAs = false;
+		input1.gotReverted = false;
+		input2.gotSaved = false;
+		input2.gotSavedAs = false;
+		input2.gotReverted = false;
+
 		await service.saveAll({ saveAs: true });
+
 		assert.equal(input1.gotSavedAs, true);
 		assert.equal(input2.gotSavedAs, true);
+
+		// services dedupes inputs automatically
+		assert.equal(sameInput1.gotSaved, false);
+		assert.equal(sameInput1.gotSavedAs, false);
+		assert.equal(sameInput1.gotReverted, false);
 
 		part.dispose();
 	});

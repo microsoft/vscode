@@ -61,20 +61,20 @@ export class UserDataSyncClient extends Disposable {
 		const logService = new NullLogService();
 		this.instantiationService.stub(ILogService, logService);
 
-		this.instantiationService.stub(IProductService, { _serviceBrand: undefined, ...product });
+		this.instantiationService.stub(IProductService, {
+			_serviceBrand: undefined, ...product, ...{
+				'configurationSync.store': {
+					url: this.testServer.url,
+					authenticationProviderId: 'test'
+				}
+			}
+		});
 
 		const fileService = this._register(new FileService(logService));
 		fileService.registerProvider(Schemas.inMemory, new InMemoryFileSystemProvider());
 		this.instantiationService.stub(IFileService, fileService);
 
 		this.instantiationService.stub(IStorageService, new InMemoryStorageService());
-
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString(JSON.stringify({
-			'configurationSync.store': {
-				url: this.testServer.url,
-				authenticationProviderId: 'test'
-			}
-		})));
 
 		const configurationService = new ConfigurationService(environmentService.settingsResource, fileService);
 		await configurationService.initialize();
@@ -106,9 +106,8 @@ export class UserDataSyncClient extends Disposable {
 		this.instantiationService.stub(ISettingsSyncService, this.instantiationService.createInstance(SettingsSynchroniser));
 		this.instantiationService.stub(IUserDataSyncService, this.instantiationService.createInstance(UserDataSyncService));
 
-		if (empty) {
-			await fileService.del(environmentService.settingsResource);
-		} else {
+		if (!empty) {
+			await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString(JSON.stringify({})));
 			await fileService.writeFile(environmentService.keybindingsResource, VSBuffer.fromString(JSON.stringify([])));
 			await fileService.writeFile(environmentService.argvResource, VSBuffer.fromString(JSON.stringify({ 'locale': 'en' })));
 		}

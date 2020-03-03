@@ -576,8 +576,8 @@ export class Emitter<T> {
 				this._deliveryQueue = new LinkedList();
 			}
 
-			for (let iter = this._listeners.iterator(), e = iter.next(); !e.done; e = iter.next()) {
-				this._deliveryQueue.push([e.value, event]);
+			for (let listener of this._listeners) {
+				this._deliveryQueue.push([listener, event]);
 			}
 
 			while (this._deliveryQueue.size > 0) {
@@ -671,8 +671,8 @@ export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
 			this._asyncDeliveryQueue = new LinkedList();
 		}
 
-		for (let iter = this._listeners.iterator(), e = iter.next(); !e.done; e = iter.next()) {
-			this._asyncDeliveryQueue.push([e.value, data]);
+		for (const listener of this._listeners) {
+			this._asyncDeliveryQueue.push([listener, data]);
 		}
 
 		while (this._asyncDeliveryQueue.size > 0 && !token.isCancellationRequested) {

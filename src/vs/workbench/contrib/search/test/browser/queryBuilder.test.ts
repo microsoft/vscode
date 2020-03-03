@@ -25,6 +25,7 @@ suite('QueryBuilder', () => {
 	const PATTERN_INFO: IPatternInfo = { pattern: 'a' };
 	const ROOT_1 = fixPath('/foo/root1');
 	const ROOT_1_URI = getUri(ROOT_1);
+	const ROOT_1_NAMED_FOLDER = toWorkspaceFolder(ROOT_1_URI);
 	const WS_CONFIG_PATH = getUri('/bar/test.code-workspace'); // location of the workspace file (not important except that it is a file URI)
 
 	let instantiationService: TestInstantiationService;
@@ -89,7 +90,10 @@ suite('QueryBuilder', () => {
 
 	test('does not split glob pattern when expandPatterns disabled', () => {
 		assertEqualQueries(
-			queryBuilder.file([ROOT_1_URI], { includePattern: '**/foo, **/bar' }),
+			queryBuilder.file(
+				[ROOT_1_NAMED_FOLDER],
+				{ includePattern: '**/foo, **/bar' },
+			),
 			{
 				folderQueries: [{
 					folder: ROOT_1_URI
@@ -362,7 +366,7 @@ suite('QueryBuilder', () => {
 		const content = 'content';
 		assertEqualQueries(
 			queryBuilder.file(
-				undefined,
+				[],
 				{ filePattern: ` ${content} ` }
 			),
 			{
@@ -902,10 +906,13 @@ suite('QueryBuilder', () => {
 	suite('file', () => {
 		test('simple file query', () => {
 			const cacheKey = 'asdf';
-			const query = queryBuilder.file([ROOT_1_URI], {
-				cacheKey,
-				sortByScore: true
-			});
+			const query = queryBuilder.file(
+				[ROOT_1_NAMED_FOLDER],
+				{
+					cacheKey,
+					sortByScore: true
+				},
+			);
 
 			assert.equal(query.folderQueries.length, 1);
 			assert.equal(query.cacheKey, cacheKey);

@@ -25,6 +25,13 @@ import 'vs/workbench/browser/web.main';
 //#endregion
 
 
+//#region --- workbench parts
+
+import 'vs/workbench/browser/parts/titlebar/titlebarPart';
+
+//#endregion
+
+
 //#region --- workbench services
 import 'vs/workbench/services/integrity/browser/integrityService';
 import 'vs/workbench/services/textMate/browser/textMateService';

@@ -10,7 +10,7 @@ import { BaseActionViewItem, IBaseActionViewItemOptions, Separator } from 'vs/ba
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { dispose, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
+import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
 import { TextBadge, NumberBadge, IBadge, IconBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -124,7 +124,7 @@ export interface ICompositeBarColors {
 
 export interface IActivityActionViewItemOptions extends IBaseActionViewItemOptions {
 	icon?: boolean;
-	colors: (theme: ITheme) => ICompositeBarColors;
+	colors: (theme: IColorTheme) => ICompositeBarColors;
 }
 
 export class ActivityActionViewItem extends BaseActionViewItem {
@@ -144,7 +144,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 	) {
 		super(null, action, options);
 
-		this._register(this.themeService.onThemeChange(this.onThemeChange, this));
+		this._register(this.themeService.onDidColorThemeChange(this.onThemeChange, this));
 		this._register(action.onDidChangeActivity(this.updateActivity, this));
 		this._register(action.onDidChangeBadge(this.updateBadge, this));
 	}
@@ -154,7 +154,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 	}
 
 	protected updateStyles(): void {
-		const theme = this.themeService.getTheme();
+		const theme = this.themeService.getColorTheme();
 		const colors = this.options.colors(theme);
 
 		if (this.label) {
@@ -233,7 +233,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		this.updateStyles();
 	}
 
-	private onThemeChange(theme: ITheme): void {
+	private onThemeChange(theme: IColorTheme): void {
 		this.updateStyles();
 	}
 
@@ -378,7 +378,7 @@ export class CompositeOverflowActivityActionViewItem extends ActivityActionViewI
 		private getActiveCompositeId: () => string | undefined,
 		private getBadge: (compositeId: string) => IBadge,
 		private getCompositeOpenAction: (compositeId: string) => Action,
-		colors: (theme: ITheme) => ICompositeBarColors,
+		colors: (theme: IColorTheme) => ICompositeBarColors,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IThemeService themeService: IThemeService
 	) {
@@ -465,7 +465,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 		private toggleCompositePinnedAction: Action,
 		private compositeContextMenuActionsProvider: (compositeId: string) => ReadonlyArray<Action>,
 		private contextMenuActionsProvider: () => ReadonlyArray<Action>,
-		colors: (theme: ITheme) => ICompositeBarColors,
+		colors: (theme: IColorTheme) => ICompositeBarColors,
 		icon: boolean,
 		private dndHandler: ICompositeDragAndDrop,
 		private compositeBar: ICompositeBar,
@@ -638,7 +638,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 	}
 
 	private updateFromDragging(element: HTMLElement, isDragging: boolean): void {
-		const theme = this.themeService.getTheme();
+		const theme = this.themeService.getColorTheme();
 		const dragBackground = this.options.colors(theme).dragAndDropBackground;
 
 		element.style.backgroundColor = isDragging && dragBackground ? dragBackground.toString() : '';

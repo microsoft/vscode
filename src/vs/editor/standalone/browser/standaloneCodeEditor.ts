@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from 'vs/base/browser/browser';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { Disposable, IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
@@ -233,11 +232,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 	) {
 		options = options || {};
 		options.ariaLabel = options.ariaLabel || StandaloneCodeEditorNLS.editorViewAccessibleLabel;
-		options.ariaLabel = options.ariaLabel + ';' + (
-			browser.isIE
-				? StandaloneCodeEditorNLS.accessibilityHelpMessageIE
-				: StandaloneCodeEditorNLS.accessibilityHelpMessage
-		);
+		options.ariaLabel = options.ariaLabel + ';' + (StandaloneCodeEditorNLS.accessibilityHelpMessage);
 		super(domElement, options, {}, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService, accessibilityService);
 
 		if (keybindingService instanceof StandaloneKeybindingService) {

@@ -141,14 +141,14 @@ export class ReloadWebviewAction extends Action {
 	}
 
 	private getVisibleWebviews() {
-		return this.editorService.visibleControls
-			.filter(control => control && (control as WebviewEditor).isWebviewEditor)
-			.map(control => control as WebviewEditor);
+		return this.editorService.visibleEditorPanes
+			.filter(editorPane => editorPane && (editorPane as WebviewEditor).isWebviewEditor)
+			.map(editorPane => editorPane as WebviewEditor);
 	}
 }
 
 export function getActiveWebviewEditor(accessor: ServicesAccessor): WebviewEditor | undefined {
 	const editorService = accessor.get(IEditorService);
-	const activeControl = editorService.activeControl as WebviewEditor | undefined;
-	return activeControl?.isWebviewEditor ? activeControl : undefined;
+	const activeEditorPane = editorService.activeEditorPane as WebviewEditor | undefined;
+	return activeEditorPane?.isWebviewEditor ? activeEditorPane : undefined;
 }

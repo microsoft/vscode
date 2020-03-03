@@ -190,7 +190,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			}
 			this.updateActions();
 		}));
-		this._register(this.themeService.onThemeChange(() => {
+		this._register(this.themeService.onDidColorThemeChange(() => {
 			this.refreshReplElements(false);
 			if (this.isVisible()) {
 				this.updateInputDecoration();
@@ -244,12 +244,12 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			return;
 		}
 
-		const activeEditor = this.editorService.activeTextEditorWidget;
-		if (isCodeEditor(activeEditor)) {
+		const activeEditorControl = this.editorService.activeTextEditorControl;
+		if (isCodeEditor(activeEditorControl)) {
 			this.modelChangeListener.dispose();
-			this.modelChangeListener = activeEditor.onDidChangeModelLanguage(() => this.setMode());
-			if (activeEditor.hasModel()) {
-				this.model.setMode(activeEditor.getModel().getLanguageIdentifier());
+			this.modelChangeListener = activeEditorControl.onDidChangeModelLanguage(() => this.setMode());
+			if (activeEditorControl.hasModel()) {
+				this.model.setMode(activeEditorControl.getModel().getLanguageIdentifier());
 			}
 		}
 	}
@@ -582,7 +582,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 		const decorations: IDecorationOptions[] = [];
 		if (this.isReadonly && this.replInput.hasTextFocus() && !this.replInput.getValue()) {
-			const transparentForeground = transparent(editorForeground, 0.4)(this.themeService.getTheme());
+			const transparentForeground = transparent(editorForeground, 0.4)(this.themeService.getColorTheme());
 			decorations.push({
 				range: {
 					startLineNumber: 0,

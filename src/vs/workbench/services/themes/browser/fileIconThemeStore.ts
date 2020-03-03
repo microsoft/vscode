@@ -50,14 +50,14 @@ export interface FileIconThemeChangeEvent {
 
 export class FileIconThemeStore extends Disposable {
 
-	private knownIconThemes: FileIconThemeData[];
+	private knownFileIconThemes: FileIconThemeData[];
 
 	private readonly onDidChangeEmitter = this._register(new Emitter<FileIconThemeChangeEvent>());
 	readonly onDidChange: Event<FileIconThemeChangeEvent> = this.onDidChangeEmitter.event;
 
 	constructor(@IExtensionService private readonly extensionService: IExtensionService) {
 		super();
-		this.knownIconThemes = [];
+		this.knownFileIconThemes = [];
 		this.initialize();
 	}
 
@@ -65,10 +65,10 @@ export class FileIconThemeStore extends Disposable {
 		iconThemeExtPoint.setHandler((extensions) => {
 			const previousIds: { [key: string]: boolean; } = {};
 			const added: FileIconThemeData[] = [];
-			for (const theme of this.knownIconThemes) {
+			for (const theme of this.knownFileIconThemes) {
 				previousIds[theme.id] = true;
 			}
-			this.knownIconThemes.length = 0;
+			this.knownFileIconThemes.length = 0;
 			for (let ext of extensions) {
 				let extensionData = {
 					extensionId: ext.description.identifier.value,
@@ -77,18 +77,18 @@ export class FileIconThemeStore extends Disposable {
 					extensionIsBuiltin: ext.description.isBuiltin,
 					extensionLocation: ext.description.extensionLocation
 				};
-				this.onIconThemes(extensionData, ext.value, ext.collector);
+				this.onFileIconThemes(extensionData, ext.value, ext.collector);
 			}
-			for (const theme of this.knownIconThemes) {
+			for (const theme of this.knownFileIconThemes) {
 				if (!previousIds[theme.id]) {
 					added.push(theme);
 				}
 			}
-			this.onDidChangeEmitter.fire({ themes: this.knownIconThemes, added });
+			this.onDidChangeEmitter.fire({ themes: this.knownFileIconThemes, added });
 		});
 	}
 
-	private onIconThemes(extensionData: ExtensionData, iconThemes: IThemeExtensionPoint[], collector: ExtensionMessageCollector): void {
+	private onFileIconThemes(extensionData: ExtensionData, iconThemes: IThemeExtensionPoint[], collector: ExtensionMessageCollector): void {
 		if (!Array.isArray(iconThemes)) {
 			collector.error(nls.localize(
 				'reqarray',
@@ -123,7 +123,7 @@ export class FileIconThemeStore extends Disposable {
 			}
 
 			let themeData = FileIconThemeData.fromExtensionTheme(iconTheme, iconThemeLocation, extensionData);
-			this.knownIconThemes.push(themeData);
+			this.knownFileIconThemes.push(themeData);
 		});
 
 	}
@@ -157,7 +157,7 @@ export class FileIconThemeStore extends Disposable {
 
 	public getFileIconThemes(): Promise<FileIconThemeData[]> {
 		return this.extensionService.whenInstalledExtensionsRegistered().then(isReady => {
-			return this.knownIconThemes;
+			return this.knownFileIconThemes;
 		});
 	}
 }

@@ -1136,7 +1136,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		const size = item.size;
 
-		if (item.row && item.row.domNode) {
+		if (!this.setRowHeight && item.row && item.row.domNode) {
 			let newSize = item.row.domNode.offsetHeight;
 			item.size = newSize;
 			item.lastDynamicHeightWidth = this.renderWidth;

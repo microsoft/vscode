@@ -74,7 +74,7 @@ import { IRemotePathService } from 'vs/workbench/services/path/common/remotePath
 import { format } from 'vs/base/common/jsonFormatter';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { applyEdits } from 'vs/base/common/jsonEdit';
-import { ITextEditor } from 'vs/workbench/common/editor';
+import { ITextEditorPane } from 'vs/workbench/common/editor';
 import { ITextEditorSelection, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { find } from 'vs/base/common/arrays';
@@ -945,7 +945,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return false;
 	}
 
-	private openEditorAtTask(resource: URI | undefined, task: TaskConfig.CustomTask | TaskConfig.ConfiguringTask | string | undefined): Promise<ITextEditor | null | undefined> {
+	private openEditorAtTask(resource: URI | undefined, task: TaskConfig.CustomTask | TaskConfig.ConfiguringTask | string | undefined): Promise<ITextEditorPane | null | undefined> {
 		if (resource === undefined) {
 			return Promise.resolve(undefined);
 		}
@@ -1284,7 +1284,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	private executeTask(task: Task, resolver: ITaskResolver): Promise<ITaskSummary> {
 		return ProblemMatcherRegistry.onReady().then(() => {
-			return this.editorService.saveAll().then((value) => { // make sure all dirty editors are saved
+			return this.editorService.saveAll().then(() => { // make sure all dirty editors are saved
 				let executeResult = this.getTaskSystem().run(task, resolver);
 				return this.handleExecuteResult(executeResult);
 			});
@@ -2257,7 +2257,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 
 		ProblemMatcherRegistry.onReady().then(() => {
-			return this.editorService.saveAll().then((value) => { // make sure all dirty editors are saved
+			return this.editorService.saveAll().then(() => { // make sure all dirty editors are saved
 				let executeResult = this.getTaskSystem().rerun();
 				if (executeResult) {
 					return this.handleExecuteResult(executeResult);

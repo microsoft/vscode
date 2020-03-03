@@ -12,7 +12,7 @@ import { ScrollType } from 'vs/editor/common/editorCommon';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { inputBackground, inputBorder, inputForeground, widgetShadow, editorWidgetBackground } from 'vs/platform/theme/common/colorRegistry';
-import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { toggleClass } from 'vs/base/browser/dom';
@@ -53,7 +53,7 @@ export class RenameInputField implements IContentWidget {
 			}
 		}));
 
-		this._disposables.add(_themeService.onThemeChange(this._updateStyles, this));
+		this._disposables.add(_themeService.onDidColorThemeChange(this._updateStyles, this));
 	}
 
 	dispose(): void {
@@ -88,12 +88,12 @@ export class RenameInputField implements IContentWidget {
 			this._disposables.add(this._keybindingService.onDidUpdateKeybindings(updateLabel));
 
 			this._updateFont();
-			this._updateStyles(this._themeService.getTheme());
+			this._updateStyles(this._themeService.getColorTheme());
 		}
 		return this._domNode;
 	}
 
-	private _updateStyles(theme: ITheme): void {
+	private _updateStyles(theme: IColorTheme): void {
 		if (!this._input || !this._domNode) {
 			return;
 		}

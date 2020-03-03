@@ -22,7 +22,8 @@ import { AutoSaveAfterShortDelayContext } from 'vs/workbench/services/filesConfi
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { WorkbenchListDoubleSelection } from 'vs/platform/list/browser/listService';
 import { Schemas } from 'vs/base/common/network';
-import { WorkspaceFolderCountContext, IsWebContext } from 'vs/workbench/browser/contextkeys';
+import { WorkspaceFolderCountContext } from 'vs/workbench/browser/contextkeys';
+import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { OpenFileFolderAction, OpenFileAction, OpenFolderAction, OpenWorkspaceAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { ActiveEditorIsReadonlyContext, DirtyWorkingCopiesContext, ActiveEditorContext } from 'vs/workbench/common/editor';

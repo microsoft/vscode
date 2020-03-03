@@ -40,7 +40,12 @@ export interface TimelineChangeEvent {
 export interface TimelineOptions {
 	cursor?: string;
 	before?: boolean;
-	limit?: number | string;
+	limit?: number | { cursor: string };
+}
+
+export interface InternalTimelineOptions {
+	cacheResults: boolean;
+	resetCache: boolean;
 }
 
 export interface Timeline {
@@ -59,7 +64,7 @@ export interface Timeline {
 export interface TimelineProvider extends TimelineProviderDescriptor, IDisposable {
 	onDidChange?: Event<TimelineChangeEvent>;
 
-	provideTimeline(uri: URI, options: TimelineOptions, token: CancellationToken, internalOptions?: { cacheResults?: boolean }): Promise<Timeline | undefined>;
+	provideTimeline(uri: URI, options: TimelineOptions, token: CancellationToken, internalOptions?: InternalTimelineOptions): Promise<Timeline | undefined>;
 }
 
 export interface TimelineProviderDescriptor {
@@ -93,7 +98,7 @@ export interface ITimelineService {
 
 	getSources(): string[];
 
-	getTimeline(id: string, uri: URI, options: TimelineOptions, tokenSource: CancellationTokenSource, internalOptions?: { cacheResults?: boolean }): TimelineRequest | undefined;
+	getTimeline(id: string, uri: URI, options: TimelineOptions, tokenSource: CancellationTokenSource, internalOptions?: InternalTimelineOptions): TimelineRequest | undefined;
 
 	// refresh(fetch?: 'all' | 'more'): void;
 	reset(): void;

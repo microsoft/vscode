@@ -6,7 +6,7 @@
 import * as platform from 'vs/platform/registry/common/platform';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { Color, RGBA } from 'vs/base/common/color';
-import { ITheme } from 'vs/platform/theme/common/themeService';
+import { IColorTheme } from 'vs/platform/theme/common/themeService';
 import { Event, Emitter } from 'vs/base/common/event';
 
 import * as nls from 'vs/nls';
@@ -27,7 +27,7 @@ export interface ColorContribution {
 
 
 export interface ColorFunction {
-	(theme: ITheme): Color | undefined;
+	(theme: IColorTheme): Color | undefined;
 }
 
 export interface ColorDefaults {
@@ -71,7 +71,7 @@ export interface IColorRegistry {
 	/**
 	 * Gets the default color of the given id
 	 */
-	resolveDefaultColor(id: ColorIdentifier, theme: ITheme): Color | undefined;
+	resolveDefaultColor(id: ColorIdentifier, theme: IColorTheme): Color | undefined;
 
 	/**
 	 * JSON schema for an object to assign color values to one of the color contributions.
@@ -131,7 +131,7 @@ class ColorRegistry implements IColorRegistry {
 		return Object.keys(this.colorsById).map(id => this.colorsById[id]);
 	}
 
-	public resolveDefaultColor(id: ColorIdentifier, theme: ITheme): Color | undefined {
+	public resolveDefaultColor(id: ColorIdentifier, theme: IColorTheme): Color | undefined {
 		const colorDesc = this.colorsById[id];
 		if (colorDesc && colorDesc.defaults) {
 			const colorValue = colorDesc.defaults[theme.type];
@@ -500,7 +500,7 @@ function lessProminent(colorValue: ColorValue, backgroundColorValue: ColorValue,
 /**
  * @param colorValue Resolve a color value in the context of a theme
  */
-export function resolveColorValue(colorValue: ColorValue | null, theme: ITheme): Color | undefined {
+export function resolveColorValue(colorValue: ColorValue | null, theme: IColorTheme): Color | undefined {
 	if (colorValue === null) {
 		return undefined;
 	} else if (typeof colorValue === 'string') {

@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/part';
 import { Component } from 'vs/workbench/common/component';
-import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
+import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
 import { Dimension, size } from 'vs/base/browser/dom';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IDimension } from 'vs/platform/layout/browser/layoutService';
@@ -53,7 +53,7 @@ export abstract class Part extends Component implements ISerializableView {
 		layoutService.registerPart(this);
 	}
 
-	protected onThemeChange(theme: ITheme): void {
+	protected onThemeChange(theme: IColorTheme): void {
 
 		// only call if our create() method has been called
 		if (this.parent) {

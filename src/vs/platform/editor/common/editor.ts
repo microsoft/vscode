@@ -65,7 +65,7 @@ export interface IResourceInput extends IBaseResourceInput {
 	/**
 	 * The resource URI of the resource to open.
 	 */
-	resource: URI;
+	readonly resource: URI;
 
 	/**
 	 * The encoding of the text input if known.

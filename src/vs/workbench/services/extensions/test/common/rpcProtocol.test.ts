@@ -212,4 +212,13 @@ suite('RPCProtocol', () => {
 			assert.equal(res, 7);
 		});
 	});
+
+	test('issue #81424: SerializeRequest should throw if an argument can not be serialized', () => {
+		let badObject = {};
+		(<any>badObject).loop = badObject;
+
+		assert.throws(() => {
+			bProxy.$m(badObject, '2');
+		});
+	});
 });

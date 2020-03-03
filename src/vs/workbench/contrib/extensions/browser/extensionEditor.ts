@@ -507,6 +507,7 @@ export class ExtensionEditor extends BaseEditor {
 			if (e.enabled === false) {
 				hide(template.subtextContainer);
 			}
+			this.layout();
 		}));
 	}
 
@@ -596,7 +597,7 @@ export class ExtensionEditor extends BaseEditor {
 			let isDisposed = false;
 			this.contentDisposables.add(toDisposable(() => { isDisposed = true; }));
 
-			this.contentDisposables.add(this.themeService.onThemeChange(async () => {
+			this.contentDisposables.add(this.themeService.onDidColorThemeChange(async () => {
 				// Render again since syntax highlighting of code blocks may have changed
 				const body = await this.renderMarkdown(cacheResult, template);
 				if (!isDisposed) { // Make sure we weren't disposed of in the meantime
@@ -1462,9 +1463,9 @@ registerAction2(class StartExtensionEditorFindPreviousAction extends Action2 {
 });
 
 function getExtensionEditor(accessor: ServicesAccessor): ExtensionEditor | null {
-	const activeControl = accessor.get(IEditorService).activeControl as ExtensionEditor;
-	if (activeControl instanceof ExtensionEditor) {
-		return activeControl;
+	const activeEditorPane = accessor.get(IEditorService).activeEditorPane;
+	if (activeEditorPane instanceof ExtensionEditor) {
+		return activeEditorPane;
 	}
 	return null;
 }

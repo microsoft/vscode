@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IEditorContributionCtor } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { View } from 'vs/editor/browser/view/viewImpl';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -11,13 +12,13 @@ import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { Cursor } from 'vs/editor/common/controller/cursor';
 import { IConfiguration, IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { TestCodeEditorService, TestCommandService } from 'vs/editor/test/browser/editorTestServices';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { BrandedService, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
@@ -42,8 +43,8 @@ export class TestCodeEditor extends CodeEditorWidget implements ICodeEditor {
 	public getCursor(): Cursor | undefined {
 		return this._modelData ? this._modelData.cursor : undefined;
 	}
-	public registerAndInstantiateContribution<T extends IEditorContribution>(id: string, ctor: any): T {
-		let r = <T>this._instantiationService.createInstance(ctor, this);
+	public registerAndInstantiateContribution<T extends IEditorContribution, Services extends BrandedService[]>(id: string, ctor: new (editor: ICodeEditor, ...services: Services) => T): T {
+		const r: T = this._instantiationService.createInstance(ctor as IEditorContributionCtor, this);
 		this._contributions[id] = r;
 		return r;
 	}

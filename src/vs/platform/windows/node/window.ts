@@ -3,12 +3,42 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { OpenContext, IOpenWindowOptions } from 'vs/platform/windows/common/windows';
+import { OpenContext, IOpenWindowOptions, IWindowConfiguration, IPathsToWaitFor } from 'vs/platform/windows/common/windows';
 import { URI } from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
 import * as extpath from 'vs/base/common/extpath';
 import { IWorkspaceIdentifier, IResolvedWorkspace, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { isEqual, isEqualOrParent } from 'vs/base/common/resources';
+import { LogLevel } from 'vs/platform/log/common/log';
+import { ExportData } from 'vs/base/common/performance';
+
+export interface INativeWindowConfiguration extends IWindowConfiguration {
+	mainPid: number;
+
+	windowId: number;
+	machineId: string;
+
+	appRoot: string;
+	execPath: string;
+	backupPath?: string;
+
+	nodeCachedDataDir?: string;
+	partsSplashPath: string;
+
+	workspace?: IWorkspaceIdentifier;
+	folderUri?: ISingleFolderWorkspaceIdentifier;
+
+	isInitialStartup?: boolean;
+	logLevel: LogLevel;
+	zoomLevel?: number;
+	fullscreen?: boolean;
+	maximized?: boolean;
+	accessibilitySupport?: boolean;
+	perfEntries: ExportData;
+
+	userEnv: platform.IProcessEnvironment;
+	filesToWait?: IPathsToWaitFor;
+}
 
 export interface INativeOpenWindowOptions extends IOpenWindowOptions {
 	diffMode?: boolean;

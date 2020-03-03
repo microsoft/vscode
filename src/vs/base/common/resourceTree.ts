@@ -8,8 +8,7 @@ import * as paths from 'vs/base/common/path';
 import { Iterator } from 'vs/base/common/iterator';
 import { relativePath, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { mapValues } from 'vs/base/common/collections';
-import { PathIterator } from 'vs/base/common/map';
+import { PathIterator, values } from 'vs/base/common/map';
 
 export interface IResourceNode<T, C = void> {
 	readonly uri: URI;
@@ -32,7 +31,7 @@ class Node<T, C> implements IResourceNode<T, C> {
 	}
 
 	get children(): Iterator<Node<T, C>> {
-		return Iterator.fromArray(mapValues(this._children));
+		return Iterator.fromArray(values(this._children));
 	}
 
 	@memoize

@@ -7,7 +7,6 @@ import { coalesce, equals } from 'vs/base/common/arrays';
 import { illegalArgument } from 'vs/base/common/errors';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { isMarkdownString } from 'vs/base/common/htmlContent';
-import { values } from 'vs/base/common/map';
 import { startsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -44,16 +43,16 @@ export class Disposable {
 		});
 	}
 
-	private _callOnDispose?: () => any;
+	#callOnDispose?: () => any;
 
 	constructor(callOnDispose: () => any) {
-		this._callOnDispose = callOnDispose;
+		this.#callOnDispose = callOnDispose;
 	}
 
 	dispose(): any {
-		if (typeof this._callOnDispose === 'function') {
-			this._callOnDispose();
-			this._callOnDispose = undefined;
+		if (typeof this.#callOnDispose === 'function') {
+			this.#callOnDispose();
+			this.#callOnDispose = undefined;
 		}
 	}
 }
@@ -661,7 +660,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 				textEdit[1].push(candidate.edit);
 			}
 		}
-		return values(textEdits);
+		return [...textEdits.values()];
 	}
 
 	allEntries(): ReadonlyArray<IFileTextEdit | IFileOperation> {

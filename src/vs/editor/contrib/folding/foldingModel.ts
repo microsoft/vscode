@@ -318,7 +318,7 @@ export function setCollapseStateLevelsUp(foldingModel: FoldingModel, doCollapse:
 export function setCollapseStateUp(foldingModel: FoldingModel, doCollapse: boolean, lineNumbers: number[]): void {
 	let toToggle: FoldingRegion[] = [];
 	for (let lineNumber of lineNumbers) {
-		let regions = foldingModel.getAllRegionsAtLine(lineNumber, (region, ) => region.isCollapsed !== doCollapse);
+		let regions = foldingModel.getAllRegionsAtLine(lineNumber, (region,) => region.isCollapsed !== doCollapse);
 		if (regions.length > 0) {
 			toToggle.push(regions[0]);
 		}

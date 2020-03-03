@@ -33,7 +33,7 @@ import { badgeBackground, badgeForeground, contrastBorder, editorForeground } fr
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IEditor, IEditorMemento } from 'vs/workbench/common/editor';
+import { IEditorPane, IEditorMemento } from 'vs/workbench/common/editor';
 import { attachSuggestEnabledInputBoxStyler, SuggestEnabledInput } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
 import { SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { commonlyUsedData, tocData } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
@@ -493,12 +493,12 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 	}
 
-	switchToSettingsFile(): Promise<IEditor | undefined> {
+	switchToSettingsFile(): Promise<IEditorPane | undefined> {
 		const query = parseQuery(this.searchWidget.getValue());
 		return this.openSettingsFile(query.query);
 	}
 
-	private async openSettingsFile(query?: string): Promise<IEditor | undefined> {
+	private async openSettingsFile(query?: string): Promise<IEditorPane | undefined> {
 		const currentSettingsTarget = this.settingsTargetsWidget.settingsTarget;
 
 		const options: ISettingsEditorOptions = { query };

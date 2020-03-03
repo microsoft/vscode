@@ -677,7 +677,7 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 
 	drop(data: IDragAndDropData, targetElement: OpenEditor | IEditorGroup, _targetIndex: number, originalEvent: DragEvent): void {
 		const group = targetElement instanceof OpenEditor ? targetElement.group : targetElement;
-		const index = targetElement instanceof OpenEditor ? targetElement.group.getIndexOfEditor(targetElement.editor) : 0;
+		const index = targetElement instanceof OpenEditor ? targetElement.editorIndex : 0;
 
 		if (data instanceof ElementsDragAndDropData) {
 			const elementsData = data.elements;

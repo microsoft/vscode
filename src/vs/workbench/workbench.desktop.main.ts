@@ -43,7 +43,7 @@ import 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import 'vs/workbench/services/telemetry/electron-browser/telemetryService';
 import 'vs/workbench/services/configurationResolver/electron-browser/configurationResolverService';
 import 'vs/workbench/services/extensionManagement/node/extensionManagementService';
-import 'vs/workbench/services/accessibility/node/accessibilityService';
+import 'vs/workbench/services/accessibility/electron-browser/accessibilityService';
 import 'vs/workbench/services/remote/node/tunnelService';
 import 'vs/workbench/services/backup/node/backupFileService';
 import 'vs/workbench/services/url/electron-browser/urlService';

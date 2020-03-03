@@ -12,7 +12,7 @@ import { localize } from 'vs/nls';
 import { IExtensionTipsService, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { extensionButtonProminentBackground, extensionButtonProminentForeground, ExtensionToolTipAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
-import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
+import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
 import { EXTENSION_BADGE_REMOTE_BACKGROUND, EXTENSION_BADGE_REMOTE_FOREGROUND } from 'vs/workbench/common/theme';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -225,14 +225,14 @@ export class RecommendationWidget extends ExtensionWidget {
 			this.element = append(this.parent, $('div.bookmark'));
 			const recommendation = append(this.element, $('.recommendation'));
 			append(recommendation, $('span.codicon.codicon-star'));
-			const applyBookmarkStyle = (theme: ITheme) => {
+			const applyBookmarkStyle = (theme: IColorTheme) => {
 				const bgColor = theme.getColor(extensionButtonProminentBackground);
 				const fgColor = theme.getColor(extensionButtonProminentForeground);
 				recommendation.style.borderTopColor = bgColor ? bgColor.toString() : 'transparent';
 				recommendation.style.color = fgColor ? fgColor.toString() : 'white';
 			};
-			applyBookmarkStyle(this.themeService.getTheme());
-			this.themeService.onThemeChange(applyBookmarkStyle, this, this.disposables);
+			applyBookmarkStyle(this.themeService.getColorTheme());
+			this.themeService.onDidColorThemeChange(applyBookmarkStyle, this, this.disposables);
 			this.tooltip = extRecommendations[this.extension.identifier.id.toLowerCase()].reasonText;
 		}
 	}
@@ -296,13 +296,13 @@ class RemoteBadge extends Disposable {
 			if (!this.element) {
 				return;
 			}
-			const bgColor = this.themeService.getTheme().getColor(EXTENSION_BADGE_REMOTE_BACKGROUND);
-			const fgColor = this.themeService.getTheme().getColor(EXTENSION_BADGE_REMOTE_FOREGROUND);
+			const bgColor = this.themeService.getColorTheme().getColor(EXTENSION_BADGE_REMOTE_BACKGROUND);
+			const fgColor = this.themeService.getColorTheme().getColor(EXTENSION_BADGE_REMOTE_FOREGROUND);
 			this.element.style.backgroundColor = bgColor ? bgColor.toString() : '';
 			this.element.style.color = fgColor ? fgColor.toString() : '';
 		};
 		applyBadgeStyle();
-		this._register(this.themeService.onThemeChange(() => applyBadgeStyle()));
+		this._register(this.themeService.onDidColorThemeChange(() => applyBadgeStyle()));
 
 		if (this.tooltip) {
 			const updateTitle = () => {

@@ -101,10 +101,10 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
 	private _getTextEditorPositionData(): ITextEditorPositionData {
 		const result: ITextEditorPositionData = Object.create(null);
-		for (let workbenchEditor of this._editorService.visibleControls) {
-			const id = this._documentsAndEditors.findTextEditorIdFor(workbenchEditor);
+		for (let editorPane of this._editorService.visibleEditorPanes) {
+			const id = this._documentsAndEditors.findTextEditorIdFor(editorPane);
 			if (id) {
-				result[id] = editorGroupToViewColumn(this._editorGroupService, workbenchEditor.group);
+				result[id] = editorGroupToViewColumn(this._editorGroupService, editorPane.group);
 			}
 		}
 		return result;
@@ -151,10 +151,10 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	async $tryHideEditor(id: string): Promise<void> {
 		const mainThreadEditor = this._documentsAndEditors.getEditor(id);
 		if (mainThreadEditor) {
-			const editors = this._editorService.visibleControls;
-			for (let editor of editors) {
-				if (mainThreadEditor.matches(editor)) {
-					return editor.group.closeEditor(editor.input);
+			const editorPanes = this._editorService.visibleEditorPanes;
+			for (let editorPane of editorPanes) {
+				if (mainThreadEditor.matches(editorPane)) {
+					return editorPane.group.closeEditor(editorPane.input);
 				}
 			}
 		}

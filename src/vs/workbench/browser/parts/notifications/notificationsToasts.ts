@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/notificationsToasts';
-import { INotificationsModel, NotificationChangeType, INotificationChangeEvent, INotificationViewItem, NotificationViewItemLabelKind } from 'vs/workbench/common/notifications';
+import { INotificationsModel, NotificationChangeType, INotificationChangeEvent, INotificationViewItem, NotificationViewItemContentChangeKind } from 'vs/workbench/common/notifications';
 import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { addClass, removeClass, isAncestor, addDisposableListener, EventType, Dimension } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -196,19 +196,24 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		// the height computation takes the content of it into account!
 		this.layoutContainer(maxDimensions.height);
 
-		// Update when item height changes due to expansion
+		// Re-draw entire item when expansion changes to reveal or hide details
 		itemDisposables.add(item.onDidChangeExpansion(() => {
 			notificationList.updateNotificationsList(0, 1, [item]);
 		}));
 
-		// Update when item height potentially changes due to label changes
-		itemDisposables.add(item.onDidChangeLabel(e => {
-			if (!item.expanded) {
-				return; // dynamic height only applies to expanded notifications
-			}
-
-			if (e.kind === NotificationViewItemLabelKind.ACTIONS || e.kind === NotificationViewItemLabelKind.MESSAGE) {
-				notificationList.updateNotificationsList(0, 1, [item]);
+		// Handle content changes
+		// - actions: re-draw to properly show them
+		// - message: update notification height unless collapsed
+		itemDisposables.add(item.onDidChangeContent(e => {
+			switch (e.kind) {
+				case NotificationViewItemContentChangeKind.ACTIONS:
+					notificationList.updateNotificationsList(0, 1, [item]);
+					break;
+				case NotificationViewItemContentChangeKind.MESSAGE:
+					if (item.expanded) {
+						notificationList.updateNotificationHeight(item);
+					}
+					break;
 			}
 		}));
 
