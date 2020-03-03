@@ -451,7 +451,15 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	}
 
 	get visibleTextEditorControls(): Array<ICodeEditor | IDiffEditor> {
-		return this.visibleEditorPanes.map(editorPane => editorPane.getControl() as ICodeEditor | IDiffEditor).filter(control => isCodeEditor(control) || isDiffEditor(control));
+		const visibleTextEditorControls: Array<ICodeEditor | IDiffEditor> = [];
+		for (const visibleEditorPane of this.visibleEditorPanes) {
+			const control = visibleEditorPane.getControl();
+			if (isCodeEditor(control) || isDiffEditor(control)) {
+				visibleTextEditorControls.push(control);
+			}
+		}
+
+		return visibleTextEditorControls;
 	}
 
 	get visibleEditors(): IEditorInput[] {

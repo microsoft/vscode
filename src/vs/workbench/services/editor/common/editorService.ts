@@ -66,14 +66,14 @@ export interface IEditorService {
 	/**
 	 * Emitted when the currently active editor changes.
 	 *
-	 * @see `IEditorService.activeEditor`
+	 * @see `IEditorService.activeEditorPane`
 	 */
 	readonly onDidActiveEditorChange: Event<void>;
 
 	/**
 	 * Emitted when any of the current visible editors changes.
 	 *
-	 * @see `IEditorService.visibleEditors`
+	 * @see `IEditorService.visibleEditorPanes`
 	 */
 	readonly onDidVisibleEditorsChange: Event<void>;
 
@@ -81,7 +81,7 @@ export interface IEditorService {
 	 * The currently active editor pane or `undefined` if none. The editor pane is
 	 * the workbench container for editors of any kind.
 	 *
-	 * @see `IEditorService.activeEditor`
+	 * @see `IEditorService.activeEditor` for access to the active editor input
 	 */
 	readonly activeEditorPane: IVisibleEditorPane | undefined;
 
@@ -109,6 +109,8 @@ export interface IEditorService {
 
 	/**
 	 * All editor panes that are currently visible across all editor groups.
+	 *
+	 * @see `IEditorService.visibleEditors` for access to the visible editor inputs
 	 */
 	readonly visibleEditorPanes: ReadonlyArray<IVisibleEditorPane>;
 

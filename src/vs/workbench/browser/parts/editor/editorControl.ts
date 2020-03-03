@@ -35,7 +35,7 @@ export class EditorControl extends Disposable {
 	readonly onDidSizeConstraintsChange = this._onDidSizeConstraintsChange.event;
 
 	private _activeEditorPane: BaseEditor | null = null;
-	private editorPanes: BaseEditor[] = [];
+	private readonly editorPanes: BaseEditor[] = [];
 
 	private readonly activeEditorPaneDisposables = this._register(new DisposableStore());
 	private dimension: Dimension | undefined;
@@ -62,7 +62,7 @@ export class EditorControl extends Disposable {
 		// Editor pane
 		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(editor);
 		if (!descriptor) {
-			throw new Error('No editor descriptor found');
+			throw new Error(`No editor descriptor found for input id ${editor.getTypeId()}`);
 		}
 		const editorPane = this.doShowEditorPane(descriptor);
 
