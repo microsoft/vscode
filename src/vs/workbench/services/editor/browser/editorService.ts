@@ -5,7 +5,7 @@
 
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceEditorInput, ITextEditorOptions, IEditorOptions, EditorActivation } from 'vs/platform/editor/common/editor';
-import { SideBySideEditor, IEditorInput, IEditorPane, GroupIdentifier, IFileEditorInput, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, EditorInput, SideBySideEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditorPane, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, isTextEditorPane, IWorkbenchEditorConfiguration, toResource, IVisibleEditorPane, ICompositeCodeEditor } from 'vs/workbench/common/editor';
+import { SideBySideEditor, IEditorInput, IEditorPane, GroupIdentifier, IFileEditorInput, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, EditorInput, SideBySideEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditorPane, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, isTextEditorPane, IWorkbenchEditorConfiguration, toResource, IVisibleEditorPane } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ResourceMap } from 'vs/base/common/map';
@@ -19,7 +19,7 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IResourceEditor, SIDE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Disposable, IDisposable, dispose, toDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { coalesce, distinct } from 'vs/base/common/arrays';
 import { isCodeEditor, isDiffEditor, ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorGroupView, IEditorOpeningEvent, EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
@@ -60,8 +60,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	readonly onDidMostRecentlyActiveEditorsChange = this._onDidMostRecentlyActiveEditorsChange.event;
 
 	//#endregion
-
-	private readonly activeEditorListener = this._register(new MutableDisposable());
 
 	constructor(
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
@@ -132,13 +130,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	}
 
 	private doHandleActiveEditorChangeEvent(): void {
-
-		// check for CompositeCodeEditor and forward its events
-		this.activeEditorListener.clear();
-		const control = this.activeEditorPane?.getControl();
-		if (ICompositeCodeEditor.is(control)) {
-			this.activeEditorListener.value = control.onDidChangeActiveEditor(() => this._onDidActiveEditorChange.fire());
-		}
 
 		// Remember as last active
 		const activeGroup = this.editorGroupService.activeGroup;
@@ -408,9 +399,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			const activeControl = activeEditorPane.getControl();
 			if (isCodeEditor(activeControl) || isDiffEditor(activeControl)) {
 				return activeControl;
-			}
-			if (ICompositeCodeEditor.is(activeControl) && isCodeEditor(activeControl.activeCodeEditor)) {
-				return activeControl.activeCodeEditor;
 			}
 		}
 
@@ -775,11 +763,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		const activeTextEditorControl = this.activeTextEditorControl;
 		if (isCodeEditor(activeTextEditorControl)) {
 			return activeTextEditorControl.invokeWithinContext(fn);
-		}
-
-		const control = this.activeEditorPane?.getControl();
-		if (ICompositeCodeEditor.is(control) && isCodeEditor(control.activeCodeEditor)) {
-			return control.activeCodeEditor.invokeWithinContext(fn);
 		}
 
 		const activeGroup = this.editorGroupService.activeGroup;
