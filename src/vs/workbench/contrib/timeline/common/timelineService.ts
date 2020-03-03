@@ -9,7 +9,8 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 // import { basename } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ITimelineService, TimelineChangeEvent, TimelineOptions, TimelineProvidersChangeEvent, TimelineProvider, InternalTimelineOptions } from './timeline';
+import { ITimelineService, TimelineChangeEvent, TimelineOptions, TimelineProvidersChangeEvent, TimelineProvider, InternalTimelineOptions, TimelinePaneId } from './timeline';
+import { IViewsService } from 'vs/workbench/common/views';
 
 export class TimelineService implements ITimelineService {
 	_serviceBrand: undefined;
@@ -19,14 +20,16 @@ export class TimelineService implements ITimelineService {
 
 	private readonly _onDidChangeTimeline = new Emitter<TimelineChangeEvent>();
 	readonly onDidChangeTimeline: Event<TimelineChangeEvent> = this._onDidChangeTimeline.event;
-
-	private readonly _onDidReset = new Emitter<void>();
-	readonly onDidReset: Event<void> = this._onDidReset.event;
+	private readonly _onDidChangeUri = new Emitter<URI>();
+	readonly onDidChangeUri: Event<URI> = this._onDidChangeUri.event;
 
 	private readonly _providers = new Map<string, TimelineProvider>();
 	private readonly _providerSubscriptions = new Map<string, IDisposable>();
 
-	constructor(@ILogService private readonly logService: ILogService) {
+	constructor(
+		@ILogService private readonly logService: ILogService,
+		@IViewsService protected viewsService: IViewsService,
+	) {
 		// let source = 'slow-source';
 		// this.registerTimelineProvider({
 		// 	scheme: '*',
@@ -175,11 +178,8 @@ export class TimelineService implements ITimelineService {
 		this._onDidChangeProviders.fire({ removed: [id] });
 	}
 
-	// refresh(fetch?: 'all' | 'more') {
-	// 	this._onDidChangeTimeline.fire({ fetch: fetch });
-	// }
-
-	reset() {
-		this._onDidReset.fire();
+	setUri(uri: URI) {
+		this.viewsService.openView(TimelinePaneId, true);
+		this._onDidChangeUri.fire(uri);
 	}
 }
