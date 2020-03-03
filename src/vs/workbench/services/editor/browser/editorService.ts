@@ -5,7 +5,7 @@
 
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceInput, ITextEditorOptions, IEditorOptions, EditorActivation } from 'vs/platform/editor/common/editor';
-import { SideBySideEditor as SideBySideEditorChoice, IEditorInput, IEditorPane, GroupIdentifier, IFileEditorInput, IUntitledTextResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, EditorInput, SideBySideEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditor, ITextDiffEditor, ITextSideBySideEditor, IRevertOptions, SaveReason, EditorsOrder, isTextEditor, IWorkbenchEditorConfiguration, toResource, IVisibleEditor } from 'vs/workbench/common/editor';
+import { SideBySideEditor, IEditorInput, IEditorPane, GroupIdentifier, IFileEditorInput, IUntitledTextResourceInput, IResourceDiffInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, EditorInput, SideBySideEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditorPane, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, isTextEditorPane, IWorkbenchEditorConfiguration, toResource, IVisibleEditorPane } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ResourceMap } from 'vs/base/common/map';
@@ -177,8 +177,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		for (const editor of this.visibleEditors) {
 			const resources = distinct(coalesce([
-				toResource(editor, { supportSideBySide: SideBySideEditorChoice.MASTER }),
-				toResource(editor, { supportSideBySide: SideBySideEditorChoice.DETAILS })
+				toResource(editor, { supportSideBySide: SideBySideEditor.MASTER }),
+				toResource(editor, { supportSideBySide: SideBySideEditor.DETAILS })
 			]), resource => resource.toString());
 
 			for (const resource of resources) {
@@ -389,7 +389,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	private readonly editorsObserver = this._register(this.instantiationService.createInstance(EditorsObserver));
 
-	get activeControl(): IVisibleEditor | undefined {
+	get activeControl(): IVisibleEditorPane | undefined {
 		return this.editorGroupService.activeGroup?.activeControl;
 	}
 
@@ -446,7 +446,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return activeGroup ? withNullAsUndefined(activeGroup.activeEditor) : undefined;
 	}
 
-	get visibleControls(): IVisibleEditor[] {
+	get visibleControls(): IVisibleEditorPane[] {
 		return coalesce(this.editorGroupService.groups.map(group => group.activeControl));
 	}
 
@@ -495,9 +495,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	//#region openEditor()
 
 	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions, group?: OpenInEditorGroup): Promise<IEditorPane | undefined>;
-	openEditor(editor: IResourceInput | IUntitledTextResourceInput, group?: OpenInEditorGroup): Promise<ITextEditor | undefined>;
-	openEditor(editor: IResourceDiffInput, group?: OpenInEditorGroup): Promise<ITextDiffEditor | undefined>;
-	openEditor(editor: IResourceSideBySideInput, group?: OpenInEditorGroup): Promise<ITextSideBySideEditor | undefined>;
+	openEditor(editor: IResourceInput | IUntitledTextResourceInput, group?: OpenInEditorGroup): Promise<ITextEditorPane | undefined>;
+	openEditor(editor: IResourceDiffInput, group?: OpenInEditorGroup): Promise<ITextDiffEditorPane | undefined>;
 	async openEditor(editor: IEditorInput | IResourceEditor, optionsOrGroup?: IEditorOptions | ITextEditorOptions | OpenInEditorGroup, group?: OpenInEditorGroup): Promise<IEditorPane | undefined> {
 		const result = this.doResolveEditorOpenRequest(editor, optionsOrGroup, group);
 		if (result) {
@@ -793,20 +792,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			return editorInputWithOptions.editor;
 		}
 
-		// Side by Side Support
-		const resourceSideBySideInput = input as IResourceSideBySideInput;
-		if (resourceSideBySideInput.masterResource && resourceSideBySideInput.detailResource) {
-			const masterInput = this.createInput({ resource: resourceSideBySideInput.masterResource, forceFile: resourceSideBySideInput.forceFile });
-			const detailInput = this.createInput({ resource: resourceSideBySideInput.detailResource, forceFile: resourceSideBySideInput.forceFile });
-
-			return new SideBySideEditorInput(
-				resourceSideBySideInput.label || this.toSideBySideLabel(detailInput, masterInput, '-'),
-				resourceSideBySideInput.description,
-				detailInput,
-				masterInput
-			);
-		}
-
 		// Diff Editor Support
 		const resourceDiffInput = input as IResourceDiffInput;
 		if (resourceDiffInput.leftResource && resourceDiffInput.rightResource) {
@@ -1009,7 +994,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			// the contents of the editor before making a decision.
 			let viewState: IEditorViewState | undefined = undefined;
 			const control = await this.openEditor(editor, undefined, groupId);
-			if (isTextEditor(control)) {
+			if (isTextEditorPane(control)) {
 				viewState = control.getViewState();
 			}
 
@@ -1124,9 +1109,8 @@ export class DelegatingEditorService implements IEditorService {
 	) { }
 
 	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions, group?: OpenInEditorGroup): Promise<IEditorPane | undefined>;
-	openEditor(editor: IResourceInput | IUntitledTextResourceInput, group?: OpenInEditorGroup): Promise<ITextEditor | undefined>;
-	openEditor(editor: IResourceDiffInput, group?: OpenInEditorGroup): Promise<ITextDiffEditor | undefined>;
-	openEditor(editor: IResourceSideBySideInput, group?: OpenInEditorGroup): Promise<ITextSideBySideEditor | undefined>;
+	openEditor(editor: IResourceInput | IUntitledTextResourceInput, group?: OpenInEditorGroup): Promise<ITextEditorPane | undefined>;
+	openEditor(editor: IResourceDiffInput, group?: OpenInEditorGroup): Promise<ITextDiffEditorPane | undefined>;
 	async openEditor(editor: IEditorInput | IResourceEditor, optionsOrGroup?: IEditorOptions | ITextEditorOptions | OpenInEditorGroup, group?: OpenInEditorGroup): Promise<IEditorPane | undefined> {
 		const result = this.editorService.doResolveEditorOpenRequest(editor, optionsOrGroup, group);
 		if (result) {
@@ -1156,11 +1140,11 @@ export class DelegatingEditorService implements IEditorService {
 	get onDidVisibleEditorsChange(): Event<void> { return this.editorService.onDidVisibleEditorsChange; }
 
 	get activeEditor(): IEditorInput | undefined { return this.editorService.activeEditor; }
-	get activeControl(): IVisibleEditor | undefined { return this.editorService.activeControl; }
+	get activeControl(): IVisibleEditorPane | undefined { return this.editorService.activeControl; }
 	get activeTextEditorWidget(): ICodeEditor | IDiffEditor | undefined { return this.editorService.activeTextEditorWidget; }
 	get activeTextEditorMode(): string | undefined { return this.editorService.activeTextEditorMode; }
 	get visibleEditors(): ReadonlyArray<IEditorInput> { return this.editorService.visibleEditors; }
-	get visibleControls(): ReadonlyArray<IVisibleEditor> { return this.editorService.visibleControls; }
+	get visibleControls(): ReadonlyArray<IVisibleEditorPane> { return this.editorService.visibleControls; }
 	get visibleTextEditorWidgets(): ReadonlyArray<ICodeEditor | IDiffEditor> { return this.editorService.visibleTextEditorWidgets; }
 	get editors(): ReadonlyArray<IEditorInput> { return this.editorService.editors; }
 	get count(): number { return this.editorService.count; }

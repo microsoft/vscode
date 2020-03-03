@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { EditorInput, EditorOptions, IVisibleEditor } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, IVisibleEditorPane } from 'vs/workbench/common/editor';
 import { Dimension, show, hide, addClass } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEditorRegistry, Extensions as EditorExtensions, IEditorDescriptor } from 'vs/workbench/browser/editor';
@@ -53,8 +53,8 @@ export class EditorControl extends Disposable {
 		this.editorOperation = this._register(new LongRunningOperation(editorProgressService));
 	}
 
-	get activeControl(): IVisibleEditor | null {
-		return this._activeControl as IVisibleEditor | null;
+	get activeControl(): IVisibleEditorPane | null {
+		return this._activeControl as IVisibleEditorPane | null;
 	}
 
 	async openEditor(editor: EditorInput, options?: EditorOptions): Promise<IOpenEditorResult> {

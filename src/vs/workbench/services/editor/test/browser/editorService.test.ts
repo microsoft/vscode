@@ -345,13 +345,6 @@ suite('EditorService', () => {
 		input = service.createInput({ resource: URI.parse('custom:resource') });
 		assert(input instanceof ResourceEditorInput);
 
-		// Untyped Input (side by side)
-		input = service.createInput({
-			masterResource: toResource.call(this, '/master.html'),
-			detailResource: toResource.call(this, '/detail.html')
-		});
-		assert(input instanceof SideBySideEditorInput);
-
 		// Untyped Input (diff)
 		input = service.createInput({
 			leftResource: toResource.call(this, '/master.html'),

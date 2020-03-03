@@ -5,7 +5,7 @@
 
 import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceInput, IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorInput, IEditorPane, GroupIdentifier, IEditorInputWithOptions, IUntitledTextResourceInput, IResourceDiffInput, IResourceSideBySideInput, ITextEditor, ITextDiffEditor, ITextSideBySideEditor, IEditorIdentifier, ISaveOptions, IRevertOptions, EditorsOrder, IVisibleEditor } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditorPane, GroupIdentifier, IEditorInputWithOptions, IUntitledTextResourceInput, IResourceDiffInput, ITextEditorPane, ITextDiffEditorPane, IEditorIdentifier, ISaveOptions, IRevertOptions, EditorsOrder, IVisibleEditorPane } from 'vs/workbench/common/editor';
 import { Event } from 'vs/base/common/event';
 import { IEditor as ICodeEditor, IDiffEditor } from 'vs/editor/common/editorCommon';
 import { IEditorGroup, IEditorReplacement } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -13,7 +13,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 
 export const IEditorService = createDecorator<IEditorService>('editorService');
 
-export type IResourceEditor = IResourceInput | IUntitledTextResourceInput | IResourceDiffInput | IResourceSideBySideInput;
+export type IResourceEditor = IResourceInput | IUntitledTextResourceInput | IResourceDiffInput;
 
 export interface IResourceEditorReplacement {
 	readonly editor: IResourceEditor;
@@ -90,7 +90,7 @@ export interface IEditorService {
 	 *
 	 * @see `IEditorService.activeEditor`
 	 */
-	readonly activeControl: IVisibleEditor | undefined;
+	readonly activeControl: IVisibleEditorPane | undefined;
 
 	/**
 	 * The currently active text editor widget or `undefined` if there is currently no active
@@ -116,7 +116,7 @@ export interface IEditorService {
 	/**
 	 * All editor controls that are currently visible across all editor groups.
 	 */
-	readonly visibleControls: ReadonlyArray<IVisibleEditor>;
+	readonly visibleControls: ReadonlyArray<IVisibleEditorPane>;
 
 	/**
 	 * All text editor widgets that are currently visible across all editor groups. A text editor
@@ -158,9 +158,8 @@ export interface IEditorService {
 	 * opened to be active.
 	 */
 	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditorPane | undefined>;
-	openEditor(editor: IResourceInput | IUntitledTextResourceInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ITextEditor | undefined>;
-	openEditor(editor: IResourceDiffInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ITextDiffEditor | undefined>;
-	openEditor(editor: IResourceSideBySideInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ITextSideBySideEditor | undefined>;
+	openEditor(editor: IResourceInput | IUntitledTextResourceInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ITextEditorPane | undefined>;
+	openEditor(editor: IResourceDiffInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ITextDiffEditorPane | undefined>;
 
 	/**
 	 * Open editors in an editor group.

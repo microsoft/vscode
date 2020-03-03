@@ -115,12 +115,12 @@ export interface IEditorPane extends IPanel {
 /**
  * Overrides `IEditor` where `input` and `group` are known to be set.
  */
-export interface IVisibleEditor extends IEditorPane {
+export interface IVisibleEditorPane extends IEditorPane {
 	readonly input: IEditorInput;
 	readonly group: IEditorGroup;
 }
 
-export interface ITextEditor extends IEditorPane {
+export interface ITextEditorPane extends IEditorPane {
 
 	/**
 	 * Returns the underlying text editor widget of this editor.
@@ -133,33 +133,18 @@ export interface ITextEditor extends IEditorPane {
 	getViewState(): IEditorViewState | undefined;
 }
 
-export function isTextEditor(thing: IEditorPane | undefined): thing is ITextEditor {
-	const candidate = thing as ITextEditor | undefined;
+export function isTextEditorPane(thing: IEditorPane | undefined): thing is ITextEditorPane {
+	const candidate = thing as ITextEditorPane | undefined;
 
 	return typeof candidate?.getViewState === 'function';
 }
 
-export interface ITextDiffEditor extends IEditorPane {
+export interface ITextDiffEditorPane extends IEditorPane {
 
 	/**
 	 * Returns the underlying text editor widget of this editor.
 	 */
 	getControl(): IDiffEditor | undefined;
-}
-
-export interface ITextSideBySideEditor extends IEditorPane {
-
-	/**
-	 * Returns the underlying text editor widget of the master side
-	 * of this side-by-side editor.
-	 */
-	getMasterEditor(): ITextEditor;
-
-	/**
-	 * Returns the underlying text editor widget of the details side
-	 * of this side-by-side editor.
-	 */
-	getDetailsEditor(): ITextEditor;
 }
 
 /**
@@ -265,19 +250,6 @@ export interface IResourceDiffInput extends IBaseResourceInput {
 	 * The right hand side URI to open inside a diff editor.
 	 */
 	readonly rightResource: URI;
-}
-
-export interface IResourceSideBySideInput extends IBaseResourceInput {
-
-	/**
-	 * The right hand side URI to open inside a side by side editor.
-	 */
-	readonly masterResource: URI;
-
-	/**
-	 * The left hand side URI to open inside a side by side editor.
-	 */
-	readonly detailResource: URI;
 }
 
 export const enum Verbosity {
