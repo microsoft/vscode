@@ -104,18 +104,14 @@ export class CodeCell extends Disposable {
 
 		this._register(templateData.editor!.onDidContentSizeChange((e) => {
 			if (e.contentHeightChanged) {
-				let currContentHeight = templateData.editor!.getContentHeight();
-				if (currContentHeight !== e.contentHeight) {
+				if (viewCell.editorHeight !== e.contentHeight) {
 					templateData.editor?.layout(
 						{
-							width: currContentHeight,
+							width: e.contentWidth,
 							height: e.contentHeight
-
 						}
 					);
-				}
 
-				if (viewCell.editorHeight !== currContentHeight) {
 					viewCell.editorHeight = e.contentHeight;
 
 					if (viewCell.outputs.length) {
