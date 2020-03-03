@@ -10,6 +10,7 @@ import { Disposable, DisposableStore, IDisposable, IReference } from 'vs/base/co
 import { Schemas } from 'vs/base/common/network';
 import { basename } from 'vs/base/common/path';
 import { isWeb } from 'vs/base/common/platform';
+import { escape } from 'vs/base/common/strings';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as modes from 'vs/editor/common/modes';
 import { localize } from 'vs/nls';
@@ -438,7 +439,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 	private getWebviewInput(handle: extHostProtocol.WebviewPanelHandle): WebviewInput {
 		const webview = this.tryGetWebviewInput(handle);
 		if (!webview) {
-			throw new Error('Unknown webview handle:' + handle);
+			throw new Error(`Unknown webview handle:${handle}`);
 		}
 		return webview;
 	}
@@ -454,7 +455,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
 				<meta http-equiv="Content-Security-Policy" content="default-src 'none';">
 			</head>
-			<body>${localize('errorMessage', "An error occurred while restoring view:{0}", viewType)}</body>
+			<body>${localize('errorMessage', "An error occurred while restoring view:{0}", escape(viewType))}</body>
 		</html>`;
 	}
 }
@@ -505,14 +506,19 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 	private _hotExitState: HotExitState.State = HotExitState.Allowed;
 	private _dirty = false;
 
-	public static async create(instantiationService: IInstantiationService, proxy: extHostProtocol.ExtHostWebviewsShape, viewType: string, resource: URI) {
+	public static async create(
+		instantiationService: IInstantiationService,
+		proxy: extHostProtocol.ExtHostWebviewsShape,
+		viewType: string,
+		resource: URI
+	) {
 		const { editable } = await proxy.$createWebviewCustomEditorDocument(resource, viewType);
 		return instantiationService.createInstance(MainThreadCustomEditorModel, proxy, viewType, resource, editable);
 	}
 
 	constructor(
 		private readonly _proxy: extHostProtocol.ExtHostWebviewsShape,
-		public readonly viewType: string,
+		private readonly _viewType: string,
 		private readonly _resource: URI,
 		private readonly _editable: boolean,
 		@IWorkingCopyService workingCopyService: IWorkingCopyService,
@@ -524,15 +530,13 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 	}
 
 	dispose() {
-		this._proxy.$disposeWebviewCustomEditorDocument(this.resource, this.viewType);
+		this._proxy.$disposeWebviewCustomEditorDocument(this.resource, this._viewType);
 		super.dispose();
 	}
 
 	//#region IWorkingCopy
 
-	public get resource() {
-		return this._resource;
-	}
+	public get resource() { return this._resource; }
 
 	public get name() {
 		return basename(this._labelService.getUriLabel(this._resource));
@@ -553,6 +557,10 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 
 	//#endregion
+
+	public get viewType() {
+		return this._viewType;
+	}
 
 	public setDirty(dirty: boolean): void {
 		this._onDidChangeContent.fire();
@@ -582,15 +590,15 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 	}
 
 	public async saveAs(resource: URI, targetResource: URI, _options?: ISaveOptions): Promise<boolean> {
-		if (!this._editable) {
+		if (this._editable) {
+			await this._proxy.$onSaveAs(this.resource, this.viewType, targetResource);
+			this.setDirty(false);
+			return true;
+		} else {
 			// Since the editor is readonly, just copy the file over
 			await this._fileService.copy(resource, targetResource, false /* overwrite */);
 			return true;
 		}
-
-		await this._proxy.$onSaveAs(this.resource, this.viewType, targetResource);
-		this.setDirty(false);
-		return true;
 	}
 
 	public async backup(): Promise<IWorkingCopyBackup> {
