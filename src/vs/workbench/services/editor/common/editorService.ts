@@ -7,7 +7,7 @@ import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/com
 import { IResourceInput, IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorInput, IEditorPane, GroupIdentifier, IEditorInputWithOptions, IUntitledTextResourceInput, IResourceDiffInput, ITextEditorPane, ITextDiffEditorPane, IEditorIdentifier, ISaveOptions, IRevertOptions, EditorsOrder, IVisibleEditorPane } from 'vs/workbench/common/editor';
 import { Event } from 'vs/base/common/event';
-import { IEditor as ICodeEditor, IDiffEditor } from 'vs/editor/common/editorCommon';
+import { IEditor, IDiffEditor } from 'vs/editor/common/editorCommon';
 import { IEditorGroup, IEditorReplacement } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
@@ -98,7 +98,7 @@ export interface IEditorService {
 	 *
 	 * @see `IEditorService.activeEditor`
 	 */
-	readonly activeTextEditorWidget: ICodeEditor | IDiffEditor | undefined;
+	readonly activeTextEditorWidget: IEditor | IDiffEditor | undefined;
 
 	/**
 	 * The currently active text editor mode or `undefined` if there is currently no active
@@ -122,7 +122,7 @@ export interface IEditorService {
 	 * All text editor widgets that are currently visible across all editor groups. A text editor
 	 * widget is either a text or a diff editor.
 	 */
-	readonly visibleTextEditorWidgets: ReadonlyArray<ICodeEditor | IDiffEditor>;
+	readonly visibleTextEditorWidgets: ReadonlyArray<IEditor | IDiffEditor>;
 
 	/**
 	 * All editors that are opened across all editor groups in sequential order

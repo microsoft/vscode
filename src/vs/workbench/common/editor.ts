@@ -9,7 +9,7 @@ import { assign } from 'vs/base/common/objects';
 import { withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IEditor as ICodeEditor, IEditorViewState, ScrollType, IDiffEditor } from 'vs/editor/common/editorCommon';
+import { IEditor, IEditorViewState, ScrollType, IDiffEditor } from 'vs/editor/common/editorCommon';
 import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, IResourceInput, EditorActivation, EditorOpenContext, ITextEditorSelection, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature0, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -125,7 +125,7 @@ export interface ITextEditorPane extends IEditorPane {
 	/**
 	 * Returns the underlying text editor widget of this editor.
 	 */
-	getControl(): ICodeEditor | undefined;
+	getControl(): IEditor | undefined;
 
 	/**
 	 * Returns the current view state of the text editor if any.
@@ -1181,7 +1181,7 @@ export class TextEditorOptions extends EditorOptions implements ITextEditorOptio
 	/**
 	 * Create a TextEditorOptions inline to be used when the editor is opening.
 	 */
-	static fromEditor(editor: ICodeEditor, settings?: IEditorOptions): TextEditorOptions {
+	static fromEditor(editor: IEditor, settings?: IEditorOptions): TextEditorOptions {
 		const options = TextEditorOptions.create(settings);
 
 		// View state
@@ -1195,7 +1195,7 @@ export class TextEditorOptions extends EditorOptions implements ITextEditorOptio
 	 *
 	 * @return if something was applied
 	 */
-	apply(editor: ICodeEditor, scrollType: ScrollType): boolean {
+	apply(editor: IEditor, scrollType: ScrollType): boolean {
 		let gotApplied = false;
 
 		// First try viewstate
