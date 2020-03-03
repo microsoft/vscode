@@ -364,17 +364,15 @@ export class DecorationsService implements IDecorationsService {
 	getDecoration(uri: URI, includeChildren: boolean): IDecoration | undefined {
 		let data: IDecorationData[] = [];
 		let containsChildren: boolean = false;
-		for (let iter = this._data.iterator(), next = iter.next(); !next.done; next = iter.next()) {
-			const { label } = next.value.provider;
-			next.value.getOrRetrieve(uri, includeChildren, (deco, isChild) => {
+		for (let wrapper of this._data) {
+			wrapper.getOrRetrieve(uri, includeChildren, (deco, isChild) => {
 				if (!isChild || deco.bubble) {
 					data.push(deco);
 					containsChildren = isChild || containsChildren;
-					this._logService.trace('DecorationsService#getDecoration#getOrRetrieve', label, deco, isChild, uri);
+					this._logService.trace('DecorationsService#getDecoration#getOrRetrieve', wrapper.provider.label, deco, isChild, uri);
 				}
 			});
 		}
-
 		return data.length === 0
 			? undefined
 			: this._decorationStyles.asDecoration(data, containsChildren);

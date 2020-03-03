@@ -20,14 +20,8 @@ suite('LinkedList', function () {
 		assert.deepEqual([...list], elements);
 
 		// assert Symbol.iterator (2)
-		let i = 0;
 		for (const item of list) {
-			assert.equal(item, elements[i++]);
-		}
-
-		// assert iterator
-		for (let iter = list.iterator(), element = iter.next(); !element.done; element = iter.next()) {
-			assert.equal(elements.shift(), element.value);
+			assert.equal(item, elements.shift());
 		}
 		assert.equal(elements.length, 0);
 	}

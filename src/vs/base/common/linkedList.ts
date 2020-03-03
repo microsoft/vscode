@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as iterator from 'vs/base/common/iterator';
-
 class Node<E> {
 
 	static readonly Undefined = new Node<any>(undefined);
@@ -124,26 +122,6 @@ export class LinkedList<E> {
 
 		// done
 		this._size -= 1;
-	}
-
-	iterator(): iterator.Iterator<E> {
-		let element: { done: false; value: E; };
-		let node = this._first;
-		return {
-			next(): iterator.IteratorResult<E> {
-				if (node === Node.Undefined) {
-					return iterator.FIN;
-				}
-
-				if (!element) {
-					element = { done: false, value: node.element };
-				} else {
-					element.value = node.element;
-				}
-				node = node.next;
-				return element;
-			}
-		};
 	}
 
 	*[Symbol.iterator](): Iterator<E> {

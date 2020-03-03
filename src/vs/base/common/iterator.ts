@@ -36,7 +36,11 @@ export interface NativeIterator<T> {
 
 export namespace Iterable {
 
-	export function some<T>(iterable: IterableIterator<T>, predicate: (t: T) => boolean): boolean {
+	export function first<T>(iterable: Iterable<T>): T | undefined {
+		return iterable[Symbol.iterator]().next().value;
+	}
+
+	export function some<T>(iterable: Iterable<T>, predicate: (t: T) => boolean): boolean {
 		for (const element of iterable) {
 			if (predicate(element)) {
 				return true;
@@ -45,7 +49,7 @@ export namespace Iterable {
 		return false;
 	}
 
-	export function* map<T, R>(iterable: IterableIterator<T>, fn: (t: T) => R): IterableIterator<R> {
+	export function* map<T, R>(iterable: Iterable<T>, fn: (t: T) => R): IterableIterator<R> {
 		for (const element of iterable) {
 			return yield fn(element);
 		}
