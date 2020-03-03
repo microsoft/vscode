@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { distinct, mergeSort } from 'vs/base/common/arrays';
-import { CancelablePromise } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
 import { basename } from 'vs/base/common/resources';
@@ -12,9 +11,9 @@ import { URI } from 'vs/base/common/uri';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IEditor, IRevertOptions, ISaveOptions, IEditorInput } from 'vs/workbench/common/editor';
+import { IEditor, IEditorInput, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IDisposable, IReference } from 'vs/base/common/lifecycle';
 
 export const ICustomEditorService = createDecorator<ICustomEditorService>('customEditorService');
 
@@ -44,39 +43,22 @@ export interface ICustomEditorService {
 }
 
 export interface ICustomEditorModelManager {
-	get(resource: URI, viewType: string): ICustomEditorModel | undefined;
+	get(resource: URI, viewType: string): Promise<ICustomEditorModel | undefined>;
 
-	resolve(resource: URI, viewType: string): Promise<ICustomEditorModel>;
+	tryRetain(resource: URI, viewType: string): Promise<IReference<ICustomEditorModel>> | undefined;
 
-	disposeModel(model: ICustomEditorModel): void;
+	add(resource: URI, viewType: string, model: Promise<ICustomEditorModel>): Promise<IReference<ICustomEditorModel>>;
 
 	disposeAllModelsForView(viewType: string): void;
 }
 
-export interface CustomEditorSaveEvent {
-	readonly resource: URI;
-	readonly waitUntil: (until: Promise<any>) => void;
-}
-
-export interface CustomEditorSaveAsEvent {
-	readonly resource: URI;
-	readonly targetResource: URI;
-	readonly waitUntil: (until: Promise<any>) => void;
-}
-
-export interface ICustomEditorModel extends IWorkingCopy {
+export interface ICustomEditorModel extends IDisposable {
 	readonly viewType: string;
+	readonly resource: URI;
 
-	readonly onUndo: Event<void>;
-	readonly onRedo: Event<void>;
-	readonly onRevert: Event<void>;
+	isDirty(): boolean;
+	readonly onDidChangeDirty: Event<void>;
 
-	readonly onWillSave: Event<CustomEditorSaveEvent>;
-	readonly onWillSaveAs: Event<CustomEditorSaveAsEvent>;
-
-	onBackup(f: () => CancelablePromise<void>): void;
-
-	setDirty(dirty: boolean): void;
 	undo(): void;
 	redo(): void;
 	revert(options?: IRevertOptions): Promise<void>;

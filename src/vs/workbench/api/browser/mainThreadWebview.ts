@@ -3,31 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createCancelablePromise } from 'vs/base/common/async';
+import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, DisposableStore, IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
+import { basename } from 'vs/base/common/path';
 import { isWeb } from 'vs/base/common/platform';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as modes from 'vs/editor/common/modes';
 import { localize } from 'vs/nls';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ILabelService } from 'vs/platform/label/common/label';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { editorGroupToViewColumn, EditorViewColumn, viewColumnToEditorGroup } from 'vs/workbench/api/common/shared/editor';
-import { IEditorInput } from 'vs/workbench/common/editor';
+import { IEditorInput, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { CustomEditorInput, ModelType } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
+import { CustomEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
+import { CustomTextEditorModel } from 'vs/workbench/contrib/customEditor/common/customTextEditorModel';
 import { WebviewExtensionDescription, WebviewIcons } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
 import { ICreateWebViewShowOptions, IWebviewWorkbenchService, WebviewInputOptions } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IWorkingCopy, IWorkingCopyBackup, IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { extHostNamedCustomer } from '../common/extHostCustomers';
 
 /**
@@ -79,6 +85,11 @@ class WebviewViewTypeTransformer {
 	}
 }
 
+const enum ModelType {
+	Custom,
+	Text,
+}
+
 const webviewPanelViewType = new WebviewViewTypeTransformer('mainThreadWebview-');
 
 @extHostNamedCustomer(extHostProtocol.MainContext.MainThreadWebviews)
@@ -96,7 +107,6 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 	private readonly _webviewInputs = new WebviewInputStore();
 	private readonly _revivers = new Map<string, IDisposable>();
 	private readonly _editorProviders = new Map<string, IDisposable>();
-	private readonly _customEditorModels = new Map<string, { referenceCount: number }>();
 
 	constructor(
 		context: extHostProtocol.IExtHostContext,
@@ -108,7 +118,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		@IProductService private readonly _productService: IProductService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
-		@IFileService private readonly _fileService: IFileService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -286,16 +296,13 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 
 				webviewInput.webview.options = options;
 				webviewInput.webview.extension = extension;
-				webviewInput.modelType = modelType;
 
 				const resource = webviewInput.resource;
 
-				if (modelType === ModelType.Custom) {
-					const model = await this.retainCustomEditorModel(webviewInput, resource, viewType);
-					webviewInput.onDisposeWebview(() => {
-						this.releaseCustomEditorModel(model);
-					});
-				}
+				const modelRef = await this.getOrCreateCustomEditorModel(modelType, webviewInput, resource, viewType);
+				webviewInput.onDisposeWebview(() => {
+					modelRef.dispose();
+				});
 
 				try {
 					await this._proxy.$resolveWebviewEditor(
@@ -327,71 +334,27 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		this._customEditorService.models.disposeAllModelsForView(viewType);
 	}
 
-	private async retainCustomEditorModel(webviewInput: WebviewInput, resource: URI, viewType: string) {
-		const model = await this._customEditorService.models.resolve(webviewInput.resource, webviewInput.viewType);
-
-		const key = viewType + resource.toString();
-		const existingEntry = this._customEditorModels.get(key);
-		if (existingEntry) {
-			++existingEntry.referenceCount;
-			// no need to hook up listeners again
-			return model;
-		}
-		this._customEditorModels.set(key, { referenceCount: 1 });
-		const { editable } = await this._proxy.$createWebviewCustomEditorDocument(resource, viewType);
-
-		if (editable) {
-			model.onUndo(() => {
-				this._proxy.$undo(resource, viewType);
-			});
-
-			model.onRedo(() => {
-				this._proxy.$redo(resource, viewType);
-			});
-
-			model.onWillSave(e => {
-				e.waitUntil(this._proxy.$onSave(resource.toJSON(), viewType));
-			});
+	private async getOrCreateCustomEditorModel(
+		modelType: ModelType,
+		webviewInput: WebviewInput,
+		resource: URI,
+		viewType: string,
+	): Promise<IReference<ICustomEditorModel>> {
+		const existingModel = this._customEditorService.models.tryRetain(webviewInput.resource, webviewInput.viewType);
+		if (existingModel) {
+			return existingModel;
 		}
 
-		// Save as should always be implemented even if the model is readonly
-		model.onWillSaveAs(e => {
-			if (editable) {
-				e.waitUntil(this._proxy.$onSaveAs(e.resource.toJSON(), viewType, e.targetResource.toJSON()));
-			} else {
-				// Since the editor is readonly, just copy the file over
-				e.waitUntil(this._fileService.copy(e.resource, e.targetResource, false /* overwrite */));
-			}
-		});
+		const model = modelType === ModelType.Text
+			? CustomTextEditorModel.create(this._instantiationService, viewType, resource)
+			: MainThreadCustomEditorModel.create(this._instantiationService, this._proxy, viewType, resource);
 
-		model.onBackup(() => {
-			return createCancelablePromise(token =>
-				this._proxy.$backup(model.resource.toJSON(), viewType, token));
-		});
-
-		return model;
+		return this._customEditorService.models.add(resource, viewType, model);
 	}
 
-	private async releaseCustomEditorModel(model: ICustomEditorModel) {
-		const key = model.viewType + model.resource;
-		const entry = this._customEditorModels.get(key);
-		if (!entry) {
-			throw new Error('Model not found');
-		}
-
-		--entry.referenceCount;
-		if (entry.referenceCount <= 0) {
-			this._proxy.$disposeWebviewCustomEditorDocument(model.resource, model.viewType);
-			this._customEditorService.models.disposeModel(model);
-			this._customEditorModels.delete(key);
-		}
-	}
-
-
-
-	public $onDidChangeCustomDocumentState(resource: UriComponents, viewType: string, state: { dirty: boolean }) {
-		const model = this._customEditorService.models.get(URI.revive(resource), viewType);
-		if (!model) {
+	public async $onDidChangeCustomDocumentState(resource: UriComponents, viewType: string, state: { dirty: boolean }) {
+		const model = await this._customEditorService.models.get(URI.revive(resource), viewType);
+		if (!model || !(model instanceof MainThreadCustomEditorModel)) {
 			throw new Error('Could not find model for webview editor');
 		}
 		model.setDirty(state.dirty);
@@ -514,4 +477,153 @@ function reviveWebviewIcon(
 	return value
 		? { light: URI.revive(value.light), dark: URI.revive(value.dark) }
 		: undefined;
+}
+
+namespace HotExitState {
+	export const enum Type {
+		Allowed,
+		NotAllowed,
+		Pending,
+	}
+
+	export const Allowed = Object.freeze({ type: Type.Allowed } as const);
+	export const NotAllowed = Object.freeze({ type: Type.NotAllowed } as const);
+
+	export class Pending {
+		readonly type = Type.Pending;
+
+		constructor(
+			public readonly operation: CancelablePromise<void>,
+		) { }
+	}
+
+	export type State = typeof Allowed | typeof NotAllowed | Pending;
+}
+
+class MainThreadCustomEditorModel extends Disposable implements ICustomEditorModel, IWorkingCopy {
+
+	private _hotExitState: HotExitState.State = HotExitState.Allowed;
+	private _dirty = false;
+
+	public static async create(instantiationService: IInstantiationService, proxy: extHostProtocol.ExtHostWebviewsShape, viewType: string, resource: URI) {
+		const { editable } = await proxy.$createWebviewCustomEditorDocument(resource, viewType);
+		return instantiationService.createInstance(MainThreadCustomEditorModel, proxy, viewType, resource, editable);
+	}
+
+	constructor(
+		private readonly _proxy: extHostProtocol.ExtHostWebviewsShape,
+		public readonly viewType: string,
+		private readonly _resource: URI,
+		private readonly _editable: boolean,
+		@IWorkingCopyService workingCopyService: IWorkingCopyService,
+		@ILabelService private readonly _labelService: ILabelService,
+		@IFileService private readonly _fileService: IFileService,
+	) {
+		super();
+		this._register(workingCopyService.registerWorkingCopy(this));
+	}
+
+	dispose() {
+		this._proxy.$disposeWebviewCustomEditorDocument(this.resource, this.viewType);
+		super.dispose();
+	}
+
+	//#region IWorkingCopy
+
+	public get resource() {
+		return this._resource;
+	}
+
+	public get name() {
+		return basename(this._labelService.getUriLabel(this._resource));
+	}
+
+	public get capabilities(): WorkingCopyCapabilities {
+		return 0;
+	}
+
+	public isDirty(): boolean {
+		return this._dirty;
+	}
+
+	private readonly _onDidChangeDirty: Emitter<void> = this._register(new Emitter<void>());
+	readonly onDidChangeDirty: Event<void> = this._onDidChangeDirty.event;
+
+	private readonly _onDidChangeContent: Emitter<void> = this._register(new Emitter<void>());
+	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
+
+	//#endregion
+
+	public setDirty(dirty: boolean): void {
+		this._onDidChangeContent.fire();
+
+		if (this._dirty !== dirty) {
+			this._dirty = dirty;
+			this._onDidChangeDirty.fire();
+		}
+	}
+
+	public async revert(_options?: IRevertOptions) {
+		this._proxy.$revert(this.resource, this.viewType);
+	}
+
+	public undo() {
+		this._proxy.$undo(this.resource, this.viewType);
+	}
+
+	public redo() {
+		this._proxy.$redo(this.resource, this.viewType);
+	}
+
+	public async save(_options?: ISaveOptions): Promise<boolean> {
+		await this._proxy.$onSave(this.resource, this.viewType);
+		this.setDirty(false);
+		return true;
+	}
+
+	public async saveAs(resource: URI, targetResource: URI, _options?: ISaveOptions): Promise<boolean> {
+		if (!this._editable) {
+			// Since the editor is readonly, just copy the file over
+			await this._fileService.copy(resource, targetResource, false /* overwrite */);
+			return true;
+		}
+
+		await this._proxy.$onSaveAs(this.resource, this.viewType, targetResource);
+		this.setDirty(false);
+		return true;
+	}
+
+	public async backup(): Promise<IWorkingCopyBackup> {
+		if (this._hotExitState.type === HotExitState.Type.Pending) {
+			this._hotExitState.operation.cancel();
+		}
+
+		const pendingState = new HotExitState.Pending(
+			createCancelablePromise(token =>
+				this._proxy.$backup(this.resource.toJSON(), this.viewType, token)));
+		this._hotExitState = pendingState;
+
+		try {
+			await pendingState.operation;
+			// Make sure state has not changed in the meantime
+			if (this._hotExitState === pendingState) {
+				this._hotExitState = HotExitState.Allowed;
+			}
+		} catch (e) {
+			// Make sure state has not changed in the meantime
+			if (this._hotExitState === pendingState) {
+				this._hotExitState = HotExitState.NotAllowed;
+			}
+		}
+
+		if (this._hotExitState === HotExitState.Allowed) {
+			return {
+				meta: {
+					viewType: this.viewType,
+				}
+			};
+		}
+
+		throw new Error('Cannot back up in this state');
+	}
 }
