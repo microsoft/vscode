@@ -421,6 +421,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 	@memoize
 	private get refreshScheduler(): RunOnceScheduler {
+		const autoExpanded = new Set<string>();
 		return new RunOnceScheduler(async () => {
 			if (!this.tree.getInput()) {
 				return;
@@ -431,11 +432,22 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 			const session = this.tree.getInput();
 			if (session) {
-				const replElements = session.getReplElements();
-				const lastElement = replElements.length ? replElements[replElements.length - 1] : undefined;
-				if (lastElement instanceof ReplGroup && lastElement.autoExpand) {
-					await this.tree.expand(lastElement);
-				}
+				// Automatically expand repl group elements when specified
+				const autoExpandElements = async (elements: IReplElement[]) => {
+					for (let element of elements) {
+						if (element instanceof ReplGroup) {
+							if (element.autoExpand && !autoExpanded.has(element.getId())) {
+								autoExpanded.add(element.getId());
+								await this.tree.expand(element);
+							}
+							if (!this.tree.isCollapsed(element)) {
+								// Repl groups can have children which are repl groups thus we might need to expand those as well
+								await autoExpandElements(element.getChildren());
+							}
+						}
+					}
+				};
+				await autoExpandElements(session.getReplElements());
 			}
 
 			if (lastElementVisible) {
