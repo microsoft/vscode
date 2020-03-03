@@ -62,10 +62,10 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 				return path.normalize(fileResource.fsPath);
 			},
 			getSelectedText: (): string | undefined => {
-				const activeTextEditorWidget = editorService.activeTextEditorWidget;
-				if (isCodeEditor(activeTextEditorWidget)) {
-					const editorModel = activeTextEditorWidget.getModel();
-					const editorSelection = activeTextEditorWidget.getSelection();
+				const activeTextEditorControl = editorService.activeTextEditorControl;
+				if (isCodeEditor(activeTextEditorControl)) {
+					const editorModel = activeTextEditorControl.getModel();
+					const editorSelection = activeTextEditorControl.getSelection();
 					if (editorModel && editorSelection) {
 						return editorModel.getValueInRange(editorSelection);
 					}
@@ -73,9 +73,9 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 				return undefined;
 			},
 			getLineNumber: (): string | undefined => {
-				const activeTextEditorWidget = editorService.activeTextEditorWidget;
-				if (isCodeEditor(activeTextEditorWidget)) {
-					const selection = activeTextEditorWidget.getSelection();
+				const activeTextEditorControl = editorService.activeTextEditorControl;
+				if (isCodeEditor(activeTextEditorControl)) {
+					const selection = activeTextEditorControl.getSelection();
 					if (selection) {
 						const lineNumber = selection.positionLineNumber;
 						return String(lineNumber);

@@ -1004,10 +1004,10 @@ export class RepositoryPane extends ViewPane {
 	}
 
 	private pin(): void {
-		const activeControl = this.editorService.activeControl;
+		const activeEditorPane = this.editorService.activeEditorPane;
 
-		if (activeControl) {
-			activeControl.group.pinEditor(activeControl.input);
+		if (activeEditorPane) {
+			activeEditorPane.group.pinEditor(activeEditorPane.input);
 		}
 	}
 

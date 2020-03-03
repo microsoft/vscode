@@ -60,9 +60,9 @@ export class StartView extends ViewPane {
 		this.debugStartLanguageContext.set(lastSetLanguage);
 
 		const setContextKey = () => {
-			const editor = this.editorService.activeTextEditorWidget;
-			if (isCodeEditor(editor)) {
-				const model = editor.getModel();
+			const editorControl = this.editorService.activeTextEditorControl;
+			if (isCodeEditor(editorControl)) {
+				const model = editorControl.getModel();
 				const language = model ? model.getLanguageIdentifier().language : undefined;
 				if (language && this.debugService.getConfigurationManager().isDebuggerInterestedInLanguage(language)) {
 					this.debugStartLanguageContext.set(language);

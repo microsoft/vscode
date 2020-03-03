@@ -94,16 +94,16 @@ suite('EditorService', () => {
 		let editor = await service.openEditor(input, { pinned: true });
 
 		assert.equal(editor?.getId(), TEST_EDITOR_ID);
-		assert.equal(editor, service.activeControl);
+		assert.equal(editor, service.activeEditorPane);
 		assert.equal(1, service.count);
 		assert.equal(input, service.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)[0].editor);
 		assert.equal(input, service.getEditors(EditorsOrder.SEQUENTIAL)[0].editor);
 		assert.equal(input, service.activeEditor);
-		assert.equal(service.visibleControls.length, 1);
-		assert.equal(service.visibleControls[0], editor);
-		assert.ok(!service.activeTextEditorWidget);
+		assert.equal(service.visibleEditorPanes.length, 1);
+		assert.equal(service.visibleEditorPanes[0], editor);
+		assert.ok(!service.activeTextEditorControl);
 		assert.ok(!service.activeTextEditorMode);
-		assert.equal(service.visibleTextEditorWidgets.length, 0);
+		assert.equal(service.visibleTextEditorControls.length, 0);
 		assert.equal(service.isOpen(input), true);
 		assert.equal(service.isOpen({ resource: input.resource }), true);
 		assert.equal(activeEditorChangeEventCounter, 1);
@@ -136,7 +136,7 @@ suite('EditorService', () => {
 		assert.equal(input, service.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)[1].editor);
 		assert.equal(input, service.getEditors(EditorsOrder.SEQUENTIAL)[0].editor);
 		assert.equal(otherInput, service.getEditors(EditorsOrder.SEQUENTIAL)[1].editor);
-		assert.equal(service.visibleControls.length, 1);
+		assert.equal(service.visibleEditorPanes.length, 1);
 		assert.equal(service.isOpen(input), true);
 		assert.equal(service.isOpen({ resource: input.resource }), true);
 		assert.equal(service.isOpen(otherInput), true);
@@ -344,13 +344,6 @@ suite('EditorService', () => {
 		// Untyped Input (resource)
 		input = service.createInput({ resource: URI.parse('custom:resource') });
 		assert(input instanceof ResourceEditorInput);
-
-		// Untyped Input (side by side)
-		input = service.createInput({
-			masterResource: toResource.call(this, '/master.html'),
-			detailResource: toResource.call(this, '/detail.html')
-		});
-		assert(input instanceof SideBySideEditorInput);
 
 		// Untyped Input (diff)
 		input = service.createInput({
@@ -739,7 +732,7 @@ suite('EditorService', () => {
 		part.dispose();
 	});
 
-	test('activeTextEditorWidget / activeTextEditorMode', async () => {
+	test('activeTextEditorControl / activeTextEditorMode', async () => {
 		const [part, service] = createEditorService();
 
 		await part.whenRestored;
@@ -747,8 +740,8 @@ suite('EditorService', () => {
 		// Open untitled input
 		let editor = await service.openEditor({});
 
-		assert.equal(service.activeControl, editor);
-		assert.equal(service.activeTextEditorWidget, editor?.getControl());
+		assert.equal(service.activeEditorPane, editor);
+		assert.equal(service.activeTextEditorControl, editor?.getControl());
 		assert.equal(service.activeTextEditorMode, 'plaintext');
 
 		part.dispose();

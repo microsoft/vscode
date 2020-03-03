@@ -707,22 +707,22 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				editor.updateOptions({ lineNumbers });
 			};
 
-			const editorWidgetSet = this.state.zenMode.editorWidgetSet;
+			const editorControlSet = this.state.zenMode.editorWidgetSet;
 			if (!lineNumbers) {
 				// Reset line numbers on all editors visible and non-visible
-				for (const editor of editorWidgetSet) {
+				for (const editor of editorControlSet) {
 					setEditorLineNumbers(editor);
 				}
-				editorWidgetSet.clear();
+				editorControlSet.clear();
 			} else {
-				this.editorService.visibleTextEditorWidgets.forEach(editor => {
-					if (!editorWidgetSet.has(editor)) {
-						editorWidgetSet.add(editor);
-						this.state.zenMode.transitionDisposables.add(editor.onDidDispose(() => {
-							editorWidgetSet.delete(editor);
+				this.editorService.visibleTextEditorControls.forEach(editorControl => {
+					if (!editorControlSet.has(editorControl)) {
+						editorControlSet.add(editorControl);
+						this.state.zenMode.transitionDisposables.add(editorControl.onDidDispose(() => {
+							editorControlSet.delete(editorControl);
 						}));
 					}
-					setEditorLineNumbers(editor);
+					setEditorLineNumbers(editorControl);
 				});
 			}
 		};

@@ -23,7 +23,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService, IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { DefineKeybindingWidget, KeybindingsSearchWidget, KeybindingsSearchOptions } from 'vs/workbench/contrib/preferences/browser/keybindingWidgets';
 import {
-	IKeybindingsEditor, CONTEXT_KEYBINDING_FOCUS, CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_COPY,
+	IKeybindingsEditorPane, CONTEXT_KEYBINDING_FOCUS, CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_COPY,
 	KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR,
 	KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, KEYBINDINGS_EDITOR_COMMAND_DEFINE_WHEN
 } from 'vs/workbench/contrib/preferences/common/preferences';
@@ -55,7 +55,7 @@ interface ColumnItem {
 	width: number;
 }
 
-export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor {
+export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditorPane {
 
 	static readonly ID: string = 'workbench.editor.keybindings';
 
@@ -551,7 +551,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 					this.unAssignedKeybindingItemToRevealAndFocus = null;
 				} else if (currentSelectedIndex !== -1 && currentSelectedIndex < this.listEntries.length) {
 					this.selectEntry(currentSelectedIndex, preserveFocus);
-				} else if (this.editorService.activeControl === this && !preserveFocus) {
+				} else if (this.editorService.activeEditorPane === this && !preserveFocus) {
 					this.focus();
 				}
 			}
@@ -854,7 +854,7 @@ abstract class Column extends Disposable {
 	abstract readonly element: HTMLElement;
 	abstract render(keybindingItemEntry: IKeybindingItemEntry): void;
 
-	constructor(protected keybindingsEditor: IKeybindingsEditor) {
+	constructor(protected keybindingsEditor: IKeybindingsEditorPane) {
 		super();
 	}
 
@@ -867,7 +867,7 @@ class ActionsColumn extends Column {
 
 	constructor(
 		parent: HTMLElement,
-		keybindingsEditor: IKeybindingsEditor,
+		keybindingsEditor: IKeybindingsEditorPane,
 		@IKeybindingService private keybindingsService: IKeybindingService
 	) {
 		super(keybindingsEditor);
@@ -921,7 +921,7 @@ class CommandColumn extends Column {
 
 	constructor(
 		parent: HTMLElement,
-		keybindingsEditor: IKeybindingsEditor,
+		keybindingsEditor: IKeybindingsEditorPane,
 	) {
 		super(keybindingsEditor);
 		this.element = this.commandColumn = DOM.append(parent, $('.column.command', { id: 'command_' + ++Column.COUNTER }));
@@ -964,7 +964,7 @@ class KeybindingColumn extends Column {
 
 	constructor(
 		parent: HTMLElement,
-		keybindingsEditor: IKeybindingsEditor,
+		keybindingsEditor: IKeybindingsEditorPane,
 	) {
 		super(keybindingsEditor);
 
@@ -992,7 +992,7 @@ class SourceColumn extends Column {
 
 	constructor(
 		parent: HTMLElement,
-		keybindingsEditor: IKeybindingsEditor,
+		keybindingsEditor: IKeybindingsEditorPane,
 	) {
 		super(keybindingsEditor);
 		this.element = this.sourceColumn = DOM.append(parent, $('.column.source', { id: 'source_' + ++Column.COUNTER }));
@@ -1024,7 +1024,7 @@ class WhenColumn extends Column {
 
 	constructor(
 		parent: HTMLElement,
-		keybindingsEditor: IKeybindingsEditor,
+		keybindingsEditor: IKeybindingsEditorPane,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IThemeService private readonly themeService: IThemeService
 	) {

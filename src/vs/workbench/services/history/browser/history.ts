@@ -6,7 +6,7 @@
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { ITextEditorOptions, IResourceInput, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
-import { IEditorInput, IEditor as IBaseEditor, Extensions as EditorExtensions, EditorInput, IEditorCloseEvent, IEditorInputFactoryRegistry, toResource, IEditorIdentifier, GroupIdentifier, EditorsOrder } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditorPane, Extensions as EditorExtensions, EditorInput, IEditorCloseEvent, IEditorInputFactoryRegistry, toResource, IEditorIdentifier, GroupIdentifier, EditorsOrder } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { FileChangesEvent, IFileService, FileChangeType, FILES_EXCLUDE_CONFIG } from 'vs/platform/files/common/files';
@@ -130,7 +130,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		// if the service is created late enough that an editor is already opened
 		// make sure to trigger the onActiveEditorChanged() to track the editor
 		// properly (fixes https://github.com/Microsoft/vscode/issues/59908)
-		if (this.editorService.activeControl) {
+		if (this.editorService.activeEditorPane) {
 			this.onActiveEditorChanged();
 		}
 
@@ -169,44 +169,44 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private onActiveEditorChanged(): void {
-		const activeControl = this.editorService.activeControl;
-		if (this.lastActiveEditor && this.matchesEditor(this.lastActiveEditor, activeControl)) {
+		const activeEditorPane = this.editorService.activeEditorPane;
+		if (this.lastActiveEditor && this.matchesEditor(this.lastActiveEditor, activeEditorPane)) {
 			return; // return if the active editor is still the same
 		}
 
 		// Remember as last active editor (can be undefined if none opened)
-		this.lastActiveEditor = activeControl?.input && activeControl.group ? { editor: activeControl.input, groupId: activeControl.group.id } : undefined;
+		this.lastActiveEditor = activeEditorPane?.input && activeEditorPane.group ? { editor: activeEditorPane.input, groupId: activeEditorPane.group.id } : undefined;
 
 		// Dispose old listeners
 		this.activeEditorListeners.clear();
 
 		// Propagate to history
-		this.handleActiveEditorChange(activeControl);
+		this.handleActiveEditorChange(activeEditorPane);
 
 		// Apply listener for selection changes if this is a text editor
-		const activeTextEditorWidget = getCodeEditor(this.editorService.activeTextEditorWidget);
+		const activeTextEditorControl = getCodeEditor(this.editorService.activeTextEditorControl);
 		const activeEditor = this.editorService.activeEditor;
-		if (activeTextEditorWidget) {
+		if (activeTextEditorControl) {
 
 			// Debounce the event with a timeout of 0ms so that multiple calls to
 			// editor.setSelection() are folded into one. We do not want to record
 			// subsequent history navigations for such API calls.
-			this.activeEditorListeners.add(Event.debounce(activeTextEditorWidget.onDidChangeCursorPosition, (last, event) => event, 0)((event => {
-				this.handleEditorSelectionChangeEvent(activeControl, event);
+			this.activeEditorListeners.add(Event.debounce(activeTextEditorControl.onDidChangeCursorPosition, (last, event) => event, 0)((event => {
+				this.handleEditorSelectionChangeEvent(activeEditorPane, event);
 			})));
 
 			// Track the last edit location by tracking model content change events
 			// Use a debouncer to make sure to capture the correct cursor position
 			// after the model content has changed.
-			this.activeEditorListeners.add(Event.debounce(activeTextEditorWidget.onDidChangeModelContent, (last, event) => event, 0)((event => {
+			this.activeEditorListeners.add(Event.debounce(activeTextEditorControl.onDidChangeModelContent, (last, event) => event, 0)((event => {
 				if (activeEditor) {
-					this.rememberLastEditLocation(activeEditor, activeTextEditorWidget);
+					this.rememberLastEditLocation(activeEditor, activeTextEditorControl);
 				}
 			})));
 		}
 	}
 
-	private matchesEditor(identifier: IEditorIdentifier, editor?: IBaseEditor): boolean {
+	private matchesEditor(identifier: IEditorIdentifier, editor?: IEditorPane): boolean {
 		if (!editor || !editor.group) {
 			return false;
 		}
@@ -224,11 +224,11 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 	}
 
-	private handleEditorSelectionChangeEvent(editor?: IBaseEditor, event?: ICursorPositionChangedEvent): void {
+	private handleEditorSelectionChangeEvent(editor?: IEditorPane, event?: ICursorPositionChangedEvent): void {
 		this.handleEditorEventInNavigationStack(editor, event);
 	}
 
-	private handleActiveEditorChange(editor?: IBaseEditor): void {
+	private handleActiveEditorChange(editor?: IEditorPane): void {
 		this.handleEditorEventInHistory(editor);
 		this.handleEditorEventInNavigationStack(editor);
 	}
@@ -344,7 +344,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.doNavigate(navigateToStackEntry).finally(() => this.navigatingInStack = false);
 	}
 
-	private doNavigate(location: IStackEntry): Promise<IBaseEditor | undefined> {
+	private doNavigate(location: IStackEntry): Promise<IEditorPane | undefined> {
 		const options: ITextEditorOptions = {
 			revealIfOpened: true, // support to navigate across editor groups,
 			selection: location.selection,
@@ -358,7 +358,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		return this.editorService.openEditor({ resource: (location.input as IResourceInput).resource, options });
 	}
 
-	private handleEditorEventInNavigationStack(control: IBaseEditor | undefined, event?: ICursorPositionChangedEvent): void {
+	private handleEditorEventInNavigationStack(control: IEditorPane | undefined, event?: ICursorPositionChangedEvent): void {
 		const codeEditor = control ? getCodeEditor(control.getControl()) : undefined;
 
 		// treat editor changes that happen as part of stack navigation specially
@@ -392,7 +392,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 	}
 
-	private handleTextEditorEventInNavigationStack(editor: IBaseEditor, editorControl: IEditor, event?: ICursorPositionChangedEvent): void {
+	private handleTextEditorEventInNavigationStack(editor: IEditorPane, editorControl: IEditor, event?: ICursorPositionChangedEvent): void {
 		if (!editor.input) {
 			return;
 		}
@@ -413,7 +413,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.currentTextEditorState = stateCandidate;
 	}
 
-	private handleNonTextEditorEventInNavigationStack(editor: IBaseEditor): void {
+	private handleNonTextEditorEventInNavigationStack(editor: IEditorPane): void {
 		if (!editor.input) {
 			return;
 		}
@@ -677,11 +677,11 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	private lastEditLocation: IStackEntry | undefined;
 
-	private rememberLastEditLocation(activeEditor: IEditorInput, activeTextEditorWidget: ICodeEditor): void {
+	private rememberLastEditLocation(activeEditor: IEditorInput, activeTextEditorControl: ICodeEditor): void {
 		this.lastEditLocation = { input: activeEditor };
 		this.canNavigateToLastEditLocationContextKey.set(true);
 
-		const position = activeTextEditorWidget.getPosition();
+		const position = activeTextEditorControl.getPosition();
 		if (position) {
 			this.lastEditLocation.selection = new Selection(position.lineNumber, position.column, position.lineNumber, position.column);
 		}
@@ -730,7 +730,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		return getExcludes(scope ? this.configurationService.getValue<ISearchConfiguration>(scope) : this.configurationService.getValue<ISearchConfiguration>())!;
 	}
 
-	private handleEditorEventInHistory(editor?: IBaseEditor): void {
+	private handleEditorEventInHistory(editor?: IEditorPane): void {
 
 		// Ensure we have not configured to exclude input and don't track invalid inputs
 		const input = editor?.input;

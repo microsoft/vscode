@@ -96,7 +96,7 @@ export class FocusNextInputAction extends Action {
 		const input = this.editorService.activeEditor;
 		if (input instanceof SearchEditorInput) {
 			// cast as we cannot import SearchEditor as a value b/c cyclic dependency.
-			(this.editorService.activeControl as SearchEditor).focusNextInput();
+			(this.editorService.activeEditorPane as SearchEditor).focusNextInput();
 		}
 
 		const searchView = getSearchView(this.viewsService);
@@ -121,7 +121,7 @@ export class FocusPreviousInputAction extends Action {
 		const input = this.editorService.activeEditor;
 		if (input instanceof SearchEditorInput) {
 			// cast as we cannot import SearchEditor as a value b/c cyclic dependency.
-			(this.editorService.activeControl as SearchEditor).focusPrevInput();
+			(this.editorService.activeEditorPane as SearchEditor).focusPrevInput();
 		}
 
 		const searchView = getSearchView(this.viewsService);
@@ -498,7 +498,7 @@ export class FocusNextSearchResultAction extends Action {
 		const input = this.editorService.activeEditor;
 		if (input instanceof SearchEditorInput) {
 			// cast as we cannot import SearchEditor as a value b/c cyclic dependency.
-			return (this.editorService.activeControl as SearchEditor).focusNextResult();
+			return (this.editorService.activeEditorPane as SearchEditor).focusNextResult();
 		}
 
 		return openSearchView(this.viewsService).then(searchView => {
@@ -524,7 +524,7 @@ export class FocusPreviousSearchResultAction extends Action {
 		const input = this.editorService.activeEditor;
 		if (input instanceof SearchEditorInput) {
 			// cast as we cannot import SearchEditor as a value b/c cyclic dependency.
-			return (this.editorService.activeControl as SearchEditor).focusPreviousResult();
+			return (this.editorService.activeEditorPane as SearchEditor).focusPreviousResult();
 		}
 
 		return openSearchView(this.viewsService).then(searchView => {

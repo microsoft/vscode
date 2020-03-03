@@ -382,7 +382,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 			return;
 		}
 
-		const activeInput = this._editorService.activeControl && this._editorService.activeControl.input;
+		const activeInput = this._editorService.activeEditorPane?.input;
 		const viewStates: extHostProtocol.WebviewPanelViewStateData = {};
 
 		const updateViewStatesForInput = (group: IEditorGroup, topLevelInput: IEditorInput, editorInput: IEditorInput) => {
