@@ -34,7 +34,7 @@ import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/w
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditor } from 'vs/editor/common/editorCommon';
-import { IResourceInput } from 'vs/platform/editor/common/editor';
+import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { Emitter, Event } from 'vs/base/common/event';
 import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/notebookCellList';
 import { NotebookFindWidget, NotebookFindDelegate, CellFindMatch } from 'vs/workbench/contrib/notebook/browser/notebookFindWidget';
@@ -73,7 +73,7 @@ class NotebookCodeEditors implements ICompositeCodeEditor {
 			: undefined;
 	}
 
-	activate(input: IResourceInput): ICodeEditor | undefined {
+	activate(input: IResourceEditorInput): ICodeEditor | undefined {
 		const data = parseCellUri(input.resource);
 		if (!data) {
 			return undefined;
@@ -147,7 +147,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 		this.editorMemento = this.getEditorMemento<INotebookEditorViewState>(editorGroupService, NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 		this.outputRenderer = new OutputRenderer(this, this.instantiationService);
 		this.findWidget = this.instantiationService.createInstance(NotebookFindWidget, this);
-		this.findWidget.updateTheme(this.themeService.getTheme());
+		this.findWidget.updateTheme(this.themeService.getColorTheme());
 	}
 
 	get minimumWidth(): number { return 375; }

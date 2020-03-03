@@ -198,7 +198,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 
 function getActiveNotebookEditor(editorService: IEditorService, notebookService: INotebookService): NotebookEditor | undefined {
 	let resource = editorService.activeEditor?.resource;
-	let editorControl = editorService.activeControl;
+	let editorControl = editorService.activeEditorPane?.getControl();
 	let notebookProviders = notebookService.getContributedNotebookProviders(resource!);
 
 	if (!resource || !editorControl || notebookProviders.length === 0) {
