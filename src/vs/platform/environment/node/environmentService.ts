@@ -22,13 +22,14 @@ export const xdgRuntimeDir = process.env['XDG_RUNTIME_DIR'];
 
 function getNixIPCHandle(userDataPath: string, type: string): string {
 	const vscodePortable = process.env['VSCODE_PORTABLE'];
+	const scope = crypto.createHash('md5').update(userDataPath).digest('hex').substr(0, 8);
+	const name = `vscode-${scope}-${product.version}-${type}.sock`;
 
 	if (xdgRuntimeDir && !vscodePortable) {
-		const scope = crypto.createHash('md5').update(userDataPath).digest('hex').substr(0, 8);
-		return path.join(xdgRuntimeDir, `vscode-${scope}-${product.version}-${type}.sock`);
+		return path.join(xdgRuntimeDir, name);
 	}
 
-	return path.join(userDataPath, `${product.version}-${type}.sock`);
+	return path.join(os.tmpdir(), name);
 }
 
 function getWin32IPCHandle(userDataPath: string, type: string): string {
