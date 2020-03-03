@@ -25,13 +25,6 @@ import 'vs/workbench/browser/web.main';
 //#endregion
 
 
-//#region --- workbench parts
-
-import 'vs/workbench/browser/parts/titlebar/titlebarPart';
-
-//#endregion
-
-
 //#region --- workbench services
 import 'vs/workbench/services/integrity/browser/integrityService';
 import 'vs/workbench/services/textMate/browser/textMateService';
@@ -56,6 +49,7 @@ import 'vs/workbench/services/request/browser/requestService';
 import 'vs/workbench/services/lifecycle/browser/lifecycleService';
 import 'vs/workbench/services/clipboard/browser/clipboardService';
 import 'vs/workbench/services/extensionResourceLoader/browser/extensionResourceLoaderService';
+import 'vs/workbench/services/title/browser/titleService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
