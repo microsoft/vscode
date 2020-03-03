@@ -931,4 +931,53 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		assert.equal(outgoing.length, 1);
 		assert.equal(outgoing[0].to.name, 'OUTGOING');
 	});
+
+	test('selectionRangeProvider on inner array always returns outer array #91852', async function () {
+
+		disposables.push(extHost.registerSelectionRangeProvider(nullExtensionDescription, defaultSelector, <vscode.SelectionRangeProvider>{
+			provideSelectionRanges(_doc, positions) {
+				const [first] = positions;
+				return [
+					new types.SelectionRange(new types.Range(first.line, first.character, first.line, first.character)),
+				];
+			}
+		}));
+
+		await rpcProtocol.sync();
+		let value = await commands.executeCommand<vscode.SelectionRange[]>('vscode.executeSelectionRangeProvider', model.uri, [new types.Position(0, 10)]);
+		assert.equal(value.length, 1);
+		assert.equal(value[0].range.start.line, 0);
+		assert.equal(value[0].range.start.character, 10);
+		assert.equal(value[0].range.end.line, 0);
+		assert.equal(value[0].range.end.character, 10);
+	});
+
+	test('selectionRangeProvider on inner array always returns outer array #91852', async function () {
+
+		disposables.push(extHost.registerSelectionRangeProvider(nullExtensionDescription, defaultSelector, <vscode.SelectionRangeProvider>{
+			provideSelectionRanges(_doc, positions) {
+				const [first, second] = positions;
+				return [
+					new types.SelectionRange(new types.Range(first.line, first.character, first.line, first.character)),
+					new types.SelectionRange(new types.Range(second.line, second.character, second.line, second.character)),
+				];
+			}
+		}));
+
+		await rpcProtocol.sync();
+		let value = await commands.executeCommand<vscode.SelectionRange[]>(
+			'vscode.executeSelectionRangeProvider',
+			model.uri,
+			[new types.Position(0, 0), new types.Position(0, 10)]
+		);
+		assert.equal(value.length, 2);
+		assert.equal(value[0].range.start.line, 0);
+		assert.equal(value[0].range.start.character, 0);
+		assert.equal(value[0].range.end.line, 0);
+		assert.equal(value[0].range.end.character, 0);
+		assert.equal(value[1].range.start.line, 0);
+		assert.equal(value[1].range.start.character, 10);
+		assert.equal(value[1].range.end.line, 0);
+		assert.equal(value[1].range.end.character, 10);
+	});
 });
