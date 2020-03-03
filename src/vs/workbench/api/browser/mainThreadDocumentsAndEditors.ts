@@ -5,7 +5,6 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { values } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor, isCodeEditor, isDiffEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
@@ -110,8 +109,8 @@ class DocumentAndEditorState {
 	static compute(before: DocumentAndEditorState | undefined, after: DocumentAndEditorState): DocumentAndEditorStateDelta {
 		if (!before) {
 			return new DocumentAndEditorStateDelta(
-				[], values(after.documents),
-				[], values(after.textEditors),
+				[], [...after.documents.values()],
+				[], [...after.textEditors.values()],
 				undefined, after.activeEditor
 			);
 		}
