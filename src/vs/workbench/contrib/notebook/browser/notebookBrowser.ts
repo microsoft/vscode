@@ -16,10 +16,10 @@ export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey
 
 export interface INotebookEditor {
 	viewType: string | undefined;
-	insertEmptyNotebookCell(index: number | undefined, cell: CellViewModel, type: 'markdown' | 'code', direction: 'above' | 'below'): Promise<void>;
-	deleteNotebookCell(index: number | undefined, cell: CellViewModel): void;
-	editNotebookCell(index: number | undefined, cell: CellViewModel): void;
-	saveNotebookCell(index: number | undefined, cell: CellViewModel): void;
+	insertEmptyNotebookCell(cell: CellViewModel, type: 'markdown' | 'code', direction: 'above' | 'below'): Promise<void>;
+	deleteNotebookCell(cell: CellViewModel): void;
+	editNotebookCell(cell: CellViewModel): void;
+	saveNotebookCell(cell: CellViewModel): void;
 	focusNotebookCell(cell: CellViewModel, focusEditor: boolean): void;
 	getActiveCell(): CellViewModel | undefined;
 	layoutNotebookCell(cell: CellViewModel, height: number): void;

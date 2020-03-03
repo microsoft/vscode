@@ -89,7 +89,7 @@ class AbstractCellRenderer {
 			undefined,
 			true,
 			async () => {
-				await this.notebookEditor.insertEmptyNotebookCell(listIndex, element, 'code', 'above');
+				await this.notebookEditor.insertEmptyNotebookCell(element, 'code', 'above');
 			}
 		);
 		actions.push(insertAbove);
@@ -100,7 +100,7 @@ class AbstractCellRenderer {
 			undefined,
 			true,
 			async () => {
-				await this.notebookEditor.insertEmptyNotebookCell(listIndex, element, 'code', 'below');
+				await this.notebookEditor.insertEmptyNotebookCell(element, 'code', 'below');
 			}
 		);
 		actions.push(insertBelow);
@@ -111,7 +111,7 @@ class AbstractCellRenderer {
 			undefined,
 			true,
 			async () => {
-				await this.notebookEditor.insertEmptyNotebookCell(listIndex, element, 'markdown', 'above');
+				await this.notebookEditor.insertEmptyNotebookCell(element, 'markdown', 'above');
 			}
 		);
 		actions.push(insertMarkdownAbove);
@@ -122,7 +122,7 @@ class AbstractCellRenderer {
 			undefined,
 			true,
 			async () => {
-				await this.notebookEditor.insertEmptyNotebookCell(listIndex, element, 'markdown', 'below');
+				await this.notebookEditor.insertEmptyNotebookCell(element, 'markdown', 'below');
 			}
 		);
 		actions.push(insertMarkdownBelow);
@@ -134,7 +134,7 @@ class AbstractCellRenderer {
 				undefined,
 				true,
 				async () => {
-					this.notebookEditor.editNotebookCell(listIndex, element);
+					this.notebookEditor.editNotebookCell(element);
 				}
 			);
 
@@ -146,7 +146,7 @@ class AbstractCellRenderer {
 				undefined,
 				true,
 				async () => {
-					this.notebookEditor.saveNotebookCell(listIndex, element);
+					this.notebookEditor.saveNotebookCell(element);
 				}
 			);
 
@@ -159,7 +159,7 @@ class AbstractCellRenderer {
 			undefined,
 			true,
 			async () => {
-				this.notebookEditor.deleteNotebookCell(listIndex, element);
+				this.notebookEditor.deleteNotebookCell(element);
 			}
 		);
 

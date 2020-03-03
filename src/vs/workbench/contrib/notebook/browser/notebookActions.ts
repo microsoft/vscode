@@ -124,7 +124,7 @@ registerAction2(class extends Action2 {
 
 		let activeCell = editor.getActiveCell();
 		if (activeCell) {
-			editor.editNotebookCell(undefined, activeCell);
+			editor.editNotebookCell(activeCell);
 		}
 	}
 });

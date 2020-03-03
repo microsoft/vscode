@@ -38,6 +38,7 @@ import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { Emitter, Event } from 'vs/base/common/event';
 import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/notebookCellList';
 import { NotebookFindWidget, NotebookFindDelegate, CellFindMatch } from 'vs/workbench/contrib/notebook/browser/notebookFindWidget';
+import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/notebookViewModel';
 
 const $ = DOM.$;
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
@@ -112,19 +113,14 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 	static readonly ID: string = 'workbench.editor.notebook';
 	private rootElement!: HTMLElement;
 	private body!: HTMLElement;
-	private contentWidgets!: HTMLElement;
 	private webview: BackLayerWebView | null = null;
-
 	private list: NotebookCellList<CellViewModel> | undefined;
 	private control: ICompositeCodeEditor | undefined;
 	private renderedEditors: Map<CellViewModel, ICodeEditor | undefined> = new Map();
-	private model: NotebookEditorModel | undefined;
-	viewType: string | undefined;
-	private viewCells: CellViewModel[] = [];
+	private notebookViewModel: NotebookViewModel | undefined;
 	private localStore: DisposableStore = this._register(new DisposableStore());
 	private editorMemento: IEditorMemento<INotebookEditorViewState>;
 	private fontInfo: BareFontInfo | undefined;
-	// private relayoutDisposable: IDisposable | null = null;
 	private dimension: DOM.Dimension | null = null;
 	private editorFocus: IContextKey<boolean> | null = null;
 	private outputRenderer: OutputRenderer;
@@ -157,6 +153,8 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 	set minimumWidth(value: number) { /*noop*/ }
 	set maximumWidth(value: number) { /*noop*/ }
 
+	get viewType() { return this.notebookViewModel?.viewType; }
+
 
 	//#region Editor
 
@@ -184,10 +182,6 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 		DOM.addClass(this.body, 'cell-list-container');
 		this.createCellList();
 		DOM.append(parent, this.body);
-
-		this.contentWidgets = document.createElement('div');
-		DOM.addClass(this.contentWidgets, 'notebook-content-widgets');
-		DOM.append(this.body, this.contentWidgets);
 		DOM.append(this.body, this.findWidget.getDomNode());
 	}
 
@@ -255,10 +249,9 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 
 		this.list?.splice(0, this.list?.length);
 
-		if (this.model && !this.model.isDirty()) {
-			this.notebookService.destoryNotebookDocument(this.viewType!, this.model!.notebook!);
-			this.model = undefined;
-			this.viewType = undefined;
+		if (this.notebookViewModel && !this.notebookViewModel.isDirty()) {
+			this.notebookService.destoryNotebookDocument(this.viewType!, this.notebookViewModel!.notebookDocument);
+			this.notebookViewModel = undefined;
 		}
 
 		super.onHide();
@@ -267,11 +260,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 	setVisible(visible: boolean, group?: IEditorGroup): void {
 		super.setVisible(visible, group);
 		if (!visible) {
-			this.viewCells.forEach(cell => {
-				if (cell.getText() !== '') {
-					cell.isEditing = false;
-				}
-			});
+			this.notebookViewModel?.hide();
 		}
 	}
 
@@ -280,97 +269,91 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 		this.editorFocus?.set(true);
 	}
 
-	setInput(input: NotebookEditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
+	async setInput(input: NotebookEditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
 		if (this.input instanceof NotebookEditorInput) {
 			this.saveTextEditorViewState(this.input);
 		}
 
-		return super.setInput(input, options, token)
-			.then(() => {
-				return input.resolve();
-			})
-			.then(async model => {
-				if (this.model !== undefined && this.model === model && this.webview !== null) {
-					return;
-				}
+		await super.setInput(input, options, token);
+		const model = await input.resolve();
 
-				this.localStore.clear();
-				this.viewCells.forEach(cell => {
-					cell.save();
+		if (this.notebookViewModel !== undefined && this.notebookViewModel.equal(model) && this.webview !== null) {
+			return;
+		}
+
+		this.detachModel();
+		await this.attachModel(input, model);
+	}
+
+	private detachModel() {
+		this.localStore.clear();
+		this.notebookViewModel?.dispose();
+		this.notebookViewModel = undefined;
+		this.webview?.clearInsets();
+		this.webview?.clearPreloadsCache();
+	}
+
+	private async attachModel(input: NotebookEditorInput, model: NotebookEditorModel) {
+		if (!this.webview) {
+			this.webview = new BackLayerWebView(this.webviewService, this.notebookService, this, this.environmentSerice);
+			this.list?.rowsContainer.insertAdjacentElement('afterbegin', this.webview!.element);
+		}
+
+		this.notebookViewModel = this.instantiationService.createInstance(NotebookViewModel, input.viewType!, model);
+		const viewState = this.loadTextEditorViewState(input);
+		await this.notebookViewModel.initialize(viewState);
+
+		this.localStore.add(this.notebookViewModel.onDidChangeCells((e) => {
+			this.updateViewCells(e);
+		}));
+
+		this.webview?.updateRendererPreloads(this.notebookViewModel.renderers);
+
+		this.localStore.add(this.list!.onWillScroll(e => {
+			this.webview!.updateViewScrollTop(-e.scrollTop, []);
+		}));
+
+		this.localStore.add(this.list!.onDidChangeContentHeight(() => {
+			const scrollTop = this.list?.scrollTop || 0;
+			const scrollHeight = this.list?.scrollHeight || 0;
+			this.webview!.element.style.height = `${scrollHeight}px`;
+			let updateItems: { cell: CellViewModel, output: IOutput, cellTop: number }[] = [];
+
+			if (this.webview?.insetMapping) {
+				this.webview?.insetMapping.forEach((value, key) => {
+					let cell = value.cell;
+					let index = this.notebookViewModel!.getViewCellIndex(cell);
+					let cellTop = this.list?.getAbsoluteTop(index) || 0;
+					if (this.webview!.shouldUpdateInset(cell, key, cellTop)) {
+						updateItems.push({
+							cell: cell,
+							output: key,
+							cellTop: cellTop
+						});
+					}
 				});
 
-				if (this.webview) {
-					this.webview?.clearInsets();
-					this.webview?.clearPreloadsCache();
-				} else {
-					this.webview = new BackLayerWebView(this.webviewService, this.notebookService, this, this.environmentSerice);
-					this.list?.rowsContainer.insertAdjacentElement('afterbegin', this.webview!.element);
+				if (updateItems.length) {
+					this.webview?.updateViewScrollTop(-scrollTop, updateItems);
 				}
+			}
+		}));
 
-				this.model = model;
-				this.localStore.add(this.model.onDidChangeCells((e) => {
-					this.updateViewCells(e);
-				}));
+		this.localStore.add(this.list!.onFocusChange((e) => {
+			if (e.elements.length > 0) {
+				this.notebookService.updateNotebookActiveCell(input.viewType!, input.resource!, e.elements[0].cell.handle);
+			}
+		}));
 
-				let viewState = this.loadTextEditorViewState(input);
-				this.webview.updateRendererPreloads(this.model!.notebook.renderers);
-				this.viewType = input.viewType;
-				this.viewCells = await Promise.all(this.model!.notebook!.cells.map(async cell => {
-					const isEditing = viewState && viewState.editingCells[cell.handle];
-					const viewCell = this.instantiationService.createInstance(CellViewModel, input.viewType!, this.model!.notebook!.handle, cell, !!isEditing);
-					this.localStore.add(viewCell);
-					return viewCell;
-				}));
-
-				const updateScrollPosition = () => {
-					const scrollTop = this.list?.scrollTop || 0;
-					const scrollHeight = this.list?.scrollHeight || 0;
-					this.webview!.element.style.height = `${scrollHeight}px`;
-					let updateItems: { cell: CellViewModel, output: IOutput, cellTop: number }[] = [];
-
-					// const date = new Date();
-					if (this.webview?.insetMapping) {
-						this.webview?.insetMapping.forEach((value, key) => {
-							let cell = value.cell;
-							let index = this.model!.getNotebook().cells.indexOf(cell.cell);
-							let cellTop = this.list?.getAbsoluteTop(index) || 0;
-							if (this.webview!.shouldUpdateInset(cell, key, cellTop)) {
-								updateItems.push({
-									cell: cell,
-									output: key,
-									cellTop: cellTop
-								});
-							}
-						});
-
-						if (updateItems.length) {
-							// console.log('----- did scroll ----  ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
-							this.webview?.updateViewScrollTop(-scrollTop, updateItems);
-						}
-					}
-				};
-				this.localStore.add(this.list!.onWillScroll(e => {
-					// const date = new Date();
-					// console.log('----- will scroll ----  ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
-					this.webview!.updateViewScrollTop(-e.scrollTop, []);
-				}));
-				this.localStore.add(this.list!.onDidChangeContentHeight(() => updateScrollPosition()));
-				this.localStore.add(this.list!.onFocusChange((e) => {
-					if (e.elements.length > 0) {
-						this.notebookService.updateNotebookActiveCell(input.viewType!, input.resource!, e.elements[0].cell.handle);
-					}
-				}));
-
-				this.list?.splice(0, this.list?.length);
-				this.list?.splice(0, 0, this.viewCells);
-				this.list?.layout();
-			});
+		this.list?.splice(0, this.list?.length);
+		this.list?.splice(0, 0, this.notebookViewModel!.viewCells);
+		this.list?.layout();
 	}
 
 	private saveTextEditorViewState(input: NotebookEditorInput): void {
 		if (this.group) {
 			let state: { [key: number]: boolean } = {};
-			this.viewCells.filter(cell => cell.isEditing).forEach(cell => state[cell.cell.handle] = true);
+			this.notebookViewModel!.viewCells.filter(cell => cell.isEditing).forEach(cell => state[cell.cell.handle] = true);
 			this.editorMemento.saveEditorState(this.group, input, {
 				editingCells: state
 			});
@@ -406,7 +389,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 	//#region Find Delegate
 	startFind(value: string): CellFindMatch[] {
 		let matches: CellFindMatch[] = [];
-		this.viewCells.forEach(cell => {
+		this.notebookViewModel!.viewCells.forEach(cell => {
 			let cellMatches = cell.startFind(value);
 			matches.push(...cellMatches);
 		});
@@ -419,7 +402,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 
 	focusNext(match: CellFindMatch) {
 		let cell = match.cell;
-		let index = this.viewCells.indexOf(cell);
+		let index = this.notebookViewModel!.viewCells.indexOf(cell);
 
 		this.list?.reveal(index);
 	}
@@ -437,7 +420,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 	//#region Cell operations
 	layoutNotebookCell(cell: CellViewModel, height: number) {
 		let relayout = (cell: CellViewModel, height: number) => {
-			let index = this.model!.getNotebook().cells.indexOf(cell.cell);
+			let index = this.notebookViewModel!.getViewCellIndex(cell);
 			if (index >= 0) {
 				this.list?.updateElementHeight(index, height);
 			}
@@ -445,38 +428,28 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 
 		DOM.scheduleAtNextAnimationFrame(() => {
 			relayout(cell, height);
-			// this.relayoutDisposable = null;
 		});
 	}
 
 	updateViewCells(splices: NotebookCellsSplice[]) {
-		let update = () => {
+		DOM.scheduleAtNextAnimationFrame(() => {
 			splices.reverse().forEach((diff) => {
 				this.list?.splice(diff[0], diff[1], diff[2].map(cell => {
-					return this.instantiationService.createInstance(CellViewModel, this.viewType!, this.model!.notebook!.handle, cell, false);
+					return this.instantiationService.createInstance(CellViewModel, this.viewType!, this.notebookViewModel!.handle, cell, false);
 				}));
 			});
-		};
-
-		DOM.scheduleAtNextAnimationFrame(() => {
-			update();
 		});
 	}
 
-	async insertEmptyNotebookCell(listIndex: number | undefined, cell: CellViewModel, type: 'code' | 'markdown', direction: 'above' | 'below'): Promise<void> {
-		let newLanguages = this.model!.notebook!.languages;
-		let language = 'markdown';
-		if (newLanguages && newLanguages.length) {
-			language = newLanguages[0];
-		}
-
-		let index = listIndex ? listIndex : this.model!.getNotebook().cells.indexOf(cell.cell);
+	async insertEmptyNotebookCell(cell: CellViewModel, type: 'code' | 'markdown', direction: 'above' | 'below'): Promise<void> {
+		const newLanguages = this.notebookViewModel!.languages;
+		const language = newLanguages && newLanguages.length ? newLanguages[0] : 'markdown';
+		const index = this.notebookViewModel!.getViewCellIndex(cell);
 		const insertIndex = direction === 'above' ? index : index + 1;
+		const newModeCell = await this.notebookService.createNotebookCell(this.viewType!, this.notebookViewModel!.uri, insertIndex, language, type);
+		const newCell = this.instantiationService.createInstance(CellViewModel, this.viewType!, this.notebookViewModel!.handle, newModeCell!, false);
 
-		let newModeCell = await this.notebookService.createNotebookCell(this.viewType!, this.model!.notebook!.uri, insertIndex, language, type);
-		let newCell = this.instantiationService.createInstance(CellViewModel, this.viewType!, this.model!.notebook!.handle, newModeCell!, false);
-
-		this.viewCells!.splice(insertIndex, 0, newCell);
+		this.notebookViewModel!.insertCell(insertIndex, newCell);
 		this.list?.splice(insertIndex, 0, [newCell]);
 		this.list?.setFocus([insertIndex]);
 
@@ -489,11 +462,18 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 		});
 	}
 
-	editNotebookCell(listIndex: number | undefined, cell: CellViewModel): void {
+	async deleteNotebookCell(cell: CellViewModel): Promise<void> {
+		const index = this.notebookViewModel!.getViewCellIndex(cell);
+		await this.notebookService.deleteNotebookCell(this.viewType!, this.notebookViewModel!.uri, index);
+		this.notebookViewModel!.deleteCell(index);
+		this.list?.splice(index, 1);
+	}
+
+	editNotebookCell(cell: CellViewModel): void {
 		cell.isEditing = true;
 	}
 
-	saveNotebookCell(listIndex: number | undefined, cell: CellViewModel): void {
+	saveNotebookCell(cell: CellViewModel): void {
 		cell.isEditing = false;
 	}
 
@@ -508,7 +488,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 	}
 
 	focusNotebookCell(cell: CellViewModel, focusEditor: boolean) {
-		let index = this.model!.getNotebook().cells.indexOf(cell.cell);
+		const index = this.notebookViewModel!.getViewCellIndex(cell);
 
 		if (focusEditor) {
 
@@ -523,15 +503,6 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 
 		this.list?.setFocus([index]);
 		this.list?.focusView();
-	}
-
-	async deleteNotebookCell(listIndex: number | undefined, cell: CellViewModel): Promise<void> {
-		let index = this.model!.getNotebook().cells.indexOf(cell.cell);
-
-		// await this.notebookService.createNotebookCell(this.viewType!, this.model!.notebook!.uri, insertIndex, language, type);
-		await this.notebookService.deleteNotebookCell(this.viewType!, this.model!.notebook!.uri, index);
-		this.viewCells!.splice(index, 1);
-		this.list?.splice(index, 1);
 	}
 
 	//#endregion
@@ -555,15 +526,15 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 			return;
 		}
 
-		let preloads = this.model!.notebook!.renderers;
+		let preloads = this.notebookViewModel!.renderers;
 
 		if (!this.webview!.insetMapping.has(output)) {
-			let index = this.model!.getNotebook().cells.indexOf(cell.cell);
+			let index = this.notebookViewModel!.getViewCellIndex(cell);
 			let cellTop = this.list?.getAbsoluteTop(index) || 0;
 
 			this.webview!.createInset(cell, output, cellTop, offset, shadowContent, preloads);
 		} else {
-			let index = this.model!.getNotebook().cells.indexOf(cell.cell);
+			let index = this.notebookViewModel!.getViewCellIndex(cell);
 			let cellTop = this.list?.getAbsoluteTop(index) || 0;
 			let scrollTop = this.list?.scrollTop || 0;
 

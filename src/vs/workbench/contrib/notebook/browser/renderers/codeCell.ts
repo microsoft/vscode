@@ -104,7 +104,7 @@ export class CodeCell extends Disposable {
 
 		this._register(templateData.editor!.onDidContentSizeChange((e) => {
 			if (e.contentHeightChanged) {
-				if (viewCell.editorHeight !== e.contentHeight) {
+				if (this.viewCell.editorHeight !== e.contentHeight) {
 					templateData.editor?.layout(
 						{
 							width: e.contentWidth,
@@ -112,13 +112,13 @@ export class CodeCell extends Disposable {
 						}
 					);
 
-					viewCell.editorHeight = e.contentHeight;
+					this.viewCell.editorHeight = e.contentHeight;
 
-					if (viewCell.outputs.length) {
-						let outputHeight = viewCell.getOutputTotalHeight();
-						notebookEditor.layoutNotebookCell(viewCell, viewCell.editorHeight + 32 + outputHeight);
+					if (this.viewCell.outputs.length) {
+						let outputHeight = this.viewCell.getOutputTotalHeight();
+						notebookEditor.layoutNotebookCell(this.viewCell, viewCell.editorHeight + 32 + outputHeight);
 					} else {
-						notebookEditor.layoutNotebookCell(viewCell, viewCell.editorHeight + 32);
+						notebookEditor.layoutNotebookCell(this.viewCell, viewCell.editorHeight + 32);
 					}
 
 				}
