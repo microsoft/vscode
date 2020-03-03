@@ -14,7 +14,7 @@ import { IConfigurationChangeEvent } from 'vs/platform/configuration/common/conf
 import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
 import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 
 export const EDITOR_TITLE_HEIGHT = 35;
 
@@ -160,5 +160,5 @@ export interface EditorServiceImpl extends IEditorService {
 	/**
 	 * Override to return a typed `EditorInput`.
 	 */
-	createEditorInput(input: IResourceEditor): EditorInput;
+	createEditorInput(input: IResourceEditorInputType): EditorInput;
 }

@@ -12,7 +12,7 @@ import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { toResource, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors } from 'vs/workbench/common/editor';
-import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowSettings, IOpenFileRequest, IWindowsConfiguration, IAddFoldersRequest, IRunActionInWindowRequest, IRunKeybindingInWindowRequest, getTitleBarStyle } from 'vs/platform/windows/common/windows';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
@@ -591,7 +591,7 @@ export class ElectronWindow extends Disposable {
 	}
 
 	private async onOpenFiles(request: IOpenFileRequest): Promise<void> {
-		const inputs: IResourceEditor[] = [];
+		const inputs: IResourceEditorInputType[] = [];
 		const diffMode = !!(request.filesToDiff && (request.filesToDiff.length === 2));
 
 		if (!diffMode && request.filesToOpenOrCreate) {

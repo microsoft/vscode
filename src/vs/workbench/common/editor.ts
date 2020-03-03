@@ -22,7 +22,7 @@ import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/
 import { IPathData } from 'vs/platform/windows/common/windows';
 import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
 import { ITextFileSaveOptions, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 import { isEqual, dirname } from 'vs/base/common/resources';
 import { IPanel } from 'vs/workbench/common/panel';
 import { IRange } from 'vs/editor/common/core/range';
@@ -326,7 +326,7 @@ export interface IRevertOptions {
 }
 
 export interface IMoveResult {
-	editor: EditorInput | IResourceEditor;
+	editor: EditorInput | IResourceEditorInputType;
 	options?: IEditorOptions;
 }
 

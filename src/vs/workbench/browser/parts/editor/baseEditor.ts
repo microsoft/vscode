@@ -35,7 +35,7 @@ import { indexOfPath } from 'vs/base/common/extpath';
  */
 export abstract class BaseEditor extends Panel implements IEditorPane {
 
-	private static readonly EDITOR_MEMENTOS: Map<string, EditorMemento<any>> = new Map<string, EditorMemento<any>>();
+	private static readonly EDITOR_MEMENTOS = new Map<string, EditorMemento<any>>();
 
 	readonly minimumWidth = DEFAULT_EDITOR_MIN_DIMENSIONS.width;
 	readonly maximumWidth = DEFAULT_EDITOR_MAX_DIMENSIONS.width;
@@ -45,9 +45,12 @@ export abstract class BaseEditor extends Panel implements IEditorPane {
 	readonly onDidSizeConstraintsChange = Event.None;
 
 	protected _input: EditorInput | undefined;
+	get input(): EditorInput | undefined { return this._input; }
+
 	protected _options: EditorOptions | undefined;
 
 	private _group?: IEditorGroup;
+	get group(): IEditorGroup | undefined { return this._group; }
 
 	constructor(
 		id: string,
@@ -56,14 +59,6 @@ export abstract class BaseEditor extends Panel implements IEditorPane {
 		storageService: IStorageService
 	) {
 		super(id, telemetryService, themeService, storageService);
-	}
-
-	get input(): EditorInput | undefined {
-		return this._input;
-	}
-
-	get group(): IEditorGroup | undefined {
-		return this._group;
 	}
 
 	/**
@@ -175,16 +170,12 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 	private cleanedUp = false;
 
 	constructor(
-		private _id: string,
+		public readonly id: string,
 		private key: string,
 		private memento: MementoObject,
 		private limit: number,
 		private editorGroupService: IEditorGroupsService
 	) { }
-
-	get id(): string {
-		return this._id;
-	}
 
 	saveEditorState(group: IEditorGroup, resource: URI, state: T): void;
 	saveEditorState(group: IEditorGroup, editor: EditorInput, state: T): void;

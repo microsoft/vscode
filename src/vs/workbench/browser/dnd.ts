@@ -20,7 +20,7 @@ import { isWindows, isWeb } from 'vs/base/common/platform';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorIdentifier, GroupIdentifier } from 'vs/workbench/common/editor';
-import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { addDisposableListener, EventType, asDomUri } from 'vs/base/browser/dom';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -196,7 +196,7 @@ export class ResourcesDropHandler {
 			this.workspacesService.addRecentlyOpened(recentFiles);
 		}
 
-		const editors: IResourceEditor[] = untitledOrFileResources.map(untitledOrFileResource => ({
+		const editors: IResourceEditorInputType[] = untitledOrFileResources.map(untitledOrFileResource => ({
 			resource: untitledOrFileResource.resource,
 			encoding: (untitledOrFileResource as IDraggedEditor).encoding,
 			mode: (untitledOrFileResource as IDraggedEditor).mode,
