@@ -22,7 +22,7 @@ import { MainThreadTextEditors } from 'vs/workbench/api/browser/mainThreadEditor
 import { ExtHostContext, ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta, IExtHostContext, IModelAddedData, ITextEditorAddData, MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { EditorViewColumn, editorGroupToViewColumn } from 'vs/workbench/api/common/shared/editor';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
-import { IEditor as IWorkbenchEditor } from 'vs/workbench/common/editor';
+import { IEditorPane } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -444,9 +444,9 @@ export class MainThreadDocumentsAndEditors {
 		return undefined;
 	}
 
-	findTextEditorIdFor(inputEditor: IWorkbenchEditor): string | undefined {
+	findTextEditorIdFor(editorPane: IEditorPane): string | undefined {
 		for (const [id, editor] of this._textEditors) {
-			if (editor.matches(inputEditor)) {
+			if (editor.matches(editorPane)) {
 				return id;
 			}
 		}

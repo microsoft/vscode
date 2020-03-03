@@ -6,7 +6,7 @@
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { ITextEditorOptions, IResourceInput, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
-import { IEditorInput, IEditor as IBaseEditor, Extensions as EditorExtensions, EditorInput, IEditorCloseEvent, IEditorInputFactoryRegistry, toResource, IEditorIdentifier, GroupIdentifier, EditorsOrder } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditorPane, Extensions as EditorExtensions, EditorInput, IEditorCloseEvent, IEditorInputFactoryRegistry, toResource, IEditorIdentifier, GroupIdentifier, EditorsOrder } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { FileChangesEvent, IFileService, FileChangeType, FILES_EXCLUDE_CONFIG } from 'vs/platform/files/common/files';
@@ -206,7 +206,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 	}
 
-	private matchesEditor(identifier: IEditorIdentifier, editor?: IBaseEditor): boolean {
+	private matchesEditor(identifier: IEditorIdentifier, editor?: IEditorPane): boolean {
 		if (!editor || !editor.group) {
 			return false;
 		}
@@ -224,11 +224,11 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 	}
 
-	private handleEditorSelectionChangeEvent(editor?: IBaseEditor, event?: ICursorPositionChangedEvent): void {
+	private handleEditorSelectionChangeEvent(editor?: IEditorPane, event?: ICursorPositionChangedEvent): void {
 		this.handleEditorEventInNavigationStack(editor, event);
 	}
 
-	private handleActiveEditorChange(editor?: IBaseEditor): void {
+	private handleActiveEditorChange(editor?: IEditorPane): void {
 		this.handleEditorEventInHistory(editor);
 		this.handleEditorEventInNavigationStack(editor);
 	}
@@ -344,7 +344,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.doNavigate(navigateToStackEntry).finally(() => this.navigatingInStack = false);
 	}
 
-	private doNavigate(location: IStackEntry): Promise<IBaseEditor | undefined> {
+	private doNavigate(location: IStackEntry): Promise<IEditorPane | undefined> {
 		const options: ITextEditorOptions = {
 			revealIfOpened: true, // support to navigate across editor groups,
 			selection: location.selection,
@@ -358,7 +358,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		return this.editorService.openEditor({ resource: (location.input as IResourceInput).resource, options });
 	}
 
-	private handleEditorEventInNavigationStack(control: IBaseEditor | undefined, event?: ICursorPositionChangedEvent): void {
+	private handleEditorEventInNavigationStack(control: IEditorPane | undefined, event?: ICursorPositionChangedEvent): void {
 		const codeEditor = control ? getCodeEditor(control.getControl()) : undefined;
 
 		// treat editor changes that happen as part of stack navigation specially
@@ -392,7 +392,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 	}
 
-	private handleTextEditorEventInNavigationStack(editor: IBaseEditor, editorControl: IEditor, event?: ICursorPositionChangedEvent): void {
+	private handleTextEditorEventInNavigationStack(editor: IEditorPane, editorControl: IEditor, event?: ICursorPositionChangedEvent): void {
 		if (!editor.input) {
 			return;
 		}
@@ -413,7 +413,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.currentTextEditorState = stateCandidate;
 	}
 
-	private handleNonTextEditorEventInNavigationStack(editor: IBaseEditor): void {
+	private handleNonTextEditorEventInNavigationStack(editor: IEditorPane): void {
 		if (!editor.input) {
 			return;
 		}
@@ -730,7 +730,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		return getExcludes(scope ? this.configurationService.getValue<ISearchConfiguration>(scope) : this.configurationService.getValue<ISearchConfiguration>())!;
 	}
 
-	private handleEditorEventInHistory(editor?: IBaseEditor): void {
+	private handleEditorEventInHistory(editor?: IEditorPane): void {
 
 		// Ensure we have not configured to exclude input and don't track invalid inputs
 		const input = editor?.input;

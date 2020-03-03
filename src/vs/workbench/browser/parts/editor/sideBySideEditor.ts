@@ -5,7 +5,7 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorInput, EditorOptions, SideBySideEditorInput, IEditorControl, IEditor } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, SideBySideEditorInput, IEditorControl, IEditorPane } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -155,11 +155,11 @@ export class SideBySideEditor extends BaseEditor {
 		return undefined;
 	}
 
-	getMasterEditor(): IEditor | undefined {
+	getMasterEditor(): IEditorPane | undefined {
 		return this.masterEditor;
 	}
 
-	getDetailsEditor(): IEditor | undefined {
+	getDetailsEditor(): IEditorPane | undefined {
 		return this.detailsEditor;
 	}
 

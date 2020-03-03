@@ -61,7 +61,10 @@ export const TEXT_DIFF_EDITOR_ID = 'workbench.editors.textDiffEditor';
  */
 export const BINARY_DIFF_EDITOR_ID = 'workbench.editors.binaryResourceDiffEditor';
 
-export interface IEditor extends IPanel {
+/**
+ * The editor pane is the container for workbench editors.
+ */
+export interface IEditorPane extends IPanel {
 
 	/**
 	 * The assigned input of this editor.
@@ -112,12 +115,12 @@ export interface IEditor extends IPanel {
 /**
  * Overrides `IEditor` where `input` and `group` are known to be set.
  */
-export interface IVisibleEditor extends IEditor {
+export interface IVisibleEditor extends IEditorPane {
 	readonly input: IEditorInput;
 	readonly group: IEditorGroup;
 }
 
-export interface ITextEditor extends IEditor {
+export interface ITextEditor extends IEditorPane {
 
 	/**
 	 * Returns the underlying text editor widget of this editor.
@@ -130,13 +133,13 @@ export interface ITextEditor extends IEditor {
 	getViewState(): IEditorViewState | undefined;
 }
 
-export function isTextEditor(thing: IEditor | undefined): thing is ITextEditor {
+export function isTextEditor(thing: IEditorPane | undefined): thing is ITextEditor {
 	const candidate = thing as ITextEditor | undefined;
 
 	return typeof candidate?.getViewState === 'function';
 }
 
-export interface ITextDiffEditor extends IEditor {
+export interface ITextDiffEditor extends IEditorPane {
 
 	/**
 	 * Returns the underlying text editor widget of this editor.
@@ -144,7 +147,7 @@ export interface ITextDiffEditor extends IEditor {
 	getControl(): IDiffEditor | undefined;
 }
 
-export interface ITextSideBySideEditor extends IEditor {
+export interface ITextSideBySideEditor extends IEditorPane {
 
 	/**
 	 * Returns the underlying text editor widget of the master side

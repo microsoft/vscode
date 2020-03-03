@@ -13,7 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
 import { Language } from 'vs/base/common/platform';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { IFileEditorInput, EncodingMode, IEncodingSupport, toResource, SideBySideEditorInput, IEditor, IEditorInput, SideBySideEditor, IModeSupport } from 'vs/workbench/common/editor';
+import { IFileEditorInput, EncodingMode, IEncodingSupport, toResource, SideBySideEditorInput, IEditorPane, IEditorInput, SideBySideEditor, IModeSupport } from 'vs/workbench/common/editor';
 import { Disposable, MutableDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorAction } from 'vs/editor/common/editorCommon';
 import { EndOfLineSequence } from 'vs/editor/common/model';
@@ -733,7 +733,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		this.updateState(update);
 	}
 
-	private onMetadataChange(editor: IEditor | undefined): void {
+	private onMetadataChange(editor: IEditorPane | undefined): void {
 		const update: StateDelta = { type: 'metadata', metadata: undefined };
 
 		if (editor instanceof BaseBinaryResourceEditor || editor instanceof BinaryResourceDiffEditor) {
@@ -832,7 +832,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		this.updateState(info);
 	}
 
-	private onEncodingChange(editor: IEditor | undefined, editorWidget: ICodeEditor | undefined): void {
+	private onEncodingChange(editor: IEditorPane | undefined, editorWidget: ICodeEditor | undefined): void {
 		if (editor && !this.isActiveEditor(editor)) {
 			return;
 		}
@@ -876,7 +876,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		this.updateState(info);
 	}
 
-	private isActiveEditor(control: IEditor): boolean {
+	private isActiveEditor(control: IEditorPane): boolean {
 		const activeControl = this.editorService.activeControl;
 
 		return !!activeControl && activeControl === control;

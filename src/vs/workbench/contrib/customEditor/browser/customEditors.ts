@@ -21,7 +21,7 @@ import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { EditorInput, EditorOptions, IEditor, IEditorInput } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, IEditorPane, IEditorInput } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { webviewEditorsExtensionPoint } from 'vs/workbench/contrib/customEditor/browser/extensionPoint';
 import { CONTEXT_CUSTOM_EDITORS, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CustomEditorInfo, CustomEditorInfoCollection, CustomEditorPriority, CustomEditorSelector, ICustomEditor, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
@@ -161,7 +161,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		resource: URI,
 		options?: ITextEditorOptions,
 		group?: IEditorGroup,
-	): Promise<IEditor | undefined> {
+	): Promise<IEditorPane | undefined> {
 		const customEditors = new CustomEditorInfoCollection([
 			defaultEditorInfo,
 			...this.getUserConfiguredCustomEditors(resource).allEditors,
@@ -239,7 +239,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		viewType: string,
 		options?: ITextEditorOptions,
 		group?: IEditorGroup,
-	): Promise<IEditor | undefined> {
+	): Promise<IEditorPane | undefined> {
 		if (viewType === defaultEditorId) {
 			const fileInput = this.editorService.createInput({ resource, forceFile: true });
 			return this.openEditorForResource(resource, fileInput, { ...options, ignoreOverrides: true }, group);
@@ -279,7 +279,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		input: IEditorInput,
 		options?: IEditorOptions,
 		group?: IEditorGroup
-	): Promise<IEditor | undefined> {
+	): Promise<IEditorPane | undefined> {
 		const targetGroup = group || this.editorGroupService.activeGroup;
 
 		// Try to replace existing editors for resource
