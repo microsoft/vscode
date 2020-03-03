@@ -34,13 +34,23 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 			BinaryFileEditor.ID,
 			{
 				openInternal: (input, options) => this.openInternal(input, options),
-				openExternal: resource => this.openerService.open(resource, { openExternal: true })
+				openExternal: resource => this.openerService.open(resource, { openExternal: true }),
+				openHex: (input, options) => this.openHex(input, options)
 			},
 			telemetryService,
 			themeService,
 			environmentService,
 			storageService
 		);
+	}
+
+
+	private async openHex(input: EditorInput, options: EditorOptions | undefined): Promise<void> {
+		if (input instanceof FileEditorInput) {
+			input.setForceOpenAsBinary();
+
+			await this.editorService.openEditor(input, options, this.group);
+		}
 	}
 
 	private async openInternal(input: EditorInput, options: EditorOptions | undefined): Promise<void> {

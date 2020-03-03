@@ -24,6 +24,7 @@ import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 export interface IOpenCallbacks {
 	openInternal: (input: EditorInput, options: EditorOptions | undefined) => Promise<void>;
 	openExternal: (uri: URI) => void;
+	openHex: (input: EditorInput, options: EditorOptions | undefined) => Promise<void>;
 }
 
 /*
@@ -96,8 +97,16 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		this.resourceViewerContext = ResourceViewer.show({ name: model.getName(), resource: model.resource, size: model.getSize(), etag: model.getETag(), mime: model.getMime() }, binaryContainer, scrollbar, {
 			openInternalClb: () => this.handleOpenInternalCallback(input, options),
 			openExternalClb: this.environmentService.configuration.remoteAuthority ? undefined : resource => this.callbacks.openExternal(resource),
+			openHexClb: () => this.handleOpenHexCallback(input, options),
 			metadataClb: meta => this.handleMetadataChanged(meta)
 		});
+	}
+
+	private async handleOpenHexCallback(input: EditorInput, options: EditorOptions | undefined): Promise<void> {
+		await this.callbacks.openHex(input, options);
+
+		// Signal to listeners that the binary editor has been opened in-place
+		this._onDidOpenInPlace.fire();
 	}
 
 	private async handleOpenInternalCallback(input: EditorInput, options: EditorOptions | undefined): Promise<void> {
@@ -202,6 +211,7 @@ interface ResourceViewerContext extends IDisposable {
 interface ResourceViewerDelegate {
 	openInternalClb(uri: URI): void;
 	openExternalClb?(uri: URI): void;
+	openHexClb(uri: URI): void;
 	metadataClb(meta: string): void;
 }
 
@@ -268,11 +278,17 @@ class FileSeemsBinaryFileView {
 		label.textContent = nls.localize('nativeBinaryError', "The file is not displayed in the editor because it is either binary or uses an unsupported text encoding.");
 		container.appendChild(label);
 
-		const link = append(label, $('a.embedded-link'));
-		link.setAttribute('role', 'button');
-		link.textContent = nls.localize('openAsText', "Do you want to open it anyway?");
+		const anyway = append(label, $('a.embedded-link'));
+		anyway.setAttribute('role', 'button');
+		anyway.textContent = nls.localize('openAsText', "Do you want to open it anyway,");
 
-		disposables.add(addDisposableListener(link, EventType.CLICK, () => delegate.openInternalClb(descriptor.resource)));
+		disposables.add(addDisposableListener(anyway, EventType.CLICK, () => delegate.openInternalClb(descriptor.resource)));
+
+		const hex = append(label, $('a.embedded-link'));
+		hex.setAttribute('role', 'button');
+		hex.textContent = nls.localize('openAsHex', "or do you want to open it in the hex editor?");
+
+		disposables.add(addDisposableListener(hex, EventType.CLICK, () => delegate.openHexClb(descriptor.resource)));
 
 		scrollbar.scanDomNode();
 
