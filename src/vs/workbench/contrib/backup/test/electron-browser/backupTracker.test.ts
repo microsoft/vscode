@@ -18,7 +18,7 @@ import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorInput, IUntitledTextResourceInput } from 'vs/workbench/common/editor';
+import { EditorInput, IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
@@ -153,7 +153,7 @@ suite('BackupTracker', () => {
 		return [accessor, part, tracker, instantiationService];
 	}
 
-	async function untitledBackupTest(untitled: IUntitledTextResourceInput = {}): Promise<void> {
+	async function untitledBackupTest(untitled: IUntitledTextResourceEditorInput = {}): Promise<void> {
 		const [accessor, part, tracker] = await createTracker();
 
 		const untitledEditor = (await accessor.editorService.openEditor(untitled))?.input as UntitledTextEditorInput;

@@ -192,7 +192,7 @@ export class TabsTitleControl extends TitleControl {
 
 				EventHelper.stop(e);
 
-				this.group.openEditor(this.editorService.createInput({
+				this.group.openEditor(this.editorService.createEditorInput({
 					forceUntitled: true,
 					options: {
 						pinned: true,			// untitled is always pinned

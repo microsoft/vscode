@@ -160,5 +160,5 @@ export interface EditorServiceImpl extends IEditorService {
 	/**
 	 * Override to return a typed `EditorInput`.
 	 */
-	createInput(input: IResourceEditor): EditorInput;
+	createEditorInput(input: IResourceEditor): EditorInput;
 }

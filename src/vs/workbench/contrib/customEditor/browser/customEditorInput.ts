@@ -142,7 +142,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			return undefined;
 		}
 
-		return this.handleMove(groupId, target) || this.editorService.createInput({ resource: target, forceFile: true });
+		return this.handleMove(groupId, target) || this.editorService.createEditorInput({ resource: target, forceFile: true });
 	}
 
 	public async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {

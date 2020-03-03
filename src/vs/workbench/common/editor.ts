@@ -10,7 +10,7 @@ import { withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IEditor, IEditorViewState, ScrollType, IDiffEditor } from 'vs/editor/common/editorCommon';
-import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, IResourceInput, EditorActivation, EditorOpenContext, ITextEditorSelection, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
+import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceEditorInput, IResourceEditorInput, EditorActivation, EditorOpenContext, ITextEditorSelection, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature0, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -113,7 +113,7 @@ export interface IEditorPane extends IPanel {
 }
 
 /**
- * Overrides `IEditor` where `input` and `group` are known to be set.
+ * Overrides `IEditorPane` where `input` and `group` are known to be set.
  */
 export interface IVisibleEditorPane extends IEditorPane {
 	readonly input: IEditorInput;
@@ -148,28 +148,30 @@ export interface ITextDiffEditorPane extends IEditorPane {
 }
 
 /**
- * Marker interface for the base editor control
+ * Marker interface for the control inside an editor pane. Callers
+ * have to cast the control to work with it, e.g. via methods
+ * such as `isCodeEditor(control)`.
  */
 export interface IEditorControl extends ICompositeControl { }
 
-export interface IFileInputFactory {
+export interface IFileEditorInputFactory {
 
-	createFileInput(resource: URI, encoding: string | undefined, mode: string | undefined, instantiationService: IInstantiationService): IFileEditorInput;
+	createFileEditorInput(resource: URI, encoding: string | undefined, mode: string | undefined, instantiationService: IInstantiationService): IFileEditorInput;
 
-	isFileInput(obj: unknown): obj is IFileEditorInput;
+	isFileEditorInput(obj: unknown): obj is IFileEditorInput;
 }
 
 export interface IEditorInputFactoryRegistry {
 
 	/**
-	 * Registers the file input factory to use for file inputs.
+	 * Registers the file editor input factory to use for file inputs.
 	 */
-	registerFileInputFactory(factory: IFileInputFactory): void;
+	registerFileEditorInputFactory(factory: IFileEditorInputFactory): void;
 
 	/**
-	 * Returns the file input factory to use for file inputs.
+	 * Returns the file editor input factory to use for file inputs.
 	 */
-	getFileInputFactory(): IFileInputFactory;
+	getFileEditorInputFactory(): IFileEditorInputFactory;
 
 	/**
 	 * Registers a editor input factory for the given editor input to the registry. An editor input factory
@@ -213,7 +215,7 @@ export interface IEditorInputFactory {
 	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput | undefined;
 }
 
-export interface IUntitledTextResourceInput extends IBaseResourceInput {
+export interface IUntitledTextResourceEditorInput extends IBaseResourceEditorInput {
 
 	/**
 	 * Optional resource. If the resource is not provided a new untitled file is created (e.g. Untitled-1).
@@ -239,7 +241,7 @@ export interface IUntitledTextResourceInput extends IBaseResourceInput {
 	readonly encoding?: string;
 }
 
-export interface IResourceDiffInput extends IBaseResourceInput {
+export interface IResourceDiffEditorInput extends IBaseResourceEditorInput {
 
 	/**
 	 * The left hand side URI to open inside a diff editor.
@@ -713,7 +715,7 @@ export abstract class TextResourceEditorInput extends EditorInput {
 		}
 
 		if (!isEqual(target, this.resource)) {
-			return this.editorService.createInput({ resource: target });
+			return this.editorService.createEditorInput({ resource: target });
 		}
 
 		return this;
@@ -1127,7 +1129,7 @@ export class TextEditorOptions extends EditorOptions implements ITextEditorOptio
 	 */
 	selectionRevealType: TextEditorSelectionRevealType | undefined;
 
-	static from(input?: IBaseResourceInput): TextEditorOptions | undefined {
+	static from(input?: IBaseResourceEditorInput): TextEditorOptions | undefined {
 		if (!input || !input.options) {
 			return undefined;
 		}
@@ -1364,7 +1366,7 @@ export interface IEditorMemento<T> {
 
 class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
 	private instantiationService: IInstantiationService | undefined;
-	private fileInputFactory: IFileInputFactory | undefined;
+	private fileEditorInputFactory: IFileEditorInputFactory | undefined;
 
 	private readonly editorInputFactoryConstructors: Map<string, IConstructorSignature0<IEditorInputFactory>> = new Map();
 	private readonly editorInputFactoryInstances: Map<string, IEditorInputFactory> = new Map();
@@ -1384,12 +1386,12 @@ class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
 		this.editorInputFactoryInstances.set(editorInputId, instance);
 	}
 
-	registerFileInputFactory(factory: IFileInputFactory): void {
-		this.fileInputFactory = factory;
+	registerFileEditorInputFactory(factory: IFileEditorInputFactory): void {
+		this.fileEditorInputFactory = factory;
 	}
 
-	getFileInputFactory(): IFileInputFactory {
-		return assertIsDefined(this.fileInputFactory);
+	getFileEditorInputFactory(): IFileEditorInputFactory {
+		return assertIsDefined(this.fileEditorInputFactory);
 	}
 
 	registerEditorInputFactory(editorInputId: string, ctor: IConstructorSignature0<IEditorInputFactory>): IDisposable {
@@ -1417,7 +1419,7 @@ export const Extensions = {
 
 Registry.add(Extensions.EditorInputFactories, new EditorInputFactoryRegistry());
 
-export async function pathsToEditors(paths: IPathData[] | undefined, fileService: IFileService): Promise<(IResourceInput | IUntitledTextResourceInput)[]> {
+export async function pathsToEditors(paths: IPathData[] | undefined, fileService: IFileService): Promise<(IResourceEditorInput | IUntitledTextResourceEditorInput)[]> {
 	if (!paths || !paths.length) {
 		return [];
 	}
@@ -1438,7 +1440,7 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 			pinned: true
 		} : { pinned: true };
 
-		let input: IResourceInput | IUntitledTextResourceInput;
+		let input: IResourceEditorInput | IUntitledTextResourceEditorInput;
 		if (!exists) {
 			input = { resource, options, forceUntitled: true };
 		} else {

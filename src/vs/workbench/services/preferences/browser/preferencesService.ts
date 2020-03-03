@@ -489,7 +489,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	private getOrCreateEditableSettingsEditorInput(target: ConfigurationTarget, resource: URI): Promise<EditorInput> {
 		return this.createSettingsIfNotExists(target, resource)
-			.then(() => <EditorInput>this.editorService.createInput({ resource }));
+			.then(() => <EditorInput>this.editorService.createEditorInput({ resource }));
 	}
 
 	private createEditableSettingsEditorModel(configurationTarget: ConfigurationTarget, settingsUri: URI): Promise<SettingsEditorModel> {

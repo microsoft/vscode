@@ -11,7 +11,7 @@ import { QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenMo
 import { EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry, QuickOpenAction } from 'vs/workbench/browser/quickopen';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IResourceInput } from 'vs/platform/editor/common/editor';
+import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -419,10 +419,10 @@ export class OpenToSideFromQuickOpenAction extends Action {
 					return;
 				}
 
-				const resourceInput = input as IResourceInput;
-				resourceInput.options = mixin(resourceInput.options, entry.getOptions());
+				const resourceEditorInput = input as IResourceEditorInput;
+				resourceEditorInput.options = mixin(resourceEditorInput.options, entry.getOptions());
 
-				await this.editorService.openEditor(resourceInput, SIDE_GROUP);
+				await this.editorService.openEditor(resourceEditorInput, SIDE_GROUP);
 			}
 		}
 	}

@@ -20,7 +20,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IResourceInput } from 'vs/platform/editor/common/editor';
+import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -93,8 +93,8 @@ export class FileEntry extends EditorQuickOpenEntry {
 		return true;
 	}
 
-	getInput(): IResourceInput | EditorInput {
-		const input: IResourceInput = {
+	getInput(): IResourceEditorInput | EditorInput {
+		const input: IResourceEditorInput = {
 			resource: this.resource,
 			options: {
 				pinned: !this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen,

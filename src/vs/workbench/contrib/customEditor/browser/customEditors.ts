@@ -241,8 +241,8 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		group?: IEditorGroup,
 	): Promise<IEditorPane | undefined> {
 		if (viewType === defaultEditorId) {
-			const fileInput = this.editorService.createInput({ resource, forceFile: true });
-			return this.openEditorForResource(resource, fileInput, { ...options, ignoreOverrides: true }, group);
+			const fileEditorInput = this.editorService.createEditorInput({ resource, forceFile: true });
+			return this.openEditorForResource(resource, fileEditorInput, { ...options, ignoreOverrides: true }, group);
 		}
 
 		if (!this._editorInfoStore.get(viewType)) {
@@ -260,7 +260,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		options?: { readonly customClasses: string; },
 	): IEditorInput {
 		if (viewType === defaultEditorId) {
-			return this.editorService.createInput({ resource, forceFile: true });
+			return this.editorService.createEditorInput({ resource, forceFile: true });
 		}
 
 		const id = generateUuid();
