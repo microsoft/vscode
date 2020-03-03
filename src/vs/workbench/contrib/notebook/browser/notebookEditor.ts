@@ -477,7 +477,6 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 		let newCell = this.instantiationService.createInstance(CellViewModel, this.viewType!, this.model!.notebook!.handle, newModeCell!, false);
 
 		this.viewCells!.splice(insertIndex, 0, newCell);
-		this.model!.insertCell(newCell.cell, insertIndex);
 		this.list?.splice(insertIndex, 0, [newCell]);
 		this.list?.setFocus([insertIndex]);
 
@@ -532,7 +531,6 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 		// await this.notebookService.createNotebookCell(this.viewType!, this.model!.notebook!.uri, insertIndex, language, type);
 		await this.notebookService.deleteNotebookCell(this.viewType!, this.model!.notebook!.uri, index);
 		this.viewCells!.splice(index, 1);
-		this.model!.deleteCell(cell.cell);
 		this.list?.splice(index, 1);
 	}
 
