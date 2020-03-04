@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IOutputTransformContribution, IRenderOutput, CellOutputKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IRenderOutput, CellOutputKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { registerOutputTransform } from 'vs/workbench/contrib/notebook/browser/notebookRegistry';
 import * as DOM from 'vs/base/browser/dom';
-import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor, IOutputTransformContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { isArray } from 'vs/base/common/types';
 import * as marked from 'vs/base/common/marked/marked';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';

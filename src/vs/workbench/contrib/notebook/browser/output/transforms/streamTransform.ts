@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IOutputTransformContribution, IRenderOutput, CellOutputKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IRenderOutput, CellOutputKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { registerOutputTransform } from 'vs/workbench/contrib/notebook/browser/notebookRegistry';
-import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor, IOutputTransformContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 class StreamRenderer implements IOutputTransformContribution {
 	constructor(

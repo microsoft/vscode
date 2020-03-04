@@ -9,7 +9,7 @@ import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/renderers/cellViewModel';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/output/outputRenderer';
-import { IOutput, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IOutput, CellKind, IRenderOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('notebookFindWidgetFocused', false);
@@ -38,4 +38,13 @@ export interface CellRenderTemplate {
 	editingContainer?: HTMLElement;
 	outputContainer?: HTMLElement;
 	editor?: CodeEditorWidget;
+}
+
+export interface IOutputTransformContribution {
+	/**
+	 * Dispose this contribution.
+	 */
+	dispose(): void;
+
+	render(output: IOutput, container: HTMLElement, preferredMimeType: string | undefined): IRenderOutput;
 }

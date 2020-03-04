@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IOutputTransformContribution, IOutput, IRenderOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IOutput, IRenderOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookRegistry } from 'vs/workbench/contrib/notebook/browser/notebookRegistry';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor, IOutputTransformContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 export class OutputRenderer {
 	protected readonly _contributions: { [key: string]: IOutputTransformContribution; };

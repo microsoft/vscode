@@ -151,16 +151,6 @@ export interface IRenderOutput {
 	hasDynamicHeight: boolean;
 }
 
-export interface IOutputTransformContribution {
-	/**
-	 * Dispose this contribution.
-	 */
-	dispose(): void;
-
-	render(output: IOutput, container: HTMLElement, preferredMimeType: string | undefined): IRenderOutput;
-}
-
-
 export const CELL_MARGIN = 24;
 
 export const EDITOR_TOP_PADDING = 8;
