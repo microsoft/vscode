@@ -718,7 +718,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 				source: rawCell.source,
 				language: rawCell.language,
 				cellKind: rawCell.cellKind,
-				outputs: rawCell.outputs
+				outputs: []
 			};
 		}
 
