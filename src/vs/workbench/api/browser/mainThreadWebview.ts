@@ -625,7 +625,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 		if (!this._editable) {
 			return false;
 		}
-		await this._proxy.$onSave(this.resource, this.viewType);
+		await createCancelablePromise(token => this._proxy.$onSave(this.resource, this.viewType, token));
 		this.setDirty(false);
 		return true;
 	}
