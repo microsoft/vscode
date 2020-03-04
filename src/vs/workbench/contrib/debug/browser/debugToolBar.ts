@@ -18,8 +18,7 @@ import { FocusSessionActionViewItem } from 'vs/workbench/contrib/debug/browser/d
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Themable } from 'vs/workbench/common/theme';
-import { registerThemingParticipant, IThemeService } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { registerColor, contrastBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';

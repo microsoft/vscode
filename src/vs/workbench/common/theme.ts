@@ -5,8 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder, editorWidgetForeground, editorErrorForeground, editorWarningForeground, editorInfoForeground } from 'vs/platform/theme/common/colorRegistry';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
+import { IColorTheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 
 // < --- Workbench (not customizable) --- >
@@ -606,41 +605,3 @@ export const WINDOW_INACTIVE_BORDER = registerColor('window.inactiveBorder', {
 	light: null,
 	hc: contrastBorder
 }, nls.localize('windowInactiveBorder', "The color used for the border of the window when it is inactive. Only supported in the desktop client when using the custom title bar."));
-
-/**
- * Base class for all themable workbench components.
- */
-export class Themable extends Disposable {
-	protected theme: IColorTheme;
-
-	constructor(
-		protected themeService: IThemeService
-	) {
-		super();
-
-		this.theme = themeService.getColorTheme();
-
-		// Hook up to theme changes
-		this._register(this.themeService.onDidColorThemeChange(theme => this.onThemeChange(theme)));
-	}
-
-	protected onThemeChange(theme: IColorTheme): void {
-		this.theme = theme;
-
-		this.updateStyles();
-	}
-
-	protected updateStyles(): void {
-		// Subclasses to override
-	}
-
-	protected getColor(id: string, modify?: (color: Color, theme: IColorTheme) => Color): string | null {
-		let color = this.theme.getColor(id);
-
-		if (color && modify) {
-			color = modify(color, this.theme);
-		}
-
-		return color ? color.toString() : null;
-	}
-}

@@ -8,7 +8,6 @@ import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { Color, RGBA } from 'vs/base/common/color';
 import { IColorTheme } from 'vs/platform/theme/common/themeService';
 import { Event, Emitter } from 'vs/base/common/event';
-
 import * as nls from 'vs/nls';
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { RunOnceScheduler } from 'vs/base/common/async';
