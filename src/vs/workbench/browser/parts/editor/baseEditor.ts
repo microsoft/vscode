@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Panel } from 'vs/workbench/browser/panel';
+import { Composite } from 'vs/workbench/browser/composite';
 import { EditorInput, EditorOptions, IEditorPane, GroupIdentifier, IEditorMemento } from 'vs/workbench/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -33,7 +33,7 @@ import { indexOfPath } from 'vs/base/common/extpath';
  *
  * This class is only intended to be subclassed and not instantiated.
  */
-export abstract class BaseEditor extends Panel implements IEditorPane {
+export abstract class BaseEditor extends Composite implements IEditorPane {
 
 	private static readonly EDITOR_MEMENTOS = new Map<string, EditorMemento<any>>();
 

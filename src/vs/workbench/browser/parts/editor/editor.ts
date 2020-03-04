@@ -64,6 +64,10 @@ export function getEditorPartOptions(config: IWorkbenchEditorConfiguration): IEd
 }
 
 export interface IEditorOpeningEvent extends IEditorIdentifier {
+
+	/**
+	 * The options used when opening the editor.
+	 */
 	options?: IEditorOptions;
 
 	/**
