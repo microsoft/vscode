@@ -27,7 +27,7 @@ import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility } from 'vs/pl
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { SerializableGrid, ISerializableView, ISerializedGrid, Orientation, ISerializedNode, ISerializedLeafNode, Direction, IViewSize } from 'vs/base/browser/ui/grid/grid';
 import { IDimension } from 'vs/platform/layout/browser/layoutService';
@@ -173,7 +173,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			centered: false,
 			restoreCentered: false,
 			restoreEditors: false,
-			editorsToOpen: [] as Promise<IResourceEditor[]> | IResourceEditor[]
+			editorsToOpen: [] as Promise<IResourceEditorInputType[]> | IResourceEditorInputType[]
 		},
 
 		panel: {
@@ -514,7 +514,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	}
 
-	private resolveEditorsToOpen(fileService: IFileService): Promise<IResourceEditor[]> | IResourceEditor[] {
+	private resolveEditorsToOpen(fileService: IFileService): Promise<IResourceEditorInputType[]> | IResourceEditorInputType[] {
 		const configuration = this.environmentService.configuration;
 		const hasInitialFilesToOpen = this.hasInitialFilesToOpen();
 

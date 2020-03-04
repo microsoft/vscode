@@ -402,13 +402,13 @@ export interface IEditorGroup {
 	readonly ariaLabel: string;
 
 	/**
-	 * The active ediotr pane is the currently visible editor pane of the group.
+	 * The active editor pane is the currently visible editor pane of the group.
 	 */
 	readonly activeEditorPane: IVisibleEditorPane | undefined;
 
 	/**
 	 * The active editor is the currently visible editor of the group
-	 * within the current active control.
+	 * within the current active editor pane.
 	 */
 	readonly activeEditor: IEditorInput | null;
 

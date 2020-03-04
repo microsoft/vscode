@@ -491,13 +491,11 @@ function registerCloseEditorCommands() {
 				contexts.push({ groupId: activeGroup.id }); // active group as fallback
 			}
 
-			return Promise.all(distinct(contexts.map(c => c.groupId)).map(groupId => {
+			return Promise.all(distinct(contexts.map(c => c.groupId)).map(async groupId => {
 				const group = editorGroupService.getGroup(groupId);
 				if (group) {
 					return group.closeEditors({ savedOnly: true });
 				}
-
-				return Promise.resolve();
 			}));
 		}
 	});
@@ -516,13 +514,11 @@ function registerCloseEditorCommands() {
 				distinctGroupIds.push(editorGroupService.activeGroup.id);
 			}
 
-			return Promise.all(distinctGroupIds.map(groupId => {
+			return Promise.all(distinctGroupIds.map(async groupId => {
 				const group = editorGroupService.getGroup(groupId);
 				if (group) {
 					return group.closeAllEditors();
 				}
-
-				return Promise.resolve();
 			}));
 		}
 	});
@@ -544,7 +540,7 @@ function registerCloseEditorCommands() {
 
 			const groupIds = distinct(contexts.map(context => context.groupId));
 
-			return Promise.all(groupIds.map(groupId => {
+			return Promise.all(groupIds.map(async groupId => {
 				const group = editorGroupService.getGroup(groupId);
 				if (group) {
 					const editors = coalesce(contexts
@@ -553,8 +549,6 @@ function registerCloseEditorCommands() {
 
 					return group.closeEditors(editors);
 				}
-
-				return Promise.resolve();
 			}));
 		}
 	});
@@ -599,7 +593,7 @@ function registerCloseEditorCommands() {
 
 			const groupIds = distinct(contexts.map(context => context.groupId));
 
-			return Promise.all(groupIds.map(groupId => {
+			return Promise.all(groupIds.map(async groupId => {
 				const group = editorGroupService.getGroup(groupId);
 				if (group) {
 					const editors = contexts
@@ -613,8 +607,6 @@ function registerCloseEditorCommands() {
 
 					return group.closeEditors(editorsToClose);
 				}
-
-				return Promise.resolve();
 			}));
 		}
 	});
@@ -624,7 +616,7 @@ function registerCloseEditorCommands() {
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: undefined,
 		primary: undefined,
-		handler: (accessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
+		handler: async (accessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
 			const editorGroupService = accessor.get(IEditorGroupsService);
 
 			const { group, editor } = resolveCommandsContext(editorGroupService, getCommandsContext(resourceOrContext, context));
@@ -635,8 +627,6 @@ function registerCloseEditorCommands() {
 
 				return group.closeEditors({ direction: CloseDirection.RIGHT, except: editor });
 			}
-
-			return Promise.resolve(false);
 		}
 	});
 
@@ -645,15 +635,13 @@ function registerCloseEditorCommands() {
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: undefined,
 		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.Enter),
-		handler: (accessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
+		handler: async (accessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
 			const editorGroupService = accessor.get(IEditorGroupsService);
 
 			const { group, editor } = resolveCommandsContext(editorGroupService, getCommandsContext(resourceOrContext, context));
 			if (group && editor) {
 				return group.pinEditor(editor);
 			}
-
-			return Promise.resolve(false);
 		}
 	});
 

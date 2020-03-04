@@ -17,7 +17,7 @@ import { URI } from 'vs/base/common/uri';
 import { basename, isEqualOrParent, joinPath } from 'vs/base/common/resources';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IResourceEditor, SIDE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions } from 'vs/workbench/services/editor/common/editorService';
+import { IResourceEditorInputType, SIDE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { coalesce, distinct } from 'vs/base/common/arrays';
@@ -451,7 +451,15 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	}
 
 	get visibleTextEditorControls(): Array<ICodeEditor | IDiffEditor> {
-		return this.visibleEditorPanes.map(editorPane => editorPane.getControl() as ICodeEditor | IDiffEditor).filter(control => isCodeEditor(control) || isDiffEditor(control));
+		const visibleTextEditorControls: Array<ICodeEditor | IDiffEditor> = [];
+		for (const visibleEditorPane of this.visibleEditorPanes) {
+			const control = visibleEditorPane.getControl();
+			if (isCodeEditor(control) || isDiffEditor(control)) {
+				visibleTextEditorControls.push(control);
+			}
+		}
+
+		return visibleTextEditorControls;
 	}
 
 	get visibleEditors(): IEditorInput[] {
@@ -497,7 +505,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions, group?: OpenInEditorGroup): Promise<IEditorPane | undefined>;
 	openEditor(editor: IResourceEditorInput | IUntitledTextResourceEditorInput, group?: OpenInEditorGroup): Promise<ITextEditorPane | undefined>;
 	openEditor(editor: IResourceDiffEditorInput, group?: OpenInEditorGroup): Promise<ITextDiffEditorPane | undefined>;
-	async openEditor(editor: IEditorInput | IResourceEditor, optionsOrGroup?: IEditorOptions | ITextEditorOptions | OpenInEditorGroup, group?: OpenInEditorGroup): Promise<IEditorPane | undefined> {
+	async openEditor(editor: IEditorInput | IResourceEditorInputType, optionsOrGroup?: IEditorOptions | ITextEditorOptions | OpenInEditorGroup, group?: OpenInEditorGroup): Promise<IEditorPane | undefined> {
 		const result = this.doResolveEditorOpenRequest(editor, optionsOrGroup, group);
 		if (result) {
 			const [resolvedGroup, resolvedEditor, resolvedOptions] = result;
@@ -508,7 +516,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return undefined;
 	}
 
-	doResolveEditorOpenRequest(editor: IEditorInput | IResourceEditor, optionsOrGroup?: IEditorOptions | ITextEditorOptions | OpenInEditorGroup, group?: OpenInEditorGroup): [IEditorGroup, EditorInput, EditorOptions | undefined] | undefined {
+	doResolveEditorOpenRequest(editor: IEditorInput | IResourceEditorInputType, optionsOrGroup?: IEditorOptions | ITextEditorOptions | OpenInEditorGroup, group?: OpenInEditorGroup): [IEditorGroup, EditorInput, EditorOptions | undefined] | undefined {
 		let resolvedGroup: IEditorGroup | undefined;
 		let candidateGroup: OpenInEditorGroup | undefined;
 
@@ -526,7 +534,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// Untyped Text Editor Support
 		else {
-			const textInput = <IResourceEditor>editor;
+			const textInput = <IResourceEditorInputType>editor;
 			typedEditor = this.createEditorInput(textInput);
 			if (typedEditor) {
 				typedOptions = TextEditorOptions.from(textInput);
@@ -660,8 +668,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	//#region openEditors()
 
 	openEditors(editors: IEditorInputWithOptions[], group?: OpenInEditorGroup): Promise<IEditorPane[]>;
-	openEditors(editors: IResourceEditor[], group?: OpenInEditorGroup): Promise<IEditorPane[]>;
-	async openEditors(editors: Array<IEditorInputWithOptions | IResourceEditor>, group?: OpenInEditorGroup): Promise<IEditorPane[]> {
+	openEditors(editors: IResourceEditorInputType[], group?: OpenInEditorGroup): Promise<IEditorPane[]>;
+	async openEditors(editors: Array<IEditorInputWithOptions | IResourceEditorInputType>, group?: OpenInEditorGroup): Promise<IEditorPane[]> {
 
 		// Convert to typed editors and options
 		const typedEditors: IEditorInputWithOptions[] = [];
@@ -779,7 +787,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	private readonly editorInputCache = new ResourceMap<CachedEditorInput>();
 
-	createEditorInput(input: IEditorInputWithOptions | IEditorInput | IResourceEditor): EditorInput {
+	createEditorInput(input: IEditorInputWithOptions | IEditorInput | IResourceEditorInputType): EditorInput {
 
 		// Typed Editor Input Support (EditorInput)
 		if (input instanceof EditorInput) {
@@ -1111,7 +1119,7 @@ export class DelegatingEditorService implements IEditorService {
 	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions, group?: OpenInEditorGroup): Promise<IEditorPane | undefined>;
 	openEditor(editor: IResourceEditorInput | IUntitledTextResourceEditorInput, group?: OpenInEditorGroup): Promise<ITextEditorPane | undefined>;
 	openEditor(editor: IResourceDiffEditorInput, group?: OpenInEditorGroup): Promise<ITextDiffEditorPane | undefined>;
-	async openEditor(editor: IEditorInput | IResourceEditor, optionsOrGroup?: IEditorOptions | ITextEditorOptions | OpenInEditorGroup, group?: OpenInEditorGroup): Promise<IEditorPane | undefined> {
+	async openEditor(editor: IEditorInput | IResourceEditorInputType, optionsOrGroup?: IEditorOptions | ITextEditorOptions | OpenInEditorGroup, group?: OpenInEditorGroup): Promise<IEditorPane | undefined> {
 		const result = this.editorService.doResolveEditorOpenRequest(editor, optionsOrGroup, group);
 		if (result) {
 			const [resolvedGroup, resolvedEditor, resolvedOptions] = result;
@@ -1152,8 +1160,8 @@ export class DelegatingEditorService implements IEditorService {
 	getEditors(order: EditorsOrder): ReadonlyArray<IEditorIdentifier> { return this.editorService.getEditors(order); }
 
 	openEditors(editors: IEditorInputWithOptions[], group?: OpenInEditorGroup): Promise<IEditorPane[]>;
-	openEditors(editors: IResourceEditor[], group?: OpenInEditorGroup): Promise<IEditorPane[]>;
-	openEditors(editors: Array<IEditorInputWithOptions | IResourceEditor>, group?: OpenInEditorGroup): Promise<IEditorPane[]> {
+	openEditors(editors: IResourceEditorInputType[], group?: OpenInEditorGroup): Promise<IEditorPane[]>;
+	openEditors(editors: Array<IEditorInputWithOptions | IResourceEditorInputType>, group?: OpenInEditorGroup): Promise<IEditorPane[]> {
 		return this.editorService.openEditors(editors, group);
 	}
 
@@ -1171,7 +1179,7 @@ export class DelegatingEditorService implements IEditorService {
 
 	invokeWithinEditorContext<T>(fn: (accessor: ServicesAccessor) => T): T { return this.editorService.invokeWithinEditorContext(fn); }
 
-	createEditorInput(input: IResourceEditor): IEditorInput { return this.editorService.createEditorInput(input); }
+	createEditorInput(input: IResourceEditorInputType): IEditorInput { return this.editorService.createEditorInput(input); }
 
 	save(editors: IEditorIdentifier | IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<boolean> { return this.editorService.save(editors, options); }
 	saveAll(options?: ISaveAllEditorsOptions): Promise<boolean> { return this.editorService.saveAll(options); }

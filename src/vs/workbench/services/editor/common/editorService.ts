@@ -13,11 +13,11 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 
 export const IEditorService = createDecorator<IEditorService>('editorService');
 
-export type IResourceEditor = IResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput;
+export type IResourceEditorInputType = IResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput;
 
 export interface IResourceEditorReplacement {
-	readonly editor: IResourceEditor;
-	readonly replacement: IResourceEditor;
+	readonly editor: IResourceEditorInputType;
+	readonly replacement: IResourceEditorInputType;
 }
 
 export const ACTIVE_GROUP = -1;
@@ -66,14 +66,14 @@ export interface IEditorService {
 	/**
 	 * Emitted when the currently active editor changes.
 	 *
-	 * @see `IEditorService.activeEditor`
+	 * @see `IEditorService.activeEditorPane`
 	 */
 	readonly onDidActiveEditorChange: Event<void>;
 
 	/**
 	 * Emitted when any of the current visible editors changes.
 	 *
-	 * @see `IEditorService.visibleEditors`
+	 * @see `IEditorService.visibleEditorPanes`
 	 */
 	readonly onDidVisibleEditorsChange: Event<void>;
 
@@ -81,7 +81,7 @@ export interface IEditorService {
 	 * The currently active editor pane or `undefined` if none. The editor pane is
 	 * the workbench container for editors of any kind.
 	 *
-	 * @see `IEditorService.activeEditor`
+	 * @see `IEditorService.activeEditor` for access to the active editor input
 	 */
 	readonly activeEditorPane: IVisibleEditorPane | undefined;
 
@@ -109,6 +109,8 @@ export interface IEditorService {
 
 	/**
 	 * All editor panes that are currently visible across all editor groups.
+	 *
+	 * @see `IEditorService.visibleEditors` for access to the visible editor inputs
 	 */
 	readonly visibleEditorPanes: ReadonlyArray<IVisibleEditorPane>;
 
@@ -173,7 +175,7 @@ export interface IEditorService {
 	 * that failed to open or were instructed to open as inactive.
 	 */
 	openEditors(editors: IEditorInputWithOptions[], group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ReadonlyArray<IEditorPane>>;
-	openEditors(editors: IResourceEditor[], group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ReadonlyArray<IEditorPane>>;
+	openEditors(editors: IResourceEditorInputType[], group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ReadonlyArray<IEditorPane>>;
 
 	/**
 	 * Replaces editors in an editor group with the provided replacement.
@@ -214,7 +216,7 @@ export interface IEditorService {
 	/**
 	 * Converts a lightweight input to a workbench editor input.
 	 */
-	createEditorInput(input: IResourceEditor): IEditorInput;
+	createEditorInput(input: IResourceEditorInputType): IEditorInput;
 
 	/**
 	 * Save the provided list of editors.

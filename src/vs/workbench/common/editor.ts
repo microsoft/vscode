@@ -16,15 +16,14 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITextModel } from 'vs/editor/common/model';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ICompositeControl } from 'vs/workbench/common/composite';
+import { ICompositeControl, IComposite } from 'vs/workbench/common/composite';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { IPathData } from 'vs/platform/windows/common/windows';
 import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
 import { ITextFileSaveOptions, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 import { isEqual, dirname } from 'vs/base/common/resources';
-import { IPanel } from 'vs/workbench/common/panel';
 import { IRange } from 'vs/editor/common/core/range';
 import { createMemoizer } from 'vs/base/common/decorators';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -64,7 +63,7 @@ export const BINARY_DIFF_EDITOR_ID = 'workbench.editors.binaryResourceDiffEditor
 /**
  * The editor pane is the container for workbench editors.
  */
-export interface IEditorPane extends IPanel {
+export interface IEditorPane extends IComposite {
 
 	/**
 	 * The assigned input of this editor.
@@ -102,7 +101,9 @@ export interface IEditorPane extends IPanel {
 	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; } | undefined>;
 
 	/**
-	 * Returns the underlying control of this editor.
+	 * Returns the underlying control of this editor. Callers need to cast
+	 * the control to a specific instance as needed, e.g. by using the
+	 * `isCodeEditor` helper method to access the text code editor.
 	 */
 	getControl(): IEditorControl | undefined;
 
@@ -120,6 +121,9 @@ export interface IVisibleEditorPane extends IEditorPane {
 	readonly group: IEditorGroup;
 }
 
+/**
+ * The text editor pane is the container for workbench text editors.
+ */
 export interface ITextEditorPane extends IEditorPane {
 
 	/**
@@ -139,6 +143,9 @@ export function isTextEditorPane(thing: IEditorPane | undefined): thing is IText
 	return typeof candidate?.getViewState === 'function';
 }
 
+/**
+ * The text editor pane is the container for workbench text diff editors.
+ */
 export interface ITextDiffEditorPane extends IEditorPane {
 
 	/**
@@ -343,7 +350,7 @@ export interface IRevertOptions {
 }
 
 export interface IMoveResult {
-	editor: EditorInput | IResourceEditor;
+	editor: EditorInput | IResourceEditorInputType;
 	options?: IEditorOptions;
 }
 

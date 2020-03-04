@@ -9,7 +9,7 @@ import { createHash } from 'crypto';
 import { webFrame } from 'electron';
 import { importEntries, mark } from 'vs/base/common/performance';
 import { Workbench } from 'vs/workbench/browser/workbench';
-import { ElectronWindow } from 'vs/workbench/electron-browser/window';
+import { NativeWindow } from 'vs/workbench/electron-browser/window';
 import { setZoomLevel, setZoomFactor, setFullscreen } from 'vs/base/browser/browser';
 import { domContentLoaded, addDisposableListener, EventType, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -126,7 +126,7 @@ class DesktopMain extends Disposable {
 		const instantiationService = workbench.startup();
 
 		// Window
-		this._register(instantiationService.createInstance(ElectronWindow));
+		this._register(instantiationService.createInstance(NativeWindow));
 
 		// Driver
 		if (this.environmentService.configuration.driver) {

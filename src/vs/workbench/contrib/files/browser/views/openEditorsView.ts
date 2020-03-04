@@ -31,7 +31,7 @@ import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
-import { DirtyEditorContext, OpenEditorsGroupContext, ReadonlyEditorContext as ReadonlyEditorContext } from 'vs/workbench/contrib/files/browser/fileCommands';
+import { DirtyEditorContext, OpenEditorsGroupContext, ReadonlyEditorContext } from 'vs/workbench/contrib/files/browser/fileCommands';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { ResourcesDropHandler, fillResourceDataTransfers, CodeDataTransfers, containsDragType } from 'vs/workbench/browser/dnd';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';

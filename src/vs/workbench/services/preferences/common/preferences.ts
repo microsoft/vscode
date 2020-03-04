@@ -155,6 +155,7 @@ export interface ISettingsEditorOptions extends IEditorOptions {
 	target?: ConfigurationTarget;
 	folderUri?: URI;
 	query?: string;
+	editSetting?: string;
 }
 
 /**
@@ -165,6 +166,7 @@ export class SettingsEditorOptions extends EditorOptions implements ISettingsEdi
 	target?: ConfigurationTarget;
 	folderUri?: URI;
 	query?: string;
+	editSetting?: string;
 
 	static create(settings: ISettingsEditorOptions): SettingsEditorOptions {
 		const options = new SettingsEditorOptions();
@@ -173,6 +175,7 @@ export class SettingsEditorOptions extends EditorOptions implements ISettingsEdi
 		options.target = settings.target;
 		options.folderUri = settings.folderUri;
 		options.query = settings.query;
+		options.editSetting = settings.editSetting;
 
 		return options;
 	}
@@ -203,8 +206,6 @@ export interface IPreferencesService {
 	switchSettings(target: ConfigurationTarget, resource: URI, jsonEditor?: boolean): Promise<void>;
 	openGlobalKeybindingSettings(textual: boolean): Promise<void>;
 	openDefaultKeybindingsFile(): Promise<IEditorPane | undefined>;
-
-	configureSettingsForLanguage(language: string | null): void;
 }
 
 export function getSettingsTargetName(target: ConfigurationTarget, resource: URI, workspaceContextService: IWorkspaceContextService): string {
