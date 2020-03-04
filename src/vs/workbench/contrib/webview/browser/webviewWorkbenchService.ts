@@ -8,11 +8,11 @@ import { memoize } from 'vs/base/common/decorators';
 import { Lazy } from 'vs/base/common/lazy';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
-import { EditorActivation, IEditorModel } from 'vs/platform/editor/common/editor';
+import { EditorActivation } from 'vs/platform/editor/common/editor';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
-import { IWebviewService, WebviewContentOptions, WebviewOverlay, WebviewExtensionDescription, WebviewIcons, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewService, WebviewContentOptions, WebviewExtensionDescription, WebviewIcons, WebviewOptions, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import { WebviewInput } from './webviewEditorInput';
@@ -113,7 +113,7 @@ export class LazilyResolvedWebviewEditorInput extends WebviewInput {
 	}
 
 	@memoize
-	public async resolve(): Promise<IEditorModel> {
+	public async resolve() {
 		await this._webviewWorkbenchService.resolveWebview(this);
 		return super.resolve();
 	}

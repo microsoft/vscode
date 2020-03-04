@@ -6,9 +6,8 @@
 import { Emitter } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
 import { URI } from 'vs/base/common/uri';
-import { IEditorModel } from 'vs/platform/editor/common/editor';
-import { EditorInput, EditorModel, GroupIdentifier, IEditorInput, Verbosity } from 'vs/workbench/common/editor';
-import { IWebviewService, WebviewOverlay, WebviewIcons } from 'vs/workbench/contrib/webview/browser/webview';
+import { EditorInput, GroupIdentifier, IEditorInput, Verbosity } from 'vs/workbench/common/editor';
+import { IWebviewService, WebviewIcons, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 
 const WebviewPanelResourceScheme = 'webview-panel';
 
@@ -105,8 +104,8 @@ export class WebviewInput extends EditorInput {
 		this._group = group;
 	}
 
-	public async resolve(): Promise<IEditorModel> {
-		return new EditorModel();
+	public async resolve(): Promise<null> {
+		return null;
 	}
 
 	public supportsSplitEditor() {

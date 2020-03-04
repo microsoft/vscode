@@ -5,13 +5,14 @@
 
 import { memoize } from 'vs/base/common/decorators';
 import { Lazy } from 'vs/base/common/lazy';
+import { IReference } from 'vs/base/common/lifecycle';
 import { basename } from 'vs/base/common/path';
 import { isEqual } from 'vs/base/common/resources';
 import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IEditorModel, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, Verbosity } from 'vs/workbench/common/editor';
@@ -20,7 +21,6 @@ import { IWebviewService, WebviewOverlay } from 'vs/workbench/contrib/webview/br
 import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IReference } from 'vs/base/common/lifecycle';
 
 export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 
@@ -149,8 +149,9 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		return this._modelRef?.object.revert(options);
 	}
 
-	public async resolve(): Promise<IEditorModel> {
-		const editorModel = await super.resolve();
+	public async resolve(): Promise<null> {
+		await super.resolve();
+
 		if (!this._modelRef) {
 			const modelRef = await this.customEditorService.models.tryRetain(this.resource, this.viewType);
 			if (modelRef) {
@@ -164,7 +165,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			this._onDidChangeDirty.fire();
 		}
 
-		return editorModel;
+		return null;
 	}
 
 	public handleMove(groupId: GroupIdentifier, uri: URI, options?: ITextEditorOptions): IEditorInput | undefined {
