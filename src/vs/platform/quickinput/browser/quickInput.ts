@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from 'vs/base/common/event';
 import { IQuickInputService, IQuickPickItem, IQuickInputButton, IQuickPick, IInputBox, QuickPickInput, IPickOptions, IInputOptions, IQuickNavigateConfiguration } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
@@ -12,6 +13,9 @@ export abstract class PlatformQuickInputService extends Themable implements IQui
 	public _serviceBrand: undefined;
 
 	readonly backButton!: IQuickInputButton;
+
+	get onShow() { return Event.None; }
+	get onHide() { return Event.None; }
 
 	constructor(
 		@IThemeService themeService: IThemeService
@@ -56,6 +60,10 @@ export abstract class PlatformQuickInputService extends Themable implements IQui
 	}
 
 	cancel(): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+
+	hide(focusLost?: boolean): void {
 		throw new Error('Method not implemented.');
 	}
 }

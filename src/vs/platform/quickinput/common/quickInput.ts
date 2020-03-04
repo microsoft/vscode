@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IQuickPickItem, IPickOptions, IInputOptions, IQuickNavigateConfiguration, IQuickPick, IQuickInputButton, IInputBox, QuickPickInput } from 'vs/base/parts/quickinput/common/quickInput';
@@ -18,6 +19,16 @@ export interface IQuickInputService {
 	_serviceBrand: undefined;
 
 	readonly backButton: IQuickInputButton;
+
+	/**
+	 * Allows to register on the event that quick input is showing
+	 */
+	readonly onShow: Event<void>;
+
+	/**
+	 * Allows to register on the event that quick input is hiding
+	 */
+	readonly onHide: Event<void>;
 
 	/**
 	 * Opens the quick input box for selecting items and returns a promise with the user selected item(s) if any.
@@ -45,4 +56,6 @@ export interface IQuickInputService {
 	back(): Promise<void>;
 
 	cancel(): Promise<void>;
+
+	hide(focusLost?: boolean): void;
 }
