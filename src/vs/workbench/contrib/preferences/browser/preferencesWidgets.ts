@@ -20,7 +20,7 @@ import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorE
 import { Position } from 'vs/editor/common/core/position';
 import { IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -310,7 +310,8 @@ export class FolderSettingsActionViewItem extends BaseActionViewItem {
 	constructor(
 		action: IAction,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super(null, action);
 		const workspace = this.contextService.getWorkspace();
@@ -407,7 +408,7 @@ export class FolderSettingsActionViewItem extends BaseActionViewItem {
 		const workspace = this.contextService.getWorkspace();
 		if (this._folder) {
 			this.labelElement.textContent = this._folder.name;
-			this.anchorElement.title = this._folder.name;
+			this.anchorElement.title = this.configurationService.getConfigurationFileResource(ConfigurationTarget.WORKSPACE_FOLDER, this._folder.uri)?.fsPath || '';
 			const detailsText = this.labelWithCount(this._action.label, total);
 			this.detailsElement.textContent = detailsText;
 			DOM.toggleClass(this.dropDownElement, 'hide', workspace.folders.length === 1 || !this._action.checked);
@@ -418,6 +419,7 @@ export class FolderSettingsActionViewItem extends BaseActionViewItem {
 			this.anchorElement.title = this._action.label;
 			DOM.removeClass(this.dropDownElement, 'hide');
 		}
+
 		DOM.toggleClass(this.anchorElement, 'checked', this._action.checked);
 		DOM.toggleClass(this.container, 'disabled', !this._action.enabled);
 	}
@@ -487,7 +489,8 @@ export class SettingsTargetsWidget extends Widget {
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@ILabelService private readonly labelService: ILabelService
+		@ILabelService private readonly labelService: ILabelService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 		this.options = options || {};
@@ -506,17 +509,16 @@ export class SettingsTargetsWidget extends Widget {
 		}));
 
 		this.userLocalSettings = new Action('userSettings', localize('userSettings', "User"), '.settings-tab', true, () => this.updateTarget(ConfigurationTarget.USER_LOCAL));
-		this.userLocalSettings.tooltip = this.userLocalSettings.label;
+		this.userLocalSettings.tooltip = this.configurationService.getConfigurationFileResource(ConfigurationTarget.USER_LOCAL, undefined)?.fsPath || '';
 
 		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
 		const hostLabel = remoteAuthority && this.labelService.getHostLabel(REMOTE_HOST_SCHEME, remoteAuthority);
 		const remoteSettingsLabel = localize('userSettingsRemote', "Remote") +
 			(hostLabel ? ` [${hostLabel}]` : '');
 		this.userRemoteSettings = new Action('userSettingsRemote', remoteSettingsLabel, '.settings-tab', true, () => this.updateTarget(ConfigurationTarget.USER_REMOTE));
-		this.userRemoteSettings.tooltip = this.userRemoteSettings.label;
+		this.userRemoteSettings.tooltip = this.configurationService.getConfigurationFileResource(ConfigurationTarget.USER_REMOTE, undefined)?.fsPath || '';
 
 		this.workspaceSettings = new Action('workspaceSettings', localize('workspaceSettings', "Workspace"), '.settings-tab', false, () => this.updateTarget(ConfigurationTarget.WORKSPACE));
-		this.workspaceSettings.tooltip = this.workspaceSettings.label;
 
 		const folderSettingsAction = new Action('folderSettings', localize('folderSettings', "Folder"), '.settings-tab', false,
 			(folder: IWorkspaceFolder | null) => this.updateTarget(folder ? folder.uri : ConfigurationTarget.USER_LOCAL));
@@ -591,6 +593,8 @@ export class SettingsTargetsWidget extends Widget {
 		this.userRemoteSettings.enabled = !!(this.options.enableRemoteSettings && this.environmentService.configuration.remoteAuthority);
 		this.workspaceSettings.enabled = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY;
 		this.folderSettings.getAction().enabled = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && this.contextService.getWorkspace().folders.length > 0;
+
+		this.workspaceSettings.tooltip = this.configurationService.getConfigurationFileResource(ConfigurationTarget.WORKSPACE, undefined)?.fsPath || '';
 	}
 
 }

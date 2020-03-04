@@ -14,7 +14,7 @@ import { IWorkspaceContextService, Workspace, WorkbenchState, IWorkspaceFolder, 
 import { ConfigurationModel, DefaultConfigurationModel, ConfigurationChangeEvent, AllKeysConfigurationChangeEvent, mergeChanges } from 'vs/platform/configuration/common/configurationModels';
 import { IConfigurationChangeEvent, ConfigurationTarget, IConfigurationOverrides, keyFromOverrideIdentifier, isConfigurationOverrides, IConfigurationData, IConfigurationService, IConfigurationValue, IConfigurationChange } from 'vs/platform/configuration/common/configuration';
 import { Configuration } from 'vs/workbench/services/configuration/common/configurationModels';
-import { FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId, IConfigurationCache, machineSettingsSchemaId, LOCAL_MACHINE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
+import { FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId, IConfigurationCache, machineSettingsSchemaId, LOCAL_MACHINE_SCOPES, FOLDER_SETTINGS_PATH } from 'vs/workbench/services/configuration/common/configuration';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions, allSettings, windowSettings, resourceSettings, applicationSettings, machineSettings, machineOverridableSettings } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkspaceIdentifier, isWorkspaceIdentifier, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, isSingleFolderWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, IEmptyWorkspaceInitializationPayload, useSlashForPath, getStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
@@ -308,6 +308,23 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 		} else {
 			this.cyclicDependency = Promise.resolve(undefined);
 		}
+	}
+
+	public getConfigurationFileResource(target: ConfigurationTarget, resource: URI | null | undefined): URI | null {
+		let editableTarget: EditableConfigurationTarget;
+		if (target === ConfigurationTarget.USER || target === ConfigurationTarget.USER_LOCAL) {
+			editableTarget = EditableConfigurationTarget.USER_LOCAL;
+		} else if (target === ConfigurationTarget.USER_REMOTE) {
+			editableTarget = EditableConfigurationTarget.USER_REMOTE;
+		} else if (target === ConfigurationTarget.WORKSPACE) {
+			editableTarget = EditableConfigurationTarget.WORKSPACE;
+		} else if (target === ConfigurationTarget.WORKSPACE_FOLDER) {
+			editableTarget = EditableConfigurationTarget.WORKSPACE_FOLDER;
+		} else {
+			return null;
+		}
+
+		return this.configurationEditingService?.getConfigurationFileResource(editableTarget, FOLDER_SETTINGS_PATH, resource);
 	}
 
 	private createWorkspace(arg: IWorkspaceInitializationPayload): Promise<Workspace> {
