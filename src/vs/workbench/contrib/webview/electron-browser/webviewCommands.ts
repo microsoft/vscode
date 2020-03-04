@@ -25,7 +25,7 @@ export class OpenWebviewDeveloperToolsAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise<any> {
+	public async run(): Promise<any> {
 		const elements = document.querySelectorAll('webview.ready');
 		for (let i = 0; i < elements.length; i++) {
 			try {
@@ -34,7 +34,7 @@ export class OpenWebviewDeveloperToolsAction extends Action {
 				console.error(e);
 			}
 		}
-		return Promise.resolve(true);
+		return true;
 	}
 }
 
@@ -55,7 +55,7 @@ export class CopyWebviewEditorCommand extends Action2 {
 	}
 
 	public run(accessor: ServicesAccessor): void {
-		getActiveWebviewBasedWebview(accessor)?.copy();
+		getActiveElectronBasedWebview(accessor)?.copy();
 	}
 }
 
@@ -76,7 +76,7 @@ export class PasteWebviewEditorCommand extends Action2 {
 	}
 
 	public run(accessor: ServicesAccessor): void {
-		getActiveWebviewBasedWebview(accessor)?.paste();
+		getActiveElectronBasedWebview(accessor)?.paste();
 	}
 }
 
@@ -97,7 +97,7 @@ export class CutWebviewEditorCommand extends Action2 {
 	}
 
 	public run(accessor: ServicesAccessor): void {
-		getActiveWebviewBasedWebview(accessor)?.cut();
+		getActiveElectronBasedWebview(accessor)?.cut();
 	}
 }
 
@@ -117,8 +117,8 @@ export class UndoWebviewEditorCommand extends Action2 {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, args: any): void {
-		getActiveWebviewBasedWebview(accessor)?.undo();
+	public run(accessor: ServicesAccessor): void {
+		getActiveElectronBasedWebview(accessor)?.undo();
 	}
 }
 
@@ -140,12 +140,12 @@ export class RedoWebviewEditorCommand extends Action2 {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, args: any): void {
-		getActiveWebviewBasedWebview(accessor)?.redo();
+	public run(accessor: ServicesAccessor): void {
+		getActiveElectronBasedWebview(accessor)?.redo();
 	}
 }
 
-function getActiveWebviewBasedWebview(accessor: ServicesAccessor): ElectronWebviewBasedWebview | undefined {
+function getActiveElectronBasedWebview(accessor: ServicesAccessor): ElectronWebviewBasedWebview | undefined {
 	const webview = getActiveWebviewEditor(accessor);
 	if (!webview) {
 		return undefined;
