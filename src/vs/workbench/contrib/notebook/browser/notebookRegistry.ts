@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IOutputTransformContribution, CellOutputKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellOutputKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { BrandedService, IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
-import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor, IOutputTransformContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 export type IOutputTransformCtor = IConstructorSignature1<INotebookEditor, IOutputTransformContribution>;
 
