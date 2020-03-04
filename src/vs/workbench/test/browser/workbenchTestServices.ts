@@ -380,7 +380,6 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	getDimension(_part: Parts): Dimension { return new Dimension(0, 0); }
 	getContainer(_part: Parts): HTMLElement { return null!; }
 	isTitleBarHidden(): boolean { return false; }
-	getTitleBarOffset(): number { return 0; }
 	isStatusBarHidden(): boolean { return false; }
 	isActivityBarHidden(): boolean { return false; }
 	setActivityBarHidden(_hidden: boolean): void { }
@@ -399,7 +398,6 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	removeClass(_clazz: string): void { }
 	getMaximumEditorDimensions(): Dimension { throw new Error('not implemented'); }
 	getWorkbenchContainer(): HTMLElement { throw new Error('not implemented'); }
-	getWorkbenchElement(): HTMLElement { throw new Error('not implemented'); }
 	toggleZenMode(): void { }
 	isEditorLayoutCentered(): boolean { return false; }
 	centerEditorLayout(_active: boolean): void { }

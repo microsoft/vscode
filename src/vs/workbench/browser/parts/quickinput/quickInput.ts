@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IQuickInputService, IQuickPickItem, IPickOptions, IInputOptions, IQuickNavigateConfiguration, IQuickPick, IQuickInputButton, IInputBox, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { inputBackground, inputForeground, inputBorder, inputValidationInfoBackground, inputValidationInfoForeground, inputValidationInfoBorder, inputValidationWarningBackground, inputValidationWarningForeground, inputValidationWarningBorder, inputValidationErrorBackground, inputValidationErrorForeground, inputValidationErrorBorder, badgeBackground, badgeForeground, contrastBorder, buttonForeground, buttonBackground, buttonHoverBackground, progressBarBackground, widgetShadow, listFocusForeground, listFocusBackground, activeContrastBorder, pickerGroupBorder, pickerGroupForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -54,13 +54,13 @@ export class QuickInputService extends PlatformQuickInputService {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+		@ILayoutService private readonly layoutService: ILayoutService
 	) {
 		super(themeService);
 
 		this.controller = this._register(new QuickInputController({
 			idPrefix: 'quickInput_', // Constant since there is still only one.
-			container: this.layoutService.getWorkbenchElement(),
+			container: this.layoutService.container,
 			ignoreFocusOut: () => this.environmentService.args['sticky-quickopen'] || !this.configurationService.getValue(CLOSE_ON_FOCUS_LOST_CONFIG),
 			isScreenReaderOptimized: () => this.accessibilityService.isScreenReaderOptimized(),
 			backKeybindingLabel: () => this.keybindingService.lookupKeybinding(QuickPickBack.id)?.getLabel() || undefined,
@@ -76,7 +76,7 @@ export class QuickInputService extends PlatformQuickInputService {
 			styles: this.computeStyles(),
 		}));
 
-		this.controller.layout(this.layoutService.dimension, this.layoutService.getTitleBarOffset());
+		this.controller.layout(this.layoutService.dimension, this.layoutService.offset?.top ?? 0);
 
 		this.registerListeners();
 	}
@@ -84,7 +84,7 @@ export class QuickInputService extends PlatformQuickInputService {
 	private registerListeners(): void {
 
 		// Layout changes
-		this._register(this.layoutService.onLayout(dimension => this.controller.layout(dimension, this.layoutService.getTitleBarOffset())));
+		this._register(this.layoutService.onLayout(dimension => this.controller.layout(dimension, this.layoutService.offset?.top ?? 0)));
 
 		// Context keys
 		this._register(this.controller.onShow(() => this.resetContextKeys()));

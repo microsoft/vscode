@@ -118,6 +118,19 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private _container: HTMLElement = document.createElement('div');
 	get container(): HTMLElement { return this._container; }
 
+	get offset() {
+		return {
+			top: (() => {
+				let offset = 0;
+				if (this.isVisible(Parts.TITLEBAR_PART)) {
+					offset = this.getPart(Parts.TITLEBAR_PART).maximumHeight;
+				}
+
+				return offset;
+			})()
+		};
+	}
+
 	private parts: Map<string, Part> = new Map<string, Part>();
 
 	private workbenchGrid!: SerializableGrid<ISerializableView>;
@@ -654,15 +667,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return this.getPart(part).dimension;
 	}
 
-	getTitleBarOffset(): number {
-		let offset = 0;
-		if (this.isVisible(Parts.TITLEBAR_PART)) {
-			offset = this.getPart(Parts.TITLEBAR_PART).maximumHeight;
-		}
-
-		return offset;
-	}
-
 	getMaximumEditorDimensions(): Dimension {
 		const isColumn = this.state.panel.position === Position.RIGHT || this.state.panel.position === Position.LEFT;
 		const takenWidth =
@@ -683,10 +687,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	getWorkbenchContainer(): HTMLElement {
 		return this.parent;
-	}
-
-	getWorkbenchElement(): HTMLElement {
-		return this.container;
 	}
 
 	toggleZenMode(skipLayout?: boolean, restoring = false): void {
