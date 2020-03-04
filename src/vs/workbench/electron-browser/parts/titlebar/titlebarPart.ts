@@ -22,11 +22,9 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { getTitleBarStyle } from 'vs/platform/windows/common/windows';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
-export class NativeTitleService extends TitlebarPart {
+export class NativeTitlebarPart extends TitlebarPart {
 	private appIcon: HTMLElement | undefined;
 	private windowControls: HTMLElement | undefined;
 	private maxRestoreControl: HTMLElement | undefined;
@@ -242,5 +240,3 @@ export class NativeTitleService extends TitlebarPart {
 		}
 	}
 }
-
-registerSingleton(ITitleService, NativeTitleService);

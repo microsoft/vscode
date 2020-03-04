@@ -49,7 +49,6 @@ import 'vs/workbench/services/request/browser/requestService';
 import 'vs/workbench/services/lifecycle/browser/lifecycleService';
 import 'vs/workbench/services/clipboard/browser/clipboardService';
 import 'vs/workbench/services/extensionResourceLoader/browser/extensionResourceLoaderService';
-import 'vs/workbench/services/title/browser/titleService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -72,6 +71,8 @@ import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSy
 import { IAuthenticationTokenService, AuthenticationTokenService } from 'vs/platform/authentication/common/authentication';
 import { UserDataAutoSyncService } from 'vs/workbench/contrib/userDataSync/browser/userDataAutoSyncService';
 import { AccessibilityService } from 'vs/platform/accessibility/common/accessibilityService';
+import { ITitleService } from 'vs/workbench/services/title/common/titleService';
+import { TitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
 
 registerSingleton(IExtensionManagementService, ExtensionManagementService);
 registerSingleton(IBackupFileService, BackupFileService);
@@ -86,6 +87,7 @@ registerSingleton(IAuthenticationTokenService, AuthenticationTokenService);
 registerSingleton(IUserDataAutoSyncService, UserDataAutoSyncService);
 registerSingleton(ISettingsSyncService, SettingsSynchroniser);
 registerSingleton(IUserDataSyncService, UserDataSyncService);
+registerSingleton(ITitleService, TitlebarPart);
 
 //#endregion
 

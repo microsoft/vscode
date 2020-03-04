@@ -65,13 +65,15 @@ import 'vs/workbench/services/update/electron-browser/updateService';
 import 'vs/workbench/services/issue/electron-browser/issueService';
 import 'vs/workbench/services/menubar/electron-browser/menubarService';
 import 'vs/workbench/services/extensionResourceLoader/electron-browser/extensionResourceLoaderService';
-import 'vs/workbench/services/title/electron-browser/titleService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { KeytarCredentialsService } from 'vs/platform/credentials/node/credentialsService';
+import { NativeTitlebarPart } from 'vs/workbench/electron-browser/parts/titlebar/titlebarPart';
+import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 
 registerSingleton(ICredentialsService, KeytarCredentialsService, true);
+registerSingleton(ITitleService, NativeTitlebarPart);
 
 //#endregion
 

@@ -63,7 +63,7 @@ import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/
 import { Event } from 'vs/base/common/event';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 
-export class ElectronWindow extends Disposable {
+export class NativeWindow extends Disposable {
 
 	private touchBarMenu: IMenu | undefined;
 	private readonly touchBarDisposables = this._register(new DisposableStore());
