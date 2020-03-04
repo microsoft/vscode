@@ -17,6 +17,8 @@ export interface IQuickInputService {
 
 	_serviceBrand: undefined;
 
+	readonly backButton: IQuickInputButton;
+
 	/**
 	 * Opens the quick input box for selecting items and returns a promise with the user selected item(s) if any.
 	 */
@@ -28,8 +30,6 @@ export interface IQuickInputService {
 	 * Opens the quick input box for text input and returns a promise with the user typed value if any.
 	 */
 	input(options?: IInputOptions, token?: CancellationToken): Promise<string>;
-
-	backButton: IQuickInputButton;
 
 	createQuickPick<T extends IQuickPickItem>(): IQuickPick<T>;
 	createInputBox(): IInputBox;
