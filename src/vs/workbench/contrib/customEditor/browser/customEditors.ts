@@ -21,10 +21,10 @@ import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { EditorInput, EditorOptions, IEditorPane, IEditorInput } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, IEditorInput, IEditorPane } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { webviewEditorsExtensionPoint } from 'vs/workbench/contrib/customEditor/browser/extensionPoint';
-import { CONTEXT_CUSTOM_EDITORS, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CustomEditorInfo, CustomEditorInfoCollection, CustomEditorPriority, CustomEditorSelector, ICustomEditor, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
+import { CONTEXT_CUSTOM_EDITORS, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CustomEditorInfo, CustomEditorInfoCollection, CustomEditorPriority, CustomEditorSelector, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { CustomEditorModelManager } from 'vs/workbench/contrib/customEditor/common/customEditorModelManager';
 import { IWebviewService, webviewHasOwnEditFunctionsContext } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -94,7 +94,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 
 	private readonly _editorInfoStore = this._register(new CustomEditorInfoStore());
 
-	private readonly _models: CustomEditorModelManager;
+	private readonly _models = new CustomEditorModelManager();
 
 	private readonly _customEditorContextKey: IContextKey<string>;
 	private readonly _focusedCustomEditorIsEditable: IContextKey<boolean>;
@@ -111,8 +111,6 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		@IWebviewService private readonly webviewService: IWebviewService,
 	) {
 		super();
-
-		this._models = new CustomEditorModelManager();
 
 		this._customEditorContextKey = CONTEXT_CUSTOM_EDITORS.bindTo(contextKeyService);
 		this._focusedCustomEditorIsEditable = CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE.bindTo(contextKeyService);
@@ -131,15 +129,6 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 	}
 
 	public get models() { return this._models; }
-
-	public get activeCustomEditor(): ICustomEditor | undefined {
-		const activeInput = this.editorService.activeEditorPane?.input;
-		if (!(activeInput instanceof CustomEditorInput)) {
-			return undefined;
-		}
-		const resource = activeInput.resource;
-		return { resource, viewType: activeInput.viewType };
-	}
 
 	public getCustomEditor(viewType: string): CustomEditorInfo | undefined {
 		return this._editorInfoStore.get(viewType);
