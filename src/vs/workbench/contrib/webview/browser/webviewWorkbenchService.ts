@@ -160,7 +160,7 @@ export class WebviewEditorService implements IWebviewWorkbenchService {
 		options: WebviewInputOptions,
 		extension: WebviewExtensionDescription | undefined,
 	): WebviewInput {
-		const webview = new Lazy(() => this.createWebiew(id, extension, options));
+		const webview = new Lazy(() => this.createWebviewElement(id, extension, options));
 		const webviewInput = this._instantiationService.createInstance(WebviewInput, id, viewType, title, webview);
 		this._editorService.openEditor(webviewInput, {
 			pinned: true,
@@ -203,7 +203,7 @@ export class WebviewEditorService implements IWebviewWorkbenchService {
 		group: number | undefined,
 	): WebviewInput {
 		const webview = new Lazy(() => {
-			const webview = this.createWebiew(id, extension, options);
+			const webview = this.createWebviewElement(id, extension, options);
 			webview.state = state;
 			return webview;
 		});
@@ -265,7 +265,11 @@ export class WebviewEditorService implements IWebviewWorkbenchService {
 		}
 	}
 
-	private createWebiew(id: string, extension: WebviewExtensionDescription | undefined, options: WebviewInputOptions) {
+	private createWebviewElement(
+		id: string,
+		extension: WebviewExtensionDescription | undefined,
+		options: WebviewInputOptions
+	) {
 		const webview = this._webviewService.createWebviewEditorOverlay(id, {
 			enableFindWidget: options.enableFindWidget,
 			retainContextWhenHidden: options.retainContextWhenHidden
