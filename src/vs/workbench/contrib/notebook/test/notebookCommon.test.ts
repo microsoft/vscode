@@ -4,13 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as glob from 'vs/base/common/glob';
 import { NOTEBOOK_DISPLAY_ORDER, sortMimeTypes, CellKind, diff } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { TestCell } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 
 suite('NotebookCommon', () => {
 	test('sortMimeTypes default orders', function () {
-		const defaultDisplayOrder = NOTEBOOK_DISPLAY_ORDER.map(pattern => glob.parse(pattern));
+		const defaultDisplayOrder = NOTEBOOK_DISPLAY_ORDER;
 
 		assert.deepEqual(sortMimeTypes(
 			[
@@ -83,7 +82,7 @@ suite('NotebookCommon', () => {
 	});
 
 	test('sortMimeTypes document orders', function () {
-		const defaultDisplayOrder = NOTEBOOK_DISPLAY_ORDER.map(pattern => glob.parse(pattern));
+		const defaultDisplayOrder = NOTEBOOK_DISPLAY_ORDER;
 		assert.deepEqual(sortMimeTypes(
 			[
 				'application/json',
@@ -94,11 +93,12 @@ suite('NotebookCommon', () => {
 				'image/png',
 				'image/jpeg',
 				'text/plain'
-			], [], [
+			], [],
+			[
 				'text/markdown',
 				'text/html',
 				'application/json'
-			].map(pattern => glob.parse(pattern)), defaultDisplayOrder),
+			], defaultDisplayOrder),
 			[
 				'text/markdown',
 				'text/html',
@@ -121,11 +121,12 @@ suite('NotebookCommon', () => {
 				'image/svg+xml',
 				'image/jpeg',
 				'image/png'
-			], [], [
+			], [],
+			[
 				'text/html',
 				'text/markdown',
 				'application/json'
-			].map(pattern => glob.parse(pattern)), defaultDisplayOrder),
+			], defaultDisplayOrder),
 			[
 				'text/html',
 				'text/markdown',
@@ -140,7 +141,7 @@ suite('NotebookCommon', () => {
 	});
 
 	test('sortMimeTypes user orders', function () {
-		const defaultDisplayOrder = NOTEBOOK_DISPLAY_ORDER.map(pattern => glob.parse(pattern));
+		const defaultDisplayOrder = NOTEBOOK_DISPLAY_ORDER;
 		assert.deepEqual(sortMimeTypes(
 			[
 				'application/json',
@@ -151,15 +152,16 @@ suite('NotebookCommon', () => {
 				'image/png',
 				'image/jpeg',
 				'text/plain'
-			], [
+			],
+			[
 				'image/png',
 				'text/plain',
-			].map(pattern => glob.parse(pattern)),
+			],
 			[
 				'text/markdown',
 				'text/html',
 				'application/json'
-			].map(pattern => glob.parse(pattern)), defaultDisplayOrder),
+			], defaultDisplayOrder),
 			[
 				'image/png',
 				'text/plain',
@@ -182,15 +184,16 @@ suite('NotebookCommon', () => {
 				'image/svg+xml',
 				'image/jpeg',
 				'image/png'
-			], [
+			],
+			[
 				'application/json',
 				'text/html',
-			].map(pattern => glob.parse(pattern)),
+			],
 			[
 				'text/html',
 				'text/markdown',
 				'application/json'
-			].map(pattern => glob.parse(pattern)), defaultDisplayOrder),
+			], defaultDisplayOrder),
 			[
 				'application/json',
 				'text/html',
@@ -205,7 +208,7 @@ suite('NotebookCommon', () => {
 	});
 
 	test('sortMimeTypes glob', function () {
-		const defaultDisplayOrder = NOTEBOOK_DISPLAY_ORDER.map(pattern => glob.parse(pattern));
+		const defaultDisplayOrder = NOTEBOOK_DISPLAY_ORDER;
 
 		// unknown mime types come last
 		assert.deepEqual(sortMimeTypes(
@@ -215,12 +218,12 @@ suite('NotebookCommon', () => {
 				'application/vnd-plot.json',
 				'application/javascript',
 				'text/html'
-			], [].map(pattern => glob.parse(pattern)),
+			], [],
 			[
 				'text/markdown',
 				'text/html',
 				'application/json'
-			].map(pattern => glob.parse(pattern)), defaultDisplayOrder),
+			], defaultDisplayOrder),
 			[
 				'text/html',
 				'application/json',
@@ -238,13 +241,13 @@ suite('NotebookCommon', () => {
 				'text/html',
 				'application/vnd-plot.json',
 				'application/vnd-vega.json'
-			], [].map(pattern => glob.parse(pattern)),
+			], [],
 			[
 				'application/vnd-vega*',
 				'text/markdown',
 				'text/html',
 				'application/json'
-			].map(pattern => glob.parse(pattern)), defaultDisplayOrder),
+			], defaultDisplayOrder),
 			[
 				'application/vnd-vega.json',
 				'text/html',

@@ -10,6 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { PieceTreeTextBufferFactory } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ISplice } from 'vs/base/common/sequence';
+import { isWindows } from 'vs/base/common/platform';
 
 export enum CellKind {
 	Markdown = 1,
@@ -34,8 +35,8 @@ export const NOTEBOOK_DISPLAY_ORDER = [
 ];
 
 export interface INotebookDisplayOrder {
-	defaultOrder: (string | glob.IRelativePattern)[];
-	userOrder?: (string | glob.IRelativePattern)[];
+	defaultOrder: string[];
+	userOrder?: string[];
 }
 
 export interface INotebookMimeTypeSelector {
@@ -213,18 +214,31 @@ export function mimeTypeSupportedByCore(mimeType: string) {
 	return false;
 }
 
+// if (isWindows) {
+// 	value = value.replace(/\//g, '\\');
+// }
 
-function getMimeTypeOrder(mimeType: string, userDisplayOrder: glob.ParsedPattern[], documentDisplayOrder: glob.ParsedPattern[], defaultOrder: glob.ParsedPattern[]) {
+function matchGlobUniversal(pattern: string, path: string) {
+	if (isWindows) {
+		pattern = pattern.replace(/\//g, '\\');
+		path = path.replace(/\//g, '\\');
+	}
+
+	return glob.match(pattern, path);
+}
+
+
+function getMimeTypeOrder(mimeType: string, userDisplayOrder: string[], documentDisplayOrder: string[], defaultOrder: string[]) {
 	let order = 0;
 	for (let i = 0; i < userDisplayOrder.length; i++) {
-		if (userDisplayOrder[i](mimeType)) {
+		if (matchGlobUniversal(userDisplayOrder[i], mimeType)) {
 			return order;
 		}
 		order++;
 	}
 
 	for (let i = 0; i < documentDisplayOrder.length; i++) {
-		if (documentDisplayOrder[i](mimeType)) {
+		if (matchGlobUniversal(documentDisplayOrder[i], mimeType)) {
 			return order;
 		}
 
@@ -232,7 +246,7 @@ function getMimeTypeOrder(mimeType: string, userDisplayOrder: glob.ParsedPattern
 	}
 
 	for (let i = 0; i < defaultOrder.length; i++) {
-		if (defaultOrder[i](mimeType)) {
+		if (matchGlobUniversal(defaultOrder[i], mimeType)) {
 			return order;
 		}
 
@@ -242,7 +256,7 @@ function getMimeTypeOrder(mimeType: string, userDisplayOrder: glob.ParsedPattern
 	return order;
 }
 
-export function sortMimeTypes(mimeTypes: string[], userDisplayOrder: glob.ParsedPattern[], documentDisplayOrder: glob.ParsedPattern[], defaultOrder: glob.ParsedPattern[]) {
+export function sortMimeTypes(mimeTypes: string[], userDisplayOrder: string[], documentDisplayOrder: string[], defaultOrder: string[]) {
 	const sorted = mimeTypes.sort((a, b) => {
 		return getMimeTypeOrder(a, userDisplayOrder, documentDisplayOrder, defaultOrder) - getMimeTypeOrder(b, userDisplayOrder, documentDisplayOrder, defaultOrder);
 	});

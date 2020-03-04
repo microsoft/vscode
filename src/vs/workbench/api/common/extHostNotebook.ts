@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as glob from 'vs/base/common/glob';
 import { ExtHostNotebookShape, IMainContext, MainThreadNotebookShape, MainContext, ICellDto, NotebookCellsSplice, NotebookCellOutputsSplice, CellKind, CellOutputKind } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Disposable as VSCodeDisposable } from './extHostTypes';
@@ -17,8 +16,8 @@ import { INotebookDisplayOrder, parseCellUri, parseCellHandle, ITransformedDispl
 import { ISplice } from 'vs/base/common/sequence';
 
 interface ExtHostOutputDisplayOrder {
-	defaultOrder: glob.ParsedPattern[];
-	userOrder?: glob.ParsedPattern[];
+	defaultOrder: string[];
+	userOrder?: string[];
 }
 
 export class ExtHostCell implements vscode.NotebookCell {
@@ -136,20 +135,14 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument, vscode.
 		this._proxy.$updateNotebookLanguages(this.viewType, this.uri, this._languages);
 	}
 
-	private _displayOrder: vscode.GlobPattern[] = [];
-	private _parsedDisplayOrder: glob.ParsedPattern[] = [];
+	private _displayOrder: string[] = [];
 
 	get displayOrder() {
 		return this._displayOrder;
 	}
 
-	set displayOrder(newOrder: vscode.GlobPattern[]) {
+	set displayOrder(newOrder: string[]) {
 		this._displayOrder = newOrder;
-		this._parsedDisplayOrder = newOrder.map(pattern => glob.parse(pattern));
-	}
-
-	get parsedDisplayOrder() {
-		return this._parsedDisplayOrder;
 	}
 
 	constructor(
@@ -270,7 +263,7 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument, vscode.
 
 		// TODO@rebornix, the document display order might be assigned a bit later. We need to postpone sending the outputs to the core side.
 		let coreDisplayOrder = this.renderingHandler.outputDisplayOrder;
-		const sorted = sortMimeTypes(mimeTypes, coreDisplayOrder?.userOrder || [], this._parsedDisplayOrder, coreDisplayOrder?.defaultOrder || []);
+		const sorted = sortMimeTypes(mimeTypes, coreDisplayOrder?.userOrder || [], this._displayOrder, coreDisplayOrder?.defaultOrder || []);
 
 		let orderMimeTypes: IOrderedMimeType[] = [];
 
@@ -669,11 +662,9 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	}
 
 	$acceptDisplayOrder(displayOrder: INotebookDisplayOrder): void {
-		let parsedDefaultDisplayOrder = displayOrder.defaultOrder.map(pattern => glob.parse(pattern));
-		let parsedUserPattern = displayOrder.userOrder?.map(pattern => glob.parse(pattern));
 		this._outputDisplayOrder = {
-			defaultOrder: parsedDefaultDisplayOrder,
-			userOrder: parsedUserPattern
+			defaultOrder: displayOrder.defaultOrder,
+			userOrder: displayOrder.userOrder || []
 		};
 	}
 }
