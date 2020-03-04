@@ -5,6 +5,7 @@
 
 import { equals } from 'vs/base/common/arrays';
 import { memoize } from 'vs/base/common/decorators';
+import { Iterable } from 'vs/base/common/iterator';
 import { Lazy } from 'vs/base/common/lazy';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
@@ -230,7 +231,7 @@ export class WebviewEditorService implements IWebviewWorkbenchService {
 	public shouldPersist(
 		webview: WebviewInput
 	): boolean {
-		if (Array.from(this._revivers.values()).some(reviver => canRevive(reviver, webview))) {
+		if (Iterable.some(this._revivers.values(), reviver => canRevive(reviver, webview))) {
 			return true;
 		}
 
