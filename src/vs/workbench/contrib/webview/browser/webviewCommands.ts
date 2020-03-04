@@ -116,7 +116,7 @@ export class SelectAllWebviewEditorCommand extends Action2 {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, args: any): void {
+	public run(accessor: ServicesAccessor): void {
 		getActiveWebviewEditor(accessor)?.selectAll();
 	}
 }
@@ -128,22 +128,17 @@ export class ReloadWebviewAction extends Action {
 	public constructor(
 		id: string,
 		label: string,
-		@IEditorService private readonly editorService: IEditorService
+		@IEditorService private readonly _editorService: IEditorService
 	) {
 		super(id, label);
 	}
 
-	public run(): Promise<any> {
-		for (const webview of this.getVisibleWebviews()) {
-			webview.webview?.reload();
+	public async run(): Promise<void> {
+		for (const editorPane of this._editorService.visibleEditorPanes) {
+			if ((editorPane as WebviewEditor).isWebviewEditor) {
+				(editorPane as WebviewEditor).webview?.reload();
+			}
 		}
-		return Promise.resolve(true);
-	}
-
-	private getVisibleWebviews() {
-		return this.editorService.visibleEditorPanes
-			.filter(editorPane => editorPane && (editorPane as WebviewEditor).isWebviewEditor)
-			.map(editorPane => editorPane as WebviewEditor);
 	}
 }
 
