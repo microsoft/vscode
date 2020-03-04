@@ -11,7 +11,7 @@ import { Action, IAction } from 'vs/base/common/actions';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionsWorkbenchService, IExtension, ExtensionContainers } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService, IExtensionsStatus, IExtensionHostProfile } from 'vs/workbench/services/extensions/common/extensions';
@@ -48,7 +48,6 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { domEvent } from 'vs/base/browser/event';
-import { Label } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
 
 export const IExtensionHostProfileService = createDecorator<IExtensionHostProfileService>('extensionHostProfileService');
 export const CONTEXT_PROFILE_SESSION_STATE = new RawContextKey<string>('profileSessionState', 'none');
@@ -261,13 +260,13 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 			element: HTMLElement;
 			icon: HTMLImageElement;
 			name: HTMLElement;
+			version: HTMLElement;
 			msgContainer: HTMLElement;
 			actionbar: ActionBar;
 			activationTime: HTMLElement;
 			profileTime: HTMLElement;
 			disposables: IDisposable[];
 			elementDisposables: IDisposable[];
-			extension: IExtension | null;
 		}
 
 		const renderer: IListRenderer<IRuntimeExtension, IRuntimeExtensionTemplateData> = {
@@ -293,27 +292,20 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				const activationTime = append(timeContainer, $('div.activation-time'));
 				const profileTime = append(timeContainer, $('div.profile-time'));
 
-				const widgets = [
-					this._instantiationService.createInstance(Label, version, (e: IExtension) => e.version)
-				];
-
-				const extensionContainers: ExtensionContainers = this._instantiationService.createInstance(ExtensionContainers, [...widgets]);
-				const disposables = [actionbar, ...widgets];
+				const disposables = [actionbar];
 
 				return {
 					root,
 					element,
 					icon,
 					name,
+					version,
 					actionbar,
 					activationTime,
 					profileTime,
 					msgContainer,
 					disposables,
 					elementDisposables: [],
-					set extension(extension: IExtension) {
-						extensionContainers.extension = extension;
-					}
 				};
 			},
 
@@ -334,6 +326,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 					data.icon.style.visibility = 'inherit';
 				}
 				data.name.textContent = element.marketplaceInfo ? element.marketplaceInfo.displayName : element.description.displayName || '';
+				data.version.textContent = element.description.version;
 
 				const activationTimes = element.status.activationTimes!;
 				let syncTime = activationTimes.codeLoadingTime + activationTimes.activateCallTime;
@@ -346,7 +339,6 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				if (isNonEmptyArray(element.status.runtimeErrors)) {
 					data.actionbar.push(new ReportExtensionIssueAction(element, this._openerService), { icon: true, label: true });
 				}
-				data.extension = element.marketplaceInfo;
 
 				let title: string;
 				const activationId = activationTimes.activationReason.extensionId.value;
