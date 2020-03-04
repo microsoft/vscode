@@ -12,7 +12,7 @@ import { Action2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { WebviewEditorOverlay, webviewHasOwnEditFunctionsContextKey } from 'vs/workbench/contrib/webview/browser/webview';
+import { WebviewOverlay, webviewHasOwnEditFunctionsContextKey } from 'vs/workbench/contrib/webview/browser/webview';
 import { getActiveWebviewEditor } from 'vs/workbench/contrib/webview/browser/webviewCommands';
 import { ElectronWebviewBasedWebview } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
 
@@ -25,7 +25,7 @@ export class OpenWebviewDeveloperToolsAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise<any> {
+	public async run(): Promise<any> {
 		const elements = document.querySelectorAll('webview.ready');
 		for (let i = 0; i < elements.length; i++) {
 			try {
@@ -34,7 +34,7 @@ export class OpenWebviewDeveloperToolsAction extends Action {
 				console.error(e);
 			}
 		}
-		return Promise.resolve(true);
+		return true;
 	}
 }
 
@@ -55,7 +55,7 @@ export class CopyWebviewEditorCommand extends Action2 {
 	}
 
 	public run(accessor: ServicesAccessor): void {
-		getActiveWebviewBasedWebview(accessor)?.copy();
+		getActiveElectronBasedWebview(accessor)?.copy();
 	}
 }
 
@@ -76,7 +76,7 @@ export class PasteWebviewEditorCommand extends Action2 {
 	}
 
 	public run(accessor: ServicesAccessor): void {
-		getActiveWebviewBasedWebview(accessor)?.paste();
+		getActiveElectronBasedWebview(accessor)?.paste();
 	}
 }
 
@@ -97,7 +97,7 @@ export class CutWebviewEditorCommand extends Action2 {
 	}
 
 	public run(accessor: ServicesAccessor): void {
-		getActiveWebviewBasedWebview(accessor)?.cut();
+		getActiveElectronBasedWebview(accessor)?.cut();
 	}
 }
 
@@ -117,8 +117,8 @@ export class UndoWebviewEditorCommand extends Action2 {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, args: any): void {
-		getActiveWebviewBasedWebview(accessor)?.undo();
+	public run(accessor: ServicesAccessor): void {
+		getActiveElectronBasedWebview(accessor)?.undo();
 	}
 }
 
@@ -140,21 +140,21 @@ export class RedoWebviewEditorCommand extends Action2 {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, args: any): void {
-		getActiveWebviewBasedWebview(accessor)?.redo();
+	public run(accessor: ServicesAccessor): void {
+		getActiveElectronBasedWebview(accessor)?.redo();
 	}
 }
 
-function getActiveWebviewBasedWebview(accessor: ServicesAccessor): ElectronWebviewBasedWebview | undefined {
-	const webview = getActiveWebviewEditor(accessor)?.webview;
+function getActiveElectronBasedWebview(accessor: ServicesAccessor): ElectronWebviewBasedWebview | undefined {
+	const webview = getActiveWebviewEditor(accessor);
 	if (!webview) {
 		return undefined;
 	}
 
 	if (webview instanceof ElectronWebviewBasedWebview) {
 		return webview;
-	} else if ((webview as WebviewEditorOverlay).getInnerWebview) {
-		const innerWebview = (webview as WebviewEditorOverlay).getInnerWebview();
+	} else if ((webview as WebviewOverlay).getInnerWebview) {
+		const innerWebview = (webview as WebviewOverlay).getInnerWebview();
 		if (innerWebview instanceof ElectronWebviewBasedWebview) {
 			return innerWebview;
 		}
