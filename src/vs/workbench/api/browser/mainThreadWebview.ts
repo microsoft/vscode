@@ -125,15 +125,19 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		super();
 
 		this._proxy = context.getProxy(extHostProtocol.ExtHostContext.ExtHostWebviews);
+
 		this._register(_editorService.onDidActiveEditorChange(() => {
-			let activeInput = this._editorService.activeControl?.input;
+			const activeInput = this._editorService.activeEditor;
 			if (activeInput instanceof DiffEditorInput && activeInput.master instanceof WebviewInput && activeInput.details instanceof WebviewInput) {
 				this.registerWebviewFromDiffEditorListeners(activeInput);
 			}
 
 			this.updateWebviewViewStates(activeInput);
 		}));
-		this._register(_editorService.onDidVisibleEditorsChange(() => this.updateWebviewViewStates(this._editorService.activeControl?.input)));
+
+		this._register(_editorService.onDidVisibleEditorsChange(() => {
+			this.updateWebviewViewStates(this._editorService.activeEditor);
+		}));
 
 		// This reviver's only job is to activate webview panel extensions
 		// This should trigger the real reviver to be registered from the extension host side.
