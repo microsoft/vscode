@@ -604,18 +604,27 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 	}
 
 	public async revert(_options?: IRevertOptions) {
-		this._proxy.$revert(this.resource, this.viewType);
+		if (this._editable) {
+			this._proxy.$revert(this.resource, this.viewType);
+		}
 	}
 
 	public undo() {
-		this._proxy.$undo(this.resource, this.viewType);
+		if (this._editable) {
+			this._proxy.$undo(this.resource, this.viewType);
+		}
 	}
 
 	public redo() {
-		this._proxy.$redo(this.resource, this.viewType);
+		if (this._editable) {
+			this._proxy.$redo(this.resource, this.viewType);
+		}
 	}
 
 	public async save(_options?: ISaveOptions): Promise<boolean> {
+		if (!this._editable) {
+			return false;
+		}
 		await this._proxy.$onSave(this.resource, this.viewType);
 		this.setDirty(false);
 		return true;
@@ -634,6 +643,16 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 	}
 
 	public async backup(): Promise<IWorkingCopyBackup> {
+		const backupData: IWorkingCopyBackup = {
+			meta: {
+				viewType: this.viewType,
+			}
+		};
+
+		if (!this._editable) {
+			return backupData;
+		}
+
 		if (this._hotExitState.type === HotExitState.Type.Pending) {
 			this._hotExitState.operation.cancel();
 		}
@@ -657,11 +676,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 		}
 
 		if (this._hotExitState === HotExitState.Allowed) {
-			return {
-				meta: {
-					viewType: this.viewType,
-				}
-			};
+			return backupData;
 		}
 
 		throw new Error('Cannot back up in this state');
