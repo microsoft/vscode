@@ -5,7 +5,7 @@
 
 import * as extpath from 'vs/base/common/extpath';
 import * as paths from 'vs/base/common/path';
-import { URI, originalFSPath } from 'vs/base/common/uri';
+import { URI, originalFSPath as uriOriginalFSPath } from 'vs/base/common/uri';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
 import { isLinux, isWindows } from 'vs/base/common/platform';
@@ -13,7 +13,7 @@ import { CharCode } from 'vs/base/common/charCode';
 import { ParsedExpression, IExpression, parse } from 'vs/base/common/glob';
 import { TernarySearchTree } from 'vs/base/common/map';
 
-export { originalFSPath };
+export const originalFSPath = uriOriginalFSPath;
 
 export function getComparisonKey(resource: URI): string {
 	return hasToIgnoreCase(resource) ? resource.toString().toLowerCase() : resource.toString();
