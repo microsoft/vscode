@@ -463,7 +463,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditorP
 			}
 		})) as WorkbenchList<IListEntry>;
 		this._register(this.keybindingsList.onContextMenu(e => this.onContextMenu(e)));
-		this._register(this.keybindingsList.onFocusChange(e => this.onFocusChange(e)));
+		this._register(this.keybindingsList.onDidChangeFocus(e => this.onFocusChange(e)));
 		this._register(this.keybindingsList.onDidFocus(() => {
 			DOM.addClass(this.keybindingsList.getHTMLElement(), 'focused');
 		}));

@@ -13,12 +13,6 @@ import { IdleValue } from 'vs/base/common/async';
 // TRACING
 const _enableTracing = false;
 
-// PROXY
-// Ghetto-declare of the global Proxy object. This isn't the proper way
-// but allows us to run this code in the browser without IE11.
-declare const Proxy: any;
-const _canUseProxy = typeof Proxy === 'function';
-
 class CyclicDependencyError extends Error {
 	constructor(graph: Graph<any>) {
 		super('cyclic dependency between services');
@@ -211,8 +205,8 @@ export class InstantiationService implements IInstantiationService {
 	}
 
 	private _createServiceInstance<T>(ctor: any, args: any[] = [], _supportsDelayedInstantiation: boolean, _trace: Trace): T {
-		if (!_supportsDelayedInstantiation || !_canUseProxy) {
-			// eager instantiation or no support JS proxies (e.g. IE11)
+		if (!_supportsDelayedInstantiation) {
+			// eager instantiation
 			return this._createInstance(ctor, args, _trace);
 
 		} else {

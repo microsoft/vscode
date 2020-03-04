@@ -65,7 +65,7 @@ export function registerConfiguration(): IDisposable {
 				description: localize('sync.keybindingsPerPlatform', "Synchronize keybindings per platform."),
 				default: true,
 				scope: ConfigurationScope.APPLICATION,
-				tags: ['sync']
+				tags: ['sync', 'usesOnlineServices']
 			},
 			'sync.ignoredExtensions': {
 				'type': 'array',
@@ -75,7 +75,7 @@ export function registerConfiguration(): IDisposable {
 				'scope': ConfigurationScope.APPLICATION,
 				uniqueItems: true,
 				disallowSyncIgnore: true,
-				tags: ['sync']
+				tags: ['sync', 'usesOnlineServices']
 			},
 			'sync.ignoredSettings': {
 				'type': 'array',
@@ -86,7 +86,7 @@ export function registerConfiguration(): IDisposable {
 				additionalProperties: true,
 				uniqueItems: true,
 				disallowSyncIgnore: true,
-				tags: ['sync']
+				tags: ['sync', 'usesOnlineServices']
 			}
 		}
 	});
