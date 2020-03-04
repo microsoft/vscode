@@ -1014,7 +1014,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			WebviewContentState: extHostTypes.WebviewContentState,
 			UIKind: UIKind,
 			ColorThemeKind: extHostTypes.ColorThemeKind,
-			TimelineItem: extHostTypes.TimelineItem
+			TimelineItem: extHostTypes.TimelineItem,
+			CellKind: extHostTypes.CellKind,
+			CellOutputKind: extHostTypes.CellOutputKind
 		};
 	};
 }

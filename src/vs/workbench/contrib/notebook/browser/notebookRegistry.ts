@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IOutputTransformContribution } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IOutputTransformContribution, CellOutputKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { BrandedService, IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
@@ -11,7 +11,7 @@ export type IOutputTransformCtor = IConstructorSignature1<INotebookEditor, IOutp
 
 export interface IOutputTransformDescription {
 	id: string;
-	types: string[];
+	kind: CellOutputKind;
 	ctor: IOutputTransformCtor;
 }
 
@@ -21,8 +21,8 @@ export namespace NotebookRegistry {
 	}
 }
 
-export function registerOutputTransform<Services extends BrandedService[]>(id: string, types: string[], ctor: { new(editor: INotebookEditor, ...services: Services): IOutputTransformContribution }): void {
-	NotebookRegistryImpl.INSTANCE.registerOutputTransform(id, types, ctor);
+export function registerOutputTransform<Services extends BrandedService[]>(id: string, kind: CellOutputKind, ctor: { new(editor: INotebookEditor, ...services: Services): IOutputTransformContribution }): void {
+	NotebookRegistryImpl.INSTANCE.registerOutputTransform(id, kind, ctor);
 }
 
 class NotebookRegistryImpl {
@@ -35,8 +35,8 @@ class NotebookRegistryImpl {
 		this.outputTransforms = [];
 	}
 
-	registerOutputTransform<Services extends BrandedService[]>(id: string, types: string[], ctor: { new(editor: INotebookEditor, ...services: Services): IOutputTransformContribution }): void {
-		this.outputTransforms.push({ id: id, types: types, ctor: ctor as IOutputTransformCtor });
+	registerOutputTransform<Services extends BrandedService[]>(id: string, kind: CellOutputKind, ctor: { new(editor: INotebookEditor, ...services: Services): IOutputTransformContribution }): void {
+		this.outputTransforms.push({ id: id, kind: kind, ctor: ctor as IOutputTransformCtor });
 	}
 
 	getNotebookOutputTransform(): IOutputTransformDescription[] {

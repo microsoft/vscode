@@ -14,7 +14,7 @@ import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer'
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CellFindMatch } from 'vs/workbench/contrib/notebook/browser/notebookFindWidget';
 import { MarkdownRenderer } from 'vs/workbench/contrib/notebook/browser/renderers/mdRenderer';
-import { EDITOR_BOTTOM_PADDING, EDITOR_TOP_PADDING, ICell, IOutput, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { EDITOR_BOTTOM_PADDING, EDITOR_TOP_PADDING, ICell, IOutput, NotebookCellOutputsSplice, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { SearchParams } from 'vs/editor/common/model/textModelSearch';
 
 export class CellViewModel extends Disposable {
@@ -31,8 +31,8 @@ export class CellViewModel extends Disposable {
 	protected _outputsTop: PrefixSumComputer | null = null;
 
 
-	get cellType() {
-		return this.cell.cell_type;
+	get cellKind() {
+		return this.cell.cellKind;
 	}
 	get lineCount() {
 		return this.cell.source.length;
@@ -151,7 +151,7 @@ export class CellViewModel extends Disposable {
 			return false;
 		}
 
-		if (this.cellType === 'code') {
+		if (this.cellKind === CellKind.Code) {
 			if (this.outputs && this.outputs.length > 0) {
 				// if it contains output, it will be marked as dynamic height
 				// thus when it's being rendered, the list view will `probeHeight`
@@ -167,7 +167,7 @@ export class CellViewModel extends Disposable {
 	}
 
 	getHeight(lineHeight: number) {
-		if (this.cellType === 'markdown') {
+		if (this.cellKind === CellKind.Markdown) {
 			return 100;
 		}
 		else {
@@ -193,7 +193,7 @@ export class CellViewModel extends Disposable {
 	}
 
 	getHTML(): HTMLElement | null {
-		if (this.cellType === 'markdown') {
+		if (this.cellKind === CellKind.Markdown) {
 			if (this._html) {
 				return this._html;
 			}

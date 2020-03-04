@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import * as glob from 'vs/base/common/glob';
-import { ExtHostNotebookShape, IMainContext, MainThreadNotebookShape, MainContext, ICellDto, NotebookCellsSplice, NotebookCellOutputsSplice } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostNotebookShape, IMainContext, MainThreadNotebookShape, MainContext, ICellDto, NotebookCellsSplice, NotebookCellOutputsSplice, CellKind, CellOutputKind } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Disposable as VSCodeDisposable } from './extHostTypes';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -13,7 +13,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { readonly } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { INotebookDisplayOrder, parseCellUri, parseCellHandle, ITransformedDisplayOutputDto, IOrderedMimeType, IStreamOutput, IErrorOutput, mimeTypeSupportedByCore } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookDisplayOrder, parseCellUri, parseCellHandle, ITransformedDisplayOutputDto, IOrderedMimeType, IStreamOutput, IErrorOutput, mimeTypeSupportedByCore, IOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ISplice } from 'vs/base/common/sequence';
 
 interface ExtHostOutputDisplayOrder {
@@ -96,7 +96,7 @@ export class ExtHostCell implements vscode.NotebookCell {
 
 	constructor(
 		private _content: string,
-		public cell_type: 'markdown' | 'code',
+		public cellKind: CellKind,
 		public language: string,
 		outputs: any[]
 	) {
@@ -108,7 +108,7 @@ export class ExtHostCell implements vscode.NotebookCell {
 		return this._outputs;
 	}
 
-	set outputs(newOutputs: any[]) {
+	set outputs(newOutputs: vscode.CellOutput[]) {
 		let diffs = diff<vscode.CellOutput>(this._outputs || [], newOutputs || [], (a) => {
 			return this._outputMapping.has(a);
 		});
@@ -237,10 +237,10 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument, vscode.
 			let inserts = diff.toInsert;
 
 			let cellDtos = inserts.map(cell => {
-				let outputs = cell.outputs;
-				if (outputs && outputs.length) {
-					outputs = outputs.map(output => {
-						if (output.output_type === 'display_data' || output.output_type === 'execute_result') {
+				let outputs: IOutput[] = [];
+				if (cell.outputs.length) {
+					outputs = cell.outputs.map(output => {
+						if (output.outputKind === CellOutputKind.Rich) {
 							const ret = this.transformMimeTypes(cell, output);
 
 							if (ret.orderedMimeTypes[ret.pickedMimeTypeIndex].isResolved) {
@@ -248,7 +248,7 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument, vscode.
 							}
 							return ret;
 						} else {
-							return output;
+							return output as IStreamOutput | IErrorOutput;
 						}
 					});
 				}
@@ -257,7 +257,7 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument, vscode.
 					handle: cell.handle,
 					source: cell.source,
 					language: cell.language,
-					cell_type: cell.cell_type,
+					cellKind: cell.cellKind,
 					outputs: outputs,
 					isDirty: false
 				};
@@ -280,7 +280,7 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument, vscode.
 			let outputs = diff.toInsert;
 
 			let transformedOutputs = outputs.map(output => {
-				if (output.output_type === 'display_data' || output.output_type === 'execute_result') {
+				if (output.outputKind === CellOutputKind.Rich) {
 					const ret = this.transformMimeTypes(cell, output);
 
 					if (ret.orderedMimeTypes[ret.pickedMimeTypeIndex].isResolved) {
@@ -373,7 +373,7 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument, vscode.
 		});
 
 		return {
-			output_type: output.output_type,
+			outputKind: output.outputKind,
 			data: output.data,
 			orderedMimeTypes: orderMimeTypes,
 			pickedMimeTypeIndex: 0
@@ -381,7 +381,7 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument, vscode.
 	}
 
 	findRichestMimeType(output: vscode.CellOutput) {
-		if (output.output_type === 'display_data' || output.output_type === 'execute_result') {
+		if (output.outputKind === CellOutputKind.Rich) {
 			let mimeTypes = Object.keys(output.data);
 
 			const sorted = mimeTypes.sort((a, b) => {
@@ -517,7 +517,7 @@ export class ExtHostNotebookEditor implements vscode.NotebookEditor, vscode.Disp
 		this._disposableStore.dispose();
 	}
 
-	createCell(content: string, language: string, type: 'markdown' | 'code', outputs: vscode.CellOutput[]): vscode.NotebookCell {
+	createCell(content: string, language: string, type: CellKind, outputs: vscode.CellOutput[]): vscode.NotebookCell {
 		let cell = new ExtHostCell(content, type, language, outputs);
 		return cell;
 	}
@@ -556,14 +556,6 @@ export class ExtHostNotebookOutputRenderer {
 		let html = this.renderer.render(document, cell, output, mimeType);
 
 		return html;
-		// return {
-		// 	output_type: 'display_data',
-		// 	data: {
-		// 		'text/html': [
-		// 			html
-		// 		]
-		// 	}
-		// };
 	}
 }
 
@@ -689,7 +681,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		return provider.provider.executeCell(document!, cell);
 	}
 
-	async $createEmptyCell(viewType: string, uri: URI, index: number, language: string, type: 'markdown' | 'code'): Promise<ICellDto | undefined> {
+	async $createEmptyCell(viewType: string, uri: URI, index: number, language: string, type: CellKind): Promise<ICellDto | undefined> {
 		let provider = this._notebookProviders.get(viewType);
 
 		if (provider) {
@@ -725,7 +717,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 				handle: rawCell.handle,
 				source: rawCell.source,
 				language: rawCell.language,
-				cell_type: rawCell.cell_type,
+				cellKind: rawCell.cellKind,
 				outputs: rawCell.outputs
 			};
 		}

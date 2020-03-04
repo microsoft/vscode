@@ -10,7 +10,7 @@ import { notebookProviderExtensionPoint, notebookRendererExtensionPoint } from '
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
 import { Emitter, Event } from 'vs/base/common/event';
-import { INotebook, ICell, INotebookMimeTypeSelector, INotebookRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebook, ICell, INotebookMimeTypeSelector, INotebookRendererInfo, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
 
@@ -24,7 +24,7 @@ export interface IMainNotebookController {
 	resolveNotebook(viewType: string, uri: URI): Promise<INotebook | undefined>;
 	executeNotebook(viewType: string, uri: URI): Promise<void>;
 	updateNotebookActiveCell(uri: URI, cellHandle: number): void;
-	createRawCell(uri: URI, index: number, language: string, type: 'markdown' | 'code'): Promise<ICell | undefined>;
+	createRawCell(uri: URI, index: number, language: string, type: CellKind): Promise<ICell | undefined>;
 	deleteCell(uri: URI, index: number): Promise<boolean>
 	executeNotebookActiveCell(uri: URI): void;
 	destoryNotebookDocument(notebook: INotebook): Promise<void>;
@@ -45,7 +45,7 @@ export interface INotebookService {
 	getContributedNotebookProviders(resource: URI): readonly NotebookProviderInfo[];
 	getNotebookProviderResourceRoots(): URI[];
 	updateNotebookActiveCell(viewType: string, resource: URI, cellHandle: number): void;
-	createNotebookCell(viewType: string, resource: URI, index: number, language: string, type: 'markdown' | 'code'): Promise<ICell | undefined>;
+	createNotebookCell(viewType: string, resource: URI, index: number, language: string, type: CellKind): Promise<ICell | undefined>;
 	deleteNotebookCell(viewType: string, resource: URI, index: number): Promise<boolean>;
 	destoryNotebookDocument(viewType: string, notebook: INotebook): void;
 	updateActiveNotebookDocument(viewType: string, resource: URI): void;
@@ -244,7 +244,7 @@ export class NotebookService extends Disposable implements INotebookService {
 		}
 	}
 
-	async createNotebookCell(viewType: string, resource: URI, index: number, language: string, type: 'markdown' | 'code'): Promise<ICell | undefined> {
+	async createNotebookCell(viewType: string, resource: URI, index: number, language: string, type: CellKind): Promise<ICell | undefined> {
 		let provider = this._notebookProviders.get(viewType);
 
 		if (provider) {

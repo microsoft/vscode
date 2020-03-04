@@ -28,7 +28,7 @@ import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/output/out
 import { BackLayerWebView } from 'vs/workbench/contrib/notebook/browser/renderers/backLayerWebView';
 import { CodeCellRenderer, MarkdownCellRenderer, NotebookCellListDelegate } from 'vs/workbench/contrib/notebook/browser/renderers/cellRenderer';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/renderers/cellViewModel';
-import { CELL_MARGIN, NotebookCellsSplice, IOutput, parseCellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CELL_MARGIN, NotebookCellsSplice, IOutput, parseCellUri, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -345,7 +345,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 			}
 		}));
 
-		this.list?.splice(0, this.list?.length);
+		this.list?.splice(0, this.list?.length || 0);
 		this.list?.splice(0, 0, this.notebookViewModel!.viewCells);
 		this.list?.layout();
 	}
@@ -441,7 +441,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 		});
 	}
 
-	async insertEmptyNotebookCell(cell: CellViewModel, type: 'code' | 'markdown', direction: 'above' | 'below'): Promise<void> {
+	async insertEmptyNotebookCell(cell: CellViewModel, type: CellKind, direction: 'above' | 'below'): Promise<void> {
 		const newLanguages = this.notebookViewModel!.languages;
 		const language = newLanguages && newLanguages.length ? newLanguages[0] : 'markdown';
 		const index = this.notebookViewModel!.getViewCellIndex(cell);
@@ -453,7 +453,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 		this.list?.splice(insertIndex, 0, [newCell]);
 		this.list?.setFocus([insertIndex]);
 
-		if (type === 'markdown') {
+		if (type === CellKind.Markdown) {
 			newCell.isEditing = true;
 		}
 

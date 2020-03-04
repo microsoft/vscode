@@ -635,11 +635,22 @@ export interface ExtHostWebviewsShape {
 	$backup(resource: UriComponents, viewType: string, cancellation: CancellationToken): Promise<void>;
 }
 
+export enum CellKind {
+	Markdown = 1,
+	Code = 2
+}
+
+export enum CellOutputKind {
+	Text = 1,
+	Error = 2,
+	Rich = 3
+}
+
 export interface ICellDto {
 	handle: number;
 	source: string[];
 	language: string;
-	cell_type: 'markdown' | 'code';
+	cellKind: CellKind;
 	outputs: IOutput[];
 }
 
@@ -1494,7 +1505,7 @@ export interface ExtHostCommentsShape {
 export interface ExtHostNotebookShape {
 	$resolveNotebook(viewType: string, uri: UriComponents): Promise<number | undefined>;
 	$executeNotebook(viewType: string, uri: UriComponents, cellHandle: number | undefined): Promise<void>;
-	$createEmptyCell(viewType: string, uri: UriComponents, index: number, language: string, type: 'markdown' | 'code'): Promise<ICellDto | undefined>;
+	$createEmptyCell(viewType: string, uri: UriComponents, index: number, language: string, type: CellKind): Promise<ICellDto | undefined>;
 	$deleteCell(viewType: string, uri: UriComponents, index: number): Promise<boolean>;
 	$saveNotebook(viewType: string, uri: UriComponents): Promise<boolean>;
 	$updateActiveEditor(viewType: string, uri: UriComponents): Promise<void>;

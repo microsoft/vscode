@@ -9,14 +9,14 @@ import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/renderers/cellViewModel';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/output/outputRenderer';
-import { IOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IOutput, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('notebookFindWidgetFocused', false);
 
 export interface INotebookEditor {
 	viewType: string | undefined;
-	insertEmptyNotebookCell(cell: CellViewModel, type: 'markdown' | 'code', direction: 'above' | 'below'): Promise<void>;
+	insertEmptyNotebookCell(cell: CellViewModel, type: CellKind, direction: 'above' | 'below'): Promise<void>;
 	deleteNotebookCell(cell: CellViewModel): void;
 	editNotebookCell(cell: CellViewModel): void;
 	saveNotebookCell(cell: CellViewModel): void;

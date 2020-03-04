@@ -8,7 +8,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/renderers/cellViewModel';
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/renderers/sizeObserver';
-import { CELL_MARGIN, IOutput, EDITOR_TOP_PADDING, EDITOR_BOTTOM_PADDING, ITransformedDisplayOutputDto, IRenderOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CELL_MARGIN, IOutput, EDITOR_TOP_PADDING, EDITOR_BOTTOM_PADDING, ITransformedDisplayOutputDto, IRenderOutput, CellOutputKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellRenderTemplate, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -211,7 +211,7 @@ export class CodeCell extends Disposable {
 		let outputItemDiv = document.createElement('div');
 		let result: IRenderOutput | undefined = undefined;
 
-		if (currOutput.output_type === 'display_data' || currOutput.output_type === 'execute_result') {
+		if (currOutput.outputKind === CellOutputKind.Rich) {
 			let transformedDisplayOutput = currOutput as ITransformedDisplayOutputDto;
 
 			if (transformedDisplayOutput.orderedMimeTypes.length > 1) {
@@ -229,7 +229,7 @@ export class CodeCell extends Disposable {
 
 			if (pickedMimeTypeRenderer.isResolved) {
 				// html
-				result = this.notebookEditor.getOutputRenderer().render({ output_type: 'display_data', data: { 'text/html': pickedMimeTypeRenderer.output! } } as any, outputItemDiv, 'text/html');
+				result = this.notebookEditor.getOutputRenderer().render({ outputKind: CellOutputKind.Rich, data: { 'text/html': pickedMimeTypeRenderer.output! } } as any, outputItemDiv, 'text/html');
 			} else {
 				result = this.notebookEditor.getOutputRenderer().render(currOutput, outputItemDiv, pickedMimeTypeRenderer.mimeType);
 			}

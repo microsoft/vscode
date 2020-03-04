@@ -1421,13 +1421,24 @@ declare module 'vscode' {
 
 	//#region Peng: Notebook
 
+	export enum CellKind {
+		Markdown = 1,
+		Code = 2
+	}
+
+	export enum CellOutputKind {
+		Text = 1,
+		Error = 2,
+		Rich = 3
+	}
+
 	export interface CellStreamOutput {
-		output_type: 'stream';
+		outputKind: CellOutputKind.Text;
 		text: string;
 	}
 
 	export interface CellErrorOutput {
-		output_type: 'error';
+		outputKind: CellOutputKind.Error;
 		/**
 		 * Exception Name
 		 */
@@ -1443,16 +1454,14 @@ declare module 'vscode' {
 	}
 
 	export interface CellDisplayOutput {
-		// todo@peng
-		// eslint-disable-next-line vscode-dts-literal-or-types
-		output_type: 'display_data' | 'execute_result';
+		outputKind: CellOutputKind.Rich;
 		/**
 		 * { mime_type: value }
 		 *
 		 * Example:
 		 * ```json
 		 * {
-		 *   "output_type": "execute_result",
+		 *   "outputKind": vscode.CellOutputKind.Rich,
 		 *   "data": {
 		 *      "text/html": [
 		 *          "<h1>Hello</h1>"
@@ -1471,9 +1480,7 @@ declare module 'vscode' {
 	export interface NotebookCell {
 		handle: number;
 		language: string;
-		// todo@peng
-		// eslint-disable-next-line vscode-dts-literal-or-types
-		cell_type: 'markdown' | 'code';
+		cellKind: CellKind;
 		outputs: CellOutput[];
 		getContent(): string;
 	}
@@ -1493,16 +1500,13 @@ declare module 'vscode' {
 		/**
 		 * Create a notebook cell. The cell is not inserted into current document when created. Extensions should insert the cell into the document by [TextDocument.cells](#TextDocument.cells)
 		 */
-		// todo@peng
-		// eslint-disable-next-line vscode-dts-literal-or-types
-		createCell(content: string, language: string, type: 'markdown' | 'code', outputs: CellOutput[]): NotebookCell;
+		createCell(content: string, language: string, type: CellKind, outputs: CellOutput[]): NotebookCell;
 	}
 
 	export interface NotebookProvider {
 		resolveNotebook(editor: NotebookEditor): Promise<void>;
 		executeCell(document: NotebookDocument, cell: NotebookCell | undefined): Promise<void>;
 		save(document: NotebookDocument): Promise<boolean>;
-		latexRenderer?(value: string): Promise<MarkdownString>;
 	}
 
 	export interface NotebookOutputSelector {

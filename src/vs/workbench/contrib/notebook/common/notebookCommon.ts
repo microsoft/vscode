@@ -10,6 +10,17 @@ import { IRelativePattern } from 'vs/base/common/glob';
 import { PieceTreeTextBufferFactory } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
+export enum CellKind {
+	Markdown = 1,
+	Code = 2
+}
+
+export enum CellOutputKind {
+	Text = 1,
+	Error = 2,
+	Rich = 3
+}
+
 export const NOTEBOOK_DISPLAY_ORDER = [
 	'application/json',
 	'application/javascript',
@@ -43,12 +54,12 @@ export interface INotebookSelectors {
 }
 
 export interface IStreamOutput {
-	output_type: 'stream';
+	outputKind: CellOutputKind.Text;
 	text: string;
 }
 
 export interface IErrorOutput {
-	output_type: 'error';
+	outputKind: CellOutputKind.Error;
 	/**
 	 * Exception Name
 	 */
@@ -64,7 +75,7 @@ export interface IErrorOutput {
 }
 
 export interface IDisplayOutput {
-	output_type: 'display_data' | 'execute_result';
+	outputKind: CellOutputKind.Rich;
 	/**
 	 * { mime_type: value }
 	 */
@@ -85,7 +96,7 @@ export interface IOrderedMimeType {
 }
 
 export interface ITransformedDisplayOutputDto {
-	output_type: 'display_data' | 'execute_result';
+	outputKind: CellOutputKind.Rich;
 	data: { [key: string]: any; }
 
 	orderedMimeTypes: IOrderedMimeType[];
@@ -93,7 +104,7 @@ export interface ITransformedDisplayOutputDto {
 }
 
 export interface IGenericOutput {
-	output_type: string;
+	outputKind: CellOutputKind;
 	pickedMimeType?: string;
 	pickedRenderer?: number;
 	transformedOutput?: { [key: string]: IDisplayOutput };
@@ -106,7 +117,7 @@ export interface ICell {
 	handle: number;
 	source: string[];
 	language: string;
-	cell_type: 'markdown' | 'code';
+	cellKind: CellKind;
 	outputs: IOutput[];
 	onDidChangeOutputs?: Event<NotebookCellOutputsSplice[]>;
 	isDirty: boolean;
@@ -179,8 +190,8 @@ export function parseCellUri(resource: URI): { viewType: string, notebook: URI }
 	return { viewType, notebook };
 }
 
-export function generateCellPath(cell_type: string, cellHandle: number): string {
-	return `/cell_${cellHandle}${cell_type === 'markdown' ? '.md' : ''}`;
+export function generateCellPath(cellKind: CellKind, cellHandle: number): string {
+	return `/cell_${cellHandle}${cellKind === CellKind.Markdown ? '.md' : ''}`;
 }
 
 export function parseCellHandle(path: string): number | undefined {

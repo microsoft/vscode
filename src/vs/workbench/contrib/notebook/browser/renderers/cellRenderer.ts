@@ -21,7 +21,7 @@ import { CodeCell } from 'vs/workbench/contrib/notebook/browser/renderers/codeCe
 import { StatefullMarkdownCell } from 'vs/workbench/contrib/notebook/browser/renderers/markdownCell';
 import { CellViewModel } from './cellViewModel';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EDITOR_TOP_PADDING, EDITOR_BOTTOM_PADDING } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { EDITOR_TOP_PADDING, EDITOR_BOTTOM_PADDING, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class NotebookCellListDelegate implements IListVirtualDelegate<CellViewModel> {
 	private _lineHeight: number;
@@ -41,7 +41,7 @@ export class NotebookCellListDelegate implements IListVirtualDelegate<CellViewMo
 	}
 
 	getTemplateId(element: CellViewModel): string {
-		if (element.cellType === 'markdown') {
+		if (element.cellKind === CellKind.Markdown) {
 			return MarkdownCellRenderer.TEMPLATE_ID;
 		} else {
 			return CodeCellRenderer.TEMPLATE_ID;
@@ -89,7 +89,7 @@ class AbstractCellRenderer {
 			undefined,
 			true,
 			async () => {
-				await this.notebookEditor.insertEmptyNotebookCell(element, 'code', 'above');
+				await this.notebookEditor.insertEmptyNotebookCell(element, CellKind.Code, 'above');
 			}
 		);
 		actions.push(insertAbove);
@@ -100,7 +100,7 @@ class AbstractCellRenderer {
 			undefined,
 			true,
 			async () => {
-				await this.notebookEditor.insertEmptyNotebookCell(element, 'code', 'below');
+				await this.notebookEditor.insertEmptyNotebookCell(element, CellKind.Code, 'below');
 			}
 		);
 		actions.push(insertBelow);
@@ -111,7 +111,7 @@ class AbstractCellRenderer {
 			undefined,
 			true,
 			async () => {
-				await this.notebookEditor.insertEmptyNotebookCell(element, 'markdown', 'above');
+				await this.notebookEditor.insertEmptyNotebookCell(element, CellKind.Markdown, 'above');
 			}
 		);
 		actions.push(insertMarkdownAbove);
@@ -122,12 +122,12 @@ class AbstractCellRenderer {
 			undefined,
 			true,
 			async () => {
-				await this.notebookEditor.insertEmptyNotebookCell(element, 'markdown', 'below');
+				await this.notebookEditor.insertEmptyNotebookCell(element, CellKind.Markdown, 'below');
 			}
 		);
 		actions.push(insertMarkdownBelow);
 
-		if (element.cellType === 'markdown') {
+		if (element.cellKind === CellKind.Markdown) {
 			const editAction = new Action(
 				'workbench.notebook.editCell',
 				'Edit Cell',

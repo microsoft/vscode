@@ -11,7 +11,7 @@ import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookB
 
 export class OutputRenderer {
 	protected readonly _contributions: { [key: string]: IOutputTransformContribution; };
-	protected readonly _mimeTypeMapping: { [key: string]: IOutputTransformContribution; };
+	protected readonly _mimeTypeMapping: { [key: number]: IOutputTransformContribution; };
 
 	constructor(
 		notebookEditor: INotebookEditor,
@@ -26,9 +26,7 @@ export class OutputRenderer {
 			try {
 				const contribution = this.instantiationService.createInstance(desc.ctor, notebookEditor);
 				this._contributions[desc.id] = contribution;
-				desc.types.forEach(mimeType => {
-					this._mimeTypeMapping[mimeType] = contribution;
-				});
+				this._mimeTypeMapping[desc.kind] = contribution;
 			} catch (err) {
 				onUnexpectedError(err);
 			}
@@ -38,7 +36,7 @@ export class OutputRenderer {
 	renderNoop(output: IOutput, container: HTMLElement): IRenderOutput {
 		const contentNode = document.createElement('p');
 
-		contentNode.innerText = `No renderer could be found for output. It has the following output type: ${output.output_type}`;
+		contentNode.innerText = `No renderer could be found for output. It has the following output type: ${output.outputKind}`;
 		container.appendChild(contentNode);
 		return {
 			hasDynamicHeight: false
@@ -46,7 +44,7 @@ export class OutputRenderer {
 	}
 
 	render(output: IOutput, container: HTMLElement, preferredMimeType: string | undefined): IRenderOutput {
-		let transform = this._mimeTypeMapping[output.output_type];
+		let transform = this._mimeTypeMapping[output.outputKind];
 
 		if (transform) {
 			return transform.render(output, container, preferredMimeType);

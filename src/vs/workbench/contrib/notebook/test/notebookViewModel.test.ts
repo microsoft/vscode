@@ -11,7 +11,7 @@ import { PieceTreeTextBufferFactory } from 'vs/editor/common/model/pieceTreeText
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/notebookViewModel';
-import { generateCellPath, ICell, INotebook, IOutput, NotebookCellOutputsSplice, NotebookCellsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { generateCellPath, ICell, INotebook, IOutput, NotebookCellOutputsSplice, NotebookCellsSplice, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/renderers/cellViewModel';
 
 class MockCell implements ICell {
@@ -38,14 +38,14 @@ class MockCell implements ICell {
 		public handle: number,
 		public source: string[],
 		public language: string,
-		public cell_type: 'markdown' | 'code',
+		public cellKind: CellKind,
 		outputs: IOutput[]
 	) {
 		this._outputs = outputs;
 		this.uri = URI.from({
 			scheme: 'vscode-notebook',
 			authority: viewType,
-			path: generateCellPath(cell_type, handle),
+			path: generateCellPath(cellKind, handle),
 			query: ''
 		});
 	}
@@ -86,12 +86,12 @@ class MockNotebook extends Disposable implements INotebook {
 suite('NotebookViewModel', () => {
 	const instantiationService = new TestInstantiationService();
 
-	const createCellViewModel = (viewType: string, notebookHandle: number, cellhandle: number, source: string[], language: string, cell_type: 'markdown' | 'code', outputs: IOutput[]) => {
-		const mockCell = new MockCell(viewType, cellhandle, source, language, cell_type, outputs);
+	const createCellViewModel = (viewType: string, notebookHandle: number, cellhandle: number, source: string[], language: string, cellKind: CellKind, outputs: IOutput[]) => {
+		const mockCell = new MockCell(viewType, cellhandle, source, language, cellKind, outputs);
 		return instantiationService.createInstance(CellViewModel, viewType, notebookHandle, mockCell, false);
 	};
 
-	const withNotebookDocument = (cells: [string[], string, 'markdown' | 'code', IOutput[]][], callback: (viewModel: NotebookViewModel) => void) => {
+	const withNotebookDocument = (cells: [string[], string, CellKind, IOutput[]][], callback: (viewModel: NotebookViewModel) => void) => {
 		const viewType = 'notebook';
 		const notebook = new MockNotebook(0, viewType, URI.parse('test'));
 		notebook.cells = cells.map((cell, index) => {
@@ -117,11 +117,11 @@ suite('NotebookViewModel', () => {
 	test('insert/delete', function () {
 		withNotebookDocument(
 			[
-				[['var a = 1;'], 'javascript', 'code', []],
-				[['var b = 2;'], 'javascript', 'code', []]
+				[['var a = 1;'], 'javascript', CellKind.Code, []],
+				[['var b = 2;'], 'javascript', CellKind.Code, []]
 			],
 			(viewModel) => {
-				const cell = createCellViewModel(viewModel.viewType, viewModel.handle, 0, ['var c = 3;'], 'javascript', 'code', []);
+				const cell = createCellViewModel(viewModel.viewType, viewModel.handle, 0, ['var c = 3;'], 'javascript', CellKind.Code, []);
 				viewModel.insertCell(1, cell);
 				assert.equal(viewModel.viewCells.length, 3);
 				assert.equal(viewModel.notebookDocument.cells.length, 3);
@@ -138,22 +138,22 @@ suite('NotebookViewModel', () => {
 	test('index', function () {
 		withNotebookDocument(
 			[
-				[['var a = 1;'], 'javascript', 'code', []],
-				[['var b = 2;'], 'javascript', 'code', []]
+				[['var a = 1;'], 'javascript', CellKind.Code, []],
+				[['var b = 2;'], 'javascript', CellKind.Code, []]
 			],
 			(viewModel) => {
 				const firstViewCell = viewModel.viewCells[0];
 				const lastViewCell = viewModel.viewCells[viewModel.viewCells.length - 1];
 
 				const insertIndex = viewModel.getViewCellIndex(firstViewCell) + 1;
-				const cell = createCellViewModel(viewModel.viewType, viewModel.handle, 3, ['var c = 3;'], 'javascript', 'code', []);
+				const cell = createCellViewModel(viewModel.viewType, viewModel.handle, 3, ['var c = 3;'], 'javascript', CellKind.Code, []);
 				viewModel.insertCell(insertIndex, cell);
 
 				const addedCellIndex = viewModel.getViewCellIndex(cell);
 				viewModel.deleteCell(addedCellIndex);
 
 				const secondInsertIndex = viewModel.getViewCellIndex(lastViewCell) + 1;
-				const cell2 = createCellViewModel(viewModel.viewType, viewModel.handle, 4, ['var d = 4;'], 'javascript', 'code', []);
+				const cell2 = createCellViewModel(viewModel.viewType, viewModel.handle, 4, ['var d = 4;'], 'javascript', CellKind.Code, []);
 				viewModel.insertCell(secondInsertIndex, cell2);
 
 				assert.equal(viewModel.viewCells.length, 3);
