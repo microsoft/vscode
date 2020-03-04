@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as glob from 'vs/base/common/glob';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { IRelativePattern } from 'vs/base/common/glob';
 import { PieceTreeTextBufferFactory } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ISplice } from 'vs/base/common/sequence';
 
 export enum CellKind {
 	Markdown = 1,
@@ -27,15 +28,14 @@ export const NOTEBOOK_DISPLAY_ORDER = [
 	'text/html',
 	'image/svg+xml',
 	'text/markdown',
-	'image/svg+xml',
 	'image/png',
 	'image/jpeg',
 	'text/plain'
 ];
 
 export interface INotebookDisplayOrder {
-	defaultOrder: (string | IRelativePattern)[];
-	userOrder?: (string | IRelativePattern)[];
+	defaultOrder: (string | glob.IRelativePattern)[];
+	userOrder?: (string | glob.IRelativePattern)[];
 }
 
 export interface INotebookMimeTypeSelector {
@@ -214,3 +214,98 @@ export function mimeTypeSupportedByCore(mimeType: string) {
 }
 
 
+function getMimeTypeOrder(mimeType: string, userDisplayOrder: glob.ParsedPattern[], documentDisplayOrder: glob.ParsedPattern[], defaultOrder: glob.ParsedPattern[]) {
+	let order = 0;
+	for (let i = 0; i < userDisplayOrder.length; i++) {
+		if (userDisplayOrder[i](mimeType)) {
+			return order;
+		}
+		order++;
+	}
+
+	for (let i = 0; i < documentDisplayOrder.length; i++) {
+		if (documentDisplayOrder[i](mimeType)) {
+			return order;
+		}
+
+		order++;
+	}
+
+	for (let i = 0; i < defaultOrder.length; i++) {
+		if (defaultOrder[i](mimeType)) {
+			return order;
+		}
+
+		order++;
+	}
+
+	return order;
+}
+
+export function sortMimeTypes(mimeTypes: string[], userDisplayOrder: glob.ParsedPattern[], documentDisplayOrder: glob.ParsedPattern[], defaultOrder: glob.ParsedPattern[]) {
+	const sorted = mimeTypes.sort((a, b) => {
+		return getMimeTypeOrder(a, userDisplayOrder, documentDisplayOrder, defaultOrder) - getMimeTypeOrder(b, userDisplayOrder, documentDisplayOrder, defaultOrder);
+	});
+
+	return sorted;
+}
+
+interface IMutableSplice<T> extends ISplice<T> {
+	deleteCount: number;
+}
+
+export function diff<T>(before: T[], after: T[], contains: (a: T) => boolean): ISplice<T>[] {
+	const result: IMutableSplice<T>[] = [];
+
+	function pushSplice(start: number, deleteCount: number, toInsert: T[]): void {
+		if (deleteCount === 0 && toInsert.length === 0) {
+			return;
+		}
+
+		const latest = result[result.length - 1];
+
+		if (latest && latest.start + latest.deleteCount === start) {
+			latest.deleteCount += deleteCount;
+			latest.toInsert.push(...toInsert);
+		} else {
+			result.push({ start, deleteCount, toInsert });
+		}
+	}
+
+	let beforeIdx = 0;
+	let afterIdx = 0;
+
+	while (true) {
+		if (beforeIdx === before.length) {
+			pushSplice(beforeIdx, 0, after.slice(afterIdx));
+			break;
+		}
+
+		if (afterIdx === after.length) {
+			pushSplice(beforeIdx, before.length - beforeIdx, []);
+			break;
+		}
+
+		const beforeElement = before[beforeIdx];
+		const afterElement = after[afterIdx];
+
+		if (beforeElement === afterElement) {
+			// equal
+			beforeIdx += 1;
+			afterIdx += 1;
+			continue;
+		}
+
+		if (contains(afterElement)) {
+			// `afterElement` exists before, which means some elements before `afterElement` are deleted
+			pushSplice(beforeIdx, 1, []);
+			beforeIdx += 1;
+		} else {
+			// `afterElement` added
+			pushSplice(beforeIdx, 0, [afterElement]);
+			afterIdx += 1;
+		}
+	}
+
+	return result;
+}

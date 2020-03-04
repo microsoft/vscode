@@ -13,74 +13,13 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { readonly } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { INotebookDisplayOrder, parseCellUri, parseCellHandle, ITransformedDisplayOutputDto, IOrderedMimeType, IStreamOutput, IErrorOutput, mimeTypeSupportedByCore, IOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookDisplayOrder, parseCellUri, parseCellHandle, ITransformedDisplayOutputDto, IOrderedMimeType, IStreamOutput, IErrorOutput, mimeTypeSupportedByCore, IOutput, sortMimeTypes, diff } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ISplice } from 'vs/base/common/sequence';
 
 interface ExtHostOutputDisplayOrder {
 	defaultOrder: glob.ParsedPattern[];
 	userOrder?: glob.ParsedPattern[];
 }
-
-interface IMutableSplice<T> extends ISplice<T> {
-	deleteCount: number;
-}
-
-function diff<T>(before: T[], after: T[], contains: (a: T) => boolean): ISplice<T>[] {
-	const result: IMutableSplice<T>[] = [];
-
-	function pushSplice(start: number, deleteCount: number, toInsert: T[]): void {
-		if (deleteCount === 0 && toInsert.length === 0) {
-			return;
-		}
-
-		const latest = result[result.length - 1];
-
-		if (latest && latest.start + latest.deleteCount === start) {
-			latest.deleteCount += deleteCount;
-			latest.toInsert.push(...toInsert);
-		} else {
-			result.push({ start, deleteCount, toInsert });
-		}
-	}
-
-	let beforeIdx = 0;
-	let afterIdx = 0;
-
-	while (true) {
-		if (beforeIdx === before.length) {
-			pushSplice(beforeIdx, 0, after.slice(afterIdx));
-			break;
-		}
-
-		if (afterIdx === after.length) {
-			pushSplice(beforeIdx, before.length - beforeIdx, []);
-			break;
-		}
-
-		const beforeElement = before[beforeIdx];
-		const afterElement = after[afterIdx];
-
-		if (beforeElement === afterElement) {
-			// equal
-			beforeIdx += 1;
-			afterIdx += 1;
-			continue;
-		}
-
-		if (contains(afterElement)) {
-			// `afterElement` exists before, which means some elements before `afterElement` are deleted
-			pushSplice(beforeIdx, 1, []);
-			beforeIdx += 1;
-		} else {
-			// `afterElement` added
-			pushSplice(beforeIdx, 0, [afterElement]);
-			afterIdx += 1;
-		}
-	}
-
-	return result;
-}
-
 
 export class ExtHostCell implements vscode.NotebookCell {
 
@@ -330,9 +269,8 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument, vscode.
 		let mimeTypes = Object.keys(output.data);
 
 		// TODO@rebornix, the document display order might be assigned a bit later. We need to postpone sending the outputs to the core side.
-		const sorted = mimeTypes.sort((a, b) => {
-			return this.getMimeTypeOrder(a) - this.getMimeTypeOrder(b);
-		});
+		let coreDisplayOrder = this.renderingHandler.outputDisplayOrder;
+		const sorted = sortMimeTypes(mimeTypes, coreDisplayOrder?.userOrder || [], this._parsedDisplayOrder, coreDisplayOrder?.defaultOrder || []);
 
 		let orderMimeTypes: IOrderedMimeType[] = [];
 
@@ -378,62 +316,6 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument, vscode.
 			orderedMimeTypes: orderMimeTypes,
 			pickedMimeTypeIndex: 0
 		};
-	}
-
-	findRichestMimeType(output: vscode.CellOutput) {
-		if (output.outputKind === CellOutputKind.Rich) {
-			let mimeTypes = Object.keys(output.data);
-
-			const sorted = mimeTypes.sort((a, b) => {
-				return this.getMimeTypeOrder(a) - this.getMimeTypeOrder(b);
-			});
-
-			if (sorted.length) {
-				return sorted[0];
-			}
-		}
-
-		return undefined;
-	}
-
-	getMimeTypeOrder(mimeType: string) {
-		let order = 0;
-		let coreDisplayOrder = this.renderingHandler.outputDisplayOrder;
-		if (coreDisplayOrder) {
-			// User order has highest priority
-			let userDisplayOrder = coreDisplayOrder.userOrder;
-
-			if (userDisplayOrder) {
-				for (let i = 0; i < userDisplayOrder.length; i++) {
-					if (userDisplayOrder[i](mimeType)) {
-						return order;
-					}
-					order++;
-				}
-			}
-
-			let documentDisplayOrder = this._parsedDisplayOrder;
-
-			for (let i = 0; i < documentDisplayOrder.length; i++) {
-				if (documentDisplayOrder[i](mimeType)) {
-					return order;
-				}
-
-				order++;
-			}
-
-			let defaultOrder = coreDisplayOrder.defaultOrder;
-
-			for (let i = 0; i < defaultOrder.length; i++) {
-				if (defaultOrder[i](mimeType)) {
-					return order;
-				}
-
-				order++;
-			}
-		}
-
-		return order;
 	}
 
 	getCell(cellHandle: number) {
