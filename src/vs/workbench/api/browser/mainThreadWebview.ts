@@ -286,7 +286,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		return this.registerEditorProvider(ModelType.Custom, extensionData, viewType, options);
 	}
 
-	public registerEditorProvider(
+	private registerEditorProvider(
 		modelType: ModelType,
 		extensionData: extHostProtocol.WebviewExtensionDescription,
 		viewType: string,
@@ -313,7 +313,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 				const resource = webviewInput.resource;
 
 				const modelRef = await this.getOrCreateCustomEditorModel(modelType, webviewInput, resource, viewType);
-				webviewInput.onDisposeWebview(() => {
+				webviewInput.webview.onDispose(() => {
 					modelRef.dispose();
 				});
 
@@ -383,7 +383,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		input.onDispose(() => {
 			disposables.dispose();
 		});
-		input.onDisposeWebview(() => {
+		input.webview.onDispose(() => {
 			this._proxy.$onDidDisposeWebviewPanel(handle).finally(() => {
 				this._webviewInputs.delete(handle);
 			});

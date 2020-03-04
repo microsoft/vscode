@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
 import { URI } from 'vs/base/common/uri';
 import { EditorInput, GroupIdentifier, IEditorInput, Verbosity } from 'vs/workbench/common/editor';
@@ -21,9 +20,6 @@ export class WebviewInput extends EditorInput {
 
 	private readonly _webview: Lazy<WebviewOverlay>;
 	private _didSomeoneTakeMyWebview = false;
-
-	private readonly _onDisposeWebview = this._register(new Emitter<void>());
-	readonly onDisposeWebview = this._onDisposeWebview.event;
 
 	get resource() {
 		return URI.from({
@@ -48,7 +44,6 @@ export class WebviewInput extends EditorInput {
 		if (!this.isDisposed()) {
 			if (!this._didSomeoneTakeMyWebview) {
 				this._webview?.rawValue?.dispose();
-				this._onDisposeWebview.fire();
 			}
 		}
 		super.dispose();

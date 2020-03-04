@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Dimension } from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { memoize } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IWebviewService, Webview, WebviewContentOptions, WebviewOverlay, WebviewElement, WebviewOptions, WebviewExtensionDescription, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewService, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, Webview, WebviewContentOptions, WebviewElement, WebviewExtensionDescription, WebviewOptions, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { Dimension } from 'vs/base/browser/dom';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 /**
  * Webview editor overlay that creates and destroys the underlying webview as needed.
@@ -52,8 +52,15 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 		this._contentOptions = initialContentOptions;
 
 		this._findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(_contextKeyService);
+	}
 
-		this._register(toDisposable(() => this.container.remove()));
+	private readonly _onDispose = this._register(new Emitter<void>());
+	public onDispose = this._onDispose.event;
+
+	dispose() {
+		this.container.remove();
+		this._onDispose.fire();
+		super.dispose();
 	}
 
 	@memoize

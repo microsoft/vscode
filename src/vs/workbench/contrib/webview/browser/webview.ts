@@ -71,7 +71,6 @@ export interface WebviewExtensionDescription {
 }
 
 export interface Webview extends IDisposable {
-
 	html: string;
 	contentOptions: WebviewContentOptions;
 	extension: WebviewExtensionDescription | undefined;
@@ -114,6 +113,8 @@ export interface WebviewElement extends Webview {
 export interface WebviewOverlay extends Webview {
 	readonly container: HTMLElement;
 	options: WebviewOptions;
+
+	readonly onDispose: Event<void>;
 
 	claim(owner: any): void;
 	release(owner: any): void;
