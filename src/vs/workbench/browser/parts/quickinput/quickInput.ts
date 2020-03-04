@@ -12,12 +12,10 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CLOSE_ON_FOCUS_LOST_CONFIG } from 'vs/workbench/browser/quickopen';
 import { computeStyles } from 'vs/platform/theme/common/styler';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ICommandAndKeybindingRule, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { ICommandAndKeybindingRule, KeybindingWeight, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { inQuickOpenContext, InQuickOpenContextKey } from 'vs/workbench/browser/parts/quickopen/quickopen';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -48,7 +46,6 @@ export class QuickInputService extends PlatformQuickInputService {
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
@@ -60,11 +57,11 @@ export class QuickInputService extends PlatformQuickInputService {
 		this.controller = this._register(new QuickInputController({
 			idPrefix: 'quickInput_', // Constant since there is still only one.
 			container: this.layoutService.container,
-			ignoreFocusOut: () => this.environmentService.args['sticky-quickopen'] || !this.configurationService.getValue(CLOSE_ON_FOCUS_LOST_CONFIG),
+			ignoreFocusOut: () => this.environmentService.args['sticky-quickopen'] || !this.configurationService.getValue('workbench.quickOpen.closeOnFocusLost'),
 			isScreenReaderOptimized: () => this.accessibilityService.isScreenReaderOptimized(),
 			backKeybindingLabel: () => this.keybindingService.lookupKeybinding(QuickPickBack.id)?.getLabel() || undefined,
 			setContextKey: (id?: string) => this.setContextKey(id),
-			returnFocus: () => this.editorGroupService.activeGroup.focus(),
+			returnFocus: () => this.layoutService.focus(),
 			createList: <T>(
 				user: string,
 				container: HTMLElement,
@@ -246,6 +243,16 @@ export const QuickPickBack: ICommandAndKeybindingRule = {
 	}
 };
 
+KeybindingsRegistry.registerCommandAndKeybindingRule(QuickPickManyToggle);
+KeybindingsRegistry.registerCommandAndKeybindingRule(QuickPickBack);
+
+registerSingleton(IQuickInputService, QuickInputService, true);
+
+
+
+
+
+
 // TODO@Ben delete eventually when quick open is implemented using quick input
 export class LegacyQuickInputQuickOpenController extends Disposable {
 
@@ -298,5 +305,3 @@ export class LegacyQuickInputQuickOpenController extends Disposable {
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(LegacyQuickInputQuickOpenController, LifecyclePhase.Ready);
-
-registerSingleton(IQuickInputService, QuickInputService, true);

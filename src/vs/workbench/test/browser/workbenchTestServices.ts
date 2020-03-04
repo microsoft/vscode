@@ -406,6 +406,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	isWindowMaximized() { return false; }
 	updateWindowMaximizedState(maximized: boolean): void { }
 	getVisibleNeighborPart(part: Parts, direction: Direction): Parts | undefined { return undefined; }
+	focus() { }
 }
 
 let activeViewlet: Viewlet = {} as any;

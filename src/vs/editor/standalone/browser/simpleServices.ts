@@ -46,6 +46,7 @@ import { ILayoutService, IDimension } from 'vs/platform/layout/browser/layoutSer
 import { SimpleServicesNLS } from 'vs/editor/common/standaloneStrings';
 import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 import { basename } from 'vs/base/common/resources';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
 export class SimpleModel implements IResolvedTextEditorModel {
 
@@ -744,5 +745,9 @@ export class SimpleLayoutService implements ILayoutService {
 		return this._container;
 	}
 
-	constructor(private _container: HTMLElement) { }
+	focus(): void {
+		this._codeEditorService.getActiveCodeEditor()?.focus();
+	}
+
+	constructor(private _codeEditorService: ICodeEditorService, private _container: HTMLElement) { }
 }

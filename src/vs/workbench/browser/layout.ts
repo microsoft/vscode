@@ -663,6 +663,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return true; // any other part cannot be hidden
 	}
 
+	focus(): void {
+		this.editorGroupService.activeGroup.focus();
+	}
+
 	getDimension(part: Parts): Dimension | undefined {
 		return this.getPart(part).dimension;
 	}
@@ -806,7 +810,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// Status bar and activity bar visibility come from settings -> update their visibility.
 			this.doUpdateLayoutConfiguration(true);
 
-			this.editorGroupService.activeGroup.focus();
+			this.focus();
 			if (this.state.zenMode.setNotificationsFilter) {
 				this.notificationService.setFilter(NotificationsFilter.OFF);
 			}
@@ -1090,7 +1094,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			if (this.hasFocus(Parts.PANEL_PART) && activePanel) {
 				activePanel.focus();
 			} else {
-				this.editorGroupService.activeGroup.focus();
+				this.focus();
 			}
 		}
 

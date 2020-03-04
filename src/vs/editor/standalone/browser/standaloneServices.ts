@@ -206,7 +206,7 @@ export class DynamicStandaloneServices extends Disposable {
 
 		let keybindingService = ensure(IKeybindingService, () => this._register(new StandaloneKeybindingService(contextKeyService, commandService, telemetryService, notificationService, domElement)));
 
-		let layoutService = ensure(ILayoutService, () => new SimpleLayoutService(domElement));
+		let layoutService = ensure(ILayoutService, () => new SimpleLayoutService(StaticServices.codeEditorService.get(ICodeEditorService), domElement));
 
 		let contextViewService = ensure(IContextViewService, () => this._register(new ContextViewService(layoutService)));
 

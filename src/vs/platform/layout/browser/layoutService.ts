@@ -37,4 +37,9 @@ export interface ILayoutService {
 	 * event carries the dimensions of the container as part of it.
 	 */
 	readonly onLayout: Event<IDimension>;
+
+	/**
+	 * Focus the primary component of the container.
+	 */
+	focus(): void;
 }
