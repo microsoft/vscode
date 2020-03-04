@@ -25,13 +25,6 @@ import 'vs/workbench/browser/web.main';
 //#endregion
 
 
-//#region --- workbench parts
-
-import 'vs/workbench/browser/parts/titlebar/titlebarPart';
-
-//#endregion
-
-
 //#region --- workbench services
 import 'vs/workbench/services/integrity/browser/integrityService';
 import 'vs/workbench/services/textMate/browser/textMateService';
@@ -78,6 +71,8 @@ import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSy
 import { IAuthenticationTokenService, AuthenticationTokenService } from 'vs/platform/authentication/common/authentication';
 import { UserDataAutoSyncService } from 'vs/workbench/contrib/userDataSync/browser/userDataAutoSyncService';
 import { AccessibilityService } from 'vs/platform/accessibility/common/accessibilityService';
+import { ITitleService } from 'vs/workbench/services/title/common/titleService';
+import { TitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
 
 registerSingleton(IExtensionManagementService, ExtensionManagementService);
 registerSingleton(IBackupFileService, BackupFileService);
@@ -92,6 +87,7 @@ registerSingleton(IAuthenticationTokenService, AuthenticationTokenService);
 registerSingleton(IUserDataAutoSyncService, UserDataAutoSyncService);
 registerSingleton(ISettingsSyncService, SettingsSynchroniser);
 registerSingleton(IUserDataSyncService, UserDataSyncService);
+registerSingleton(ITitleService, TitlebarPart);
 
 //#endregion
 

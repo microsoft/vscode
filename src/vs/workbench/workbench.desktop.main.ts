@@ -69,8 +69,11 @@ import 'vs/workbench/services/extensionResourceLoader/electron-browser/extension
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { KeytarCredentialsService } from 'vs/platform/credentials/node/credentialsService';
+import { NativeTitlebarPart } from 'vs/workbench/electron-browser/parts/titlebar/titlebarPart';
+import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 
 registerSingleton(ICredentialsService, KeytarCredentialsService, true);
+registerSingleton(ITitleService, NativeTitlebarPart);
 
 //#endregion
 
