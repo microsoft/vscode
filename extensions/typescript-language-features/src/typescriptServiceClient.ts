@@ -25,7 +25,7 @@ import { PluginManager } from './utils/plugins';
 import { TelemetryReporter, VSCodeTelemetryReporter, TelemetryProperties } from './utils/telemetry';
 import Tracer from './utils/tracer';
 import { inferredProjectCompilerOptions, ProjectType } from './utils/tsconfig';
-import { TypeScriptVersionPicker } from './utils/versionPicker';
+import { TypeScriptVersionManager } from './utils/versionManager';
 import { TypeScriptVersion, TypeScriptVersionProvider } from './utils/versionProvider';
 
 const localize = nls.loadMessageBundle();
@@ -99,10 +99,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	private _configuration: TypeScriptServiceConfiguration;
 	private versionProvider: TypeScriptVersionProvider;
 	private pluginPathsProvider: TypeScriptPluginPathsProvider;
-	private versionPicker: TypeScriptVersionPicker;
+	private readonly _versionManager: TypeScriptVersionManager;
 
-	private tracer: Tracer;
-	public readonly logger: Logger = new Logger();
+	private readonly logger = new Logger();
+	private readonly tracer = new Tracer(this.logger);
 
 	private readonly typescriptServerSpawner: TypeScriptServerSpawner;
 	private serverState: ServerState.State = ServerState.None;
@@ -139,9 +139,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this._configuration = TypeScriptServiceConfiguration.loadFromWorkspace();
 		this.versionProvider = new TypeScriptVersionProvider(this._configuration);
 		this.pluginPathsProvider = new TypeScriptPluginPathsProvider(this._configuration);
-		this.versionPicker = new TypeScriptVersionPicker(this.versionProvider, this.workspaceState);
-
-		this.tracer = new Tracer(this.logger);
+		this._versionManager = this._register(new TypeScriptVersionManager(this.versionProvider, this.workspaceState));
+		this._register(this._versionManager.onDidPickNewVersion(() => {
+			this.restartTsServer();
+		}));
 
 		this.bufferSyncSupport = new BufferSyncSupport(this, allModeIds);
 		this.onReady(() => { this.bufferSyncSupport.listen(); });
@@ -311,20 +312,20 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			return ServerState.None;
 		}
 
-		let currentVersion = this.versionPicker.currentVersion;
+		let version = this._versionManager.currentVersion;
 
-		this.info(`Using tsserver from: ${currentVersion.path}`);
-		if (!fs.existsSync(currentVersion.tsServerPath)) {
-			vscode.window.showWarningMessage(localize('noServerFound', 'The path {0} doesn\'t point to a valid tsserver install. Falling back to bundled TypeScript version.', currentVersion.path));
+		this.info(`Using tsserver from: ${version.path}`);
+		if (!fs.existsSync(version.tsServerPath)) {
+			vscode.window.showWarningMessage(localize('noServerFound', 'The path {0} doesn\'t point to a valid tsserver install. Falling back to bundled TypeScript version.', version.path));
 
-			this.versionPicker.useBundledVersion();
-			currentVersion = this.versionPicker.currentVersion;
+			this._versionManager.reset();
+			version = this._versionManager.currentVersion;
 		}
 
-		const apiVersion = this.versionPicker.currentVersion.apiVersion || API.defaultVersion;
-		this.onDidChangeTypeScriptVersion(currentVersion);
+		const apiVersion = version.apiVersion || API.defaultVersion;
+		this.onDidChangeTypeScriptVersion(version);
 		let mytoken = ++this.token;
-		const handle = this.typescriptServerSpawner.spawn(currentVersion, this.configuration, this.pluginManager, {
+		const handle = this.typescriptServerSpawner.spawn(version, this.configuration, this.pluginManager, {
 			onFatalError: (command, err) => this.fatalError(command, err),
 		});
 		this.serverState = new ServerState.Running(handle, apiVersion, undefined, true);
@@ -341,7 +342,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		*/
 		this.logTelemetry('tsserver.spawned', {
 			localTypeScriptVersion: this.versionProvider.localVersion ? this.versionProvider.localVersion.displayName : '',
-			typeScriptVersionSource: currentVersion.source,
+			typeScriptVersionSource: version.source,
 		});
 
 		handle.onError((err: Error) => {
@@ -403,7 +404,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		handle.onEvent(event => this.dispatchEvent(event));
 
 		this._onReady!.resolve();
-		this._onTsServerStarted.fire(currentVersion.apiVersion);
+		this._onTsServerStarted.fire(version.apiVersion);
 
 		if (apiVersion.gte(API.v300)) {
 			this.loadingIndicator.startedLoadingProject(undefined /* projectName */);
@@ -415,10 +416,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	public async showVersionPicker(): Promise<void> {
-		const change = await this.versionPicker.show();
-		if (change.newVersion && change.oldVersion && change.oldVersion.eq(change.newVersion)) {
-			this.restartTsServer();
-		}
+		this._versionManager.promptUserForVersion();
 	}
 
 	public async openTsServerLogFile(): Promise<boolean> {
