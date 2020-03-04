@@ -146,7 +146,7 @@ export class RedoWebviewEditorCommand extends Action2 {
 }
 
 function getActiveWebviewBasedWebview(accessor: ServicesAccessor): ElectronWebviewBasedWebview | undefined {
-	const webview = getActiveWebviewEditor(accessor)?.webview;
+	const webview = getActiveWebviewEditor(accessor);
 	if (!webview) {
 		return undefined;
 	}

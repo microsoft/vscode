@@ -101,10 +101,16 @@ export interface Webview extends IDisposable {
 	windowDidDragEnd(): void;
 }
 
+/**
+ * Basic webview rendered in the dom
+ */
 export interface WebviewElement extends Webview {
 	mountTo(parent: HTMLElement): void;
 }
 
+/**
+ * Dynamically created webview drawn over another element.
+ */
 export interface WebviewOverlay extends Webview {
 	readonly container: HTMLElement;
 	options: WebviewOptions;

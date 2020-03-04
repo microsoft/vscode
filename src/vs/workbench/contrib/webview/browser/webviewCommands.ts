@@ -8,12 +8,12 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as nls from 'vs/nls';
 import { Action2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
+import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from 'vs/workbench/contrib/webview/browser/webview';
+import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewEditor } from 'vs/workbench/contrib/webview/browser/webviewEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
 
 export class ShowWebViewEditorFindWidgetAction extends Action2 {
 	public static readonly ID = 'editor.action.webvieweditor.showFind';
@@ -74,7 +74,7 @@ export class WebViewEditorFindNextCommand extends Action2 {
 	}
 
 	public run(accessor: ServicesAccessor): void {
-		getActiveWebviewEditor(accessor)?.find(false);
+		getActiveWebviewEditor(accessor)?.runFindAction(false);
 	}
 }
 
@@ -95,7 +95,7 @@ export class WebViewEditorFindPreviousCommand extends Action2 {
 	}
 
 	public run(accessor: ServicesAccessor): void {
-		getActiveWebviewEditor(accessor)?.find(true);
+		getActiveWebviewEditor(accessor)?.runFindAction(true);
 	}
 }
 
@@ -135,7 +135,7 @@ export class ReloadWebviewAction extends Action {
 
 	public run(): Promise<any> {
 		for (const webview of this.getVisibleWebviews()) {
-			webview.reload();
+			webview.webview?.reload();
 		}
 		return Promise.resolve(true);
 	}
@@ -147,8 +147,8 @@ export class ReloadWebviewAction extends Action {
 	}
 }
 
-export function getActiveWebviewEditor(accessor: ServicesAccessor): WebviewEditor | undefined {
+export function getActiveWebviewEditor(accessor: ServicesAccessor): Webview | undefined {
 	const editorService = accessor.get(IEditorService);
 	const activeEditorPane = editorService.activeEditorPane as WebviewEditor | undefined;
-	return activeEditorPane?.isWebviewEditor ? activeEditorPane : undefined;
+	return activeEditorPane?.isWebviewEditor ? activeEditorPane.webview : undefined;
 }

@@ -8,14 +8,13 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
-import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
+import { WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -25,8 +24,6 @@ export class WebviewEditor extends BaseEditor {
 
 	public static readonly ID = 'WebviewEditor';
 
-	private readonly _scopedContextKeyService = this._register(new MutableDisposable<IContextKeyService>());
-	private _findWidgetVisible: IContextKey<boolean>;
 	private _editorFrame?: HTMLElement;
 	private _content?: HTMLElement;
 	private _dimension?: DOM.Dimension;
@@ -41,14 +38,11 @@ export class WebviewEditor extends BaseEditor {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@IHostService private readonly _hostService: IHostService,
 	) {
 		super(WebviewEditor.ID, telemetryService, themeService, storageService);
-
-		this._findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(_contextKeyService);
 	}
 
 	public get isWebviewEditor() {
@@ -68,30 +62,6 @@ export class WebviewEditor extends BaseEditor {
 		}
 
 		super.dispose();
-	}
-
-	public showFind() {
-		if (this.webview) {
-			this.webview.showFind();
-			this._findWidgetVisible.set(true);
-		}
-	}
-
-	public hideFind() {
-		this._findWidgetVisible.reset();
-		this.webview?.hideFind();
-	}
-
-	public find(previous: boolean) {
-		this.webview?.runFindAction(previous);
-	}
-
-	public selectAll() {
-		this.webview?.selectAll();
-	}
-
-	public reload() {
-		this.webview?.reload();
 	}
 
 	public layout(dimension: DOM.Dimension): void {
@@ -168,11 +138,6 @@ export class WebviewEditor extends BaseEditor {
 
 	private claimWebview(input: WebviewInput): void {
 		input.webview.claim(this);
-
-		if (input.webview.options.enableFindWidget) {
-			this._scopedContextKeyService.value = this._contextKeyService.createScoped(input.webview.container);
-			this._findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(this._scopedContextKeyService.value);
-		}
 
 		if (this._content) {
 			this._content.setAttribute('aria-flowto', input.webview.container.id);
