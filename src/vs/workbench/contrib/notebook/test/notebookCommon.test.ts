@@ -5,7 +5,8 @@
 
 import * as assert from 'assert';
 import * as glob from 'vs/base/common/glob';
-import { NOTEBOOK_DISPLAY_ORDER, sortMimeTypes } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NOTEBOOK_DISPLAY_ORDER, sortMimeTypes, CellKind, diff } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { TestCell } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 
 suite('NotebookCommon', () => {
 	test('sortMimeTypes default orders', function () {
@@ -252,6 +253,69 @@ suite('NotebookCommon', () => {
 				'application/vnd-plot.json'
 			],
 			'glob *'
+		);
+	});
+
+	test('diff cells', function () {
+		const cells: TestCell[] = [];
+
+		for (let i = 0; i < 5; i++) {
+			cells.push(
+				new TestCell('notebook', i, [`var a = ${i};`], 'javascript', CellKind.Code, [])
+			);
+		}
+
+		assert.deepEqual(diff<TestCell>(cells, [], (cell) => {
+			return cells.indexOf(cell) > -1;
+		}), [
+			{
+				start: 0,
+				deleteCount: 5,
+				toInsert: []
+			}
+		]
+		);
+
+		assert.deepEqual(diff<TestCell>([], cells, (cell) => {
+			return false;
+		}), [
+			{
+				start: 0,
+				deleteCount: 0,
+				toInsert: cells
+			}
+		]
+		);
+
+		const cellA = new TestCell('notebook', 6, ['var a = 6;'], 'javascript', CellKind.Code, []);
+		const cellB = new TestCell('notebook', 7, ['var a = 7;'], 'javascript', CellKind.Code, []);
+
+		const modifiedCells = [
+			cells[0],
+			cells[1],
+			cellA,
+			cells[3],
+			cellB,
+			cells[4]
+		];
+
+		const splices = diff<TestCell>(cells, modifiedCells, (cell) => {
+			return cells.indexOf(cell) > -1;
+		});
+
+		assert.deepEqual(splices,
+			[
+				{
+					start: 2,
+					deleteCount: 1,
+					toInsert: [cellA]
+				},
+				{
+					start: 4,
+					deleteCount: 0,
+					toInsert: [cellB]
+				}
+			]
 		);
 	});
 });
