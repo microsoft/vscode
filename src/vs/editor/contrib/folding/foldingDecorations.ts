@@ -31,7 +31,10 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 
 	private static readonly EXPANDED_VISUAL_DECORATION = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		linesDecorationsClassName: 'codicon codicon-chevron-down alwaysShowFoldIcons'
+	});
+
+	private static readonly HIDDEN_RANGE_DECORATION = ModelDecorationOptions.register({
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 	});
 
 	public autoHideFoldingControls: boolean = true;
@@ -41,7 +44,10 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 	constructor(private readonly editor: ICodeEditor) {
 	}
 
-	getDecorationOption(isCollapsed: boolean): ModelDecorationOptions {
+	getDecorationOption(isCollapsed: boolean, isHidden: boolean): ModelDecorationOptions {
+		if (isHidden) {
+			return FoldingDecorationProvider.HIDDEN_RANGE_DECORATION;
+		}
 		if (isCollapsed) {
 			return this.showFoldingHighlights ? FoldingDecorationProvider.COLLAPSED_HIGHLIGHTED_VISUAL_DECORATION : FoldingDecorationProvider.COLLAPSED_VISUAL_DECORATION;
 		} else if (this.autoHideFoldingControls) {
