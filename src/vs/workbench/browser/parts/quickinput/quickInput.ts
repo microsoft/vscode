@@ -7,8 +7,7 @@ import { IQuickInputService, IQuickPickItem, IPickOptions, IInputOptions, IQuick
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { inputBackground, inputForeground, inputBorder, inputValidationInfoBackground, inputValidationInfoForeground, inputValidationInfoBorder, inputValidationWarningBackground, inputValidationWarningForeground, inputValidationWarningBorder, inputValidationErrorBackground, inputValidationErrorForeground, inputValidationErrorBorder, badgeBackground, badgeForeground, contrastBorder, buttonForeground, buttonBackground, buttonHoverBackground, progressBarBackground, widgetShadow, listFocusForeground, listFocusBackground, activeContrastBorder, pickerGroupBorder, pickerGroupForeground } from 'vs/platform/theme/common/colorRegistry';
-import { QUICK_INPUT_BACKGROUND, QUICK_INPUT_FOREGROUND } from 'vs/workbench/common/theme';
+import { inputBackground, inputForeground, inputBorder, inputValidationInfoBackground, inputValidationInfoForeground, inputValidationInfoBorder, inputValidationWarningBackground, inputValidationWarningForeground, inputValidationWarningBorder, inputValidationErrorBackground, inputValidationErrorForeground, inputValidationErrorBorder, badgeBackground, badgeForeground, contrastBorder, buttonForeground, buttonBackground, buttonHoverBackground, progressBarBackground, widgetShadow, listFocusForeground, listFocusBackground, activeContrastBorder, pickerGroupBorder, pickerGroupForeground, quickInputForeground, quickInputBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -174,8 +173,8 @@ export class QuickInputService extends PlatformQuickInputService {
 			widget: {
 				titleColor: { dark: 'rgba(255, 255, 255, 0.105)', light: 'rgba(0,0,0,.06)', hc: 'black' }[this.theme.type], // TODO
 				...computeStyles(this.theme, {
-					quickInputBackground: QUICK_INPUT_BACKGROUND,
-					quickInputForeground: QUICK_INPUT_FOREGROUND,
+					quickInputBackground,
+					quickInputForeground,
 					contrastBorder,
 					widgetShadow,
 				}),
@@ -209,7 +208,7 @@ export class QuickInputService extends PlatformQuickInputService {
 				progressBarBackground
 			}),
 			list: computeStyles(this.theme, {
-				listBackground: QUICK_INPUT_BACKGROUND,
+				listBackground: quickInputBackground,
 				// Look like focused when inactive.
 				listInactiveFocusForeground: listFocusForeground,
 				listInactiveFocusBackground: listFocusBackground,
