@@ -6,6 +6,7 @@ import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 suite('Editor Model - Model Edit Operation', () => {
 	const LINE1 = 'My First Line';
@@ -23,7 +24,7 @@ suite('Editor Model - Model Edit Operation', () => {
 			LINE3 + '\n' +
 			LINE4 + '\r\n' +
 			LINE5;
-		model = TextModel.createFromString(text);
+		model = createTextModel(text);
 	});
 
 	teardown(() => {

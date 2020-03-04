@@ -188,7 +188,7 @@
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .left > .signature-label {
-	overflow: auto;
+	overflow: hidden;
 	text-overflow: ellipsis;
 }
 
@@ -240,13 +240,14 @@
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .left {
 	flex-shrink: 1;
+	flex-grow: 1;
 	overflow: hidden;
 }
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .left > .monaco-icon-label {
 	flex-shrink: 0;
 }
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row:not(.string-label) > .contents > .main > .left > .monaco-icon-label {
-	max-width: 80%;
+	max-width: 100%;
 }
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row.string-label > .contents > .main > .left > .monaco-icon-label {
 	flex-shrink: 1;
@@ -402,6 +403,10 @@
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .docs .code {
 	white-space: pre-wrap;
 	word-wrap: break-word;
+}
+
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .docs.markdown-docs .codicon {
+	vertical-align: sub;
 }
 
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > p:empty {

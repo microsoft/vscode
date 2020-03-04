@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/scrollbars';
-import { isEdgeOrIE } from 'vs/base/browser/browser';
+import { isEdge } from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IMouseEvent, StandardWheelEvent, IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
@@ -167,6 +167,9 @@ export abstract class AbstractScrollableElement extends Widget {
 	private readonly _onScroll = this._register(new Emitter<ScrollEvent>());
 	public readonly onScroll: Event<ScrollEvent> = this._onScroll.event;
 
+	private readonly _onWillScroll = this._register(new Emitter<ScrollEvent>());
+	public readonly onWillScroll: Event<ScrollEvent> = this._onWillScroll.event;
+
 	protected constructor(element: HTMLElement, options: ScrollableElementCreationOptions, scrollable: Scrollable) {
 		super();
 		element.style.overflow = 'hidden';
@@ -174,6 +177,7 @@ export abstract class AbstractScrollableElement extends Widget {
 		this._scrollable = scrollable;
 
 		this._register(this._scrollable.onScroll((e) => {
+			this._onWillScroll.fire(e);
 			this._onDidScroll(e);
 			this._onScroll.fire(e);
 		}));
@@ -299,6 +303,10 @@ export abstract class AbstractScrollableElement extends Widget {
 		this._revealOnScroll = value;
 	}
 
+	public triggerScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {
+		this._onMouseWheel(new StandardWheelEvent(browserEvent));
+	}
+
 	// -------------------- mouse wheel scrolling --------------------
 
 	private _setListeningToMouseWheel(shouldListen: boolean): void {
@@ -318,7 +326,7 @@ export abstract class AbstractScrollableElement extends Widget {
 				this._onMouseWheel(new StandardWheelEvent(browserEvent));
 			};
 
-			this._mouseWheelToDispose.push(dom.addDisposableListener(this._listenOnDomNode, isEdgeOrIE ? 'mousewheel' : 'wheel', onMouseWheel, { passive: false }));
+			this._mouseWheelToDispose.push(dom.addDisposableListener(this._listenOnDomNode, isEdge ? 'mousewheel' : 'wheel', onMouseWheel, { passive: false }));
 		}
 	}
 

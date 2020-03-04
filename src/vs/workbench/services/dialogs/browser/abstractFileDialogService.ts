@@ -92,6 +92,10 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 			return ConfirmResult.DONT_SAVE; // no veto when we are in extension dev mode because we cannot assume we run interactive (e.g. tests)
 		}
 
+		return this.doShowSaveConfirm(fileNamesOrResources);
+	}
+
+	protected async doShowSaveConfirm(fileNamesOrResources: (string | URI)[]): Promise<ConfirmResult> {
 		if (fileNamesOrResources.length === 0) {
 			return ConfirmResult.DONT_SAVE;
 		}

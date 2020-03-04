@@ -33,7 +33,7 @@ import { badgeBackground, badgeForeground, contrastBorder, editorForeground } fr
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IEditor, IEditorMemento } from 'vs/workbench/common/editor';
+import { IEditorPane, IEditorMemento } from 'vs/workbench/common/editor';
 import { attachSuggestEnabledInputBoxStyler, SuggestEnabledInput } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
 import { SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { commonlyUsedData, tocData } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
@@ -77,7 +77,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private static CONFIG_SCHEMA_UPDATE_DELAYER = 500;
 
 	private static readonly SUGGESTIONS: string[] = [
-		`@${MODIFIED_SETTING_TAG}`, '@tag:usesOnlineServices', `@${EXTENSION_SETTING_TAG}`
+		`@${MODIFIED_SETTING_TAG}`, '@tag:usesOnlineServices', '@tag:sync', `@${EXTENSION_SETTING_TAG}`
 	];
 
 	private static shouldSettingUpdateFast(type: SettingValueType | SettingValueType[]): boolean {
@@ -493,15 +493,14 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 	}
 
-	switchToSettingsFile(): Promise<IEditor | undefined> {
-		const query = parseQuery(this.searchWidget.getValue());
-		return this.openSettingsFile(query.query);
+	switchToSettingsFile(): Promise<IEditorPane | undefined> {
+		const query = parseQuery(this.searchWidget.getValue()).query;
+		return this.openSettingsFile({ query });
 	}
 
-	private async openSettingsFile(query?: string): Promise<IEditor | undefined> {
+	private async openSettingsFile(options?: ISettingsEditorOptions): Promise<IEditorPane | undefined> {
 		const currentSettingsTarget = this.settingsTargetsWidget.settingsTarget;
 
-		const options: ISettingsEditorOptions = { query };
 		if (currentSettingsTarget === ConfigurationTarget.USER_LOCAL) {
 			return this.preferencesService.openGlobalSettings(true, options);
 		} else if (currentSettingsTarget === ConfigurationTarget.USER_REMOTE) {
@@ -660,7 +659,7 @@ export class SettingsEditor2 extends BaseEditor {
 		this.settingRenderers = this.instantiationService.createInstance(SettingTreeRenderers);
 		this._register(this.settingRenderers.onDidChangeSetting(e => this.onDidChangeSetting(e.key, e.value, e.type)));
 		this._register(this.settingRenderers.onDidOpenSettings(settingKey => {
-			this.openSettingsFile(settingKey);
+			this.openSettingsFile({ editSetting: settingKey });
 		}));
 		this._register(this.settingRenderers.onDidClickSettingLink(settingName => this.onDidClickSetting(settingName)));
 		this._register(this.settingRenderers.onDidFocusSetting(element => {

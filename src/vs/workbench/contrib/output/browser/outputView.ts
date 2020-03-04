@@ -43,14 +43,15 @@ export class OutputViewPane extends ViewPane {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IOutputService private readonly outputService: IOutputService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		this.editor = instantiationService.createInstance(OutputEditor);
 		this._register(this.editor.onTitleAreaUpdate(() => {
 			this.updateTitle(this.editor.getTitle());
@@ -86,6 +87,10 @@ export class OutputViewPane extends ViewPane {
 		}));
 		this._register(codeEditor.onDidChangeCursorPosition((e) => {
 			if (e.reason !== CursorChangeReason.Explicit) {
+				return;
+			}
+
+			if (!this.configurationService.getValue('output.smartScroll.enabled')) {
 				return;
 			}
 
@@ -130,8 +135,11 @@ export class OutputViewPane extends ViewPane {
 
 	private onDidChangeVisibility(visible: boolean): void {
 		this.editor.setVisible(visible);
-		const channel = this.channelId ? this.outputService.getChannel(this.channelId) : undefined;
-		if (visible && channel) {
+		let channel: IOutputChannel | undefined = undefined;
+		if (visible) {
+			channel = this.channelId ? this.outputService.getChannel(this.channelId) : this.outputService.getActiveChannel();
+		}
+		if (channel) {
 			this.setInput(channel);
 		} else {
 			this.clearInput();

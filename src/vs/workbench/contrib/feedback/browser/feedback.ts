@@ -11,7 +11,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import * as dom from 'vs/base/browser/dom';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
-import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { attachButtonStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { editorWidgetBackground, editorWidgetForeground, widgetShadow, inputBorder, inputForeground, inputBackground, inputActiveOptionBorder, editorBackground, buttonBackground, contrastBorder, darken } from 'vs/platform/theme/common/colorRegistry';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
@@ -119,7 +119,7 @@ export class FeedbackDropdown extends Dropdown {
 		closeBtn.title = nls.localize('close', "Close");
 
 		disposables.add(dom.addDisposableListener(closeBtn, dom.EventType.MOUSE_OVER, () => {
-			const theme = this.themeService.getTheme();
+			const theme = this.themeService.getColorTheme();
 			let darkenFactor: number | undefined;
 			switch (theme.type) {
 				case 'light':
@@ -423,7 +423,7 @@ export class FeedbackDropdown extends Dropdown {
 	}
 }
 
-registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 
 	// Sentiment Buttons
 	const inputActiveOptionBorderColor = theme.getColor(inputActiveOptionBorder);

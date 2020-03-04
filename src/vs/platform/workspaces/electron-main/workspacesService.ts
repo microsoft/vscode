@@ -10,7 +10,7 @@ import { IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/wor
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
 
-export class WorkspacesService implements AddFirstParameterToFunctions<IWorkspacesService, Promise<any> /* only methods, not events */, number /* window ID */> {
+export class WorkspacesService implements AddFirstParameterToFunctions<IWorkspacesService, Promise<unknown> /* only methods, not events */, number /* window ID */> {
 
 	_serviceBrand: undefined;
 

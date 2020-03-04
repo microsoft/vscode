@@ -48,6 +48,10 @@ import { textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { IFileService } from 'vs/platform/files/common/files';
+import { domEvent } from 'vs/base/browser/event';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { Progress } from 'vs/platform/progress/common/progress';
 
 export type TreeElement = ResourceMarkers | Marker | RelatedInformation;
 
@@ -374,14 +378,21 @@ class MarkerWidget extends Disposable {
 
 					dom.append(parent, this._codeLink);
 					this._codeLink.setAttribute('href', codeLink);
+					this._codeLink.tabIndex = 0;
 
-					this._codeLink.onclick = (e) => {
-						e.preventDefault();
-						if ((this._clickModifierKey === 'meta' && e.metaKey) || (this._clickModifierKey === 'ctrl' && e.ctrlKey) || (this._clickModifierKey === 'alt' && e.altKey)) {
-							this._openerService.open(codeUri);
-							e.stopPropagation();
-						}
-					};
+					const onClick = Event.chain(domEvent(this._codeLink, 'click'))
+						.filter(e => ((this._clickModifierKey === 'meta' && e.metaKey) || (this._clickModifierKey === 'ctrl' && e.ctrlKey) || (this._clickModifierKey === 'alt' && e.altKey)))
+						.event;
+					const onEnterPress = Event.chain(domEvent(this._codeLink, 'keydown'))
+						.map(e => new StandardKeyboardEvent(e))
+						.filter(e => e.keyCode === KeyCode.Enter)
+						.event;
+					const onOpen = Event.any<dom.EventLike>(onClick, onEnterPress);
+
+					this._register(onOpen(e => {
+						dom.EventHelper.stop(e, true);
+						this._openerService.open(codeUri);
+					}));
 
 					const code = new HighlightedLabel(dom.append(this._codeLink, dom.$('.marker-code')), false);
 					const codeMatches = filterData && filterData.codeMatches || [];
@@ -632,7 +643,7 @@ export class MarkerViewModel extends Disposable {
 						this.codeActionsPromise = createCancelablePromise(cancellationToken => {
 							return getCodeActions(model, new Range(this.marker.range.startLineNumber, this.marker.range.startColumn, this.marker.range.endLineNumber, this.marker.range.endColumn), {
 								type: CodeActionTriggerType.Manual, filter: { include: CodeActionKind.QuickFix }
-							}, cancellationToken).then(actions => {
+							}, Progress.None, cancellationToken).then(actions => {
 								return this._register(actions);
 							});
 						});
@@ -845,6 +856,7 @@ export class ResourceDragAndDrop implements ITreeDragAndDrop<TreeElement> {
 registerThemingParticipant((theme, collector) => {
 	const linkFg = theme.getColor(textLinkForeground);
 	if (linkFg) {
-		collector.addRule(`.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .details-container a.code-link span:hover { color: ${linkFg}; }`);
+		collector.addRule(`.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .details-container a.code-link .marker-code > span:hover { color: ${linkFg}; }`);
+		collector.addRule(`.markers-panel .markers-panel-container .tree-container .monaco-list:focus .monaco-tl-contents .details-container a.code-link .marker-code > span:hover { color: inherit; }`);
 	}
 });

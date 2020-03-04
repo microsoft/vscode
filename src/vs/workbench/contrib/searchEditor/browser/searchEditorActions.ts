@@ -26,7 +26,7 @@ export const toggleSearchEditorCaseSensitiveCommand = (accessor: ServicesAccesso
 	const editorService = accessor.get(IEditorService);
 	const input = editorService.activeEditor;
 	if (input instanceof SearchEditorInput) {
-		(editorService.activeControl as SearchEditor).toggleCaseSensitive();
+		(editorService.activeEditorPane as SearchEditor).toggleCaseSensitive();
 	}
 };
 
@@ -34,7 +34,7 @@ export const toggleSearchEditorWholeWordCommand = (accessor: ServicesAccessor) =
 	const editorService = accessor.get(IEditorService);
 	const input = editorService.activeEditor;
 	if (input instanceof SearchEditorInput) {
-		(editorService.activeControl as SearchEditor).toggleWholeWords();
+		(editorService.activeEditorPane as SearchEditor).toggleWholeWords();
 	}
 };
 
@@ -42,7 +42,7 @@ export const toggleSearchEditorRegexCommand = (accessor: ServicesAccessor) => {
 	const editorService = accessor.get(IEditorService);
 	const input = editorService.activeEditor;
 	if (input instanceof SearchEditorInput) {
-		(editorService.activeControl as SearchEditor).toggleRegex();
+		(editorService.activeEditorPane as SearchEditor).toggleRegex();
 	}
 };
 
@@ -50,7 +50,15 @@ export const toggleSearchEditorContextLinesCommand = (accessor: ServicesAccessor
 	const editorService = accessor.get(IEditorService);
 	const input = editorService.activeEditor;
 	if (input instanceof SearchEditorInput) {
-		(editorService.activeControl as SearchEditor).toggleContextLines();
+		(editorService.activeEditorPane as SearchEditor).toggleContextLines();
+	}
+};
+
+export const selectAllSearchEditorMatchesCommand = (accessor: ServicesAccessor) => {
+	const editorService = accessor.get(IEditorService);
+	const input = editorService.activeEditor;
+	if (input instanceof SearchEditorInput) {
+		(editorService.activeEditorPane as SearchEditor).focusAllResults();
 	}
 };
 
@@ -61,7 +69,6 @@ export class OpenSearchEditorAction extends Action {
 	static readonly LABEL = localize('search.openNewEditor', "Open New Search Editor");
 
 	constructor(id: string, label: string,
-		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super(id, label, 'codicon-new-file');
@@ -76,9 +83,7 @@ export class OpenSearchEditorAction extends Action {
 	}
 
 	async run() {
-		if (this.configurationService.getValue<ISearchConfigurationProperties>('search').enableSearchEditorPreview) {
-			await this.instantiationService.invokeFunction(openNewSearchEditor);
-		}
+		await this.instantiationService.invokeFunction(openNewSearchEditor);
 	}
 }
 
@@ -89,7 +94,6 @@ export class OpenResultsInEditorAction extends Action {
 
 	constructor(id: string, label: string,
 		@IViewsService private viewsService: IViewsService,
-		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super(id, label, 'codicon-go-to-file');
@@ -106,8 +110,26 @@ export class OpenResultsInEditorAction extends Action {
 
 	async run() {
 		const searchView = getSearchView(this.viewsService);
-		if (searchView && this.configurationService.getValue<ISearchConfigurationProperties>('search').enableSearchEditorPreview) {
+		if (searchView) {
 			await this.instantiationService.invokeFunction(createEditorFromSearchResult, searchView.searchResult, searchView.searchIncludePattern.getValue(), searchView.searchExcludePattern.getValue());
+		}
+	}
+}
+
+export class RerunSearchEditorSearchAction extends Action {
+	static readonly ID: string = Constants.RerunSearchEditorSearchCommandId;
+	static readonly LABEL = localize('search.rerunSearchInEditor', "Search Again");
+
+	constructor(id: string, label: string,
+		@IEditorService private readonly editorService: IEditorService,
+	) {
+		super(id, label, 'codicon-refresh');
+	}
+
+	async run() {
+		const input = this.editorService.activeEditor;
+		if (input instanceof SearchEditorInput) {
+			(this.editorService.activeEditorPane as SearchEditor).triggerSearch({ resetCursor: false });
 		}
 	}
 }
@@ -119,24 +141,24 @@ const openNewSearchEditor =
 		const instantiationService = accessor.get(IInstantiationService);
 		const configurationService = accessor.get(IConfigurationService);
 
-		const activeEditor = editorService.activeTextEditorWidget;
+		const activeEditorControl = editorService.activeTextEditorControl;
 		let activeModel: ICodeEditor | undefined;
 		let selected = '';
-		if (activeEditor) {
-			if (isDiffEditor(activeEditor)) {
-				if (activeEditor.getOriginalEditor().hasTextFocus()) {
-					activeModel = activeEditor.getOriginalEditor();
+		if (activeEditorControl) {
+			if (isDiffEditor(activeEditorControl)) {
+				if (activeEditorControl.getOriginalEditor().hasTextFocus()) {
+					activeModel = activeEditorControl.getOriginalEditor();
 				} else {
-					activeModel = activeEditor.getModifiedEditor();
+					activeModel = activeEditorControl.getModifiedEditor();
 				}
 			} else {
-				activeModel = activeEditor as ICodeEditor;
+				activeModel = activeEditorControl as ICodeEditor;
 			}
 			const selection = activeModel?.getSelection();
 			selected = (selection && activeModel?.getModel()?.getValueInRange(selection)) ?? '';
 		} else {
 			if (editorService.activeEditor instanceof SearchEditorInput) {
-				const active = editorService.activeControl as SearchEditor;
+				const active = editorService.activeEditorPane as SearchEditor;
 				selected = active.getSelected();
 			}
 		}
@@ -147,7 +169,7 @@ const openNewSearchEditor =
 		const editor = await editorService.openEditor(input, { pinned: true }) as SearchEditor;
 
 		if (selected && configurationService.getValue<ISearchConfigurationProperties>('search').searchOnType) {
-			editor.runSearch(true, true);
+			editor.triggerSearch();
 		}
 	};
 

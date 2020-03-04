@@ -93,7 +93,7 @@ export interface ITaskExecuteResult {
 }
 
 export interface ITaskResolver {
-	resolve(uri: URI, identifier: string | KeyedTaskIdentifier | undefined): Task | undefined;
+	resolve(uri: URI | string, identifier: string | KeyedTaskIdentifier | undefined): Task | undefined;
 }
 
 export interface TaskTerminateResponse extends TerminateResponse {

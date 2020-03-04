@@ -430,25 +430,25 @@ export class CommandCenter {
 			case Status.INDEX_MODIFIED:
 			case Status.INDEX_RENAMED:
 			case Status.INDEX_ADDED:
-				return `${basename} (Index)`;
+				return localize('git.title.index', '{0} (Index)', basename);
 
 			case Status.MODIFIED:
 			case Status.BOTH_ADDED:
 			case Status.BOTH_MODIFIED:
-				return `${basename} (Working Tree)`;
+				return localize('git.title.workingTree', '{0} (Working Tree)', basename);
 
 			case Status.DELETED_BY_US:
-				return `${basename} (Theirs)`;
+				return localize('git.title.theirs', '{0} (Theirs)', basename);
 
 			case Status.DELETED_BY_THEM:
-				return `${basename} (Ours)`;
+				return localize('git.title.ours', '{0} (Ours)', basename);
 
 			case Status.UNTRACKED:
+				return localize('git.title.untracked', '{0} (Untracked)', basename);
 
-				return `${basename} (Untracked)`;
+			default:
+				return '';
 		}
-
-		return '';
 	}
 
 	@command('git.clone')
@@ -566,24 +566,29 @@ export class CommandCenter {
 	}
 
 	@command('git.init')
-	async init(): Promise<void> {
+	async init(skipFolderPrompt = false): Promise<void> {
 		let repositoryPath: string | undefined = undefined;
 		let askToOpen = true;
 
 		if (workspace.workspaceFolders) {
-			const placeHolder = localize('init', "Pick workspace folder to initialize git repo in");
-			const pick = { label: localize('choose', "Choose Folder...") };
-			const items: { label: string, folder?: WorkspaceFolder }[] = [
-				...workspace.workspaceFolders.map(folder => ({ label: folder.name, description: folder.uri.fsPath, folder })),
-				pick
-			];
-			const item = await window.showQuickPick(items, { placeHolder, ignoreFocusOut: true });
-
-			if (!item) {
-				return;
-			} else if (item.folder) {
-				repositoryPath = item.folder.uri.fsPath;
+			if (skipFolderPrompt && workspace.workspaceFolders.length === 1) {
+				repositoryPath = workspace.workspaceFolders[0].uri.fsPath;
 				askToOpen = false;
+			} else {
+				const placeHolder = localize('init', "Pick workspace folder to initialize git repo in");
+				const pick = { label: localize('choose', "Choose Folder...") };
+				const items: { label: string, folder?: WorkspaceFolder }[] = [
+					...workspace.workspaceFolders.map(folder => ({ label: folder.name, description: folder.uri.fsPath, folder })),
+					pick
+				];
+				const item = await window.showQuickPick(items, { placeHolder, ignoreFocusOut: true });
+
+				if (!item) {
+					return;
+				} else if (item.folder) {
+					repositoryPath = item.folder.uri.fsPath;
+					askToOpen = false;
+				}
 			}
 		}
 
@@ -1392,12 +1397,16 @@ export class CommandCenter {
 			opts.signoff = true;
 		}
 
+		const smartCommitChanges = config.get<'all' | 'tracked'>('smartCommitChanges');
+
 		if (
 			(
 				// no changes
 				(noStagedChanges && noUnstagedChanges)
 				// or no staged changes and not `all`
 				|| (!opts.all && noStagedChanges)
+				// no staged changes and no tracked unstaged changes
+				|| (noStagedChanges && smartCommitChanges === 'tracked' && repository.workingTreeGroup.resourceStates.every(r => r.type === Status.UNTRACKED))
 			)
 			&& !opts.empty
 		) {
@@ -1411,7 +1420,7 @@ export class CommandCenter {
 			return false;
 		}
 
-		if (opts.all && config.get<'all' | 'tracked'>('smartCommitChanges') === 'tracked') {
+		if (opts.all && smartCommitChanges === 'tracked') {
 			opts.all = 'tracked';
 		}
 
@@ -2343,12 +2352,12 @@ export class CommandCenter {
 
 		let title;
 		if ((item.previousRef === 'HEAD' || item.previousRef === '~') && item.ref === '') {
-			title = `${basename} (Working Tree)`;
+			title = localize('git.title.workingTree', '{0} (Working Tree)', basename);
 		}
 		else if (item.previousRef === 'HEAD' && item.ref === '~') {
-			title = `${basename} (Index)`;
+			title = localize('git.title.index', '{0} (Index)', basename);
 		} else {
-			title = `${basename} (${item.shortPreviousRef}) \u27f7 ${basename} (${item.shortRef})`;
+			title = localize('git.title.diffRefs', '{0} ({1}) ⟷ {0} ({2})', basename, item.shortPreviousRef, item.shortRef);
 		}
 
 		return commands.executeCommand('vscode.diff', toGitUri(uri, item.previousRef), item.ref === '' ? uri : toGitUri(uri, item.ref), title);

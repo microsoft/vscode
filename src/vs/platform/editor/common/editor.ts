@@ -24,7 +24,7 @@ export interface IEditorModel {
 	dispose(): void;
 }
 
-export interface IBaseResourceInput {
+export interface IBaseResourceEditorInput {
 
 	/**
 	 * Optional options to use when opening the text input.
@@ -60,12 +60,12 @@ export interface IBaseResourceInput {
 	readonly forceUntitled?: boolean;
 }
 
-export interface IResourceInput extends IBaseResourceInput {
+export interface IResourceEditorInput extends IBaseResourceEditorInput {
 
 	/**
 	 * The resource URI of the resource to open.
 	 */
-	resource: URI;
+	readonly resource: URI;
 
 	/**
 	 * The encoding of the text input if known.
@@ -228,6 +228,11 @@ export const enum TextEditorSelectionRevealType {
 	 * Option to scroll vertically or horizontally as necessary and reveal a range close to the top of the viewport, but not quite at the top.
 	 */
 	NearTop = 2,
+	/**
+	 * Option to scroll vertically or horizontally as necessary and reveal a range close to the top of the viewport, but not quite at the top.
+	 * Only if it lies outside the viewport
+	 */
+	NearTopIfOutsideViewport = 3,
 }
 
 export interface ITextEditorOptions extends IEditorOptions {

@@ -128,7 +128,7 @@ export async function main(argv: string[]): Promise<any> {
 
 		delete env['ELECTRON_RUN_AS_NODE'];
 
-		const processCallbacks: ((child: ChildProcess) => Promise<any>)[] = [];
+		const processCallbacks: ((child: ChildProcess) => Promise<void>)[] = [];
 
 		const verbose = args.verbose || args.status;
 		if (verbose) {

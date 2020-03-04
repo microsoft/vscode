@@ -10,6 +10,7 @@ import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ScrollType, IContentSizeChangedEvent } from 'vs/editor/common/editorCommon';
+import { IModelDecorationsChangedEvent } from 'vs/editor/common/model/textModelEvents';
 
 export const enum ViewEventType {
 	ViewConfigurationChanged = 1,
@@ -82,8 +83,17 @@ export class ViewDecorationsChangedEvent {
 
 	public readonly type = ViewEventType.ViewDecorationsChanged;
 
-	constructor() {
-		// Nothing to do
+	readonly affectsMinimap: boolean;
+	readonly affectsOverviewRuler: boolean;
+
+	constructor(source: IModelDecorationsChangedEvent | null) {
+		if (source) {
+			this.affectsMinimap = source.affectsMinimap;
+			this.affectsOverviewRuler = source.affectsOverviewRuler;
+		} else {
+			this.affectsMinimap = true;
+			this.affectsOverviewRuler = true;
+		}
 	}
 }
 
@@ -185,6 +195,7 @@ export const enum VerticalRevealType {
 	Top = 3,
 	Bottom = 4,
 	NearTop = 5,
+	NearTopIfOutsideViewport = 6,
 }
 
 export class ViewRevealRangeRequestEvent {
@@ -194,7 +205,12 @@ export class ViewRevealRangeRequestEvent {
 	/**
 	 * Range to be reavealed.
 	 */
-	public readonly range: Range;
+	public readonly range: Range | null;
+
+	/**
+	 * Selections to be revealed.
+	 */
+	public readonly selections: Selection[] | null;
 
 	public readonly verticalType: VerticalRevealType;
 	/**
@@ -210,9 +226,10 @@ export class ViewRevealRangeRequestEvent {
 	 */
 	readonly source: string;
 
-	constructor(source: string, range: Range, verticalType: VerticalRevealType, revealHorizontal: boolean, scrollType: ScrollType) {
+	constructor(source: string, range: Range | null, selections: Selection[] | null, verticalType: VerticalRevealType, revealHorizontal: boolean, scrollType: ScrollType) {
 		this.source = source;
 		this.range = range;
+		this.selections = selections;
 		this.verticalType = verticalType;
 		this.revealHorizontal = revealHorizontal;
 		this.scrollType = scrollType;

@@ -113,8 +113,8 @@ mappings.forEach(([ext, scope, regexp]) =>
 		patterns: [
 			{
 				name: [scopes.resultBlock.result.meta, scopes.resultBlock.result.metaMultiLine].join(' '),
-				begin: '^  ((\\d+) )',
-				while: '^  (?:((\\d+)(:))|((\\d+) ))',
+				begin: '^  (?:\\s*)((\\d+) )',
+				while: '^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))',
 				beginCaptures: {
 					'0': { name: scopes.resultBlock.result.prefix.meta },
 					'1': { name: scopes.resultBlock.result.prefix.metaContext },
@@ -132,7 +132,7 @@ mappings.forEach(([ext, scope, regexp]) =>
 				patterns: [{ include: scope }]
 			},
 			{
-				begin: '^  ((\\d+)(:))',
+				begin: '^  (?:\\s*)((\\d+)(:))',
 				while: '(?=not)possible',
 				name: [scopes.resultBlock.result.meta, scopes.resultBlock.result.metaSingleLine].join(' '),
 				beginCaptures: {
@@ -214,7 +214,7 @@ const plainText = [
 		}
 	},
 	{
-		match: '^  (?:((\\d+)(:))|((\\d+)( ))(.*))',
+		match: '^  (?:\\s*)(?:((\\d+)(:))|((\\d+)( ))(.*))',
 		name: [scopes.resultBlock.meta, scopes.resultBlock.result.meta].join(' '),
 		captures: {
 			'1': { name: [scopes.resultBlock.result.prefix.meta, scopes.resultBlock.result.prefix.metaMatch].join(' ') },

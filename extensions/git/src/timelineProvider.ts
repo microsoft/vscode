@@ -3,17 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vscode-nls';
 import * as dayjs from 'dayjs';
 import * as advancedFormat from 'dayjs/plugin/advancedFormat';
-import { CancellationToken, Disposable, Event, EventEmitter, ThemeIcon, Timeline, TimelineChangeEvent, TimelineCursor, TimelineItem, TimelineProvider, Uri, workspace } from 'vscode';
+import { CancellationToken, Disposable, Event, EventEmitter, ThemeIcon, Timeline, TimelineChangeEvent, TimelineItem, TimelineOptions, TimelineProvider, Uri, workspace } from 'vscode';
 import { Model } from './model';
-import { Repository } from './repository';
+import { Repository, Resource } from './repository';
 import { debounce } from './decorators';
-import { Status } from './api/git';
 
 dayjs.extend(advancedFormat);
 
-// TODO[ECA]: Localize all the strings
+const localize = nls.loadMessageBundle();
+
 // TODO[ECA]: Localize or use a setting for date format
 
 export class GitTimelineItem extends TimelineItem {
@@ -68,7 +69,7 @@ export class GitTimelineProvider implements TimelineProvider {
 	}
 
 	readonly id = 'git-history';
-	readonly label = 'Git History';
+	readonly label = localize('git.timeline.source', 'Git History');
 
 	private _disposable: Disposable;
 
@@ -79,7 +80,7 @@ export class GitTimelineProvider implements TimelineProvider {
 	constructor(private readonly _model: Model) {
 		this._disposable = Disposable.from(
 			_model.onDidOpenRepository(this.onRepositoriesChanged, this),
-			workspace.registerTimelineProvider('*', this),
+			workspace.registerTimelineProvider(['file', 'git', 'gitlens-git'], this),
 		);
 	}
 
@@ -87,7 +88,7 @@ export class GitTimelineProvider implements TimelineProvider {
 		this._disposable.dispose();
 	}
 
-	async provideTimeline(uri: Uri, _cursor: TimelineCursor, _token: CancellationToken): Promise<Timeline> {
+	async provideTimeline(uri: Uri, options: TimelineOptions, _token: CancellationToken): Promise<Timeline> {
 		// console.log(`GitTimelineProvider.provideTimeline: uri=${uri} state=${this._model.state}`);
 
 		const repo = this._model.getRepository(uri);
@@ -112,109 +113,110 @@ export class GitTimelineProvider implements TimelineProvider {
 
 		// TODO[ECA]: Ensure that the uri is a file -- if not we could get the history of the repo?
 
-		const commits = await repo.logFile(uri);
+		let limit: number | undefined;
+		if (options.limit !== undefined && typeof options.limit !== 'number') {
+			try {
+				const result = await this._model.git.exec(repo.root, ['rev-list', '--count', `${options.limit.cursor}..`, '--', uri.fsPath]);
+				if (!result.exitCode) {
+					// Ask for 1 more than so we can determine if there are more commits
+					limit = Number(result.stdout) + 1;
+				}
+			}
+			catch {
+				limit = undefined;
+			}
+		} else {
+			// If we are not getting everything, ask for 1 more than so we can determine if there are more commits
+			limit = options.limit === undefined ? undefined : options.limit + 1;
+		}
+
+
+		const commits = await repo.logFile(uri, {
+			maxEntries: limit,
+			hash: options.cursor,
+			reverse: options.before,
+			// sortByAuthorDate: true
+		});
+
+		const more = limit === undefined || options.before ? false : commits.length >= limit;
+		const paging = commits.length ? {
+			more: more,
+			cursors: {
+				before: commits[0]?.hash,
+				after: commits[commits.length - (more ? 1 : 2)]?.hash
+			}
+		} : undefined;
+
+		// If we asked for an extra commit, strip it off
+		if (limit !== undefined && commits.length >= limit) {
+			commits.splice(commits.length - 1, 1);
+		}
 
 		let dateFormatter: dayjs.Dayjs;
 		const items = commits.map<GitTimelineItem>(c => {
-			dateFormatter = dayjs(c.authorDate);
+			const date = c.commitDate; // c.authorDate
 
-			const item = new GitTimelineItem(c.hash, `${c.hash}^`, c.message, c.authorDate?.getTime() ?? 0, c.hash, 'git:file:commit');
+			dateFormatter = dayjs(date);
+
+			const item = new GitTimelineItem(c.hash, `${c.hash}^`, c.message, date?.getTime() ?? 0, c.hash, 'git:file:commit');
 			item.iconPath = new (ThemeIcon as any)('git-commit');
 			item.description = c.authorName;
 			item.detail = `${c.authorName} (${c.authorEmail}) \u2014 ${c.hash.substr(0, 8)}\n${dateFormatter.format('MMMM Do, YYYY h:mma')}\n\n${c.message}`;
 			item.command = {
 				title: 'Open Comparison',
 				command: 'git.timeline.openDiff',
-				arguments: [uri, this.id, item]
+				arguments: [item, uri, this.id]
 			};
 
 			return item;
 		});
 
-		const index = repo.indexGroup.resourceStates.find(r => r.resourceUri.fsPath === uri.fsPath);
-		if (index) {
-			const date = this._repoStatusDate ?? new Date();
-			dateFormatter = dayjs(date);
+		if (options.cursor === undefined || options.before) {
+			const you = localize('git.timeline.you', 'You');
 
-			let status;
-			switch (index.type) {
-				case Status.INDEX_MODIFIED:
-					status = 'Modified';
-					break;
-				case Status.INDEX_ADDED:
-					status = 'Added';
-					break;
-				case Status.INDEX_DELETED:
-					status = 'Deleted';
-					break;
-				case Status.INDEX_RENAMED:
-					status = 'Renamed';
-					break;
-				case Status.INDEX_COPIED:
-					status = 'Copied';
-					break;
-				default:
-					status = '';
-					break;
+			const index = repo.indexGroup.resourceStates.find(r => r.resourceUri.fsPath === uri.fsPath);
+			if (index) {
+				const date = this._repoStatusDate ?? new Date();
+				dateFormatter = dayjs(date);
+
+				const item = new GitTimelineItem('~', 'HEAD', localize('git.timeline.stagedChanges', 'Staged Changes'), date.getTime(), 'index', 'git:file:index');
+				// TODO[ECA]: Replace with a better icon -- reflecting its status maybe?
+				item.iconPath = new (ThemeIcon as any)('git-commit');
+				item.description = '';
+				item.detail = localize('git.timeline.detail', '{0}  \u2014 {1}\n{2}\n\n{3}', you, localize('git.index', 'Index'), dateFormatter.format('MMMM Do, YYYY h:mma'), Resource.getStatusText(index.type));
+				item.command = {
+					title: 'Open Comparison',
+					command: 'git.timeline.openDiff',
+					arguments: [item, uri, this.id]
+				};
+
+				items.splice(0, 0, item);
 			}
 
-			const item = new GitTimelineItem('~', 'HEAD', 'Staged Changes', date.getTime(), 'index', 'git:file:index');
-			// TODO[ECA]: Replace with a better icon -- reflecting its status maybe?
-			item.iconPath = new (ThemeIcon as any)('git-commit');
-			item.description = 'You';
-			item.detail = `You  \u2014 Index\n${dateFormatter.format('MMMM Do, YYYY h:mma')}\n${status}`;
-			item.command = {
-				title: 'Open Comparison',
-				command: 'git.timeline.openDiff',
-				arguments: [uri, this.id, item]
-			};
+			const working = repo.workingTreeGroup.resourceStates.find(r => r.resourceUri.fsPath === uri.fsPath);
+			if (working) {
+				const date = new Date();
+				dateFormatter = dayjs(date);
 
-			items.push(item);
-		}
+				const item = new GitTimelineItem('', index ? '~' : 'HEAD', localize('git.timeline.uncommitedChanges', 'Uncommited Changes'), date.getTime(), 'working', 'git:file:working');
+				// TODO[ECA]: Replace with a better icon -- reflecting its status maybe?
+				item.iconPath = new (ThemeIcon as any)('git-commit');
+				item.description = '';
+				item.detail = localize('git.timeline.detail', '{0}  \u2014 {1}\n{2}\n\n{3}', you, localize('git.workingTree', 'Working Tree'), dateFormatter.format('MMMM Do, YYYY h:mma'), Resource.getStatusText(working.type));
+				item.command = {
+					title: 'Open Comparison',
+					command: 'git.timeline.openDiff',
+					arguments: [item, uri, this.id]
+				};
 
-
-		const working = repo.workingTreeGroup.resourceStates.find(r => r.resourceUri.fsPath === uri.fsPath);
-		if (working) {
-			const date = new Date();
-			dateFormatter = dayjs(date);
-
-			let status;
-			switch (working.type) {
-				case Status.INDEX_MODIFIED:
-					status = 'Modified';
-					break;
-				case Status.INDEX_ADDED:
-					status = 'Added';
-					break;
-				case Status.INDEX_DELETED:
-					status = 'Deleted';
-					break;
-				case Status.INDEX_RENAMED:
-					status = 'Renamed';
-					break;
-				case Status.INDEX_COPIED:
-					status = 'Copied';
-					break;
-				default:
-					status = '';
-					break;
+				items.splice(0, 0, item);
 			}
-
-			const item = new GitTimelineItem('', index ? '~' : 'HEAD', 'Uncommited Changes', date.getTime(), 'working', 'git:file:working');
-			// TODO[ECA]: Replace with a better icon -- reflecting its status maybe?
-			item.iconPath = new (ThemeIcon as any)('git-commit');
-			item.description = 'You';
-			item.detail = `You  \u2014 Working Tree\n${dateFormatter.format('MMMM Do, YYYY h:mma')}\n${status}`;
-			item.command = {
-				title: 'Open Comparison',
-				command: 'git.timeline.openDiff',
-				arguments: [uri, this.id, item]
-			};
-
-			items.push(item);
 		}
 
-		return { items: items };
+		return {
+			items: items,
+			paging: paging
+		};
 	}
 
 	private onRepositoriesChanged(_repo: Repository) {
@@ -241,6 +243,6 @@ export class GitTimelineProvider implements TimelineProvider {
 
 	@debounce(500)
 	private fireChanged() {
-		this._onDidChange.fire({});
+		this._onDidChange.fire({ reset: true });
 	}
 }

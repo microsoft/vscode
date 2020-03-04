@@ -474,7 +474,7 @@ class UserKeyboardLayout extends Disposable {
 			}
 		}), 50));
 
-		this._register(Event.filter(this.fileService.onFileChanges, e => e.contains(this.keyboardLayoutResource))(() => this.reloadConfigurationScheduler.schedule()));
+		this._register(Event.filter(this.fileService.onDidFilesChange, e => e.contains(this.keyboardLayoutResource))(() => this.reloadConfigurationScheduler.schedule()));
 	}
 
 	async initialize(): Promise<void> {

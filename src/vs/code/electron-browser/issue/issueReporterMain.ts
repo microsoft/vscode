@@ -39,7 +39,7 @@ import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry
 import { combinedAppender, LogAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
-import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { INativeWindowConfiguration } from 'vs/platform/windows/node/window';
 
 const MAX_URL_LENGTH = 2045;
 
@@ -49,7 +49,7 @@ interface SearchResult {
 	state?: string;
 }
 
-export interface IssueReporterConfiguration extends IWindowConfiguration {
+export interface IssueReporterConfiguration extends INativeWindowConfiguration {
 	data: IssueReporterData;
 	features: IssueReporterFeatures;
 }
@@ -95,6 +95,23 @@ export class IssueReporter extends Disposable {
 		const issueReporterElement = this.getElementById('issue-reporter');
 		if (issueReporterElement) {
 			this.previewButton = new Button(issueReporterElement);
+		}
+
+		const issueTitle = configuration.data.issueTitle;
+		if (issueTitle) {
+			const issueTitleElement = this.getElementById<HTMLInputElement>('issue-title');
+			if (issueTitleElement) {
+				issueTitleElement.value = issueTitle;
+			}
+		}
+
+		const issueBody = configuration.data.issueBody;
+		if (issueBody) {
+			const description = this.getElementById<HTMLTextAreaElement>('description');
+			if (description) {
+				description.value = issueBody;
+				this.issueReporterModel.update({ issueDescription: issueBody });
+			}
 		}
 
 		ipcRenderer.on('vscode:issuePerformanceInfoResponse', (_: unknown, info: Partial<IssueReporterData>) => {
@@ -299,7 +316,7 @@ export class IssueReporter extends Disposable {
 		}
 	}
 
-	private initServices(configuration: IWindowConfiguration): void {
+	private initServices(configuration: INativeWindowConfiguration): void {
 		const serviceCollection = new ServiceCollection();
 		const mainProcessService = new MainProcessService(configuration.windowId);
 		serviceCollection.set(IMainProcessService, mainProcessService);
@@ -1175,8 +1192,8 @@ export class IssueReporter extends Disposable {
 		}
 	}
 
-	private getElementById(elementId: string): HTMLElement | undefined {
-		const element = document.getElementById(elementId);
+	private getElementById<T extends HTMLElement = HTMLElement>(elementId: string): T | undefined {
+		const element = document.getElementById(elementId) as T | undefined;
 		if (element) {
 			return element;
 		} else {

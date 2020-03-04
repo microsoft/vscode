@@ -21,7 +21,7 @@ import { toLocalISOString } from 'vs/base/common/date';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 
 class OutputChannelBackedByFile extends AbstractFileOutputChannelModel implements IOutputChannelModel {
 
@@ -52,7 +52,7 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannelModel implement
 		this.rotatingFilePath = resources.joinPath(rotatingFilePathDirectory, `${id}.1.log`);
 
 		this._register(fileService.watch(rotatingFilePathDirectory));
-		this._register(fileService.onFileChanges(e => {
+		this._register(fileService.onDidFilesChange(e => {
 			if (e.contains(this.rotatingFilePath)) {
 				this.resettingDelayer.trigger(() => this.resetModel());
 			}
@@ -203,8 +203,7 @@ export class OutputChannelModelService extends AsbtractOutputChannelModelService
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IElectronEnvironmentService private readonly electronEnvironmentService: IElectronEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 		@IFileService private readonly fileService: IFileService
 	) {
 		super(instantiationService);
@@ -218,7 +217,7 @@ export class OutputChannelModelService extends AsbtractOutputChannelModelService
 	private _outputDir: Promise<URI> | null = null;
 	private get outputDir(): Promise<URI> {
 		if (!this._outputDir) {
-			const outputDir = URI.file(join(this.environmentService.logsPath, `output_${this.electronEnvironmentService.windowId}_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`));
+			const outputDir = URI.file(join(this.environmentService.logsPath, `output_${this.environmentService.configuration.windowId}_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`));
 			this._outputDir = this.fileService.createFolder(outputDir).then(() => outputDir);
 		}
 		return this._outputDir;

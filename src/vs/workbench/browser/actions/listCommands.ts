@@ -625,18 +625,18 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	},
 	handler: (accessor) => {
 		const focused = accessor.get(IListService).lastFocusedList;
+		const fakeKeyboardEvent = getSelectionKeyboardEvent('keydown', false);
 
 		// List
 		if (focused instanceof List || focused instanceof PagedList) {
 			const list = focused;
-			list.setSelection(list.getFocus());
-			list.open(list.getFocus());
+			list.setSelection(list.getFocus(), fakeKeyboardEvent);
+			list.open(list.getFocus(), fakeKeyboardEvent);
 		}
 
 		// ObjectTree
 		else if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
 			const list = focused;
-			const fakeKeyboardEvent = getSelectionKeyboardEvent('keydown', false);
 			const focus = list.getFocus();
 
 			if (focus.length > 0) {
@@ -732,6 +732,35 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 			const fakeKeyboardEvent = new KeyboardEvent('keydown');
 			tree.setSelection(newSelection, fakeKeyboardEvent);
+		}
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'list.toggleSelection',
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: WorkbenchListFocusContextKey,
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter,
+	handler: (accessor) => {
+		const widget = accessor.get(IListService).lastFocusedList;
+
+		if (!widget || isLegacyTree(widget)) {
+			return;
+		}
+
+		const focus = widget.getFocus();
+
+		if (focus.length === 0) {
+			return;
+		}
+
+		const selection = widget.getSelection();
+		const index = selection.indexOf(focus[0]);
+
+		if (index > -1) {
+			widget.setSelection([...selection.slice(0, index), ...selection.slice(index + 1)]);
+		} else {
+			widget.setSelection([...selection, focus[0]]);
 		}
 	}
 });

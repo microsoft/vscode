@@ -8,26 +8,18 @@ import { URI } from 'vs/base/common/uri';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/browser/workbenchTestServices';
 import { snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
 import { ModesRegistry, PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 
-class ServiceAccessor {
-	constructor(
-		@IModelService public modelService: IModelService,
-		@IModeService public modeService: IModeService
-	) { }
-}
-
 suite('Resource text editors', () => {
+
 	let instantiationService: IInstantiationService;
-	let accessor: ServiceAccessor;
+	let accessor: TestServiceAccessor;
 
 	setup(() => {
 		instantiationService = workbenchInstantiationService();
-		accessor = instantiationService.createInstance(ServiceAccessor);
+		accessor = instantiationService.createInstance(TestServiceAccessor);
 	});
 
 	test('basics', async () => {

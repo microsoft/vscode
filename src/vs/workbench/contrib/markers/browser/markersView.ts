@@ -17,7 +17,7 @@ import { MarkersFilterActionViewItem, MarkersFilterAction, IMarkersFilterActionC
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import Messages from 'vs/workbench/contrib/markers/browser/messages';
 import { RangeHighlightDecorations } from 'vs/workbench/browser/parts/editor/rangeDecorations';
-import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IMarkersWorkbenchService } from 'vs/workbench/contrib/markers/browser/markers';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -26,7 +26,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { Iterator } from 'vs/base/common/iterator';
 import { ITreeElement, ITreeNode, ITreeContextMenuEvent, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { Relay, Event, Emitter } from 'vs/base/common/event';
-import { WorkbenchObjectTree, TreeResourceNavigator, IListService, IWorkbenchObjectTreeOptions } from 'vs/platform/list/browser/listService';
+import { WorkbenchObjectTree, ResourceNavigator, IListService, IWorkbenchObjectTreeOptions } from 'vs/platform/list/browser/listService';
 import { FilterOptions } from 'vs/workbench/contrib/markers/browser/markersFilterOptions';
 import { IExpression } from 'vs/base/common/glob';
 import { deepClone } from 'vs/base/common/objects';
@@ -97,7 +97,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ITelemetryService telemetryService: ITelemetryService,
 		@IMarkersWorkbenchService private readonly markersWorkbenchService: IMarkersWorkbenchService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
@@ -108,7 +108,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 	) {
-		super({ ...(options as IViewPaneOptions), id: Constants.MARKERS_VIEW_ID, ariaHeaderLabel: Messages.MARKERS_PANEL_TITLE_PROBLEMS }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService);
+		super({ ...(options as IViewPaneOptions), id: Constants.MARKERS_VIEW_ID, ariaHeaderLabel: Messages.MARKERS_PANEL_TITLE_PROBLEMS }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		this.panelFoucusContextKey = Constants.MarkerViewFocusContextKey.bindTo(contextKeyService);
 		this.panelState = new Memento(Constants.MARKERS_VIEW_STORAGE_ID, storageService).getMemento(StorageScope.WORKSPACE);
 		this.markersViewModel = this._register(instantiationService.createInstance(MarkersViewModel, this.panelState['multiline']));
@@ -349,7 +349,6 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 	private createArialLabelElement(parent: HTMLElement): void {
 		this.ariaLabelElement = dom.append(parent, dom.$(''));
 		this.ariaLabelElement.setAttribute('id', 'markers-panel-arialabel');
-		this.ariaLabelElement.setAttribute('aria-live', 'polite');
 	}
 
 	private createTree(parent: HTMLElement): void {
@@ -397,7 +396,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 			relatedInformationFocusContextKey.set(focus.elements.some(e => e instanceof RelatedInformation));
 		}));
 
-		const markersNavigator = this._register(new TreeResourceNavigator(this.tree, { openOnFocus: true }));
+		const markersNavigator = this._register(ResourceNavigator.createTreeResourceNavigator(this.tree, { openOnFocus: true }));
 		this._register(Event.debounce(markersNavigator.onDidOpenResource, (last, event) => event, 75, true)(options => {
 			this.openFileAtElement(options.element, !!options.editorOptions.preserveFocus, options.sideBySide, !!options.editorOptions.pinned);
 		}));
@@ -517,7 +516,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 
 	private setCurrentActiveEditor(): void {
 		const activeEditor = this.editorService.activeEditor;
-		this.currentActiveResource = activeEditor ? withUndefinedAsNull(activeEditor.getResource()) : null;
+		this.currentActiveResource = activeEditor ? withUndefinedAsNull(activeEditor.resource) : null;
 	}
 
 	private onSelected(): void {
@@ -853,7 +852,7 @@ class MarkersTree extends WorkbenchObjectTree<TreeElement, FilterData> {
 
 }
 
-registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 
 	// Lightbulb Icon
 	const editorLightBulbForegroundColor = theme.getColor(editorLightBulbForeground);

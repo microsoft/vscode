@@ -7,12 +7,13 @@ import { Action } from 'vs/base/common/actions';
 import { SyncDescriptor0, createSyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IConstructorSignature2, createDecorator, BrandedService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindings, KeybindingsRegistry, IKeybindingRule } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService, CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { UriDto } from 'vs/base/common/types';
 
 export interface ILocalizedString {
 	value: string;
@@ -24,18 +25,16 @@ export interface ICommandAction {
 	title: string | ILocalizedString;
 	category?: string | ILocalizedString;
 	icon?: { dark?: URI; light?: URI; } | ThemeIcon;
-	precondition?: ContextKeyExpr;
-	toggled?: ContextKeyExpr;
+	precondition?: ContextKeyExpression;
+	toggled?: ContextKeyExpression;
 }
 
-type Serialized<T> = { [K in keyof T]: T[K] extends URI ? UriComponents : Serialized<T[K]> };
-
-export type ISerializableCommandAction = Serialized<ICommandAction>;
+export type ISerializableCommandAction = UriDto<ICommandAction>;
 
 export interface IMenuItem {
 	command: ICommandAction;
 	alt?: ICommandAction;
-	when?: ContextKeyExpr;
+	when?: ContextKeyExpression;
 	group?: 'navigation' | string;
 	order?: number;
 }
@@ -43,7 +42,7 @@ export interface IMenuItem {
 export interface ISubmenuItem {
 	title: string | ILocalizedString;
 	submenu: MenuId;
-	when?: ContextKeyExpr;
+	when?: ContextKeyExpression;
 	group?: 'navigation' | string;
 	order?: number;
 }
@@ -315,17 +314,17 @@ export class SyncActionDescriptor {
 	private readonly _id: string;
 	private readonly _label?: string;
 	private readonly _keybindings: IKeybindings | undefined;
-	private readonly _keybindingContext: ContextKeyExpr | undefined;
+	private readonly _keybindingContext: ContextKeyExpression | undefined;
 	private readonly _keybindingWeight: number | undefined;
 
 	public static create<Services extends BrandedService[]>(ctor: { new(id: string, label: string, ...services: Services): Action },
-		id: string, label: string | undefined, keybindings?: IKeybindings, keybindingContext?: ContextKeyExpr, keybindingWeight?: number
+		id: string, label: string | undefined, keybindings?: IKeybindings, keybindingContext?: ContextKeyExpression, keybindingWeight?: number
 	): SyncActionDescriptor {
 		return new SyncActionDescriptor(ctor as IConstructorSignature2<string, string | undefined, Action>, id, label, keybindings, keybindingContext, keybindingWeight);
 	}
 
 	private constructor(ctor: IConstructorSignature2<string, string | undefined, Action>,
-		id: string, label: string | undefined, keybindings?: IKeybindings, keybindingContext?: ContextKeyExpr, keybindingWeight?: number
+		id: string, label: string | undefined, keybindings?: IKeybindings, keybindingContext?: ContextKeyExpression, keybindingWeight?: number
 	) {
 		this._id = id;
 		this._label = label;
@@ -351,7 +350,7 @@ export class SyncActionDescriptor {
 		return this._keybindings;
 	}
 
-	public get keybindingContext(): ContextKeyExpr | undefined {
+	public get keybindingContext(): ContextKeyExpression | undefined {
 		return this._keybindingContext;
 	}
 

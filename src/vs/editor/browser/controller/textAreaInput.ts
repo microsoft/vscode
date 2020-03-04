@@ -191,7 +191,7 @@ export class TextAreaInput extends Disposable {
 			this._isDoingComposition = true;
 
 			// In IE we cannot set .value when handling 'compositionstart' because the entire composition will get canceled.
-			if (!browser.isEdgeOrIE) {
+			if (!browser.isEdge) {
 				this._setAndWriteTextAreaState('compositionstart', TextAreaState.EMPTY);
 			}
 
@@ -225,15 +225,7 @@ export class TextAreaInput extends Disposable {
 			// Multi-part Japanese compositions reset cursor in Edge/IE, Chinese and Korean IME don't have this issue.
 			// The reason that we can't use this path for all CJK IME is IE and Edge behave differently when handling Korean IME,
 			// which breaks this path of code.
-			if (browser.isEdgeOrIE && locale === 'ja') {
-				return true;
-			}
-
-			// https://github.com/Microsoft/monaco-editor/issues/545
-			// On IE11, we can't trust composition data when typing Chinese as IE11 doesn't emit correct
-			// events when users type numbers in IME.
-			// Chinese: zh-Hans-CN, zh-Hans-SG, zh-Hant-TW, zh-Hant-HK
-			if (browser.isIE && locale.indexOf('zh-Han') === 0) {
+			if (browser.isEdge && locale === 'ja') {
 				return true;
 			}
 
@@ -274,7 +266,7 @@ export class TextAreaInput extends Disposable {
 
 			// Due to isEdgeOrIE (where the textarea was not cleared initially) and isChrome (the textarea is not updated correctly when composition ends)
 			// we cannot assume the text at the end consists only of the composited text
-			if (browser.isEdgeOrIE || browser.isChrome) {
+			if (browser.isEdge || browser.isChrome) {
 				this._textAreaState = TextAreaState.readFromTextArea(this._textArea);
 			}
 

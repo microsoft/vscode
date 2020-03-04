@@ -41,7 +41,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { editorBackground, errorForeground, focusBorder, foreground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler, attachStyler } from 'vs/platform/theme/common/styler';
-import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
 import { ITOCEntry } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
 import { ISettingsEditorViewState, settingKeyToDisplayFormat, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeNewExtensionsElement, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
@@ -49,7 +49,7 @@ import { ExcludeSettingWidget, IListChangeEvent, IListDataItem, ListSettingWidge
 import { SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ISetting, ISettingsGroup, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
-import { IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncEnablementService, getDefaultIgnoredSettings } from 'vs/platform/userDataSync/common/userDataSync';
 
 const $ = DOM.$;
 
@@ -1237,8 +1237,11 @@ export class SettingTreeRenderers {
 
 	private getActionsForSetting(setting: ISetting): IAction[] {
 		const enableSync = this._userDataSyncEnablementService.isEnabled();
-		return enableSync ?
-			[this._instantiationService.createInstance(StopSyncingSettingAction, setting)] :
+		return enableSync && !setting.disallowSyncIgnore ?
+			[
+				new Separator(),
+				this._instantiationService.createInstance(SyncSettingAction, setting)
+			] :
 			[];
 	}
 
@@ -1505,7 +1508,7 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 			});
 
 		this.disposables.clear();
-		this.disposables.add(registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+		this.disposables.add(registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 			const activeBorderColor = theme.getColor(focusBorder);
 			if (activeBorderColor) {
 				// TODO@rob - why isn't this applied when added to the stylesheet from tocTree.ts? Seems like a chromium glitch.
@@ -1622,31 +1625,46 @@ class CopySettingAsJSONAction extends Action {
 	}
 }
 
-class StopSyncingSettingAction extends Action {
+class SyncSettingAction extends Action {
 	static readonly ID = 'settings.stopSyncingSetting';
-	static readonly LABEL = localize('stopSyncingSetting', "Don't Sync This Setting");
+	static readonly LABEL = localize('stopSyncingSetting', "Sync This Setting");
 
 	constructor(
 		private readonly setting: ISetting,
 		@IConfigurationService private readonly configService: IConfigurationService,
 	) {
-		super(StopSyncingSettingAction.ID, StopSyncingSettingAction.LABEL);
+		super(SyncSettingAction.ID, SyncSettingAction.LABEL);
+		this._register(Event.filter(configService.onDidChangeConfiguration, e => e.affectsConfiguration('sync.ignoredSettings'))(() => this.update()));
 		this.update();
 	}
 
-	update() {
-		const ignoredSettings = getIgnoredSettings(this.configService);
-		this.checked = ignoredSettings.includes(this.setting.key);
+	async update() {
+		const ignoredSettings = getIgnoredSettings(getDefaultIgnoredSettings(), this.configService);
+		this.checked = !ignoredSettings.includes(this.setting.key);
 	}
 
 	async run(): Promise<void> {
-		const currentValue = this.configService.getValue<string[]>('sync.ignoredSettings');
-		if (this.checked) {
-			this.configService.updateValue('sync.ignoredSettings', currentValue.filter(v => v !== this.setting.key));
-		} else {
-			this.configService.updateValue('sync.ignoredSettings', [...currentValue, this.setting.key]);
+		// first remove the current setting completely from ignored settings
+		let currentValue = [...this.configService.getValue<string[]>('sync.ignoredSettings')];
+		currentValue = currentValue.filter(v => v !== this.setting.key && v !== `-${this.setting.key}`);
+
+		const defaultIgnoredSettings = getDefaultIgnoredSettings();
+		const isDefaultIgnored = defaultIgnoredSettings.includes(this.setting.key);
+		const askedToSync = !this.checked;
+
+		// If asked to sync, then add only if it is ignored by default
+		if (askedToSync && isDefaultIgnored) {
+			currentValue.push(`-${this.setting.key}`);
 		}
+
+		// If asked not to sync, then add only if it is not ignored by default
+		if (!askedToSync && !isDefaultIgnored) {
+			currentValue.push(this.setting.key);
+		}
+
+		this.configService.updateValue('sync.ignoredSettings', currentValue.length ? currentValue : undefined, ConfigurationTarget.USER);
 
 		return Promise.resolve(undefined);
 	}
+
 }

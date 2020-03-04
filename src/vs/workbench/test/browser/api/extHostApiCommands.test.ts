@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { setUnexpectedErrorHandler, errorHandler } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
 import * as types from 'vs/workbench/api/common/extHostTypes';
-import { TextModel as EditorModel } from 'vs/editor/common/model/textModel';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { TestRPCProtocol } from './testRPCProtocol';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
@@ -49,7 +49,7 @@ import 'vs/editor/contrib/smartSelect/smartSelect';
 import 'vs/editor/contrib/suggest/suggest';
 
 const defaultSelector = { scheme: 'far' };
-const model: ITextModel = EditorModel.createFromString(
+const model: ITextModel = createTextModel(
 	[
 		'This is the first line',
 		'This is the second line',
@@ -895,7 +895,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		disposables.push(extHost.registerCallHierarchyProvider(nullExtensionDescription, defaultSelector, new class implements vscode.CallHierarchyProvider {
 
-			prepareCallHierarchy(document: vscode.TextDocument, position: vscode.Position, ): vscode.ProviderResult<vscode.CallHierarchyItem> {
+			prepareCallHierarchy(document: vscode.TextDocument, position: vscode.Position,): vscode.ProviderResult<vscode.CallHierarchyItem> {
 				return new types.CallHierarchyItem(types.SymbolKind.Constant, 'ROOT', 'ROOT', document.uri, new types.Range(0, 0, 0, 0), new types.Range(0, 0, 0, 0));
 			}
 
@@ -930,5 +930,54 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		const outgoing = await commands.executeCommand<vscode.CallHierarchyOutgoingCall[]>('vscode.provideOutgoingCalls', root[0]);
 		assert.equal(outgoing.length, 1);
 		assert.equal(outgoing[0].to.name, 'OUTGOING');
+	});
+
+	test('selectionRangeProvider on inner array always returns outer array #91852', async function () {
+
+		disposables.push(extHost.registerSelectionRangeProvider(nullExtensionDescription, defaultSelector, <vscode.SelectionRangeProvider>{
+			provideSelectionRanges(_doc, positions) {
+				const [first] = positions;
+				return [
+					new types.SelectionRange(new types.Range(first.line, first.character, first.line, first.character)),
+				];
+			}
+		}));
+
+		await rpcProtocol.sync();
+		let value = await commands.executeCommand<vscode.SelectionRange[]>('vscode.executeSelectionRangeProvider', model.uri, [new types.Position(0, 10)]);
+		assert.equal(value.length, 1);
+		assert.equal(value[0].range.start.line, 0);
+		assert.equal(value[0].range.start.character, 10);
+		assert.equal(value[0].range.end.line, 0);
+		assert.equal(value[0].range.end.character, 10);
+	});
+
+	test('selectionRangeProvider on inner array always returns outer array #91852', async function () {
+
+		disposables.push(extHost.registerSelectionRangeProvider(nullExtensionDescription, defaultSelector, <vscode.SelectionRangeProvider>{
+			provideSelectionRanges(_doc, positions) {
+				const [first, second] = positions;
+				return [
+					new types.SelectionRange(new types.Range(first.line, first.character, first.line, first.character)),
+					new types.SelectionRange(new types.Range(second.line, second.character, second.line, second.character)),
+				];
+			}
+		}));
+
+		await rpcProtocol.sync();
+		let value = await commands.executeCommand<vscode.SelectionRange[]>(
+			'vscode.executeSelectionRangeProvider',
+			model.uri,
+			[new types.Position(0, 0), new types.Position(0, 10)]
+		);
+		assert.equal(value.length, 2);
+		assert.equal(value[0].range.start.line, 0);
+		assert.equal(value[0].range.start.character, 0);
+		assert.equal(value[0].range.end.line, 0);
+		assert.equal(value[0].range.end.character, 0);
+		assert.equal(value[1].range.start.line, 0);
+		assert.equal(value[1].range.start.character, 10);
+		assert.equal(value[1].range.end.line, 0);
+		assert.equal(value[1].range.end.character, 10);
 	});
 });

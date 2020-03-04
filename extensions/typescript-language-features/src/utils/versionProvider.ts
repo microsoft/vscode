@@ -12,7 +12,7 @@ import { RelativeWorkspacePathResolver } from './relativePathResolver';
 
 const localize = nls.loadMessageBundle();
 
-export const enum TypeScriptVersionSource {
+const enum TypeScriptVersionSource {
 	Bundled = 'bundled',
 	TsNightlyExtension = 'ts-nightly-extension',
 	NodeModules = 'node-modules',
@@ -21,11 +21,16 @@ export const enum TypeScriptVersionSource {
 }
 
 export class TypeScriptVersion {
+
+	public readonly apiVersion: API | undefined;
+
 	constructor(
 		public readonly source: TypeScriptVersionSource,
 		public readonly path: string,
 		private readonly _pathLabel?: string
-	) { }
+	) {
+		this.apiVersion = TypeScriptVersion.getApiVersion(this.tsServerPath);
+	}
 
 	public get tsServerPath(): string {
 		return path.join(this.path, 'tsserver.js');
@@ -39,8 +44,28 @@ export class TypeScriptVersion {
 		return this.apiVersion !== undefined;
 	}
 
-	public get apiVersion(): API | undefined {
-		const version = this.getTypeScriptVersion(this.tsServerPath);
+	public eq(other: TypeScriptVersion): boolean {
+		if (this.path !== other.path) {
+			return false;
+		}
+
+		if (this.apiVersion === other.apiVersion) {
+			return true;
+		}
+		if (!this.apiVersion || !other.apiVersion) {
+			return false;
+		}
+		return this.apiVersion.eq(other.apiVersion);
+	}
+
+	public get displayName(): string {
+		const version = this.apiVersion;
+		return version ? version.displayName : localize(
+			'couldNotLoadTsVersion', 'Could not load the TypeScript version at this path');
+	}
+
+	public static getApiVersion(serverPath: string): API | undefined {
+		const version = TypeScriptVersion.getTypeScriptVersion(serverPath);
 		if (version) {
 			return version;
 		}
@@ -54,13 +79,7 @@ export class TypeScriptVersion {
 		return undefined;
 	}
 
-	public get displayName(): string {
-		const version = this.apiVersion;
-		return version ? version.displayName : localize(
-			'couldNotLoadTsVersion', 'Could not load the TypeScript version at this path');
-	}
-
-	private getTypeScriptVersion(serverPath: string): API | undefined {
+	private static getTypeScriptVersion(serverPath: string): API | undefined {
 		if (!fs.existsSync(serverPath)) {
 			return undefined;
 		}
@@ -208,7 +227,7 @@ export class TypeScriptVersionProvider {
 		const versions: TypeScriptVersion[] = [];
 		for (const root of vscode.workspace.workspaceFolders) {
 			let label: string = relativePath;
-			if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 1) {
+			if (vscode.workspace.workspaceFolders.length > 1) {
 				label = path.join(root.name, relativePath);
 			}
 

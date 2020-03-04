@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/part';
 import { Component } from 'vs/workbench/common/component';
-import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
+import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
 import { Dimension, size } from 'vs/base/browser/dom';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IDimension } from 'vs/platform/layout/browser/layoutService';
@@ -34,7 +34,7 @@ export abstract class Part extends Component implements ISerializableView {
 	get dimension(): Dimension | undefined { return this._dimension; }
 
 	protected _onDidVisibilityChange = this._register(new Emitter<boolean>());
-	readonly onDidVisibilityChange: Event<boolean> = this._onDidVisibilityChange.event;
+	readonly onDidVisibilityChange = this._onDidVisibilityChange.event;
 
 	private parent: HTMLElement | undefined;
 	private titleArea: HTMLElement | undefined;
@@ -53,7 +53,7 @@ export abstract class Part extends Component implements ISerializableView {
 		layoutService.registerPart(this);
 	}
 
-	protected onThemeChange(theme: ITheme): void {
+	protected onThemeChange(theme: IColorTheme): void {
 
 		// only call if our create() method has been called
 		if (this.parent) {

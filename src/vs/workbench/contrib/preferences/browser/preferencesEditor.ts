@@ -249,10 +249,10 @@ export class PreferencesEditor extends BaseEditor {
 
 	private switchSettings(target: SettingsTarget): void {
 		// Focus the editor if this editor is not active editor
-		if (this.editorService.activeControl !== this) {
+		if (this.editorService.activeEditorPane !== this) {
 			this.focus();
 		}
-		const promise: Promise<boolean> = this.input && this.input.isDirty() ? this.editorService.save({ editor: this.input, groupId: this.group!.id }) : Promise.resolve(true);
+		const promise = this.input && this.input.isDirty() ? this.editorService.save({ editor: this.input, groupId: this.group!.id }) : Promise.resolve(true);
 		promise.then(() => {
 			if (target === ConfigurationTarget.USER_LOCAL) {
 				this.preferencesService.switchSettings(ConfigurationTarget.USER_LOCAL, this.preferencesService.userSettingsResource, true);
@@ -840,10 +840,10 @@ class SideBySidePreferencesWidget extends Widget {
 
 	setInput(defaultPreferencesEditorInput: DefaultPreferencesEditorInput, editablePreferencesEditorInput: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<{ defaultPreferencesRenderer?: IPreferencesRenderer<ISetting>, editablePreferencesRenderer?: IPreferencesRenderer<ISetting>; }> {
 		this.getOrCreateEditablePreferencesEditor(editablePreferencesEditorInput);
-		this.settingsTargetsWidget.settingsTarget = this.getSettingsTarget(editablePreferencesEditorInput.getResource()!);
+		this.settingsTargetsWidget.settingsTarget = this.getSettingsTarget(editablePreferencesEditorInput.resource!);
 		return Promise.all([
-			this.updateInput(this.defaultPreferencesEditor, defaultPreferencesEditorInput, DefaultSettingsEditorContribution.ID, editablePreferencesEditorInput.getResource()!, options, token),
-			this.updateInput(this.editablePreferencesEditor!, editablePreferencesEditorInput, SettingsEditorContribution.ID, defaultPreferencesEditorInput.getResource()!, options, token)
+			this.updateInput(this.defaultPreferencesEditor, defaultPreferencesEditorInput, DefaultSettingsEditorContribution.ID, editablePreferencesEditorInput.resource!, options, token),
+			this.updateInput(this.editablePreferencesEditor!, editablePreferencesEditorInput, SettingsEditorContribution.ID, defaultPreferencesEditorInput.resource!, options, token)
 		])
 			.then(([defaultPreferencesRenderer, editablePreferencesRenderer]) => {
 				if (token.isCancellationRequested) {

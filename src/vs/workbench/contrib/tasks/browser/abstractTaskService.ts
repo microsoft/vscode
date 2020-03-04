@@ -57,7 +57,7 @@ import {
 	TaskSorter, TaskIdentifier, KeyedTaskIdentifier, TASK_RUNNING_STATE, TaskRunSource,
 	KeyedTaskIdentifier as NKeyedTaskIdentifier, TaskDefinition
 } from 'vs/workbench/contrib/tasks/common/tasks';
-import { ITaskService, ITaskProvider, ProblemMatcherRunOptions, CustomizationProperties, TaskFilter, WorkspaceFolderTaskResult } from 'vs/workbench/contrib/tasks/common/taskService';
+import { ITaskService, ITaskProvider, ProblemMatcherRunOptions, CustomizationProperties, TaskFilter, WorkspaceFolderTaskResult, USER_TASKS_GROUP_KEY } from 'vs/workbench/contrib/tasks/common/taskService';
 import { getTemplates as getTaskTemplates } from 'vs/workbench/contrib/tasks/common/taskTemplates';
 
 import * as TaskConfig from '../common/taskConfiguration';
@@ -74,7 +74,7 @@ import { IRemotePathService } from 'vs/workbench/services/path/common/remotePath
 import { format } from 'vs/base/common/jsonFormatter';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { applyEdits } from 'vs/base/common/jsonEdit';
-import { ITextEditor } from 'vs/workbench/common/editor';
+import { ITextEditorPane } from 'vs/workbench/common/editor';
 import { ITextEditorSelection, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { find } from 'vs/base/common/arrays';
@@ -86,8 +86,6 @@ const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
 const QUICKOPEN_DETAIL_CONFIG = 'task.quickOpen.detail';
 const PROBLEM_MATCHER_NEVER_CONFIG = 'task.problemMatchers.neverPrompt';
 const QUICKOPEN_SKIP_CONFIG = 'task.quickOpen.skip';
-
-const SETTINGS_GROUP_KEY = 'settings';
 
 export namespace ConfigureTaskAction {
 	export const ID = 'workbench.action.tasks.configureTaskRunner';
@@ -553,7 +551,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 		return this.getGroupedTasks().then((map) => {
 			let values = map.get(folder);
-			values = values.concat(map.get(SETTINGS_GROUP_KEY));
+			values = values.concat(map.get(USER_TASKS_GROUP_KEY));
 
 			if (!values) {
 				return undefined;
@@ -563,6 +561,37 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	protected abstract versionAndEngineCompatible(filter?: TaskFilter): boolean;
+
+	private tasksAndGroupedTasks(filter?: TaskFilter): { tasks: Promise<Task[]>, grouped: Promise<TaskMap> } {
+		if (!this.versionAndEngineCompatible(filter)) {
+			return { tasks: Promise.resolve<Task[]>([]), grouped: Promise.resolve(new TaskMap()) };
+		}
+		const grouped = this.getGroupedTasks(filter ? filter.type : undefined);
+		const tasks = grouped.then((map) => {
+			if (!filter || !filter.type) {
+				return map.all();
+			}
+			let result: Task[] = [];
+			map.forEach((tasks) => {
+				for (let task of tasks) {
+					if (ContributedTask.is(task) && task.defines.type === filter.type) {
+						result.push(task);
+					} else if (CustomTask.is(task)) {
+						if (task.type === filter.type) {
+							result.push(task);
+						} else {
+							let customizes = task.customizes();
+							if (customizes && customizes.type === filter.type) {
+								result.push(task);
+							}
+						}
+					}
+				}
+			});
+			return result;
+		});
+		return { tasks, grouped };
+	}
 
 	public tasks(filter?: TaskFilter): Promise<Task[]> {
 		if (!this.versionAndEngineCompatible(filter)) {
@@ -707,11 +736,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		});
 	}
 
-	public run(task: Task | undefined, options?: ProblemMatcherRunOptions, runSource: TaskRunSource = TaskRunSource.System): Promise<ITaskSummary | undefined> {
+	public run(task: Task | undefined, options?: ProblemMatcherRunOptions, runSource: TaskRunSource = TaskRunSource.System, grouped?: Promise<TaskMap>): Promise<ITaskSummary | undefined> {
 		if (!task) {
 			throw new TaskError(Severity.Info, nls.localize('TaskServer.noTask', 'Task to execute is undefined'), TaskErrors.TaskNotFound);
 		}
-		return this.getGroupedTasks().then((grouped) => {
+		return (grouped ?? this.getGroupedTasks()).then((grouped) => {
 			let resolver = this.createResolver(grouped);
 			if (options && options.attachProblemMatcher && this.shouldAttachProblemMatcher(task) && !InMemoryTask.is(task)) {
 				return this.attachProblemMatcher(task).then((toExecute) => {
@@ -916,7 +945,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return false;
 	}
 
-	private openEditorAtTask(resource: URI | undefined, task: TaskConfig.CustomTask | TaskConfig.ConfiguringTask | string | undefined): Promise<ITextEditor | null | undefined> {
+	private openEditorAtTask(resource: URI | undefined, task: TaskConfig.CustomTask | TaskConfig.ConfiguringTask | string | undefined): Promise<ITextEditorPane | null | undefined> {
 		if (resource === undefined) {
 			return Promise.resolve(undefined);
 		}
@@ -1171,8 +1200,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 		});
 		let resolver: ITaskResolver = {
-			resolve: (uri: URI, alias: string) => {
-				let data = resolverData.get(uri.toString());
+			resolve: (uri: URI | string, alias: string) => {
+				let data = resolverData.get(typeof uri === 'string' ? uri : uri.toString());
 				if (!data) {
 					return undefined;
 				}
@@ -1238,8 +1267,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		});
 
 		return {
-			resolve: (uri: URI, identifier: string | TaskIdentifier | undefined) => {
-				let data = uri ? resolverData.get(uri.toString()) : undefined;
+			resolve: (uri: URI | string, identifier: string | TaskIdentifier | undefined) => {
+				let data = resolverData.get(typeof uri === 'string' ? uri : uri.toString());
 				if (!data || !identifier) {
 					return undefined;
 				}
@@ -1255,7 +1284,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	private executeTask(task: Task, resolver: ITaskResolver): Promise<ITaskSummary> {
 		return ProblemMatcherRegistry.onReady().then(() => {
-			return this.editorService.saveAll().then((value) => { // make sure all dirty editors are saved
+			return this.editorService.saveAll().then(() => { // make sure all dirty editors are saved
 				let executeResult = this.getTaskSystem().run(task, resolver);
 				return this.handleExecuteResult(executeResult);
 			});
@@ -1600,7 +1629,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				}
 				const userTasks = await this.computeUserTasks(this.workspaceFolders[0], runSource).then((value) => value, () => undefined);
 				if (userTasks) {
-					result.set(SETTINGS_GROUP_KEY, userTasks);
+					result.set(USER_TASKS_GROUP_KEY, userTasks);
 				}
 				const workspaceFileTasks = await this.computeWorkspaceFileTasks(this.workspaceFolders[0], runSource).then((value) => value, () => undefined);
 				if (workspaceFileTasks && this._workspace && this._workspace.configuration) {
@@ -2173,9 +2202,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (identifier !== undefined) {
 			this.getGroupedTasks().then((grouped) => {
 				let resolver = this.createResolver(grouped);
-				let folders = this.contextService.getWorkspace().folders;
+				let folders: (IWorkspaceFolder | string)[] = this.contextService.getWorkspace().folders;
+				folders = folders.concat([USER_TASKS_GROUP_KEY]);
 				for (let folder of folders) {
-					let task = resolver.resolve(folder.uri, identifier);
+					let task = resolver.resolve(typeof folder === 'string' ? folder : folder.uri, identifier);
 					if (task) {
 						this.run(task).then(undefined, reason => {
 							// eat the error, it has already been surfaced to the user and we don't care about it here
@@ -2194,7 +2224,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	private doRunTaskCommand(tasks?: Task[]): void {
 		this.showIgnoredFoldersMessage().then(() => {
-			this.showQuickPick(tasks ? tasks : this.tasks(),
+			let taskResult: { tasks: Promise<Task[]>, grouped: Promise<TaskMap> } | undefined = undefined;
+			if (!tasks) {
+				taskResult = this.tasksAndGroupedTasks();
+			}
+			this.showQuickPick(tasks ? tasks : taskResult!.tasks,
 				nls.localize('TaskService.pickRunTask', 'Select the task to run'),
 				{
 					label: nls.localize('TaskService.noEntryToRun', 'No task to run found. Configure Tasks...'),
@@ -2209,7 +2243,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					if (task === null) {
 						this.runConfigureTasks();
 					} else {
-						this.run(task, { attachProblemMatcher: true }, TaskRunSource.User).then(undefined, reason => {
+						this.run(task, { attachProblemMatcher: true }, TaskRunSource.User, taskResult?.grouped).then(undefined, reason => {
 							// eat the error, it has already been surfaced to the user and we don't care about it here
 						});
 					}
@@ -2223,7 +2257,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 
 		ProblemMatcherRegistry.onReady().then(() => {
-			return this.editorService.saveAll().then((value) => { // make sure all dirty editors are saved
+			return this.editorService.saveAll().then(() => { // make sure all dirty editors are saved
 				let executeResult = this.getTaskSystem().rerun();
 				if (executeResult) {
 					return this.handleExecuteResult(executeResult);

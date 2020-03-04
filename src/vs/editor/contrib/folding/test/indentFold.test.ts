@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { computeRanges } from 'vs/editor/contrib/folding/indentRangeProvider';
-import { TextModel } from 'vs/editor/common/model/textModel';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 interface IndentRange {
 	start: number;
@@ -47,7 +47,7 @@ suite('Indentation Folding', () => {
 		let r8 = r(13, 14);//4
 		let r9 = r(15, 16);//0
 
-		let model = TextModel.createFromString(lines.join('\n'));
+		let model = createTextModel(lines.join('\n'));
 
 		function assertLimit(maxEntries: number, expectedRanges: IndentRange[], message: string) {
 			let indentRanges = computeRanges(model, true, undefined, maxEntries);

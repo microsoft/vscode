@@ -64,9 +64,9 @@ class UXState {
 
 				let resource: URI | undefined;
 				if (input instanceof DiffEditorInput) {
-					resource = input.modifiedInput.getResource();
+					resource = input.modifiedInput.resource;
 				} else {
-					resource = input.getResource();
+					resource = input.resource;
 				}
 
 				if (resource?.scheme === BulkEditPreviewProvider.Schema) {
@@ -111,6 +111,7 @@ class BulkEditPreviewContribution {
 	private async _previewEdit(edit: WorkspaceEdit) {
 		this._ctxEnabled.set(true);
 
+		const uxState = this._activeSession?.uxState ?? new UXState(this._panelService, this._editorGroupsService);
 		const view = await getBulkEditPane(this._viewsService);
 		if (!view) {
 			this._ctxEnabled.set(false);
@@ -136,9 +137,9 @@ class BulkEditPreviewContribution {
 		let session: PreviewSession;
 		if (this._activeSession) {
 			this._activeSession.cts.dispose(true);
-			session = new PreviewSession(this._activeSession.uxState);
+			session = new PreviewSession(uxState);
 		} else {
-			session = new PreviewSession(new UXState(this._panelService, this._editorGroupsService));
+			session = new PreviewSession(uxState);
 		}
 		this._activeSession = session;
 

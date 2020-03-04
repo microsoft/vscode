@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./bulkEdit';
-import { WorkbenchAsyncDataTree, TreeResourceNavigator, IOpenEvent } from 'vs/platform/list/browser/listService';
+import { WorkbenchAsyncDataTree, IOpenEvent, ResourceNavigator } from 'vs/platform/list/browser/listService';
 import { WorkspaceEdit } from 'vs/editor/common/modes';
 import { BulkEditElement, BulkEditDelegate, TextEditElementRenderer, FileElementRenderer, BulkEditDataSource, BulkEditIdentityProvider, FileElement, TextEditElement, BulkEditAccessibilityProvider, BulkEditAriaProvider, CategoryElementRenderer, BulkEditNaviLabelProvider, CategoryElement, BulkEditSorter } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditTree';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { registerThemingParticipant, ITheme, ICssStyleCollector, IThemeService } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, IColorTheme, ICssStyleCollector, IThemeService } from 'vs/platform/theme/common/themeService';
 import { diffInserted, diffRemoved } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -38,6 +38,7 @@ import type { IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/asyncDataT
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 const enum State {
 	Data = 'data',
@@ -86,10 +87,11 @@ export class BulkEditPane extends ViewPane {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super(
 			{ ...options, titleMenuId: MenuId.BulkEditTitle },
-			keybindingService, contextMenuService, configurationService, _contextKeyService, viewDescriptorService, _instaService, openerService, themeService
+			keybindingService, contextMenuService, configurationService, _contextKeyService, viewDescriptorService, _instaService, openerService, themeService, telemetryService
 		);
 
 		this.element.classList.add('bulk-edit-panel', 'show-file-icons');
@@ -141,7 +143,7 @@ export class BulkEditPane extends ViewPane {
 
 		this._disposables.add(this._tree.onContextMenu(this._onContextMenu, this));
 
-		const navigator = new TreeResourceNavigator(this._tree, { openOnFocus: true });
+		const navigator = ResourceNavigator.createTreeResourceNavigator(this._tree, { openOnFocus: true });
 		this._disposables.add(navigator);
 		this._disposables.add(navigator.onDidOpenResource(e => this._openElementAsEditor(e)));
 
@@ -377,7 +379,7 @@ export class BulkEditPane extends ViewPane {
 	}
 }
 
-registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 
 	const diffInsertedColor = theme.getColor(diffInserted);
 	if (diffInsertedColor) {

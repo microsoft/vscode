@@ -16,6 +16,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { CodeActionFilter, CodeActionKind, CodeActionTrigger, filtersAction, mayIncludeActionsOfKind } from './types';
+import { IProgress, Progress } from 'vs/platform/progress/common/progress';
 
 export const codeActionCommandId = 'editor.action.codeAction';
 export const refactorCommandId = 'editor.action.refactor';
@@ -70,7 +71,8 @@ export function getCodeActions(
 	model: ITextModel,
 	rangeOrSelection: Range | Selection,
 	trigger: CodeActionTrigger,
-	token: CancellationToken
+	progress: IProgress<modes.CodeActionProvider>,
+	token: CancellationToken,
 ): Promise<CodeActionSet> {
 	const filter = trigger.filter || {};
 
@@ -85,6 +87,7 @@ export function getCodeActions(
 	const disposables = new DisposableStore();
 	const promises = providers.map(async provider => {
 		try {
+			progress.report(provider);
 			const providedCodeActions = await provider.provideCodeActions(model, rangeOrSelection, codeActionContext, cts.token);
 			if (providedCodeActions) {
 				disposables.add(providedCodeActions);
@@ -210,6 +213,7 @@ registerLanguageCommand('_executeCodeActionProvider', async function (accessor, 
 		model,
 		validatedRangeOrSelection,
 		{ type: modes.CodeActionTriggerType.Manual, filter: { includeSourceActions: true, include: kind && kind.value ? new CodeActionKind(kind.value) : undefined } },
+		Progress.None,
 		CancellationToken.None);
 
 	setTimeout(() => codeActionSet.dispose(), 100);

@@ -10,7 +10,7 @@ import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
-import { IWorkbenchThemeService, COLOR_THEME_SETTING, ICON_THEME_SETTING, IColorTheme, IFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IWorkbenchThemeService, ThemeSettings, IWorkbenchColorTheme, IWorkbenchFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { VIEWLET_ID, IExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -62,7 +62,7 @@ export class SelectColorThemeAction extends Action {
 					const themeId = theme && theme.id !== undefined ? theme.id : currentTheme.id;
 					let target: ConfigurationTarget | undefined = undefined;
 					if (applyTheme) {
-						const confValue = this.configurationService.inspect(COLOR_THEME_SETTING);
+						const confValue = this.configurationService.inspect(ThemeSettings.COLOR_THEME);
 						target = typeof confValue.workspaceValue !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
 					}
 
@@ -147,7 +147,7 @@ class SelectIconThemeAction extends Action {
 					const themeId = theme && theme.id !== undefined ? theme.id : currentTheme.id;
 					let target: ConfigurationTarget | undefined = undefined;
 					if (applyTheme) {
-						const confValue = this.configurationService.inspect(ICON_THEME_SETTING);
+						const confValue = this.configurationService.inspect(ThemeSettings.ICON_THEME);
 						target = typeof confValue.workspaceValue !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
 					}
 					this.themeService.setFileIconTheme(themeId, target).then(undefined,
@@ -227,8 +227,8 @@ function isItem(i: QuickPickInput<ThemeItem>): i is ThemeItem {
 	return (<any>i)['type'] !== 'separator';
 }
 
-function toEntries(themes: Array<IColorTheme | IFileIconTheme>, label?: string): QuickPickInput<ThemeItem>[] {
-	const toEntry = (theme: IColorTheme | IFileIconTheme): ThemeItem => ({ id: theme.id, label: theme.label, description: theme.description });
+function toEntries(themes: Array<IWorkbenchColorTheme | IWorkbenchFileIconTheme>, label?: string): QuickPickInput<ThemeItem>[] {
+	const toEntry = (theme: IWorkbenchColorTheme | IWorkbenchFileIconTheme): ThemeItem => ({ id: theme.id, label: theme.label, description: theme.description });
 	const sorter = (t1: ThemeItem, t2: ThemeItem) => t1.label.localeCompare(t2.label);
 	let entries: QuickPickInput<ThemeItem>[] = themes.map(toEntry).sort(sorter);
 	if (entries.length > 0 && label) {

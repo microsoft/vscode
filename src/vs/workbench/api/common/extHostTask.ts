@@ -26,6 +26,7 @@ import { Schemas } from 'vs/base/common/network';
 import * as Platform from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
+import { USER_TASKS_GROUP_KEY } from 'vs/workbench/contrib/tasks/common/taskService';
 
 export interface IExtHostTask extends ExtHostTaskShape {
 
@@ -192,9 +193,11 @@ export namespace CustomExecutionDTO {
 
 export namespace TaskHandleDTO {
 	export function from(value: types.Task): tasks.TaskHandleDTO {
-		let folder: UriComponents | undefined;
+		let folder: UriComponents | string;
 		if (value.scope !== undefined && typeof value.scope !== 'number') {
 			folder = value.scope.uri;
+		} else if (value.scope !== undefined && typeof value.scope === 'number') {
+			folder = USER_TASKS_GROUP_KEY;
 		}
 		return {
 			id: value._id!,

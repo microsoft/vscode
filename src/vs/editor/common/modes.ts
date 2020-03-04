@@ -494,7 +494,7 @@ export interface CompletionItem {
 	preselect?: boolean;
 	/**
 	 * A string or snippet that should be inserted in a document when selecting
-	 * this completion. When `falsy` the [label](#CompletionItem.label)
+	 * this completion.
 	 * is used.
 	 */
 	insertText: string;
@@ -635,6 +635,9 @@ export interface CodeActionList extends IDisposable {
  * @internal
  */
 export interface CodeActionProvider {
+
+	displayName?: string
+
 	/**
 	 * Provide commands for the given document and range.
 	 */
@@ -1243,11 +1246,11 @@ export interface SelectionRangeProvider {
 export interface FoldingContext {
 }
 /**
- * A provider of colors for editor models.
+ * A provider of folding ranges for editor models.
  */
 export interface FoldingRangeProvider {
 	/**
-	 * Provides the color ranges for a specific model.
+	 * Provides the folding ranges for a specific model.
 	 */
 	provideFoldingRanges(model: model.ITextModel, context: FoldingContext, token: CancellationToken): ProviderResult<FoldingRange[]>;
 }
@@ -1324,7 +1327,7 @@ export interface WorkspaceEditMetadata {
 	needsConfirmation: boolean;
 	label: string;
 	description?: string;
-	iconPath?: { id: string } | { light: URI, dark: URI };
+	iconPath?: { id: string } | URI | { light: URI, dark: URI };
 }
 
 export interface WorkspaceFileEditOptions {
@@ -1370,7 +1373,7 @@ export interface RenameProvider {
  */
 export interface AuthenticationSession {
 	id: string;
-	accessToken(): Promise<string>;
+	getAccessToken(): Thenable<string>;
 	accountName: string;
 }
 
@@ -1586,6 +1589,7 @@ export interface SemanticTokensEdits {
 }
 
 export interface DocumentSemanticTokensProvider {
+	onDidChange?: Event<void>;
 	getLegend(): SemanticTokensLegend;
 	provideDocumentSemanticTokens(model: model.ITextModel, lastResultId: string | null, token: CancellationToken): ProviderResult<SemanticTokens | SemanticTokensEdits>;
 	releaseDocumentSemanticTokens(resultId: string | undefined): void;

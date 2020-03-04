@@ -25,7 +25,7 @@ export class MainThreadAuthenticationProvider {
 			return {
 				id: session.id,
 				accountName: session.accountName,
-				accessToken: () => this._proxy.$getSessionAccessToken(this.id, session.id)
+				getAccessToken: () => this._proxy.$getSessionAccessToken(this.id, session.id)
 			};
 		});
 	}
@@ -35,7 +35,7 @@ export class MainThreadAuthenticationProvider {
 			return {
 				id: session.id,
 				accountName: session.accountName,
-				accessToken: () => this._proxy.$getSessionAccessToken(this.id, session.id)
+				getAccessToken: () => this._proxy.$getSessionAccessToken(this.id, session.id)
 			};
 		});
 	}
@@ -75,48 +75,52 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	async $getSessionsPrompt(providerId: string, providerName: string, extensionId: string, extensionName: string): Promise<boolean> {
 		const alwaysAllow = this.storageService.get(`${extensionId}-${providerId}`, StorageScope.GLOBAL);
 		if (alwaysAllow) {
-			return true;
+			return alwaysAllow === 'true';
 		}
 
-		const { choice } = await this.dialogService.show(
+		const { choice, checkboxChecked } = await this.dialogService.show(
 			Severity.Info,
 			nls.localize('confirmAuthenticationAccess', "The extension '{0}' is trying to access authentication information from {1}.", extensionName, providerName),
-			[nls.localize('cancel', "Cancel"), nls.localize('allow', "Allow"), nls.localize('alwaysAllow', "Always Allow"),],
-			{ cancelId: 0 }
+			[nls.localize('cancel', "Cancel"), nls.localize('allow', "Allow")],
+			{
+				cancelId: 0,
+				checkbox: {
+					label: nls.localize('neverAgain', "Don't Show Again")
+				}
+			}
 		);
 
-		switch (choice) {
-			case 1/** Allow */:
-				return true;
-			case 2 /** Always Allow */:
-				this.storageService.store(`${extensionId}-${providerId}`, 'true', StorageScope.GLOBAL);
-				return true;
-			default:
-				return false;
+		const allow = choice === 1;
+		if (checkboxChecked) {
+			this.storageService.store(`${extensionId}-${providerId}`, allow ? 'true' : 'false', StorageScope.GLOBAL);
 		}
+
+		return allow;
 	}
 
 	async $loginPrompt(providerId: string, providerName: string, extensionId: string, extensionName: string): Promise<boolean> {
 		const alwaysAllow = this.storageService.get(`${extensionId}-${providerId}`, StorageScope.GLOBAL);
 		if (alwaysAllow) {
-			return true;
+			return alwaysAllow === 'true';
 		}
 
-		const { choice } = await this.dialogService.show(
+		const { choice, checkboxChecked } = await this.dialogService.show(
 			Severity.Info,
 			nls.localize('confirmLogin', "The extension '{0}' wants to sign in using {1}.", extensionName, providerName),
-			[nls.localize('cancel', "Cancel"), nls.localize('continue', "Continue"), nls.localize('neverAgain', "Don't Show Again")],
-			{ cancelId: 0 }
+			[nls.localize('cancel', "Cancel"), nls.localize('continue', "Continue")],
+			{
+				cancelId: 0,
+				checkbox: {
+					label: nls.localize('neverAgain', "Don't Show Again")
+				}
+			}
 		);
 
-		switch (choice) {
-			case 1/** Allow */:
-				return true;
-			case 2 /** Always Allow */:
-				this.storageService.store(`${extensionId}-${providerId}`, 'true', StorageScope.GLOBAL);
-				return true;
-			default:
-				return false;
+		const allow = choice === 1;
+		if (checkboxChecked) {
+			this.storageService.store(`${extensionId}-${providerId}`, allow ? 'true' : 'false', StorageScope.GLOBAL);
 		}
+
+		return allow;
 	}
 }

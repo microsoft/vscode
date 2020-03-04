@@ -270,7 +270,7 @@ export class ConfigureLanguageBasedSettingsAction extends Action {
 				if (pick) {
 					const modeId = this.modeService.getModeIdForLanguageName(pick.label.toLowerCase());
 					if (typeof modeId === 'string') {
-						return this.preferencesService.configureSettingsForLanguage(modeId);
+						return this.preferencesService.openGlobalSettings(true, { editSetting: `[${modeId}]` });
 					}
 				}
 				return undefined;

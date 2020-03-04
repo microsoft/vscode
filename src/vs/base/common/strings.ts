@@ -14,7 +14,7 @@ export function isFalsyOrWhitespace(str: string | undefined): boolean {
 }
 
 /**
- * @returns the provided number with the given number of preceding zeros.
+ * @deprecated ES6: use `String.padStart`
  */
 export function pad(n: number, l: number, char: string = '0'): string {
 	const str = '' + n;
@@ -145,7 +145,7 @@ export function stripWildcards(pattern: string): string {
 }
 
 /**
- * Determines if haystack starts with needle.
+ * @deprecated ES6: use `String.startsWith`
  */
 export function startsWith(haystack: string, needle: string): boolean {
 	if (haystack.length < needle.length) {
@@ -166,7 +166,7 @@ export function startsWith(haystack: string, needle: string): boolean {
 }
 
 /**
- * Determines if haystack ends with needle.
+ * @deprecated ES6: use `String.endsWith`
  */
 export function endsWith(haystack: string, needle: string): boolean {
 	const diff = haystack.length - needle.length;
@@ -240,7 +240,7 @@ export function regExpFlags(regexp: RegExp): string {
 	return (regexp.global ? 'g' : '')
 		+ (regexp.ignoreCase ? 'i' : '')
 		+ (regexp.multiline ? 'm' : '')
-		+ ((regexp as any).unicode ? 'u' : '');
+		+ ((regexp as any /* standalone editor compilation */).unicode ? 'u' : '');
 }
 
 /**
@@ -851,21 +851,6 @@ export function removeAnsiEscapeCodes(str: string): string {
 
 	return str;
 }
-
-export const removeAccents: (str: string) => string = (function () {
-	if (typeof (String.prototype as any).normalize !== 'function') {
-		// ☹️ no ES6 features...
-		return function (str: string) { return str; };
-	} else {
-		// transform into NFD form and remove accents
-		// see: https://stackoverflow.com/questions/990904/remove-accents-diacritics-in-a-string-in-javascript/37511463#37511463
-		const regex = /[\u0300-\u036f]/g;
-		return function (str: string) {
-			return (str as any).normalize('NFD').replace(regex, '');
-		};
-	}
-})();
-
 
 // -- UTF-8 BOM
 
