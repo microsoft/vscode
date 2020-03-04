@@ -59,7 +59,7 @@ class NotebookCodeEditors implements ICompositeCodeEditor {
 		private _list: NotebookCellList<CellViewModel>,
 		private _renderedEditors: Map<CellViewModel, ICodeEditor | undefined>
 	) {
-		_list.onFocusChange(e => this._onDidChangeActiveEditor.fire(this), undefined, this._disposables);
+		_list.onDidChangeFocus(e => this._onDidChangeActiveEditor.fire(this), undefined, this._disposables);
 	}
 
 	dispose(): void {
@@ -339,7 +339,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 			}
 		}));
 
-		this.localStore.add(this.list!.onFocusChange((e) => {
+		this.localStore.add(this.list!.onDidChangeFocus((e) => {
 			if (e.elements.length > 0) {
 				this.notebookService.updateNotebookActiveCell(input.viewType!, input.resource!, e.elements[0].cell.handle);
 			}
