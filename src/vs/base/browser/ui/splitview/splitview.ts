@@ -331,8 +331,8 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 		}
 	}
 
-	addView(view: IView<TLayoutContext>, size: number | Sizing, index = this.viewItems.length): void {
-		this.doAddView(view, size, index, false);
+	addView(view: IView<TLayoutContext>, size: number | Sizing, index = this.viewItems.length, skipLayout?: boolean): void {
+		this.doAddView(view, size, index, skipLayout);
 	}
 
 	removeView(index: number, sizing?: Sizing): IView<TLayoutContext> {
