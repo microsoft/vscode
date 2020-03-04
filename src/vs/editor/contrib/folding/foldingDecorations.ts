@@ -13,7 +13,8 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 	private static readonly COLLAPSED_VISUAL_DECORATION = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		afterContentClassName: 'inline-folded',
-		linesDecorationsClassName: 'codicon codicon-chevron-right'
+		isWholeLine: true,
+		firstLineDecorationsClassName: 'codicon codicon-chevron-right'
 	});
 
 	private static readonly COLLAPSED_HIGHLIGHTED_VISUAL_DECORATION = ModelDecorationOptions.register({
@@ -21,16 +22,19 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 		afterContentClassName: 'inline-folded',
 		className: 'folded-background',
 		isWholeLine: true,
-		linesDecorationsClassName: 'codicon codicon-chevron-right'
+		firstLineDecorationsClassName: 'codicon codicon-chevron-right'
 	});
 
 	private static readonly EXPANDED_AUTO_HIDE_VISUAL_DECORATION = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		linesDecorationsClassName: 'codicon codicon-chevron-down'
+		isWholeLine: true,
+		firstLineDecorationsClassName: 'codicon codicon-chevron-down'
 	});
 
 	private static readonly EXPANDED_VISUAL_DECORATION = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		isWholeLine: true,
+		firstLineDecorationsClassName: 'codicon codicon-chevron-down alwaysShowFoldIcons'
 	});
 
 	private static readonly HIDDEN_RANGE_DECORATION = ModelDecorationOptions.register({

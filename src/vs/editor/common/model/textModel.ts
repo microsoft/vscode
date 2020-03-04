@@ -3053,6 +3053,8 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 	readonly minimap: ModelDecorationMinimapOptions | null;
 	readonly glyphMarginClassName: string | null;
 	readonly linesDecorationsClassName: string | null;
+	readonly firstLineDecorationsClassName: string | null;
+	readonly lastLineDecorationsClassName: string | null;
 	readonly marginClassName: string | null;
 	readonly inlineClassName: string | null;
 	readonly inlineClassNameAffectsLetterSpacing: boolean;
@@ -3072,6 +3074,8 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 		this.minimap = options.minimap ? new ModelDecorationMinimapOptions(options.minimap) : null;
 		this.glyphMarginClassName = options.glyphMarginClassName ? cleanClassName(options.glyphMarginClassName) : null;
 		this.linesDecorationsClassName = options.linesDecorationsClassName ? cleanClassName(options.linesDecorationsClassName) : null;
+		this.firstLineDecorationsClassName = options.firstLineDecorationsClassName ? cleanClassName(options.firstLineDecorationsClassName) : null;
+		this.lastLineDecorationsClassName = options.lastLineDecorationsClassName ? cleanClassName(options.lastLineDecorationsClassName) : null;
 		this.marginClassName = options.marginClassName ? cleanClassName(options.marginClassName) : null;
 		this.inlineClassName = options.inlineClassName ? cleanClassName(options.inlineClassName) : null;
 		this.inlineClassNameAffectsLetterSpacing = options.inlineClassNameAffectsLetterSpacing || false;

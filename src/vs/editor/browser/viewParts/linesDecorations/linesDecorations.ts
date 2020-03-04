@@ -74,9 +74,17 @@ export class LinesDecorationsOverlay extends DedupOverlay {
 		let r: DecorationToRender[] = [], rLen = 0;
 		for (let i = 0, len = decorations.length; i < len; i++) {
 			const d = decorations[i];
-			const linesDecorationsClassName = d.options.linesDecorationsClassName;
-			if (linesDecorationsClassName) {
-				r[rLen++] = new DecorationToRender(d.range.startLineNumber, d.range.endLineNumber, linesDecorationsClassName);
+			const linesDecorations = d.options.linesDecorationsClassName;
+			if (linesDecorations) {
+				r[rLen++] = new DecorationToRender(d.range.startLineNumber, d.range.endLineNumber, linesDecorations);
+			}
+			const firstLineDecorationsClassName = d.options.firstLineDecorationsClassName;
+			if (firstLineDecorationsClassName) {
+				r[rLen++] = new DecorationToRender(d.range.startLineNumber, d.range.startLineNumber, firstLineDecorationsClassName);
+			}
+			const lastLineDecorationsClassName = d.options.lastLineDecorationsClassName;
+			if (lastLineDecorationsClassName) {
+				r[rLen++] = new DecorationToRender(d.range.endLineNumber, d.range.endLineNumber, lastLineDecorationsClassName);
 			}
 		}
 		return r;
