@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode } from 'vs/base/common/keyCodes';
-import * as browser from 'vs/base/browser/browser';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ICodeEditor, IEditorMouseEvent, IMouseTarget } from 'vs/editor/browser/editorBrowser';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -31,7 +30,7 @@ export class ClickLinkMouseEvent {
 		this.target = source.target;
 		this.hasTriggerModifier = hasModifier(source.event, opts.triggerModifier);
 		this.hasSideBySideModifier = hasModifier(source.event, opts.triggerSideBySideModifier);
-		this.isNoneOrSingleMouseDown = (browser.isIE || source.event.detail <= 1); // IE does not support event.detail properly
+		this.isNoneOrSingleMouseDown = (source.event.detail <= 1);
 	}
 }
 

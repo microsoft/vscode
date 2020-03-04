@@ -12,7 +12,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerColor, oneOf, textLinkForeground, editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder, editorInfoForeground, editorInfoBorder } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService, ITheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IThemeService, IColorTheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
@@ -246,13 +246,13 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 		this._severity = MarkerSeverity.Warning;
 		this._backgroundColor = Color.white;
 
-		this._applyTheme(_themeService.getTheme());
-		this._callOnDispose.add(_themeService.onThemeChange(this._applyTheme.bind(this)));
+		this._applyTheme(_themeService.getColorTheme());
+		this._callOnDispose.add(_themeService.onDidColorThemeChange(this._applyTheme.bind(this)));
 
 		this.create();
 	}
 
-	private _applyTheme(theme: ITheme) {
+	private _applyTheme(theme: IColorTheme) {
 		this._backgroundColor = theme.getColor(editorMarkerNavigationBackground);
 		let colorId = editorMarkerNavigationError;
 		if (this._severity === MarkerSeverity.Warning) {
@@ -327,7 +327,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 
 		// update frame color (only applied on 'show')
 		this._severity = marker.severity;
-		this._applyTheme(this._themeService.getTheme());
+		this._applyTheme(this._themeService.getColorTheme());
 
 		// show
 		let range = Range.lift(marker);

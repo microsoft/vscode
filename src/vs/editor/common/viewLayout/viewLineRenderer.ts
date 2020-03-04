@@ -683,7 +683,7 @@ function _applyRenderWhitespace(input: RenderLineInput, lineContent: string, len
 
 		wasInWhitespace = isInWhitespace;
 
-		if (charIndex === tokenEndIndex) {
+		while (charIndex === tokenEndIndex) {
 			tokenIndex++;
 			if (tokenIndex < tokensLength) {
 				tokenType = tokens[tokenIndex].type;

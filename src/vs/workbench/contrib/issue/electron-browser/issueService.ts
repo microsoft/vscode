@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IssueReporterStyles, IIssueService, IssueReporterData, ProcessExplorerData, IssueReporterExtensionData } from 'vs/platform/issue/node/issue';
-import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { textLinkForeground, inputBackground, inputBorder, inputForeground, buttonBackground, buttonHoverBackground, buttonForeground, inputValidationErrorBorder, foreground, inputActiveOptionBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, editorBackground, editorForeground, listHoverBackground, listHoverForeground, listHighlightForeground, textLinkActiveForeground, inputValidationErrorBackground, inputValidationErrorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -14,6 +14,7 @@ import { assign } from 'vs/base/common/objects';
 import { IWorkbenchIssueService } from 'vs/workbench/contrib/issue/electron-browser/issue';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 
 export class WorkbenchIssueService implements IWorkbenchIssueService {
 	_serviceBrand: undefined;
@@ -23,7 +24,7 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 		@IThemeService private readonly themeService: IThemeService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService
 	) { }
 
 	openReporter(dataOverrides: Partial<IssueReporterData> = {}): Promise<void> {
@@ -45,7 +46,7 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 					isTheme: isTheme
 				};
 			});
-			const theme = this.themeService.getTheme();
+			const theme = this.themeService.getColorTheme();
 			const issueReporterData: IssueReporterData = assign(
 				{
 					styles: getIssueReporterStyles(theme),
@@ -59,7 +60,7 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 	}
 
 	openProcessExplorer(): Promise<void> {
-		const theme = this.themeService.getTheme();
+		const theme = this.themeService.getColorTheme();
 		const data: ProcessExplorerData = {
 			pid: this.environmentService.configuration.mainPid,
 			zoomLevel: webFrame.getZoomLevel(),
@@ -75,7 +76,7 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 	}
 }
 
-export function getIssueReporterStyles(theme: ITheme): IssueReporterStyles {
+export function getIssueReporterStyles(theme: IColorTheme): IssueReporterStyles {
 	return {
 		backgroundColor: getColor(theme, SIDE_BAR_BACKGROUND),
 		color: getColor(theme, foreground),
@@ -97,7 +98,7 @@ export function getIssueReporterStyles(theme: ITheme): IssueReporterStyles {
 	};
 }
 
-function getColor(theme: ITheme, key: string): string | undefined {
+function getColor(theme: IColorTheme, key: string): string | undefined {
 	const color = theme.getColor(key);
 	return color ? color.toString() : undefined;
 }

@@ -16,6 +16,7 @@ import { IJSONEditingService } from 'vs/workbench/services/configuration/common/
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 
 interface AccessibilityMetrics {
 	enabled: boolean;
@@ -24,14 +25,14 @@ type AccessibilityMetricsClassification = {
 	enabled: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 };
 
-export class NodeAccessibilityService extends AccessibilityService implements IAccessibilityService {
+export class NativeAccessibilityService extends AccessibilityService implements IAccessibilityService {
 
 	_serviceBrand: undefined;
 
 	private didSendTelemetry = false;
 
 	constructor(
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService
@@ -69,7 +70,7 @@ export class NodeAccessibilityService extends AccessibilityService implements IA
 	}
 }
 
-registerSingleton(IAccessibilityService, NodeAccessibilityService, true);
+registerSingleton(IAccessibilityService, NativeAccessibilityService, true);
 
 // On linux we do not automatically detect that a screen reader is detected, thus we have to implicitly notify the renderer to enable accessibility when user configures it in settings
 class LinuxAccessibilityContribution implements IWorkbenchContribution {

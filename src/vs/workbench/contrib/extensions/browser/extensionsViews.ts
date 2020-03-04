@@ -756,10 +756,10 @@ export class ExtensionsListView extends ViewPane {
 	}
 
 	private pin(): void {
-		const activeControl = this.editorService.activeControl;
-		if (activeControl) {
-			activeControl.group.pinEditor(activeControl.input);
-			activeControl.focus();
+		const activeEditorPane = this.editorService.activeEditorPane;
+		if (activeEditorPane) {
+			activeEditorPane.group.pinEditor(activeEditorPane.input);
+			activeEditorPane.focus();
 		}
 	}
 

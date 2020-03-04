@@ -463,7 +463,7 @@ suite('Disk File Service', function () {
 		return testDeleteFile(false);
 	});
 
-	test('deleteFile (useTrash)', async () => {
+	(isLinux /* trash is unreliable on Linux */ ? test.skip : test)('deleteFile (useTrash)', async () => {
 		return testDeleteFile(true);
 	});
 
@@ -543,7 +543,7 @@ suite('Disk File Service', function () {
 		return testDeleteFolderRecursive(false);
 	});
 
-	test('deleteFolder (recursive, useTrash)', async () => {
+	(isLinux /* trash is unreliable on Linux */ ? test.skip : test)('deleteFolder (recursive, useTrash)', async () => {
 		return testDeleteFolderRecursive(true);
 	});
 

@@ -97,14 +97,14 @@ suite('Files - TextFileEditorTracker', () => {
 
 		const resource = toResource.call(this, '/path/index.txt');
 
-		assert.ok(!accessor.editorService.isOpen(accessor.editorService.createInput({ resource, forceFile: true })));
+		assert.ok(!accessor.editorService.isOpen(accessor.editorService.createEditorInput({ resource, forceFile: true })));
 
 		const model = await accessor.textFileService.files.resolve(resource) as IResolvedTextFileEditorModel;
 
 		model.textEditorModel.setValue('Super Good');
 
 		await awaitEditorOpening(accessor.editorService);
-		assert.ok(accessor.editorService.isOpen(accessor.editorService.createInput({ resource, forceFile: true })));
+		assert.ok(accessor.editorService.isOpen(accessor.editorService.createEditorInput({ resource, forceFile: true })));
 
 		part.dispose();
 		tracker.dispose();
@@ -114,7 +114,7 @@ suite('Files - TextFileEditorTracker', () => {
 	test('dirty untitled text file model opens as editor', async function () {
 		const [part, accessor, tracker, , editorService] = await createTracker();
 
-		const untitledEditor = editorService.createInput({ forceUntitled: true }) as UntitledTextEditorInput;
+		const untitledEditor = editorService.createEditorInput({ forceUntitled: true }) as UntitledTextEditorInput;
 		const model = await untitledEditor.resolve();
 
 		assert.ok(!accessor.editorService.isOpen(untitledEditor));
@@ -140,7 +140,7 @@ suite('Files - TextFileEditorTracker', () => {
 
 		const resource = toResource.call(this, '/path/index.txt');
 
-		await accessor.editorService.openEditor(accessor.editorService.createInput({ resource, forceFile: true }));
+		await accessor.editorService.openEditor(accessor.editorService.createEditorInput({ resource, forceFile: true }));
 
 		accessor.hostService.setFocus(false);
 		accessor.hostService.setFocus(true);

@@ -657,7 +657,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		}
 
 		const revivedResource = URI.revive(resource);
-		const document = this.getDocument(viewType, revivedResource);
+		const document = this.getCustomDocument(viewType, revivedResource);
 		this._documents.delete(document);
 		document.dispose();
 	}
@@ -684,12 +684,11 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		switch (entry.type) {
 			case WebviewEditorType.Custom:
 				{
-					const document = this.getDocument(viewType, revivedResource);
+					const document = this.getCustomDocument(viewType, revivedResource);
 					return entry.provider.resolveCustomEditor(document, revivedPanel);
 				}
 			case WebviewEditorType.Text:
 				{
-					await this._extHostDocuments.ensureDocumentData(revivedResource);
 					const document = this._extHostDocuments.getDocument(revivedResource);
 					return entry.provider.resolveCustomTextEditor(document, revivedPanel);
 				}
@@ -701,32 +700,32 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 	}
 
 	async $undo(resourceComponents: UriComponents, viewType: string): Promise<void> {
-		const document = this.getDocument(viewType, resourceComponents);
+		const document = this.getCustomDocument(viewType, resourceComponents);
 		document._undo();
 	}
 
 	async $redo(resourceComponents: UriComponents, viewType: string): Promise<void> {
-		const document = this.getDocument(viewType, resourceComponents);
+		const document = this.getCustomDocument(viewType, resourceComponents);
 		document._redo();
 	}
 
 	async $revert(resourceComponents: UriComponents, viewType: string): Promise<void> {
-		const document = this.getDocument(viewType, resourceComponents);
+		const document = this.getCustomDocument(viewType, resourceComponents);
 		document._revert();
 	}
 
 	async $onSave(resourceComponents: UriComponents, viewType: string): Promise<void> {
-		const document = this.getDocument(viewType, resourceComponents);
+		const document = this.getCustomDocument(viewType, resourceComponents);
 		document._save();
 	}
 
 	async $onSaveAs(resourceComponents: UriComponents, viewType: string, targetResource: UriComponents): Promise<void> {
-		const document = this.getDocument(viewType, resourceComponents);
+		const document = this.getCustomDocument(viewType, resourceComponents);
 		return document._saveAs(URI.revive(targetResource));
 	}
 
 	async $backup(resourceComponents: UriComponents, viewType: string, cancellation: CancellationToken): Promise<void> {
-		const document = this.getDocument(viewType, resourceComponents);
+		const document = this.getCustomDocument(viewType, resourceComponents);
 		return document._backup(cancellation);
 	}
 
@@ -734,7 +733,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		return this._webviewPanels.get(handle);
 	}
 
-	private getDocument(viewType: string, resource: UriComponents): CustomDocument {
+	private getCustomDocument(viewType: string, resource: UriComponents): CustomDocument {
 		const document = this._documents.get(viewType, URI.revive(resource));
 		if (!document) {
 			throw new Error('No webview editor custom document found');

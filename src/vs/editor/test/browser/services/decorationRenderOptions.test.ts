@@ -10,8 +10,8 @@ import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServiceImpl';
 import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
-import { IResourceInput } from 'vs/platform/editor/common/editor';
-import { TestTheme, TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { TestColorTheme, TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 
 const themeServiceMock = new TestThemeService();
 
@@ -20,7 +20,7 @@ export class TestCodeEditorServiceImpl extends CodeEditorServiceImpl {
 		return null;
 	}
 
-	openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
+	openCodeEditor(input: IResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
 		return Promise.resolve(null);
 	}
 }
@@ -76,7 +76,7 @@ suite('Decoration Render Options', () => {
 		};
 
 		let styleSheet = dom.createStyleSheet();
-		let themeService = new TestThemeService(new TestTheme(colors));
+		let themeService = new TestThemeService(new TestColorTheme(colors));
 		let s = new TestCodeEditorServiceImpl(themeService, styleSheet);
 		s.registerDecorationType('example', options);
 		let sheet = readStyleSheet(styleSheet);
@@ -86,7 +86,7 @@ suite('Decoration Render Options', () => {
 			editorBackground: '#EE0000',
 			editorBorder: '#00FFFF'
 		};
-		themeService.setTheme(new TestTheme(colors));
+		themeService.setTheme(new TestColorTheme(colors));
 		sheet = readStyleSheet(styleSheet);
 		assert.equal(sheet, '.monaco-editor .ced-example-0 { background-color: rgb(238, 0, 0); border-color: rgb(0, 255, 255); box-sizing: border-box; }');
 
@@ -115,7 +115,7 @@ suite('Decoration Render Options', () => {
 		};
 
 		let styleSheet = dom.createStyleSheet();
-		let themeService = new TestThemeService(new TestTheme(colors));
+		let themeService = new TestThemeService(new TestColorTheme(colors));
 		let s = new TestCodeEditorServiceImpl(themeService, styleSheet);
 		s.registerDecorationType('example', options);
 		let sheet = readStyleSheet(styleSheet);

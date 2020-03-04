@@ -26,7 +26,6 @@ export class CustomEditorInputFactory extends WebviewEditorInputFactory {
 		const data = {
 			...this.toJson(input),
 			editorResource: input.resource.toJSON(),
-			modelType: input.modelType
 		};
 
 		try {
@@ -54,9 +53,6 @@ export class CustomEditorInputFactory extends WebviewEditorInputFactory {
 		const customInput = this._instantiationService.createInstance(CustomEditorInput, URI.from((data as any).editorResource), data.viewType, id, webview);
 		if (typeof data.group === 'number') {
 			customInput.updateGroup(data.group);
-		}
-		if ((data as any).modelType) {
-			customInput.modelType = (data as any).modelType;
 		}
 		return customInput;
 	}

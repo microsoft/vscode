@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.createReporter = void 0;
 const es = require("event-stream");
 const _ = require("underscore");
 const fancyLog = require("fancy-log");

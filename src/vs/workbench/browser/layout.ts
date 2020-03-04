@@ -27,7 +27,7 @@ import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility } from 'vs/pl
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { SerializableGrid, ISerializableView, ISerializedGrid, Orientation, ISerializedNode, ISerializedLeafNode, Direction, IViewSize } from 'vs/base/browser/ui/grid/grid';
 import { IDimension } from 'vs/platform/layout/browser/layoutService';
@@ -173,7 +173,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			centered: false,
 			restoreCentered: false,
 			restoreEditors: false,
-			editorsToOpen: [] as Promise<IResourceEditor[]> | IResourceEditor[]
+			editorsToOpen: [] as Promise<IResourceEditorInputType[]> | IResourceEditorInputType[]
 		},
 
 		panel: {
@@ -274,7 +274,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// Theme changes
-		this._register(this.themeService.onThemeChange(theme => this.updateStyles()));
+		this._register(this.themeService.onDidColorThemeChange(theme => this.updateStyles()));
 
 		// Window focus changes
 		this._register(this.hostService.onDidChangeFocus(e => this.onWindowFocusChanged(e)));
@@ -403,7 +403,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return;
 		}
 
-		const theme = this.themeService.getTheme();
+		const theme = this.themeService.getColorTheme();
 
 		const activeBorder = theme.getColor(WINDOW_ACTIVE_BORDER);
 		const inactiveBorder = theme.getColor(WINDOW_INACTIVE_BORDER);
@@ -514,7 +514,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	}
 
-	private resolveEditorsToOpen(fileService: IFileService): Promise<IResourceEditor[]> | IResourceEditor[] {
+	private resolveEditorsToOpen(fileService: IFileService): Promise<IResourceEditorInputType[]> | IResourceEditorInputType[] {
 		const configuration = this.environmentService.configuration;
 		const hasInitialFilesToOpen = this.hasInitialFilesToOpen();
 
@@ -707,22 +707,22 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				editor.updateOptions({ lineNumbers });
 			};
 
-			const editorWidgetSet = this.state.zenMode.editorWidgetSet;
+			const editorControlSet = this.state.zenMode.editorWidgetSet;
 			if (!lineNumbers) {
 				// Reset line numbers on all editors visible and non-visible
-				for (const editor of editorWidgetSet) {
+				for (const editor of editorControlSet) {
 					setEditorLineNumbers(editor);
 				}
-				editorWidgetSet.clear();
+				editorControlSet.clear();
 			} else {
-				this.editorService.visibleTextEditorWidgets.forEach(editor => {
-					if (!editorWidgetSet.has(editor)) {
-						editorWidgetSet.add(editor);
-						this.state.zenMode.transitionDisposables.add(editor.onDidDispose(() => {
-							editorWidgetSet.delete(editor);
+				this.editorService.visibleTextEditorControls.forEach(editorControl => {
+					if (!editorControlSet.has(editorControl)) {
+						editorControlSet.add(editorControl);
+						this.state.zenMode.transitionDisposables.add(editorControl.onDidDispose(() => {
+							editorControlSet.delete(editorControl);
 						}));
 					}
-					setEditorLineNumbers(editor);
+					setEditorLineNumbers(editorControl);
 				});
 			}
 		};

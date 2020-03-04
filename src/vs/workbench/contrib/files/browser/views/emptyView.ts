@@ -55,21 +55,21 @@ export class EmptyView extends ViewPane {
 
 		this._register(new DragAndDropObserver(container, {
 			onDrop: e => {
-				const color = this.themeService.getTheme().getColor(SIDE_BAR_BACKGROUND);
+				const color = this.themeService.getColorTheme().getColor(SIDE_BAR_BACKGROUND);
 				container.style.backgroundColor = color ? color.toString() : '';
 				const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: true });
 				dropHandler.handleDrop(e, () => undefined, () => undefined);
 			},
 			onDragEnter: () => {
-				const color = this.themeService.getTheme().getColor(listDropBackground);
+				const color = this.themeService.getColorTheme().getColor(listDropBackground);
 				container.style.backgroundColor = color ? color.toString() : '';
 			},
 			onDragEnd: () => {
-				const color = this.themeService.getTheme().getColor(SIDE_BAR_BACKGROUND);
+				const color = this.themeService.getColorTheme().getColor(SIDE_BAR_BACKGROUND);
 				container.style.backgroundColor = color ? color.toString() : '';
 			},
 			onDragLeave: () => {
-				const color = this.themeService.getTheme().getColor(SIDE_BAR_BACKGROUND);
+				const color = this.themeService.getColorTheme().getColor(SIDE_BAR_BACKGROUND);
 				container.style.backgroundColor = color ? color.toString() : '';
 			},
 			onDragOver: e => {

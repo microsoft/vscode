@@ -11,7 +11,7 @@ import { LRUCache } from 'vs/base/common/map';
  *
  * @see {@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/normalize}
  */
-export const canNormalize = typeof ((<any>'').normalize) === 'function';
+export const canNormalize = typeof (String.prototype as any /* standalone editor compilation */).normalize === 'function';
 
 const nfcCache = new LRUCache<string, string>(10000); // bounded to 10000 elements
 export function normalizeNFC(str: string): string {

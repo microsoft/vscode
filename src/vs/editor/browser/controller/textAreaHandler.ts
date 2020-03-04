@@ -53,7 +53,7 @@ class VisibleTextAreaData {
 	}
 }
 
-const canUseZeroSizeTextarea = (browser.isEdgeOrIE || browser.isFirefox);
+const canUseZeroSizeTextarea = (browser.isEdge || browser.isFirefox);
 
 export class TextAreaHandler extends ViewPart {
 
@@ -259,6 +259,7 @@ export class TextAreaHandler extends ViewPart {
 			this._context.privateViewEventBus.emit(new viewEvents.ViewRevealRangeRequestEvent(
 				'keyboard',
 				new Range(lineNumber, column, lineNumber, column),
+				null,
 				viewEvents.VerticalRevealType.Simple,
 				true,
 				ScrollType.Immediate
@@ -283,7 +284,7 @@ export class TextAreaHandler extends ViewPart {
 		}));
 
 		this._register(this._textAreaInput.onCompositionUpdate((e: ICompositionData) => {
-			if (browser.isEdgeOrIE) {
+			if (browser.isEdge) {
 				// Due to isEdgeOrIE (where the textarea was not cleared initially)
 				// we cannot assume the text consists only of the composited text
 				this._visibleTextArea = this._visibleTextArea!.setWidth(0);
