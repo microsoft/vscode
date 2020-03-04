@@ -55,7 +55,7 @@ import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneCont
 
 class OpenDebugViewletAction extends ShowViewletAction {
 	public static readonly ID = VIEWLET_ID;
-	public static readonly LABEL = nls.localize('toggleDebugViewlet', "Show Debug");
+	public static readonly LABEL = nls.localize('toggleDebugViewlet', "Show Run and Debug");
 
 	constructor(
 		id: string,
