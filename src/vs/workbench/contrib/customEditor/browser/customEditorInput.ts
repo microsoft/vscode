@@ -119,26 +119,21 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	}
 
 	public async save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
-		if (!this._modelRef) {
-			return undefined;
-		}
-
-		const result = await this._modelRef.object.save(options);
+		const modelRef = assertIsDefined(this._modelRef);
+		const result = await modelRef.object.save(options);
 		return result ? this : undefined;
 	}
 
 	public async saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
-		if (!this._modelRef) {
-			return undefined;
-		}
+		const modelRef = assertIsDefined(this._modelRef);
 
-		let dialogPath = this._editorResource;
+		const dialogPath = this._editorResource;
 		const target = await this.fileDialogService.pickFileToSave(dialogPath, options?.availableFileSystems);
 		if (!target) {
 			return undefined; // save cancelled
 		}
 
-		if (!await this._modelRef.object.saveAs(this._editorResource, target, options)) {
+		if (!await modelRef.object.saveAs(this._editorResource, target, options)) {
 			return undefined;
 		}
 
@@ -146,23 +141,19 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	}
 
 	public async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
-		return this._modelRef?.object.revert(options);
+		return assertIsDefined(this._modelRef).object.revert(options);
 	}
 
 	public async resolve(): Promise<null> {
 		await super.resolve();
 
 		if (!this._modelRef) {
-			const modelRef = await this.customEditorService.models.tryRetain(this.resource, this.viewType);
-			if (modelRef) {
-				this._modelRef = modelRef;
-				this._register(this._modelRef);
-				this._register(this._modelRef.object.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
-			}
-		}
+			this._modelRef = this._register(assertIsDefined(await this.customEditorService.models.tryRetain(this.resource, this.viewType)));
+			this._register(this._modelRef.object.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
 
-		if (this.isDirty()) {
-			this._onDidChangeDirty.fire();
+			if (this.isDirty()) {
+				this._onDidChangeDirty.fire();
+			}
 		}
 
 		return null;
@@ -184,10 +175,10 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	}
 
 	public undo(): void {
-		this._modelRef?.object.undo();
+		assertIsDefined(this._modelRef).object.undo();
 	}
 
 	public redo(): void {
-		this._modelRef?.object.redo();
+		assertIsDefined(this._modelRef).object.redo();
 	}
 }
