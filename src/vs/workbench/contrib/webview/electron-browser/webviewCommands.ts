@@ -12,7 +12,7 @@ import { Action2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { WebviewEditorOverlay, webviewHasOwnEditFunctionsContextKey } from 'vs/workbench/contrib/webview/browser/webview';
+import { WebviewOverlay, webviewHasOwnEditFunctionsContextKey } from 'vs/workbench/contrib/webview/browser/webview';
 import { getActiveWebviewEditor } from 'vs/workbench/contrib/webview/browser/webviewCommands';
 import { ElectronWebviewBasedWebview } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
 
@@ -153,8 +153,8 @@ function getActiveWebviewBasedWebview(accessor: ServicesAccessor): ElectronWebvi
 
 	if (webview instanceof ElectronWebviewBasedWebview) {
 		return webview;
-	} else if ((webview as WebviewEditorOverlay).getInnerWebview) {
-		const innerWebview = (webview as WebviewEditorOverlay).getInnerWebview();
+	} else if ((webview as WebviewOverlay).getInnerWebview) {
+		const innerWebview = (webview as WebviewOverlay).getInnerWebview();
 		if (innerWebview instanceof ElectronWebviewBasedWebview) {
 			return innerWebview;
 		}

@@ -12,7 +12,7 @@ import { EditorActivation, IEditorModel } from 'vs/platform/editor/common/editor
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
-import { IWebviewService, WebviewContentOptions, WebviewEditorOverlay, WebviewExtensionDescription, WebviewIcons, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewService, WebviewContentOptions, WebviewOverlay, WebviewExtensionDescription, WebviewIcons, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import { WebviewInput } from './webviewEditorInput';
@@ -105,7 +105,7 @@ export class LazilyResolvedWebviewEditorInput extends WebviewInput {
 		id: string,
 		viewType: string,
 		name: string,
-		webview: Lazy<WebviewEditorOverlay>,
+		webview: Lazy<WebviewOverlay>,
 		@IWebviewService webviewService: IWebviewService,
 		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
 	) {
@@ -269,7 +269,7 @@ export class WebviewEditorService implements IWebviewWorkbenchService {
 		extension: WebviewExtensionDescription | undefined,
 		options: WebviewInputOptions
 	) {
-		const webview = this._webviewService.createWebviewEditorOverlay(id, {
+		const webview = this._webviewService.createWebviewOverlay(id, {
 			enableFindWidget: options.enableFindWidget,
 			retainContextWhenHidden: options.retainContextWhenHidden
 		}, options);

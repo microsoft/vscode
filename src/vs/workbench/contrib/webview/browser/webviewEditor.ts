@@ -15,7 +15,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
-import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
+import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -114,7 +114,7 @@ export class WebviewEditor extends BaseEditor {
 		this.webview?.focus();
 	}
 
-	public get webview(): WebviewEditorOverlay | undefined {
+	public get webview(): WebviewOverlay | undefined {
 		return this.input instanceof WebviewInput ? this.input.webview : undefined;
 	}
 
@@ -205,13 +205,13 @@ export class WebviewEditor extends BaseEditor {
 		this._webviewVisibleDisposables.add(this.trackFocus(input.webview));
 	}
 
-	private synchronizeWebviewContainerDimensions(webview: WebviewEditorOverlay, dimension?: DOM.Dimension) {
+	private synchronizeWebviewContainerDimensions(webview: WebviewOverlay, dimension?: DOM.Dimension) {
 		if (this._editorFrame) {
 			webview.layoutWebviewOverElement(this._editorFrame, dimension);
 		}
 	}
 
-	private trackFocus(webview: WebviewEditorOverlay): IDisposable {
+	private trackFocus(webview: WebviewOverlay): IDisposable {
 		const store = new DisposableStore();
 
 		// Track focus in webview content

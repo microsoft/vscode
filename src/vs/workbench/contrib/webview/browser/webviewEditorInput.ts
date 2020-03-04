@@ -8,7 +8,7 @@ import { Lazy } from 'vs/base/common/lazy';
 import { URI } from 'vs/base/common/uri';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { EditorInput, EditorModel, GroupIdentifier, IEditorInput, Verbosity } from 'vs/workbench/common/editor';
-import { IWebviewService, WebviewEditorOverlay, WebviewIcons } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewService, WebviewOverlay, WebviewIcons } from 'vs/workbench/contrib/webview/browser/webview';
 
 const WebviewPanelResourceScheme = 'webview-panel';
 
@@ -20,7 +20,7 @@ export class WebviewInput extends EditorInput {
 	private _iconPath?: WebviewIcons;
 	private _group?: GroupIdentifier;
 
-	private readonly _webview: Lazy<WebviewEditorOverlay>;
+	private readonly _webview: Lazy<WebviewOverlay>;
 	private _didSomeoneTakeMyWebview = false;
 
 	private readonly _onDisposeWebview = this._register(new Emitter<void>());
@@ -37,7 +37,7 @@ export class WebviewInput extends EditorInput {
 		public readonly id: string,
 		public readonly viewType: string,
 		name: string,
-		webview: Lazy<WebviewEditorOverlay>,
+		webview: Lazy<WebviewOverlay>,
 		@IWebviewService private readonly _webviewService: IWebviewService,
 	) {
 		super();
@@ -76,7 +76,7 @@ export class WebviewInput extends EditorInput {
 		this._onDidChangeLabel.fire();
 	}
 
-	public get webview(): WebviewEditorOverlay {
+	public get webview(): WebviewOverlay {
 		return this._webview.getValue();
 	}
 
@@ -113,7 +113,7 @@ export class WebviewInput extends EditorInput {
 		return false;
 	}
 
-	protected takeOwnershipOfWebview(): WebviewEditorOverlay | undefined {
+	protected takeOwnershipOfWebview(): WebviewOverlay | undefined {
 		if (this._didSomeoneTakeMyWebview) {
 			return undefined;
 		}

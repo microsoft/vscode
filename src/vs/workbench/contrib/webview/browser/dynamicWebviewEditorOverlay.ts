@@ -8,14 +8,14 @@ import { memoize } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IWebviewService, Webview, WebviewContentOptions, WebviewEditorOverlay, WebviewElement, WebviewOptions, WebviewExtensionDescription } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewService, Webview, WebviewContentOptions, WebviewOverlay, WebviewElement, WebviewOptions, WebviewExtensionDescription } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { Dimension } from 'vs/base/browser/dom';
 
 /**
  * Webview editor overlay that creates and destroys the underlying webview as needed.
  */
-export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEditorOverlay {
+export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOverlay {
 	private readonly _onDidWheel = this._register(new Emitter<IMouseWheelEvent>());
 	public readonly onDidWheel = this._onDidWheel.event;
 
@@ -93,7 +93,7 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEd
 
 	private show() {
 		if (!this._webview.value) {
-			const webview = this._webviewService.createWebview(this.id, this._options, this._contentOptions);
+			const webview = this._webviewService.createWebviewElement(this.id, this._options, this._contentOptions);
 			this._webview.value = webview;
 			webview.state = this._state;
 			webview.html = this._html;

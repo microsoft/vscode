@@ -36,17 +36,17 @@ export interface WebviewIcons {
 export interface IWebviewService {
 	_serviceBrand: undefined;
 
-	createWebview(
+	createWebviewElement(
 		id: string,
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
 	): WebviewElement;
 
-	createWebviewEditorOverlay(
+	createWebviewOverlay(
 		id: string,
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
-	): WebviewEditorOverlay;
+	): WebviewOverlay;
 
 	setIcons(id: string, value: WebviewIcons | undefined): void;
 }
@@ -105,7 +105,7 @@ export interface WebviewElement extends Webview {
 	mountTo(parent: HTMLElement): void;
 }
 
-export interface WebviewEditorOverlay extends Webview {
+export interface WebviewOverlay extends Webview {
 	readonly container: HTMLElement;
 	options: WebviewOptions;
 
