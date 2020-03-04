@@ -45,8 +45,8 @@ export class WebviewEditor extends BaseEditor {
 		super(WebviewEditor.ID, telemetryService, themeService, storageService);
 	}
 
-	public get isWebviewEditor() {
-		return true;
+	private get webview(): WebviewOverlay | undefined {
+		return this.input instanceof WebviewInput ? this.input.webview : undefined;
 	}
 
 	protected createEditor(parent: HTMLElement): void {
@@ -84,10 +84,6 @@ export class WebviewEditor extends BaseEditor {
 		this.webview?.focus();
 	}
 
-	public get webview(): WebviewOverlay | undefined {
-		return this.input instanceof WebviewInput ? this.input.webview : undefined;
-	}
-
 	protected setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
 		if (this.input instanceof WebviewInput && this.webview) {
 			if (visible) {
@@ -120,6 +116,7 @@ export class WebviewEditor extends BaseEditor {
 
 		await super.setInput(input, options, token);
 		await input.resolve();
+
 		if (token.isCancellationRequested) {
 			return;
 		}

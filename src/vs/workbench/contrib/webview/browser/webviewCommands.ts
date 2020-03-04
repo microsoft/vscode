@@ -12,7 +12,7 @@ import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkey
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, Webview } from 'vs/workbench/contrib/webview/browser/webview';
-import { WebviewEditor } from 'vs/workbench/contrib/webview/browser/webviewEditor';
+import { WebviewInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class ShowWebViewEditorFindWidgetAction extends Action2 {
@@ -134,9 +134,9 @@ export class ReloadWebviewAction extends Action {
 	}
 
 	public async run(): Promise<void> {
-		for (const editorPane of this._editorService.visibleEditorPanes) {
-			if ((editorPane as WebviewEditor).isWebviewEditor) {
-				(editorPane as WebviewEditor).webview?.reload();
+		for (const editor of this._editorService.visibleEditors) {
+			if (editor instanceof WebviewInput) {
+				editor.webview.reload();
 			}
 		}
 	}
@@ -144,6 +144,6 @@ export class ReloadWebviewAction extends Action {
 
 export function getActiveWebviewEditor(accessor: ServicesAccessor): Webview | undefined {
 	const editorService = accessor.get(IEditorService);
-	const activeEditorPane = editorService.activeEditorPane as WebviewEditor | undefined;
-	return activeEditorPane?.isWebviewEditor ? activeEditorPane.webview : undefined;
+	const activeEditor = editorService.activeEditor;
+	return activeEditor instanceof WebviewInput ? activeEditor.webview : undefined;
 }
