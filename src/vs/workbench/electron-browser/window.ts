@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import * as errors from 'vs/base/common/errors';
-import { equals, deepClone, assign } from 'vs/base/common/objects';
+import { equals, deepClone } from 'vs/base/common/objects';
 import * as DOM from 'vs/base/browser/dom';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction } from 'vs/base/common/actions';
@@ -422,8 +422,8 @@ export class ElectronWindow extends Disposable {
 		this.updateTouchbarMenu();
 
 		// Crash reporter (if enabled)
-		if (!this.environmentService.disableCrashReporter && product.crashReporter && product.hockeyApp && this.configurationService.getValue('telemetry.enableCrashReporter')) {
-			this.setupCrashReporter(product.crashReporter.companyName, product.crashReporter.productName, product.hockeyApp);
+		if (!this.environmentService.disableCrashReporter && product.crashReporter && product.appCenter && this.configurationService.getValue('telemetry.enableCrashReporter')) {
+			this.setupCrashReporter(product.crashReporter.companyName, product.crashReporter.productName, product.appCenter);
 		}
 	}
 
@@ -536,25 +536,25 @@ export class ElectronWindow extends Disposable {
 		}
 	}
 
-	private async setupCrashReporter(companyName: string, productName: string, hockeyAppConfig: typeof product.hockeyApp): Promise<void> {
-		if (!hockeyAppConfig) {
+	private async setupCrashReporter(companyName: string, productName: string, appCenterConfig: typeof product.appCenter): Promise<void> {
+		if (!appCenterConfig) {
 			return;
 		}
+
+		const appCenterURL = isWindows ? appCenterConfig[process.arch === 'ia32' ? 'win32-ia32' : 'win32-x64']
+			: isLinux ? appCenterConfig[`linux-x64`] : appCenterConfig.darwin;
+		const info = await this.telemetryService.getTelemetryInfo();
 
 		// base options with product info
 		const options: CrashReporterStartOptions = {
 			companyName,
 			productName,
-			submitURL: isWindows ? hockeyAppConfig[process.arch === 'ia32' ? 'win32-ia32' : 'win32-x64'] : isLinux ? hockeyAppConfig[`linux-x64`] : hockeyAppConfig.darwin,
+			submitURL: appCenterURL.concat('&uid=', info.machineId, '&iid=', info.instanceId),
 			extra: {
 				vscode_version: product.version,
 				vscode_commit: product.commit || ''
 			}
 		};
-
-		// mixin telemetry info
-		const info = await this.telemetryService.getTelemetryInfo();
-		assign(options.extra, { vscode_sessionId: info.sessionId });
 
 		// start crash reporter right here
 		crashReporter.start(deepClone(options));
