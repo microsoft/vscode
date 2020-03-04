@@ -31,7 +31,7 @@ import { IContextMenuService, IContextViewService } from 'vs/platform/contextvie
 import { IConfirmation, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TreeResourceNavigator, WorkbenchObjectTree, getSelectionKeyboardEvent } from 'vs/platform/list/browser/listService';
+import { ResourceNavigator, WorkbenchObjectTree, getSelectionKeyboardEvent } from 'vs/platform/list/browser/listService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IProgressService, IProgressStep, IProgress } from 'vs/platform/progress/common/progress';
 import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ITextQuery, VIEW_ID, SearchSortOrder, SearchCompletionExitCode } from 'vs/workbench/services/search/common/search';
@@ -41,7 +41,7 @@ import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticip
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { OpenFileFolderAction, OpenFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { ResourceLabels } from 'vs/workbench/browser/labels';
-import { IEditor } from 'vs/workbench/common/editor';
+import { IEditorPane } from 'vs/workbench/common/editor';
 import { ExcludePatternInputWidget, PatternInputWidget } from 'vs/workbench/contrib/search/browser/patternInputWidget';
 import { CancelSearchAction, ClearSearchResultsAction, CollapseDeepestExpandedLevelAction, RefreshAction, IFindInFilesArgs, appendKeyBindingLabel, ExpandAllAction, ToggleCollapseAndExpandAction } from 'vs/workbench/contrib/search/browser/searchActions';
 import { FileMatchRenderer, FolderMatchRenderer, MatchRenderer, SearchAccessibilityProvider, SearchDelegate, SearchDND } from 'vs/workbench/contrib/search/browser/searchResultsView';
@@ -732,7 +732,7 @@ export class SearchView extends ViewPane {
 			this.toggleCollapseStateDelayer.trigger(() => this.toggleCollapseAction.onTreeCollapseStateChange())
 		));
 
-		const resourceNavigator = this._register(new TreeResourceNavigator(this.tree, { openOnFocus: true, openOnSelection: false }));
+		const resourceNavigator = this._register(ResourceNavigator.createTreeResourceNavigator(this.tree, { openOnFocus: true, openOnSelection: false }));
 		this._register(Event.debounce(resourceNavigator.onDidOpenResource, (last, event) => event, 75, true)(options => {
 			if (options.element instanceof Match) {
 				const selectedMatch: Match = options.element;
@@ -1054,26 +1054,26 @@ export class SearchView extends ViewPane {
 			return null;
 		}
 
-		let activeTextEditorWidget = this.editorService.activeTextEditorWidget;
-		if (isDiffEditor(activeTextEditorWidget)) {
-			if (activeTextEditorWidget.getOriginalEditor().hasTextFocus()) {
-				activeTextEditorWidget = activeTextEditorWidget.getOriginalEditor();
+		let activeTextEditorControl = this.editorService.activeTextEditorControl;
+		if (isDiffEditor(activeTextEditorControl)) {
+			if (activeTextEditorControl.getOriginalEditor().hasTextFocus()) {
+				activeTextEditorControl = activeTextEditorControl.getOriginalEditor();
 			} else {
-				activeTextEditorWidget = activeTextEditorWidget.getModifiedEditor();
+				activeTextEditorControl = activeTextEditorControl.getModifiedEditor();
 			}
 		}
 
-		if (!isCodeEditor(activeTextEditorWidget) || !activeTextEditorWidget.hasModel()) {
+		if (!isCodeEditor(activeTextEditorControl) || !activeTextEditorControl.hasModel()) {
 			return null;
 		}
 
-		const range = activeTextEditorWidget.getSelection();
+		const range = activeTextEditorControl.getSelection();
 		if (!range) {
 			return null;
 		}
 
 		if (range.isEmpty() && !this.searchWidget.searchInput.getValue() && allowUnselectedWord) {
-			const wordAtPosition = activeTextEditorWidget.getModel().getWordAtPosition(range.getStartPosition());
+			const wordAtPosition = activeTextEditorControl.getModel().getWordAtPosition(range.getStartPosition());
 			if (wordAtPosition) {
 				return wordAtPosition.word;
 			}
@@ -1082,7 +1082,7 @@ export class SearchView extends ViewPane {
 		if (!range.isEmpty()) {
 			let searchText = '';
 			for (let i = range.startLineNumber; i <= range.endLineNumber; i++) {
-				let lineText = activeTextEditorWidget.getModel().getLineContent(i);
+				let lineText = activeTextEditorControl.getModel().getLineContent(i);
 				if (i === range.endLineNumber) {
 					lineText = lineText.substring(0, range.endColumn - 1);
 				}
@@ -1540,7 +1540,7 @@ export class SearchView extends ViewPane {
 		this.openSettings('.exclude');
 	};
 
-	private openSettings(query: string): Promise<IEditor | undefined> {
+	private openSettings(query: string): Promise<IEditorPane | undefined> {
 		const options: ISettingsEditorOptions = { query };
 		return this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ?
 			this.preferencesService.openWorkspaceSettings(undefined, options) :

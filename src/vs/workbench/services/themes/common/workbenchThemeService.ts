@@ -18,11 +18,19 @@ export const VS_HC_THEME = 'hc-black';
 
 export const HC_THEME_ID = 'Default High Contrast';
 
-export const COLOR_THEME_SETTING = 'workbench.colorTheme';
-export const ICON_THEME_SETTING = 'workbench.iconTheme';
-export const CUSTOM_WORKBENCH_COLORS_SETTING = 'workbench.colorCustomizations';
-export const CUSTOM_EDITOR_COLORS_SETTING = 'editor.tokenColorCustomizations';
-export const CUSTOM_EDITOR_TOKENSTYLES_SETTING = 'editor.tokenColorCustomizationsExperimental';
+export enum ThemeSettings {
+	COLOR_THEME = 'workbench.colorTheme',
+	ICON_THEME = 'workbench.iconTheme',
+	COLOR_CUSTOMIZATIONS = 'workbench.colorCustomizations',
+	TOKEN_COLOR_CUSTOMIZATIONS = 'editor.tokenColorCustomizations',
+	TOKEN_COLOR_CUSTOMIZATIONS_EXPERIMENTAL = 'editor.tokenColorCustomizationsExperimental',
+
+	PREFERRED_DARK_THEME = 'workbench.preferredDarkColorTheme',
+	PREFERRED_LIGHT_THEME = 'workbench.preferredLightColorTheme',
+	PREFERRED_HC_THEME = 'workbench.preferredHighContrastColorTheme',
+	DETECT_COLOR_SCHEME = 'window.autoDetectColorScheme',
+	DETECT_HC = 'window.autoDetectHighContrast'
+}
 
 export interface IWorkbenchColorTheme extends IColorTheme {
 	readonly id: string;

@@ -18,7 +18,7 @@ import { QuickOpenWidget, HideReason } from 'vs/base/parts/quickopen/browser/qui
 import { ContributableActionProvider } from 'vs/workbench/browser/actions';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IResourceInput } from 'vs/platform/editor/common/editor';
+import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -676,7 +676,7 @@ class EditorHistoryHandler {
 				if (input instanceof EditorInput) {
 					resource = resourceForEditorHistory(input, this.fileService);
 				} else {
-					resource = (input as IResourceInput).resource;
+					resource = (input as IResourceEditorInput).resource;
 				}
 
 				return !!resource;
@@ -722,14 +722,14 @@ export class EditorHistoryEntryGroup extends QuickOpenEntryGroup {
 }
 
 export class EditorHistoryEntry extends EditorQuickOpenEntry {
-	private input: IEditorInput | IResourceInput;
+	private input: IEditorInput | IResourceEditorInput;
 	private resource: URI | undefined;
 	private label: string;
 	private description?: string;
 	private icon: string;
 
 	constructor(
-		input: IEditorInput | IResourceInput,
+		input: IEditorInput | IResourceEditorInput,
 		@IEditorService editorService: IEditorService,
 		@IModeService private readonly modeService: IModeService,
 		@IModelService private readonly modelService: IModelService,
@@ -749,15 +749,15 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 			this.description = input.getDescription();
 			this.icon = this.getDirtyIndicatorForEditor(input);
 		} else {
-			const resourceInput = input as IResourceInput;
-			this.resource = resourceInput.resource;
-			this.label = resources.basenameOrAuthority(resourceInput.resource);
+			const resourceEditorInput = input as IResourceEditorInput;
+			this.resource = resourceEditorInput.resource;
+			this.label = resources.basenameOrAuthority(resourceEditorInput.resource);
 			this.description = labelService.getUriLabel(resources.dirname(this.resource), { relative: true });
-			this.icon = this.getDirtyIndicatorForEditor(resourceInput);
+			this.icon = this.getDirtyIndicatorForEditor(resourceEditorInput);
 		}
 	}
 
-	private getDirtyIndicatorForEditor(input: EditorInput | IResourceInput): string {
+	private getDirtyIndicatorForEditor(input: EditorInput | IResourceEditorInput): string {
 		let signalDirty = false;
 		if (input instanceof EditorInput) {
 			signalDirty = input.isDirty() && !input.isSaving();
@@ -794,7 +794,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		return this.resource;
 	}
 
-	getInput(): IEditorInput | IResourceInput {
+	getInput(): IEditorInput | IResourceEditorInput {
 		return this.input;
 	}
 
@@ -806,7 +806,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 			if (this.input instanceof EditorInput) {
 				this.editorService.openEditor(this.input, { pinned }, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 			} else {
-				this.editorService.openEditor({ resource: (this.input as IResourceInput).resource, options: { pinned } }, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+				this.editorService.openEditor({ resource: (this.input as IResourceEditorInput).resource, options: { pinned } }, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 			}
 
 			return true;
@@ -847,7 +847,7 @@ export class RemoveFromEditorHistoryAction extends Action {
 
 	async run(): Promise<any> {
 		interface IHistoryPickEntry extends IQuickPickItem {
-			input: IEditorInput | IResourceInput;
+			input: IEditorInput | IResourceEditorInput;
 		}
 
 		const history = this.historyService.getHistory();

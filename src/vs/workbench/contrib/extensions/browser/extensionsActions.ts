@@ -52,7 +52,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { coalesce } from 'vs/base/common/arrays';
-import { IWorkbenchThemeService, COLOR_THEME_SETTING, ICON_THEME_SETTING, IWorkbenchFileIconTheme, IWorkbenchColorTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IWorkbenchThemeService, ThemeSettings, IWorkbenchFileIconTheme, IWorkbenchColorTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { prefersExecuteOnUI, prefersExecuteOnWorkspace } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -1336,7 +1336,7 @@ export class SetColorThemeAction extends ExtensionAction {
 			return;
 		}
 		let extensionThemes = SetColorThemeAction.getColorThemes(this.colorThemes, this.extension!);
-		const currentTheme = this.colorThemes.filter(t => t.settingsId === this.configurationService.getValue(COLOR_THEME_SETTING))[0] || this.workbenchThemeService.getColorTheme();
+		const currentTheme = this.colorThemes.filter(t => t.settingsId === this.configurationService.getValue(ThemeSettings.COLOR_THEME))[0] || this.workbenchThemeService.getColorTheme();
 		showCurrentTheme = showCurrentTheme || extensionThemes.some(t => t.id === currentTheme.id);
 		if (showCurrentTheme) {
 			extensionThemes = extensionThemes.filter(t => t.id !== currentTheme.id);
@@ -1356,7 +1356,7 @@ export class SetColorThemeAction extends ExtensionAction {
 				onDidFocus: item => delayer.trigger(() => this.workbenchThemeService.setColorTheme(item.id, undefined)),
 				ignoreFocusLost
 			});
-		let confValue = this.configurationService.inspect(COLOR_THEME_SETTING);
+		let confValue = this.configurationService.inspect(ThemeSettings.COLOR_THEME);
 		const target = typeof confValue.workspaceValue !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
 		return this.workbenchThemeService.setColorTheme(pickedTheme ? pickedTheme.id : currentTheme.id, target);
 	}
@@ -1402,7 +1402,7 @@ export class SetFileIconThemeAction extends ExtensionAction {
 			return;
 		}
 		let extensionThemes = SetFileIconThemeAction.getFileIconThemes(this.fileIconThemes, this.extension!);
-		const currentTheme = this.fileIconThemes.filter(t => t.settingsId === this.configurationService.getValue(ICON_THEME_SETTING))[0] || this.workbenchThemeService.getFileIconTheme();
+		const currentTheme = this.fileIconThemes.filter(t => t.settingsId === this.configurationService.getValue(ThemeSettings.ICON_THEME))[0] || this.workbenchThemeService.getFileIconTheme();
 		showCurrentTheme = showCurrentTheme || extensionThemes.some(t => t.id === currentTheme.id);
 		if (showCurrentTheme) {
 			extensionThemes = extensionThemes.filter(t => t.id !== currentTheme.id);
@@ -1422,7 +1422,7 @@ export class SetFileIconThemeAction extends ExtensionAction {
 				onDidFocus: item => delayer.trigger(() => this.workbenchThemeService.setFileIconTheme(item.id, undefined)),
 				ignoreFocusLost
 			});
-		let confValue = this.configurationService.inspect(ICON_THEME_SETTING);
+		let confValue = this.configurationService.inspect(ThemeSettings.ICON_THEME);
 		const target = typeof confValue.workspaceValue !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
 		return this.workbenchThemeService.setFileIconTheme(pickedTheme ? pickedTheme.id : currentTheme.id, target);
 	}

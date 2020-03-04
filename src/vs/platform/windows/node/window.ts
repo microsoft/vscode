@@ -16,7 +16,7 @@ export interface INativeWindowConfiguration extends IWindowConfiguration {
 	mainPid: number;
 
 	windowId: number;
-	machineId: string; // NOTE: This is undefined in the web, the telemetry service directly resolves this.
+	machineId: string;
 
 	appRoot: string;
 	execPath: string;

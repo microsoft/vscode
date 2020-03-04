@@ -290,10 +290,10 @@ export class BreadcrumbsControl {
 	}
 
 	private _getActiveCodeEditor(): ICodeEditor | undefined {
-		if (!this._editorGroup.activeControl) {
+		if (!this._editorGroup.activeEditorPane) {
 			return undefined;
 		}
-		let control = this._editorGroup.activeControl.getControl();
+		let control = this._editorGroup.activeEditorPane.getControl();
 		let editor: ICodeEditor | undefined;
 		if (isCodeEditor(control)) {
 			editor = control as ICodeEditor;
@@ -713,8 +713,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		}
 		widget.setFocused(undefined);
 		widget.setSelection(undefined);
-		if (groups.activeGroup.activeControl) {
-			groups.activeGroup.activeControl.focus();
+		if (groups.activeGroup.activeEditorPane) {
+			groups.activeGroup.activeEditorPane.focus();
 		}
 	}
 });

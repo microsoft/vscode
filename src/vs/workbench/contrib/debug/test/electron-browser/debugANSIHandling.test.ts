@@ -30,7 +30,7 @@ suite('Debug - ANSI Handling', () => {
 	 */
 	setup(() => {
 		model = new DebugModel([], [], [], [], [], <any>{ isDirty: (e: any) => false });
-		session = new DebugSession({ resolved: { name: 'test', type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, undefined, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, NullOpenerService, undefined!, undefined!);
+		session = new DebugSession(generateUuid(), { resolved: { name: 'test', type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, undefined, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, NullOpenerService, undefined!, undefined!);
 
 		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService();
 		linkDetector = instantiationService.createInstance(LinkDetector);

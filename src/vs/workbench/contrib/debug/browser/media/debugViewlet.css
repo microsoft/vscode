@@ -153,6 +153,7 @@
 
 .debug-pane .debug-call-stack .monaco-list-row .monaco-action-bar {
 	display: none;
+	flex-shrink: 0;
 }
 
 .debug-pane .debug-call-stack .monaco-list-row:hover .monaco-action-bar {

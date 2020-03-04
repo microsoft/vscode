@@ -9,7 +9,7 @@ import { createHash } from 'crypto';
 import { webFrame } from 'electron';
 import { importEntries, mark } from 'vs/base/common/performance';
 import { Workbench } from 'vs/workbench/browser/workbench';
-import { ElectronWindow } from 'vs/workbench/electron-browser/window';
+import { NativeWindow } from 'vs/workbench/electron-browser/window';
 import { setZoomLevel, setZoomFactor, setFullscreen } from 'vs/base/browser/browser';
 import { domContentLoaded, addDisposableListener, EventType, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -51,7 +51,6 @@ import { FileUserDataProvider } from 'vs/workbench/services/userData/common/file
 import { basename } from 'vs/base/common/resources';
 import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
-import { ElectronEnvironmentService, IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
 
 class DesktopMain extends Disposable {
 
@@ -60,7 +59,7 @@ class DesktopMain extends Disposable {
 	constructor(private configuration: INativeWindowConfiguration) {
 		super();
 
-		this.environmentService = new NativeWorkbenchEnvironmentService(configuration, configuration.execPath, configuration.windowId);
+		this.environmentService = new NativeWorkbenchEnvironmentService(configuration, configuration.execPath);
 
 		this.init();
 	}
@@ -127,7 +126,7 @@ class DesktopMain extends Disposable {
 		const instantiationService = workbench.startup();
 
 		// Window
-		this._register(instantiationService.createInstance(ElectronWindow));
+		this._register(instantiationService.createInstance(NativeWindow));
 
 		// Driver
 		if (this.environmentService.configuration.driver) {
@@ -180,11 +179,6 @@ class DesktopMain extends Disposable {
 
 		// Environment
 		serviceCollection.set(IWorkbenchEnvironmentService, this.environmentService);
-		serviceCollection.set(IElectronEnvironmentService, new ElectronEnvironmentService(
-			this.configuration.windowId,
-			this.environmentService.sharedIPCHandle,
-			this.environmentService
-		));
 
 		// Product
 		serviceCollection.set(IProductService, { _serviceBrand: undefined, ...product });

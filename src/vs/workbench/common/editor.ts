@@ -9,22 +9,21 @@ import { assign } from 'vs/base/common/objects';
 import { withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IEditor as ICodeEditor, IEditorViewState, ScrollType, IDiffEditor } from 'vs/editor/common/editorCommon';
-import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, IResourceInput, EditorActivation, EditorOpenContext, ITextEditorSelection, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
+import { IEditor, IEditorViewState, ScrollType, IDiffEditor } from 'vs/editor/common/editorCommon';
+import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceEditorInput, IResourceEditorInput, EditorActivation, EditorOpenContext, ITextEditorSelection, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature0, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITextModel } from 'vs/editor/common/model';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ICompositeControl } from 'vs/workbench/common/composite';
+import { ICompositeControl, IComposite } from 'vs/workbench/common/composite';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { IPathData } from 'vs/platform/windows/common/windows';
 import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
 import { ITextFileSaveOptions, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 import { isEqual, dirname } from 'vs/base/common/resources';
-import { IPanel } from 'vs/workbench/common/panel';
 import { IRange } from 'vs/editor/common/core/range';
 import { createMemoizer } from 'vs/base/common/decorators';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -61,7 +60,10 @@ export const TEXT_DIFF_EDITOR_ID = 'workbench.editors.textDiffEditor';
  */
 export const BINARY_DIFF_EDITOR_ID = 'workbench.editors.binaryResourceDiffEditor';
 
-export interface IEditor extends IPanel {
+/**
+ * The editor pane is the container for workbench editors.
+ */
+export interface IEditorPane extends IComposite {
 
 	/**
 	 * The assigned input of this editor.
@@ -99,7 +101,9 @@ export interface IEditor extends IPanel {
 	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; } | undefined>;
 
 	/**
-	 * Returns the underlying control of this editor.
+	 * Returns the underlying control of this editor. Callers need to cast
+	 * the control to a specific instance as needed, e.g. by using the
+	 * `isCodeEditor` helper method to access the text code editor.
 	 */
 	getControl(): IEditorControl | undefined;
 
@@ -110,19 +114,22 @@ export interface IEditor extends IPanel {
 }
 
 /**
- * Overrides `IEditor` where `input` and `group` are known to be set.
+ * Overrides `IEditorPane` where `input` and `group` are known to be set.
  */
-export interface IVisibleEditor extends IEditor {
+export interface IVisibleEditorPane extends IEditorPane {
 	readonly input: IEditorInput;
 	readonly group: IEditorGroup;
 }
 
-export interface ITextEditor extends IEditor {
+/**
+ * The text editor pane is the container for workbench text editors.
+ */
+export interface ITextEditorPane extends IEditorPane {
 
 	/**
 	 * Returns the underlying text editor widget of this editor.
 	 */
-	getControl(): ICodeEditor | undefined;
+	getControl(): IEditor | undefined;
 
 	/**
 	 * Returns the current view state of the text editor if any.
@@ -130,13 +137,16 @@ export interface ITextEditor extends IEditor {
 	getViewState(): IEditorViewState | undefined;
 }
 
-export function isTextEditor(thing: IEditor | undefined): thing is ITextEditor {
-	const candidate = thing as ITextEditor | undefined;
+export function isTextEditorPane(thing: IEditorPane | undefined): thing is ITextEditorPane {
+	const candidate = thing as ITextEditorPane | undefined;
 
 	return typeof candidate?.getViewState === 'function';
 }
 
-export interface ITextDiffEditor extends IEditor {
+/**
+ * The text editor pane is the container for workbench text diff editors.
+ */
+export interface ITextDiffEditorPane extends IEditorPane {
 
 	/**
 	 * Returns the underlying text editor widget of this editor.
@@ -144,44 +154,31 @@ export interface ITextDiffEditor extends IEditor {
 	getControl(): IDiffEditor | undefined;
 }
 
-export interface ITextSideBySideEditor extends IEditor {
-
-	/**
-	 * Returns the underlying text editor widget of the master side
-	 * of this side-by-side editor.
-	 */
-	getMasterEditor(): ITextEditor;
-
-	/**
-	 * Returns the underlying text editor widget of the details side
-	 * of this side-by-side editor.
-	 */
-	getDetailsEditor(): ITextEditor;
-}
-
 /**
- * Marker interface for the base editor control
+ * Marker interface for the control inside an editor pane. Callers
+ * have to cast the control to work with it, e.g. via methods
+ * such as `isCodeEditor(control)`.
  */
 export interface IEditorControl extends ICompositeControl { }
 
-export interface IFileInputFactory {
+export interface IFileEditorInputFactory {
 
-	createFileInput(resource: URI, encoding: string | undefined, mode: string | undefined, instantiationService: IInstantiationService): IFileEditorInput;
+	createFileEditorInput(resource: URI, encoding: string | undefined, mode: string | undefined, instantiationService: IInstantiationService): IFileEditorInput;
 
-	isFileInput(obj: unknown): obj is IFileEditorInput;
+	isFileEditorInput(obj: unknown): obj is IFileEditorInput;
 }
 
 export interface IEditorInputFactoryRegistry {
 
 	/**
-	 * Registers the file input factory to use for file inputs.
+	 * Registers the file editor input factory to use for file inputs.
 	 */
-	registerFileInputFactory(factory: IFileInputFactory): void;
+	registerFileEditorInputFactory(factory: IFileEditorInputFactory): void;
 
 	/**
-	 * Returns the file input factory to use for file inputs.
+	 * Returns the file editor input factory to use for file inputs.
 	 */
-	getFileInputFactory(): IFileInputFactory;
+	getFileEditorInputFactory(): IFileEditorInputFactory;
 
 	/**
 	 * Registers a editor input factory for the given editor input to the registry. An editor input factory
@@ -225,7 +222,7 @@ export interface IEditorInputFactory {
 	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput | undefined;
 }
 
-export interface IUntitledTextResourceInput extends IBaseResourceInput {
+export interface IUntitledTextResourceEditorInput extends IBaseResourceEditorInput {
 
 	/**
 	 * Optional resource. If the resource is not provided a new untitled file is created (e.g. Untitled-1).
@@ -251,7 +248,7 @@ export interface IUntitledTextResourceInput extends IBaseResourceInput {
 	readonly encoding?: string;
 }
 
-export interface IResourceDiffInput extends IBaseResourceInput {
+export interface IResourceDiffEditorInput extends IBaseResourceEditorInput {
 
 	/**
 	 * The left hand side URI to open inside a diff editor.
@@ -262,19 +259,6 @@ export interface IResourceDiffInput extends IBaseResourceInput {
 	 * The right hand side URI to open inside a diff editor.
 	 */
 	readonly rightResource: URI;
-}
-
-export interface IResourceSideBySideInput extends IBaseResourceInput {
-
-	/**
-	 * The right hand side URI to open inside a side by side editor.
-	 */
-	readonly masterResource: URI;
-
-	/**
-	 * The left hand side URI to open inside a side by side editor.
-	 */
-	readonly detailResource: URI;
 }
 
 export const enum Verbosity {
@@ -349,7 +333,7 @@ export interface IRevertOptions {
 }
 
 export interface IMoveResult {
-	editor: EditorInput | IResourceEditor;
+	editor: EditorInput | IResourceEditorInputType;
 	options?: IEditorOptions;
 }
 
@@ -738,7 +722,7 @@ export abstract class TextResourceEditorInput extends EditorInput {
 		}
 
 		if (!isEqual(target, this.resource)) {
-			return this.editorService.createInput({ resource: target });
+			return this.editorService.createEditorInput({ resource: target });
 		}
 
 		return this;
@@ -1152,7 +1136,7 @@ export class TextEditorOptions extends EditorOptions implements ITextEditorOptio
 	 */
 	selectionRevealType: TextEditorSelectionRevealType | undefined;
 
-	static from(input?: IBaseResourceInput): TextEditorOptions | undefined {
+	static from(input?: IBaseResourceEditorInput): TextEditorOptions | undefined {
 		if (!input || !input.options) {
 			return undefined;
 		}
@@ -1206,7 +1190,7 @@ export class TextEditorOptions extends EditorOptions implements ITextEditorOptio
 	/**
 	 * Create a TextEditorOptions inline to be used when the editor is opening.
 	 */
-	static fromEditor(editor: ICodeEditor, settings?: IEditorOptions): TextEditorOptions {
+	static fromEditor(editor: IEditor, settings?: IEditorOptions): TextEditorOptions {
 		const options = TextEditorOptions.create(settings);
 
 		// View state
@@ -1220,7 +1204,7 @@ export class TextEditorOptions extends EditorOptions implements ITextEditorOptio
 	 *
 	 * @return if something was applied
 	 */
-	apply(editor: ICodeEditor, scrollType: ScrollType): boolean {
+	apply(editor: IEditor, scrollType: ScrollType): boolean {
 		let gotApplied = false;
 
 		// First try viewstate
@@ -1389,7 +1373,7 @@ export interface IEditorMemento<T> {
 
 class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
 	private instantiationService: IInstantiationService | undefined;
-	private fileInputFactory: IFileInputFactory | undefined;
+	private fileEditorInputFactory: IFileEditorInputFactory | undefined;
 
 	private readonly editorInputFactoryConstructors: Map<string, IConstructorSignature0<IEditorInputFactory>> = new Map();
 	private readonly editorInputFactoryInstances: Map<string, IEditorInputFactory> = new Map();
@@ -1409,12 +1393,12 @@ class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
 		this.editorInputFactoryInstances.set(editorInputId, instance);
 	}
 
-	registerFileInputFactory(factory: IFileInputFactory): void {
-		this.fileInputFactory = factory;
+	registerFileEditorInputFactory(factory: IFileEditorInputFactory): void {
+		this.fileEditorInputFactory = factory;
 	}
 
-	getFileInputFactory(): IFileInputFactory {
-		return assertIsDefined(this.fileInputFactory);
+	getFileEditorInputFactory(): IFileEditorInputFactory {
+		return assertIsDefined(this.fileEditorInputFactory);
 	}
 
 	registerEditorInputFactory(editorInputId: string, ctor: IConstructorSignature0<IEditorInputFactory>): IDisposable {
@@ -1442,7 +1426,7 @@ export const Extensions = {
 
 Registry.add(Extensions.EditorInputFactories, new EditorInputFactoryRegistry());
 
-export async function pathsToEditors(paths: IPathData[] | undefined, fileService: IFileService): Promise<(IResourceInput | IUntitledTextResourceInput)[]> {
+export async function pathsToEditors(paths: IPathData[] | undefined, fileService: IFileService): Promise<(IResourceEditorInput | IUntitledTextResourceEditorInput)[]> {
 	if (!paths || !paths.length) {
 		return [];
 	}
@@ -1463,7 +1447,7 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 			pinned: true
 		} : { pinned: true };
 
-		let input: IResourceInput | IUntitledTextResourceInput;
+		let input: IResourceEditorInput | IUntitledTextResourceEditorInput;
 		if (!exists) {
 			input = { resource, options, forceUntitled: true };
 		} else {

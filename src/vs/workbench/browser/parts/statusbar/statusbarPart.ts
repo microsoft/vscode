@@ -742,9 +742,9 @@ class StatusbarEntryItem extends Disposable {
 		args = args || [];
 
 		// Maintain old behaviour of always focusing the editor here
-		const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
-		if (activeTextEditorWidget) {
-			activeTextEditorWidget.focus();
+		const activeTextEditorControl = this.editorService.activeTextEditorControl;
+		if (activeTextEditorControl) {
+			activeTextEditorControl.focus();
 		}
 
 		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id, from: 'status bar' });

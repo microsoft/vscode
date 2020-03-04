@@ -323,7 +323,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 	}
 
 	public revealRange(source: string, revealHorizontal: boolean, viewRange: Range, verticalType: viewEvents.VerticalRevealType, scrollType: editorCommon.ScrollType) {
-		this.emitCursorRevealRange(source, viewRange, verticalType, revealHorizontal, scrollType);
+		this.emitCursorRevealRange(source, viewRange, null, verticalType, revealHorizontal, scrollType);
 	}
 
 	public scrollTo(desiredScrollTop: number): void {
@@ -594,19 +594,19 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 			}
 		} else {
 			if (viewPositions.length > 1) {
-				// no revealing!
+				this.emitCursorRevealRange(source, null, this._cursors.getViewSelections(), verticalType, revealHorizontal, scrollType);
 				return;
 			}
 		}
 
 		const viewRange = new Range(viewPosition.lineNumber, viewPosition.column, viewPosition.lineNumber, viewPosition.column);
-		this.emitCursorRevealRange(source, viewRange, verticalType, revealHorizontal, scrollType);
+		this.emitCursorRevealRange(source, viewRange, null, verticalType, revealHorizontal, scrollType);
 	}
 
-	public emitCursorRevealRange(source: string, viewRange: Range, verticalType: viewEvents.VerticalRevealType, revealHorizontal: boolean, scrollType: editorCommon.ScrollType) {
+	public emitCursorRevealRange(source: string, viewRange: Range | null, viewSelections: Selection[] | null, verticalType: viewEvents.VerticalRevealType, revealHorizontal: boolean, scrollType: editorCommon.ScrollType) {
 		try {
 			const eventsCollector = this._beginEmit();
-			eventsCollector.emit(new viewEvents.ViewRevealRangeRequestEvent(source, viewRange, verticalType, revealHorizontal, scrollType));
+			eventsCollector.emit(new viewEvents.ViewRevealRangeRequestEvent(source, viewRange, viewSelections, verticalType, revealHorizontal, scrollType));
 		} finally {
 			this._endEmit();
 		}

@@ -17,9 +17,12 @@ export interface INativeWorkbenchEnvironmentService extends IWorkbenchEnvironmen
 
 	readonly configuration: INativeWindowConfiguration;
 
-	log?: string;
-	cliPath: string;
-	disableCrashReporter: boolean;
+	readonly disableCrashReporter: boolean;
+
+	readonly cliPath: string;
+
+	readonly log?: string;
+	readonly extHostLogsPath: URI;
 }
 
 export class NativeWorkbenchEnvironmentService extends EnvironmentService implements INativeWorkbenchEnvironmentService {
@@ -43,12 +46,14 @@ export class NativeWorkbenchEnvironmentService extends EnvironmentService implem
 	get userRoamingDataHome(): URI { return this.appSettingsHome.with({ scheme: Schemas.userData }); }
 
 	@memoize
-	get logFile(): URI { return URI.file(join(this.logsPath, `renderer${this.windowId}.log`)); }
+	get logFile(): URI { return URI.file(join(this.logsPath, `renderer${this.configuration.windowId}.log`)); }
+
+	@memoize
+	get extHostLogsPath(): URI { return URI.file(join(this.logsPath, `exthost${this.configuration.windowId}`)); }
 
 	constructor(
 		readonly configuration: INativeWindowConfiguration,
-		execPath: string,
-		private readonly windowId: number
+		execPath: string
 	) {
 		super(configuration, execPath);
 

@@ -11,7 +11,7 @@ import { Action, IAction } from 'vs/base/common/actions';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtensionsWorkbenchService, IExtension, ExtensionContainers } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService, IExtensionsStatus, IExtensionHostProfile } from 'vs/workbench/services/extensions/common/extensions';
@@ -47,6 +47,8 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
+import { domEvent } from 'vs/base/browser/event';
+import { Label } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
 
 export const IExtensionHostProfileService = createDecorator<IExtensionHostProfileService>('extensionHostProfileService');
 export const CONTEXT_PROFILE_SESSION_STATE = new RawContextKey<string>('profileSessionState', 'none');
@@ -257,6 +259,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		interface IRuntimeExtensionTemplateData {
 			root: HTMLElement;
 			element: HTMLElement;
+			icon: HTMLImageElement;
 			name: HTMLElement;
 			msgContainer: HTMLElement;
 			actionbar: ActionBar;
@@ -264,15 +267,21 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 			profileTime: HTMLElement;
 			disposables: IDisposable[];
 			elementDisposables: IDisposable[];
+			extension: IExtension | null;
 		}
 
 		const renderer: IListRenderer<IRuntimeExtension, IRuntimeExtensionTemplateData> = {
 			templateId: TEMPLATE_ID,
 			renderTemplate: (root: HTMLElement): IRuntimeExtensionTemplateData => {
 				const element = append(root, $('.extension'));
+				const iconContainer = append(element, $('.icon-container'));
+				const icon = append(iconContainer, $<HTMLImageElement>('img.icon'));
 
 				const desc = append(element, $('div.desc'));
-				const name = append(desc, $('div.name'));
+				const headerContainer = append(desc, $('.header-container'));
+				const header = append(headerContainer, $('.header'));
+				const name = append(header, $('div.name'));
+				const version = append(header, $('span.version'));
 
 				const msgContainer = append(desc, $('div.msg'));
 
@@ -284,18 +293,27 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				const activationTime = append(timeContainer, $('div.activation-time'));
 				const profileTime = append(timeContainer, $('div.profile-time'));
 
-				const disposables = [actionbar];
+				const widgets = [
+					this._instantiationService.createInstance(Label, version, (e: IExtension) => e.version)
+				];
+
+				const extensionContainers: ExtensionContainers = this._instantiationService.createInstance(ExtensionContainers, [...widgets]);
+				const disposables = [actionbar, ...widgets];
 
 				return {
 					root,
 					element,
+					icon,
 					name,
 					actionbar,
 					activationTime,
 					profileTime,
 					msgContainer,
 					disposables,
-					elementDisposables: []
+					elementDisposables: [],
+					set extension(extension: IExtension) {
+						extensionContainers.extension = extension;
+					}
 				};
 			},
 
@@ -305,6 +323,16 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 				toggleClass(data.root, 'odd', index % 2 === 1);
 
+				const onError = Event.once(domEvent(data.icon, 'error'));
+				onError(() => data.icon.src = element.marketplaceInfo.iconUrlFallback, null, data.elementDisposables);
+				data.icon.src = element.marketplaceInfo.iconUrl;
+
+				if (!data.icon.complete) {
+					data.icon.style.visibility = 'hidden';
+					data.icon.onload = () => data.icon.style.visibility = 'inherit';
+				} else {
+					data.icon.style.visibility = 'inherit';
+				}
 				data.name.textContent = element.marketplaceInfo ? element.marketplaceInfo.displayName : element.description.displayName || '';
 
 				const activationTimes = element.status.activationTimes!;
@@ -318,6 +346,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				if (isNonEmptyArray(element.status.runtimeErrors)) {
 					data.actionbar.push(new ReportExtensionIssueAction(element, this._openerService), { icon: true, label: true });
 				}
+				data.extension = element.marketplaceInfo;
 
 				let title: string;
 				const activationId = activationTimes.activationReason.extensionId.value;

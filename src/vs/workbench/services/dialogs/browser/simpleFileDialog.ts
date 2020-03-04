@@ -54,9 +54,9 @@ export namespace SaveLocalFileCommand {
 	export function handler(): ICommandHandler {
 		return accessor => {
 			const editorService = accessor.get(IEditorService);
-			const activeControl = editorService.activeControl;
-			if (activeControl) {
-				return editorService.save({ groupId: activeControl.group.id, editor: activeControl.input }, { saveAs: true, availableFileSystems: [Schemas.file], reason: SaveReason.EXPLICIT });
+			const activeEditorPane = editorService.activeEditorPane;
+			if (activeEditorPane) {
+				return editorService.save({ groupId: activeEditorPane.group.id, editor: activeEditorPane.input }, { saveAs: true, availableFileSystems: [Schemas.file], reason: SaveReason.EXPLICIT });
 			}
 
 			return Promise.resolve(undefined);

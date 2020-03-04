@@ -443,8 +443,6 @@ export interface IRawFileMatch {
 	 * This path is exactly as it appears on the filesystem.
 	 */
 	relativePath: string;
-	basename: string;
-	size?: number;
 	/**
 	 * This path is transformed for search purposes. For example, this could be
 	 * the `relativePath` with the workspace folder name prepended. This way the

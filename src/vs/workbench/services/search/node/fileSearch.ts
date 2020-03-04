@@ -122,7 +122,7 @@ export class FileWalker {
 			}
 
 			// File: Check for match on file pattern and include pattern
-			this.matchFile(onResult, { relativePath: extraFilePath.fsPath /* no workspace relative path */, basename });
+			this.matchFile(onResult, { relativePath: extraFilePath.fsPath /* no workspace relative path */ });
 		});
 
 		this.cmdSW = StopWatch.create(false);
@@ -246,8 +246,7 @@ export class FileWalker {
 
 			if (noSiblingsClauses) {
 				for (const relativePath of relativeFiles) {
-					const basename = path.basename(relativePath);
-					this.matchFile(onResult, { base: rootFolder, relativePath, searchPath: this.getSearchPath(folderQuery, relativePath), basename });
+					this.matchFile(onResult, { base: rootFolder, relativePath, searchPath: this.getSearchPath(folderQuery, relativePath) });
 					if (this.isLimitHit) {
 						killCmd();
 						break;
@@ -393,8 +392,7 @@ export class FileWalker {
 	private addDirectoryEntries({ pathToEntries }: IDirectoryTree, base: string, relativeFiles: string[], onResult: (result: IRawFileMatch) => void) {
 		// Support relative paths to files from a root resource (ignores excludes)
 		if (relativeFiles.indexOf(this.filePattern) !== -1) {
-			const basename = path.basename(this.filePattern);
-			this.matchFile(onResult, { base: base, relativePath: this.filePattern, basename });
+			this.matchFile(onResult, { base: base, relativePath: this.filePattern });
 		}
 
 		function add(relativePath: string) {
@@ -544,8 +542,6 @@ export class FileWalker {
 							base: rootFolder.fsPath,
 							relativePath: currentRelativePath,
 							searchPath: this.getSearchPath(folderQuery, currentRelativePath),
-							basename: file,
-							size: stat.size,
 						});
 					}
 
@@ -560,7 +556,7 @@ export class FileWalker {
 	}
 
 	private matchFile(onResult: (result: IRawFileMatch) => void, candidate: IRawFileMatch): void {
-		if (this.isFileMatch(candidate) && (!this.includePattern || this.includePattern(candidate.relativePath, candidate.basename))) {
+		if (this.isFileMatch(candidate) && (!this.includePattern || this.includePattern(candidate.relativePath, path.basename(candidate.relativePath)))) {
 			this.resultCount++;
 
 			if (this.exists || (this.maxResults && this.resultCount > this.maxResults)) {

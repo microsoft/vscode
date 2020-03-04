@@ -433,7 +433,7 @@ export class BulkEditService implements IBulkEditService {
 
 		// try to find code editor
 		if (!codeEditor) {
-			let candidate = this._editorService.activeTextEditorWidget;
+			let candidate = this._editorService.activeTextEditorControl;
 			if (isCodeEditor(candidate)) {
 				codeEditor = candidate;
 			}

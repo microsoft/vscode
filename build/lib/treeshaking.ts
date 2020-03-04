@@ -540,6 +540,7 @@ function markNodes(languageService: ts.LanguageService, options: ITreeShakingOpt
 								|| ts.isConstructSignatureDeclaration(member)
 								|| ts.isIndexSignatureDeclaration(member)
 								|| ts.isCallSignatureDeclaration(member)
+								|| memberName === '[Symbol.iterator]'
 								|| memberName === 'toJSON'
 								|| memberName === 'toString'
 								|| memberName === 'dispose'// TODO: keeping all `dispose` methods

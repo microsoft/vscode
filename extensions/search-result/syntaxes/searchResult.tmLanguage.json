@@ -256,7 +256,7 @@
       }
     },
     {
-      "match": "^  (?:((\\d+)(:))|((\\d+)( ))(.*))",
+      "match": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+)( ))(.*))",
       "name": "meta.resultBlock.search meta.resultLine.search",
       "captures": {
         "1": {
@@ -299,8 +299,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -339,7 +339,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -385,8 +385,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -425,7 +425,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -471,8 +471,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -511,7 +511,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -557,8 +557,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -597,7 +597,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -643,8 +643,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -683,7 +683,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -729,8 +729,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -769,7 +769,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -815,8 +815,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -855,7 +855,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -901,8 +901,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -941,7 +941,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -987,8 +987,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -1027,7 +1027,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -1073,8 +1073,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -1113,7 +1113,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -1159,8 +1159,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -1199,7 +1199,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -1245,8 +1245,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -1285,7 +1285,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -1331,8 +1331,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -1371,7 +1371,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -1417,8 +1417,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -1457,7 +1457,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -1503,8 +1503,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -1543,7 +1543,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -1589,8 +1589,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -1629,7 +1629,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -1675,8 +1675,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -1715,7 +1715,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -1761,8 +1761,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -1801,7 +1801,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -1847,8 +1847,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -1887,7 +1887,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -1933,8 +1933,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -1973,7 +1973,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -2019,8 +2019,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -2059,7 +2059,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -2105,8 +2105,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -2145,7 +2145,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -2191,8 +2191,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -2231,7 +2231,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -2277,8 +2277,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -2317,7 +2317,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -2363,8 +2363,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -2403,7 +2403,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -2449,8 +2449,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -2489,7 +2489,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -2535,8 +2535,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -2575,7 +2575,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -2621,8 +2621,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -2661,7 +2661,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -2707,8 +2707,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -2747,7 +2747,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -2793,8 +2793,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -2833,7 +2833,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -2879,8 +2879,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -2919,7 +2919,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -2965,8 +2965,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -3005,7 +3005,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -3051,8 +3051,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -3091,7 +3091,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -3137,8 +3137,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -3177,7 +3177,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -3223,8 +3223,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -3263,7 +3263,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -3309,8 +3309,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -3349,7 +3349,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -3395,8 +3395,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -3435,7 +3435,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -3481,8 +3481,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -3521,7 +3521,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -3567,8 +3567,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -3607,7 +3607,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -3653,8 +3653,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -3693,7 +3693,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -3739,8 +3739,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -3779,7 +3779,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -3825,8 +3825,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -3865,7 +3865,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -3911,8 +3911,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -3951,7 +3951,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -3997,8 +3997,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -4037,7 +4037,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -4083,8 +4083,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -4123,7 +4123,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -4169,8 +4169,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -4209,7 +4209,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -4255,8 +4255,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -4295,7 +4295,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -4341,8 +4341,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -4381,7 +4381,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -4427,8 +4427,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -4467,7 +4467,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -4513,8 +4513,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -4553,7 +4553,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -4599,8 +4599,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -4639,7 +4639,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -4685,8 +4685,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -4725,7 +4725,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -4771,8 +4771,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -4811,7 +4811,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {
@@ -4857,8 +4857,8 @@
       "patterns": [
         {
           "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  ((\\d+) )",
-          "while": "^  (?:((\\d+)(:))|((\\d+) ))",
+          "begin": "^  (?:\\s*)((\\d+) )",
+          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
           "beginCaptures": {
             "0": {
               "name": "constant.numeric.integer meta.resultLinePrefix.search"
@@ -4897,7 +4897,7 @@
           ]
         },
         {
-          "begin": "^  ((\\d+)(:))",
+          "begin": "^  (?:\\s*)((\\d+)(:))",
           "while": "(?=not)possible",
           "name": "meta.resultLine.search meta.resultLine.singleLine.search",
           "beginCaptures": {

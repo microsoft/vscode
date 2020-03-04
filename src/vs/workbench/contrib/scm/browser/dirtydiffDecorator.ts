@@ -1317,7 +1317,7 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 	// or not. Needs context from the editor, to know whether it is a diff editor, in place editor
 	// etc.
 	private onEditorsChanged(): void {
-		const models = this.editorService.visibleTextEditorWidgets
+		const models = this.editorService.visibleTextEditorControls
 
 			// only interested in code editor widgets
 			.filter(c => c instanceof CodeEditorWidget)

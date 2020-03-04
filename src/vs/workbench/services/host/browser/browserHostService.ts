@@ -7,7 +7,7 @@ import { Event } from 'vs/base/common/event';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IResourceEditor, IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IResourceEditorInputType, IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWindowSettings, IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, isFileToOpen, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 import { pathsToEditors } from 'vs/workbench/common/editor';
@@ -133,7 +133,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 				// Same Window: open via editor service in current window
 				if (this.shouldReuse(options, true /* file */)) {
-					const inputs: IResourceEditor[] = await pathsToEditors([openable], this.fileService);
+					const inputs: IResourceEditorInputType[] = await pathsToEditors([openable], this.fileService);
 					this.editorService.openEditors(inputs);
 				}
 

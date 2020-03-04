@@ -330,13 +330,13 @@ export const acceptLocalChangesCommand = async (accessor: ServicesAccessor, reso
 	const editorService = accessor.get(IEditorService);
 	const resolverService = accessor.get(ITextModelService);
 
-	const control = editorService.activeControl;
-	if (!control) {
+	const editorPane = editorService.activeEditorPane;
+	if (!editorPane) {
 		return;
 	}
 
-	const editor = control.input;
-	const group = control.group;
+	const editor = editorPane.input;
+	const group = editorPane.group;
 
 	const reference = await resolverService.createModelReference(resource);
 	const model = reference.object as IResolvedTextFileEditorModel;
@@ -359,13 +359,13 @@ export const revertLocalChangesCommand = async (accessor: ServicesAccessor, reso
 	const editorService = accessor.get(IEditorService);
 	const resolverService = accessor.get(ITextModelService);
 
-	const control = editorService.activeControl;
-	if (!control) {
+	const editorPane = editorService.activeEditorPane;
+	if (!editorPane) {
 		return;
 	}
 
-	const editor = control.input;
-	const group = control.group;
+	const editor = editorPane.input;
+	const group = editorPane.group;
 
 	const reference = await resolverService.createModelReference(resource);
 	const model = reference.object as ITextFileEditorModel;

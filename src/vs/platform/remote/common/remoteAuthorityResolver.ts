@@ -19,7 +19,7 @@ export interface ResolvedOptions {
 
 export interface TunnelDescription {
 	remoteAddress: { port: number, host: string };
-	localAddress: string;
+	localAddress: { port: number, host: string } | string;
 }
 export interface TunnelInformation {
 	environmentTunnels?: TunnelDescription[];

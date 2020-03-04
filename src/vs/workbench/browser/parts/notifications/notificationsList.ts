@@ -125,7 +125,7 @@ export class NotificationsList extends Themable {
 		// Only allow for focus in notifications, as the
 		// selection is too strong over the contents of
 		// the notification
-		this._register(list.onSelectionChange(e => {
+		this._register(list.onDidChangeSelection(e => {
 			if (e.indexes.length > 0) {
 				list.setSelection([]);
 			}

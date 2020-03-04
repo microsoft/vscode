@@ -162,9 +162,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 CommandsRegistry.registerCommand(
 	SearchEditorConstants.CleanSearchEditorStateCommandId,
 	(accessor: ServicesAccessor) => {
-		const activeControl = accessor.get(IEditorService).activeControl;
-		if (activeControl instanceof SearchEditor) {
-			activeControl.cleanState();
+		const activeEditorPane = accessor.get(IEditorService).activeEditorPane;
+		if (activeEditorPane instanceof SearchEditor) {
+			activeEditorPane.cleanState();
 		}
 	});
 //#endregion
