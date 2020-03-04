@@ -7,7 +7,6 @@ import { equals } from 'vs/base/common/arrays';
 import { memoize } from 'vs/base/common/decorators';
 import { Lazy } from 'vs/base/common/lazy';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { values } from 'vs/base/common/map';
 import { isEqual } from 'vs/base/common/resources';
 import { EditorActivation, IEditorModel } from 'vs/platform/editor/common/editor';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -231,7 +230,7 @@ export class WebviewEditorService implements IWebviewWorkbenchService {
 	public shouldPersist(
 		webview: WebviewInput
 	): boolean {
-		if (values(this._revivers).some(reviver => canRevive(reviver, webview))) {
+		if (Array.from(this._revivers.values()).some(reviver => canRevive(reviver, webview))) {
 			return true;
 		}
 
@@ -243,7 +242,7 @@ export class WebviewEditorService implements IWebviewWorkbenchService {
 	private async tryRevive(
 		webview: WebviewInput
 	): Promise<boolean> {
-		for (const reviver of values(this._revivers)) {
+		for (const reviver of this._revivers.values()) {
 			if (canRevive(reviver, webview)) {
 				await reviver.resolveWebview(webview);
 				return true;
