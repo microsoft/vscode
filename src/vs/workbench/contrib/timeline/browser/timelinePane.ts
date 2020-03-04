@@ -15,7 +15,7 @@ import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IListVirtualDelegate, IIdentityProvider, IKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/list/list';
 import { ITreeNode, ITreeRenderer, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { TreeResourceNavigator, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
+import { ResourceNavigator, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -660,7 +660,7 @@ export class TimelinePane extends ViewPane {
 			}
 		});
 
-		const customTreeNavigator = new TreeResourceNavigator(this._tree, { openOnFocus: false, openOnSelection: false });
+		const customTreeNavigator = ResourceNavigator.createTreeResourceNavigator(this._tree, { openOnFocus: false, openOnSelection: false });
 		this._register(customTreeNavigator);
 		this._register(this._tree.onContextMenu(e => this.onContextMenu(this._menus, e)));
 		this._register(this._tree.onDidChangeSelection(e => this.ensureValidItems()));
@@ -909,7 +909,7 @@ class TimelinePaneCommands extends Disposable {
 			order: 99,
 			command: {
 				id: TimelinePaneCommands.RefreshCommand,
-				title: localize(TimelinePaneCommands.RefreshCommand, "Refresh"),
+				title: localize('refresh', "Refresh"),
 				icon: { id: 'codicon/refresh' }
 			}
 		})));
@@ -920,7 +920,7 @@ class TimelinePaneCommands extends Disposable {
 			order: 2,
 			command: {
 				id: TimelinePaneCommands.ToggleFollowActiveEditorCommand,
-				title: localize(`${TimelinePaneCommands.ToggleFollowActiveEditorCommand}.stop`, "Stop following the Active Editor"),
+				title: localize(`ToggleFollowActiveEditorCommand.stop`, "Stop following the Active Editor"),
 				icon: { id: 'codicon/eye' }
 			},
 			when: TimelineFollowActiveEditorContext
@@ -930,7 +930,7 @@ class TimelinePaneCommands extends Disposable {
 			order: 2,
 			command: {
 				id: TimelinePaneCommands.ToggleFollowActiveEditorCommand,
-				title: localize(`${TimelinePaneCommands.ToggleFollowActiveEditorCommand}.follow`, "Follow the Active Editor"),
+				title: localize(`ToggleFollowActiveEditorCommand.follow`, "Follow the Active Editor"),
 				icon: { id: 'codicon/eye-closed' }
 			},
 			when: TimelineFollowActiveEditorContext.toNegated()

@@ -212,8 +212,8 @@ export class MainPane extends ViewPane {
 		});
 
 		this._register(renderer.onDidRenderElement(e => this.list.updateWidth(this.viewModel.repositories.indexOf(e)), null));
-		this._register(this.list.onSelectionChange(this.onListSelectionChange, this));
-		this._register(this.list.onFocusChange(this.onListFocusChange, this));
+		this._register(this.list.onDidChangeSelection(this.onListSelectionChange, this));
+		this._register(this.list.onDidChangeFocus(this.onListFocusChange, this));
 		this._register(this.list.onContextMenu(this.onListContextMenu, this));
 
 		this._register(this.viewModel.onDidChangeVisibleRepositories(this.updateListSelection, this));

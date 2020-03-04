@@ -1123,11 +1123,11 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	protected readonly disposables = new DisposableStore();
 
-	@memoize get onFocusChange(): Event<IListEvent<T>> {
+	@memoize get onDidChangeFocus(): Event<IListEvent<T>> {
 		return Event.map(this.eventBufferer.wrapEvent(this.focus.onChange), e => this.toListEvent(e));
 	}
 
-	@memoize get onSelectionChange(): Event<IListEvent<T>> {
+	@memoize get onDidChangeSelection(): Event<IListEvent<T>> {
 		return Event.map(this.eventBufferer.wrapEvent(this.selection.onChange), e => this.toListEvent(e));
 	}
 
@@ -1266,8 +1266,8 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		this.disposables.add(this.createMouseController(_options));
 
-		this.onFocusChange(this._onFocusChange, this, this.disposables);
-		this.onSelectionChange(this._onSelectionChange, this, this.disposables);
+		this.onDidChangeFocus(this._onFocusChange, this, this.disposables);
+		this.onDidChangeSelection(this._onSelectionChange, this, this.disposables);
 
 		if (_options.ariaLabel) {
 			this.view.domNode.setAttribute('aria-label', localize('aria list', "{0}. Use the navigation keys to navigate.", _options.ariaLabel));

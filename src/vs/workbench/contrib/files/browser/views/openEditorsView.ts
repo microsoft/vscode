@@ -247,7 +247,7 @@ export class OpenEditorsView extends ViewPane {
 		this.readonlyEditorFocusedContext = ReadonlyEditorContext.bindTo(this.contextKeyService);
 
 		this._register(this.list.onContextMenu(e => this.onListContextMenu(e)));
-		this.list.onFocusChange(e => {
+		this.list.onDidChangeFocus(e => {
 			this.resourceContext.reset();
 			this.groupFocusedContext.reset();
 			this.dirtyEditorFocusedContext.reset();
