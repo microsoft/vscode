@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import { loadMessageBundle } from 'vscode-nls';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { TelemetryReporter } from './telemetry';
-import { isImplicitProjectConfigFile, openOrCreateConfigFile } from './tsconfig';
+import { isImplicitProjectConfigFile, openOrCreateConfig, ProjectType } from './tsconfig';
 
 const localize = loadMessageBundle();
 
@@ -101,8 +101,8 @@ function onConfigureExcludesSelected(
 	} else {
 		const root = client.getWorkspaceRootForResource(vscode.Uri.file(configFileName));
 		if (root) {
-			openOrCreateConfigFile(
-				configFileName.match(/tsconfig\.?.*\.json/) !== null,
+			openOrCreateConfig(
+				/tsconfig\.?.*\.json/.test(configFileName) ? ProjectType.TypeScript : ProjectType.JavaScript,
 				root,
 				client.configuration);
 		}

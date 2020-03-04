@@ -39,7 +39,7 @@ export class TypeScriptVersionPicker {
 		}
 	}
 
-	public get useWorkspaceTsdkSetting(): boolean {
+	private get useWorkspaceTsdkSetting(): boolean {
 		return this.workspaceState.get<boolean>(useWorkspaceTsdkStorageKey, false);
 	}
 
@@ -51,7 +51,7 @@ export class TypeScriptVersionPicker {
 		this._currentVersion = this.versionProvider.bundledVersion;
 	}
 
-	public async show(firstRun?: boolean): Promise<{ oldVersion?: TypeScriptVersion, newVersion?: TypeScriptVersion }> {
+	public async show(): Promise<{ oldVersion?: TypeScriptVersion, newVersion?: TypeScriptVersion }> {
 		const pickOptions: MyQuickPickItem[] = [];
 
 		const shippedVersion = this.versionProvider.defaultVersion;
@@ -77,7 +77,7 @@ export class TypeScriptVersionPicker {
 		}
 
 		pickOptions.push({
-			label: localize('learnMore', 'Learn More'),
+			label: localize('learnMore', 'Learn more about managing TypeScript versions'),
 			description: '',
 			id: MessageAction.learnMore
 		});
@@ -86,7 +86,6 @@ export class TypeScriptVersionPicker {
 			placeHolder: localize(
 				'selectTsVersion',
 				"Select the TypeScript version used for JavaScript and TypeScript language features"),
-			ignoreFocusOut: firstRun,
 		});
 
 		if (!selected) {

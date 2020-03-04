@@ -120,6 +120,10 @@ export interface ITypeScriptServiceClient {
 	readonly onDidEndInstallTypings: vscode.Event<Proto.EndInstallTypesEventBody>;
 	readonly onTypesInstallerInitializationFailed: vscode.Event<Proto.TypesInstallerInitializationFailedEventBody>;
 
+	onReady(f: () => void): Promise<void>;
+
+	showVersionPicker(): void;
+
 	readonly apiVersion: API;
 	readonly pluginManager: PluginManager;
 	readonly configuration: TypeScriptServiceConfiguration;

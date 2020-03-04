@@ -24,7 +24,7 @@ import { TypeScriptPluginPathsProvider } from './utils/pluginPathsProvider';
 import { PluginManager } from './utils/plugins';
 import { TelemetryReporter, VSCodeTelemetryReporter, TelemetryProperties } from './utils/telemetry';
 import Tracer from './utils/tracer';
-import { inferredProjectCompilerOptions } from './utils/tsconfig';
+import { inferredProjectCompilerOptions, ProjectType } from './utils/tsconfig';
 import { TypeScriptVersionPicker } from './utils/versionPicker';
 import { TypeScriptVersion, TypeScriptVersionProvider } from './utils/versionProvider';
 
@@ -414,16 +414,11 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		return this.serverState;
 	}
 
-	public onVersionStatusClicked(): Thenable<void> {
-		return this.showVersionPicker();
-	}
-
-	private showVersionPicker(): Thenable<void> {
-		return this.versionPicker.show().then(change => {
-			if (change.newVersion && change.oldVersion && change.oldVersion.eq(change.newVersion)) {
-				this.restartTsServer();
-			}
-		});
+	public async showVersionPicker(): Promise<void> {
+		const change = await this.versionPicker.show();
+		if (change.newVersion && change.oldVersion && change.oldVersion.eq(change.newVersion)) {
+			this.restartTsServer();
+		}
 	}
 
 	public async openTsServerLogFile(): Promise<boolean> {
@@ -512,7 +507,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 	private getCompilerOptionsForInferredProjects(configuration: TypeScriptServiceConfiguration): Proto.ExternalProjectCompilerOptions {
 		return {
-			...inferredProjectCompilerOptions(true, configuration),
+			...inferredProjectCompilerOptions(ProjectType.TypeScript, configuration),
 			allowJs: true,
 			allowSyntheticDefaultImports: true,
 			allowNonTsExtensions: true,
