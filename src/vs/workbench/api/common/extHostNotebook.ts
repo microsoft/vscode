@@ -447,9 +447,9 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	private readonly _documents = new Map<string, ExtHostNotebookDocument>();
 	private readonly _editors = new Map<string, ExtHostNotebookEditor>();
 	private readonly _notebookOutputRenderers = new Map<number, ExtHostNotebookOutputRenderer>();
-	private _outputDisplayOrder: ExtHostOutputDisplayOrder | undefined;
+	private _outputDisplayOrder: INotebookDisplayOrder | undefined;
 
-	get outputDisplayOrder(): ExtHostOutputDisplayOrder | undefined {
+	get outputDisplayOrder(): INotebookDisplayOrder | undefined {
 		return this._outputDisplayOrder;
 	}
 
@@ -662,9 +662,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	}
 
 	$acceptDisplayOrder(displayOrder: INotebookDisplayOrder): void {
-		this._outputDisplayOrder = {
-			defaultOrder: displayOrder.defaultOrder,
-			userOrder: displayOrder.userOrder || []
-		};
+		this._outputDisplayOrder = displayOrder;
 	}
 }
