@@ -17,14 +17,14 @@ for (let i = 0; i < 256; i++) {
 	_hex.push(i.toString(16).padStart(2, '0'));
 }
 
-const _fillRandomValues = typeof crypto === 'object'
-	? crypto.getRandomValues.bind(crypto)
-	: function (bucket: Uint8Array): Uint8Array { // todo@jrieken node nodejs use `crypto#randomBytes`, see: https://nodejs.org/docs/latest/api/crypto.html#crypto_crypto_randombytes_size_callback
-		for (let i = 0; i < bucket.length; i++) {
-			bucket[i] = Math.floor(Math.random() * 256);
-		}
-		return bucket;
-	};
+// todo@joh node nodejs use `crypto#randomBytes`, see: https://nodejs.org/docs/latest/api/crypto.html#crypto_crypto_randombytes_size_callback
+// todo@joh use browser-crypto
+const _fillRandomValues = function (bucket: Uint8Array): Uint8Array {
+	for (let i = 0; i < bucket.length; i++) {
+		bucket[i] = Math.floor(Math.random() * 256);
+	}
+	return bucket;
+};
 
 export function generateUuid(): string {
 	// get data
