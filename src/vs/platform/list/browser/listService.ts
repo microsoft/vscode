@@ -298,7 +298,7 @@ export class WorkbenchList<T> extends List<T> {
 			this.updateStyles(options.overrideStyles);
 		}
 
-		this.disposables.add(this.onSelectionChange(() => {
+		this.disposables.add(this.onDidChangeSelection(() => {
 			const selection = this.getSelection();
 			const focus = this.getFocus();
 
@@ -306,7 +306,7 @@ export class WorkbenchList<T> extends List<T> {
 			this.listMultiSelection.set(selection.length > 1);
 			this.listDoubleSelection.set(selection.length === 2);
 		}));
-		this.disposables.add(this.onFocusChange(() => {
+		this.disposables.add(this.onDidChangeFocus(() => {
 			const selection = this.getSelection();
 			const focus = this.getFocus();
 

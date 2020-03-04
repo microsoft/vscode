@@ -631,8 +631,8 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.toDispose.add(editor.onDidLayoutChange(() => this.onEditorLayoutChange()));
 		this.toDispose.add(this.list.onMouseDown(e => this.onListMouseDownOrTap(e)));
 		this.toDispose.add(this.list.onTap(e => this.onListMouseDownOrTap(e)));
-		this.toDispose.add(this.list.onSelectionChange(e => this.onListSelection(e)));
-		this.toDispose.add(this.list.onFocusChange(e => this.onListFocus(e)));
+		this.toDispose.add(this.list.onDidChangeSelection(e => this.onListSelection(e)));
+		this.toDispose.add(this.list.onDidChangeFocus(e => this.onListFocus(e)));
 		this.toDispose.add(this.editor.onDidChangeCursorSelection(() => this.onCursorSelectionChanged()));
 		this.toDispose.add(this.editor.onDidChangeConfiguration(e => {
 			if (e.hasChanged(EditorOption.suggest)) {

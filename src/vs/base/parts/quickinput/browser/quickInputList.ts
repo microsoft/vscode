@@ -295,12 +295,12 @@ export class QuickInputList {
 
 	@memoize
 	get onDidChangeFocus() {
-		return Event.map(this.list.onFocusChange, e => e.elements.map(e => e.item));
+		return Event.map(this.list.onDidChangeFocus, e => e.elements.map(e => e.item));
 	}
 
 	@memoize
 	get onDidChangeSelection() {
-		return Event.map(this.list.onSelectionChange, e => e.elements.map(e => e.item));
+		return Event.map(this.list.onDidChangeSelection, e => e.elements.map(e => e.item));
 	}
 
 	getAllVisibleChecked() {
