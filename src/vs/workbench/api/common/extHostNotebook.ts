@@ -8,17 +8,12 @@ import { ExtHostNotebookShape, IMainContext, MainThreadNotebookShape, MainContex
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Disposable as VSCodeDisposable } from './extHostTypes';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { readonly } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { INotebookDisplayOrder, parseCellUri, parseCellHandle, ITransformedDisplayOutputDto, IOrderedMimeType, IStreamOutput, IErrorOutput, mimeTypeSupportedByCore, IOutput, sortMimeTypes, diff } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ISplice } from 'vs/base/common/sequence';
-
-interface ExtHostOutputDisplayOrder {
-	defaultOrder: string[];
-	userOrder?: string[];
-}
 
 export class ExtHostCell implements vscode.NotebookCell {
 
@@ -88,8 +83,7 @@ export class ExtHostCell implements vscode.NotebookCell {
 	}
 }
 
-
-export class ExtHostNotebookDocument implements vscode.NotebookDocument, vscode.Disposable {
+export class ExtHostNotebookDocument extends Disposable implements vscode.NotebookDocument {
 	private static _handlePool: number = 0;
 	readonly handle = ExtHostNotebookDocument._handlePool++;
 
@@ -151,9 +145,11 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument, vscode.
 		public uri: URI,
 		public renderingHandler: ExtHostNotebookOutputRenderingHandler
 	) {
-
+		super();
 	}
+
 	dispose() {
+		super.dispose();
 		this._cellDisposableMapping.forEach(cell => cell.dispose());
 	}
 
@@ -332,9 +328,8 @@ export class ExtHostNotebookDocument implements vscode.NotebookDocument, vscode.
 	}
 }
 
-export class ExtHostNotebookEditor implements vscode.NotebookEditor, vscode.Disposable {
+export class ExtHostNotebookEditor extends Disposable implements vscode.NotebookEditor {
 	private _viewColumn: vscode.ViewColumn | undefined;
-	private _disposableStore = new DisposableStore();
 
 	constructor(
 		viewType: string,
@@ -343,7 +338,8 @@ export class ExtHostNotebookEditor implements vscode.NotebookEditor, vscode.Disp
 		public document: ExtHostNotebookDocument,
 		private _documentsAndEditors: ExtHostDocumentsAndEditors
 	) {
-		this._disposableStore.add(this._documentsAndEditors.onDidAddDocuments(documents => {
+		super();
+		this._register(this._documentsAndEditors.onDidAddDocuments(documents => {
 			for (const data of documents) {
 				let textDocument = data.document;
 				let parsedCellUri = parseCellUri(textDocument.uri);
@@ -359,13 +355,13 @@ export class ExtHostNotebookEditor implements vscode.NotebookEditor, vscode.Disp
 
 				if (cellHandle !== undefined) {
 					if (this.document.uri.fsPath === notebookUri.fsPath) {
-						document.attachCellTextDocument(Number(cellHandle), textDocument);
+						document.attachCellTextDocument(cellHandle, textDocument);
 					}
 				}
 			}
 		}));
 
-		this._disposableStore.add(this._documentsAndEditors.onDidRemoveDocuments(documents => {
+		this._register(this._documentsAndEditors.onDidRemoveDocuments(documents => {
 			for (const data of documents) {
 				let textDocument = data.document;
 				let parsedCellUri = parseCellUri(textDocument.uri);
@@ -381,15 +377,11 @@ export class ExtHostNotebookEditor implements vscode.NotebookEditor, vscode.Disp
 
 				if (cellHandle !== undefined) {
 					if (this.document.uri.fsPath === notebookUri.fsPath) {
-						document.detachCellTextDocument(Number(cellHandle), textDocument);
+						document.detachCellTextDocument(cellHandle, textDocument);
 					}
 				}
 			}
 		}));
-	}
-
-	dispose() {
-		this._disposableStore.dispose();
 	}
 
 	createCell(content: string, language: string, type: CellKind, outputs: vscode.CellOutput[]): vscode.NotebookCell {
@@ -435,7 +427,7 @@ export class ExtHostNotebookOutputRenderer {
 }
 
 export interface ExtHostNotebookOutputRenderingHandler {
-	outputDisplayOrder: ExtHostOutputDisplayOrder | undefined;
+	outputDisplayOrder: INotebookDisplayOrder | undefined;
 	findBestMatchedRenderer(mimeType: string): ExtHostNotebookOutputRenderer[];
 }
 
@@ -603,14 +595,14 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	async $deleteCell(viewType: string, uri: UriComponents, index: number): Promise<boolean> {
 		let provider = this._notebookProviders.get(viewType);
 
-		if (provider) {
-			let document = this._documents.get(URI.revive(uri).toString());
-
-			if (document) {
-				return document.deleteCell(index);
-			}
-
+		if (!provider) {
 			return false;
+		}
+
+		let document = this._documents.get(URI.revive(uri).toString());
+
+		if (document) {
+			return document.deleteCell(index);
 		}
 
 		return false;
@@ -628,37 +620,31 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	}
 
 	async $updateActiveEditor(viewType: string, uri: UriComponents): Promise<void> {
-		let document = this._documents.get(URI.revive(uri).toString());
-
-		if (document) {
-			this._activeNotebookDocument = document;
-		} else {
-			this._activeNotebookDocument = undefined;
-		}
+		this._activeNotebookDocument = this._documents.get(URI.revive(uri).toString());
 	}
 
 	async $destoryNotebookDocument(viewType: string, uri: UriComponents): Promise<boolean> {
 		let provider = this._notebookProviders.get(viewType);
 
-		if (provider) {
-			let document = this._documents.get(URI.revive(uri).toString());
-
-			if (document) {
-				document.dispose();
-				this._documents.delete(URI.revive(uri).toString());
-			}
-
-			let editor = this._editors.get(URI.revive(uri).toString());
-
-			if (editor) {
-				editor.dispose();
-				this._editors.delete(URI.revive(uri).toString());
-			}
-
-			return true;
+		if (!provider) {
+			return false;
 		}
 
-		return false;
+		let document = this._documents.get(URI.revive(uri).toString());
+
+		if (document) {
+			document.dispose();
+			this._documents.delete(URI.revive(uri).toString());
+		}
+
+		let editor = this._editors.get(URI.revive(uri).toString());
+
+		if (editor) {
+			editor.dispose();
+			this._editors.delete(URI.revive(uri).toString());
+		}
+
+		return true;
 	}
 
 	$acceptDisplayOrder(displayOrder: INotebookDisplayOrder): void {

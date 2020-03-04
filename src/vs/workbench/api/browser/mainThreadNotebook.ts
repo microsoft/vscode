@@ -200,6 +200,7 @@ export class MainThreadNotebookDocument extends Disposable implements INotebook 
 
 	dispose() {
 		this._onWillDispose.fire();
+		this._cellListeners.forEach(val => val.dispose());
 		super.dispose();
 	}
 }
