@@ -24,8 +24,7 @@ export class WebviewEditor extends BaseEditor {
 
 	public static readonly ID = 'WebviewEditor';
 
-	private _editorFrame?: HTMLElement;
-	private _content?: HTMLElement;
+	private _element?: HTMLElement;
 	private _dimension?: DOM.Dimension;
 
 	private readonly _webviewVisibleDisposables = this._register(new DisposableStore());
@@ -50,15 +49,15 @@ export class WebviewEditor extends BaseEditor {
 	}
 
 	protected createEditor(parent: HTMLElement): void {
-		this._editorFrame = parent;
-		this._content = document.createElement('div');
-		parent.appendChild(this._content);
+		const element = document.createElement('div');
+		this._element = element;
+		parent.appendChild(element);
 	}
 
 	public dispose(): void {
-		if (this._content) {
-			this._content.remove();
-			this._content = undefined;
+		if (this._element) {
+			this._element.remove();
+			this._element = undefined;
 		}
 
 		super.dispose();
@@ -136,8 +135,8 @@ export class WebviewEditor extends BaseEditor {
 	private claimWebview(input: WebviewInput): void {
 		input.webview.claim(this);
 
-		if (this._content) {
-			this._content.setAttribute('aria-flowto', input.webview.container.id);
+		if (this._element) {
+			this._element.setAttribute('aria-flowto', input.webview.container.id);
 		}
 
 		this._webviewVisibleDisposables.clear();
@@ -168,8 +167,8 @@ export class WebviewEditor extends BaseEditor {
 	}
 
 	private synchronizeWebviewContainerDimensions(webview: WebviewOverlay, dimension?: DOM.Dimension) {
-		if (this._editorFrame) {
-			webview.layoutWebviewOverElement(this._editorFrame, dimension);
+		if (this._element) {
+			webview.layoutWebviewOverElement(this._element.parentElement!, dimension);
 		}
 	}
 
