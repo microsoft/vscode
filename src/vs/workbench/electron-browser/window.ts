@@ -560,11 +560,15 @@ export class NativeWindow extends Disposable {
 			}
 		};
 
+		// start crash reporter in the main process first.
+		// On windows crashpad excepts a name pipe for the client to connect,
+		// this pipe is created by crash reporter initialization from the main process,
+		// changing this order of initialization will cause issues.
+		// For more info: https://chromium.googlesource.com/crashpad/crashpad/+/HEAD/doc/overview_design.md#normal-registration
+		await this.electronService.startCrashReporter(options);
+
 		// start crash reporter right here
 		crashReporter.start(deepClone(options));
-
-		// start crash reporter in the main process
-		return this.electronService.startCrashReporter(options);
 	}
 
 	private onAddFoldersRequest(request: IAddFoldersRequest): void {
