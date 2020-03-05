@@ -61,5 +61,20 @@
 			},
 			"publisherDisplayName": "Microsoft"
 		}
+	},
+	{
+		"name": "ms-vscode.js-debug-companion",
+		"version": "0.0.4",
+		"repo": "https://github.com/microsoft/vscode-js-debug-companion",
+		"metadata": {
+			"id": "99cb0b7f-7354-4278-b8da-6cc79972169d",
+			"publisherId": {
+				"publisherId": "5f5636e7-69ed-4afe-b5d6-8d231fb3d3ee",
+				"publisherName": "ms-vscode",
+				"displayName": "Microsoft",
+				"flags": "verified"
+			},
+			"publisherDisplayName": "Microsoft"
+		}
 	}
 ]
