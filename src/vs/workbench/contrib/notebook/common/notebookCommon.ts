@@ -11,6 +11,7 @@ import { PieceTreeTextBufferFactory } from 'vs/editor/common/model/pieceTreeText
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ISplice } from 'vs/base/common/sequence';
 import { isWindows } from 'vs/base/common/platform';
+import { Selection } from 'vs/editor/common/core/selection';
 
 export enum CellKind {
 	Markdown = 1,
@@ -322,4 +323,8 @@ export function diff<T>(before: T[], after: T[], contains: (a: T) => boolean): I
 	}
 
 	return result;
+}
+
+export interface ICellEditorViewState {
+	selections: Selection[] | null;
 }

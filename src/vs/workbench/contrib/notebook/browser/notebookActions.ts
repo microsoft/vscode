@@ -82,8 +82,7 @@ registerAction2(class extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		let editorService = accessor.get(IEditorService);
-		let notebookService = accessor.get(INotebookService);
-		let editor = getActiveNotebookEditor(editorService, notebookService);
+		let editor = getActiveNotebookEditor(editorService);
 
 		if (!editor) {
 			return;
@@ -115,8 +114,7 @@ registerAction2(class extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		let editorService = accessor.get(IEditorService);
-		let notebookService = accessor.get(INotebookService);
-		let editor = getActiveNotebookEditor(editorService, notebookService);
+		let editor = getActiveNotebookEditor(editorService);
 
 		if (!editor) {
 			return;
@@ -144,8 +142,7 @@ registerAction2(class extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		let editorService = accessor.get(IEditorService);
-		let notebookService = accessor.get(INotebookService);
-		let editor = getActiveNotebookEditor(editorService, notebookService);
+		let editor = getActiveNotebookEditor(editorService);
 
 		editor?.hideFind();
 	}
@@ -165,8 +162,7 @@ registerAction2(class extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		let editorService = accessor.get(IEditorService);
-		let notebookService = accessor.get(INotebookService);
-		let editor = getActiveNotebookEditor(editorService, notebookService);
+		let editor = getActiveNotebookEditor(editorService);
 
 		editor?.showFind();
 	}
@@ -196,21 +192,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 });
 
 
-function getActiveNotebookEditor(editorService: IEditorService, notebookService: INotebookService): NotebookEditor | undefined {
-	let resource = editorService.activeEditor?.resource;
-	let editorControl = editorService.activeEditorPane?.getControl();
-	let notebookProviders = notebookService.getContributedNotebookProviders(resource!);
-
-	if (!resource || !editorControl || notebookProviders.length === 0) {
-		return;
-	}
-
-	let editorViewType = (editorControl! as NotebookEditor).viewType;
-	let viewType = notebookProviders[0].id;
-
-	if (viewType !== editorViewType) {
-		return;
-	}
-
-	return editorControl! as NotebookEditor;
+function getActiveNotebookEditor(editorService: IEditorService): NotebookEditor | undefined {
+	const activeEditorPane = editorService.activeEditorPane as NotebookEditor | undefined;
+	return activeEditorPane?.isNotebookEditor ? activeEditorPane : undefined;
 }

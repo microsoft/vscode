@@ -14,7 +14,7 @@ import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer'
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CellFindMatch } from 'vs/workbench/contrib/notebook/browser/notebookFindWidget';
 import { MarkdownRenderer } from 'vs/workbench/contrib/notebook/browser/renderers/mdRenderer';
-import { EDITOR_BOTTOM_PADDING, EDITOR_TOP_PADDING, ICell, IOutput, NotebookCellOutputsSplice, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { EDITOR_BOTTOM_PADDING, EDITOR_TOP_PADDING, ICell, IOutput, NotebookCellOutputsSplice, CellKind, ICellEditorViewState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { SearchParams } from 'vs/editor/common/model/textModelSearch';
 
 export class CellViewModel extends Disposable {
@@ -78,6 +78,7 @@ export class CellViewModel extends Disposable {
 		readonly notebookHandle: number,
 		readonly cell: ICell,
 		private _isEditing: boolean,
+		private _editorViewStates: ICellEditorViewState | undefined,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@ITextModelService private readonly _modelService: ITextModelService,
 	) {
@@ -141,6 +142,17 @@ export class CellViewModel extends Disposable {
 		}
 
 		return false;
+	}
+
+	getViewState(): ICellEditorViewState | undefined {
+		if (this._textEditor) {
+			const selections = this._textEditor.getSelections();
+			return {
+				selections: selections
+			};
+		}
+
+		return undefined;
 	}
 
 	//#endregion
@@ -219,6 +231,10 @@ export class CellViewModel extends Disposable {
 
 	attachTextEditor(editor: ICodeEditor) {
 		this._textEditor = editor;
+
+		if (this._editorViewStates) {
+			this._textEditor.setSelections(this._editorViewStates.selections || []);
+		}
 	}
 
 	getMarkdownRenderer() {

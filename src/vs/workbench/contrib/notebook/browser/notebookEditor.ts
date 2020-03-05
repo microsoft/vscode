@@ -19,6 +19,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { contrastBorder, editorBackground, focusBorder, foreground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground, textPreformatForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { Selection } from 'vs/editor/common/core/selection';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions, IEditorMemento, ICompositeCodeEditor } from 'vs/workbench/common/editor';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -38,18 +39,14 @@ import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { Emitter, Event } from 'vs/base/common/event';
 import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/notebookCellList';
 import { NotebookFindWidget, NotebookFindDelegate, CellFindMatch } from 'vs/workbench/contrib/notebook/browser/notebookFindWidget';
-import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/notebookViewModel';
+import { NotebookViewModel, INotebookEditorViewState } from 'vs/workbench/contrib/notebook/browser/notebookViewModel';
 
 const $ = DOM.$;
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
 
 export const NOTEBOOK_EDITOR_FOCUSED = new RawContextKey<boolean>('notebookEditorFocused', false);
 
-interface INotebookEditorViewState {
-	editingCells: { [key: number]: boolean };
-}
-
-class NotebookCodeEditors implements ICompositeCodeEditor {
+export class NotebookCodeEditors implements ICompositeCodeEditor {
 
 	private readonly _disposables = new DisposableStore();
 	private readonly _onDidChangeActiveEditor = new Emitter<this>();
@@ -157,6 +154,11 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 
 
 	//#region Editor
+
+
+	public get isNotebookEditor() {
+		return true;
+	}
 
 	protected createEditor(parent: HTMLElement): void {
 		this.rootElement = DOM.append(parent, $('.notebook-editor'));
@@ -354,8 +356,13 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 		if (this.group) {
 			let state: { [key: number]: boolean } = {};
 			this.notebookViewModel!.viewCells.filter(cell => cell.isEditing).forEach(cell => state[cell.cell.handle] = true);
+			const editorViewStates: { [key: number]: Selection[] } = {};
+			this.notebookViewModel!.viewCells.map(cell => ({ handle: cell.cell.handle, state: cell.getViewState() })).filter(viewState => !!viewState.state && viewState.state.selections !== null).forEach(viewState => {
+				editorViewStates[viewState.handle] = viewState.state!.selections!;
+			});
 			this.editorMemento.saveEditorState(this.group, input, {
-				editingCells: state
+				editingCells: state,
+				editorViewStates: editorViewStates
 			});
 		}
 	}
@@ -435,7 +442,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 		DOM.scheduleAtNextAnimationFrame(() => {
 			splices.reverse().forEach((diff) => {
 				this.list?.splice(diff[0], diff[1], diff[2].map(cell => {
-					return this.instantiationService.createInstance(CellViewModel, this.viewType!, this.notebookViewModel!.handle, cell, false);
+					return this.instantiationService.createInstance(CellViewModel, this.viewType!, this.notebookViewModel!.handle, cell, false, undefined);
 				}));
 			});
 		});
@@ -447,7 +454,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 		const index = this.notebookViewModel!.getViewCellIndex(cell);
 		const insertIndex = direction === 'above' ? index : index + 1;
 		const newModeCell = await this.notebookService.createNotebookCell(this.viewType!, this.notebookViewModel!.uri, insertIndex, language, type);
-		const newCell = this.instantiationService.createInstance(CellViewModel, this.viewType!, this.notebookViewModel!.handle, newModeCell!, false);
+		const newCell = this.instantiationService.createInstance(CellViewModel, this.viewType!, this.notebookViewModel!.handle, newModeCell!, false, undefined);
 
 		this.notebookViewModel!.insertCell(insertIndex, newCell);
 		this.list?.splice(insertIndex, 0, [newCell]);
@@ -471,6 +478,8 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 
 	editNotebookCell(cell: CellViewModel): void {
 		cell.isEditing = true;
+
+		this.renderedEditors.get(cell)?.focus();
 	}
 
 	saveNotebookCell(cell: CellViewModel): void {

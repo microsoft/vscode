@@ -142,7 +142,7 @@ export class TestNotebookEditor implements INotebookEditor {
 
 export function createTestCellViewModel(instantiationService: IInstantiationService, viewType: string, notebookHandle: number, cellhandle: number, source: string[], language: string, cellKind: CellKind, outputs: IOutput[]) {
 	const mockCell = new TestCell(viewType, cellhandle, source, language, cellKind, outputs);
-	return instantiationService.createInstance(CellViewModel, viewType, notebookHandle, mockCell, false);
+	return instantiationService.createInstance(CellViewModel, viewType, notebookHandle, mockCell, false, undefined);
 }
 
 export function withTestNotebook(instantiationService: IInstantiationService, cells: [string[], string, CellKind, IOutput[]][], callback: (editor: TestNotebookEditor, viewModel: NotebookViewModel) => void) {

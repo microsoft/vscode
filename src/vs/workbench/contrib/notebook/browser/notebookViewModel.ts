@@ -8,11 +8,13 @@ import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/renderers/c
 import { DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter, Event } from 'vs/base/common/event';
+import { Selection } from 'vs/editor/common/core/selection';
 import { NotebookCellsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellFindMatch } from 'vs/workbench/contrib/notebook/browser/notebookFindWidget';
 
 export interface INotebookEditorViewState {
 	editingCells: { [key: number]: boolean };
+	editorViewStates: { [key: number]: Selection[] };
 }
 
 export class NotebookViewModel extends Disposable {
@@ -58,8 +60,9 @@ export class NotebookViewModel extends Disposable {
 
 	initialize(viewState: INotebookEditorViewState | undefined) {
 		this._viewCells = this._model!.notebook!.cells.map(cell => {
-			const isEditing = viewState && viewState.editingCells[cell.handle];
-			const viewCell = this.instantiationService.createInstance(CellViewModel, this.viewType, this._model!.notebook!.handle, cell, !!isEditing);
+			const isEditing = viewState && viewState.editingCells && viewState.editingCells[cell.handle];
+			const editorViewState = viewState && viewState.editorViewStates && viewState.editorViewStates[cell.handle];
+			const viewCell = this.instantiationService.createInstance(CellViewModel, this.viewType, this._model!.notebook!.handle, cell, !!isEditing, { selections: editorViewState || null });
 			this._localStore.add(viewCell);
 			return viewCell;
 		});
