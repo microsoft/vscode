@@ -152,15 +152,14 @@ export abstract class AbstractSynchroniser extends Disposable {
 		return !!lastSyncData;
 	}
 
-	async getRemoteContent(): Promise<string | null> {
-		const lastSyncData = await this.getLastSyncUserData();
-		const { syncData } = await this.getRemoteUserData(lastSyncData);
-		return syncData ? syncData.content : null;
+	async getRemoteContentFromPreview(): Promise<string | null> {
+		return null;
 	}
 
-	async resolveContent(ref: string): Promise<string | null> {
-		const { syncData } = await this.getRemoteUserData(ref);
-		return syncData ? syncData.content : null;
+	async getRemoteContent(ref?: string): Promise<string | null> {
+		const refOrLastSyncUserData: string | IRemoteUserData | null = ref || await this.getLastSyncUserData();
+		const { content } = await this.getUserData(refOrLastSyncUserData);
+		return content;
 	}
 
 	async resetLocal(): Promise<void> {
@@ -195,20 +194,8 @@ export abstract class AbstractSynchroniser extends Disposable {
 		await this.fileService.writeFile(this.lastSyncResource, VSBuffer.fromString(JSON.stringify(lastSyncUserData)));
 	}
 
-	protected async getRemoteUserData(ref: string): Promise<IRemoteUserData>
-	protected async getRemoteUserData(lastSyncData: IRemoteUserData | null): Promise<IRemoteUserData>
-	protected async getRemoteUserData(arg: string | IRemoteUserData | null): Promise<IRemoteUserData> {
-		let ref: string;
-		let content: string | null = null;
-		if (isString(arg)) {
-			ref = arg;
-			content = await this.userDataSyncStoreService.resolveContent(this.resourceKey, ref);
-		} else {
-			const lastSyncUserData: IUserData | null = arg ? { ref: arg.ref, content: arg.syncData ? JSON.stringify(arg.syncData) : null } : null;
-			const userData = await this.userDataSyncStoreService.read(this.resourceKey, lastSyncUserData, this.source);
-			ref = userData.ref;
-			content = userData.content;
-		}
+	protected async getRemoteUserData(lastSyncData: IRemoteUserData | null): Promise<IRemoteUserData> {
+		const { ref, content } = await this.getUserData(lastSyncData);
 		let syncData: ISyncData | null = null;
 		if (content !== null) {
 			try {
@@ -224,6 +211,16 @@ export abstract class AbstractSynchroniser extends Disposable {
 			}
 		}
 		return { ref, syncData };
+	}
+
+	private async getUserData(refOrLastSyncData: string | IRemoteUserData | null): Promise<IUserData> {
+		if (isString(refOrLastSyncData)) {
+			const content = await this.userDataSyncStoreService.resolveContent(this.resourceKey, refOrLastSyncData);
+			return { ref: refOrLastSyncData, content };
+		} else {
+			const lastSyncUserData: IUserData | null = refOrLastSyncData ? { ref: refOrLastSyncData.ref, content: refOrLastSyncData.syncData ? JSON.stringify(refOrLastSyncData.syncData) : null } : null;
+			return this.userDataSyncStoreService.read(this.resourceKey, lastSyncUserData, this.source);
+		}
 	}
 
 	protected async updateRemoteUserData(content: string, ref: string | null): Promise<IRemoteUserData> {
@@ -282,14 +279,12 @@ export abstract class AbstractFileSynchroniser extends AbstractSynchroniser {
 		this.setStatus(SyncStatus.Idle);
 	}
 
-	async getRemoteContent(preview?: boolean): Promise<string | null> {
-		if (preview) {
-			if (this.syncPreviewResultPromise) {
-				const result = await this.syncPreviewResultPromise;
-				return result.remoteUserData && result.remoteUserData.syncData ? result.remoteUserData.syncData.content : null;
-			}
+	async getRemoteContentFromPreview(): Promise<string | null> {
+		if (this.syncPreviewResultPromise) {
+			const result = await this.syncPreviewResultPromise;
+			return result.remoteUserData && result.remoteUserData.syncData ? result.remoteUserData.syncData.content : null;
 		}
-		return super.getRemoteContent();
+		return null;
 	}
 
 	protected async getLocalFileContent(): Promise<IFileContent | null> {

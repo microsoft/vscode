@@ -9,7 +9,7 @@ import { canceled, isPromiseCanceledError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, dispose, MutableDisposable, toDisposable, IDisposable } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
-import { isEqual, dirname, basename } from 'vs/base/common/resources';
+import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import type { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
@@ -30,7 +30,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { CONTEXT_SYNC_STATE, getSyncSourceFromRemoteContentResource, getUserDataSyncStore, ISyncConfiguration, IUserDataAutoSyncService, IUserDataSyncService, IUserDataSyncStore, registerConfiguration, SyncSource, SyncStatus, toRemoteContentResource, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_SCHEME, IUserDataSyncEnablementService, ResourceKey, getSyncSourceFromPreviewResource, CONTEXT_SYNC_ENABLEMENT } from 'vs/platform/userDataSync/common/userDataSync';
+import { CONTEXT_SYNC_STATE, getUserDataSyncStore, ISyncConfiguration, IUserDataAutoSyncService, IUserDataSyncService, IUserDataSyncStore, registerConfiguration, SyncSource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_SCHEME, IUserDataSyncEnablementService, ResourceKey, getSyncSourceFromPreviewResource, CONTEXT_SYNC_ENABLEMENT, toSyncResourceFromSource, PREVIEW_QUERY, resolveSyncResource, getSyncSource } from 'vs/platform/userDataSync/common/userDataSync';
 import { FloatingClickWidget } from 'vs/workbench/browser/parts/editor/editorWidgets';
 import { GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -354,7 +354,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private async acceptRemote(syncSource: SyncSource) {
 		try {
-			const contents = await this.userDataSyncService.getRemoteContent(syncSource, false);
+			const contents = await this.userDataSyncService.resolveContent(toSyncResourceFromSource(syncSource).with({ query: PREVIEW_QUERY }));
 			if (contents) {
 				await this.userDataSyncService.accept(syncSource, contents);
 			}
@@ -754,7 +754,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			label = localize('keybindings conflicts preview', "Keybindings Conflicts (Remote ↔ Local)");
 		}
 		if (previewResource) {
-			const remoteContentResource = toRemoteContentResource(source);
+			const remoteContentResource = toSyncResourceFromSource(source).with({ query: PREVIEW_QUERY });
 			await this.editorService.openEditor({
 				leftResource: remoteContentResource,
 				rightResource: previewResource,
@@ -1056,20 +1056,8 @@ class UserDataRemoteContentProvider implements ITextModelContentProvider {
 	}
 
 	provideTextContent(uri: URI): Promise<ITextModel> | null {
-		let promise: Promise<string | null> | undefined;
-		if (isEqual(uri, toRemoteContentResource(SyncSource.Settings))) {
-			promise = this.userDataSyncService.getRemoteContent(SyncSource.Settings, true);
-		} else if (isEqual(uri, toRemoteContentResource(SyncSource.Keybindings))) {
-			promise = this.userDataSyncService.getRemoteContent(SyncSource.Keybindings, true);
-		} else {
-			const resourceKey: ResourceKey = basename(dirname(uri)) as ResourceKey;
-			const ref = basename(uri);
-			if (resourceKey && ref) {
-				promise = this.userDataSyncService.resolveContent(resourceKey, ref);
-			}
-		}
-		if (promise) {
-			return promise.then(content => this.modelService.createModel(content || '', this.modeService.create('jsonc'), uri));
+		if (uri.scheme === USER_DATA_SYNC_SCHEME) {
+			return this.userDataSyncService.resolveContent(uri).then(content => this.modelService.createModel(content || '', this.modeService.create('jsonc'), uri));
 		}
 		return null;
 	}
@@ -1125,7 +1113,7 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 			return true;
 		}
 
-		if (getSyncSourceFromRemoteContentResource(model.uri) !== undefined) {
+		if (resolveSyncResource(model.uri)?.query === PREVIEW_QUERY) {
 			return this.configurationService.getValue<boolean>('diffEditor.renderSideBySide');
 		}
 
@@ -1135,14 +1123,14 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 
 	private createAcceptChangesWidgetRenderer(): void {
 		if (!this.acceptChangesButton) {
-			const isRemote = getSyncSourceFromRemoteContentResource(this.editor.getModel()!.uri) !== undefined;
+			const isRemote = resolveSyncResource(this.editor.getModel()!.uri) !== null;
 			const acceptRemoteLabel = localize('accept remote', "Accept Remote");
 			const acceptLocalLabel = localize('accept local', "Accept Local");
 			this.acceptChangesButton = this.instantiationService.createInstance(FloatingClickWidget, this.editor, isRemote ? acceptRemoteLabel : acceptLocalLabel, null);
 			this._register(this.acceptChangesButton.onClick(async () => {
 				const model = this.editor.getModel();
 				if (model) {
-					const conflictsSource = (getSyncSourceFromPreviewResource(model.uri, this.environmentService) || getSyncSourceFromRemoteContentResource(model.uri))!;
+					const conflictsSource = (getSyncSourceFromPreviewResource(model.uri, this.environmentService) || getSyncSource(resolveSyncResource(model.uri)!.resourceKey))!;
 					this.telemetryService.publicLog2<{ source: string, action: string }, SyncConflictsClassification>('sync/handleConflicts', { source: conflictsSource, action: isRemote ? 'acceptRemote' : 'acceptLocal' });
 					const syncAreaLabel = getSyncAreaLabel(conflictsSource);
 					const result = await this.dialogService.confirm({

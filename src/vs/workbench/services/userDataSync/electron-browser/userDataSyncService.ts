@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SyncStatus, SyncSource, IUserDataSyncService, UserDataSyncError, ResourceKey } from 'vs/platform/userDataSync/common/userDataSync';
+import { SyncStatus, SyncSource, IUserDataSyncService, UserDataSyncError } from 'vs/platform/userDataSync/common/userDataSync';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { URI } from 'vs/base/common/uri';
 
 export class UserDataSyncService extends Disposable implements IUserDataSyncService {
 
@@ -88,12 +89,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return this.channel.call('stop');
 	}
 
-	getRemoteContent(source: SyncSource, preview: boolean): Promise<string | null> {
-		return this.channel.call('getRemoteContent', [source, preview]);
-	}
-
-	resolveContent(key: ResourceKey, ref: string): Promise<string | null> {
-		return this.channel.call('resolveContent', [key, ref]);
+	resolveContent(resource: URI): Promise<string | null> {
+		return this.channel.call('resolveContent', [resource]);
 	}
 
 	isFirstTimeSyncWithMerge(): Promise<boolean> {

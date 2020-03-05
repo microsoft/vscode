@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, SyncStatus, IUserDataSyncStoreService, SyncSource, ISettingsSyncService, IUserDataSyncLogService, IUserDataSynchroniser, UserDataSyncStoreError, UserDataSyncErrorCode, UserDataSyncError, ResourceKey } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, SyncStatus, IUserDataSyncStoreService, SyncSource, ISettingsSyncService, IUserDataSyncLogService, IUserDataSynchroniser, UserDataSyncStoreError, UserDataSyncErrorCode, UserDataSyncError, resolveSyncResource, PREVIEW_QUERY } from 'vs/platform/userDataSync/common/userDataSync';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -15,6 +15,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { equals } from 'vs/base/common/arrays';
 import { localize } from 'vs/nls';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { URI } from 'vs/base/common/uri';
 
 type SyncErrorClassification = {
 	source: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
@@ -176,20 +177,16 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		await synchroniser.accept(content);
 	}
 
-	async getRemoteContent(source: SyncSource, preview: boolean): Promise<string | null> {
-		await this.checkEnablement();
-		for (const synchroniser of this.synchronisers) {
-			if (synchroniser.source === source) {
-				return synchroniser.getRemoteContent(preview);
+	async resolveContent(resource: URI): Promise<string | null> {
+		const result = resolveSyncResource(resource);
+		if (result) {
+			const synchronizer = this.synchronisers.filter(s => s.resourceKey === result.resourceKey)[0];
+			if (synchronizer) {
+				if (PREVIEW_QUERY === result.query) {
+					return synchronizer.getRemoteContentFromPreview();
+				}
+				return synchronizer.getRemoteContent(result.ref);
 			}
-		}
-		return null;
-	}
-
-	async resolveContent(resourceKey: ResourceKey, ref: string): Promise<string | null> {
-		const synchronizer = this.synchronisers.filter(s => s.resourceKey === resourceKey)[0];
-		if (synchronizer) {
-			return synchronizer.resolveContent(ref);
 		}
 		return null;
 	}

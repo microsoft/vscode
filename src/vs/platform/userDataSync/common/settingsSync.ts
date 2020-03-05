@@ -187,26 +187,17 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 		return false;
 	}
 
-	async getRemoteContent(preview?: boolean): Promise<string | null> {
-		let content = await super.getRemoteContent(preview);
+	async getRemoteContentFromPreview(): Promise<string | null> {
+		let content = await super.getRemoteContentFromPreview();
 		if (content !== null) {
 			const settingsSyncContent = this.parseSettingsSyncContent(content);
 			content = settingsSyncContent ? settingsSyncContent.settings : null;
 		}
-		if (preview && content !== null) {
+		if (content !== null) {
 			const formatUtils = await this.getFormattingOptions();
 			// remove ignored settings from the remote content for preview
 			const ignoredSettings = await this.getIgnoredSettings();
 			content = updateIgnoredSettings(content, '{}', ignoredSettings, formatUtils);
-		}
-		return content;
-	}
-
-	async resolveContent(ref: string): Promise<string | null> {
-		let content = await super.resolveContent(ref);
-		if (content !== null) {
-			const settingsSyncContent = this.parseSettingsSyncContent(content);
-			content = settingsSyncContent ? settingsSyncContent.settings : null;
 		}
 		return content;
 	}

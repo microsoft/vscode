@@ -18,7 +18,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IStringDictionary } from 'vs/base/common/collections';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { URI } from 'vs/base/common/uri';
-import { isEqual, joinPath } from 'vs/base/common/resources';
+import { isEqual, joinPath, dirname, basename } from 'vs/base/common/resources';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { distinct } from 'vs/base/common/arrays';
@@ -254,8 +254,8 @@ export interface IUserDataSynchroniser {
 	hasLocalData(): Promise<boolean>;
 	resetLocal(): Promise<void>;
 
-	getRemoteContent(preivew?: boolean): Promise<string | null>;
-	resolveContent(ref: string): Promise<string | null>;
+	getRemoteContentFromPreview(): Promise<string | null>;
+	getRemoteContent(ref?: string): Promise<string | null>;
 	accept(content: string): Promise<void>;
 }
 
@@ -300,8 +300,7 @@ export interface IUserDataSyncService {
 	resetLocal(): Promise<void>;
 
 	isFirstTimeSyncWithMerge(): Promise<boolean>;
-	getRemoteContent(source: SyncSource, preview: boolean): Promise<string | null>;
-	resolveContent(resource: ResourceKey, ref: string): Promise<string | null>;
+	resolveContent(resource: URI): Promise<string | null>;
 	accept(source: SyncSource, content: string): Promise<void>;
 }
 
@@ -343,12 +342,23 @@ export const CONTEXT_SYNC_STATE = new RawContextKey<string>('syncStatus', SyncSt
 export const CONTEXT_SYNC_ENABLEMENT = new RawContextKey<boolean>('syncEnabled', false);
 
 export const USER_DATA_SYNC_SCHEME = 'vscode-userdata-sync';
-export function toRemoteContentResource(source: SyncSource): URI {
-	return URI.from({ scheme: USER_DATA_SYNC_SCHEME, path: `${source}/remoteContent` });
+export const PREVIEW_QUERY = 'preview=true';
+export function toSyncResourceFromSource(source: SyncSource, ref?: string): URI {
+	return toSyncResource(getResourceKey(source), ref);
 }
-export function getSyncSourceFromRemoteContentResource(uri: URI): SyncSource | undefined {
-	return [SyncSource.Settings, SyncSource.Keybindings, SyncSource.Extensions, SyncSource.GlobalState].filter(source => isEqual(uri, toRemoteContentResource(source)))[0];
+export function toSyncResource(resourceKey: ResourceKey, ref?: string): URI {
+	return URI.from({ scheme: USER_DATA_SYNC_SCHEME, path: `${resourceKey}/${ref ? ref : 'latest'}` });
 }
+
+export function resolveSyncResource(resource: URI): { resourceKey: ResourceKey, ref?: string, query?: string } | null {
+	const resourceKey: ResourceKey = basename(dirname(resource)) as ResourceKey;
+	const ref = basename(resource);
+	if (resourceKey && ref) {
+		return { resourceKey, ref: ref !== 'latest' ? ref : undefined, query: resource.query };
+	}
+	return null;
+}
+
 export function getSyncSourceFromPreviewResource(uri: URI, environmentService: IEnvironmentService): SyncSource | undefined {
 	if (isEqual(uri, environmentService.settingsSyncPreviewResource)) {
 		return SyncSource.Settings;
@@ -357,4 +367,20 @@ export function getSyncSourceFromPreviewResource(uri: URI, environmentService: I
 		return SyncSource.Keybindings;
 	}
 	return undefined;
+}
+export function getResourceKey(source: SyncSource): ResourceKey {
+	switch (source) {
+		case SyncSource.Settings: return 'settings';
+		case SyncSource.Keybindings: return 'keybindings';
+		case SyncSource.Extensions: return 'extensions';
+		case SyncSource.GlobalState: return 'globalState';
+	}
+}
+export function getSyncSource(resourceKey: ResourceKey): SyncSource {
+	switch (resourceKey) {
+		case 'settings': return SyncSource.Settings;
+		case 'keybindings': return SyncSource.Keybindings;
+		case 'extensions': return SyncSource.Extensions;
+		case 'globalState': return SyncSource.GlobalState;
+	}
 }

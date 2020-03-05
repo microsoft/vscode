@@ -136,10 +136,6 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		return false;
 	}
 
-	async getRemoteContent(): Promise<string | null> {
-		return null;
-	}
-
 	protected async performSync(remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null): Promise<SyncStatus> {
 		const previewResult = await this.getPreview(remoteUserData, lastSyncUserData);
 		await this.apply(previewResult);

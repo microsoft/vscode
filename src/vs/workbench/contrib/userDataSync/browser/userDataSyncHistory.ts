@@ -11,7 +11,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { TreeViewPane, TreeView } from 'vs/workbench/browser/parts/views/treeView';
 import { VIEW_CONTAINER } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ALL_RESOURCE_KEYS, CONTEXT_SYNC_ENABLEMENT, IUserDataSyncStoreService, USER_DATA_SYNC_SCHEME, ResourceKey } from 'vs/platform/userDataSync/common/userDataSync';
+import { ALL_RESOURCE_KEYS, CONTEXT_SYNC_ENABLEMENT, IUserDataSyncStoreService, ResourceKey, toSyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService, RawContextKey, ContextKeyExpr, ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
@@ -141,12 +141,11 @@ class UserDataSyncHistoryViewDataProvider implements ITreeViewDataProvider {
 		if (resourceKey) {
 			const refs = await this.userDataSyncStoreService.getAllRefs(resourceKey);
 			return refs.map(ref => {
-				const resourceUri = URI.from({ scheme: USER_DATA_SYNC_SCHEME, path: `${resourceKey}/${ref}` });
+				const resourceUri = toSyncResource(resourceKey, ref);
 				return {
 					handle: `${resourceKey}/${ref}`,
 					collapsibleState: TreeItemCollapsibleState.None,
 					label: { label: ref },
-					resourceUri,
 					command: { id: 'workbench.actions.openRef', title: '', arguments: [resourceUri] },
 					themeIcon: FileThemeIcon,
 					contextValue: `syncref-${resourceKey}`

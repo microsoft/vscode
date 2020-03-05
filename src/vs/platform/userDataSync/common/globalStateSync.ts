@@ -120,10 +120,6 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		return false;
 	}
 
-	async getRemoteContent(): Promise<string | null> {
-		return null;
-	}
-
 	protected async performSync(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<SyncStatus> {
 		const result = await this.getPreview(remoteUserData, lastSyncUserData);
 		await this.apply(result);
