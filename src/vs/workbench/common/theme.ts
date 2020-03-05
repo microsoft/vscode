@@ -221,6 +221,12 @@ export const PANEL_BORDER = registerColor('panel.border', {
 	hc: contrastBorder
 }, nls.localize('panelBorder', "Panel border color to separate the panel from the editor. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
+export const PANEL_ACTIVE_TITLE_BACKGROUND = registerColor('panelTitle.activeBackround', {
+	dark: editorBackground,
+	light: editorBackground,
+	hc: editorBackground
+}, nls.localize('panelActiveTitleBackground', "Title background color for the active panel. Panels are shown below the editor area and contain views like output and integrated terminal."));
+
 export const PANEL_ACTIVE_TITLE_FOREGROUND = registerColor('panelTitle.activeForeground', {
 	dark: '#E7E7E7',
 	light: '#424242',
