@@ -9,7 +9,7 @@ import { canceled, isPromiseCanceledError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, dispose, MutableDisposable, toDisposable, IDisposable } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
-import { isEqual } from 'vs/base/common/resources';
+import { isEqual, dirname, basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import type { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
@@ -1059,9 +1059,14 @@ class UserDataRemoteContentProvider implements ITextModelContentProvider {
 		let promise: Promise<string | null> | undefined;
 		if (isEqual(uri, toRemoteContentResource(SyncSource.Settings))) {
 			promise = this.userDataSyncService.getRemoteContent(SyncSource.Settings, true);
-		}
-		if (isEqual(uri, toRemoteContentResource(SyncSource.Keybindings))) {
+		} else if (isEqual(uri, toRemoteContentResource(SyncSource.Keybindings))) {
 			promise = this.userDataSyncService.getRemoteContent(SyncSource.Keybindings, true);
+		} else {
+			const resourceKey: ResourceKey = basename(dirname(uri)) as ResourceKey;
+			const ref = basename(uri);
+			if (resourceKey && ref) {
+				promise = this.userDataSyncService.resolveContent(resourceKey, ref);
+			}
 		}
 		if (promise) {
 			return promise.then(content => this.modelService.createModel(content || '', this.modeService.create('jsonc'), uri));

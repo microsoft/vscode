@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, SyncStatus, IUserDataSyncStoreService, SyncSource, ISettingsSyncService, IUserDataSyncLogService, IUserDataSynchroniser, UserDataSyncStoreError, UserDataSyncErrorCode, UserDataSyncError } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, SyncStatus, IUserDataSyncStoreService, SyncSource, ISettingsSyncService, IUserDataSyncLogService, IUserDataSynchroniser, UserDataSyncStoreError, UserDataSyncErrorCode, UserDataSyncError, ResourceKey } from 'vs/platform/userDataSync/common/userDataSync';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -182,6 +182,14 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			if (synchroniser.source === source) {
 				return synchroniser.getRemoteContent(preview);
 			}
+		}
+		return null;
+	}
+
+	async resolveContent(resourceKey: ResourceKey, ref: string): Promise<string | null> {
+		const synchronizer = this.synchronisers.filter(s => s.resourceKey === resourceKey)[0];
+		if (synchronizer) {
+			return synchronizer.resolveContent(ref);
 		}
 		return null;
 	}

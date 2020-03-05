@@ -35,6 +35,7 @@ export class UserDataSyncChannel implements IServerChannel {
 			case 'reset': return this.service.reset();
 			case 'resetLocal': return this.service.resetLocal();
 			case 'getRemoteContent': return this.service.getRemoteContent(args[0], args[1]);
+			case 'resolveContent': return this.service.resolveContent(args[0], args[1]);
 			case 'isFirstTimeSyncWithMerge': return this.service.isFirstTimeSyncWithMerge();
 		}
 		throw new Error('Invalid call');
@@ -68,6 +69,7 @@ export class SettingsSyncChannel implements IServerChannel {
 			case 'hasLocalData': return this.service.hasLocalData();
 			case 'resolveSettingsConflicts': return this.service.resolveSettingsConflicts(args[0]);
 			case 'getRemoteContent': return this.service.getRemoteContent(args[0]);
+			case 'resolveContent': return this.service.resolveContent(args[0]);
 		}
 		throw new Error('Invalid call');
 	}

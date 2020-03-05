@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SyncStatus, SyncSource, IUserDataSyncService, UserDataSyncError } from 'vs/platform/userDataSync/common/userDataSync';
+import { SyncStatus, SyncSource, IUserDataSyncService, UserDataSyncError, ResourceKey } from 'vs/platform/userDataSync/common/userDataSync';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -90,6 +90,10 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 	getRemoteContent(source: SyncSource, preview: boolean): Promise<string | null> {
 		return this.channel.call('getRemoteContent', [source, preview]);
+	}
+
+	resolveContent(key: ResourceKey, ref: string): Promise<string | null> {
+		return this.channel.call('resolveContent', [key, ref]);
 	}
 
 	isFirstTimeSyncWithMerge(): Promise<boolean> {

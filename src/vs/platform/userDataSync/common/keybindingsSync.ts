@@ -161,6 +161,11 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 		return content !== null ? this.getKeybindingsContentFromSyncContent(content) : null;
 	}
 
+	async resolveContent(ref: string): Promise<string | null> {
+		let content = await super.resolveContent(ref);
+		return content !== null ? this.getKeybindingsContentFromSyncContent(content) : null;
+	}
+
 	protected async performSync(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<SyncStatus> {
 		try {
 			const result = await this.getPreview(remoteUserData, lastSyncUserData);

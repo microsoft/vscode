@@ -88,6 +88,10 @@ export class SettingsSyncService extends Disposable implements ISettingsSyncServ
 		return this.channel.call('getRemoteContent', [!!preview]);
 	}
 
+	resolveContent(ref: string): Promise<string | null> {
+		return this.channel.call('resolveContent', [ref]);
+	}
+
 	private async updateStatus(status: SyncStatus): Promise<void> {
 		this._status = status;
 		this._onDidChangeStatus.fire(status);

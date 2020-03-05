@@ -202,6 +202,15 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 		return content;
 	}
 
+	async resolveContent(ref: string): Promise<string | null> {
+		let content = await super.resolveContent(ref);
+		if (content !== null) {
+			const settingsSyncContent = this.parseSettingsSyncContent(content);
+			content = settingsSyncContent ? settingsSyncContent.settings : null;
+		}
+		return content;
+	}
+
 	async accept(content: string): Promise<void> {
 		if (this.status === SyncStatus.HasConflicts) {
 			const preview = await this.syncPreviewResultPromise!;

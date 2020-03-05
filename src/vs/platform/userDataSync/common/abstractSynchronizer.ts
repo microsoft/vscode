@@ -18,6 +18,7 @@ import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { isString } from 'vs/base/common/types';
 
 type SyncSourceClassification = {
 	source?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
@@ -157,6 +158,11 @@ export abstract class AbstractSynchroniser extends Disposable {
 		return syncData ? syncData.content : null;
 	}
 
+	async resolveContent(ref: string): Promise<string | null> {
+		const { syncData } = await this.getRemoteUserData(ref);
+		return syncData ? syncData.content : null;
+	}
+
 	async resetLocal(): Promise<void> {
 		try {
 			await this.fileService.del(this.lastSyncResource);
@@ -189,9 +195,20 @@ export abstract class AbstractSynchroniser extends Disposable {
 		await this.fileService.writeFile(this.lastSyncResource, VSBuffer.fromString(JSON.stringify(lastSyncUserData)));
 	}
 
-	protected async getRemoteUserData(lastSyncData: IRemoteUserData | null): Promise<IRemoteUserData> {
-		const lastSyncUserData: IUserData | null = lastSyncData ? { ref: lastSyncData.ref, content: lastSyncData.syncData ? JSON.stringify(lastSyncData.syncData) : null } : null;
-		const { ref, content } = await this.userDataSyncStoreService.read(this.resourceKey, lastSyncUserData, this.source);
+	protected async getRemoteUserData(ref: string): Promise<IRemoteUserData>
+	protected async getRemoteUserData(lastSyncData: IRemoteUserData | null): Promise<IRemoteUserData>
+	protected async getRemoteUserData(arg: string | IRemoteUserData | null): Promise<IRemoteUserData> {
+		let ref: string;
+		let content: string | null = null;
+		if (isString(arg)) {
+			ref = arg;
+			content = await this.userDataSyncStoreService.resolveContent(this.resourceKey, ref);
+		} else {
+			const lastSyncUserData: IUserData | null = arg ? { ref: arg.ref, content: arg.syncData ? JSON.stringify(arg.syncData) : null } : null;
+			const userData = await this.userDataSyncStoreService.read(this.resourceKey, lastSyncUserData, this.source);
+			ref = userData.ref;
+			content = userData.content;
+		}
 		let syncData: ISyncData | null = null;
 		if (content !== null) {
 			try {

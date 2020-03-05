@@ -255,6 +255,7 @@ export interface IUserDataSynchroniser {
 	resetLocal(): Promise<void>;
 
 	getRemoteContent(preivew?: boolean): Promise<string | null>;
+	resolveContent(ref: string): Promise<string | null>;
 	accept(content: string): Promise<void>;
 }
 
@@ -300,6 +301,7 @@ export interface IUserDataSyncService {
 
 	isFirstTimeSyncWithMerge(): Promise<boolean>;
 	getRemoteContent(source: SyncSource, preview: boolean): Promise<string | null>;
+	resolveContent(resource: ResourceKey, ref: string): Promise<string | null>;
 	accept(source: SyncSource, content: string): Promise<void>;
 }
 
