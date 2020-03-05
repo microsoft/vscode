@@ -255,7 +255,7 @@ export interface IUserDataSynchroniser {
 	resetLocal(): Promise<void>;
 
 	getRemoteContentFromPreview(): Promise<string | null>;
-	getRemoteContent(ref?: string): Promise<string | null>;
+	getRemoteContent(ref?: string, fragment?: string): Promise<string | null>;
 	accept(content: string): Promise<void>;
 }
 
@@ -350,11 +350,11 @@ export function toSyncResource(resourceKey: ResourceKey, ref?: string): URI {
 	return URI.from({ scheme: USER_DATA_SYNC_SCHEME, path: `${resourceKey}/${ref ? ref : 'latest'}` });
 }
 
-export function resolveSyncResource(resource: URI): { resourceKey: ResourceKey, ref?: string, query?: string } | null {
+export function resolveSyncResource(resource: URI): { resourceKey: ResourceKey, ref?: string } | null {
 	const resourceKey: ResourceKey = basename(dirname(resource)) as ResourceKey;
 	const ref = basename(resource);
 	if (resourceKey && ref) {
-		return { resourceKey, ref: ref !== 'latest' ? ref : undefined, query: resource.query };
+		return { resourceKey, ref: ref !== 'latest' ? ref : undefined };
 	}
 	return null;
 }

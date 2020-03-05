@@ -198,19 +198,25 @@ export abstract class AbstractSynchroniser extends Disposable {
 		const { ref, content } = await this.getUserData(lastSyncData);
 		let syncData: ISyncData | null = null;
 		if (content !== null) {
-			try {
-				syncData = <ISyncData>JSON.parse(content);
-
-				// Migration from old content to sync data
-				if (!isSyncData(syncData)) {
-					syncData = { version: this.version, content };
-				}
-
-			} catch (e) {
-				this.logService.error(e);
-			}
+			syncData = this.parseSyncData(content);
 		}
 		return { ref, syncData };
+	}
+
+	protected parseSyncData(content: string): ISyncData | null {
+		let syncData: ISyncData | null = null;
+		try {
+			syncData = <ISyncData>JSON.parse(content);
+
+			// Migration from old content to sync data
+			if (!isSyncData(syncData)) {
+				syncData = { version: this.version, content };
+			}
+
+		} catch (e) {
+			this.logService.error(e);
+		}
+		return syncData;
 	}
 
 	private async getUserData(refOrLastSyncData: string | IRemoteUserData | null): Promise<IUserData> {

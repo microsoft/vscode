@@ -68,7 +68,7 @@ export class SettingsSyncChannel implements IServerChannel {
 			case 'hasLocalData': return this.service.hasLocalData();
 			case 'resolveSettingsConflicts': return this.service.resolveSettingsConflicts(args[0]);
 			case 'getRemoteContentFromPreview': return this.service.getRemoteContentFromPreview();
-			case 'getRemoteContent': return this.service.getRemoteContent(args[0]);
+			case 'getRemoteContent': return this.service.getRemoteContent(args[0], args[1]);
 		}
 		throw new Error('Invalid call');
 	}

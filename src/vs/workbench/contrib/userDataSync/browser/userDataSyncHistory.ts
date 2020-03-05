@@ -11,13 +11,13 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { TreeViewPane, TreeView } from 'vs/workbench/browser/parts/views/treeView';
 import { VIEW_CONTAINER } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ALL_RESOURCE_KEYS, CONTEXT_SYNC_ENABLEMENT, IUserDataSyncStoreService, ResourceKey, toSyncResource } from 'vs/platform/userDataSync/common/userDataSync';
+import { ALL_RESOURCE_KEYS, CONTEXT_SYNC_ENABLEMENT, IUserDataSyncStoreService, toSyncResource, resolveSyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService, RawContextKey, ContextKeyExpr, ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { FolderThemeIcon, FileThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 const CONTEXT_SHOW_USER_DATA_SYNC_HISTORY_VIEW = new RawContextKey<boolean>('showUserDataSyncHistoryView', false);
 
@@ -93,22 +93,38 @@ export class UserDataSyncHistoryViewContribution implements IWorkbenchContributi
 		registerAction2(class extends Action2 {
 			constructor() {
 				super({
-					id: 'workbench.actions.deleteRef',
-					title: localize('workbench.action.deleteRef', "Delete"),
+					id: 'workbench.actions.commpareWithLocal',
+					title: localize('workbench.action.deleteRef', "Compare with Local"),
 					menu: {
 						id: MenuId.ViewItemContext,
-						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', that.viewId), ContextKeyExpr.regex('viewItem', /sync-.*/i))
+						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', that.viewId), ContextKeyExpr.regex('viewItem', /syncref-(settings|keybindings).*/i))
 					},
 				});
 			}
 			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
-				const dialogService = accessor.get(IDialogService);
-				const userDataSyncStoreService = accessor.get(IUserDataSyncStoreService);
-				const result = await dialogService.confirm({
-					message: 'Would you like to delete'
-				});
+				const editorService = accessor.get(IEditorService);
+				const environmentService = accessor.get(IEnvironmentService);
+				const resource = URI.parse(handle.$treeItemHandle);
+				const result = resolveSyncResource(resource);
 				if (result) {
-					return userDataSyncStoreService.delete(handle.$treeItemHandle as ResourceKey);
+					let leftResource: URI;
+					let rightResource: URI;
+					if (result.resourceKey === 'settings') {
+						leftResource = resource.with({ fragment: 'settings' });
+						rightResource = environmentService.settingsResource;
+					} else {
+						leftResource = resource.with({ fragment: 'keybindings' });
+						rightResource = environmentService.keybindingsResource;
+					}
+					await editorService.openEditor({
+						leftResource,
+						rightResource,
+						options: {
+							preserveFocus: false,
+							pinned: true,
+							revealIfVisible: true,
+						},
+					});
 				}
 			}
 		});
@@ -143,7 +159,7 @@ class UserDataSyncHistoryViewDataProvider implements ITreeViewDataProvider {
 			return refs.map(ref => {
 				const resourceUri = toSyncResource(resourceKey, ref);
 				return {
-					handle: `${resourceKey}/${ref}`,
+					handle: resourceUri.toString(),
 					collapsibleState: TreeItemCollapsibleState.None,
 					label: { label: ref },
 					command: { id: 'workbench.actions.openRef', title: '', arguments: [resourceUri] },

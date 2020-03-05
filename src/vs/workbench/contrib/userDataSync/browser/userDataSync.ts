@@ -1113,7 +1113,7 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 			return true;
 		}
 
-		if (resolveSyncResource(model.uri)?.query === PREVIEW_QUERY) {
+		if (resolveSyncResource(model.uri) !== null && model.uri.query === PREVIEW_QUERY) {
 			return this.configurationService.getValue<boolean>('diffEditor.renderSideBySide');
 		}
 
