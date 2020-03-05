@@ -56,6 +56,9 @@ export class CodeCell extends Disposable {
 			if (model && templateData.editor) {
 				templateData.editor.setModel(model);
 				viewCell.attachTextEditor(templateData.editor);
+				if (notebookEditor.getActiveCell() === viewCell) {
+					templateData.editor?.focus();
+				}
 
 				let realContentHeight = templateData.editor?.getContentHeight();
 				let width: number;
@@ -372,6 +375,7 @@ export class CodeCell extends Disposable {
 	}
 
 	dispose() {
+		this.viewCell.detachTextEditor();
 		this.outputResizeListeners.forEach((value) => {
 			value.dispose();
 		});

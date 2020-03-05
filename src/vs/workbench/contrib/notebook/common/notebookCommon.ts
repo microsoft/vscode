@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as glob from 'vs/base/common/glob';
 import { Event } from 'vs/base/common/event';
+import * as glob from 'vs/base/common/glob';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { isWindows } from 'vs/base/common/platform';
+import { ISplice } from 'vs/base/common/sequence';
 import { URI } from 'vs/base/common/uri';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 import { PieceTreeTextBufferFactory } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { ISplice } from 'vs/base/common/sequence';
-import { isWindows } from 'vs/base/common/platform';
-import { Selection } from 'vs/editor/common/core/selection';
 
 export enum CellKind {
 	Markdown = 1,
@@ -326,5 +326,5 @@ export function diff<T>(before: T[], after: T[], contains: (a: T) => boolean): I
 }
 
 export interface ICellEditorViewState {
-	selections: Selection[] | null;
+	selections: editorCommon.ICursorState[];
 }

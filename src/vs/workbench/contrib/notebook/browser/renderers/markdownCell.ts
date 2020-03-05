@@ -23,7 +23,7 @@ export class StatefullMarkdownCell extends Disposable {
 
 	constructor(
 		notebookEditor: INotebookEditor,
-		viewCell: CellViewModel,
+		public viewCell: CellViewModel,
 		templateData: CellRenderTemplate,
 		editorOptions: IEditorOptions,
 		instantiationService: IInstantiationService
@@ -53,6 +53,10 @@ export class StatefullMarkdownCell extends Disposable {
 				if (this.editor) {
 					// not first time, we don't need to create editor or bind listeners
 					this.editingContainer!.style.display = 'block';
+					viewCell.attachTextEditor(this.editor!);
+					if (notebookEditor.getActiveCell() === viewCell) {
+						this.editor!.focus();
+					}
 				} else {
 					this.editingContainer!.style.display = 'block';
 					this.editingContainer!.innerHTML = '';
@@ -73,6 +77,10 @@ export class StatefullMarkdownCell extends Disposable {
 						}
 
 						this.editor!.setModel(model);
+						viewCell.attachTextEditor(this.editor!);
+						if (notebookEditor.getActiveCell() === viewCell) {
+							this.editor!.focus();
+						}
 
 						const realContentHeight = this.editor!.getContentHeight();
 						if (realContentHeight !== totalHeight) {
@@ -150,6 +158,7 @@ export class StatefullMarkdownCell extends Disposable {
 				notebookEditor.layoutNotebookCell(viewCell, totalHeight + 32 + clientHeight);
 				this.editor.focus();
 			} else {
+				this.viewCell.detachTextEditor();
 				if (this.editor) {
 					// switch from editing mode
 					this.editingContainer!.style.display = 'none';
@@ -180,5 +189,10 @@ export class StatefullMarkdownCell extends Disposable {
 		}));
 
 		viewUpdate();
+	}
+
+	dispose() {
+		this.viewCell.detachTextEditor();
+		super.dispose();
 	}
 }

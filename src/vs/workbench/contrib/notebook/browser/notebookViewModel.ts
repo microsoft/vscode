@@ -8,13 +8,12 @@ import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/renderers/c
 import { DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Selection } from 'vs/editor/common/core/selection';
-import { NotebookCellsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookCellsSplice, ICellEditorViewState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellFindMatch } from 'vs/workbench/contrib/notebook/browser/notebookFindWidget';
 
 export interface INotebookEditorViewState {
 	editingCells: { [key: number]: boolean };
-	editorViewStates: { [key: number]: Selection[] };
+	editorViewStates: { [key: number]: ICellEditorViewState };
 }
 
 export class NotebookViewModel extends Disposable {
@@ -56,18 +55,11 @@ export class NotebookViewModel extends Disposable {
 		super();
 
 		this._register(this._model.onDidChangeCells(e => this._onDidChangeCells.fire(e)));
-	}
-
-	initialize(viewState: INotebookEditorViewState | undefined) {
 		this._viewCells = this._model!.notebook!.cells.map(cell => {
-			const isEditing = viewState && viewState.editingCells && viewState.editingCells[cell.handle];
-			const editorViewState = viewState && viewState.editorViewStates && viewState.editorViewStates[cell.handle];
-			const viewCell = this.instantiationService.createInstance(CellViewModel, this.viewType, this._model!.notebook!.handle, cell, !!isEditing, { selections: editorViewState || null });
+			const viewCell = this.instantiationService.createInstance(CellViewModel, this.viewType, this._model!.notebook!.handle, cell);
 			this._localStore.add(viewCell);
 			return viewCell;
 		});
-
-		return;
 	}
 
 	isDirty() {
@@ -105,6 +97,36 @@ export class NotebookViewModel extends Disposable {
 		let viewCell = this.viewCells[index];
 		this.viewCells.splice(index, 1);
 		this._model.deleteCell(viewCell.cell);
+	}
+
+	saveEditorViewState(): INotebookEditorViewState {
+		const state: { [key: number]: boolean } = {};
+		this.viewCells.filter(cell => cell.isEditing).forEach(cell => state[cell.cell.handle] = true);
+		const editorViewStates: { [key: number]: ICellEditorViewState } = {};
+		this.viewCells.map(cell => ({ handle: cell.cell.handle, state: cell.saveEditorViewState() })).forEach(viewState => {
+			if (viewState.state) {
+				editorViewStates[viewState.handle] = viewState.state;
+			}
+		});
+
+		return {
+			editingCells: state,
+			editorViewStates: editorViewStates
+		};
+	}
+
+	restoreEditorViewState(viewState: INotebookEditorViewState | undefined): void {
+		if (!viewState) {
+			return;
+		}
+
+		this._viewCells.forEach(cell => {
+			const isEditing = viewState.editingCells && viewState.editingCells[cell.handle];
+			const editorViewState = viewState.editorViewStates && viewState.editorViewStates[cell.handle];
+
+			cell.isEditing = isEditing;
+			cell.restoreEditorViewState(editorViewState);
+		});
 	}
 
 	equal(model: NotebookEditorModel) {

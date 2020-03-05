@@ -7,7 +7,7 @@ import { getZoomLevel } from 'vs/base/browser/browser';
 import * as DOM from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./notebook';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
@@ -19,9 +19,8 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { contrastBorder, editorBackground, focusBorder, foreground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground, textPreformatForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { Selection } from 'vs/editor/common/core/selection';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { EditorOptions, IEditorMemento, ICompositeCodeEditor } from 'vs/workbench/common/editor';
+import { EditorOptions, IEditorMemento, ICompositeCodeEditor, IEditorCloseEvent } from 'vs/workbench/common/editor';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorInput, NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
@@ -40,6 +39,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/notebookCellList';
 import { NotebookFindWidget, NotebookFindDelegate, CellFindMatch } from 'vs/workbench/contrib/notebook/browser/notebookFindWidget';
 import { NotebookViewModel, INotebookEditorViewState } from 'vs/workbench/contrib/notebook/browser/notebookViewModel';
+import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 
 const $ = DOM.$;
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
@@ -117,6 +117,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 	private notebookViewModel: NotebookViewModel | undefined;
 	private localStore: DisposableStore = this._register(new DisposableStore());
 	private editorMemento: IEditorMemento<INotebookEditorViewState>;
+	private readonly groupListener = this._register(new MutableDisposable());
 	private fontInfo: BareFontInfo | undefined;
 	private dimension: DOM.Dimension | null = null;
 	private editorFocus: IContextKey<boolean> | null = null;
@@ -259,10 +260,19 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 		super.onHide();
 	}
 
-	setVisible(visible: boolean, group?: IEditorGroup): void {
-		super.setVisible(visible, group);
-		if (!visible) {
-			this.notebookViewModel?.hide();
+	setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
+		super.setEditorVisible(visible, group);
+		this.groupListener.value = ((group as IEditorGroupView).onWillCloseEditor(e => this.onWillCloseEditorInGroup(e)));
+	}
+
+	private onWillCloseEditorInGroup(e: IEditorCloseEvent): void {
+		const editor = e.editor;
+		if (!(editor instanceof NotebookEditorInput)) {
+			return; // only handle files
+		}
+
+		if (editor === this.input) {
+			this.saveTextEditorViewState(editor);
 		}
 	}
 
@@ -287,6 +297,14 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 		await this.attachModel(input, model);
 	}
 
+	clearInput(): void {
+		if (this.input && this.input instanceof NotebookEditorInput && !this.input.isDisposed()) {
+			this.saveTextEditorViewState(this.input);
+		}
+
+		super.clearInput();
+	}
+
 	private detachModel() {
 		this.localStore.clear();
 		this.notebookViewModel?.dispose();
@@ -303,7 +321,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 
 		this.notebookViewModel = this.instantiationService.createInstance(NotebookViewModel, input.viewType!, model);
 		const viewState = this.loadTextEditorViewState(input);
-		await this.notebookViewModel.initialize(viewState);
+		this.notebookViewModel.restoreEditorViewState(viewState);
 
 		this.localStore.add(this.notebookViewModel.onDidChangeCells((e) => {
 			this.updateViewCells(e);
@@ -354,22 +372,14 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 
 	private saveTextEditorViewState(input: NotebookEditorInput): void {
 		if (this.group) {
-			let state: { [key: number]: boolean } = {};
-			this.notebookViewModel!.viewCells.filter(cell => cell.isEditing).forEach(cell => state[cell.cell.handle] = true);
-			const editorViewStates: { [key: number]: Selection[] } = {};
-			this.notebookViewModel!.viewCells.map(cell => ({ handle: cell.cell.handle, state: cell.getViewState() })).filter(viewState => !!viewState.state && viewState.state.selections !== null).forEach(viewState => {
-				editorViewStates[viewState.handle] = viewState.state!.selections!;
-			});
-			this.editorMemento.saveEditorState(this.group, input, {
-				editingCells: state,
-				editorViewStates: editorViewStates
-			});
+			const state = this.notebookViewModel!.saveEditorViewState();
+			this.editorMemento.saveEditorState(this.group, input.resource, state);
 		}
 	}
 
 	private loadTextEditorViewState(input: NotebookEditorInput): INotebookEditorViewState | undefined {
 		if (this.group) {
-			return this.editorMemento.loadEditorState(this.group, input);
+			return this.editorMemento.loadEditorState(this.group, input.resource);
 		}
 
 		return;
@@ -442,7 +452,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 		DOM.scheduleAtNextAnimationFrame(() => {
 			splices.reverse().forEach((diff) => {
 				this.list?.splice(diff[0], diff[1], diff[2].map(cell => {
-					return this.instantiationService.createInstance(CellViewModel, this.viewType!, this.notebookViewModel!.handle, cell, false, undefined);
+					return this.instantiationService.createInstance(CellViewModel, this.viewType!, this.notebookViewModel!.handle, cell);
 				}));
 			});
 		});
@@ -454,7 +464,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 		const index = this.notebookViewModel!.getViewCellIndex(cell);
 		const insertIndex = direction === 'above' ? index : index + 1;
 		const newModeCell = await this.notebookService.createNotebookCell(this.viewType!, this.notebookViewModel!.uri, insertIndex, language, type);
-		const newCell = this.instantiationService.createInstance(CellViewModel, this.viewType!, this.notebookViewModel!.handle, newModeCell!, false, undefined);
+		const newCell = this.instantiationService.createInstance(CellViewModel, this.viewType!, this.notebookViewModel!.handle, newModeCell!);
 
 		this.notebookViewModel!.insertCell(insertIndex, newCell);
 		this.list?.splice(insertIndex, 0, [newCell]);

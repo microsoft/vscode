@@ -8,14 +8,16 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import * as UUID from 'vs/base/common/uuid';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
+import { ISelection } from 'vs/editor/common/core/selection';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as model from 'vs/editor/common/model';
+import { SearchParams } from 'vs/editor/common/model/textModelSearch';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CellFindMatch } from 'vs/workbench/contrib/notebook/browser/notebookFindWidget';
 import { MarkdownRenderer } from 'vs/workbench/contrib/notebook/browser/renderers/mdRenderer';
-import { EDITOR_BOTTOM_PADDING, EDITOR_TOP_PADDING, ICell, IOutput, NotebookCellOutputsSplice, CellKind, ICellEditorViewState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { SearchParams } from 'vs/editor/common/model/textModelSearch';
+import { CellKind, EDITOR_BOTTOM_PADDING, EDITOR_TOP_PADDING, ICell, ICellEditorViewState, IOutput, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class CellViewModel extends Disposable {
 
@@ -30,6 +32,9 @@ export class CellViewModel extends Disposable {
 	private _outputCollection: number[] = [];
 	protected _outputsTop: PrefixSumComputer | null = null;
 
+	get handle() {
+		return this.cell.handle;
+	}
 
 	get cellKind() {
 		return this.cell.cellKind;
@@ -40,6 +45,9 @@ export class CellViewModel extends Disposable {
 	get outputs() {
 		return this.cell.outputs;
 	}
+
+	private _isEditing: boolean;
+
 	get isEditing(): boolean {
 		return this._isEditing;
 	}
@@ -70,6 +78,7 @@ export class CellViewModel extends Disposable {
 	private _textModel?: model.ITextModel;
 	private _textEditor?: ICodeEditor;
 	private _buffer: model.ITextBuffer | null;
+	private _editorViewStates: ICellEditorViewState | null;
 
 	readonly id: string = UUID.generateUuid();
 
@@ -77,8 +86,6 @@ export class CellViewModel extends Disposable {
 		readonly viewType: string,
 		readonly notebookHandle: number,
 		readonly cell: ICell,
-		private _isEditing: boolean,
-		private _editorViewStates: ICellEditorViewState | undefined,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@ITextModelService private readonly _modelService: ITextModelService,
 	) {
@@ -93,6 +100,22 @@ export class CellViewModel extends Disposable {
 
 		this._outputCollection = new Array(this.cell.outputs.length);
 		this._buffer = null;
+		this._editorViewStates = null;
+		this._isEditing = false;
+	}
+
+	restoreEditorViewState(editorViewStates: ICellEditorViewState) {
+		this._editorViewStates = editorViewStates;
+	}
+
+	saveEditorViewState() {
+		if (this._textEditor) {
+			this._editorViewStates = {
+				selections: this.saveViewState()
+			};
+		}
+
+		return this._editorViewStates;
 	}
 
 
@@ -144,15 +167,77 @@ export class CellViewModel extends Disposable {
 		return false;
 	}
 
-	getViewState(): ICellEditorViewState | undefined {
-		if (this._textEditor) {
-			const selections = this._textEditor.getSelections();
-			return {
-				selections: selections
-			};
+	private saveViewState(): editorCommon.ICursorState[] {
+		if (!this._textEditor) {
+			return [];
 		}
 
-		return undefined;
+		let result: editorCommon.ICursorState[] = [];
+
+		const selections = this._textEditor.getSelections();
+
+		if (!selections) {
+			return [];
+		}
+
+		for (let i = 0, len = selections.length; i < len; i++) {
+			const selection = selections[i];
+
+			result.push({
+				inSelectionMode: !selection.isEmpty(),
+				selectionStart: {
+					lineNumber: selection.selectionStartLineNumber,
+					column: selection.selectionStartColumn,
+				},
+				position: {
+					lineNumber: selection.positionLineNumber,
+					column: selection.positionColumn,
+				}
+			});
+		}
+
+		return result;
+	}
+
+
+	private restoreViewState(states: editorCommon.ICursorState[]): void {
+
+		let desiredSelections: ISelection[] = [];
+
+		for (let i = 0, len = states.length; i < len; i++) {
+			const state = states[i];
+
+			let positionLineNumber = 1;
+			let positionColumn = 1;
+
+			// Avoid missing properties on the literal
+			if (state.position && state.position.lineNumber) {
+				positionLineNumber = state.position.lineNumber;
+			}
+			if (state.position && state.position.column) {
+				positionColumn = state.position.column;
+			}
+
+			let selectionStartLineNumber = positionLineNumber;
+			let selectionStartColumn = positionColumn;
+
+			// Avoid missing properties on the literal
+			if (state.selectionStart && state.selectionStart.lineNumber) {
+				selectionStartLineNumber = state.selectionStart.lineNumber;
+			}
+			if (state.selectionStart && state.selectionStart.column) {
+				selectionStartColumn = state.selectionStart.column;
+			}
+
+			desiredSelections.push({
+				selectionStartLineNumber: selectionStartLineNumber,
+				selectionStartColumn: selectionStartColumn,
+				positionLineNumber: positionLineNumber,
+				positionColumn: positionColumn
+			});
+		}
+
+		this._textEditor?.setSelections(desiredSelections);
 	}
 
 	//#endregion
@@ -233,8 +318,15 @@ export class CellViewModel extends Disposable {
 		this._textEditor = editor;
 
 		if (this._editorViewStates) {
-			this._textEditor.setSelections(this._editorViewStates.selections || []);
+			this.restoreViewState(this._editorViewStates.selections);
 		}
+	}
+
+	detachTextEditor() {
+		this._editorViewStates = {
+			selections: this.saveViewState()
+		};
+		this._textEditor = undefined;
 	}
 
 	getMarkdownRenderer() {
