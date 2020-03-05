@@ -182,17 +182,17 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 
 class FocusTrait<T> extends Trait<T> {
 
-	constructor() {
+	constructor(private isAriaSelected: (index: number) => boolean) {
 		super('focused');
 	}
 
 	renderIndex(index: number, container: HTMLElement): void {
 		super.renderIndex(index, container);
 
-		if (this.contains(index)) {
+		if (this.contains(index) || this.isAriaSelected(index)) {
 			container.setAttribute('aria-selected', 'true');
 		} else {
-			container.removeAttribute('aria-selected');
+			container.setAttribute('aria-selected', 'false');
 		}
 	}
 }
@@ -901,7 +901,7 @@ const DefaultOptions = {
 		onDragOver() { return false; },
 		drop() { }
 	},
-	ariaRootRole: ListAriaRootRole.TREE
+	ariaRootRole: ListAriaRootRole.LIST
 };
 
 // TODO@Joao: move these utils into a SortedArray class
@@ -1198,8 +1198,8 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		renderers: IListRenderer<any /* TODO@joao */, any>[],
 		private _options: IListOptions<T> = DefaultOptions
 	) {
-		this.focus = new FocusTrait();
 		this.selection = new Trait('selected');
+		this.focus = new FocusTrait(this.selection.contains);
 
 		mixin(_options, defaultStyles, false);
 
@@ -1225,7 +1225,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this.view = new ListView(container, virtualDelegate, renderers, viewOptions);
 
 		if (typeof _options.ariaRole !== 'string') {
-			this.view.domNode.setAttribute('role', ListAriaRootRole.TREE);
+			this.view.domNode.setAttribute('role', ListAriaRootRole.LIST);
 		} else {
 			this.view.domNode.setAttribute('role', _options.ariaRole);
 		}
@@ -1271,6 +1271,9 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		if (_options.ariaLabel) {
 			this.view.domNode.setAttribute('aria-label', localize('aria list', "{0}. Use the navigation keys to navigate.", _options.ariaLabel));
+		}
+		if (_options.multipleSelectionSupport) {
+			this.view.domNode.setAttribute('aria-multiselectable', 'true');
 		}
 	}
 

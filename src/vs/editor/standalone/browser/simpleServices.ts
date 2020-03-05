@@ -42,10 +42,11 @@ import { IProgressRunner, IEditorProgressService } from 'vs/platform/progress/co
 import { ITelemetryInfo, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkbenchState, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { ILayoutService, IDimension } from 'vs/platform/layout/browser/layoutService';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { SimpleServicesNLS } from 'vs/editor/common/standaloneStrings';
 import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 import { basename } from 'vs/base/common/resources';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
 export class SimpleModel implements IResolvedTextEditorModel {
 
@@ -731,8 +732,8 @@ export class SimpleLayoutService implements ILayoutService {
 
 	public onLayout = Event.None;
 
-	private _dimension?: IDimension;
-	get dimension(): IDimension {
+	private _dimension?: dom.IDimension;
+	get dimension(): dom.IDimension {
 		if (!this._dimension) {
 			this._dimension = dom.getClientArea(window.document.body);
 		}
@@ -744,5 +745,9 @@ export class SimpleLayoutService implements ILayoutService {
 		return this._container;
 	}
 
-	constructor(private _container: HTMLElement) { }
+	focus(): void {
+		this._codeEditorService.getFocusedCodeEditor()?.focus();
+	}
+
+	constructor(private _codeEditorService: ICodeEditorService, private _container: HTMLElement) { }
 }

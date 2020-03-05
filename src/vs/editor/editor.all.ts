@@ -26,6 +26,7 @@ import 'vs/editor/contrib/gotoSymbol/goToCommands';
 import 'vs/editor/contrib/gotoSymbol/link/goToDefinitionAtPosition';
 import 'vs/editor/contrib/gotoError/gotoError';
 import 'vs/editor/contrib/hover/hover';
+import 'vs/editor/contrib/indentation/indentation';
 import 'vs/editor/contrib/inPlaceReplace/inPlaceReplace';
 import 'vs/editor/contrib/linesOperations/linesOperations';
 import 'vs/editor/contrib/links/links';

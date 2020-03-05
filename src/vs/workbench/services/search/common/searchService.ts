@@ -74,13 +74,13 @@ export class SearchService extends Disposable implements ISearchService {
 		const localResults = this.getLocalResults(query);
 
 		if (onProgress) {
-			arrays.coalesce(localResults.values()).forEach(onProgress);
+			arrays.coalesce(localResults.results.values()).forEach(onProgress);
 		}
 
 		const onProviderProgress = (progress: ISearchProgressItem) => {
 			if (isFileMatch(progress)) {
 				// Match
-				if (!localResults.has(progress.resource) && onProgress) { // don't override local results
+				if (!localResults.results.has(progress.resource) && onProgress) { // don't override local results
 					onProgress(progress);
 				}
 			} else if (onProgress) {
@@ -96,7 +96,10 @@ export class SearchService extends Disposable implements ISearchService {
 		const otherResults = await this.doSearch(query, token, onProviderProgress);
 		return {
 			...otherResults,
-			results: [...otherResults.results, ...arrays.coalesce(localResults.values())]
+			...{
+				limitHit: otherResults.limitHit || localResults.limitHit
+			},
+			results: [...otherResults.results, ...arrays.coalesce(localResults.results.values())]
 		};
 	}
 
@@ -407,14 +410,19 @@ export class SearchService extends Disposable implements ISearchService {
 		}
 	}
 
-	private getLocalResults(query: ITextQuery): ResourceMap<IFileMatch | null> {
+	private getLocalResults(query: ITextQuery): { results: ResourceMap<IFileMatch | null>; limitHit: boolean } {
 		const localResults = new ResourceMap<IFileMatch | null>();
+		let limitHit = false;
 
 		if (query.type === QueryType.Text) {
 			const models = this.modelService.getModels();
 			models.forEach((model) => {
 				const resource = model.uri;
 				if (!resource) {
+					return;
+				}
+
+				if (limitHit) {
 					return;
 				}
 
@@ -444,8 +452,14 @@ export class SearchService extends Disposable implements ISearchService {
 				}
 
 				// Use editor API to find matches
-				const matches = model.findMatches(query.contentPattern.pattern, false, !!query.contentPattern.isRegExp, !!query.contentPattern.isCaseSensitive, query.contentPattern.isWordMatch ? query.contentPattern.wordSeparators! : null, false, query.maxResults);
+				const askMax = typeof query.maxResults === 'number' ? query.maxResults + 1 : undefined;
+				let matches = model.findMatches(query.contentPattern.pattern, false, !!query.contentPattern.isRegExp, !!query.contentPattern.isCaseSensitive, query.contentPattern.isWordMatch ? query.contentPattern.wordSeparators! : null, false, askMax);
 				if (matches.length) {
+					if (askMax && matches.length >= askMax) {
+						limitHit = true;
+						matches = matches.slice(0, askMax - 1);
+					}
+
 					const fileMatch = new FileMatch(resource);
 					localResults.set(resource, fileMatch);
 
@@ -457,7 +471,10 @@ export class SearchService extends Disposable implements ISearchService {
 			});
 		}
 
-		return localResults;
+		return {
+			results: localResults,
+			limitHit
+		};
 	}
 
 	private matches(resource: uri, query: ITextQuery): boolean {

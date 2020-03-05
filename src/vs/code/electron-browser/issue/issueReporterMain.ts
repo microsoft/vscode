@@ -81,6 +81,8 @@ export class IssueReporter extends Disposable {
 		this.initServices(configuration);
 
 		const isSnap = process.platform === 'linux' && process.env.SNAP && process.env.SNAP_REVISION;
+
+		const targetExtension = configuration.data.extensionId ? configuration.data.enabledExtensions.find(extension => extension.id === configuration.data.extensionId) : undefined;
 		this.issueReporterModel = new IssueReporterModel({
 			issueType: configuration.data.issueType || IssueType.Bug,
 			versionInfo: {
@@ -88,8 +90,8 @@ export class IssueReporter extends Disposable {
 				os: `${os.type()} ${os.arch()} ${os.release()}${isSnap ? ' snap' : ''}`
 			},
 			extensionsDisabled: !!this.environmentService.disableExtensions,
-			fileOnExtension: configuration.data.extensionId ? true : undefined,
-			selectedExtension: configuration.data.extensionId ? configuration.data.enabledExtensions.filter(extension => extension.id === configuration.data.extensionId)[0] : undefined
+			fileOnExtension: configuration.data.extensionId ? !targetExtension?.isBuiltin : undefined,
+			selectedExtension: targetExtension,
 		});
 
 		const issueReporterElement = this.getElementById('issue-reporter');
@@ -260,19 +262,20 @@ export class IssueReporter extends Disposable {
 	}
 
 	private handleExtensionData(extensions: IssueReporterExtensionData[]) {
-		const { nonThemes, themes } = collections.groupBy(extensions, ext => {
+		const installedExtensions = extensions.filter(x => !x.isBuiltin);
+		const { nonThemes, themes } = collections.groupBy(installedExtensions, ext => {
 			return ext.isTheme ? 'themes' : 'nonThemes';
 		});
 
 		const numberOfThemeExtesions = themes && themes.length;
-		this.issueReporterModel.update({ numberOfThemeExtesions, enabledNonThemeExtesions: nonThemes, allExtensions: extensions });
+		this.issueReporterModel.update({ numberOfThemeExtesions, enabledNonThemeExtesions: nonThemes, allExtensions: installedExtensions });
 		this.updateExtensionTable(nonThemes, numberOfThemeExtesions);
 
-		if (this.environmentService.disableExtensions || extensions.length === 0) {
+		if (this.environmentService.disableExtensions || installedExtensions.length === 0) {
 			(<HTMLButtonElement>this.getElementById('disableExtensions')).disabled = true;
 		}
 
-		this.updateExtensionSelector(extensions);
+		this.updateExtensionSelector(installedExtensions);
 	}
 
 	private handleSettingsSearchData(data: ISettingsSearchIssueReporterData): void {
@@ -748,10 +751,14 @@ export class IssueReporter extends Disposable {
 
 	private setSourceOptions(): void {
 		const sourceSelect = this.getElementById('issue-source')! as HTMLSelectElement;
-		const { issueType, fileOnExtension } = this.issueReporterModel.getData();
+		const { issueType, fileOnExtension, selectedExtension } = this.issueReporterModel.getData();
 		let selected = sourceSelect.selectedIndex;
-		if (selected === -1 && fileOnExtension !== undefined) {
-			selected = fileOnExtension ? 2 : 1;
+		if (selected === -1) {
+			if (fileOnExtension !== undefined) {
+				selected = fileOnExtension ? 2 : 1;
+			} else if (selectedExtension?.isBuiltin) {
+				selected = 1;
+			}
 		}
 
 		sourceSelect.innerHTML = '';

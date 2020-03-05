@@ -56,7 +56,7 @@ import { IEditorService, IOpenEditorOverrideHandler, ISaveEditorsOptions, IRever
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorRegistry, EditorDescriptor, Extensions } from 'vs/workbench/browser/editor';
 import { EditorGroup } from 'vs/workbench/common/editor/editorGroup';
-import { Dimension } from 'vs/base/browser/dom';
+import { Dimension, IDimension } from 'vs/base/browser/dom';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { timeout } from 'vs/base/common/async';
@@ -66,7 +66,6 @@ import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { isLinux } from 'vs/base/common/platform';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
-import { IDimension } from 'vs/platform/layout/browser/layoutService';
 import { Part } from 'vs/workbench/browser/part';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPanel } from 'vs/workbench/common/panel';
@@ -380,7 +379,6 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	getDimension(_part: Parts): Dimension { return new Dimension(0, 0); }
 	getContainer(_part: Parts): HTMLElement { return null!; }
 	isTitleBarHidden(): boolean { return false; }
-	getTitleBarOffset(): number { return 0; }
 	isStatusBarHidden(): boolean { return false; }
 	isActivityBarHidden(): boolean { return false; }
 	setActivityBarHidden(_hidden: boolean): void { }
@@ -399,7 +397,6 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	removeClass(_clazz: string): void { }
 	getMaximumEditorDimensions(): Dimension { throw new Error('not implemented'); }
 	getWorkbenchContainer(): HTMLElement { throw new Error('not implemented'); }
-	getWorkbenchElement(): HTMLElement { throw new Error('not implemented'); }
 	toggleZenMode(): void { }
 	isEditorLayoutCentered(): boolean { return false; }
 	centerEditorLayout(_active: boolean): void { }
@@ -408,6 +405,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	isWindowMaximized() { return false; }
 	updateWindowMaximizedState(maximized: boolean): void { }
 	getVisibleNeighborPart(part: Parts, direction: Direction): Parts | undefined { return undefined; }
+	focus() { }
 }
 
 let activeViewlet: Viewlet = {} as any;

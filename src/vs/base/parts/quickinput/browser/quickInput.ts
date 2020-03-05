@@ -60,9 +60,9 @@ export interface IQuickInputStyles {
 export interface IQuickInputWidgetStyles {
 	quickInputBackground?: Color;
 	quickInputForeground?: Color;
+	quickInputTitleBackground?: Color;
 	contrastBorder?: Color;
 	widgetShadow?: Color;
-	titleColor: string | undefined;
 }
 
 const $ = dom.$;
@@ -948,7 +948,7 @@ export class QuickInputController extends Disposable {
 
 	private idPrefix: string;
 	private ui: QuickInputUI | undefined;
-	private dimension?: dom.Dimension;
+	private dimension?: dom.IDimension;
 	private titleBarOffset?: number;
 	private comboboxAccessibility = false;
 	private enabled = true;
@@ -1487,7 +1487,7 @@ export class QuickInputController extends Disposable {
 		return Promise.resolve(undefined);
 	}
 
-	layout(dimension: dom.Dimension, titleBarOffset: number): void {
+	layout(dimension: dom.IDimension, titleBarOffset: number): void {
 		this.dimension = dimension;
 		this.titleBarOffset = titleBarOffset;
 		this.updateLayout();
@@ -1515,13 +1515,13 @@ export class QuickInputController extends Disposable {
 	private updateStyles() {
 		if (this.ui) {
 			const {
-				titleColor,
+				quickInputTitleBackground,
 				quickInputBackground,
 				quickInputForeground,
 				contrastBorder,
 				widgetShadow,
 			} = this.styles.widget;
-			this.ui.titleBar.style.backgroundColor = titleColor || '';
+			this.ui.titleBar.style.backgroundColor = quickInputTitleBackground ? quickInputTitleBackground.toString() : '';
 			this.ui.container.style.backgroundColor = quickInputBackground ? quickInputBackground.toString() : '';
 			this.ui.container.style.color = quickInputForeground ? quickInputForeground.toString() : '';
 			this.ui.container.style.border = contrastBorder ? `1px solid ${contrastBorder}` : '';
