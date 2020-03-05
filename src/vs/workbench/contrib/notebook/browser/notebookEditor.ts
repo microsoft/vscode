@@ -372,7 +372,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 
 	private saveTextEditorViewState(input: NotebookEditorInput): void {
 		if (this.group && this.notebookViewModel) {
-			const state = this.notebookViewModel!.saveEditorViewState();
+			const state = this.notebookViewModel.saveEditorViewState();
 			this.editorMemento.saveEditorState(this.group, input.resource, state);
 		}
 	}

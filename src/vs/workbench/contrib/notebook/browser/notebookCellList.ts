@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as DOM from 'vs/base/browser/dom';
 import { IListRenderer, IListVirtualDelegate, ListError } from 'vs/base/browser/ui/list/list';
 import { Event } from 'vs/base/common/event';
 import { ScrollEvent } from 'vs/base/common/scrollable';
@@ -12,6 +13,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IListService, IWorkbenchListOptions, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { isMacintosh } from 'vs/base/common/platform';
 
 export class NotebookCellList<T> extends WorkbenchList<T> {
 	get onWillScroll(): Event<ScrollEvent> { return this.view.onWillScroll; }
@@ -68,6 +70,14 @@ export class NotebookCellList<T> extends WorkbenchList<T> {
 			return;
 		}
 
+		if (!isMacintosh && document.activeElement && isContextMenuFocused()) {
+			return;
+		}
+
 		super.domFocus();
 	}
+}
+
+function isContextMenuFocused() {
+	return !!DOM.findParentWithClass(<HTMLElement>document.activeElement, 'context-view');
 }

@@ -175,7 +175,7 @@ class AbstractCellRenderer {
 			getActions: () => {
 				return actions;
 			},
-			autoSelectFirstItem: true
+			autoSelectFirstItem: false
 		});
 	}
 }
@@ -244,6 +244,14 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 				const listIndexAttr = templateData.menuContainer?.parentElement?.getAttribute('data-index');
 				const listIndex = listIndexAttr ? Number(listIndexAttr) : undefined;
 				this.showContextMenu(listIndex, element, e.posx, top + height);
+			}));
+
+			elementDisposable!.add(DOM.addStandardDisposableListener(templateData.menuContainer!, DOM.EventType.MOUSE_LEAVE, e => {
+				templateData.menuContainer?.classList.remove('mouseover');
+			}));
+
+			elementDisposable!.add(DOM.addStandardDisposableListener(templateData.menuContainer!, DOM.EventType.MOUSE_ENTER, e => {
+				templateData.menuContainer?.classList.add('mouseover');
 			}));
 
 			elementDisposable!.add(new StatefullMarkdownCell(this.notebookEditor, element, templateData, this.editorOptions, this.instantiationService));
@@ -334,6 +342,14 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			const listIndex = listIndexAttr ? Number(listIndexAttr) : undefined;
 
 			this.showContextMenu(listIndex, element, e.posx, top + height);
+		}));
+
+		elementDisposable!.add(DOM.addStandardDisposableListener(templateData.menuContainer!, DOM.EventType.MOUSE_LEAVE, e => {
+			templateData.menuContainer?.classList.remove('mouseover');
+		}));
+
+		elementDisposable!.add(DOM.addStandardDisposableListener(templateData.menuContainer!, DOM.EventType.MOUSE_ENTER, e => {
+			templateData.menuContainer?.classList.add('mouseover');
 		}));
 
 		elementDisposable?.add(this.instantiationService.createInstance(CodeCell, this.notebookEditor, element, templateData));

@@ -98,6 +98,7 @@
 }
 
 
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row .menu.mouseover,
 .monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row:hover .menu {
 	visibility: visible;
 }
@@ -110,6 +111,7 @@
 	outline: none !important;
 } */
 
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row .menu.mouseover,
 .monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row .menu:hover {
 	cursor: pointer;
 }
