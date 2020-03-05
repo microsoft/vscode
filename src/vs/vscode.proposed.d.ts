@@ -170,13 +170,6 @@ declare module 'vscode' {
 
 		/**
 		 * Fired when the list of tunnels has changed.
-		 * @deprecated use onDidChangeTunnels instead
-		 */
-		// TODO@alexr
-		// eslint-disable-next-line vscode-dts-event-naming
-		export const onDidTunnelsChange: Event<void>;
-		/**
-		 * Fired when the list of tunnels has changed.
 		 */
 		export const onDidChangeTunnels: Event<void>;
 	}
@@ -1227,9 +1220,11 @@ declare module 'vscode' {
 		/**
 		 * Save the resource.
 		 *
+		 * @param cancellation Token that signals the save is no longer required (for example, if another save was triggered).
+		 *
 		 * @return Thenable signaling that the save has completed.
 		 */
-		save(): Thenable<void>;
+		save(cancellation: CancellationToken): Thenable<void>;
 
 		/**
 		 * Save the existing resource at a new path.

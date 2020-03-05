@@ -151,6 +151,9 @@ export interface IUserDataSyncStoreService {
 	write(key: ResourceKey, content: string, ref: string | null, source?: SyncSource): Promise<string>;
 	manifest(): Promise<IUserDataManifest | null>;
 	clear(): Promise<void>;
+	getAllRefs(key: ResourceKey): Promise<string[]>;
+	resolveContent(key: ResourceKey, ref: string): Promise<string | null>;
+	delete(key: ResourceKey): Promise<void>;
 }
 
 //#endregion

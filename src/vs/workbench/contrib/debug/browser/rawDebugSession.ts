@@ -601,9 +601,15 @@ export class RawDebugSession implements IDisposable {
 	private send<R extends DebugProtocol.Response>(command: string, args: any, token?: CancellationToken, timeout?: number): Promise<R> {
 		return new Promise<DebugProtocol.Response>((completeDispatch, errorDispatch) => {
 			if (!this.debugAdapter) {
-				errorDispatch(new Error(nls.localize('noDebugAdapter', "No debug adapter found. Can not send '{0}'.", command)));
+				if (this.inShutdown) {
+					// We are in shutdown silently complete
+					completeDispatch();
+				} else {
+					errorDispatch(new Error(nls.localize('noDebugAdapter', "No debug adapter found. Can not send '{0}'.", command)));
+				}
 				return;
 			}
+
 			let cancelationListener: IDisposable;
 			const requestId = this.debugAdapter.sendRequest(command, args, (response: DebugProtocol.Response) => {
 				if (cancelationListener) {

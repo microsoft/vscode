@@ -770,11 +770,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostTunnelService.onDidChangeTunnels(listener, thisArg, disposables);
 
 			},
-			onDidTunnelsChange: (listener, thisArg?, disposables?) => {
-				checkProposedApiEnabled(extension);
-				return extHostTunnelService.onDidChangeTunnels(listener, thisArg, disposables);
-
-			},
 			registerTimelineProvider: (scheme: string | string[], provider: vscode.TimelineProvider) => {
 				checkProposedApiEnabled(extension);
 				return extHostTimeline.registerTimelineProvider(scheme, provider, extension.identifier, extHostCommands.converter);

@@ -218,12 +218,11 @@ export class ViewItem implements IViewItem {
 		}
 		if (this.model.hasTrait('focused')) {
 			const base64Id = strings.safeBtoa(this.model.id);
-
-			this.element.setAttribute('aria-selected', 'true');
 			this.element.setAttribute('id', base64Id);
+			this.element.setAttribute('aria-selected', 'true');
 		} else {
-			this.element.setAttribute('aria-selected', 'false');
 			this.element.removeAttribute('id');
+			this.element.setAttribute('aria-selected', 'false');
 		}
 		if (this.model.hasChildren()) {
 			this.element.setAttribute('aria-expanded', String(!!this._styles['expanded']));

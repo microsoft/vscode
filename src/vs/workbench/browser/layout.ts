@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
-import { EventType, addDisposableListener, addClass, removeClass, isAncestor, getClientArea, Dimension, toggleClass, position, size } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, addClass, removeClass, isAncestor, getClientArea, Dimension, toggleClass, position, size, IDimension } from 'vs/base/browser/dom';
 import { onDidChangeFullscreen, isFullscreen } from 'vs/base/browser/browser';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -30,7 +30,6 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { SerializableGrid, ISerializableView, ISerializedGrid, Orientation, ISerializedNode, ISerializedLeafNode, Direction, IViewSize } from 'vs/base/browser/ui/grid/grid';
-import { IDimension } from 'vs/platform/layout/browser/layoutService';
 import { Part } from 'vs/workbench/browser/part';
 import { IStatusbarService } from 'vs/workbench/services/statusbar/common/statusbar';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
@@ -117,6 +116,19 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private _container: HTMLElement = document.createElement('div');
 	get container(): HTMLElement { return this._container; }
+
+	get offset() {
+		return {
+			top: (() => {
+				let offset = 0;
+				if (this.isVisible(Parts.TITLEBAR_PART)) {
+					offset = this.getPart(Parts.TITLEBAR_PART).maximumHeight;
+				}
+
+				return offset;
+			})()
+		};
+	}
 
 	private parts: Map<string, Part> = new Map<string, Part>();
 
@@ -650,17 +662,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return true; // any other part cannot be hidden
 	}
 
-	getDimension(part: Parts): Dimension | undefined {
-		return this.getPart(part).dimension;
+	focus(): void {
+		this.editorGroupService.activeGroup.focus();
 	}
 
-	getTitleBarOffset(): number {
-		let offset = 0;
-		if (this.isVisible(Parts.TITLEBAR_PART)) {
-			offset = this.getPart(Parts.TITLEBAR_PART).maximumHeight;
-		}
-
-		return offset;
+	getDimension(part: Parts): Dimension | undefined {
+		return this.getPart(part).dimension;
 	}
 
 	getMaximumEditorDimensions(): Dimension {
@@ -683,10 +690,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	getWorkbenchContainer(): HTMLElement {
 		return this.parent;
-	}
-
-	getWorkbenchElement(): HTMLElement {
-		return this.container;
 	}
 
 	toggleZenMode(skipLayout?: boolean, restoring = false): void {
@@ -806,7 +809,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// Status bar and activity bar visibility come from settings -> update their visibility.
 			this.doUpdateLayoutConfiguration(true);
 
-			this.editorGroupService.activeGroup.focus();
+			this.focus();
 			if (this.state.zenMode.setNotificationsFilter) {
 				this.notificationService.setFilter(NotificationsFilter.OFF);
 			}
@@ -1090,7 +1093,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			if (this.hasFocus(Parts.PANEL_PART) && activePanel) {
 				activePanel.focus();
 			} else {
-				this.editorGroupService.activeGroup.focus();
+				this.focus();
 			}
 		}
 

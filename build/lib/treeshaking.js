@@ -265,7 +265,8 @@ function markNodes(languageService, options) {
                 return;
             }
             if (ts.isExportDeclaration(node)) {
-                if (node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
+                if (!node.exportClause && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
+                    // export * from "foo";
                     setColor(node, 2 /* Black */);
                     enqueueImport(node, node.moduleSpecifier.text);
                 }
@@ -588,7 +589,7 @@ function getRealNodeSymbol(checker, node) {
     //   (2) when the aliased symbol is originating from an import.
     //
     function shouldSkipAlias(node, declaration) {
-        if (node.kind !== ts.SyntaxKind.Identifier) {
+        if (!ts.isShorthandPropertyAssignment(node) && node.kind !== ts.SyntaxKind.Identifier) {
             return false;
         }
         if (node.parent === declaration) {
@@ -610,7 +611,9 @@ function getRealNodeSymbol(checker, node) {
         }
     }
     const { parent } = node;
-    let symbol = checker.getSymbolAtLocation(node);
+    let symbol = (ts.isShorthandPropertyAssignment(node)
+        ? checker.getShorthandAssignmentValueSymbol(node)
+        : checker.getSymbolAtLocation(node));
     let importNode = null;
     // If this is an alias, and the request came at the declaration location
     // get the aliased symbol instead. This allows for goto def on an import e.g.

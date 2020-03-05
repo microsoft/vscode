@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IResourceEditorInputType, IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWindowSettings, IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, isFileToOpen, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
@@ -59,7 +59,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 	private workspaceProvider: IWorkspaceProvider;
 
 	constructor(
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@ILayoutService private readonly layoutService: ILayoutService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IFileService private readonly fileService: IFileService,
@@ -177,7 +177,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 	}
 
 	async toggleFullScreen(): Promise<void> {
-		const target = this.layoutService.getWorkbenchElement();
+		const target = this.layoutService.container;
 
 		// Chromium
 		if (document.fullscreen !== undefined) {
