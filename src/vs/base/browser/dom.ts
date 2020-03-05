@@ -492,7 +492,12 @@ class SizeUtils {
 // ----------------------------------------------------------------------------------------
 // Position & Dimension
 
-export class Dimension {
+export interface IDimension {
+	readonly width: number;
+	readonly height: number;
+}
+
+export class Dimension implements IDimension {
 
 	constructor(
 		public readonly width: number,

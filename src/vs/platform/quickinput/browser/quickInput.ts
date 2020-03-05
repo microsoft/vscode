@@ -159,40 +159,40 @@ export class QuickInputService extends Themable implements IQuickInputService {
 		return {
 			widget: {
 				...computeStyles(this.theme, {
-					quickInputBackground,
-					quickInputForeground,
-					contrastBorder,
-					widgetShadow,
-					quickInputTitleBackground
+					quickInputBackground: quickInputBackground,
+					quickInputForeground: quickInputForeground,
+					quickInputTitleBackground: quickInputTitleBackground,
+					contrastBorder: contrastBorder,
+					widgetShadow: widgetShadow
 				}),
 			},
 			inputBox: computeStyles(this.theme, {
-				inputForeground,
-				inputBackground,
-				inputBorder,
-				inputValidationInfoBackground,
-				inputValidationInfoForeground,
-				inputValidationInfoBorder,
-				inputValidationWarningBackground,
-				inputValidationWarningForeground,
-				inputValidationWarningBorder,
-				inputValidationErrorBackground,
-				inputValidationErrorForeground,
-				inputValidationErrorBorder
+				inputForeground: inputForeground,
+				inputBackground: inputBackground,
+				inputBorder: inputBorder,
+				inputValidationInfoBackground: inputValidationInfoBackground,
+				inputValidationInfoForeground: inputValidationInfoForeground,
+				inputValidationInfoBorder: inputValidationInfoBorder,
+				inputValidationWarningBackground: inputValidationWarningBackground,
+				inputValidationWarningForeground: inputValidationWarningForeground,
+				inputValidationWarningBorder: inputValidationWarningBorder,
+				inputValidationErrorBackground: inputValidationErrorBackground,
+				inputValidationErrorForeground: inputValidationErrorForeground,
+				inputValidationErrorBorder: inputValidationErrorBorder
 			}),
 			countBadge: computeStyles(this.theme, {
-				badgeBackground,
-				badgeForeground,
+				badgeBackground: badgeBackground,
+				badgeForeground: badgeForeground,
 				badgeBorder: contrastBorder
 			}),
 			button: computeStyles(this.theme, {
-				buttonForeground,
-				buttonBackground,
-				buttonHoverBackground,
+				buttonForeground: buttonForeground,
+				buttonBackground: buttonBackground,
+				buttonHoverBackground: buttonHoverBackground,
 				buttonBorder: contrastBorder
 			}),
 			progressBar: computeStyles(this.theme, {
-				progressBarBackground
+				progressBarBackground: progressBarBackground
 			}),
 			list: computeStyles(this.theme, {
 				listBackground: quickInputBackground,
@@ -201,8 +201,8 @@ export class QuickInputService extends Themable implements IQuickInputService {
 				listInactiveFocusBackground: listFocusBackground,
 				listFocusOutline: activeContrastBorder,
 				listInactiveFocusOutline: activeContrastBorder,
-				pickerGroupBorder,
-				pickerGroupForeground
+				pickerGroupBorder: pickerGroupBorder,
+				pickerGroupForeground: pickerGroupForeground
 			}),
 		};
 	}
