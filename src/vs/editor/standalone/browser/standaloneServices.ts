@@ -52,7 +52,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { BrowserClipboardService } from 'vs/platform/clipboard/browser/clipboardService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
-import { QuickInputService } from 'vs/platform/quickinput/browser/quickInput';
+import { StandaloneQuickInputServiceImpl } from 'vs/editor/standalone/browser/quickInput/standaloneQuickInputServiceImpl';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
 export interface IEditorOverrideServices {
@@ -200,7 +200,7 @@ export class DynamicStandaloneServices extends Disposable {
 
 		let contextKeyService = ensure(IContextKeyService, () => this._register(new ContextKeyService(configurationService)));
 
-		let accessibilityService = ensure(IAccessibilityService, () => new AccessibilityService(contextKeyService, configurationService));
+		ensure(IAccessibilityService, () => new AccessibilityService(contextKeyService, configurationService));
 
 		ensure(IListService, () => new ListService(themeService));
 
@@ -210,7 +210,7 @@ export class DynamicStandaloneServices extends Disposable {
 
 		let layoutService = ensure(ILayoutService, () => new SimpleLayoutService(StaticServices.codeEditorService.get(ICodeEditorService), domElement));
 
-		ensure(IQuickInputService, () => new QuickInputService(Object.create(null), configurationService, _instantiationService, keybindingService, contextKeyService, themeService, accessibilityService, layoutService));
+		ensure(IQuickInputService, () => new StandaloneQuickInputServiceImpl(_instantiationService, StaticServices.codeEditorService.get(ICodeEditorService)));
 
 		let contextViewService = ensure(IContextViewService, () => this._register(new ContextViewService(layoutService)));
 
