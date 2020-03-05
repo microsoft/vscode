@@ -22,7 +22,6 @@ export interface IPaneOptions {
 	minimumBodySize?: number;
 	maximumBodySize?: number;
 	expanded?: boolean;
-	orientation?: Orientation;
 }
 
 export interface IPaneStyles {
@@ -50,7 +49,6 @@ export abstract class Pane extends Disposable implements IView {
 	private body!: HTMLElement;
 
 	protected _expanded: boolean;
-	protected orientation: Orientation;
 
 	private expandedSize: number | undefined = undefined;
 	private _headerVisible = true;
@@ -122,7 +120,6 @@ export abstract class Pane extends Disposable implements IView {
 	constructor(options: IPaneOptions = {}) {
 		super();
 		this._expanded = typeof options.expanded === 'undefined' ? true : !!options.expanded;
-		this.orientation = options.orientation ?? Orientation.VERTICAL;
 		this.ariaHeaderLabel = options.ariaHeaderLabel || '';
 		this._minimumBodySize = typeof options.minimumBodySize === 'number' ? options.minimumBodySize : 120;
 		this._maximumBodySize = typeof options.maximumBodySize === 'number' ? options.maximumBodySize : Number.POSITIVE_INFINITY;
@@ -228,12 +225,7 @@ export abstract class Pane extends Disposable implements IView {
 	protected updateHeader(): void {
 		const expanded = !this.headerVisible || this.isExpanded();
 
-		if (this.orientation === Orientation.VERTICAL) {
-			this.header.style.height = `${this.headerSize}px`;
-		} else {
-			this.header.style.width = `${this.headerSize}px`;
-		}
-
+		this.header.style.height = `${this.headerSize}px`;
 		this.header.style.lineHeight = `${this.headerSize}px`;
 		toggleClass(this.header, 'hidden', !this.headerVisible);
 		toggleClass(this.header, 'expanded', expanded);

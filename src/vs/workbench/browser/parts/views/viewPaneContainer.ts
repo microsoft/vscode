@@ -274,7 +274,7 @@ export abstract class ViewPane extends Pane implements IView {
 		const actions = append(container, $('.actions'));
 		toggleClass(actions, 'show', this.showActionsAlways);
 		this.toolbar = new ToolBar(actions, this.contextMenuService, {
-			orientation: this.orientation === Orientation.VERTICAL ? ActionsOrientation.HORIZONTAL : ActionsOrientation.VERTICAL,
+			orientation: ActionsOrientation.HORIZONTAL,
 			actionViewItemProvider: action => this.getActionViewItem(action),
 			ariaLabel: nls.localize('viewToolbarAriaLabel', "{0} actions", this.title),
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
@@ -841,7 +841,6 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 					id: viewDescriptor.id,
 					title: viewDescriptor.name,
 					expanded: !collapsed,
-					orientation: this.options.orientation,
 					minimumBodySize: this.viewDescriptorService.getViewContainerLocation(this.viewContainer) === ViewContainerLocation.Panel ? 0 : 120
 				});
 
