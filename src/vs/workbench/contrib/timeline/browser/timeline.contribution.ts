@@ -78,7 +78,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, ({
 	order: 1,
 	command: {
 		id: OpenTimelineAction.ID,
-		title: localize(OpenTimelineAction.LABEL, "Open Timeline"),
+		title: OpenTimelineAction.LABEL,
 		icon: { id: 'codicon/history' }
 	},
 	when: ContextKeyExpr.and(ExplorerFolderContext.toNegated(), ResourceContextKey.HasResource)

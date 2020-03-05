@@ -20,17 +20,10 @@ export const ICustomEditorService = createDecorator<ICustomEditorService>('custo
 export const CONTEXT_CUSTOM_EDITORS = new RawContextKey<string>('customEditors', '');
 export const CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE = new RawContextKey<boolean>('focusedCustomEditorIsEditable', false);
 
-export interface ICustomEditor {
-	readonly resource: URI;
-	readonly viewType: string;
-}
-
 export interface ICustomEditorService {
 	_serviceBrand: any;
 
 	readonly models: ICustomEditorModelManager;
-
-	readonly activeCustomEditor: ICustomEditor | undefined;
 
 	getCustomEditor(viewType: string): CustomEditorInfo | undefined;
 	getContributedCustomEditors(resource: URI): CustomEditorInfoCollection;

@@ -1892,7 +1892,7 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 
 	const foregroundColor = theme.getColor(foreground);
 	if (foregroundColor) {
-		const fgWithOpacity = new Color(new RGBA(foregroundColor.rgba.r, foregroundColor.rgba.g, foregroundColor.rgba.b, 0.5));
+		const fgWithOpacity = new Color(new RGBA(foregroundColor.rgba.r, foregroundColor.rgba.g, foregroundColor.rgba.b, 0.65));
 		collector.addRule(`.vs-dark .search-view .message { color: ${fgWithOpacity}; }`);
 	}
 });

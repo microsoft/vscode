@@ -34,7 +34,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { QUICK_INPUT_BACKGROUND, QUICK_INPUT_FOREGROUND } from 'vs/workbench/common/theme';
+import { quickInputBackground, quickInputForeground } from 'vs/platform/theme/common/colorRegistry';
 import { attachQuickOpenStyler } from 'vs/platform/theme/common/styler';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -175,7 +175,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		// Create upon first open
 		if (!this.quickOpenWidget) {
 			const quickOpenWidget: QuickOpenWidget = this.quickOpenWidget = this._register(new QuickOpenWidget(
-				this.layoutService.getWorkbenchElement(),
+				this.layoutService.container,
 				{
 					onOk: () => this.onOk(),
 					onCancel: () => { /* ignore */ },
@@ -188,7 +188,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 				keyboardSupport: false,
 				treeCreator: (container, config, opts) => this.instantiationService.createInstance(WorkbenchTree, container, config, opts)
 			}));
-			this._register(attachQuickOpenStyler(this.quickOpenWidget, this.themeService, { background: QUICK_INPUT_BACKGROUND, foreground: QUICK_INPUT_FOREGROUND }));
+			this._register(attachQuickOpenStyler(this.quickOpenWidget, this.themeService, { background: quickInputBackground, foreground: quickInputForeground }));
 
 			const quickOpenContainer = this.quickOpenWidget.create();
 			addClass(quickOpenContainer, 'show-file-icons');
@@ -238,10 +238,8 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	}
 
 	private positionQuickOpenWidget(): void {
-		const titlebarOffset = this.layoutService.getTitleBarOffset();
-
 		if (this.quickOpenWidget) {
-			this.quickOpenWidget.getElement().style.top = `${titlebarOffset}px`;
+			this.quickOpenWidget.getElement().style.top = `${this.layoutService.offset?.top ?? 0}px`;
 		}
 	}
 

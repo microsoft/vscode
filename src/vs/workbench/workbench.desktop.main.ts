@@ -52,6 +52,7 @@ import 'vs/workbench/services/workspaces/electron-browser/workspaceEditingServic
 import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncService';
 import 'vs/workbench/services/userDataSync/electron-browser/settingsSyncService';
 import 'vs/workbench/services/userDataSync/electron-browser/userDataAutoSyncService';
+import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncStoreService';
 import 'vs/workbench/services/authentication/electron-browser/authenticationTokenService';
 import 'vs/workbench/services/authentication/browser/authenticationService';
 import 'vs/workbench/services/host/electron-browser/desktopHostService';
@@ -69,11 +70,11 @@ import 'vs/workbench/services/extensionResourceLoader/electron-browser/extension
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { KeytarCredentialsService } from 'vs/platform/credentials/node/credentialsService';
-import { NativeTitlebarPart } from 'vs/workbench/electron-browser/parts/titlebar/titlebarPart';
+import { TitlebarPart } from 'vs/workbench/electron-browser/parts/titlebar/titlebarPart';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 
 registerSingleton(ICredentialsService, KeytarCredentialsService, true);
-registerSingleton(ITitleService, NativeTitlebarPart);
+registerSingleton(ITitleService, TitlebarPart);
 
 //#endregion
 

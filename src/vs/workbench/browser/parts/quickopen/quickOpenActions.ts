@@ -99,3 +99,28 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		secondary: undefined
 	}
 });
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.action.quickPickManyToggle',
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: inQuickOpenContext,
+	primary: 0,
+	handler: accessor => {
+		const quickInputService = accessor.get(IQuickInputService);
+		quickInputService.toggle();
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.action.quickInputBack',
+	weight: KeybindingWeight.WorkbenchContrib + 50,
+	when: inQuickOpenContext,
+	primary: 0,
+	win: { primary: KeyMod.Alt | KeyCode.LeftArrow },
+	mac: { primary: KeyMod.WinCtrl | KeyCode.US_MINUS },
+	linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.US_MINUS },
+	handler: accessor => {
+		const quickInputService = accessor.get(IQuickInputService);
+		quickInputService.back();
+	}
+});
