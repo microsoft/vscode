@@ -282,7 +282,7 @@ export class BackLayerWebView extends Disposable {
 
 	private _createInset(webviewService: IWebviewService, content: string) {
 		this.localResourceRootsCache = [...this.notebookService.getNotebookProviderResourceRoots(), URI.file(this.environmentSerice.appRoot)];
-		const webview = webviewService.createWebview('' + UUID.generateUuid(), {
+		const webview = webviewService.createWebviewElement('' + UUID.generateUuid(), {
 			enableFindWidget: false,
 		}, {
 			allowScripts: true,
