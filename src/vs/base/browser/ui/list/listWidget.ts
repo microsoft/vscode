@@ -901,7 +901,7 @@ const DefaultOptions = {
 		onDragOver() { return false; },
 		drop() { }
 	},
-	ariaRootRole: ListAriaRootRole.TREE
+	ariaRootRole: ListAriaRootRole.LIST
 };
 
 // TODO@Joao: move these utils into a SortedArray class
@@ -1225,7 +1225,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this.view = new ListView(container, virtualDelegate, renderers, viewOptions);
 
 		if (typeof _options.ariaRole !== 'string') {
-			this.view.domNode.setAttribute('role', ListAriaRootRole.TREE);
+			this.view.domNode.setAttribute('role', ListAriaRootRole.LIST);
 		} else {
 			this.view.domNode.setAttribute('role', _options.ariaRole);
 		}
