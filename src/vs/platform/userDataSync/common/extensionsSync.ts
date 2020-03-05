@@ -120,6 +120,21 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 
 	async stop(): Promise<void> { }
 
+	async getRemoteContent(ref?: string, fragment?: string): Promise<string | null> {
+		const content = await super.getRemoteContent(ref);
+		if (content !== null && fragment) {
+			const syncData = this.parseSyncData(content);
+			if (syncData) {
+				switch (fragment) {
+					case 'extensions':
+						return syncData.content;
+				}
+			}
+			return null;
+		}
+		return content;
+	}
+
 	accept(content: string): Promise<void> {
 		throw new Error('Extensions: Conflicts should not occur');
 	}

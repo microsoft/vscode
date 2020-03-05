@@ -81,13 +81,34 @@ export class UserDataSyncHistoryViewContribution implements IWorkbenchContributi
 		registerAction2(class extends Action2 {
 			constructor() {
 				super({
-					id: 'workbench.actions.openRef',
-					title: localize('workbench.action.openRef', "Open Ref"),
+					id: 'workbench.actions.sync.resolveResourceRef',
+					title: localize('workbench.actions.sync.resolveResourceRef', "Resolve Resource Ref"),
 				});
 			}
-			async run(accessor: ServicesAccessor, resource: URI): Promise<void> {
+			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
 				const editorService = accessor.get(IEditorService);
-				await editorService.openEditor({ resource });
+				let resource = URI.parse(handle.$treeItemHandle);
+				const result = resolveSyncResource(resource);
+				if (result) {
+					resource = resource.with({ fragment: result.resourceKey });
+					await editorService.openEditor({ resource });
+				}
+			}
+		});
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: 'workbench.actions.sync.resolveResourceRefCompletely',
+					title: localize('workbench.actions.sync.resolveResourceRefCompletely', "Show full content"),
+					menu: {
+						id: MenuId.ViewItemContext,
+						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', that.viewId), ContextKeyExpr.regex('viewItem', /syncref-.*/i))
+					},
+				});
+			}
+			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
+				const editorService = accessor.get(IEditorService);
+				await editorService.openEditor({ resource: URI.parse(handle.$treeItemHandle) });
 			}
 		});
 		registerAction2(class extends Action2 {
@@ -107,15 +128,8 @@ export class UserDataSyncHistoryViewContribution implements IWorkbenchContributi
 				const resource = URI.parse(handle.$treeItemHandle);
 				const result = resolveSyncResource(resource);
 				if (result) {
-					let leftResource: URI;
-					let rightResource: URI;
-					if (result.resourceKey === 'settings') {
-						leftResource = resource.with({ fragment: 'settings' });
-						rightResource = environmentService.settingsResource;
-					} else {
-						leftResource = resource.with({ fragment: 'keybindings' });
-						rightResource = environmentService.keybindingsResource;
-					}
+					const leftResource: URI = resource.with({ fragment: result.resourceKey });
+					const rightResource: URI = result.resourceKey === 'settings' ? environmentService.settingsResource : environmentService.keybindingsResource;
 					await editorService.openEditor({
 						leftResource,
 						rightResource,
@@ -157,12 +171,12 @@ class UserDataSyncHistoryViewDataProvider implements ITreeViewDataProvider {
 		if (resourceKey) {
 			const refs = await this.userDataSyncStoreService.getAllRefs(resourceKey);
 			return refs.map(ref => {
-				const resourceUri = toSyncResource(resourceKey, ref);
+				const handle = toSyncResource(resourceKey, ref).toString();
 				return {
-					handle: resourceUri.toString(),
+					handle,
 					collapsibleState: TreeItemCollapsibleState.None,
 					label: { label: ref },
-					command: { id: 'workbench.actions.openRef', title: '', arguments: [resourceUri] },
+					command: { id: 'workbench.actions.sync.resolveResourceRef', title: '', arguments: [<TreeViewItemHandleArg>{ $treeItemHandle: handle, $treeViewId: '' }] },
 					themeIcon: FileThemeIcon,
 					contextValue: `syncref-${resourceKey}`
 				};

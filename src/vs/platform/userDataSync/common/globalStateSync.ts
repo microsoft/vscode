@@ -104,6 +104,21 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 
 	async stop(): Promise<void> { }
 
+	async getRemoteContent(ref?: string, fragment?: string): Promise<string | null> {
+		let content = await super.getRemoteContent(ref);
+		if (content !== null && fragment) {
+			const syncData = this.parseSyncData(content);
+			if (syncData) {
+				switch (fragment) {
+					case 'globalState':
+						return syncData.content;
+				}
+			}
+			return null;
+		}
+		return content;
+	}
+
 	accept(content: string): Promise<void> {
 		throw new Error('UI State: Conflicts should not occur');
 	}
