@@ -38,6 +38,12 @@ export class UserDataSyncHistoryViewContribution implements IWorkbenchContributi
 		const name = localize('title', "Sync History");
 		const viewEnablementContext = CONTEXT_SHOW_USER_DATA_SYNC_HISTORY_VIEW.bindTo(this.contextKeyService);
 		const treeView = this.instantiationService.createInstance(CustomTreeView, this.viewId, name);
+		const disposable = treeView.onDidChangeVisibility(visible => {
+			if (visible && !treeView.dataProvider) {
+				disposable.dispose();
+				treeView.dataProvider = this.instantiationService.createInstance(UserDataSyncHistoryViewDataProvider);
+			}
+		});
 		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 		viewsRegistry.registerViews([<ITreeViewDescriptor>{
 			id: this.viewId,
@@ -64,13 +70,8 @@ export class UserDataSyncHistoryViewContribution implements IWorkbenchContributi
 				});
 			}
 			async run(accessor: ServicesAccessor): Promise<void> {
-				const instantiationService = accessor.get(IInstantiationService);
-				const viewsService = accessor.get(IViewsService);
-				if (!treeView.dataProvider) {
-					treeView.dataProvider = instantiationService.createInstance(UserDataSyncHistoryViewDataProvider);
-				}
 				viewEnablementContext.set(true);
-				viewsService.openView(that.viewId, true);
+				accessor.get(IViewsService).openView(that.viewId, true);
 			}
 		});
 	}
