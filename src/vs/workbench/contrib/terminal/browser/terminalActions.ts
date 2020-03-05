@@ -972,6 +972,7 @@ export class ClearTerminalAction extends Action {
 		const terminalInstance = this.terminalService.getActiveInstance();
 		if (terminalInstance) {
 			terminalInstance.clear();
+			terminalInstance.focus();
 		}
 		return Promise.resolve(undefined);
 	}
