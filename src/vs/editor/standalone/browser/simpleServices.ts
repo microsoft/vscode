@@ -42,7 +42,7 @@ import { IProgressRunner, IEditorProgressService } from 'vs/platform/progress/co
 import { ITelemetryInfo, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkbenchState, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { ILayoutService, IDimension } from 'vs/platform/layout/browser/layoutService';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { SimpleServicesNLS } from 'vs/editor/common/standaloneStrings';
 import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 import { basename } from 'vs/base/common/resources';
@@ -732,8 +732,8 @@ export class SimpleLayoutService implements ILayoutService {
 
 	public onLayout = Event.None;
 
-	private _dimension?: IDimension;
-	get dimension(): IDimension {
+	private _dimension?: dom.IDimension;
+	get dimension(): dom.IDimension {
 		if (!this._dimension) {
 			this._dimension = dom.getClientArea(window.document.body);
 		}

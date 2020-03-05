@@ -5,13 +5,9 @@
 
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IDimension } from 'vs/base/browser/dom';
 
 export const ILayoutService = createDecorator<ILayoutService>('layoutService');
-
-export interface IDimension {
-	readonly width: number;
-	readonly height: number;
-}
 
 export interface ILayoutService {
 
