@@ -8,7 +8,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IViewsRegistry, Extensions, ITreeViewDescriptor, ITreeViewDataProvider, ITreeItem, TreeItemCollapsibleState, IViewsService, TreeViewItemHandleArg } from 'vs/workbench/common/views';
 import { localize } from 'vs/nls';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { CustomTreeViewPane, CustomTreeView } from 'vs/workbench/browser/parts/views/customView';
+import { TreeViewPane, TreeView } from 'vs/workbench/browser/parts/views/treeView';
 import { VIEW_CONTAINER } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ALL_RESOURCE_KEYS, CONTEXT_SYNC_ENABLEMENT, IUserDataSyncStoreService, USER_DATA_SYNC_SCHEME, ResourceKey } from 'vs/platform/userDataSync/common/userDataSync';
@@ -37,7 +37,7 @@ export class UserDataSyncHistoryViewContribution implements IWorkbenchContributi
 		const that = this;
 		const name = localize('title', "Sync History");
 		const viewEnablementContext = CONTEXT_SHOW_USER_DATA_SYNC_HISTORY_VIEW.bindTo(this.contextKeyService);
-		const treeView = this.instantiationService.createInstance(CustomTreeView, this.viewId, name);
+		const treeView = this.instantiationService.createInstance(TreeView, this.viewId, name);
 		const disposable = treeView.onDidChangeVisibility(visible => {
 			if (visible && !treeView.dataProvider) {
 				disposable.dispose();
@@ -48,7 +48,7 @@ export class UserDataSyncHistoryViewContribution implements IWorkbenchContributi
 		viewsRegistry.registerViews([<ITreeViewDescriptor>{
 			id: this.viewId,
 			name,
-			ctorDescriptor: new SyncDescriptor(CustomTreeViewPane),
+			ctorDescriptor: new SyncDescriptor(TreeViewPane),
 			when: ContextKeyExpr.and(CONTEXT_SYNC_ENABLEMENT, CONTEXT_SHOW_USER_DATA_SYNC_HISTORY_VIEW),
 			canToggleVisibility: false,
 			canMoveView: true,

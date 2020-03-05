@@ -44,7 +44,7 @@ import { SIDE_BAR_BACKGROUND, PANEL_BACKGROUND } from 'vs/workbench/common/theme
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
-export class CustomTreeViewPane extends ViewPane {
+export class TreeViewPane extends ViewPane {
 
 	private treeView: ITreeView;
 
@@ -79,7 +79,7 @@ export class CustomTreeViewPane extends ViewPane {
 	renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
-		if (this.treeView instanceof CustomTreeView) {
+		if (this.treeView instanceof TreeView) {
 			this.treeView.show(container);
 		}
 	}
@@ -119,12 +119,11 @@ class Root implements ITreeItem {
 
 const noDataProviderMessage = localize('no-dataprovider', "There is no data provider registered that can provide view data.");
 
-class CustomTree extends WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore> { }
+class Tree extends WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore> { }
 
-export class CustomTreeView extends Disposable implements ITreeView {
+export class TreeView extends Disposable implements ITreeView {
 
 	private isVisible: boolean = false;
-	private activated: boolean = false;
 	private _hasIconForParentNode = false;
 	private _hasIconForLeafNode = false;
 	private _showCollapseAllAction = false;
@@ -135,7 +134,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	private _messageValue: string | undefined;
 	private _canSelectMany: boolean = false;
 	private messageElement!: HTMLDivElement;
-	private tree: CustomTree | undefined;
+	private tree: Tree | undefined;
 	private treeLabels: ResourceLabels | undefined;
 
 	private root: ITreeItem;
@@ -165,14 +164,13 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	private readonly _onDidCompleteRefresh: Emitter<void> = this._register(new Emitter<void>());
 
 	constructor(
-		private id: string,
+		protected readonly id: string,
 		private _title: string,
-		@IExtensionService private readonly extensionService: IExtensionService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IProgressService private readonly progressService: IProgressService,
+		@IProgressService protected readonly progressService: IProgressService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -305,9 +303,6 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		}
 
 		this.isVisible = isVisible;
-		if (this.isVisible) {
-			this.activate();
-		}
 
 		if (this.tree) {
 			if (this.isVisible) {
@@ -365,9 +360,9 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		const aligner = new Aligner(this.themeService);
 		const renderer = this.instantiationService.createInstance(TreeRenderer, this.id, treeMenus, this.treeLabels, actionViewItemProvider, aligner);
 
-		this.tree = this._register(this.instantiationService.createInstance(CustomTree, 'CustomView', this.treeContainer, new CustomTreeDelegate(), [renderer],
+		this.tree = this._register(this.instantiationService.createInstance(Tree, this.id, this.treeContainer, new TreeViewDelegate(), [renderer],
 			dataSource, {
-			identityProvider: new CustomViewIdentityProvider(),
+			identityProvider: new TreeViewIdentityProvider(),
 			accessibilityProvider: {
 				getAriaLabel(element: ITreeItem): string {
 					return element.tooltip ? element.tooltip : element.label ? element.label.label : '';
@@ -409,9 +404,9 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		}));
 		this.tree.setInput(this.root).then(() => this.updateContentAreas());
 
-		const customTreeNavigator = ResourceNavigator.createTreeResourceNavigator(this.tree, { openOnFocus: false, openOnSelection: false });
-		this._register(customTreeNavigator);
-		this._register(customTreeNavigator.onDidOpenResource(e => {
+		const treeNavigator = ResourceNavigator.createTreeResourceNavigator(this.tree, { openOnFocus: false, openOnSelection: false });
+		this._register(treeNavigator);
+		this._register(treeNavigator.onDidOpenResource(e => {
 			if (!e.browserEvent) {
 				return;
 			}
@@ -462,7 +457,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		});
 	}
 
-	private updateMessage(): void {
+	protected updateMessage(): void {
 		if (this._message) {
 			this.showMessage(this._message);
 		} else if (!this.dataProvider) {
@@ -579,17 +574,6 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		return Promise.resolve();
 	}
 
-	private activate() {
-		if (!this.activated) {
-			this.progressService.withProgress({ location: this.viewContainer.id }, () => this.extensionService.activateByEvent(`onView:${this.id}`))
-				.then(() => timeout(2000))
-				.then(() => {
-					this.updateMessage();
-				});
-			this.activated = true;
-		}
-	}
-
 	private refreshing: boolean = false;
 	private async doRefresh(elements: ITreeItem[]): Promise<void> {
 		const tree = this.tree;
@@ -618,13 +602,13 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	}
 }
 
-class CustomViewIdentityProvider implements IIdentityProvider<ITreeItem> {
+class TreeViewIdentityProvider implements IIdentityProvider<ITreeItem> {
 	getId(element: ITreeItem): { toString(): string; } {
 		return element.handle;
 	}
 }
 
-class CustomTreeDelegate implements IListVirtualDelegate<ITreeItem> {
+class TreeViewDelegate implements IListVirtualDelegate<ITreeItem> {
 
 	getHeight(element: ITreeItem): number {
 		return TreeRenderer.ITEM_HEIGHT;
@@ -941,5 +925,45 @@ class TreeMenus extends Disposable implements IDisposable {
 		contextKeyService.dispose();
 
 		return result;
+	}
+}
+
+export class CustomTreeView extends TreeView {
+
+	private activated: boolean = false;
+
+	constructor(
+		id: string,
+		title: string,
+		@IThemeService themeService: IThemeService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@ICommandService commandService: ICommandService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IProgressService progressService: IProgressService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@INotificationService notificationService: INotificationService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
+		@IExtensionService private readonly extensionService: IExtensionService,
+	) {
+		super(id, title, themeService, instantiationService, commandService, configurationService, progressService, contextMenuService, keybindingService, notificationService, viewDescriptorService);
+	}
+
+	setVisibility(isVisible: boolean): void {
+		super.setVisibility(isVisible);
+		if (this.visible) {
+			this.activate();
+		}
+	}
+
+	private activate() {
+		if (!this.activated) {
+			this.progressService.withProgress({ location: this.viewContainer.id }, () => this.extensionService.activateByEvent(`onView:${this.id}`))
+				.then(() => timeout(2000))
+				.then(() => {
+					this.updateMessage();
+				});
+			this.activated = true;
+		}
 	}
 }
