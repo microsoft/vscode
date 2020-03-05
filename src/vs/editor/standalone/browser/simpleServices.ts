@@ -746,7 +746,7 @@ export class SimpleLayoutService implements ILayoutService {
 	}
 
 	focus(): void {
-		this._codeEditorService.getActiveCodeEditor()?.focus();
+		this._codeEditorService.getFocusedCodeEditor()?.focus();
 	}
 
 	constructor(private _codeEditorService: ICodeEditorService, private _container: HTMLElement) { }

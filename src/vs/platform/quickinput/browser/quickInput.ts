@@ -20,6 +20,8 @@ import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { List, IListOptions } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
 
+export interface IQuickInputControllerHost extends ILayoutService { }
+
 export class QuickInputService extends Themable implements IQuickInputService {
 
 	_serviceBrand: undefined;
@@ -29,7 +31,15 @@ export class QuickInputService extends Themable implements IQuickInputService {
 	get onShow() { return this.controller.onShow; }
 	get onHide() { return this.controller.onHide; }
 
-	private readonly controller: QuickInputController;
+	private _controller: QuickInputController | undefined;
+	private get controller(): QuickInputController {
+		if (!this._controller) {
+			this._controller = this.createController();
+		}
+
+		return this._controller;
+	}
+
 	private readonly contexts = new Map<string, IContextKey<boolean>>();
 
 	constructor(
@@ -43,15 +53,17 @@ export class QuickInputService extends Themable implements IQuickInputService {
 		@ILayoutService private readonly layoutService: ILayoutService
 	) {
 		super(themeService);
+	}
 
-		this.controller = this._register(new QuickInputController({
+	protected createController(host: IQuickInputControllerHost = this.layoutService): QuickInputController {
+		const controller = this._register(new QuickInputController({
 			idPrefix: 'quickInput_', // Constant since there is still only one.
-			container: this.layoutService.container,
+			container: host.container,
 			ignoreFocusOut: () => this.environmentService.args['sticky-quickopen'] || !this.configurationService.getValue('workbench.quickOpen.closeOnFocusLost'),
 			isScreenReaderOptimized: () => this.accessibilityService.isScreenReaderOptimized(),
 			backKeybindingLabel: () => this.keybindingService.lookupKeybinding('workbench.action.quickInputBack')?.getLabel() || undefined,
 			setContextKey: (id?: string) => this.setContextKey(id),
-			returnFocus: () => this.layoutService.focus(),
+			returnFocus: () => host.focus(),
 			createList: <T>(
 				user: string,
 				container: HTMLElement,
@@ -59,22 +71,19 @@ export class QuickInputService extends Themable implements IQuickInputService {
 				renderers: IListRenderer<T, any>[],
 				options: IListOptions<T>,
 			) => this.instantiationService.createInstance(WorkbenchList, user, container, delegate, renderers, options) as List<T>,
-			styles: this.computeStyles(),
+			styles: this.computeStyles()
 		}));
 
-		this.controller.layout(this.layoutService.dimension, this.layoutService.offset?.top ?? 0);
-
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
+		controller.layout(host.dimension, host.offset?.top ?? 0);
 
 		// Layout changes
-		this._register(this.layoutService.onLayout(dimension => this.controller.layout(dimension, this.layoutService.offset?.top ?? 0)));
+		this._register(host.onLayout(dimension => controller.layout(dimension, host.offset?.top ?? 0)));
 
 		// Context keys
-		this._register(this.controller.onShow(() => this.resetContextKeys()));
-		this._register(this.controller.onHide(() => this.resetContextKeys()));
+		this._register(controller.onShow(() => this.resetContextKeys()));
+		this._register(controller.onHide(() => this.resetContextKeys()));
+
+		return controller;
 	}
 
 	private setContextKey(id?: string) {
@@ -203,7 +212,7 @@ export class QuickInputService extends Themable implements IQuickInputService {
 				listInactiveFocusOutline: activeContrastBorder,
 				pickerGroupBorder: pickerGroupBorder,
 				pickerGroupForeground: pickerGroupForeground
-			}),
+			})
 		};
 	}
 }
