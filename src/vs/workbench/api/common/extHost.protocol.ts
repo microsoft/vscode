@@ -449,7 +449,7 @@ export interface TransferQuickPickItems extends quickInput.IQuickPickItem {
 
 export interface TransferQuickInputButton {
 	handle: number;
-	iconPath: { dark: URI; light?: URI; } | { id: string; };
+	iconPath: { dark: URI; light?: URI; } | ThemeIconDto;
 	tooltip?: string;
 }
 
@@ -573,12 +573,17 @@ export interface WebviewExtensionDescription {
 	readonly location: UriComponents;
 }
 
+export interface WebviewUriIconDto {
+	readonly light: UriComponents;
+	readonly dark: UriComponents;
+}
+
 export interface MainThreadWebviewsShape extends IDisposable {
 	$createWebviewPanel(extension: WebviewExtensionDescription, handle: WebviewPanelHandle, viewType: string, title: string, showOptions: WebviewPanelShowOptions, options: modes.IWebviewPanelOptions & modes.IWebviewOptions): void;
 	$disposeWebview(handle: WebviewPanelHandle): void;
 	$reveal(handle: WebviewPanelHandle, showOptions: WebviewPanelShowOptions): void;
 	$setTitle(handle: WebviewPanelHandle, value: string): void;
-	$setIconPath(handle: WebviewPanelHandle, value: { light: UriComponents, dark: UriComponents; } | undefined): void;
+	$setIconPath(handle: WebviewPanelHandle, value: WebviewUriIconDto | ThemeIconDto | undefined): void;
 
 	$setHtml(handle: WebviewPanelHandle, value: string): void;
 	$setOptions(handle: WebviewPanelHandle, options: modes.IWebviewOptions): void;
@@ -1102,7 +1107,7 @@ export interface IWorkspaceEditEntryMetadataDto {
 	needsConfirmation: boolean;
 	label: string;
 	description?: string;
-	iconPath?: { id: string } | UriComponents | { light: UriComponents, dark: UriComponents };
+	iconPath?: ThemeIconDto | UriComponents | { light: UriComponents, dark: UriComponents };
 }
 
 export interface IWorkspaceFileEditDto {
@@ -1286,6 +1291,10 @@ export interface IShellAndArgsDto {
 export interface ITerminalDimensionsDto {
 	columns: number;
 	rows: number;
+}
+
+export interface ThemeIconDto {
+	readonly id: string;
 }
 
 export interface ExtHostTerminalServiceShape {

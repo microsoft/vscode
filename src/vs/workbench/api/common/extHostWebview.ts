@@ -19,9 +19,9 @@ import { EditorViewColumn } from 'vs/workbench/api/common/shared/editor';
 import { asWebviewUri, WebviewInitData } from 'vs/workbench/api/common/shared/webview';
 import type * as vscode from 'vscode';
 import { ExtHostWebviewsShape, IMainContext, MainContext, MainThreadWebviewsShape, WebviewExtensionDescription, WebviewPanelHandle, WebviewPanelViewStateData } from './extHost.protocol';
-import { Disposable as VSCodeDisposable } from './extHostTypes';
+import { Disposable as VSCodeDisposable, ThemeIcon } from './extHostTypes';
 
-type IconPath = URI | { light: URI, dark: URI };
+type IconPath = URI | { readonly light: URI; readonly dark: URI } | ThemeIcon;
 
 export class ExtHostWebview implements vscode.Webview {
 	private _html: string = '';

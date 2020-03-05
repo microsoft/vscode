@@ -6430,7 +6430,7 @@ declare module 'vscode' {
 		/**
 		 * Icon for the panel shown in UI.
 		 */
-		iconPath?: Uri | { light: Uri; dark: Uri };
+		iconPath?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
 
 		/**
 		 * Webview belonging to the panel.
