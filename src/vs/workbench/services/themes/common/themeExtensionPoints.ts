@@ -65,7 +65,36 @@ export function registerFileIconThemeExtensionPoint() {
 						type: 'string'
 					},
 					path: {
-						description: nls.localize('vscode.extension.contributes.iconThemes.path', 'Path of the file icon theme definition file. The path is relative to the extension folder and is typically \'./iconthemes/awesome-icon-theme.json\'.'),
+						description: nls.localize('vscode.extension.contributes.iconThemes.path', 'Path of the file icon theme definition file. The path is relative to the extension folder and is typically \'./fileicons/awesome-icon-theme.json\'.'),
+						type: 'string'
+					}
+				},
+				required: ['path', 'id']
+			}
+		}
+	});
+}
+
+export function registerProductIconThemeExtensionPoint() {
+	return ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>({
+		extensionPoint: 'productIconThemes',
+		jsonSchema: {
+			description: nls.localize('vscode.extension.contributes.productIconThemes', 'Contributes product icon themes.'),
+			type: 'array',
+			items: {
+				type: 'object',
+				defaultSnippets: [{ body: { id: '${1:id}', label: '${2:label}', path: './producticons/${3:id}-product-icon-theme.json' } }],
+				properties: {
+					id: {
+						description: nls.localize('vscode.extension.contributes.productIconThemes.id', 'Id of the product icon theme as used in the user settings.'),
+						type: 'string'
+					},
+					label: {
+						description: nls.localize('vscode.extension.contributes.productIconThemes.label', 'Label of the product icon theme as shown in the UI.'),
+						type: 'string'
+					},
+					path: {
+						description: nls.localize('vscode.extension.contributes.productIconThemes.path', 'Path of the product icon theme definition file. The path is relative to the extension folder and is typically \'./producticons/awesome-product-icon-theme.json\'.'),
 						type: 'string'
 					}
 				},

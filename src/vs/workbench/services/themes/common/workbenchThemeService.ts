@@ -29,7 +29,9 @@ export enum ThemeSettings {
 	PREFERRED_LIGHT_THEME = 'workbench.preferredLightColorTheme',
 	PREFERRED_HC_THEME = 'workbench.preferredHighContrastColorTheme',
 	DETECT_COLOR_SCHEME = 'window.autoDetectColorScheme',
-	DETECT_HC = 'window.autoDetectHighContrast'
+	DETECT_HC = 'window.autoDetectHighContrast',
+
+	PRODUCT_ICON_THEME = 'workbench.productIconTheme'
 }
 
 export interface IWorkbenchColorTheme extends IColorTheme {
@@ -59,6 +61,16 @@ export interface IWorkbenchFileIconTheme extends IFileIconTheme {
 	readonly hidesExplorerArrows: boolean;
 }
 
+export interface IWorkbenchProductIconTheme {
+	readonly id: string;
+	readonly label: string;
+	readonly settingsId: string;
+	readonly description?: string;
+	readonly extensionData?: ExtensionData;
+
+	readonly isLoaded: boolean;
+}
+
 
 export interface IWorkbenchThemeService extends IThemeService {
 	_serviceBrand: undefined;
@@ -72,6 +84,12 @@ export interface IWorkbenchThemeService extends IThemeService {
 	getFileIconTheme(): IWorkbenchFileIconTheme;
 	getFileIconThemes(): Promise<IWorkbenchFileIconTheme[]>;
 	onDidFileIconThemeChange: Event<IWorkbenchFileIconTheme>;
+
+	setProductIconTheme(iconThemeId: string | undefined, settingsTarget: ConfigurationTarget | undefined): Promise<IWorkbenchProductIconTheme>;
+	getProductIconTheme(): IWorkbenchProductIconTheme;
+	getProductIconThemes(): Promise<IWorkbenchProductIconTheme[]>;
+	onDidProductIconThemeChange: Event<IWorkbenchProductIconTheme>;
+
 }
 
 export interface IColorCustomizations {

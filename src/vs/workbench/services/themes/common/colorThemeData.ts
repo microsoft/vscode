@@ -23,6 +23,7 @@ import { TokenStyle, ProbeScope, TokenStylingRule, getTokenClassificationRegistr
 import { MatcherWithPriority, Matcher, createMatchers } from 'vs/workbench/services/themes/common/textMateScopeMatcher';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 import { CharCode } from 'vs/base/common/charCode';
+import { StorageScope, IStorageService } from 'vs/platform/storage/common/storage';
 
 let colorRegistry = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution);
 
@@ -41,6 +42,8 @@ const tokenGroupToScopesMap = {
 
 export type TokenStyleDefinition = TokenStylingRule | ProbeScope[] | TokenStyleValue;
 export type TokenStyleDefinitions = { [P in keyof TokenStyleData]?: TokenStyleDefinition | undefined };
+
+const PERSISTED_THEME_STORAGE_KEY = 'colorThemeData';
 
 export class ColorThemeData implements IWorkbenchColorTheme {
 
@@ -422,13 +425,13 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		this.customTokenScopeMatchers = undefined;
 	}
 
-	toStorageData() {
+	toStorage(storageService: IStorageService) {
 		let colorMapData: { [key: string]: string } = {};
 		for (let key in this.colorMap) {
 			colorMapData[key] = Color.Format.CSS.formatHexA(this.colorMap[key], true);
 		}
 		// no need to persist custom colors, they will be taken from the settings
-		return JSON.stringify({
+		const value = JSON.stringify({
 			id: this.id,
 			label: this.label,
 			settingsId: this.settingsId,
@@ -438,6 +441,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 			colorMap: colorMapData,
 			watch: this.watch
 		});
+		storageService.store(PERSISTED_THEME_STORAGE_KEY, value, StorageScope.GLOBAL);
 	}
 
 	hasEqualData(other: ColorThemeData) {
@@ -474,7 +478,11 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		return themeData;
 	}
 
-	static fromStorageData(input: string): ColorThemeData | undefined {
+	static fromStorageData(storageService: IStorageService): ColorThemeData | undefined {
+		const input = storageService.get(PERSISTED_THEME_STORAGE_KEY, StorageScope.GLOBAL);
+		if (!input) {
+			return undefined;
+		}
 		try {
 			let data = JSON.parse(input);
 			let theme = new ColorThemeData('', '', '');

@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkbenchThemeService, IWorkbenchColorTheme, IWorkbenchFileIconTheme, ExtensionData, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, ThemeSettings } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IWorkbenchThemeService, IWorkbenchColorTheme, IWorkbenchFileIconTheme, ExtensionData, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, ThemeSettings, IWorkbenchProductIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -28,25 +28,26 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
-import { ThemeRegistry, registerColorThemeExtensionPoint, registerFileIconThemeExtensionPoint } from 'vs/workbench/services/themes/common/themeExtensionPoints';
-import { updateColorThemeConfigurationSchemas, updateFileIconThemeConfigurationSchemas, ThemeConfiguration } from 'vs/workbench/services/themes/common/themeConfiguration';
+import { ThemeRegistry, registerColorThemeExtensionPoint, registerFileIconThemeExtensionPoint, registerProductIconThemeExtensionPoint } from 'vs/workbench/services/themes/common/themeExtensionPoints';
+import { updateColorThemeConfigurationSchemas, updateFileIconThemeConfigurationSchemas, ThemeConfiguration, updateProductIconThemeConfigurationSchemas } from 'vs/workbench/services/themes/common/themeConfiguration';
+import { ProductIconThemeData, DEFAULT_PRODUCT_ICON_THEME_ID } from 'vs/workbench/services/themes/browser/productIconThemeData';
+import { registerProductIconThemeSchemas } from 'vs/workbench/services/themes/common/productIconThemeSchema';
 
 // implementation
 
-const DEFAULT_THEME_ID = 'vs-dark vscode-theme-defaults-themes-dark_plus-json';
+const DEFAULT_COLOR_THEME_ID = 'vs-dark vscode-theme-defaults-themes-dark_plus-json';
 
-const PERSISTED_THEME_STORAGE_KEY = 'colorThemeData';
-const PERSISTED_ICON_THEME_STORAGE_KEY = 'iconThemeData';
 const PERSISTED_OS_COLOR_SCHEME = 'osColorScheme';
 
 const defaultThemeExtensionId = 'vscode-theme-defaults';
 const oldDefaultThemeExtensionId = 'vscode-theme-colorful-defaults';
 
-const DEFAULT_ICON_THEME_ID = 'vscode.vscode-theme-seti-vs-seti';
+const DEFAULT_FILE_ICON_THEME_ID = 'vscode.vscode-theme-seti-vs-seti';
 const fileIconsEnabledClass = 'file-icons-enabled';
 
 const colorThemeRulesClassName = 'contributedColorTheme';
-const iconThemeRulesClassName = 'contributedIconTheme';
+const fileIconThemeRulesClassName = 'contributedFileIconTheme';
+const productIconThemeRulesClassName = 'contributedProductIconTheme';
 
 const themingRegistry = Registry.as<IThemingRegistry>(ThemingExtensions.ThemingContribution);
 
@@ -64,13 +65,16 @@ function validateThemeId(theme: string): string {
 
 const colorThemesExtPoint = registerColorThemeExtensionPoint();
 const fileIconThemesExtPoint = registerFileIconThemeExtensionPoint();
+const productIconThemesExtPoint = registerProductIconThemeExtensionPoint();
 
 export class WorkbenchThemeService implements IWorkbenchThemeService {
 	_serviceBrand: undefined;
 
+	private readonly container: HTMLElement;
+	private settings: ThemeConfiguration;
+
 	private readonly colorThemeRegistry: ThemeRegistry<ColorThemeData>;
 	private currentColorTheme: ColorThemeData;
-	private readonly container: HTMLElement;
 	private readonly onColorThemeChange: Emitter<IWorkbenchColorTheme>;
 	private readonly colorThemeWatcher: ThemeFileWatcher;
 	private colorThemingParticipantChangeListener: IDisposable | undefined;
@@ -80,7 +84,10 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	private readonly onFileIconThemeChange: Emitter<IWorkbenchFileIconTheme>;
 	private readonly fileIconThemeWatcher: ThemeFileWatcher;
 
-	private settings: ThemeConfiguration;
+	private readonly productIconThemeRegistry: ThemeRegistry<ProductIconThemeData>;
+	private currentProductIconTheme: ProductIconThemeData;
+	private readonly onProductIconThemeChange: Emitter<IWorkbenchProductIconTheme>;
+	private readonly productIconThemeWatcher: ThemeFileWatcher;
 
 	constructor(
 		@IExtensionService extensionService: IExtensionService,
@@ -96,23 +103,24 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		this.settings = new ThemeConfiguration(configurationService);
 
 		this.colorThemeRegistry = new ThemeRegistry(extensionService, colorThemesExtPoint, ColorThemeData.fromExtensionTheme);
-		this.colorThemeWatcher = new ThemeFileWatcher(fileService, environmentService, () => this.reloadCurrentColorTheme());
+		this.colorThemeWatcher = new ThemeFileWatcher(fileService, environmentService, this.reloadCurrentColorTheme.bind(this));
 		this.onColorThemeChange = new Emitter<IWorkbenchColorTheme>({ leakWarningThreshold: 400 });
 		this.currentColorTheme = ColorThemeData.createUnloadedTheme('');
 
-		this.fileIconThemeWatcher = new ThemeFileWatcher(fileService, environmentService, () => this.reloadCurrentFileIconTheme());
+		this.fileIconThemeWatcher = new ThemeFileWatcher(fileService, environmentService, this.reloadCurrentFileIconTheme.bind(this));
 		this.fileIconThemeRegistry = new ThemeRegistry(extensionService, fileIconThemesExtPoint, FileIconThemeData.fromExtensionTheme, true);
 		this.onFileIconThemeChange = new Emitter<IWorkbenchFileIconTheme>();
 		this.currentFileIconTheme = FileIconThemeData.createUnloadedTheme('');
 
+		this.productIconThemeWatcher = new ThemeFileWatcher(fileService, environmentService, this.reloadCurrentProductIconTheme.bind(this));
+		this.productIconThemeRegistry = new ThemeRegistry(extensionService, productIconThemesExtPoint, ProductIconThemeData.fromExtensionTheme, true);
+		this.onProductIconThemeChange = new Emitter<IWorkbenchProductIconTheme>();
+		this.currentProductIconTheme = ProductIconThemeData.createUnloadedTheme('');
+
 		// In order to avoid paint flashing for tokens, because
 		// themes are loaded asynchronously, we need to initialize
 		// a color theme document with good defaults until the theme is loaded
-		let themeData: ColorThemeData | undefined = undefined;
-		let persistedThemeData = this.storageService.get(PERSISTED_THEME_STORAGE_KEY, StorageScope.GLOBAL);
-		if (persistedThemeData) {
-			themeData = ColorThemeData.fromStorageData(persistedThemeData);
-		}
+		let themeData: ColorThemeData | undefined = ColorThemeData.fromStorageData(this.storageService);
 		const containerBaseTheme = this.getBaseThemeFromContainer();
 		if (!themeData || themeData.baseTheme !== containerBaseTheme) {
 			themeData = ColorThemeData.createUnloadedTheme(containerBaseTheme);
@@ -123,15 +131,16 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		this.updateDynamicCSSRules(themeData);
 		this.applyTheme(themeData, undefined, true);
 
-		const persistedIconThemeData = this.storageService.get(PERSISTED_ICON_THEME_STORAGE_KEY, StorageScope.GLOBAL);
-		if (persistedIconThemeData) {
-			const iconData = FileIconThemeData.fromStorageData(persistedIconThemeData);
-			if (iconData) {
-				_applyIconTheme(iconData, () => {
-					this.doSetFileIconTheme(iconData);
-					return Promise.resolve(iconData);
-				});
-			}
+		const fileIconData = FileIconThemeData.fromStorageData(this.storageService);
+		if (fileIconData) {
+			_applyRules(fileIconData.styleSheetContent!, fileIconThemeRulesClassName);
+			this.doSetFileIconTheme(fileIconData);
+		}
+
+		const productIconData = ProductIconThemeData.fromStorageData(this.storageService);
+		if (productIconData) {
+			_applyRules(productIconData.styleSheetContent!, productIconThemeRulesClassName);
+			this.doSetProductIconTheme(productIconData);
 		}
 
 		this.initialize().then(undefined, errors.onUnexpectedError).then(_ => {
@@ -159,10 +168,10 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 				if (!themeData) {
 					// current theme is no longer available
 					prevColorId = this.currentColorTheme.id;
-					this.setColorTheme(DEFAULT_THEME_ID, 'auto');
+					this.setColorTheme(DEFAULT_COLOR_THEME_ID, 'auto');
 				} else {
-					if (this.currentColorTheme.id === DEFAULT_THEME_ID && !types.isUndefined(prevColorId) && await this.colorThemeRegistry.findThemeById(prevColorId)) {
-						// restore color
+					if (this.currentColorTheme.id === DEFAULT_COLOR_THEME_ID && !types.isUndefined(prevColorId) && await this.colorThemeRegistry.findThemeById(prevColorId)) {
+						// restore theme
 						this.setColorTheme(prevColorId, 'auto');
 						prevColorId = undefined;
 					} else {
@@ -176,30 +185,37 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		this.fileIconThemeRegistry.onDidChange(async event => {
 			updateFileIconThemeConfigurationSchemas(event.themes);
 
-			const iconThemeSetting = this.settings.fileIconTheme;
-			if (iconThemeSetting !== this.currentFileIconTheme.settingsId) {
-				const theme = await this.findFileIconThemeBySettingId(iconThemeSetting);
-				if (theme) {
-					this.setFileIconTheme(theme.id, undefined);
-					return;
-				}
-			}
-
-			if (this.currentFileIconTheme.isLoaded) {
-				const theme = await this.findFileIconThemeById(this.currentFileIconTheme.id);
-				if (!theme) {
-					// current theme is no longer available
-					prevFileIconId = this.currentFileIconTheme.id;
-					this.setFileIconTheme(DEFAULT_ICON_THEME_ID, 'auto');
+			if (!await this.restoreFileIconTheme()) { // checks if theme from settings exists and is set
+				// restore theme
+				if (this.currentFileIconTheme.id === DEFAULT_FILE_ICON_THEME_ID && !types.isUndefined(prevFileIconId) && await this.findFileIconThemeById(prevFileIconId)) {
+					this.setFileIconTheme(prevFileIconId, 'auto');
+					prevFileIconId = undefined;
 				} else {
-					// restore color
-					if (this.currentFileIconTheme.id === DEFAULT_ICON_THEME_ID && !types.isUndefined(prevFileIconId) && await this.findFileIconThemeById(prevFileIconId)) {
-						this.setFileIconTheme(prevFileIconId, 'auto');
-						prevFileIconId = undefined;
-					} else {
-						this.reloadCurrentFileIconTheme();
-					}
+					this.reloadCurrentFileIconTheme();
 				}
+			} else {
+				// current theme is no longer available
+				prevFileIconId = this.currentFileIconTheme.id;
+				this.setFileIconTheme(DEFAULT_FILE_ICON_THEME_ID, 'auto');
+			}
+		});
+
+		let prevProductIconId: string | undefined = undefined;
+		this.productIconThemeRegistry.onDidChange(async event => {
+			updateProductIconThemeConfigurationSchemas(event.themes);
+
+			if (await this.restoreProductIconTheme()) { // checks if theme from settings exists and is set
+				// restore theme
+				if (this.currentProductIconTheme.id === DEFAULT_PRODUCT_ICON_THEME_ID && !types.isUndefined(prevProductIconId) && await this.findProductIconThemeById(prevProductIconId)) {
+					this.setProductIconTheme(prevProductIconId, 'auto');
+					prevProductIconId = undefined;
+				} else {
+					this.reloadCurrentProductIconTheme();
+				}
+			} else {
+				// current theme is no longer available
+				prevProductIconId = this.currentProductIconTheme.id;
+				this.setProductIconTheme(DEFAULT_PRODUCT_ICON_THEME_ID, 'auto');
 			}
 		});
 	}
@@ -212,17 +228,20 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return this.onFileIconThemeChange.event;
 	}
 
-	private initialize(): Promise<[IWorkbenchColorTheme | null, IWorkbenchFileIconTheme | null]> {
+	public get onDidProductIconThemeChange(): Event<IWorkbenchProductIconTheme> {
+		return this.onProductIconThemeChange.event;
+	}
+
+	private initialize(): Promise<[IWorkbenchColorTheme | null, IWorkbenchFileIconTheme | null, IWorkbenchProductIconTheme | null]> {
 		const extDevLocs = this.environmentService.extensionDevelopmentLocationURI;
+		const extDevLoc = extDevLocs && extDevLocs.length === 1 ? extDevLocs[0] : undefined; // in dev mode, switch to a theme provided by the extension under dev.
 
 		const initializeColorTheme = async () => {
-			if (extDevLocs && extDevLocs.length === 1) { // in dev mode, switch to a theme provided by the extension under dev.
-				const devThemes = await this.colorThemeRegistry.findThemeByExtensionLocation(extDevLocs[0]);
-				if (devThemes.length) {
-					return this.setColorTheme(devThemes[0].id, ConfigurationTarget.MEMORY);
-				}
+			const devThemes = await this.colorThemeRegistry.findThemeByExtensionLocation(extDevLoc);
+			if (devThemes.length) {
+				return this.setColorTheme(devThemes[0].id, ConfigurationTarget.MEMORY);
 			}
-			const theme = await this.colorThemeRegistry.findThemeBySettingsId(this.settings.colorTheme, DEFAULT_THEME_ID);
+			const theme = await this.colorThemeRegistry.findThemeBySettingsId(this.settings.colorTheme, DEFAULT_COLOR_THEME_ID);
 
 			const persistedColorScheme = this.storageService.get(PERSISTED_OS_COLOR_SCHEME, StorageScope.GLOBAL);
 			const preferredColorScheme = this.getPreferredColorScheme();
@@ -232,31 +251,31 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			return this.setColorTheme(theme && theme.id, undefined);
 		};
 
-		const initializeIconTheme = async () => {
-			if (extDevLocs && extDevLocs.length === 1) { // in dev mode, switch to a theme provided by the extension under dev.
-				const devThemes = await this.fileIconThemeRegistry.findThemeByExtensionLocation(extDevLocs[0]);
-				if (devThemes.length) {
-					return this.setFileIconTheme(devThemes[0].id, ConfigurationTarget.MEMORY);
-				}
+		const initializeFileIconTheme = async () => {
+			const devThemes = await this.fileIconThemeRegistry.findThemeByExtensionLocation(extDevLoc);
+			if (devThemes.length) {
+				return this.setFileIconTheme(devThemes[0].id, ConfigurationTarget.MEMORY);
 			}
-			const theme = await this.findFileIconThemeBySettingId(this.settings.fileIconTheme);
-			return this.setFileIconTheme(theme ? theme.id : DEFAULT_ICON_THEME_ID, undefined);
+			const theme = await this.findFileIconThemeBySettingsId(this.settings.fileIconTheme);
+			return this.setFileIconTheme(theme ? theme.id : DEFAULT_FILE_ICON_THEME_ID, undefined);
 		};
 
-		return Promise.all([initializeColorTheme(), initializeIconTheme()]);
+		const initializeProductIconTheme = async () => {
+			const devThemes = await this.productIconThemeRegistry.findThemeByExtensionLocation(extDevLoc);
+			if (devThemes.length) {
+				return this.setProductIconTheme(devThemes[0].id, ConfigurationTarget.MEMORY);
+			}
+			const theme = await this.findProductIconThemeBySettingsId(this.settings.productIconTheme);
+			return this.setProductIconTheme(theme ? theme.id : DEFAULT_PRODUCT_ICON_THEME_ID, undefined);
+		};
+
+		return Promise.all([initializeColorTheme(), initializeFileIconTheme(), initializeProductIconTheme()]);
 	}
 
 	private installConfigurationListener() {
 		this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ThemeSettings.COLOR_THEME)) {
-				const colorThemeSetting = this.settings.colorTheme;
-				if (colorThemeSetting !== this.currentColorTheme.settingsId) {
-					this.colorThemeRegistry.findThemeBySettingsId(colorThemeSetting, undefined).then(theme => {
-						if (theme) {
-							this.setColorTheme(theme.id, undefined);
-						}
-					});
-				}
+				this.restoreColorTheme();
 			}
 			if (e.affectsConfiguration(ThemeSettings.DETECT_COLOR_SCHEME)) {
 				this.handlePreferredSchemeUpdated();
@@ -271,12 +290,10 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 				this.applyPreferredColorTheme(HIGH_CONTRAST);
 			}
 			if (e.affectsConfiguration(ThemeSettings.ICON_THEME)) {
-				const iconThemeSetting = this.settings.fileIconTheme;
-				if (iconThemeSetting !== this.currentFileIconTheme.settingsId) {
-					this.findFileIconThemeBySettingId(iconThemeSetting).then(theme => {
-						this.setFileIconTheme(theme ? theme.id : DEFAULT_ICON_THEME_ID, undefined);
-					});
-				}
+				this.restoreFileIconTheme();
+			}
+			if (e.affectsConfiguration(ThemeSettings.PRODUCT_ICON_THEME)) {
+				this.restoreProductIconTheme();
 			}
 			if (this.currentColorTheme) {
 				let hasColorChanges = false;
@@ -360,7 +377,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 		themeId = validateThemeId(themeId); // migrate theme ids
 
-		return this.colorThemeRegistry.findThemeById(themeId, DEFAULT_THEME_ID).then(themeData => {
+		return this.colorThemeRegistry.findThemeById(themeId, DEFAULT_COLOR_THEME_ID).then(themeData => {
 			if (!themeData) {
 				return null;
 			}
@@ -444,7 +461,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 		// remember theme data for a quick restore
 		if (newTheme.isLoaded) {
-			this.storageService.store(PERSISTED_THEME_STORAGE_KEY, newTheme.toStorageData(), StorageScope.GLOBAL);
+			newTheme.toStorage(this.storageService);
 		}
 
 		return this.settings.setColorTheme(this.currentColorTheme, settingsTarget);
@@ -490,55 +507,52 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return this.currentFileIconTheme;
 	}
 
-	public setFileIconTheme(iconTheme: string | undefined, settingsTarget: ConfigurationTarget | undefined | 'auto'): Promise<IWorkbenchFileIconTheme> {
+	public async setFileIconTheme(iconTheme: string | undefined, settingsTarget: ConfigurationTarget | undefined | 'auto'): Promise<IWorkbenchFileIconTheme> {
 		iconTheme = iconTheme || '';
 		if (iconTheme === this.currentFileIconTheme.id && this.currentFileIconTheme.isLoaded) {
-			return this.settings.setFileIconTheme(this.currentFileIconTheme, settingsTarget);
+			await this.settings.setFileIconTheme(this.currentFileIconTheme, settingsTarget);
+			return this.currentFileIconTheme;
 		}
-		const onApply = (newIconTheme: FileIconThemeData) => {
-			this.doSetFileIconTheme(newIconTheme);
 
-			// remember theme data for a quick restore
-			if (newIconTheme.isLoaded && (!newIconTheme.location || !getRemoteAuthority(newIconTheme.location))) {
-				this.storageService.store(PERSISTED_ICON_THEME_STORAGE_KEY, newIconTheme.toStorageData(), StorageScope.GLOBAL);
-			}
+		const newThemeData = (await this.findFileIconThemeById(iconTheme)) || FileIconThemeData.noIconTheme();
+		await newThemeData.ensureLoaded(this.fileService);
+		_applyRules(newThemeData.styleSheetContent!, fileIconThemeRulesClassName);
 
-			return this.settings.setFileIconTheme(this.currentFileIconTheme, settingsTarget);
-		};
+		this.doSetFileIconTheme(newThemeData);
 
-		return this.findFileIconThemeById(iconTheme).then(data => {
-			const iconThemeData = data || FileIconThemeData.noIconTheme();
-			return iconThemeData.ensureLoaded(this.fileService).then(_ => {
-				return _applyIconTheme(iconThemeData, onApply);
-			});
-		});
+		// remember theme data for a quick restore
+		if (newThemeData.isLoaded && (!newThemeData.location || !getRemoteAuthority(newThemeData.location))) {
+			newThemeData.toStorage(this.storageService);
+		}
+		await this.settings.setFileIconTheme(this.currentFileIconTheme, settingsTarget);
+
+		return newThemeData;
 	}
 
 	private async findFileIconThemeById(id: string): Promise<FileIconThemeData | undefined> {
 		return id.length === 0 ? FileIconThemeData.noIconTheme() : this.fileIconThemeRegistry.findThemeById(id);
 	}
 
-	private async findFileIconThemeBySettingId(settingsId: string | null): Promise<FileIconThemeData | undefined> {
+	private async findFileIconThemeBySettingsId(settingsId: string | null): Promise<FileIconThemeData | undefined> {
 		return !settingsId ? FileIconThemeData.noIconTheme() : this.fileIconThemeRegistry.findThemeBySettingsId(settingsId);
 	}
 
 	private async reloadCurrentFileIconTheme() {
 		await this.currentFileIconTheme.reload(this.fileService);
-		_applyIconTheme(this.currentFileIconTheme, () => {
-			this.doSetFileIconTheme(this.currentFileIconTheme);
-			return Promise.resolve(this.currentFileIconTheme);
-		});
+		_applyRules(this.currentFileIconTheme.styleSheetContent!, fileIconThemeRulesClassName);
+		this.doSetFileIconTheme(this.currentFileIconTheme);
 	}
 
-	public restoreFileIconTheme() {
-		const fileIconThemeSetting = this.settings.fileIconTheme;
-		if (fileIconThemeSetting !== this.currentFileIconTheme.settingsId) {
-			this.fileIconThemeRegistry.findThemeBySettingsId(fileIconThemeSetting).then(theme => {
-				if (theme) {
-					this.setFileIconTheme(theme.id, undefined);
-				}
-			});
+	public async restoreFileIconTheme(): Promise<boolean> {
+		const settingId = this.settings.fileIconTheme;
+		const theme = await this.findFileIconThemeBySettingsId(settingId);
+		if (theme) {
+			if (settingId !== this.currentFileIconTheme.settingsId) {
+				await this.setFileIconTheme(theme.id, undefined);
+			}
+			return true;
 		}
+		return false;
 	}
 
 	private doSetFileIconTheme(iconThemeData: FileIconThemeData): void {
@@ -556,6 +570,74 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			this.sendTelemetry(iconThemeData.id, iconThemeData.extensionData, 'fileIcon');
 		}
 		this.onFileIconThemeChange.fire(this.currentFileIconTheme);
+
+	}
+
+	public getProductIconThemes(): Promise<IWorkbenchProductIconTheme[]> {
+		return this.productIconThemeRegistry.getThemes();
+	}
+
+	public getProductIconTheme() {
+		return this.currentProductIconTheme;
+	}
+
+	public async setProductIconTheme(iconTheme: string | undefined, settingsTarget: ConfigurationTarget | undefined | 'auto'): Promise<IWorkbenchProductIconTheme> {
+		iconTheme = iconTheme || '';
+		if (iconTheme === this.currentProductIconTheme.id && this.currentProductIconTheme.isLoaded) {
+			await this.settings.setProductIconTheme(this.currentProductIconTheme, settingsTarget);
+			return this.currentProductIconTheme;
+		}
+
+		const newThemeData = await this.findProductIconThemeById(iconTheme) || ProductIconThemeData.defaultTheme();
+		await newThemeData.ensureLoaded(this.fileService);
+		_applyRules(newThemeData.styleSheetContent!, fileIconThemeRulesClassName);
+
+		this.doSetProductIconTheme(newThemeData);
+
+		// remember theme data for a quick restore
+		if (newThemeData.isLoaded && (!newThemeData.location || !getRemoteAuthority(newThemeData.location))) {
+			newThemeData.toStorage(this.storageService);
+		}
+		await this.settings.setProductIconTheme(this.currentProductIconTheme, settingsTarget);
+
+		return newThemeData;
+	}
+
+	private async findProductIconThemeById(id: string): Promise<ProductIconThemeData | undefined> {
+		return id.length === 0 ? ProductIconThemeData.defaultTheme() : this.productIconThemeRegistry.findThemeById(id);
+	}
+
+	private async findProductIconThemeBySettingsId(settingsId: string | null): Promise<ProductIconThemeData | undefined> {
+		return !settingsId ? ProductIconThemeData.defaultTheme() : this.productIconThemeRegistry.findThemeBySettingsId(settingsId);
+	}
+
+	private async reloadCurrentProductIconTheme() {
+		await this.currentProductIconTheme.reload(this.fileService);
+		_applyRules(this.currentProductIconTheme.styleSheetContent!, productIconThemeRulesClassName);
+		this.doSetProductIconTheme(this.currentProductIconTheme);
+	}
+
+	public async restoreProductIconTheme(): Promise<boolean> {
+		const settingId = this.settings.productIconTheme;
+		const theme = await this.findProductIconThemeBySettingsId(settingId);
+		if (theme) {
+			if (settingId !== this.currentProductIconTheme.settingsId) {
+				await this.setProductIconTheme(theme.id, undefined);
+			}
+			return true;
+		}
+		return false;
+	}
+
+	private doSetProductIconTheme(iconThemeData: ProductIconThemeData): void {
+		this.currentProductIconTheme = iconThemeData;
+
+		this.productIconThemeWatcher.update(iconThemeData);
+
+		if (iconThemeData.id) {
+			this.sendTelemetry(iconThemeData.id, iconThemeData.extensionData, 'productIcon');
+		}
+		this.onProductIconThemeChange.fire(this.currentProductIconTheme);
 
 	}
 
@@ -603,11 +685,6 @@ class ThemeFileWatcher {
 	}
 }
 
-function _applyIconTheme(data: FileIconThemeData, onApply: (theme: FileIconThemeData) => Promise<IWorkbenchFileIconTheme>): Promise<IWorkbenchFileIconTheme> {
-	_applyRules(data.styleSheetContent!, iconThemeRulesClassName);
-	return onApply(data);
-}
-
 function _applyRules(styleSheetContent: string, rulesClassName: string) {
 	const themeStyles = document.head.getElementsByClassName(rulesClassName);
 	if (themeStyles.length === 0) {
@@ -623,6 +700,6 @@ function _applyRules(styleSheetContent: string, rulesClassName: string) {
 
 registerColorThemeSchemas();
 registerFileIconThemeSchemas();
-
+registerProductIconThemeSchemas();
 
 registerSingleton(IWorkbenchThemeService, WorkbenchThemeService);
