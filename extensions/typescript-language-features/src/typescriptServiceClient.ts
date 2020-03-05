@@ -872,7 +872,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 }
 
-function getReportIssueArgsForError(error: TypeScriptServerError): { issueTitle: string, issueBody: string } | undefined {
+function getReportIssueArgsForError(error: TypeScriptServerError): { extensionId: string, issueTitle: string, issueBody: string } | undefined {
 	if (!error.serverStack || !error.serverMessage) {
 		return undefined;
 	}
@@ -880,6 +880,7 @@ function getReportIssueArgsForError(error: TypeScriptServerError): { issueTitle:
 	// Note these strings are intentionally not localized
 	// as we want users to file issues in english
 	return {
+		extensionId: 'vscode.typescript-language-features',
 		issueTitle: `TS Server fatal error:  ${error.serverMessage}`,
 
 		issueBody: `**TypeScript Version:** ${error.version.apiVersion?.fullVersionString}
