@@ -34,7 +34,7 @@ export class QuickInputService extends Themable implements IQuickInputService {
 	private _controller: QuickInputController | undefined;
 	private get controller(): QuickInputController {
 		if (!this._controller) {
-			this._controller = this.createController();
+			this._controller = this._register(this.createController());
 		}
 
 		return this._controller;
