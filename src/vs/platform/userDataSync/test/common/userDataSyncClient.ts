@@ -114,6 +114,14 @@ export class UserDataSyncClient extends Disposable {
 		await configurationService.reloadConfiguration();
 	}
 
+	sync(): Promise<void> {
+		return this.instantiationService.get(IUserDataSyncService).sync();
+	}
+
+	read(key: ResourceKey): Promise<IUserData> {
+		return this.instantiationService.get(IUserDataSyncStoreService).read(key, null);
+	}
+
 }
 
 export class UserDataSyncTestServer implements IRequestService {

@@ -768,10 +768,34 @@ suite('Experiment Service', () => {
 		testObject = instantiationService.createInstance(TestExperimentService);
 		return testObject.getExperimentById('experiment1').then(result => {
 			assert.equal(result.enabled, false);
+			assert.equal(result.action?.type, 'Prompt');
 			assert.equal(result.state, ExperimentState.NoRun);
 			return testObject.getCuratedExtensionsList(curatedExtensionsKey).then(curatedList => {
 				assert.equal(curatedList.length, 0);
 			});
+		});
+	});
+
+	test('Maps action2 to action.', () => {
+		experimentData = {
+			experiments: [
+				{
+					id: 'experiment1',
+					enabled: false,
+					action2: {
+						type: 'Prompt',
+						properties: {
+							promptText: 'Hello world',
+							commands: []
+						}
+					}
+				}
+			]
+		};
+
+		testObject = instantiationService.createInstance(TestExperimentService);
+		return testObject.getExperimentById('experiment1').then(result => {
+			assert.equal(result.action?.type, 'Prompt');
 		});
 	});
 

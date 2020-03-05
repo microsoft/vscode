@@ -583,18 +583,18 @@ export class ExtensionEditor extends BaseEditor {
 		try {
 			const body = await this.renderMarkdown(cacheResult, template);
 
-			const webviewElement = this.contentDisposables.add(this.webviewService.createWebviewEditorOverlay('extensionEditor', {
+			const webview = this.contentDisposables.add(this.webviewService.createWebviewOverlay('extensionEditor', {
 				enableFindWidget: true,
 			}, {}));
 
-			webviewElement.claim(this);
-			webviewElement.layoutWebviewOverElement(template.content);
-			webviewElement.html = body;
+			webview.claim(this);
+			webview.layoutWebviewOverElement(template.content);
+			webview.html = body;
 
-			this.contentDisposables.add(webviewElement.onDidFocus(() => this.fireOnDidFocus()));
+			this.contentDisposables.add(webview.onDidFocus(() => this.fireOnDidFocus()));
 			const removeLayoutParticipant = arrays.insert(this.layoutParticipants, {
 				layout: () => {
-					webviewElement.layoutWebviewOverElement(template.content);
+					webview.layoutWebviewOverElement(template.content);
 				}
 			});
 			this.contentDisposables.add(toDisposable(removeLayoutParticipant));
@@ -606,11 +606,11 @@ export class ExtensionEditor extends BaseEditor {
 				// Render again since syntax highlighting of code blocks may have changed
 				const body = await this.renderMarkdown(cacheResult, template);
 				if (!isDisposed) { // Make sure we weren't disposed of in the meantime
-					webviewElement.html = body;
+					webview.html = body;
 				}
 			}));
 
-			this.contentDisposables.add(webviewElement.onDidClickLink(link => {
+			this.contentDisposables.add(webview.onDidClickLink(link => {
 				if (!link) {
 					return;
 				}
@@ -622,7 +622,7 @@ export class ExtensionEditor extends BaseEditor {
 				}
 			}, null, this.contentDisposables));
 
-			return webviewElement;
+			return webview;
 		} catch (e) {
 			const p = append(template.content, $('p.nocontent'));
 			p.textContent = noContentCopy;

@@ -358,9 +358,9 @@ export class TextAreaHandler extends ViewPart {
 		this._accessibilitySupport = options.get(EditorOption.accessibilitySupport);
 		const accessibilityPageSize = options.get(EditorOption.accessibilityPageSize);
 		if (this._accessibilitySupport === AccessibilitySupport.Enabled && accessibilityPageSize === EditorOptions.accessibilityPageSize.defaultValue) {
-			// If a screen reader is attached and the default value is not set we shuold automatically increase the page size to 160 for a better experience
-			// If we put more than 160 lines the nvda can not handle this https://github.com/microsoft/vscode/issues/89717
-			this._accessibilityPageSize = 160;
+			// If a screen reader is attached and the default value is not set we shuold automatically increase the page size to 100 for a better experience
+			// If we put more than 100 lines the nvda can not handle this https://github.com/microsoft/vscode/issues/89717
+			this._accessibilityPageSize = 100;
 		} else {
 			this._accessibilityPageSize = accessibilityPageSize;
 		}

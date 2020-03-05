@@ -23,7 +23,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { URI } from 'vs/base/common/uri';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 
-interface ISettingsSyncContent {
+export interface ISettingsSyncContent {
 	settings: string;
 }
 
