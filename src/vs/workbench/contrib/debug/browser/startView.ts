@@ -8,10 +8,10 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, RawContextKey, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { localize } from 'vs/nls';
 import { StartAction, ConfigureAction } from 'vs/workbench/contrib/debug/browser/debugActions';
-import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, CONTEXT_DEBUG_CONFIGURATION_TYPE } from 'vs/workbench/contrib/debug/common/debug';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -89,18 +89,18 @@ export class StartView extends ViewPane {
 const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 viewsRegistry.registerViewWelcomeContent(StartView.ID, {
 	content: localize('openAFileWhichCanBeDebugged', "[Open a file](command:{0}) which can be debugged or run.", isMacintosh ? OpenFileFolderAction.ID : OpenFileAction.ID),
-	when: CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR.toNegated()
+	when: ContextKeyExpr.and(CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR.toNegated(), CONTEXT_DEBUG_CONFIGURATION_TYPE.isEqualTo(''))
 });
 
 let debugKeybindingLabel = '';
 viewsRegistry.registerViewWelcomeContent(StartView.ID, {
 	content: localize('runAndDebugAction', "[Run and Debug{0}](command:{1})", debugKeybindingLabel, StartAction.ID),
-	preconditions: [CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR]
+	preconditions: [ContextKeyExpr.or(CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR, CONTEXT_DEBUG_CONFIGURATION_TYPE.notEqualsTo(''))]
 });
 
 viewsRegistry.registerViewWelcomeContent(StartView.ID, {
 	content: localize('customizeRunAndDebug', "To customize Run and Debug [create a launch.json file](command:{0}).", ConfigureAction.ID),
-	when: WorkbenchStateContext.notEqualsTo('empty')
+	when: ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('empty'), CONTEXT_DEBUG_CONFIGURATION_TYPE.isEqualTo(''))
 });
 
 viewsRegistry.registerViewWelcomeContent(StartView.ID, {

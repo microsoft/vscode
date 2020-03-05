@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import { IAction } from 'vs/base/common/actions';
 import * as DOM from 'vs/base/browser/dom';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IDebugService, VIEWLET_ID, State, BREAKPOINTS_VIEW_ID, IDebugConfiguration, DEBUG_PANEL_ID, CONTEXT_DEBUG_UX, CONTEXT_DEBUG_UX_KEY } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, VIEWLET_ID, State, BREAKPOINTS_VIEW_ID, IDebugConfiguration, DEBUG_PANEL_ID } from 'vs/workbench/contrib/debug/common/debug';
 import { StartAction, ConfigureAction, SelectAndStartAction, FocusSessionAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { StartDebugActionViewItem, FocusSessionActionViewItem } from 'vs/workbench/contrib/debug/browser/debugActionViewItems';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -67,10 +67,8 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 
 		this._register(this.debugService.onDidChangeState(state => this.onDebugServiceStateChange(state)));
 		this._register(this.debugService.onDidNewSession(() => this.updateToolBar()));
-		this._register(this.contextKeyService.onDidChangeContext(e => {
-			if (e.affectsSome(new Set([CONTEXT_DEBUG_UX_KEY]))) {
-				this.updateTitleArea();
-			}
+		this._register(this.debugService.getConfigurationManager().onDidSelectConfiguration(() => {
+			this.updateTitleArea();
 		}));
 
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateTitleArea()));
@@ -117,7 +115,7 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 	}
 
 	getActions(): IAction[] {
-		if (CONTEXT_DEBUG_UX.getValue(this.contextKeyService) === 'simple') {
+		if (!this.debugService.getConfigurationManager().selectedConfiguration.name) {
 			return [];
 		}
 		if (!this.showInitialDebugActions) {
