@@ -181,9 +181,9 @@ const compileEditorESMTask = task.define('compile-editor-esm', () => {
 				});
 			}
 
-			// copy files from esm
+			// copy files from tree shaken src
 			for (const file of files) {
-				const srcFilePath = path.join(__dirname, '../out-editor-esm', file);
+				const srcFilePath = path.join(__dirname, '../out-editor-src', file);
 				const dstFilePath = path.join(destPath, file);
 				if (fs.existsSync(srcFilePath)) {
 					util.ensureDir(path.dirname(dstFilePath));
