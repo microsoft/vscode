@@ -3,17 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
-import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/renderers/cellViewModel';
-import { DisposableStore, Disposable } from 'vs/base/common/lifecycle';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { NotebookCellsSplice, ICellEditorViewState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { CellFindMatch } from 'vs/workbench/contrib/notebook/browser/notebookFindWidget';
+import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/renderers/cellViewModel';
+import { NotebookCellsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export interface INotebookEditorViewState {
 	editingCells: { [key: number]: boolean };
-	editorViewStates: { [key: number]: ICellEditorViewState };
+	editorViewStates: { [key: number]: editorCommon.ICodeEditorViewState | null };
 }
 
 export class NotebookViewModel extends Disposable {
@@ -102,7 +103,7 @@ export class NotebookViewModel extends Disposable {
 	saveEditorViewState(): INotebookEditorViewState {
 		const state: { [key: number]: boolean } = {};
 		this.viewCells.filter(cell => cell.isEditing).forEach(cell => state[cell.cell.handle] = true);
-		const editorViewStates: { [key: number]: ICellEditorViewState } = {};
+		const editorViewStates: { [key: number]: editorCommon.ICodeEditorViewState } = {};
 		this.viewCells.map(cell => ({ handle: cell.cell.handle, state: cell.saveEditorViewState() })).forEach(viewState => {
 			if (viewState.state) {
 				editorViewStates[viewState.handle] = viewState.state;
