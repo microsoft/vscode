@@ -49,6 +49,7 @@ export abstract class Pane extends Disposable implements IView {
 	private body!: HTMLElement;
 
 	protected _expanded: boolean;
+	protected _preventCollapse: boolean;
 
 	private expandedSize: number | undefined = undefined;
 	private _headerVisible = true;
@@ -184,20 +185,23 @@ export abstract class Pane extends Disposable implements IView {
 
 		this.updateHeader();
 
-		const onHeaderKeyDown = Event.chain(domEvent(this.header, 'keydown'))
-			.map(e => new StandardKeyboardEvent(e));
 
-		this._register(onHeaderKeyDown.filter(e => e.keyCode === KeyCode.Enter || e.keyCode === KeyCode.Space)
-			.event(() => this.setExpanded(!this.isExpanded()), null));
+		if (!this._preventCollapse) {
+			const onHeaderKeyDown = Event.chain(domEvent(this.header, 'keydown'))
+				.map(e => new StandardKeyboardEvent(e));
 
-		this._register(onHeaderKeyDown.filter(e => e.keyCode === KeyCode.LeftArrow)
-			.event(() => this.setExpanded(false), null));
+			this._register(onHeaderKeyDown.filter(e => e.keyCode === KeyCode.Enter || e.keyCode === KeyCode.Space)
+				.event(() => this.setExpanded(!this.isExpanded()), null));
 
-		this._register(onHeaderKeyDown.filter(e => e.keyCode === KeyCode.RightArrow)
-			.event(() => this.setExpanded(true), null));
+			this._register(onHeaderKeyDown.filter(e => e.keyCode === KeyCode.LeftArrow)
+				.event(() => this.setExpanded(false), null));
 
-		this._register(domEvent(this.header, 'click')
-			(() => this.setExpanded(!this.isExpanded()), null));
+			this._register(onHeaderKeyDown.filter(e => e.keyCode === KeyCode.RightArrow)
+				.event(() => this.setExpanded(true), null));
+
+			this._register(domEvent(this.header, 'click')
+				(() => this.setExpanded(!this.isExpanded()), null));
+		}
 
 		this.body = append(this.element, $('.pane-body'));
 		this.renderBody(this.body);

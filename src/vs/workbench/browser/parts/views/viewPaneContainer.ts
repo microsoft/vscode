@@ -212,6 +212,8 @@ export abstract class ViewPane extends Pane implements IView {
 		this.title = options.title;
 		this.showActionsAlways = !!options.showActionsAlways;
 		this.focusedViewContextKey = FocusedViewContext.bindTo(contextKeyService);
+		this._preventCollapse = this.viewDescriptorService.getViewLocation(this.id) === ViewContainerLocation.Panel;
+		this._expanded = this._preventCollapse || this._expanded;
 
 		this.menuActions = this._register(instantiationService.createInstance(ViewMenuActions, this.id, options.titleMenuId || MenuId.ViewTitle, MenuId.ViewTitleContext));
 		this._register(this.menuActions.onDidChangeTitle(() => this.updateActions()));
@@ -267,7 +269,9 @@ export abstract class ViewPane extends Pane implements IView {
 	protected renderHeader(container: HTMLElement): void {
 		this.headerContainer = container;
 
-		this.renderTwisties(container);
+		if (!this._preventCollapse) {
+			this.renderTwisties(container);
+		}
 
 		this.renderHeaderTitle(container, this.title);
 
