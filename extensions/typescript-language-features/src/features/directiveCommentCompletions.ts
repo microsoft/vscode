@@ -30,6 +30,11 @@ const directives: Directive[] = [
 		description: localize(
 			'ts-ignore',
 			"Suppresses @ts-check errors on the next line of a file.")
+	}, {
+		value: '@ts-expect-error',
+		description: localize(
+			'ts-expect-error',
+			"Suppresses @ts-check errors on the next line of a file, expecting at least one to exist.")
 	}
 ];
 
