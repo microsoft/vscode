@@ -629,7 +629,7 @@ export interface ExtHostWebviewsShape {
 	$undo(resource: UriComponents, viewType: string): void;
 	$redo(resource: UriComponents, viewType: string): void;
 	$revert(resource: UriComponents, viewType: string): void;
-	$onSave(resource: UriComponents, viewType: string): Promise<void>;
+	$onSave(resource: UriComponents, viewType: string, cancellation: CancellationToken): Promise<void>;
 	$onSaveAs(resource: UriComponents, viewType: string, targetResource: UriComponents): Promise<void>;
 
 	$backup(resource: UriComponents, viewType: string, cancellation: CancellationToken): Promise<void>;
@@ -854,6 +854,7 @@ export interface MainThreadTunnelServiceShape extends IDisposable {
 	$registerCandidateFinder(): Promise<void>;
 	$setTunnelProvider(): Promise<void>;
 	$setCandidateFilter(): Promise<void>;
+	$tunnelServiceReady(): Promise<void>;
 }
 
 export interface MainThreadTimelineShape extends IDisposable {
