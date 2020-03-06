@@ -508,9 +508,6 @@ export interface ITreeView extends IDisposable {
 
 	setFocus(item: ITreeItem): void;
 
-	getPrimaryActions(): IAction[];
-
-	getSecondaryActions(): IAction[];
 }
 
 export interface IRevealOptions {
