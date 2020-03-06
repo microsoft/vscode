@@ -269,9 +269,15 @@ export class TypeOperations {
 				commands[i] = null;
 				continue;
 			}
-			let pos = selection.getPosition();
-			let startColumn = Math.max(1, pos.column - replaceCharCnt);
-			let range = new Range(pos.lineNumber, startColumn, pos.lineNumber, pos.column);
+			const pos = selection.getPosition();
+			const startColumn = Math.max(1, pos.column - replaceCharCnt);
+			const range = new Range(pos.lineNumber, startColumn, pos.lineNumber, pos.column);
+			const oldText = model.getValueInRange(range);
+			if (oldText === txt) {
+				// => ignore composition that doesn't do anything
+				commands[i] = null;
+				continue;
+			}
 			commands[i] = new ReplaceCommand(range, txt);
 		}
 		return new EditOperationResult(EditOperationType.Typing, commands, {
