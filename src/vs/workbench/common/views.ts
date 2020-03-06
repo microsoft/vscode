@@ -488,6 +488,8 @@ export interface ITreeView extends IDisposable {
 
 	readonly onDidChangeTitle: Event<string>;
 
+	readonly onDidChangeWelcomeState: Event<void>;
+
 	refresh(treeItems?: ITreeItem[]): Promise<void>;
 
 	setVisibility(visible: boolean): void;

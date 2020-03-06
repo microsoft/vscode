@@ -40,7 +40,6 @@ const viewsWelcomeExtensionPointSchema = Object.freeze<IConfigurationPropertySch
 			[ViewsWelcomeExtensionPointFields.view]: {
 				type: 'string',
 				description: nls.localize('contributes.viewsWelcome.view.view', "Target view identifier for this welcome content."),
-				enum: Object.keys(ViewIdentifierMap),
 			},
 			[ViewsWelcomeExtensionPointFields.contents]: {
 				type: 'string',
