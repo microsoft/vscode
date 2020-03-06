@@ -78,7 +78,8 @@ export class CellViewModel extends Disposable {
 	private _textEditor?: ICodeEditor;
 	private _buffer: model.ITextBuffer | null;
 	private _editorViewStates: editorCommon.ICodeEditorViewState | null;
-	private _initialDecorations: { oldDecorations: string[], newDecorations: model.IModelDeltaDecoration[] } | null = null;
+	private _lastDecorationId: number = 0;
+	private _resolvedDecorations = new Map<string, { id?: string, options: model.IModelDeltaDecoration }>();
 
 	readonly id: string = UUID.generateUuid();
 
@@ -261,26 +262,69 @@ export class CellViewModel extends Disposable {
 			this.restoreViewState(this._editorViewStates);
 		}
 
-		if (this._initialDecorations) {
-			this._textEditor.deltaDecorations(this._initialDecorations.oldDecorations, this._initialDecorations.newDecorations);
-			this._initialDecorations = null;
-		}
+		this._resolvedDecorations.forEach((value, key) => {
+			if (key.startsWith('_lazy_')) {
+				// lazy ones
+
+				const ret = this._textEditor!.deltaDecorations([], [value.options]);
+				this._resolvedDecorations.get(key)!.id = ret[0];
+			} else {
+				const ret = this._textEditor!.deltaDecorations([], [value.options]);
+				this._resolvedDecorations.get(key)!.id = ret[0];
+			}
+		});
 	}
 
 	detachTextEditor() {
 		this._editorViewStates = this.saveViewState();
+
+		// decorations need to be cleared first as editors can be resued.
+		this._resolvedDecorations.forEach(value => {
+			let resolvedid = value.id;
+
+			if (resolvedid) {
+				this._textEditor?.deltaDecorations([resolvedid], []);
+			}
+		});
 		this._textEditor = undefined;
 	}
 
-	deltaDecorations(oldDecorations: string[], newDecorations: model.IModelDeltaDecoration[]): string[] {
+	addDecoration(decoration: model.IModelDeltaDecoration): string {
 		if (!this._textEditor) {
-			this._initialDecorations = { oldDecorations, newDecorations };
-			return [];
+			const id = ++this._lastDecorationId;
+			const decorationId = `_lazy_${this.handle};${id}`;
+
+			this._resolvedDecorations.set(decorationId, { options: decoration });
+			return decorationId;
 		}
 
-		this._initialDecorations = null;
-		// how do we make sure all decorations are cleared?
-		return this._textEditor.deltaDecorations(oldDecorations, newDecorations);
+		const result = this._textEditor.deltaDecorations([], [decoration]);
+		this._resolvedDecorations.set(result[0], { id: result[0], options: decoration });
+
+		return result[0];
+	}
+
+	removeDecoration(decorationId: string) {
+		const realDecorationId = this._resolvedDecorations.get(decorationId);
+
+		if (this._textEditor && realDecorationId && realDecorationId.id !== undefined) {
+			this._textEditor.deltaDecorations([realDecorationId.id!], []);
+		}
+
+		// lastly, remove all the cache
+		this._resolvedDecorations.delete(decorationId);
+	}
+
+	deltaDecorations(oldDecorations: string[], newDecorations: model.IModelDeltaDecoration[]): string[] {
+		oldDecorations.forEach(id => {
+			this.removeDecoration(id);
+		});
+
+		const ret = newDecorations.map(option => {
+			return this.addDecoration(option);
+		});
+
+		return ret;
 	}
 
 	getMarkdownRenderer() {
