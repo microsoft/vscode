@@ -40,8 +40,13 @@ export interface ISchemaAssociations {
 	[pattern: string]: string[];
 }
 
+export interface ISchemaAssociation {
+	fileMatch: string[];
+	uri: string;
+}
+
 namespace SchemaAssociationNotification {
-	export const type: NotificationType<ISchemaAssociations, any> = new NotificationType('json/schemaAssociations');
+	export const type: NotificationType<ISchemaAssociations | ISchemaAssociation[], any> = new NotificationType('json/schemaAssociations');
 }
 
 namespace ResultLimitReachedNotification {
@@ -264,10 +269,10 @@ export function activate(context: ExtensionContext) {
 
 		toDispose.push(commands.registerCommand('_json.retryResolveSchema', handleRetryResolveSchemaCommand));
 
-		client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociation(context));
+		client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociations(context));
 
 		extensions.onDidChange(_ => {
-			client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociation(context));
+			client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociations(context));
 		});
 
 		// manually register / deregister format provider based on the `html.format.enable` setting avoiding issues with late registration. See #71652.
@@ -324,8 +329,8 @@ export function deactivate(): Promise<any> {
 	return telemetryReporter ? telemetryReporter.dispose() : Promise.resolve(null);
 }
 
-function getSchemaAssociation(_context: ExtensionContext): ISchemaAssociations {
-	const associations: ISchemaAssociations = {};
+function getSchemaAssociations(_context: ExtensionContext): ISchemaAssociation[] {
+	const associations: ISchemaAssociation[] = [];
 	extensions.all.forEach(extension => {
 		const packageJSON = extension.packageJSON;
 		if (packageJSON && packageJSON.contributes && packageJSON.contributes.jsonValidation) {
@@ -333,23 +338,21 @@ function getSchemaAssociation(_context: ExtensionContext): ISchemaAssociations {
 			if (Array.isArray(jsonValidation)) {
 				jsonValidation.forEach(jv => {
 					let { fileMatch, url } = jv;
-					if (fileMatch && url) {
-						if (url[0] === '.' && url[1] === '/') {
-							url = Uri.file(path.join(extension.extensionPath, url)).toString();
-						}
-						if (fileMatch[0] === '%') {
-							fileMatch = fileMatch.replace(/%APP_SETTINGS_HOME%/, '/User');
-							fileMatch = fileMatch.replace(/%MACHINE_SETTINGS_HOME%/, '/Machine');
-							fileMatch = fileMatch.replace(/%APP_WORKSPACES_HOME%/, '/Workspaces');
-						} else if (fileMatch.charAt(0) !== '/' && !fileMatch.match(/\w+:\/\//)) {
-							fileMatch = '/' + fileMatch;
-						}
-						let association = associations[fileMatch];
-						if (!association) {
-							association = [];
-							associations[fileMatch] = association;
-						}
-						association.push(url);
+					if (typeof fileMatch === 'string') {
+						fileMatch = [fileMatch];
+					}
+					if (Array.isArray(fileMatch) && url) {
+						fileMatch = fileMatch.map(fm => {
+							if (fm[0] === '%') {
+								fm = fm.replace(/%APP_SETTINGS_HOME%/, '/User');
+								fm = fm.replace(/%MACHINE_SETTINGS_HOME%/, '/Machine');
+								fm = fm.replace(/%APP_WORKSPACES_HOME%/, '/Workspaces');
+							} else if (!fm.match(/^(\w+:\/\/|\/|!)/)) {
+								fm = '/' + fm;
+							}
+							return fm;
+						});
+						associations.push({ fileMatch, uri: url });
 					}
 				});
 			}
