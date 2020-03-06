@@ -9,13 +9,10 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { inputBackground, inputForeground, inputBorder, inputValidationInfoBackground, inputValidationInfoForeground, inputValidationInfoBorder, inputValidationWarningBackground, inputValidationWarningForeground, inputValidationWarningBorder, inputValidationErrorBackground, inputValidationErrorForeground, inputValidationErrorBorder, badgeBackground, badgeForeground, contrastBorder, buttonForeground, buttonBackground, buttonHoverBackground, progressBarBackground, widgetShadow, listFocusForeground, listFocusBackground, activeContrastBorder, pickerGroupBorder, pickerGroupForeground, quickInputForeground, quickInputBackground, quickInputTitleBackground } from 'vs/platform/theme/common/colorRegistry';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { computeStyles } from 'vs/platform/theme/common/styler';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { QuickInputController, IQuickInputStyles } from 'vs/base/parts/quickinput/browser/quickInput';
+import { QuickInputController, IQuickInputStyles, IQuickInputOptions } from 'vs/base/parts/quickinput/browser/quickInput';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { List, IListOptions } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
@@ -43,25 +40,22 @@ export class QuickInputService extends Themable implements IQuickInputService {
 	private readonly contexts = new Map<string, IContextKey<boolean>>();
 
 	constructor(
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
-		@ILayoutService private readonly layoutService: ILayoutService
+		@ILayoutService protected readonly layoutService: ILayoutService
 	) {
 		super(themeService);
 	}
 
-	protected createController(host: IQuickInputControllerHost = this.layoutService): QuickInputController {
-		const controller = this._register(new QuickInputController({
+	protected createController(host: IQuickInputControllerHost = this.layoutService, options?: Partial<IQuickInputOptions>): QuickInputController {
+		const defaultOptions: IQuickInputOptions = {
 			idPrefix: 'quickInput_', // Constant since there is still only one.
 			container: host.container,
-			ignoreFocusOut: () => this.environmentService.args['sticky-quickopen'] || !this.configurationService.getValue('workbench.quickOpen.closeOnFocusLost'),
+			ignoreFocusOut: () => false,
 			isScreenReaderOptimized: () => this.accessibilityService.isScreenReaderOptimized(),
-			backKeybindingLabel: () => this.keybindingService.lookupKeybinding('workbench.action.quickInputBack')?.getLabel() || undefined,
+			backKeybindingLabel: () => undefined,
 			setContextKey: (id?: string) => this.setContextKey(id),
 			returnFocus: () => host.focus(),
 			createList: <T>(
@@ -72,6 +66,11 @@ export class QuickInputService extends Themable implements IQuickInputService {
 				options: IListOptions<T>,
 			) => this.instantiationService.createInstance(WorkbenchList, user, container, delegate, renderers, options) as List<T>,
 			styles: this.computeStyles()
+		};
+
+		const controller = this._register(new QuickInputController({
+			...defaultOptions,
+			...options
 		}));
 
 		controller.layout(host.dimension, host.offset?.top ?? 0);
