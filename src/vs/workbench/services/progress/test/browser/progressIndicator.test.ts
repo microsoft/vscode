@@ -117,6 +117,11 @@ suite('Progress Indicator', () => {
 		viewletService.onDidViewletCloseEmitter.fire(testViewlet);
 		assert(!service.isActive);
 
+		viewsService.onDidChangeViewVisibilityEmitter.fire({ id: 'test.scopeId', visible: true });
+		assert(service.isActive);
+
+		viewsService.onDidChangeViewVisibilityEmitter.fire({ id: 'test.scopeId', visible: false });
+		assert(!service.isActive);
 	});
 
 	test('CompositeProgressIndicator', async () => {
@@ -171,5 +176,19 @@ suite('Progress Indicator', () => {
 		assert.strictEqual(true, testProgressBar.fDone);
 		viewletService.onDidViewletOpenEmitter.fire(testViewlet);
 		assert.strictEqual(true, testProgressBar.fDone);
+
+		// Visible view: Show (Infinite)
+		viewsService.onDidChangeViewVisibilityEmitter.fire({ id: 'test.scopeId', visible: true });
+		fn = service.show(true);
+		assert.strictEqual(true, testProgressBar.fInfinite);
+		fn.done();
+		assert.strictEqual(true, testProgressBar.fDone);
+
+		// Hidden view: Show (Infinite)
+		viewsService.onDidChangeViewVisibilityEmitter.fire({ id: 'test.scopeId', visible: false });
+		service.show(true);
+		assert.strictEqual(false, !!testProgressBar.fInfinite);
+		viewsService.onDidChangeViewVisibilityEmitter.fire({ id: 'test.scopeId', visible: true });
+		assert.strictEqual(true, testProgressBar.fInfinite);
 	});
 });

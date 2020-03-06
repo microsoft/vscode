@@ -464,7 +464,9 @@ export class TestPanelService implements IPanelService {
 export class TestViewsService implements IViewsService {
 	_serviceBrand: undefined;
 
-	onDidChangeViewVisibility = new Emitter<{ id: string; visible: boolean; }>().event;
+	onDidChangeViewVisibilityEmitter = new Emitter<{ id: string; visible: boolean; }>();
+
+	onDidChangeViewVisibility = this.onDidChangeViewVisibilityEmitter.event;
 	isViewVisible(id: string): boolean { return true; }
 	getActiveViewWithId<T extends IView>(id: string): T | null { return null; }
 	openView<T extends IView>(id: string, focus?: boolean | undefined): Promise<T | null> { return Promise.resolve(null); }
