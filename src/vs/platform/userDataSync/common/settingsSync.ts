@@ -205,19 +205,31 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 	async getRemoteContent(ref?: string, fragment?: string): Promise<string | null> {
 		let content = await super.getRemoteContent(ref);
 		if (content !== null && fragment) {
-			const syncData = this.parseSyncData(content);
-			if (syncData) {
-				const settingsSyncContent = this.parseSettingsSyncContent(syncData.content);
-				if (settingsSyncContent) {
-					switch (fragment) {
-						case 'settings':
-							return settingsSyncContent.settings;
-					}
-				}
-			}
-			return null;
+			return this.getFragment(content, fragment);
 		}
 		return content;
+	}
+
+	async getLocalBackupContent(ref?: string, fragment?: string): Promise<string | null> {
+		let content = await super.getLocalBackupContent(ref);
+		if (content !== null && fragment) {
+			return this.getFragment(content, fragment);
+		}
+		return content;
+	}
+
+	private getFragment(content: string, fragment: string): string | null {
+		const syncData = this.parseSyncData(content);
+		if (syncData) {
+			const settingsSyncContent = this.parseSettingsSyncContent(syncData.content);
+			if (settingsSyncContent) {
+				switch (fragment) {
+					case 'settings':
+						return settingsSyncContent.settings;
+				}
+			}
+		}
+		return null;
 	}
 
 	async accept(content: string): Promise<void> {

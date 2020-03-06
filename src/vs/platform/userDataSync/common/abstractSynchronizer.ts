@@ -162,6 +162,10 @@ export abstract class AbstractSynchroniser extends Disposable {
 		return content;
 	}
 
+	async getLocalBackupContent(ref?: string): Promise<string | null> {
+		return this.userDataSyncBackupStoreService.resolveContent(this.resourceKey, ref);
+	}
+
 	async resetLocal(): Promise<void> {
 		try {
 			await this.fileService.del(this.lastSyncResource);

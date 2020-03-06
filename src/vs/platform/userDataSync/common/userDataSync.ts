@@ -165,6 +165,8 @@ export const IUserDataSyncBackupStoreService = createDecorator<IUserDataSyncBack
 export interface IUserDataSyncBackupStoreService {
 	_serviceBrand: undefined;
 	backup(resourceKey: ResourceKey, content: string): Promise<void>;
+	getAllRefs(key: ResourceKey): Promise<IResourceRefHandle[]>;
+	resolveContent(key: ResourceKey, ref?: string): Promise<string | null>;
 }
 
 //#endregion
@@ -261,6 +263,7 @@ export interface IUserDataSynchroniser {
 
 	getRemoteContentFromPreview(): Promise<string | null>;
 	getRemoteContent(ref?: string, fragment?: string): Promise<string | null>;
+	getLocalBackupContent(ref?: string, fragment?: string): Promise<string | null>;
 	accept(content: string): Promise<void>;
 }
 
@@ -353,6 +356,9 @@ export function toRemoteSyncResourceFromSource(source: SyncSource, ref?: string)
 }
 export function toRemoteSyncResource(resourceKey: ResourceKey, ref?: string): URI {
 	return URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote', path: `/${resourceKey}/${ref ? ref : 'latest'}` });
+}
+export function toLocalBackupSyncResource(resourceKey: ResourceKey, ref?: string): URI {
+	return URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local-backup', path: `/${resourceKey}/${ref ? ref : 'latest'}` });
 }
 
 export function resolveSyncResource(resource: URI): { remote: boolean, resourceKey: ResourceKey, ref?: string } | null {

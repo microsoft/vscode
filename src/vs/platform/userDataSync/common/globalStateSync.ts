@@ -107,16 +107,28 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 	async getRemoteContent(ref?: string, fragment?: string): Promise<string | null> {
 		let content = await super.getRemoteContent(ref);
 		if (content !== null && fragment) {
-			const syncData = this.parseSyncData(content);
-			if (syncData) {
-				switch (fragment) {
-					case 'globalState':
-						return syncData.content;
-				}
-			}
-			return null;
+			return this.getFragment(content, fragment);
 		}
 		return content;
+	}
+
+	async getLocalBackupContent(ref?: string, fragment?: string): Promise<string | null> {
+		let content = await super.getLocalBackupContent(ref);
+		if (content !== null && fragment) {
+			return this.getFragment(content, fragment);
+		}
+		return content;
+	}
+
+	private getFragment(content: string, fragment: string): string | null {
+		const syncData = this.parseSyncData(content);
+		if (syncData) {
+			switch (fragment) {
+				case 'globalState':
+					return syncData.content;
+			}
+		}
+		return null;
 	}
 
 	accept(content: string): Promise<void> {

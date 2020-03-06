@@ -185,7 +185,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				if (PREVIEW_QUERY === resource.query) {
 					return result.remote ? synchronizer.getRemoteContentFromPreview() : null;
 				}
-				return result.remote ? synchronizer.getRemoteContent(result.ref, resource.fragment) : null;
+				return result.remote ? synchronizer.getRemoteContent(result.ref, resource.fragment) : synchronizer.getLocalBackupContent(result.ref, resource.fragment);
 			}
 		}
 		return null;
