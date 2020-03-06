@@ -11,7 +11,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { TreeViewPane, TreeView } from 'vs/workbench/browser/parts/views/treeView';
 import { VIEW_CONTAINER } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ALL_RESOURCE_KEYS, CONTEXT_SYNC_ENABLEMENT, IUserDataSyncStoreService, toSyncResource, resolveSyncResource } from 'vs/platform/userDataSync/common/userDataSync';
+import { ALL_RESOURCE_KEYS, CONTEXT_SYNC_ENABLEMENT, IUserDataSyncStoreService, toRemoteSyncResource, resolveSyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService, RawContextKey, ContextKeyExpr, ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
@@ -175,7 +175,7 @@ class UserDataSyncHistoryViewDataProvider implements ITreeViewDataProvider {
 		if (resourceKey) {
 			const refHandles = await this.userDataSyncStoreService.getAllRefs(resourceKey);
 			return refHandles.map(({ ref, created }) => {
-				const handle = toSyncResource(resourceKey, ref).toString();
+				const handle = toRemoteSyncResource(resourceKey, ref).toString();
 				return {
 					handle,
 					collapsibleState: TreeItemCollapsibleState.None,

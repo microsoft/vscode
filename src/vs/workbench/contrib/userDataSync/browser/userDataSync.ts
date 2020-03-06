@@ -30,7 +30,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { CONTEXT_SYNC_STATE, getUserDataSyncStore, ISyncConfiguration, IUserDataAutoSyncService, IUserDataSyncService, IUserDataSyncStore, registerConfiguration, SyncSource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_SCHEME, IUserDataSyncEnablementService, ResourceKey, getSyncSourceFromPreviewResource, CONTEXT_SYNC_ENABLEMENT, toSyncResourceFromSource, PREVIEW_QUERY, resolveSyncResource, getSyncSource } from 'vs/platform/userDataSync/common/userDataSync';
+import { CONTEXT_SYNC_STATE, getUserDataSyncStore, ISyncConfiguration, IUserDataAutoSyncService, IUserDataSyncService, IUserDataSyncStore, registerConfiguration, SyncSource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_SCHEME, IUserDataSyncEnablementService, ResourceKey, getSyncSourceFromPreviewResource, CONTEXT_SYNC_ENABLEMENT, toRemoteSyncResourceFromSource, PREVIEW_QUERY, resolveSyncResource, getSyncSourceFromResourceKey } from 'vs/platform/userDataSync/common/userDataSync';
 import { FloatingClickWidget } from 'vs/workbench/browser/parts/editor/editorWidgets';
 import { GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -354,7 +354,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private async acceptRemote(syncSource: SyncSource) {
 		try {
-			const contents = await this.userDataSyncService.resolveContent(toSyncResourceFromSource(syncSource).with({ query: PREVIEW_QUERY }));
+			const contents = await this.userDataSyncService.resolveContent(toRemoteSyncResourceFromSource(syncSource).with({ query: PREVIEW_QUERY }));
 			if (contents) {
 				await this.userDataSyncService.accept(syncSource, contents);
 			}
@@ -754,7 +754,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			label = localize('keybindings conflicts preview', "Keybindings Conflicts (Remote ↔ Local)");
 		}
 		if (previewResource) {
-			const remoteContentResource = toSyncResourceFromSource(source).with({ query: PREVIEW_QUERY });
+			const remoteContentResource = toRemoteSyncResourceFromSource(source).with({ query: PREVIEW_QUERY });
 			await this.editorService.openEditor({
 				leftResource: remoteContentResource,
 				rightResource: previewResource,
@@ -1130,7 +1130,7 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 			this._register(this.acceptChangesButton.onClick(async () => {
 				const model = this.editor.getModel();
 				if (model) {
-					const conflictsSource = (getSyncSourceFromPreviewResource(model.uri, this.environmentService) || getSyncSource(resolveSyncResource(model.uri)!.resourceKey))!;
+					const conflictsSource = (getSyncSourceFromPreviewResource(model.uri, this.environmentService) || getSyncSourceFromResourceKey(resolveSyncResource(model.uri)!.resourceKey))!;
 					this.telemetryService.publicLog2<{ source: string, action: string }, SyncConflictsClassification>('sync/handleConflicts', { source: conflictsSource, action: isRemote ? 'acceptRemote' : 'acceptLocal' });
 					const syncAreaLabel = getSyncAreaLabel(conflictsSource);
 					const result = await this.dialogService.confirm({

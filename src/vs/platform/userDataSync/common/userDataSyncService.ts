@@ -183,9 +183,9 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			const synchronizer = this.synchronisers.filter(s => s.resourceKey === result.resourceKey)[0];
 			if (synchronizer) {
 				if (PREVIEW_QUERY === resource.query) {
-					return synchronizer.getRemoteContentFromPreview();
+					return result.remote ? synchronizer.getRemoteContentFromPreview() : null;
 				}
-				return synchronizer.getRemoteContent(result.ref, resource.fragment);
+				return result.remote ? synchronizer.getRemoteContent(result.ref, resource.fragment) : null;
 			}
 		}
 		return null;

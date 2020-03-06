@@ -348,18 +348,19 @@ export const CONTEXT_SYNC_ENABLEMENT = new RawContextKey<boolean>('syncEnabled',
 
 export const USER_DATA_SYNC_SCHEME = 'vscode-userdata-sync';
 export const PREVIEW_QUERY = 'preview=true';
-export function toSyncResourceFromSource(source: SyncSource, ref?: string): URI {
-	return toSyncResource(getResourceKey(source), ref);
+export function toRemoteSyncResourceFromSource(source: SyncSource, ref?: string): URI {
+	return toRemoteSyncResource(getResourceKeyFromSyncSource(source), ref);
 }
-export function toSyncResource(resourceKey: ResourceKey, ref?: string): URI {
-	return URI.from({ scheme: USER_DATA_SYNC_SCHEME, path: `${resourceKey}/${ref ? ref : 'latest'}` });
+export function toRemoteSyncResource(resourceKey: ResourceKey, ref?: string): URI {
+	return URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote', path: `/${resourceKey}/${ref ? ref : 'latest'}` });
 }
 
-export function resolveSyncResource(resource: URI): { resourceKey: ResourceKey, ref?: string } | null {
+export function resolveSyncResource(resource: URI): { remote: boolean, resourceKey: ResourceKey, ref?: string } | null {
+	const remote = resource.authority === 'remote';
 	const resourceKey: ResourceKey = basename(dirname(resource)) as ResourceKey;
 	const ref = basename(resource);
 	if (resourceKey && ref) {
-		return { resourceKey, ref: ref !== 'latest' ? ref : undefined };
+		return { remote, resourceKey, ref: ref !== 'latest' ? ref : undefined };
 	}
 	return null;
 }
@@ -373,7 +374,8 @@ export function getSyncSourceFromPreviewResource(uri: URI, environmentService: I
 	}
 	return undefined;
 }
-export function getResourceKey(source: SyncSource): ResourceKey {
+
+export function getResourceKeyFromSyncSource(source: SyncSource): ResourceKey {
 	switch (source) {
 		case SyncSource.Settings: return 'settings';
 		case SyncSource.Keybindings: return 'keybindings';
@@ -381,7 +383,8 @@ export function getResourceKey(source: SyncSource): ResourceKey {
 		case SyncSource.GlobalState: return 'globalState';
 	}
 }
-export function getSyncSource(resourceKey: ResourceKey): SyncSource {
+
+export function getSyncSourceFromResourceKey(resourceKey: ResourceKey): SyncSource {
 	switch (resourceKey) {
 		case 'settings': return SyncSource.Settings;
 		case 'keybindings': return SyncSource.Keybindings;
