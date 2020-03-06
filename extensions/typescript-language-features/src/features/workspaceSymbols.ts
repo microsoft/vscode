@@ -44,7 +44,8 @@ class TypeScriptWorkspaceSymbolProvider implements vscode.WorkspaceSymbolProvide
 
 		const args: Proto.NavtoRequestArgs = {
 			file: filepath,
-			searchValue: search
+			searchValue: search,
+			maxResultCount: 256,
 		};
 
 		const response = await this.client.execute('navto', args, token);
@@ -52,17 +53,11 @@ class TypeScriptWorkspaceSymbolProvider implements vscode.WorkspaceSymbolProvide
 			return [];
 		}
 
-		const result: vscode.SymbolInformation[] = [];
-		for (const item of response.body) {
-			if (!item.containerName && item.kind === 'alias') {
-				continue;
-			}
-			const label = TypeScriptWorkspaceSymbolProvider.getLabel(item);
-			result.push(new vscode.SymbolInformation(label, getSymbolKind(item), item.containerName || '',
-				typeConverters.Location.fromTextSpan(this.client.toResource(item.file), item)));
-		}
-		return result;
+		return response.body
+			.filter(item => item.containerName && item.kind !== 'alias')
+			.map(item => this.toSymbolInformation(item));
 	}
+
 
 	private async toOpenedFiledPath(document: vscode.TextDocument) {
 		if (document.uri.scheme === fileSchemes.git) {
@@ -77,6 +72,15 @@ class TypeScriptWorkspaceSymbolProvider implements vscode.WorkspaceSymbolProvide
 			}
 		}
 		return this.client.toOpenedFilePath(document);
+	}
+
+	private toSymbolInformation(item: Proto.NavtoItem) {
+		const label = TypeScriptWorkspaceSymbolProvider.getLabel(item);
+		return new vscode.SymbolInformation(
+			label,
+			getSymbolKind(item),
+			item.containerName || '',
+			typeConverters.Location.fromTextSpan(this.client.toResource(item.file), item));
 	}
 
 	private static getLabel(item: Proto.NavtoItem) {

@@ -72,7 +72,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: accessor => {
 		const contextService = accessor.get(IContextKeyService).getContext(document.activeElement);
 		if (contextService.getValue(SearchEditorConstants.InSearchEditor.serialize())) {
-			(accessor.get(IEditorService).activeControl as SearchEditor).toggleQueryDetails();
+			(accessor.get(IEditorService).activeEditorPane as SearchEditor).toggleQueryDetails();
 		} else if (contextService.getValue(Constants.SearchViewFocusedKey.serialize())) {
 			const searchView = getSearchView(accessor.get(IViewsService));
 			assertIsDefined(searchView).toggleQueryDetails();

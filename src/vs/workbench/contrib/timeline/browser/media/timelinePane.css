@@ -7,9 +7,25 @@
 	position: relative;
 }
 
+.monaco-workbench .timeline-view.pane-header .description {
+	margin-left: 10px;
+	opacity: 0.6;
+	text-transform: none;
+	font-weight: normal;
+}
+
+.monaco-workbench .timeline-view.pane-header:not(.expanded) .description {
+	display: none;
+}
+
+.monaco-workbench .timeline-view.pane-header .description span.codicon {
+	font-size: 9px;
+	margin-left: 2px;
+}
+
 .monaco-workbench .timeline-tree-view .message.timeline-subtle {
-	padding: 10px 22px 0 22px;
 	opacity: 0.5;
+	padding: 10px 22px 0 22px;
 	position: absolute;
 	pointer-events: none;
 	z-index: 1;

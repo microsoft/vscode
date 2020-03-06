@@ -262,7 +262,8 @@ function compareViewContentDescriptors(a: IViewContentDescriptor, b: IViewConten
 		return aPriority - bPriority;
 	}
 
-	return a.content < b.content ? -1 : 1;
+	// No priroity, keep views sorted in the order they got registered
+	return 0;
 }
 
 class ViewsRegistry extends Disposable implements IViewsRegistry {
@@ -487,6 +488,8 @@ export interface ITreeView extends IDisposable {
 
 	readonly onDidChangeTitle: Event<string>;
 
+	readonly onDidChangeWelcomeState: Event<void>;
+
 	refresh(treeItems?: ITreeItem[]): Promise<void>;
 
 	setVisibility(visible: boolean): void;
@@ -601,4 +604,3 @@ export interface IViewPaneContainer {
 	getView(viewId: string): IView | undefined;
 	saveState(): void;
 }
-

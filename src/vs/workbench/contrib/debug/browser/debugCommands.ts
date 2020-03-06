@@ -158,13 +158,13 @@ export function registerCommands(): void {
 			const debugService = accessor.get(IDebugService);
 			const stackFrame = debugService.getViewModel().focusedStackFrame;
 			const editorService = accessor.get(IEditorService);
-			const activeEditor = editorService.activeTextEditorWidget;
+			const activeEditorControl = editorService.activeTextEditorControl;
 			const notificationService = accessor.get(INotificationService);
 			const quickInputService = accessor.get(IQuickInputService);
 
-			if (stackFrame && isCodeEditor(activeEditor) && activeEditor.hasModel()) {
-				const position = activeEditor.getPosition();
-				const resource = activeEditor.getModel().uri;
+			if (stackFrame && isCodeEditor(activeEditorControl) && activeEditorControl.hasModel()) {
+				const position = activeEditorControl.getPosition();
+				const resource = activeEditorControl.getModel().uri;
 				const source = stackFrame.thread.session.getSourceForUri(resource);
 				if (source) {
 					const response = await stackFrame.thread.session.gotoTargets(source.raw, position.lineNumber, position.column);
@@ -368,11 +368,11 @@ export function registerCommands(): void {
 		handler: (accessor) => {
 			const debugService = accessor.get(IDebugService);
 			const editorService = accessor.get(IEditorService);
-			const widget = editorService.activeTextEditorWidget;
-			if (isCodeEditor(widget)) {
-				const model = widget.getModel();
+			const control = editorService.activeTextEditorControl;
+			if (isCodeEditor(control)) {
+				const model = control.getModel();
 				if (model) {
-					const position = widget.getPosition();
+					const position = control.getPosition();
 					if (position) {
 						const bps = debugService.getModel().getBreakpoints({ uri: model.uri, lineNumber: position.lineNumber });
 						if (bps.length) {
@@ -514,11 +514,11 @@ export function registerCommands(): void {
 	const inlineBreakpointHandler = (accessor: ServicesAccessor) => {
 		const debugService = accessor.get(IDebugService);
 		const editorService = accessor.get(IEditorService);
-		const widget = editorService.activeTextEditorWidget;
-		if (isCodeEditor(widget)) {
-			const position = widget.getPosition();
-			if (position && widget.hasModel() && debugService.getConfigurationManager().canSetBreakpointsIn(widget.getModel())) {
-				const modelUri = widget.getModel().uri;
+		const control = editorService.activeTextEditorControl;
+		if (isCodeEditor(control)) {
+			const position = control.getPosition();
+			if (position && control.hasModel() && debugService.getConfigurationManager().canSetBreakpointsIn(control.getModel())) {
+				const modelUri = control.getModel().uri;
 				const breakpointAlreadySet = debugService.getModel().getBreakpoints({ lineNumber: position.lineNumber, uri: modelUri })
 					.some(bp => (bp.sessionAgnosticData.column === position.column || (!bp.column && position.column <= 1)));
 

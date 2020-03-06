@@ -247,7 +247,7 @@ export class Gesture extends Disposable {
 	}
 
 	private newGestureEvent(type: string, initialTarget?: EventTarget): GestureEvent {
-		let event = <GestureEvent>(<any>document.createEvent('CustomEvent'));
+		let event = document.createEvent('CustomEvent') as unknown as GestureEvent;
 		event.initEvent(type, false, true);
 		event.initialTarget = initialTarget;
 		event.tapCount = 0;

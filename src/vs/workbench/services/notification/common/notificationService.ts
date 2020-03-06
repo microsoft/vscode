@@ -87,11 +87,14 @@ export class NotificationService extends Disposable implements INotificationServ
 				}));
 
 			// Insert as primary or secondary action
-			const actions = notification.actions || { primary: [], secondary: [] };
+			const actions = {
+				primary: notification.actions?.primary || [],
+				secondary: notification.actions?.secondary || []
+			};
 			if (!notification.neverShowAgain.isSecondary) {
-				actions.primary = [neverShowAgainAction, ...(actions.primary || [])]; // action comes first
+				actions.primary = [neverShowAgainAction, ...actions.primary]; // action comes first
 			} else {
-				actions.secondary = [...(actions.secondary || []), neverShowAgainAction]; // actions comes last
+				actions.secondary = [...actions.secondary, neverShowAgainAction]; // actions comes last
 			}
 
 			notification.actions = actions;

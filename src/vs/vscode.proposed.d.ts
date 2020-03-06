@@ -35,7 +35,7 @@ declare module 'vscode' {
 		readonly added: string[];
 
 		/**
-		 * The ids of the [authenticationProvider](#AuthenticationProvider)s that have been removed..
+		 * The ids of the [authenticationProvider](#AuthenticationProvider)s that have been removed.
 		 */
 		readonly removed: string[];
 	}
@@ -50,7 +50,7 @@ declare module 'vscode' {
 		readonly displayName: string;
 
 		/**
-		 * A [enent](#Event) which fires when the array of sessions has changed, or data
+		 * A [event](#Event) which fires when the array of sessions has changed, or data
 		 * within a session has changed.
 		 */
 		readonly onDidChangeSessions: Event<void>;
@@ -75,7 +75,31 @@ declare module 'vscode' {
 		 */
 		export const onDidChangeAuthenticationProviders: Event<AuthenticationProvidersChangeEvent>;
 
-		export const providers: ReadonlyArray<AuthenticationProvider>;
+		/**
+		 * Returns whether a provider with providerId is currently registered.
+		 */
+		export function hasProvider(providerId: string): boolean;
+
+		/**
+		 * Get existing authentication sessions. Rejects if a provider with providerId is not
+		 * registered, or if the user does not consent to sharing authentication information with
+		 * the extension.
+		 */
+		export function getSessions(providerId: string): Thenable<readonly AuthenticationSession[]>;
+
+		/**
+		* Prompt a user to login to create a new authenticaiton session. Rejects if a provider with
+		* providerId is not registered, or if the user does not consent to sharing authentication
+		* information with the extension.
+		*/
+		export function login(providerId: string, scopes: string[]): Thenable<AuthenticationSession>;
+
+		/**
+		* A [event](#Event) which fires when the array of sessions has changed, or data
+		* within a session has changed for a provider. Fires with the ids of the providers
+		* that have had session data change.
+		*/
+		export const onDidChangeSessions: Event<string[]>;
 	}
 
 	//#endregion
@@ -107,7 +131,7 @@ declare module 'vscode' {
 	export interface TunnelDescription {
 		remoteAddress: { port: number, host: string };
 		//The complete local address(ex. localhost:1234)
-		localAddress: string;
+		localAddress: { port: number, host: string } | string;
 	}
 
 	export interface Tunnel extends TunnelDescription {
@@ -168,13 +192,6 @@ declare module 'vscode' {
 		 */
 		export let tunnels: Thenable<TunnelDescription[]>;
 
-		/**
-		 * Fired when the list of tunnels has changed.
-		 * @deprecated use onDidChangeTunnels instead
-		 */
-		// TODO@alexr
-		// eslint-disable-next-line vscode-dts-event-naming
-		export const onDidTunnelsChange: Event<void>;
 		/**
 		 * Fired when the list of tunnels has changed.
 		 */
@@ -258,6 +275,11 @@ declare module 'vscode' {
 	 */
 	export interface DocumentSemanticTokensProvider {
 		/**
+		 * An optional event to signal that the semantic tokens from this provider have changed.
+		 */
+		onDidChangeSemanticTokens?: Event<void>;
+
+		/**
 		 * A file can contain many tokens, perhaps even hundreds of thousands of tokens. Therefore, to improve
 		 * the memory consumption around describing semantic tokens, we have decided to avoid allocating an object
 		 * for each token and we represent tokens from a file as an array of integers. Furthermore, the position
@@ -314,6 +336,9 @@ declare module 'vscode' {
 		 *    // 1st token,  2nd token,  3rd token
 		 *    [  2,5,3,0,3,  0,5,4,1,0,  3,2,7,2,0 ]
 		 * ```
+		 *
+		 * *NOTE*: When doing edits, it is possible that multiple edits occur until VS Code decides to invoke the semantic tokens provider.
+		 * *NOTE*: If the provider cannot temporarily compute semantic tokens, it can indicate this by throwing an error with the message 'Busy'.
 		 */
 		provideDocumentSemanticTokens(document: TextDocument, token: CancellationToken): ProviderResult<SemanticTokens>;
 
@@ -366,7 +391,6 @@ declare module 'vscode' {
 		 *    edit: { start: 10, deleteCount: 1, data: [1,3,5,0,2,2] } // replace integer at offset 10 with [1,3,5,0,2,2]
 		 * ```
 		 *
-		 * *NOTE*: When doing edits, it is possible that multiple edits occur until VS Code decides to invoke the semantic tokens provider.
 		 * *NOTE*: If the provider cannot compute `SemanticTokensEdits`, it can "give up" and return all the tokens in the document again.
 		 * *NOTE*: All edits in `SemanticTokensEdits` contain indices in the old integers array, so they all refer to the previous result state.
 		 */
@@ -749,10 +773,15 @@ declare module 'vscode' {
 
 		/**
 		 * A [glob pattern](#GlobPattern) that defines files and folders to exclude. The glob pattern
-		 * will be matched against the file paths of resulting matches relative to their workspace. When `undefined` only default excludes will
-		 * apply, when `null` no excludes will apply.
+		 * will be matched against the file paths of resulting matches relative to their workspace. When `undefined`, default excludes will
+		 * apply.
 		 */
-		exclude?: GlobPattern | null;
+		exclude?: GlobPattern;
+
+		/**
+		 * Whether to use the default and user-configured excludes. Defaults to true.
+		 */
+		useDefaultExcludes?: boolean;
 
 		/**
 		 * The maximum number of results to search for
@@ -1215,9 +1244,11 @@ declare module 'vscode' {
 		/**
 		 * Save the resource.
 		 *
+		 * @param cancellation Token that signals the save is no longer required (for example, if another save was triggered).
+		 *
 		 * @return Thenable signaling that the save has completed.
 		 */
-		save(): Thenable<void>;
+		save(cancellation: CancellationToken): Thenable<void>;
 
 		/**
 		 * Save the existing resource at a new path.
@@ -1600,7 +1631,7 @@ declare module 'vscode' {
 		/**
 		 * The maximum number or the ending cursor of timeline items that should be returned.
 		 */
-		limit?: number | string;
+		limit?: number | { cursor: string };
 	}
 
 	export interface TimelineProvider {
@@ -1660,6 +1691,11 @@ declare module 'vscode' {
 		 * @return The uri of the resource.
 		 */
 		asExtensionUri(relativePath: string): Uri;
+
+		/**
+		 *
+		 */
+		readonly extensionUri: Uri;
 	}
 
 	export interface Extension<T> {
@@ -1670,6 +1706,11 @@ declare module 'vscode' {
 		 * @return The uri of the resource.
 		 */
 		asExtensionUri(relativePath: string): Uri;
+
+		/**
+		 *
+		 */
+		readonly extensionUri: Uri;
 	}
 
 	//#endregion
@@ -1728,4 +1769,18 @@ declare module 'vscode' {
 	}
 
 	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/90517
+
+	export interface FileSystemError {
+		/**
+		 * A code that identifies this error.
+		 *
+		 * Possible values are names of errors, like [`FileNotFound`](#FileSystemError.FileNotFound),
+		 * or `undefined` for an unspecified error.
+		 */
+		readonly code?: string;
+	}
+
+	////#endregion
 }

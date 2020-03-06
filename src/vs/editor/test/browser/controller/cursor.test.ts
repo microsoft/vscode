@@ -397,6 +397,25 @@ suite('Editor Controller - Cursor', () => {
 		assertCursor(thisCursor, new Position(1, LINE1.length + 1));
 	});
 
+	test('issue #44465: cursor position not correct when move', () => {
+		thisCursor.setSelections('test', [new Selection(1, 5, 1, 5)]);
+		// going once up on the first line remembers the offset visual columns
+		moveUp(thisCursor);
+		assertCursor(thisCursor, new Position(1, 1));
+		moveDown(thisCursor);
+		assertCursor(thisCursor, new Position(2, 2));
+		moveUp(thisCursor);
+		assertCursor(thisCursor, new Position(1, 5));
+
+		// going twice up on the first line discards the offset visual columns
+		moveUp(thisCursor);
+		assertCursor(thisCursor, new Position(1, 1));
+		moveUp(thisCursor);
+		assertCursor(thisCursor, new Position(1, 1));
+		moveDown(thisCursor);
+		assertCursor(thisCursor, new Position(2, 1));
+	});
+
 	// --------- move to beginning of line
 
 	test('move to beginning of line', () => {
@@ -5040,6 +5059,28 @@ suite('autoClosingPairs', () => {
 			cursorCommand(cursor, H.CompositionEnd, null, 'keyboard');
 
 			assert.equal(model.getValue(), 'è');
+		});
+		mode.dispose();
+	});
+
+	test('issue #90016: allow accents on mac US intl keyboard to surround selection', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'test'
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+			cursor.setSelections('test', [new Selection(1, 1, 1, 5)]);
+
+			// Typing ` + e on the mac US intl kb layout
+			cursorCommand(cursor, H.CompositionStart, null, 'keyboard');
+			cursorCommand(cursor, H.Type, { text: '\'' }, 'keyboard');
+			cursorCommand(cursor, H.ReplacePreviousChar, { replaceCharCnt: 1, text: '\'' }, 'keyboard');
+			cursorCommand(cursor, H.ReplacePreviousChar, { replaceCharCnt: 1, text: '\'' }, 'keyboard');
+			cursorCommand(cursor, H.CompositionEnd, null, 'keyboard');
+
+			assert.equal(model.getValue(), '\'test\'');
 		});
 		mode.dispose();
 	});

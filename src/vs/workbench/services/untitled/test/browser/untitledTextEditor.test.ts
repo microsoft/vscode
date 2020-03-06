@@ -82,7 +82,7 @@ suite('Untitled text editors', () => {
 		assert.ok(!workingCopyService.isDirty(input2.resource));
 		assert.equal(workingCopyService.dirtyCount, 0);
 
-		assert.equal(await input1.revert(0), false);
+		await input1.revert(0);
 		assert.ok(input1.isDisposed());
 		assert.ok(!service.get(input1.resource));
 

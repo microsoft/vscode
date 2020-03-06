@@ -7,7 +7,7 @@ import 'vs/css!./media/tunnelView';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { IViewDescriptor, IEditableData, IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
-import { WorkbenchAsyncDataTree, TreeResourceNavigator } from 'vs/platform/list/browser/listService';
+import { WorkbenchAsyncDataTree, ResourceNavigator } from 'vs/platform/list/browser/listService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, IContextKey, RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -159,7 +159,7 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 		this._candidates.forEach(value => {
 			const key = MakeAddress(value.host, value.port);
 			if (!this.model.forwarded.has(key) && !this.model.detected.has(key)) {
-				candidates.push(new TunnelItem(TunnelType.Candidate, value.host, value.port, undefined, false, undefined, value.detail));
+				candidates.push(new TunnelItem(TunnelType.Candidate, value.host, value.port, undefined, undefined, false, undefined, value.detail));
 			}
 		});
 		return candidates;
@@ -375,7 +375,7 @@ interface ITunnelGroup {
 
 class TunnelItem implements ITunnelItem {
 	static createFromTunnel(tunnel: Tunnel, type: TunnelType = TunnelType.Forwarded, closeable?: boolean) {
-		return new TunnelItem(type, tunnel.remoteHost, tunnel.remotePort, tunnel.localAddress, closeable === undefined ? tunnel.closeable : closeable, tunnel.name, tunnel.description);
+		return new TunnelItem(type, tunnel.remoteHost, tunnel.remotePort, tunnel.localAddress, tunnel.localPort, closeable === undefined ? tunnel.closeable : closeable, tunnel.name, tunnel.description);
 	}
 
 	constructor(
@@ -383,6 +383,7 @@ class TunnelItem implements ITunnelItem {
 		public remoteHost: string,
 		public remotePort: number,
 		public localAddress?: string,
+		public localPort?: number,
 		public closeable?: boolean,
 		public name?: string,
 		private _description?: string,
@@ -413,11 +414,6 @@ class TunnelItem implements ITunnelItem {
 		}
 		return undefined;
 	}
-}
-
-function isHostAndPort(address: string | undefined): boolean {
-	const result = address ? address.match(/^(localhost|([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)|([0-9]+:[0-9]+:[0-9]+:[0-9]+:[0-9]+:[0-9]+:[0-9]+:[0-9]+)):[0-9]+$/) : [];
-	return (!!result && result.length > 0);
 }
 
 export const TunnelTypeContextKey = new RawContextKey<TunnelType>('tunnelType', TunnelType.Add);
@@ -528,7 +524,7 @@ export class TunnelPanel extends ViewPane {
 			this.tree.updateChildren(undefined, true);
 		}));
 
-		const navigator = this._register(new TreeResourceNavigator(this.tree, { openOnFocus: false, openOnSelection: false }));
+		const navigator = this._register(ResourceNavigator.createTreeResourceNavigator(this.tree, { openOnFocus: false, openOnSelection: false }));
 
 		this._register(Event.debounce(navigator.onDidOpenResource, (last, event) => event, 75, true)(e => {
 			if (e.element && (e.element.tunnelType === TunnelType.Add)) {
@@ -577,7 +573,7 @@ export class TunnelPanel extends ViewPane {
 			this.tunnelViewSelectionContext.set(item);
 			this.tunnelTypeContext.set(item.tunnelType);
 			this.tunnelCloseableContext.set(!!item.closeable);
-			this.portChangableContextKey.set(isHostAndPort(item.localAddress));
+			this.portChangableContextKey.set(!!item.localPort);
 		} else {
 			this.tunnelTypeContext.reset();
 			this.tunnelViewSelectionContext.reset();
@@ -600,7 +596,7 @@ export class TunnelPanel extends ViewPane {
 			this.tree!.setFocus([node]);
 			this.tunnelTypeContext.set(node.tunnelType);
 			this.tunnelCloseableContext.set(!!node.closeable);
-			this.portChangableContextKey.set(isHostAndPort(node.localAddress));
+			this.portChangableContextKey.set(!!node.localPort);
 		} else {
 			this.tunnelTypeContext.set(TunnelType.Add);
 			this.tunnelCloseableContext.set(false);
@@ -1039,7 +1035,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 		id: ChangeLocalPortAction.ID,
 		title: ChangeLocalPortAction.LABEL,
 	},
-	when: TunnelTypeContextKey.isEqualTo(TunnelType.Forwarded)
+	when: ContextKeyExpr.and(TunnelTypeContextKey.isEqualTo(TunnelType.Forwarded), PortChangableContextKey)
 }));
 MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 	group: '0_manage',

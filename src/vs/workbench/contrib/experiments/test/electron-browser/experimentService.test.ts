@@ -29,6 +29,7 @@ import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/ex
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IWillActivateEvent, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { timeout } from 'vs/base/common/async';
 
 interface ExperimentSettings {
 	enabled?: boolean;
@@ -443,7 +444,7 @@ suite('Experiment Service', () => {
 					condition: {
 						activationEvent: {
 							event: 'my:event',
-							minEvents: 5,
+							minEvents: 2,
 						}
 					}
 				}
@@ -467,10 +468,47 @@ suite('Experiment Service', () => {
 		});
 
 		testObject = instantiationService.createInstance(TestExperimentService);
-		await testObject.getExperimentById('experiment1'); // ensure loaded
+		await testObject.getExperimentById('experiment1');
 		activationEvent.fire({ event: 'not our event', activation: Promise.resolve() });
 		activationEvent.fire({ event: 'my:event', activation: Promise.resolve() });
 		assert(didGetCall);
+	});
+
+	test('Activation events run experiments in realtime', async () => {
+		experimentData = {
+			experiments: [
+				{
+					id: 'experiment1',
+					enabled: true,
+					condition: {
+						activationEvent: {
+							event: 'my:event',
+							minEvents: 2,
+						}
+					}
+				}
+			]
+		};
+
+		let calls = 0;
+		instantiationService.stub(IStorageService, 'get', (a: string, b: StorageScope, c?: string) => {
+			return a === 'experimentEventRecord-my-event'
+				? JSON.stringify({ count: [++calls, 0, 0, 0, 0, 0, 0], mostRecentBucket: Date.now() })
+				: undefined;
+		});
+
+		const enabledListener = sinon.stub();
+		testObject = instantiationService.createInstance(TestExperimentService);
+		testObject.onExperimentEnabled(enabledListener);
+
+		assert.equal((await testObject.getExperimentById('experiment1')).state, ExperimentState.Evaluating);
+		assert.equal((await testObject.getExperimentById('experiment1')).state, ExperimentState.Evaluating);
+		assert.equal(enabledListener.callCount, 0);
+
+		activationEvent.fire({ event: 'my:event', activation: Promise.resolve() });
+		await timeout(1);
+		assert.equal(enabledListener.callCount, 1);
+		assert.equal((await testObject.getExperimentById('experiment1')).state, ExperimentState.Run);
 	});
 
 	test('Experiment not matching user setting should be disabled', () => {
@@ -730,10 +768,34 @@ suite('Experiment Service', () => {
 		testObject = instantiationService.createInstance(TestExperimentService);
 		return testObject.getExperimentById('experiment1').then(result => {
 			assert.equal(result.enabled, false);
+			assert.equal(result.action?.type, 'Prompt');
 			assert.equal(result.state, ExperimentState.NoRun);
 			return testObject.getCuratedExtensionsList(curatedExtensionsKey).then(curatedList => {
 				assert.equal(curatedList.length, 0);
 			});
+		});
+	});
+
+	test('Maps action2 to action.', () => {
+		experimentData = {
+			experiments: [
+				{
+					id: 'experiment1',
+					enabled: false,
+					action2: {
+						type: 'Prompt',
+						properties: {
+							promptText: 'Hello world',
+							commands: []
+						}
+					}
+				}
+			]
+		};
+
+		testObject = instantiationService.createInstance(TestExperimentService);
+		return testObject.getExperimentById('experiment1').then(result => {
+			assert.equal(result.action?.type, 'Prompt');
 		});
 	});
 

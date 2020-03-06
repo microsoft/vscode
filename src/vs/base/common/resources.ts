@@ -5,13 +5,15 @@
 
 import * as extpath from 'vs/base/common/extpath';
 import * as paths from 'vs/base/common/path';
-import { URI } from 'vs/base/common/uri';
+import { URI, originalFSPath as uriOriginalFSPath } from 'vs/base/common/uri';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { CharCode } from 'vs/base/common/charCode';
 import { ParsedExpression, IExpression, parse } from 'vs/base/common/glob';
 import { TernarySearchTree } from 'vs/base/common/map';
+
+export const originalFSPath = uriOriginalFSPath;
 
 export function getComparisonKey(resource: URI): string {
 	return hasToIgnoreCase(resource) ? resource.toString().toLowerCase() : resource.toString();
@@ -107,15 +109,7 @@ export function dirname(resource: URI): URI {
  * @returns The resulting URI.
  */
 export function joinPath(resource: URI, ...pathFragment: string[]): URI {
-	let joinedPath: string;
-	if (resource.scheme === Schemas.file) {
-		joinedPath = URI.file(paths.join(originalFSPath(resource), ...pathFragment)).path;
-	} else {
-		joinedPath = paths.posix.join(resource.path || '/', ...pathFragment);
-	}
-	return resource.with({
-		path: joinedPath
-	});
+	return URI.joinPaths(resource, ...pathFragment);
 }
 
 /**
@@ -137,33 +131,6 @@ export function normalizePath(resource: URI): URI {
 	return resource.with({
 		path: normalizedPath
 	});
-}
-
-/**
- * Returns the fsPath of an URI where the drive letter is not normalized.
- * See #56403.
- */
-export function originalFSPath(uri: URI): string {
-	let value: string;
-	const uriPath = uri.path;
-	if (uri.authority && uriPath.length > 1 && uri.scheme === Schemas.file) {
-		// unc path: file://shares/c$/far/boo
-		value = `//${uri.authority}${uriPath}`;
-	} else if (
-		isWindows
-		&& uriPath.charCodeAt(0) === CharCode.Slash
-		&& extpath.isWindowsDriveLetter(uriPath.charCodeAt(1))
-		&& uriPath.charCodeAt(2) === CharCode.Colon
-	) {
-		value = uriPath.substr(1);
-	} else {
-		// other path
-		value = uriPath;
-	}
-	if (isWindows) {
-		value = value.replace(/\//g, '\\');
-	}
-	return value;
 }
 
 /**

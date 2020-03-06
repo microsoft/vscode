@@ -18,7 +18,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IStringDictionary } from 'vs/base/common/collections';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { URI } from 'vs/base/common/uri';
-import { isEqual, joinPath } from 'vs/base/common/resources';
+import { isEqual, joinPath, dirname, basename } from 'vs/base/common/resources';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { distinct } from 'vs/base/common/arrays';
@@ -65,7 +65,7 @@ export function registerConfiguration(): IDisposable {
 				description: localize('sync.keybindingsPerPlatform', "Synchronize keybindings per platform."),
 				default: true,
 				scope: ConfigurationScope.APPLICATION,
-				tags: ['sync']
+				tags: ['sync', 'usesOnlineServices']
 			},
 			'sync.ignoredExtensions': {
 				'type': 'array',
@@ -75,7 +75,7 @@ export function registerConfiguration(): IDisposable {
 				'scope': ConfigurationScope.APPLICATION,
 				uniqueItems: true,
 				disallowSyncIgnore: true,
-				tags: ['sync']
+				tags: ['sync', 'usesOnlineServices']
 			},
 			'sync.ignoredSettings': {
 				'type': 'array',
@@ -86,7 +86,7 @@ export function registerConfiguration(): IDisposable {
 				additionalProperties: true,
 				uniqueItems: true,
 				disallowSyncIgnore: true,
-				tags: ['sync']
+				tags: ['sync', 'usesOnlineServices']
 			}
 		}
 	});
@@ -143,6 +143,11 @@ export interface IUserDataManifest {
 	session: string;
 }
 
+export interface IResourceRefHandle {
+	ref: string;
+	created: number;
+}
+
 export const IUserDataSyncStoreService = createDecorator<IUserDataSyncStoreService>('IUserDataSyncStoreService');
 export interface IUserDataSyncStoreService {
 	_serviceBrand: undefined;
@@ -151,6 +156,17 @@ export interface IUserDataSyncStoreService {
 	write(key: ResourceKey, content: string, ref: string | null, source?: SyncSource): Promise<string>;
 	manifest(): Promise<IUserDataManifest | null>;
 	clear(): Promise<void>;
+	getAllRefs(key: ResourceKey): Promise<IResourceRefHandle[]>;
+	resolveContent(key: ResourceKey, ref: string): Promise<string | null>;
+	delete(key: ResourceKey): Promise<void>;
+}
+
+export const IUserDataSyncBackupStoreService = createDecorator<IUserDataSyncBackupStoreService>('IUserDataSyncBackupStoreService');
+export interface IUserDataSyncBackupStoreService {
+	_serviceBrand: undefined;
+	backup(resourceKey: ResourceKey, content: string): Promise<void>;
+	getAllRefs(key: ResourceKey): Promise<IResourceRefHandle[]>;
+	resolveContent(key: ResourceKey, ref?: string): Promise<string | null>;
 }
 
 //#endregion
@@ -245,7 +261,9 @@ export interface IUserDataSynchroniser {
 	hasLocalData(): Promise<boolean>;
 	resetLocal(): Promise<void>;
 
-	getRemoteContent(preivew?: boolean): Promise<string | null>;
+	getRemoteContentFromPreview(): Promise<string | null>;
+	getRemoteContent(ref?: string, fragment?: string): Promise<string | null>;
+	getLocalBackupContent(ref?: string, fragment?: string): Promise<string | null>;
 	accept(content: string): Promise<void>;
 }
 
@@ -290,7 +308,7 @@ export interface IUserDataSyncService {
 	resetLocal(): Promise<void>;
 
 	isFirstTimeSyncWithMerge(): Promise<boolean>;
-	getRemoteContent(source: SyncSource, preview: boolean): Promise<string | null>;
+	resolveContent(resource: URI): Promise<string | null>;
 	accept(source: SyncSource, content: string): Promise<void>;
 }
 
@@ -332,12 +350,27 @@ export const CONTEXT_SYNC_STATE = new RawContextKey<string>('syncStatus', SyncSt
 export const CONTEXT_SYNC_ENABLEMENT = new RawContextKey<boolean>('syncEnabled', false);
 
 export const USER_DATA_SYNC_SCHEME = 'vscode-userdata-sync';
-export function toRemoteContentResource(source: SyncSource): URI {
-	return URI.from({ scheme: USER_DATA_SYNC_SCHEME, path: `${source}/remoteContent` });
+export const PREVIEW_QUERY = 'preview=true';
+export function toRemoteSyncResourceFromSource(source: SyncSource, ref?: string): URI {
+	return toRemoteSyncResource(getResourceKeyFromSyncSource(source), ref);
 }
-export function getSyncSourceFromRemoteContentResource(uri: URI): SyncSource | undefined {
-	return [SyncSource.Settings, SyncSource.Keybindings, SyncSource.Extensions, SyncSource.GlobalState].filter(source => isEqual(uri, toRemoteContentResource(source)))[0];
+export function toRemoteSyncResource(resourceKey: ResourceKey, ref?: string): URI {
+	return URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote', path: `/${resourceKey}/${ref ? ref : 'latest'}` });
 }
+export function toLocalBackupSyncResource(resourceKey: ResourceKey, ref?: string): URI {
+	return URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local-backup', path: `/${resourceKey}/${ref ? ref : 'latest'}` });
+}
+
+export function resolveSyncResource(resource: URI): { remote: boolean, resourceKey: ResourceKey, ref?: string } | null {
+	const remote = resource.authority === 'remote';
+	const resourceKey: ResourceKey = basename(dirname(resource)) as ResourceKey;
+	const ref = basename(resource);
+	if (resourceKey && ref) {
+		return { remote, resourceKey, ref: ref !== 'latest' ? ref : undefined };
+	}
+	return null;
+}
+
 export function getSyncSourceFromPreviewResource(uri: URI, environmentService: IEnvironmentService): SyncSource | undefined {
 	if (isEqual(uri, environmentService.settingsSyncPreviewResource)) {
 		return SyncSource.Settings;
@@ -346,4 +379,22 @@ export function getSyncSourceFromPreviewResource(uri: URI, environmentService: I
 		return SyncSource.Keybindings;
 	}
 	return undefined;
+}
+
+export function getResourceKeyFromSyncSource(source: SyncSource): ResourceKey {
+	switch (source) {
+		case SyncSource.Settings: return 'settings';
+		case SyncSource.Keybindings: return 'keybindings';
+		case SyncSource.Extensions: return 'extensions';
+		case SyncSource.GlobalState: return 'globalState';
+	}
+}
+
+export function getSyncSourceFromResourceKey(resourceKey: ResourceKey): SyncSource {
+	switch (resourceKey) {
+		case 'settings': return SyncSource.Settings;
+		case 'keybindings': return SyncSource.Keybindings;
+		case 'extensions': return SyncSource.Extensions;
+		case 'globalState': return SyncSource.GlobalState;
+	}
 }

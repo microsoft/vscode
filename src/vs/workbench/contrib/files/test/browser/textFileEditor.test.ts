@@ -87,14 +87,14 @@ suite('Files - TextFileEditor', () => {
 	async function viewStateTest(context: Mocha.ITestCallbackContext, restoreViewState: boolean): Promise<void> {
 		const [part, accessor] = await createPart(restoreViewState);
 
-		let editor = await accessor.editorService.openEditor(accessor.editorService.createInput({ resource: toResource.call(context, '/path/index.txt'), forceFile: true }));
+		let editor = await accessor.editorService.openEditor(accessor.editorService.createEditorInput({ resource: toResource.call(context, '/path/index.txt'), forceFile: true }));
 
 		let codeEditor = editor?.getControl() as CodeEditorWidget;
 		const selection = new Selection(1, 3, 1, 4);
 		codeEditor.setSelection(selection);
 
-		editor = await accessor.editorService.openEditor(accessor.editorService.createInput({ resource: toResource.call(context, '/path/index-other.txt'), forceFile: true }));
-		editor = await accessor.editorService.openEditor(accessor.editorService.createInput({ resource: toResource.call(context, '/path/index.txt'), forceFile: true }));
+		editor = await accessor.editorService.openEditor(accessor.editorService.createEditorInput({ resource: toResource.call(context, '/path/index-other.txt'), forceFile: true }));
+		editor = await accessor.editorService.openEditor(accessor.editorService.createEditorInput({ resource: toResource.call(context, '/path/index.txt'), forceFile: true }));
 
 		codeEditor = editor?.getControl() as CodeEditorWidget;
 

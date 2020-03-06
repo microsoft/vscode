@@ -154,7 +154,7 @@ export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 
 	private _toBinaryTokens(tokens: IToken[], offsetDelta: number): Uint32Array {
 		const languageId = this._languageIdentifier.id;
-		const tokenTheme = this._standaloneThemeService.getTheme().tokenTheme;
+		const tokenTheme = this._standaloneThemeService.getColorTheme().tokenTheme;
 
 		let result: number[] = [], resultLen = 0;
 		let previousStartIndex: number = 0;

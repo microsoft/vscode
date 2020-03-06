@@ -49,6 +49,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
+import { alert } from 'vs/base/browser/ui/aria/aria';
 
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(:| )(\s+)(.*)$/;
 const FILE_LINE_REGEX = /^(\S.*):$/;
@@ -325,6 +326,15 @@ export class SearchEditor extends BaseTextEditor {
 		this.searchResultEditor.setSelection(matchRange);
 		this.searchResultEditor.revealLineInCenterIfOutsideViewport(matchRange.startLineNumber);
 		this.searchResultEditor.focus();
+
+		const matchLineText = model.getLineContent(matchRange.startLineNumber);
+		const matchText = model.getValueInRange(matchRange);
+		let file = '';
+		for (let line = matchRange.startLineNumber; line >= 1; line--) {
+			let lineText = model.getValueInRange(new Range(line, 1, line, 2));
+			if (lineText !== ' ') { file = model.getLineContent(line); break; }
+		}
+		alert(localize('searchResultItem', "Matched {0} at {1} in file {2}", matchText, matchLineText, file.slice(0, file.length - 1)));
 	}
 
 	focusNextResult() {

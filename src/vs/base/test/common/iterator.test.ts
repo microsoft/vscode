@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Iterator } from 'vs/base/common/iterator';
+import { Iterator, Iterable } from 'vs/base/common/iterator';
 
 suite('Iterator', () => {
 	test('concat', () => {
@@ -16,4 +16,25 @@ suite('Iterator', () => {
 
 		assert.deepEqual(actual, [1, 2, 3, 4, 5, 6, 7, 8, 9]);
 	});
+});
+
+suite('Iterable', function () {
+
+	const customIterable = new class {
+
+		*[Symbol.iterator]() {
+			yield 'one';
+			yield 'two';
+			yield 'three';
+		}
+	};
+
+	test('first', function () {
+
+		assert.equal(Iterable.first([]), undefined);
+		assert.equal(Iterable.first([1]), 1);
+		assert.equal(Iterable.first(customIterable), 'one');
+		assert.equal(Iterable.first(customIterable), 'one'); // fresh
+	});
+
 });

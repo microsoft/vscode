@@ -354,15 +354,15 @@ export abstract class ViewPane extends Pane implements IView {
 	}
 
 	getActions(): IAction[] {
-		return this.menuActions ? this.menuActions.getPrimaryActions() : [];
+		return this.menuActions.getPrimaryActions();
 	}
 
 	getSecondaryActions(): IAction[] {
-		return this.menuActions ? this.menuActions.getSecondaryActions() : [];
+		return this.menuActions.getSecondaryActions();
 	}
 
 	getContextMenuActions(): IAction[] {
-		return this.menuActions ? this.menuActions.getContextMenuActions() : [];
+		return this.menuActions.getContextMenuActions();
 	}
 
 	getActionViewItem(action: IAction): IActionViewItem | undefined {
