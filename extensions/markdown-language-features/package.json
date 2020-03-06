@@ -346,6 +346,7 @@
 		"mocha-multi-reporters": "^1.1.7",
 		"ts-loader": "^6.2.1",
 		"typescript": "^3.7.3",
+		"vscode": "^1.1.10",
 		"webpack": "^4.41.2",
 		"webpack-cli": "^3.3.0"
 	}

@@ -26,7 +26,8 @@
   "devDependencies": {
     "@types/node": "^12.11.7",
     "@types/rimraf": "2.0.2",
-    "@types/semver": "^5.5.0"
+    "@types/semver": "^5.5.0",
+    "vscode": "^1.1.36"
   },
   "scripts": {
     "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:typescript ./tsconfig.json"
