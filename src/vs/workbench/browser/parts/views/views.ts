@@ -34,6 +34,7 @@ import { Viewlet, ViewletDescriptor, ViewletRegistry, Extensions as ViewletExten
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { URI } from 'vs/base/common/uri';
+import { IProgressIndicator } from 'vs/platform/progress/common/progress';
 
 export interface IViewState {
 	visibleGlobal: boolean | undefined;
@@ -697,6 +698,27 @@ export class ViewsService extends Disposable implements IViewsService {
 		}
 
 		return null;
+	}
+
+	getProgressIndicator(id: string): IProgressIndicator | undefined {
+		const viewContainer = this.viewDescriptorService.getViewContainer(id);
+		if (viewContainer === null) {
+			return undefined;
+		}
+
+		const location = this.viewContainersRegistry.getViewContainerLocation(viewContainer);
+
+		let viewPaneContainer;
+		if (location === ViewContainerLocation.Sidebar) {
+			const viewlet = this.viewletService.getInstantiatedViewlet(viewContainer.id);
+			viewPaneContainer = viewlet?.getViewPaneContainer();
+		} else if (location === ViewContainerLocation.Panel) {
+			const panel = this.panelService.getInstantiatedPanel(viewContainer.id);
+			viewPaneContainer = (panel as IPaneComposite)?.getViewPaneContainer();
+		}
+
+		const view = viewPaneContainer?.getView(id);
+		return view?.getProgressIndicator();
 	}
 
 	private registerViewletOrPanel(viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation): void {

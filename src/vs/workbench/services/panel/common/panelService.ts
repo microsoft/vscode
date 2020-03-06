@@ -36,6 +36,11 @@ export interface IPanelService {
 	getActivePanel(): IPanel | undefined;
 
 	/**
+	 * Returns an instantiated panel by id, if any.
+	 */
+	getInstantiatedPanel(id: string): IPanel | undefined;
+
+	/**
 	 * Returns the panel by id.
 	 */
 	getPanel(id: string): IPanelIdentifier | undefined;

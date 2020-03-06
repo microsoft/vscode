@@ -434,6 +434,10 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		return this.getActiveComposite();
 	}
 
+	getInstantiatedPanel(id: string): IPanel | undefined {
+		return this.getInstantiatedComposite(id) as IPanel | undefined;
+	}
+
 	getLastActivePanelId(): string {
 		return this.getLastActiveCompositetId();
 	}
