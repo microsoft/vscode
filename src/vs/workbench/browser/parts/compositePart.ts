@@ -158,10 +158,6 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		return composite;
 	}
 
-	protected getInstantiatedComposite(id: string) {
-		return this.instantiatedCompositeItems.get(id)?.composite;
-	}
-
 	protected createComposite(id: string, isActive?: boolean): Composite {
 
 		// Check if composite is already created

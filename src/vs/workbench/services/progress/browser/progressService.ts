@@ -423,8 +423,7 @@ export class ProgressService extends Disposable implements IProgressService {
 					if (d < minTimeVisible) {
 						// should at least show for Nms
 						setTimeout(() => handle.dispose(), minTimeVisible - d);
-					}
-					else {
+					} else {
 						// shown long enough
 						handle.dispose();
 					}

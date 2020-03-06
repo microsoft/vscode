@@ -434,7 +434,6 @@ export class TestViewletService implements IViewletService {
 	getViewlets(): ViewletDescriptor[] { return []; }
 	getAllViewlets(): ViewletDescriptor[] { return []; }
 	getActiveViewlet(): IViewlet { return activeViewlet; }
-	getInstantiatedViewlet(): IViewlet | undefined { return undefined; }
 	getDefaultViewletId(): string { return 'workbench.view.explorer'; }
 	getViewlet(id: string): ViewletDescriptor | undefined { return undefined; }
 	getProgressIndicator(id: string) { return undefined; }
@@ -454,7 +453,6 @@ export class TestPanelService implements IPanelService {
 	getPanels() { return []; }
 	getPinnedPanels() { return []; }
 	getActivePanel(): IPanel { return activeViewlet; }
-	getInstantiatedPanel(): IPanel | undefined { return undefined; }
 	setPanelEnablement(id: string, enabled: boolean): void { }
 	dispose() { }
 	showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable { throw new Error('Method not implemented.'); }
