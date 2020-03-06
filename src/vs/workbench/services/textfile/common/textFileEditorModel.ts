@@ -24,6 +24,7 @@ import { IWorkingCopyService, IWorkingCopyBackup } from 'vs/workbench/services/w
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { MutableDisposable } from 'vs/base/common/lifecycle';
 
 interface IBackupMetaData {
 	mtime: number;
@@ -80,6 +81,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	private readonly saveSequentializer = new TaskSequentializer();
 
+	private readonly _workingCopyRegistration = this._register(new MutableDisposable());
+
 	private dirty = false;
 	private inConflictMode = false;
 	private inOrphanMode = false;
@@ -102,9 +105,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		@ILabelService private readonly labelService: ILabelService
 	) {
 		super(modelService, modeService);
-
-		// Make known to working copy service
-		this._register(this.workingCopyService.registerWorkingCopy(this));
 
 		this.registerListeners();
 	}
@@ -247,6 +247,15 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	//#region Load
 
 	async load(options?: ITextFileLoadOptions): Promise<TextFileEditorModel> {
+		const model = await this.doLoad(options);
+		if (!this._workingCopyRegistration.value) {
+			// Make known to working copy service
+			this._workingCopyRegistration.value = this.workingCopyService.registerWorkingCopy(this);
+		}
+		return model;
+	}
+
+	private async doLoad(options?: ITextFileLoadOptions): Promise<TextFileEditorModel> {
 		this.logService.trace('[text file model] load() - enter', this.resource.toString(true));
 
 		// Return early if we are disposed
