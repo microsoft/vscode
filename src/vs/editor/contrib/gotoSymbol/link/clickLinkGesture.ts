@@ -110,6 +110,7 @@ export class ClickLinkGesture extends Disposable {
 
 	private lastMouseMoveEvent: ClickLinkMouseEvent | null;
 	private hasTriggerKeyOnMouseDown: boolean;
+	private lineNumberOnMouseDown: number;
 
 	constructor(editor: ICodeEditor) {
 		super();
@@ -119,6 +120,7 @@ export class ClickLinkGesture extends Disposable {
 
 		this.lastMouseMoveEvent = null;
 		this.hasTriggerKeyOnMouseDown = false;
+		this.lineNumberOnMouseDown = 0;
 
 		this._register(this._editor.onDidChangeConfiguration((e) => {
 			if (e.hasChanged(EditorOption.multiCursorModifier)) {
@@ -129,6 +131,7 @@ export class ClickLinkGesture extends Disposable {
 				this._opts = newOpts;
 				this.lastMouseMoveEvent = null;
 				this.hasTriggerKeyOnMouseDown = false;
+				this.lineNumberOnMouseDown = 0;
 				this._onCancel.fire();
 			}
 		}));
@@ -167,10 +170,12 @@ export class ClickLinkGesture extends Disposable {
 		// release the mouse button without wanting to do the navigation.
 		// With this flag we prevent goto definition if the mouse was down before the trigger key was pressed.
 		this.hasTriggerKeyOnMouseDown = mouseEvent.hasTriggerModifier;
+		this.lineNumberOnMouseDown = mouseEvent.target.position ? mouseEvent.target.position.lineNumber : 0;
 	}
 
 	private onEditorMouseUp(mouseEvent: ClickLinkMouseEvent): void {
-		if (this.hasTriggerKeyOnMouseDown) {
+		const currentLineNumber = mouseEvent.target.position ? mouseEvent.target.position.lineNumber : 0;
+		if (this.hasTriggerKeyOnMouseDown && this.lineNumberOnMouseDown && this.lineNumberOnMouseDown === currentLineNumber) {
 			this._onExecute.fire(mouseEvent);
 		}
 	}
