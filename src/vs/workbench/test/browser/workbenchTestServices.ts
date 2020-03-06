@@ -104,6 +104,7 @@ import { QuickInputService } from 'vs/workbench/services/quickinput/browser/quic
 import { IListService } from 'vs/platform/list/browser/listService';
 import { win32, posix } from 'vs/base/common/path';
 import { TestWorkingCopyService, TestContextService, TestStorageService, TestTextResourcePropertiesService } from 'vs/workbench/test/common/workbenchTestServices';
+import { IViewsService, IView } from 'vs/workbench/common/views';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined);
@@ -460,6 +461,17 @@ export class TestPanelService implements IPanelService {
 	getProgressIndicator(id: string) { return null!; }
 	hideActivePanel(): void { }
 	getLastActivePanelId(): string { return undefined!; }
+}
+
+export class TestViewsService implements IViewsService {
+	_serviceBrand: undefined;
+
+	onDidChangeViewVisibility = new Emitter<{ id: string; visible: boolean; }>().event;
+	isViewVisible(id: string): boolean { return true; }
+	getActiveViewWithId<T extends IView>(id: string): T | null { return null; }
+	openView<T extends IView>(id: string, focus?: boolean | undefined): Promise<T | null> { return Promise.resolve(null); }
+	closeView(id: string): void { }
+	getProgressIndicator(id: string) { return null!; }
 }
 
 export class TestEditorGroupsService implements IEditorGroupsService {

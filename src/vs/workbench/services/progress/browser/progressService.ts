@@ -383,38 +383,8 @@ export class ProgressService extends Disposable implements IProgressService {
 		// show in viewlet
 		const promise = this.withCompositeProgress(this.viewletService.getProgressIndicator(viewletId), task, options);
 
-		// show activity bar
-		let activityProgress: IDisposable;
-		let delayHandle: any = setTimeout(() => {
-			delayHandle = undefined;
-
-			const handle = this.activityService.showActivity(
-				viewletId,
-				new ProgressBadge(() => ''),
-				'progress-badge',
-				100
-			);
-
-			const startTimeVisible = Date.now();
-			const minTimeVisible = 300;
-			activityProgress = {
-				dispose() {
-					const d = Date.now() - startTimeVisible;
-					if (d < minTimeVisible) {
-						// should at least show for Nms
-						setTimeout(() => handle.dispose(), minTimeVisible - d);
-					} else {
-						// shown long enough
-						handle.dispose();
-					}
-				}
-			};
-		}, options.delay || 300);
-
-		promise.finally(() => {
-			clearTimeout(delayHandle);
-			dispose(activityProgress);
-		});
+		// show on activity bar
+		this.showOnActivityBar<P, R>(viewletId, options, promise);
 
 		return promise;
 	}
@@ -434,18 +404,17 @@ export class ProgressService extends Disposable implements IProgressService {
 			return promise;
 		}
 
-		// show activity bar
+		// show on activity bar
+		this.showOnActivityBar(viewletId, options, promise);
+
+		return promise;
+	}
+
+	private showOnActivityBar<P extends Promise<R>, R = unknown>(viewletId: string, options: IProgressCompositeOptions, promise: P) {
 		let activityProgress: IDisposable;
 		let delayHandle: any = setTimeout(() => {
 			delayHandle = undefined;
-
-			const handle = this.activityService.showActivity(
-				viewletId,
-				new ProgressBadge(() => ''),
-				'progress-badge',
-				100
-			);
-
+			const handle = this.activityService.showActivity(viewletId, new ProgressBadge(() => ''), 'progress-badge', 100);
 			const startTimeVisible = Date.now();
 			const minTimeVisible = 300;
 			activityProgress = {
@@ -454,20 +423,18 @@ export class ProgressService extends Disposable implements IProgressService {
 					if (d < minTimeVisible) {
 						// should at least show for Nms
 						setTimeout(() => handle.dispose(), minTimeVisible - d);
-					} else {
+					}
+					else {
 						// shown long enough
 						handle.dispose();
 					}
 				}
 			};
 		}, options.delay || 300);
-
 		promise.finally(() => {
 			clearTimeout(delayHandle);
 			dispose(activityProgress);
 		});
-
-		return promise;
 	}
 
 	private withPanelProgress<P extends Promise<R>, R = unknown>(panelid: string, task: (progress: IProgress<IProgressStep>) => P, options: IProgressCompositeOptions): P {

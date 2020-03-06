@@ -10,9 +10,9 @@ import { CompositeScope, CompositeProgressIndicator } from 'vs/workbench/service
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewlet } from 'vs/workbench/common/viewlet';
-import { TestViewletService, TestPanelService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestViewletService, TestPanelService, TestViewsService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { Event } from 'vs/base/common/event';
-import { IView, IViewPaneContainer } from 'vs/workbench/common/views';
+import { IView, IViewPaneContainer, IViewsService } from 'vs/workbench/common/views';
 
 class TestViewlet implements IViewlet {
 
@@ -38,8 +38,8 @@ class TestViewlet implements IViewlet {
 class TestCompositeScope extends CompositeScope {
 	isActive: boolean = false;
 
-	constructor(viewletService: IViewletService, panelService: IPanelService, scopeId: string) {
-		super(viewletService, panelService, scopeId);
+	constructor(viewletService: IViewletService, panelService: IPanelService, viewsService: IViewsService, scopeId: string) {
+		super(viewletService, panelService, viewsService, scopeId);
 	}
 
 	onScopeActivated() { this.isActive = true; }
@@ -106,7 +106,8 @@ suite('Progress Indicator', () => {
 	test('CompositeScope', () => {
 		let viewletService = new TestViewletService();
 		let panelService = new TestPanelService();
-		let service = new TestCompositeScope(viewletService, panelService, 'test.scopeId');
+		let viewsService = new TestViewsService();
+		let service = new TestCompositeScope(viewletService, panelService, viewsService, 'test.scopeId');
 		const testViewlet = new TestViewlet('test.scopeId');
 
 		assert(!service.isActive);
@@ -122,7 +123,8 @@ suite('Progress Indicator', () => {
 		let testProgressBar = new TestProgressBar();
 		let viewletService = new TestViewletService();
 		let panelService = new TestPanelService();
-		let service = new CompositeProgressIndicator((<any>testProgressBar), 'test.scopeId', true, viewletService, panelService);
+		let viewsService = new TestViewsService();
+		let service = new CompositeProgressIndicator((<any>testProgressBar), 'test.scopeId', true, undefined, viewletService, panelService, viewsService);
 
 		// Active: Show (Infinite)
 		let fn = service.show(true);
