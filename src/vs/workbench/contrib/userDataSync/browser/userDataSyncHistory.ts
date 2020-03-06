@@ -11,7 +11,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { TreeViewPane, TreeView } from 'vs/workbench/browser/parts/views/treeView';
 import { VIEW_CONTAINER } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ALL_RESOURCE_KEYS, CONTEXT_SYNC_ENABLEMENT, IUserDataSyncStoreService, toRemoteSyncResource, resolveSyncResource } from 'vs/platform/userDataSync/common/userDataSync';
+import { ALL_RESOURCE_KEYS, CONTEXT_SYNC_ENABLEMENT, IUserDataSyncStoreService, toRemoteSyncResource, resolveSyncResource, IUserDataSyncBackupStoreService, IResourceRefHandle, ResourceKey, toLocalBackupSyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService, RawContextKey, ContextKeyExpr, ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
@@ -21,39 +21,41 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { fromNow } from 'vs/base/common/date';
 import { pad } from 'vs/base/common/strings';
 
-const CONTEXT_SHOW_USER_DATA_SYNC_HISTORY_VIEW = new RawContextKey<boolean>('showUserDataSyncHistoryView', false);
+const CONTEXT_SHOW_USER_DATA_SYNC_REMOTE_HISTORY_VIEW = new RawContextKey<boolean>('showUserDataSyncRemoteHistoryView', false);
+const CONTEXT_SHOW_USER_DATA_SYNC_LOCAL_HISTORY_VIEW = new RawContextKey<boolean>('showUserDataSyncLocalHistoryView', false);
 
 export class UserDataSyncHistoryViewContribution implements IWorkbenchContribution {
-
-	private readonly viewId = 'workbench.views.syncHistory';
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
+		@IUserDataSyncBackupStoreService private readonly userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
 	) {
-		this.registerView();
-		this.registerActions();
+		this.registerRemoteHistoryView();
+		this.registerLocalHistoryView();
 	}
 
-	private registerView(): void {
-		const that = this;
-		const name = localize('title', "Sync History (Remote)");
-		const viewEnablementContext = CONTEXT_SHOW_USER_DATA_SYNC_HISTORY_VIEW.bindTo(this.contextKeyService);
-		const treeView = this.instantiationService.createInstance(TreeView, this.viewId, name);
+	private registerRemoteHistoryView(): void {
+		const id = 'workbench.views.sync.remoteHistory';
+		const name = localize('title', "Sync: Backup (Remote)");
+		const viewEnablementContext = CONTEXT_SHOW_USER_DATA_SYNC_REMOTE_HISTORY_VIEW.bindTo(this.contextKeyService);
+		const treeView = this.instantiationService.createInstance(TreeView, id, name);
 		treeView.showCollapseAllAction = true;
 		treeView.showRefreshAction = true;
 		const disposable = treeView.onDidChangeVisibility(visible => {
 			if (visible && !treeView.dataProvider) {
 				disposable.dispose();
-				treeView.dataProvider = this.instantiationService.createInstance(UserDataSyncHistoryViewDataProvider);
+				treeView.dataProvider = this.instantiationService.createInstance(UserDataSyncHistoryViewDataProvider, id,
+					(resourceKey: ResourceKey) => this.userDataSyncStoreService.getAllRefs(resourceKey), (resourceKey: ResourceKey, ref: string) => toRemoteSyncResource(resourceKey, ref));
 			}
 		});
 		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 		viewsRegistry.registerViews([<ITreeViewDescriptor>{
-			id: this.viewId,
+			id,
 			name,
 			ctorDescriptor: new SyncDescriptor(TreeViewPane),
-			when: ContextKeyExpr.and(CONTEXT_SYNC_ENABLEMENT, CONTEXT_SHOW_USER_DATA_SYNC_HISTORY_VIEW),
+			when: ContextKeyExpr.and(CONTEXT_SYNC_ENABLEMENT, CONTEXT_SHOW_USER_DATA_SYNC_REMOTE_HISTORY_VIEW),
 			canToggleVisibility: true,
 			canMoveView: true,
 			treeView,
@@ -65,7 +67,7 @@ export class UserDataSyncHistoryViewContribution implements IWorkbenchContributi
 			constructor() {
 				super({
 					id: 'workbench.actions.showSyncRemoteHistoryView',
-					title: { value: localize('workbench.action.showSyncRemoteHistory', "Show History (Remote)"), original: `Show History (Remote)` },
+					title: { value: localize('workbench.action.showSyncRemoteHistory', "Show Backup (Remote)"), original: `Show Backup (Remote)` },
 					category: { value: localize('sync', "Sync"), original: `Sync` },
 					menu: {
 						id: MenuId.CommandPalette,
@@ -75,17 +77,66 @@ export class UserDataSyncHistoryViewContribution implements IWorkbenchContributi
 			}
 			async run(accessor: ServicesAccessor): Promise<void> {
 				viewEnablementContext.set(true);
-				accessor.get(IViewsService).openView(that.viewId, true);
+				accessor.get(IViewsService).openView(id, true);
 			}
 		});
+
+		this.registerActions(id);
 	}
 
-	private registerActions() {
-		const that = this;
+	private registerLocalHistoryView(): void {
+		const id = 'workbench.views.sync.LocalHistory';
+		const name = localize('local view title', "Sync: Backup (Local)");
+		const viewEnablementContext = CONTEXT_SHOW_USER_DATA_SYNC_LOCAL_HISTORY_VIEW.bindTo(this.contextKeyService);
+		const treeView = this.instantiationService.createInstance(TreeView, id, name);
+		treeView.showCollapseAllAction = true;
+		treeView.showRefreshAction = true;
+		const disposable = treeView.onDidChangeVisibility(visible => {
+			if (visible && !treeView.dataProvider) {
+				disposable.dispose();
+				treeView.dataProvider = this.instantiationService.createInstance(UserDataSyncHistoryViewDataProvider, id,
+					(resourceKey: ResourceKey) => this.userDataSyncBackupStoreService.getAllRefs(resourceKey), (resourceKey: ResourceKey, ref: string) => toLocalBackupSyncResource(resourceKey, ref));
+			}
+		});
+		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
+		viewsRegistry.registerViews([<ITreeViewDescriptor>{
+			id,
+			name,
+			ctorDescriptor: new SyncDescriptor(TreeViewPane),
+			when: ContextKeyExpr.and(CONTEXT_SYNC_ENABLEMENT, CONTEXT_SHOW_USER_DATA_SYNC_LOCAL_HISTORY_VIEW),
+			canToggleVisibility: true,
+			canMoveView: true,
+			treeView,
+			collapsed: false,
+			order: 100,
+		}], VIEW_CONTAINER);
+
 		registerAction2(class extends Action2 {
 			constructor() {
 				super({
-					id: 'workbench.actions.sync.resolveResourceRef',
+					id: 'workbench.actions.showSyncLocalHistoryView',
+					title: { value: localize('workbench.action.showSyncLocalHistory', "Show Backup (Local)"), original: `Show Backup (Local)` },
+					category: { value: localize('sync', "Sync"), original: `Sync` },
+					menu: {
+						id: MenuId.CommandPalette,
+						when: CONTEXT_SYNC_ENABLEMENT
+					},
+				});
+			}
+			async run(accessor: ServicesAccessor): Promise<void> {
+				viewEnablementContext.set(true);
+				accessor.get(IViewsService).openView(id, true);
+			}
+		});
+
+		this.registerActions(id);
+	}
+
+	private registerActions(viewId: string) {
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: `workbench.actions.sync.${viewId}.resolveResourceRef`,
 					title: localize('workbench.actions.sync.resolveResourceRef', "Resolve Resource Ref"),
 				});
 			}
@@ -102,11 +153,11 @@ export class UserDataSyncHistoryViewContribution implements IWorkbenchContributi
 		registerAction2(class extends Action2 {
 			constructor() {
 				super({
-					id: 'workbench.actions.sync.resolveResourceRefCompletely',
+					id: `workbench.actions.sync.${viewId}.resolveResourceRefCompletely`,
 					title: localize('workbench.actions.sync.resolveResourceRefCompletely', "Show full content"),
 					menu: {
 						id: MenuId.ViewItemContext,
-						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', that.viewId), ContextKeyExpr.regex('viewItem', /syncref-.*/i))
+						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', viewId), ContextKeyExpr.regex('viewItem', /syncref-.*/i))
 					},
 				});
 			}
@@ -118,11 +169,11 @@ export class UserDataSyncHistoryViewContribution implements IWorkbenchContributi
 		registerAction2(class extends Action2 {
 			constructor() {
 				super({
-					id: 'workbench.actions.commpareWithLocal',
+					id: `workbench.actions.${viewId}.commpareWithLocal`,
 					title: localize('workbench.action.deleteRef', "Open Changes"),
 					menu: {
 						id: MenuId.ViewItemContext,
-						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', that.viewId), ContextKeyExpr.regex('viewItem', /syncref-(settings|keybindings).*/i))
+						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', viewId), ContextKeyExpr.regex('viewItem', /syncref-(settings|keybindings).*/i))
 					},
 				});
 			}
@@ -153,7 +204,9 @@ export class UserDataSyncHistoryViewContribution implements IWorkbenchContributi
 class UserDataSyncHistoryViewDataProvider implements ITreeViewDataProvider {
 
 	constructor(
-		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
+		private readonly viewId: string,
+		private getAllRefs: (resourceKey: ResourceKey) => Promise<IResourceRefHandle[]>,
+		private toResource: (resourceKey: ResourceKey, ref: string) => URI
 	) {
 	}
 
@@ -173,15 +226,15 @@ class UserDataSyncHistoryViewDataProvider implements ITreeViewDataProvider {
 	private async getResources(handle: string): Promise<ITreeItem[]> {
 		const resourceKey = ALL_RESOURCE_KEYS.filter(key => key === handle)[0];
 		if (resourceKey) {
-			const refHandles = await this.userDataSyncStoreService.getAllRefs(resourceKey);
+			const refHandles = await this.getAllRefs(resourceKey);
 			return refHandles.map(({ ref, created }) => {
-				const handle = toRemoteSyncResource(resourceKey, ref).toString();
+				const handle = this.toResource(resourceKey, ref).toString();
 				return {
 					handle,
 					collapsibleState: TreeItemCollapsibleState.None,
 					label: { label: label(new Date(created)) },
 					description: fromNow(created, true),
-					command: { id: 'workbench.actions.sync.resolveResourceRef', title: '', arguments: [<TreeViewItemHandleArg>{ $treeItemHandle: handle, $treeViewId: '' }] },
+					command: { id: `workbench.actions.sync.${this.viewId}.resolveResourceRef`, title: '', arguments: [<TreeViewItemHandleArg>{ $treeItemHandle: handle, $treeViewId: '' }] },
 					themeIcon: FileThemeIcon,
 					contextValue: `syncref-${resourceKey}`
 				};
