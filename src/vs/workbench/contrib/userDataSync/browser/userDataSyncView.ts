@@ -21,9 +21,6 @@ import { fromNow } from 'vs/base/common/date';
 import { pad } from 'vs/base/common/strings';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 
-const CONTEXT_SHOW_USER_DATA_SYNC_REMOTE_HISTORY_VIEW = new RawContextKey<boolean>('showUserDataSyncRemoteHistoryView', false);
-const CONTEXT_SHOW_USER_DATA_SYNC_LOCAL_HISTORY_VIEW = new RawContextKey<boolean>('showUserDataSyncLocalHistoryView', false);
-
 export class UserDataSyncViewContribution implements IWorkbenchContribution {
 
 	constructor(
@@ -33,8 +30,8 @@ export class UserDataSyncViewContribution implements IWorkbenchContribution {
 		@IUserDataSyncBackupStoreService private readonly userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
 	) {
 		const container = this.registerSyncViewContainer();
-		this.registerRemoteHistoryView(container);
-		this.registerLocalHistoryView(container);
+		this.registerBackupView(container, true);
+		this.registerBackupView(container, false);
 	}
 
 	private registerSyncViewContainer(): ViewContainer {
@@ -51,10 +48,11 @@ export class UserDataSyncViewContribution implements IWorkbenchContribution {
 			}, ViewContainerLocation.Sidebar);
 	}
 
-	private registerRemoteHistoryView(container: ViewContainer): void {
-		const id = 'workbench.views.sync.remoteHistory';
-		const name = localize('title', "Backup (Remote)");
-		const viewEnablementContext = CONTEXT_SHOW_USER_DATA_SYNC_REMOTE_HISTORY_VIEW.bindTo(this.contextKeyService);
+	private registerBackupView(container: ViewContainer, remote: boolean): void {
+		const id = `workbench.views.sync.${remote ? 'remote' : 'local'}BackupView`;
+		const name = remote ? localize('remote title', "Backup (Remote)") : localize('local title', "Backup (Local)");
+		const contextKey = new RawContextKey<boolean>(`showUserDataSync${remote ? 'Remote' : 'Local'}BackupView`, false);
+		const viewEnablementContext = contextKey.bindTo(this.contextKeyService);
 		const treeView = this.instantiationService.createInstance(TreeView, id, name);
 		treeView.showCollapseAllAction = true;
 		treeView.showRefreshAction = true;
@@ -62,7 +60,8 @@ export class UserDataSyncViewContribution implements IWorkbenchContribution {
 			if (visible && !treeView.dataProvider) {
 				disposable.dispose();
 				treeView.dataProvider = this.instantiationService.createInstance(UserDataSyncHistoryViewDataProvider, id,
-					(resourceKey: ResourceKey) => this.userDataSyncStoreService.getAllRefs(resourceKey), (resourceKey: ResourceKey, ref: string) => toRemoteSyncResource(resourceKey, ref));
+					(resourceKey: ResourceKey) => remote ? this.userDataSyncStoreService.getAllRefs(resourceKey) : this.userDataSyncBackupStoreService.getAllRefs(resourceKey),
+					(resourceKey: ResourceKey, ref: string) => remote ? toRemoteSyncResource(resourceKey, ref) : toLocalBackupSyncResource(resourceKey, ref));
 			}
 		});
 		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
@@ -70,7 +69,7 @@ export class UserDataSyncViewContribution implements IWorkbenchContribution {
 			id,
 			name,
 			ctorDescriptor: new SyncDescriptor(TreeViewPane),
-			when: ContextKeyExpr.and(CONTEXT_SYNC_ENABLEMENT, CONTEXT_SHOW_USER_DATA_SYNC_REMOTE_HISTORY_VIEW),
+			when: ContextKeyExpr.and(CONTEXT_SYNC_ENABLEMENT, contextKey),
 			canToggleVisibility: true,
 			canMoveView: true,
 			treeView,
@@ -81,56 +80,10 @@ export class UserDataSyncViewContribution implements IWorkbenchContribution {
 		registerAction2(class extends Action2 {
 			constructor() {
 				super({
-					id: 'workbench.actions.showSyncRemoteHistoryView',
-					title: { value: localize('workbench.action.showSyncRemoteHistory', "Show Backup (Remote)"), original: `Show Backup (Remote)` },
-					category: { value: localize('sync', "Sync"), original: `Sync` },
-					menu: {
-						id: MenuId.CommandPalette,
-						when: CONTEXT_SYNC_ENABLEMENT
-					},
-				});
-			}
-			async run(accessor: ServicesAccessor): Promise<void> {
-				viewEnablementContext.set(true);
-				accessor.get(IViewsService).openView(id, true);
-			}
-		});
-
-		this.registerActions(id);
-	}
-
-	private registerLocalHistoryView(container: ViewContainer): void {
-		const id = 'workbench.views.sync.localHistory';
-		const name = localize('local view title', "Backup (Local)");
-		const viewEnablementContext = CONTEXT_SHOW_USER_DATA_SYNC_LOCAL_HISTORY_VIEW.bindTo(this.contextKeyService);
-		const treeView = this.instantiationService.createInstance(TreeView, id, name);
-		treeView.showCollapseAllAction = true;
-		treeView.showRefreshAction = true;
-		const disposable = treeView.onDidChangeVisibility(visible => {
-			if (visible && !treeView.dataProvider) {
-				disposable.dispose();
-				treeView.dataProvider = this.instantiationService.createInstance(UserDataSyncHistoryViewDataProvider, id,
-					(resourceKey: ResourceKey) => this.userDataSyncBackupStoreService.getAllRefs(resourceKey), (resourceKey: ResourceKey, ref: string) => toLocalBackupSyncResource(resourceKey, ref));
-			}
-		});
-		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
-		viewsRegistry.registerViews([<ITreeViewDescriptor>{
-			id,
-			name,
-			ctorDescriptor: new SyncDescriptor(TreeViewPane),
-			when: ContextKeyExpr.and(CONTEXT_SYNC_ENABLEMENT, CONTEXT_SHOW_USER_DATA_SYNC_LOCAL_HISTORY_VIEW),
-			canToggleVisibility: true,
-			canMoveView: true,
-			treeView,
-			collapsed: false,
-			order: 100,
-		}], container);
-
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: 'workbench.actions.showSyncLocalHistoryView',
-					title: { value: localize('workbench.action.showSyncLocalHistory', "Show Backup (Local)"), original: `Show Backup (Local)` },
+					id: `workbench.actions.showSync${remote ? 'Remote' : 'Local'}BackupView`,
+					title: remote ?
+						{ value: localize('workbench.action.showSyncRemoteBackup', "Show Backup (Remote)"), original: `Show Backup (Remote)` }
+						: { value: localize('workbench.action.showSyncLocalBackup', "Show Backup (Local)"), original: `Show Backup (Local)` },
 					category: { value: localize('sync', "Sync"), original: `Sync` },
 					menu: {
 						id: MenuId.CommandPalette,
