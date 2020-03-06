@@ -225,6 +225,10 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		return <IViewlet>this.getActiveComposite();
 	}
 
+	getInstantiatedViewlet(id: string): IViewlet | undefined {
+		return this.getInstantiatedComposite(id) as IViewlet | undefined;
+	}
+
 	getLastActiveViewletId(): string {
 		return this.getLastActiveCompositetId();
 	}

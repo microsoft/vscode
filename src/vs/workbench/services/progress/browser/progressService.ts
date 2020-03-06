@@ -25,6 +25,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventHelper } from 'vs/base/browser/dom';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { parseLinkedText } from 'vs/base/common/linkedText';
+import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 
 export class ProgressService extends Disposable implements IProgressService {
 
@@ -33,6 +34,8 @@ export class ProgressService extends Disposable implements IProgressService {
 	constructor(
 		@IActivityService private readonly activityService: IActivityService,
 		@IViewletService private readonly viewletService: IViewletService,
+		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
+		@IViewsService private readonly viewsService: IViewsService,
 		@IPanelService private readonly panelService: IPanelService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
@@ -52,6 +55,10 @@ export class ProgressService extends Disposable implements IProgressService {
 
 			if (this.panelService.getProgressIndicator(location)) {
 				return this.withPanelProgress(location, task, { ...options, location });
+			}
+
+			if (this.viewsService.getProgressIndicator(location)) {
+				return this.withViewProgress(location, task, { ...options, location });
 			}
 
 			throw new Error(`Bad progress location: ${location}`);
@@ -375,6 +382,57 @@ export class ProgressService extends Disposable implements IProgressService {
 
 		// show in viewlet
 		const promise = this.withCompositeProgress(this.viewletService.getProgressIndicator(viewletId), task, options);
+
+		// show activity bar
+		let activityProgress: IDisposable;
+		let delayHandle: any = setTimeout(() => {
+			delayHandle = undefined;
+
+			const handle = this.activityService.showActivity(
+				viewletId,
+				new ProgressBadge(() => ''),
+				'progress-badge',
+				100
+			);
+
+			const startTimeVisible = Date.now();
+			const minTimeVisible = 300;
+			activityProgress = {
+				dispose() {
+					const d = Date.now() - startTimeVisible;
+					if (d < minTimeVisible) {
+						// should at least show for Nms
+						setTimeout(() => handle.dispose(), minTimeVisible - d);
+					} else {
+						// shown long enough
+						handle.dispose();
+					}
+				}
+			};
+		}, options.delay || 300);
+
+		promise.finally(() => {
+			clearTimeout(delayHandle);
+			dispose(activityProgress);
+		});
+
+		return promise;
+	}
+
+	private withViewProgress<P extends Promise<R>, R = unknown>(viewId: string, task: (progress: IProgress<IProgressStep>) => P, options: IProgressCompositeOptions): P {
+
+		// show in viewlet
+		const promise = this.withCompositeProgress(this.viewsService.getProgressIndicator(viewId), task, options);
+
+		const location = this.viewDescriptorService.getViewLocation(viewId);
+		if (location !== ViewContainerLocation.Sidebar) {
+			return promise;
+		}
+
+		const viewletId = this.viewDescriptorService.getViewContainer(viewId)?.id;
+		if (viewletId === undefined) {
+			return promise;
+		}
 
 		// show activity bar
 		let activityProgress: IDisposable;
