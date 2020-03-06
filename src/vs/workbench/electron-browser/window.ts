@@ -13,7 +13,7 @@ import { IAction } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { toResource, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors } from 'vs/workbench/common/editor';
 import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, crashReporterIdStorageKey } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowSettings, IOpenFileRequest, IWindowsConfiguration, IAddFoldersRequest, IRunActionInWindowRequest, IRunKeybindingInWindowRequest, getTitleBarStyle } from 'vs/platform/windows/common/windows';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { IWorkbenchThemeService, VS_HC_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
@@ -46,7 +46,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { MenubarControl } from '../browser/parts/titlebar/menubarControl';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IUpdateService } from 'vs/platform/update/common/update';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IPreferencesService } from '../services/preferences/common/preferences';
 import { IMenubarService, IMenubarData, IMenubarMenu, IMenubarKeybinding, IMenubarMenuItemSubmenu, IMenubarMenuItemAction, MenubarMenuItem } from 'vs/platform/menubar/node/menubar';
 import { withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
@@ -104,7 +104,8 @@ export class NativeWindow extends Disposable {
 		@ITunnelService private readonly tunnelService: ITunnelService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
-		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 
@@ -548,12 +549,13 @@ export class NativeWindow extends Disposable {
 		const appCenterURL = isWindows ? appCenterConfig[process.arch === 'ia32' ? 'win32-ia32' : 'win32-x64']
 			: isLinux ? appCenterConfig[`linux-x64`] : appCenterConfig.darwin;
 		const info = await this.telemetryService.getTelemetryInfo();
+		const crashReporterId = this.storageService.get(crashReporterIdStorageKey, StorageScope.GLOBAL)!;
 
 		// base options with product info
 		const options: CrashReporterStartOptions = {
 			companyName,
 			productName,
-			submitURL: appCenterURL.concat('&uid=', info.machineId, '&iid=', info.instanceId),
+			submitURL: appCenterURL.concat('&uid=', crashReporterId, '&iid=', crashReporterId, '&sid=', info.sessionId),
 			extra: {
 				vscode_version: product.version,
 				vscode_commit: product.commit || ''
