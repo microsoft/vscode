@@ -45,7 +45,7 @@ import { Link } from 'vs/platform/opener/browser/link';
 import { LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { ViewProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
+import { CompositeProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
 import { IProgressIndicator } from 'vs/platform/progress/common/progress';
 
 export interface IPaneColors extends IColorMapping {
@@ -345,7 +345,7 @@ export abstract class ViewPane extends Pane implements IView {
 		}
 
 		if (this.progressIndicator === undefined) {
-			this.progressIndicator = this.instantiationService.createInstance(ViewProgressIndicator, this, assertIsDefined(this.progressBar));
+			this.progressIndicator = this.instantiationService.createInstance(CompositeProgressIndicator, assertIsDefined(this.progressBar), this.id, this.isVisible(), { hideWhenInactive: true });
 		}
 		return this.progressIndicator;
 	}
