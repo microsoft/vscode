@@ -5,11 +5,10 @@
 
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IViewsRegistry, Extensions, ITreeViewDescriptor, ITreeViewDataProvider, ITreeItem, TreeItemCollapsibleState, IViewsService, TreeViewItemHandleArg } from 'vs/workbench/common/views';
+import { IViewsRegistry, Extensions, ITreeViewDescriptor, ITreeViewDataProvider, ITreeItem, TreeItemCollapsibleState, IViewsService, TreeViewItemHandleArg, IViewContainersRegistry, ViewContainerLocation, ViewContainer } from 'vs/workbench/common/views';
 import { localize } from 'vs/nls';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { TreeViewPane, TreeView } from 'vs/workbench/browser/parts/views/treeView';
-import { VIEW_CONTAINER } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ALL_RESOURCE_KEYS, CONTEXT_SYNC_ENABLEMENT, IUserDataSyncStoreService, toRemoteSyncResource, resolveSyncResource, IUserDataSyncBackupStoreService, IResourceRefHandle, ResourceKey, toLocalBackupSyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
@@ -20,11 +19,12 @@ import { FolderThemeIcon, FileThemeIcon } from 'vs/platform/theme/common/themeSe
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { fromNow } from 'vs/base/common/date';
 import { pad } from 'vs/base/common/strings';
+import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 
 const CONTEXT_SHOW_USER_DATA_SYNC_REMOTE_HISTORY_VIEW = new RawContextKey<boolean>('showUserDataSyncRemoteHistoryView', false);
 const CONTEXT_SHOW_USER_DATA_SYNC_LOCAL_HISTORY_VIEW = new RawContextKey<boolean>('showUserDataSyncLocalHistoryView', false);
 
-export class UserDataSyncHistoryViewContribution implements IWorkbenchContribution {
+export class UserDataSyncViewContribution implements IWorkbenchContribution {
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -32,13 +32,28 @@ export class UserDataSyncHistoryViewContribution implements IWorkbenchContributi
 		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
 		@IUserDataSyncBackupStoreService private readonly userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
 	) {
-		this.registerRemoteHistoryView();
-		this.registerLocalHistoryView();
+		const container = this.registerSyncViewContainer();
+		this.registerRemoteHistoryView(container);
+		this.registerLocalHistoryView(container);
 	}
 
-	private registerRemoteHistoryView(): void {
+	private registerSyncViewContainer(): ViewContainer {
+		return Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
+			{
+				id: 'workbench.view.sync',
+				name: localize('sync', "Sync"),
+				ctorDescriptor: new SyncDescriptor(
+					ViewPaneContainer,
+					['workbench.view.sync', `workbench.view.sync.state`, { mergeViewWithContainerWhenSingleView: true }]
+				),
+				icon: 'codicon-sync',
+				hideIfEmpty: true,
+			}, ViewContainerLocation.Sidebar);
+	}
+
+	private registerRemoteHistoryView(container: ViewContainer): void {
 		const id = 'workbench.views.sync.remoteHistory';
-		const name = localize('title', "Sync: Backup (Remote)");
+		const name = localize('title', "Backup (Remote)");
 		const viewEnablementContext = CONTEXT_SHOW_USER_DATA_SYNC_REMOTE_HISTORY_VIEW.bindTo(this.contextKeyService);
 		const treeView = this.instantiationService.createInstance(TreeView, id, name);
 		treeView.showCollapseAllAction = true;
@@ -61,7 +76,7 @@ export class UserDataSyncHistoryViewContribution implements IWorkbenchContributi
 			treeView,
 			collapsed: false,
 			order: 100,
-		}], VIEW_CONTAINER);
+		}], container);
 
 		registerAction2(class extends Action2 {
 			constructor() {
@@ -84,9 +99,9 @@ export class UserDataSyncHistoryViewContribution implements IWorkbenchContributi
 		this.registerActions(id);
 	}
 
-	private registerLocalHistoryView(): void {
-		const id = 'workbench.views.sync.LocalHistory';
-		const name = localize('local view title', "Sync: Backup (Local)");
+	private registerLocalHistoryView(container: ViewContainer): void {
+		const id = 'workbench.views.sync.localHistory';
+		const name = localize('local view title', "Backup (Local)");
 		const viewEnablementContext = CONTEXT_SHOW_USER_DATA_SYNC_LOCAL_HISTORY_VIEW.bindTo(this.contextKeyService);
 		const treeView = this.instantiationService.createInstance(TreeView, id, name);
 		treeView.showCollapseAllAction = true;
@@ -109,7 +124,7 @@ export class UserDataSyncHistoryViewContribution implements IWorkbenchContributi
 			treeView,
 			collapsed: false,
 			order: 100,
-		}], VIEW_CONTAINER);
+		}], container);
 
 		registerAction2(class extends Action2 {
 			constructor() {
