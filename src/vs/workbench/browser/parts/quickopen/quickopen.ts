@@ -165,6 +165,8 @@ export class LegacyQuickInputQuickOpenController extends Disposable {
 		super();
 
 		this.registerListeners();
+
+		setTimeout(() => { this.quickInputService.quickOmni.show(); }, 0);
 	}
 
 	private registerListeners(): void {

@@ -298,9 +298,8 @@ class QuickInput extends Disposable implements IQuickInput {
 			this.ui.leftActionBar.clear();
 			const leftButtons = this.buttons.filter(button => button === backButton);
 			this.ui.leftActionBar.push(leftButtons.map((button, index) => {
-				const action = new Action(`id-${index}`, '', button.iconClass || getIconClass(button.iconPath), true, () => {
+				const action = new Action(`id-${index}`, '', button.iconClass || getIconClass(button.iconPath), true, async () => {
 					this.onDidTriggerButtonEmitter.fire(button);
-					return Promise.resolve(null);
 				});
 				action.tooltip = button.tooltip || '';
 				return action;
@@ -308,9 +307,8 @@ class QuickInput extends Disposable implements IQuickInput {
 			this.ui.rightActionBar.clear();
 			const rightButtons = this.buttons.filter(button => button !== backButton);
 			this.ui.rightActionBar.push(rightButtons.map((button, index) => {
-				const action = new Action(`id-${index}`, '', button.iconClass || getIconClass(button.iconPath), true, () => {
+				const action = new Action(`id-${index}`, '', button.iconClass || getIconClass(button.iconPath), true, async () => {
 					this.onDidTriggerButtonEmitter.fire(button);
-					return Promise.resolve(null);
 				});
 				action.tooltip = button.tooltip || '';
 				return action;
@@ -1472,19 +1470,16 @@ export class QuickInputController extends Disposable {
 		}
 	}
 
-	accept() {
+	async accept() {
 		this.onDidAcceptEmitter.fire();
-		return Promise.resolve(undefined);
 	}
 
-	back() {
+	async back() {
 		this.onDidTriggerButtonEmitter.fire(this.backButton);
-		return Promise.resolve(undefined);
 	}
 
-	cancel() {
+	async cancel() {
 		this.hide();
-		return Promise.resolve(undefined);
 	}
 
 	layout(dimension: dom.IDimension, titleBarOffset: number): void {
