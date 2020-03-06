@@ -143,6 +143,11 @@ export interface IUserDataManifest {
 	session: string;
 }
 
+export interface IResourceRefHandle {
+	ref: string;
+	created: number;
+}
+
 export const IUserDataSyncStoreService = createDecorator<IUserDataSyncStoreService>('IUserDataSyncStoreService');
 export interface IUserDataSyncStoreService {
 	_serviceBrand: undefined;
@@ -151,7 +156,7 @@ export interface IUserDataSyncStoreService {
 	write(key: ResourceKey, content: string, ref: string | null, source?: SyncSource): Promise<string>;
 	manifest(): Promise<IUserDataManifest | null>;
 	clear(): Promise<void>;
-	getAllRefs(key: ResourceKey): Promise<string[]>;
+	getAllRefs(key: ResourceKey): Promise<IResourceRefHandle[]>;
 	resolveContent(key: ResourceKey, ref: string): Promise<string | null>;
 	delete(key: ResourceKey): Promise<void>;
 }

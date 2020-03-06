@@ -18,6 +18,8 @@ import { URI } from 'vs/base/common/uri';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { FolderThemeIcon, FileThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { fromNow } from 'vs/base/common/date';
+import { pad } from 'vs/base/common/strings';
 
 const CONTEXT_SHOW_USER_DATA_SYNC_HISTORY_VIEW = new RawContextKey<boolean>('showUserDataSyncHistoryView', false);
 
@@ -115,7 +117,7 @@ export class UserDataSyncHistoryViewContribution implements IWorkbenchContributi
 			constructor() {
 				super({
 					id: 'workbench.actions.commpareWithLocal',
-					title: localize('workbench.action.deleteRef', "Compare with Local"),
+					title: localize('workbench.action.deleteRef', "Open Changes"),
 					menu: {
 						id: MenuId.ViewItemContext,
 						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', that.viewId), ContextKeyExpr.regex('viewItem', /syncref-(settings|keybindings).*/i))
@@ -169,13 +171,15 @@ class UserDataSyncHistoryViewDataProvider implements ITreeViewDataProvider {
 	private async getResources(handle: string): Promise<ITreeItem[]> {
 		const resourceKey = ALL_RESOURCE_KEYS.filter(key => key === handle)[0];
 		if (resourceKey) {
-			const refs = await this.userDataSyncStoreService.getAllRefs(resourceKey);
-			return refs.map(ref => {
+			const refHandles = await this.userDataSyncStoreService.getAllRefs(resourceKey);
+			return refHandles.map(({ ref, created }) => {
 				const handle = toSyncResource(resourceKey, ref).toString();
 				return {
 					handle,
 					collapsibleState: TreeItemCollapsibleState.None,
-					label: { label: ref },
+					label: { label: label(new Date(created)) },
+					description: fromNow(created, true),
+					tooltip: ref,
 					command: { id: 'workbench.actions.sync.resolveResourceRef', title: '', arguments: [<TreeViewItemHandleArg>{ $treeItemHandle: handle, $treeViewId: '' }] },
 					themeIcon: FileThemeIcon,
 					contextValue: `syncref-${resourceKey}`
@@ -185,5 +189,12 @@ class UserDataSyncHistoryViewDataProvider implements ITreeViewDataProvider {
 		return [];
 	}
 
+}
+
+function label(date: Date): string {
+	return date.toLocaleDateString() +
+		' ' + pad(date.getHours(), 2) +
+		':' + pad(date.getMinutes(), 2) +
+		':' + pad(date.getSeconds(), 2);
 }
 
