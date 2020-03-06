@@ -7,11 +7,10 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IFileService, IFileContent, FileChangesEvent, FileSystemProviderError, FileSystemProviderErrorCode, FileOperationResult, FileOperationError } from 'vs/platform/files/common/files';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { URI } from 'vs/base/common/uri';
-import { SyncSource, SyncStatus, IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, UserDataSyncError, IUserDataSyncLogService, IUserDataSyncUtilService, ResourceKey, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { SyncSource, SyncStatus, IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, UserDataSyncError, IUserDataSyncLogService, IUserDataSyncUtilService, ResourceKey, IUserDataSyncEnablementService, IUserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSync';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { joinPath, dirname } from 'vs/base/common/resources';
-import { toLocalISOString } from 'vs/base/common/date';
-import { ThrottledDelayer, CancelablePromise } from 'vs/base/common/async';
+import { CancelablePromise } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ParseError, parse } from 'vs/base/common/json';
@@ -44,7 +43,6 @@ function isSyncData(thing: any): thing is ISyncData {
 export abstract class AbstractSynchroniser extends Disposable {
 
 	protected readonly syncFolder: URI;
-	private cleanUpDelayer: ThrottledDelayer<void>;
 
 	private _status: SyncStatus = SyncStatus.Idle;
 	get status(): SyncStatus { return this._status; }
@@ -58,9 +56,11 @@ export abstract class AbstractSynchroniser extends Disposable {
 
 	constructor(
 		readonly source: SyncSource,
+		readonly resourceKey: ResourceKey,
 		@IFileService protected readonly fileService: IFileService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IUserDataSyncStoreService protected readonly userDataSyncStoreService: IUserDataSyncStoreService,
+		@IUserDataSyncBackupStoreService protected readonly userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
 		@IUserDataSyncEnablementService protected readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IUserDataSyncLogService protected readonly logService: IUserDataSyncLogService,
@@ -68,9 +68,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 	) {
 		super();
 		this.syncFolder = joinPath(environmentService.userDataSyncHome, source);
-		this.lastSyncResource = joinPath(this.syncFolder, `lastSync${source}.json`);
-		this.cleanUpDelayer = new ThrottledDelayer(50);
-		this.cleanUpBackup();
+		this.lastSyncResource = joinPath(this.syncFolder, `lastSync${this.resourceKey}.json`);
 	}
 
 	protected setStatus(status: SyncStatus): void {
@@ -217,51 +215,11 @@ export abstract class AbstractSynchroniser extends Disposable {
 		return { ref, syncData };
 	}
 
-	protected async backupLocal(content: VSBuffer): Promise<void> {
-		const resource = joinPath(this.syncFolder, `${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}.json`);
-		try {
-			await this.fileService.writeFile(resource, content);
-		} catch (e) {
-			this.logService.error(e);
-		}
-		this.cleanUpDelayer.trigger(() => this.cleanUpBackup());
+	protected async backupLocal(content: string): Promise<void> {
+		const syncData: ISyncData = { version: this.version, content };
+		return this.userDataSyncBackupStoreService.backup(this.resourceKey, JSON.stringify(syncData));
 	}
 
-	private async cleanUpBackup(): Promise<void> {
-		try {
-			if (!(await this.fileService.exists(this.syncFolder))) {
-				return;
-			}
-			const stat = await this.fileService.resolve(this.syncFolder);
-			if (stat.children) {
-				const all = stat.children.filter(stat => stat.isFile && /^\d{8}T\d{6}(\.json)?$/.test(stat.name)).sort();
-				const backUpMaxAge = 1000 * 60 * 60 * 24 * (this.configurationService.getValue<number>('sync.localBackupDuration') || 30 /* Default 30 days */);
-				let toDelete = all.filter(stat => {
-					const ctime = stat.ctime || new Date(
-						parseInt(stat.name.substring(0, 4)),
-						parseInt(stat.name.substring(4, 6)) - 1,
-						parseInt(stat.name.substring(6, 8)),
-						parseInt(stat.name.substring(9, 11)),
-						parseInt(stat.name.substring(11, 13)),
-						parseInt(stat.name.substring(13, 15))
-					).getTime();
-					return Date.now() - ctime > backUpMaxAge;
-				});
-				const remaining = all.length - toDelete.length;
-				if (remaining < 10) {
-					toDelete = toDelete.slice(10 - remaining);
-				}
-				await Promise.all(toDelete.map(stat => {
-					this.logService.info('Deleting from backup', stat.resource.path);
-					this.fileService.del(stat.resource);
-				}));
-			}
-		} catch (e) {
-			this.logService.error(e);
-		}
-	}
-
-	abstract readonly resourceKey: ResourceKey;
 	protected abstract readonly version: number;
 	protected abstract performSync(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<SyncStatus>;
 }
@@ -283,15 +241,17 @@ export abstract class AbstractFileSynchroniser extends AbstractSynchroniser {
 	constructor(
 		protected readonly file: URI,
 		source: SyncSource,
+		resourceKey: ResourceKey,
 		@IFileService fileService: IFileService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
+		@IUserDataSyncBackupStoreService userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
 		@IUserDataSyncEnablementService userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(source, fileService, environmentService, userDataSyncStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService);
+		super(source, resourceKey, fileService, environmentService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService);
 		this._register(this.fileService.watch(dirname(file)));
 		this._register(this.fileService.onDidFilesChange(e => this.onFileChanges(e)));
 	}
@@ -327,7 +287,6 @@ export abstract class AbstractFileSynchroniser extends AbstractSynchroniser {
 		try {
 			if (oldContent) {
 				// file exists already
-				await this.backupLocal(oldContent.value);
 				await this.fileService.writeFile(this.file, VSBuffer.fromString(newContent), oldContent);
 			} else {
 				// file does not exist
@@ -382,16 +341,18 @@ export abstract class AbstractJsonFileSynchroniser extends AbstractFileSynchroni
 	constructor(
 		file: URI,
 		source: SyncSource,
+		resourceKey: ResourceKey,
 		@IFileService fileService: IFileService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
+		@IUserDataSyncBackupStoreService userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
 		@IUserDataSyncEnablementService userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
 		@IUserDataSyncUtilService protected readonly userDataSyncUtilService: IUserDataSyncUtilService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(file, source, fileService, environmentService, userDataSyncStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService);
+		super(file, source, resourceKey, fileService, environmentService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService);
 	}
 
 	protected hasErrors(content: string): boolean {

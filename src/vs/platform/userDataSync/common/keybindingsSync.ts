@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IFileService, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { UserDataSyncError, UserDataSyncErrorCode, SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IUserDataSyncUtilService, SyncSource, IUserDataSynchroniser, ResourceKey, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { UserDataSyncError, UserDataSyncErrorCode, SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IUserDataSyncUtilService, SyncSource, IUserDataSynchroniser, IUserDataSyncEnablementService, IUserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSync';
 import { merge } from 'vs/platform/userDataSync/common/keybindingsMerge';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { parse } from 'vs/base/common/json';
@@ -29,12 +29,12 @@ interface ISyncContent {
 
 export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implements IUserDataSynchroniser {
 
-	readonly resourceKey: ResourceKey = 'keybindings';
 	protected get conflictsPreviewResource(): URI { return this.environmentService.keybindingsSyncPreviewResource; }
 	protected readonly version: number = 1;
 
 	constructor(
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
+		@IUserDataSyncBackupStoreService userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IUserDataSyncEnablementService userDataSyncEnablementService: IUserDataSyncEnablementService,
@@ -43,7 +43,7 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 		@IUserDataSyncUtilService userDataSyncUtilService: IUserDataSyncUtilService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(environmentService.keybindingsResource, SyncSource.Keybindings, fileService, environmentService, userDataSyncStoreService, userDataSyncEnablementService, telemetryService, logService, userDataSyncUtilService, configurationService);
+		super(environmentService.keybindingsResource, SyncSource.Keybindings, 'keybindings', fileService, environmentService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, userDataSyncUtilService, configurationService);
 	}
 
 	async pull(): Promise<void> {
@@ -197,13 +197,14 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 
 			if (hasLocalChanged) {
 				this.logService.trace('Keybindings: Updating local keybindings...');
+				await this.backupLocal(this.toSyncContent(content, null));
 				await this.updateLocalFileContent(content, fileContent);
 				this.logService.info('Keybindings: Updated local keybindings');
 			}
 
 			if (hasRemoteChanged) {
 				this.logService.trace('Keybindings: Updating remote keybindings...');
-				const remoteContents = this.updateSyncContent(content, remoteUserData.syncData ? remoteUserData.syncData.content : null);
+				const remoteContents = this.toSyncContent(content, remoteUserData.syncData ? remoteUserData.syncData.content : null);
 				remoteUserData = await this.updateRemoteUserData(remoteContents, forcePush ? null : remoteUserData.ref);
 				this.logService.info('Keybindings: Updated remote keybindings');
 			}
@@ -218,7 +219,7 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 
 		if (lastSyncUserData?.ref !== remoteUserData.ref && (content !== null || fileContent !== null)) {
 			this.logService.trace('Keybindings: Updating last synchronized keybindings...');
-			const lastSyncContent = this.updateSyncContent(content !== null ? content : fileContent!.value.toString(), null);
+			const lastSyncContent = this.toSyncContent(content !== null ? content : fileContent!.value.toString(), null);
 			await this.updateLastSyncUserData({ ref: remoteUserData.ref, syncData: { version: remoteUserData.syncData!.version, content: lastSyncContent } });
 			this.logService.info('Keybindings: Updated last synchronized keybindings');
 		}
@@ -301,7 +302,7 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 		}
 	}
 
-	private updateSyncContent(keybindingsContent: string, syncContent: string | null): string {
+	private toSyncContent(keybindingsContent: string, syncContent: string | null): string {
 		let parsed: ISyncContent = {};
 		try {
 			parsed = JSON.parse(syncContent || '{}');
