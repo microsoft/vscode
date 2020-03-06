@@ -5,6 +5,7 @@
 
 import { Lazy } from 'vs/base/common/lazy';
 import { URI } from 'vs/base/common/uri';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { EditorInput, GroupIdentifier, IEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { IWebviewService, WebviewIcons, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 
@@ -78,11 +79,15 @@ export class WebviewInput extends EditorInput {
 		return this.webview.extension;
 	}
 
-	public get iconPath() {
+	get iconPath(): ThemeIcon | undefined {
+		return ThemeIcon.isThemeIcon(this._iconPath) ? this._iconPath : undefined;
+	}
+
+	public get webviewIconPath() {
 		return this._iconPath;
 	}
 
-	public set iconPath(value: WebviewIcons | undefined) {
+	public set webviewIconPath(value: WebviewIcons | undefined) {
 		this._iconPath = value;
 		this._webviewService.setIcons(this.id, value);
 	}

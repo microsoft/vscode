@@ -29,6 +29,7 @@ import { createMemoizer } from 'vs/base/common/decorators';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Schemas } from 'vs/base/common/network';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 export const DirtyWorkingCopiesContext = new RawContextKey<boolean>('dirtyWorkingCopies', false);
 export const ActiveEditorContext = new RawContextKey<string | null>('activeEditor', null);
@@ -362,6 +363,11 @@ export interface IEditorInput extends IDisposable {
 	 * others.
 	 */
 	readonly resource: URI | undefined;
+
+	/**
+	 * Custom icon displayed for this resource.
+	 */
+	readonly iconPath?: ThemeIcon;
 
 	/**
 	 * Unique type identifier for this inpput.

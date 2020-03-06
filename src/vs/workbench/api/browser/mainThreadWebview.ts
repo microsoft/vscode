@@ -199,7 +199,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 
 	public $setIconPath(handle: extHostProtocol.WebviewPanelHandle, value: { light: UriComponents, dark: UriComponents; } | extHostProtocol.ThemeIconDto | undefined): void {
 		const webview = this.getWebviewInput(handle);
-		webview.iconPath = reviveWebviewIcon(value);
+		webview.webviewIconPath = reviveWebviewIcon(value);
 	}
 
 	public $setHtml(handle: extHostProtocol.WebviewPanelHandle, value: string): void {
