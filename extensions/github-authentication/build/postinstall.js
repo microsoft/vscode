@@ -20,9 +20,7 @@ function main() {
 		}
 	}
 
-	if (Object.keys(content).length > 0) {
-		fs.writeFileSync(path.join(__dirname, '../src/common/config.json'), JSON.stringify(content));
-	}
+	fs.writeFileSync(path.join(__dirname, '../src/common/config.json'), JSON.stringify(content));
 }
 
 main();

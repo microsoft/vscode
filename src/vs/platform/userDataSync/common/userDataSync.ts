@@ -156,6 +156,12 @@ export interface IUserDataSyncStoreService {
 	delete(key: ResourceKey): Promise<void>;
 }
 
+export const IUserDataSyncBackupStoreService = createDecorator<IUserDataSyncBackupStoreService>('IUserDataSyncBackupStoreService');
+export interface IUserDataSyncBackupStoreService {
+	_serviceBrand: undefined;
+	backup(resourceKey: ResourceKey, content: string): Promise<void>;
+}
+
 //#endregion
 
 // #region User Data Sync Error

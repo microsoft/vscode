@@ -67,6 +67,7 @@ export class CustomTreeViewPane extends ViewPane {
 		this._register(this.treeView.onDidChangeTitle((newTitle) => this.updateTitle(newTitle)));
 		this._register(toDisposable(() => this.treeView.setVisibility(false)));
 		this._register(this.onDidChangeBodyVisibility(() => this.updateTreeVisibility()));
+		this._register(this.treeView.onDidChangeWelcomeState(() => this._onDidChangeViewWelcomeState.fire()));
 		this.updateTreeVisibility();
 	}
 
@@ -81,6 +82,10 @@ export class CustomTreeViewPane extends ViewPane {
 		if (this.treeView instanceof CustomTreeView) {
 			this.treeView.show(container);
 		}
+	}
+
+	shouldShowWelcome(): boolean {
+		return (this.treeView.dataProvider === undefined) && (this.treeView.message === undefined);
 	}
 
 	layoutBody(height: number, width: number): void {
@@ -150,6 +155,9 @@ export class CustomTreeView extends Disposable implements ITreeView {
 
 	private readonly _onDidChangeActions: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeActions: Event<void> = this._onDidChangeActions.event;
+
+	private readonly _onDidChangeWelcomeState: Emitter<void> = this._register(new Emitter<void>());
+	readonly onDidChangeWelcomeState: Event<void> = this._onDidChangeWelcomeState.event;
 
 	private readonly _onDidChangeTitle: Emitter<string> = this._register(new Emitter<string>());
 	readonly onDidChangeTitle: Event<string> = this._onDidChangeTitle.event;
@@ -223,6 +231,8 @@ export class CustomTreeView extends Disposable implements ITreeView {
 			this._dataProvider = undefined;
 			this.updateMessage();
 		}
+
+		this._onDidChangeWelcomeState.fire();
 	}
 
 	private _message: string | undefined;
@@ -233,6 +243,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	set message(message: string | undefined) {
 		this._message = message;
 		this.updateMessage();
+		this._onDidChangeWelcomeState.fire();
 	}
 
 	get title(): string {

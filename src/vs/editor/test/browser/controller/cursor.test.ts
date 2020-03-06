@@ -5044,6 +5044,28 @@ suite('autoClosingPairs', () => {
 		mode.dispose();
 	});
 
+	test('issue #90016: allow accents on mac US intl keyboard to surround selection', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'test'
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+			cursor.setSelections('test', [new Selection(1, 1, 1, 5)]);
+
+			// Typing ` + e on the mac US intl kb layout
+			cursorCommand(cursor, H.CompositionStart, null, 'keyboard');
+			cursorCommand(cursor, H.Type, { text: '\'' }, 'keyboard');
+			cursorCommand(cursor, H.ReplacePreviousChar, { replaceCharCnt: 1, text: '\'' }, 'keyboard');
+			cursorCommand(cursor, H.ReplacePreviousChar, { replaceCharCnt: 1, text: '\'' }, 'keyboard');
+			cursorCommand(cursor, H.CompositionEnd, null, 'keyboard');
+
+			assert.equal(model.getValue(), '\'test\'');
+		});
+		mode.dispose();
+	});
+
 	test('issue #53357: Over typing ignores characters after backslash', () => {
 		let mode = new AutoClosingMode();
 		usingCursor({

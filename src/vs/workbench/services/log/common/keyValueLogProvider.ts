@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { IFileSystemProviderWithFileReadWriteCapability, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileOverwriteOptions, FileType, FileDeleteOptions, FileWriteOptions, FileChangeType, FileSystemProviderErrorCode } from 'vs/platform/files/common/files';
+import { IFileSystemProviderWithFileReadWriteCapability, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileOverwriteOptions, FileType, FileDeleteOptions, FileWriteOptions, FileChangeType } from 'vs/platform/files/common/files';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -53,13 +53,13 @@ export abstract class KeyValueLogProvider extends Disposable implements IFileSys
 				size: 0
 			};
 		}
-		return Promise.reject(new FileSystemError(resource, FileSystemProviderErrorCode.FileNotFound));
+		return Promise.reject(FileSystemError.FileNotFound(resource));
 	}
 
 	async readdir(resource: URI): Promise<[string, FileType][]> {
 		const hasKey = await this.hasKey(resource.path);
 		if (hasKey) {
-			return Promise.reject(new FileSystemError(resource, FileSystemProviderErrorCode.FileNotADirectory));
+			return Promise.reject(FileSystemError.FileNotADirectory(resource));
 		}
 		const keys = await this.getAllKeys();
 		const files: Map<string, [string, FileType]> = new Map<string, [string, FileType]>();
@@ -79,7 +79,7 @@ export abstract class KeyValueLogProvider extends Disposable implements IFileSys
 	async readFile(resource: URI): Promise<Uint8Array> {
 		const hasKey = await this.hasKey(resource.path);
 		if (!hasKey) {
-			return Promise.reject(new FileSystemError(resource, FileSystemProviderErrorCode.FileNotFound));
+			return Promise.reject(FileSystemError.FileNotFound(resource));
 		}
 		const value = await this.getValue(resource.path);
 		return VSBuffer.fromString(value).buffer;
@@ -90,7 +90,7 @@ export abstract class KeyValueLogProvider extends Disposable implements IFileSys
 		if (!hasKey) {
 			const files = await this.readdir(resource);
 			if (files.length) {
-				return Promise.reject(new FileSystemError(resource, FileSystemProviderErrorCode.FileIsADirectory));
+				return Promise.reject(FileSystemError.FileIsADirectory(resource));
 			}
 		}
 		await this.setValue(resource.path, VSBuffer.wrap(content).toString());

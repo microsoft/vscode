@@ -180,16 +180,16 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 	}
 }
 
-class FocusTrait<T> extends Trait<T> {
+class SelectionTrait<T> extends Trait<T> {
 
-	constructor(private isAriaSelected: (index: number) => boolean) {
-		super('focused');
+	constructor() {
+		super('selected');
 	}
 
 	renderIndex(index: number, container: HTMLElement): void {
 		super.renderIndex(index, container);
 
-		if (this.contains(index) || this.isAriaSelected(index)) {
+		if (this.contains(index)) {
 			container.setAttribute('aria-selected', 'true');
 		} else {
 			container.setAttribute('aria-selected', 'false');
@@ -1198,8 +1198,8 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		renderers: IListRenderer<any /* TODO@joao */, any>[],
 		private _options: IListOptions<T> = DefaultOptions
 	) {
-		this.selection = new Trait('selected');
-		this.focus = new FocusTrait(this.selection.contains);
+		this.selection = new SelectionTrait();
+		this.focus = new Trait('focused');
 
 		mixin(_options, defaultStyles, false);
 
