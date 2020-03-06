@@ -37,7 +37,7 @@ export class UserDataSyncHistoryViewContribution implements IWorkbenchContributi
 
 	private registerView(): void {
 		const that = this;
-		const name = localize('title', "Sync History");
+		const name = localize('title', "Sync History (Remote)");
 		const viewEnablementContext = CONTEXT_SHOW_USER_DATA_SYNC_HISTORY_VIEW.bindTo(this.contextKeyService);
 		const treeView = this.instantiationService.createInstance(TreeView, this.viewId, name);
 		treeView.showCollapseAllAction = true;
@@ -64,8 +64,8 @@ export class UserDataSyncHistoryViewContribution implements IWorkbenchContributi
 		registerAction2(class extends Action2 {
 			constructor() {
 				super({
-					id: 'workbench.actions.showSyncHistory',
-					title: { value: localize('workbench.action.showRemoteUserDatraView', "Show Sync History"), original: `Show Sync History` },
+					id: 'workbench.actions.showSyncRemoteHistoryView',
+					title: { value: localize('workbench.action.showSyncRemoteHistory', "Show History (Remote)"), original: `Show History (Remote)` },
 					category: { value: localize('sync', "Sync"), original: `Sync` },
 					menu: {
 						id: MenuId.CommandPalette,
@@ -181,7 +181,6 @@ class UserDataSyncHistoryViewDataProvider implements ITreeViewDataProvider {
 					collapsibleState: TreeItemCollapsibleState.None,
 					label: { label: label(new Date(created)) },
 					description: fromNow(created, true),
-					tooltip: ref,
 					command: { id: 'workbench.actions.sync.resolveResourceRef', title: '', arguments: [<TreeViewItemHandleArg>{ $treeItemHandle: handle, $treeViewId: '' }] },
 					themeIcon: FileThemeIcon,
 					contextValue: `syncref-${resourceKey}`
