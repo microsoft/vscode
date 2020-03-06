@@ -2333,8 +2333,12 @@ export class FileSystemError extends Error {
 		return new FileSystemError(messageOrUri, FileSystemProviderErrorCode.Unavailable, FileSystemError.Unavailable);
 	}
 
+	readonly code?: string;
+
 	constructor(uriOrMessage?: string | URI, code: FileSystemProviderErrorCode = FileSystemProviderErrorCode.Unknown, terminator?: Function) {
 		super(URI.isUri(uriOrMessage) ? uriOrMessage.toString(true) : uriOrMessage);
+
+		this.code = terminator?.name;
 
 		// mark the error as file system provider error so that
 		// we can extract the error code on the receiving side
