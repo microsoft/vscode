@@ -6,7 +6,7 @@
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { Disposable } from 'vs/base/common/lifecycle';
 
-export class QuickOmniController extends Disposable {
+export class QuickAccessController extends Disposable {
 
 	constructor(
 		@IQuickInputService private readonly quickInputService: IQuickInputService

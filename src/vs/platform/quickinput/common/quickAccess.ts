@@ -10,15 +10,15 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { first } from 'vs/base/common/arrays';
 import { startsWith } from 'vs/base/common/strings';
 
-export interface IQuickOmniController {
+export interface IQuickAccessController {
 
 	/**
-	 * Open the quick omni picker with the optional prefix.
+	 * Open the quick access picker with the optional prefix.
 	 */
 	show(prefix?: string): Promise<void>;
 }
 
-export interface IQuickOmniProvider {
+export interface IQuickAccessProvider {
 
 	/**
 	 * Called whenever a prefix was typed into quick pick that matches the provider.
@@ -29,7 +29,7 @@ export interface IQuickOmniProvider {
 	provide(service: IQuickInputService, token: CancellationToken): Promise<void>;
 }
 
-export interface QuickOmniProviderHelp {
+export interface QuickAccessProviderHelp {
 
 	/**
 	 * The prefix to show for the help entry. If not provided,
@@ -48,39 +48,39 @@ export interface QuickOmniProviderHelp {
 	needsEditor: boolean;
 }
 
-export interface IQuickOmniProviderDescriptor {
-	readonly ctor: IConstructorSignature0<IQuickOmniProvider>;
+export interface IQuickAccessProviderDescriptor {
+	readonly ctor: IConstructorSignature0<IQuickAccessProvider>;
 	readonly prefix: string;
 	readonly contextKey: string | undefined;
-	readonly helpEntries: QuickOmniProviderHelp[];
+	readonly helpEntries: QuickAccessProviderHelp[];
 }
 
 export const Extensions = {
-	Quickomni: 'workbench.contributions.quickomni'
+	Quickaccess: 'workbench.contributions.quickaccess'
 };
 
-export interface IQuickOmniRegistry {
+export interface IQuickAccessRegistry {
 
 	/**
-	 * Registers a quick omni provider to the platform.
+	 * Registers a quick access provider to the platform.
 	 */
-	registerQuickOmniProvider(provider: IQuickOmniProviderDescriptor): void;
+	registerQuickAccessProvider(provider: IQuickAccessProviderDescriptor): void;
 
 	/**
-	 * Get all registered quick omni providers.
+	 * Get all registered quick access providers.
 	 */
-	getQuickOmniProviders(): IQuickOmniProviderDescriptor[];
+	getQuickAccessProviders(): IQuickAccessProviderDescriptor[];
 
 	/**
-	 * Get a specific quick omni provider for a given prefix.
+	 * Get a specific quick access provider for a given prefix.
 	 */
-	getQuickOmniProvider(prefix: string): IQuickOmniProviderDescriptor | undefined;
+	getQuickAccessProvider(prefix: string): IQuickAccessProviderDescriptor | undefined;
 }
 
-class QuickOmniRegistry implements IQuickOmniRegistry {
-	private providers: IQuickOmniProviderDescriptor[] = [];
+class QuickAccessRegistry implements IQuickAccessRegistry {
+	private providers: IQuickAccessProviderDescriptor[] = [];
 
-	registerQuickOmniProvider(provider: IQuickOmniProviderDescriptor): void {
+	registerQuickAccessProvider(provider: IQuickAccessProviderDescriptor): void {
 		this.providers.push(provider);
 
 		// sort the providers by decreasing prefix length, such that longer
@@ -88,13 +88,13 @@ class QuickOmniRegistry implements IQuickOmniRegistry {
 		this.providers.sort((providerA, providerB) => providerB.prefix.length - providerA.prefix.length);
 	}
 
-	getQuickOmniProviders(): IQuickOmniProviderDescriptor[] {
+	getQuickAccessProviders(): IQuickAccessProviderDescriptor[] {
 		return this.providers.slice(0);
 	}
 
-	getQuickOmniProvider(text: string): IQuickOmniProviderDescriptor | undefined {
+	getQuickAccessProvider(text: string): IQuickAccessProviderDescriptor | undefined {
 		return text ? (first(this.providers, provider => startsWith(text, provider.prefix)) || undefined) : undefined;
 	}
 }
 
-Registry.add(Extensions.Quickomni, new QuickOmniRegistry());
+Registry.add(Extensions.Quickaccess, new QuickAccessRegistry());

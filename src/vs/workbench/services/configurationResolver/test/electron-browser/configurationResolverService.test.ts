@@ -534,7 +534,7 @@ class MockQuickInputService implements IQuickInputService {
 	readonly onShow = Event.None;
 	readonly onHide = Event.None;
 
-	readonly quickOmni = undefined!;
+	readonly quickAccess = undefined!;
 
 	public pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: true }, token?: CancellationToken): Promise<T[]>;
 	public pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: false }, token?: CancellationToken): Promise<T>;

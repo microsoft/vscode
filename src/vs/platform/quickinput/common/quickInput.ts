@@ -7,7 +7,7 @@ import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IQuickPickItem, IPickOptions, IInputOptions, IQuickNavigateConfiguration, IQuickPick, IQuickInputButton, IInputBox, QuickPickInput } from 'vs/base/parts/quickinput/common/quickInput';
-import { IQuickOmniController } from 'vs/platform/quickinput/common/quickOmni';
+import { IQuickAccessController } from 'vs/platform/quickinput/common/quickAccess';
 
 export { IQuickPickItem, IPickOptions, IInputOptions, IQuickNavigateConfiguration, IQuickPick, IQuickInput, IQuickInputButton, IInputBox, IQuickPickItemButtonEvent, QuickPickInput, IQuickPickSeparator, IKeyMods } from 'vs/base/parts/quickinput/common/quickInput';
 
@@ -25,9 +25,9 @@ export interface IQuickInputService {
 	readonly backButton: IQuickInputButton;
 
 	/**
-	 * Provides access to the quick omni providers.
+	 * Provides access to the quick access providers.
 	 */
-	readonly quickOmni: IQuickOmniController;
+	readonly quickAccess: IQuickAccessController;
 
 	/**
 	 * Allows to register on the event that quick input is showing.

@@ -18,7 +18,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { QuickInputController } from 'vs/base/parts/quickinput/browser/quickInput';
 import { QuickInputService, IQuickInputControllerHost } from 'vs/platform/quickinput/browser/quickInput';
 import { once } from 'vs/base/common/functional';
-import { IQuickOmniController } from 'vs/platform/quickinput/common/quickOmni';
+import { IQuickAccessController } from 'vs/platform/quickinput/common/quickAccess';
 
 export class EditorScopedQuickInputServiceImpl extends QuickInputService {
 
@@ -77,7 +77,7 @@ export class StandaloneQuickInputServiceImpl implements IQuickInputService {
 		return quickInputService;
 	}
 
-	get quickOmni(): IQuickOmniController { return this.activeService.quickOmni; }
+	get quickAccess(): IQuickAccessController { return this.activeService.quickAccess; }
 
 	get backButton(): IQuickInputButton { return this.activeService.backButton; }
 
