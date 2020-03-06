@@ -466,6 +466,8 @@ export class ViewsService extends Disposable implements IViewsService {
 
 	private readonly visibleViewContextKeys: Map<string, IContextKey<boolean>>;
 
+	private readonly viewPaneContainers: Map<string, ViewPaneContainer>;
+
 	constructor(
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IPanelService private readonly panelService: IPanelService,
@@ -477,6 +479,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		this.viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
 		this.viewDisposable = new Map<IViewDescriptor, IDisposable>();
 		this.visibleViewContextKeys = new Map<string, IContextKey<boolean>>();
+		this.viewPaneContainers = new Map<string, ViewPaneContainer>();
 
 		this._register(toDisposable(() => {
 			this.viewDisposable.forEach(disposable => disposable.dispose());
@@ -485,12 +488,16 @@ export class ViewsService extends Disposable implements IViewsService {
 
 		this.viewContainersRegistry.all.forEach(viewContainer => this.onDidRegisterViewContainer(viewContainer, this.viewContainersRegistry.getViewContainerLocation(viewContainer)));
 		this._register(this.viewContainersRegistry.onDidRegister(({ viewContainer, viewContainerLocation }) => this.onDidRegisterViewContainer(viewContainer, viewContainerLocation)));
+
+		this._register(this.viewContainersRegistry.onDidDeregister(e => this.viewPaneContainers.delete(e.viewContainer.id)));
 	}
 
 	private registerViewPaneContainer(viewPaneContainer: ViewPaneContainer): void {
 		this._register(viewPaneContainer.onDidAddViews(views => this.onViewsAdded(views)));
 		this._register(viewPaneContainer.onDidChangeViewVisibility(view => this.onViewsVisibilityChanged(view, view.isBodyVisible())));
 		this._register(viewPaneContainer.onDidRemoveViews(views => this.onViewsRemoved(views)));
+
+		this.viewPaneContainers.set(viewPaneContainer.getId(), viewPaneContainer);
 	}
 
 	private onViewsAdded(added: IView[]): void {
@@ -706,18 +713,7 @@ export class ViewsService extends Disposable implements IViewsService {
 			return undefined;
 		}
 
-		const location = this.viewContainersRegistry.getViewContainerLocation(viewContainer);
-
-		let viewPaneContainer;
-		if (location === ViewContainerLocation.Sidebar) {
-			const viewlet = this.viewletService.getInstantiatedViewlet(viewContainer.id);
-			viewPaneContainer = viewlet?.getViewPaneContainer();
-		} else if (location === ViewContainerLocation.Panel) {
-			const panel = this.panelService.getInstantiatedPanel(viewContainer.id);
-			viewPaneContainer = (panel as IPaneComposite)?.getViewPaneContainer();
-		}
-
-		const view = viewPaneContainer?.getView(id);
+		const view = this.viewPaneContainers.get(viewContainer.id)?.getView(id);
 		return view?.getProgressIndicator();
 	}
 
