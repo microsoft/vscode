@@ -9,6 +9,7 @@ import { IConstructorSignature0 } from 'vs/platform/instantiation/common/instant
 import { Registry } from 'vs/platform/registry/common/platform';
 import { first } from 'vs/base/common/arrays';
 import { startsWith } from 'vs/base/common/strings';
+import { assertIsDefined } from 'vs/base/common/types';
 
 export interface IQuickAccessController {
 
@@ -51,8 +52,8 @@ export interface QuickAccessProviderHelp {
 export interface IQuickAccessProviderDescriptor {
 	readonly ctor: IConstructorSignature0<IQuickAccessProvider>;
 	readonly prefix: string;
-	readonly contextKey: string | undefined;
 	readonly helpEntries: QuickAccessProviderHelp[];
+	readonly contextKey?: string;
 }
 
 export const Extensions = {
@@ -60,6 +61,11 @@ export const Extensions = {
 };
 
 export interface IQuickAccessRegistry {
+
+	/**
+	 * The default provider to use when no other provider matches.
+	 */
+	defaultProvider: IQuickAccessProviderDescriptor;
 
 	/**
 	 * Registers a quick access provider to the platform.
@@ -80,6 +86,10 @@ export interface IQuickAccessRegistry {
 class QuickAccessRegistry implements IQuickAccessRegistry {
 	private providers: IQuickAccessProviderDescriptor[] = [];
 
+	private _defaultProvider: IQuickAccessProviderDescriptor | undefined = undefined;
+	get defaultProvider(): IQuickAccessProviderDescriptor { return assertIsDefined(this._defaultProvider); }
+	set defaultProvider(provider: IQuickAccessProviderDescriptor) { this._defaultProvider = provider; }
+
 	registerQuickAccessProvider(provider: IQuickAccessProviderDescriptor): void {
 		this.providers.push(provider);
 
@@ -92,8 +102,8 @@ class QuickAccessRegistry implements IQuickAccessRegistry {
 		return this.providers.slice(0);
 	}
 
-	getQuickAccessProvider(text: string): IQuickAccessProviderDescriptor | undefined {
-		return text ? (first(this.providers, provider => startsWith(text, provider.prefix)) || undefined) : undefined;
+	getQuickAccessProvider(prefix: string): IQuickAccessProviderDescriptor | undefined {
+		return prefix ? (first(this.providers, provider => startsWith(prefix, provider.prefix)) || undefined) : undefined;
 	}
 }
 

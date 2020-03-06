@@ -15,6 +15,8 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { IQuickAccessRegistry, Extensions as QuickinputExtensions, IQuickAccessProvider } from 'vs/platform/quickinput/common/quickAccess';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 const inQuickOpenKey = 'inQuickOpen';
 export const InQuickOpenContextKey = new RawContextKey<boolean>(inQuickOpenKey, false);
@@ -166,7 +168,7 @@ export class LegacyQuickInputQuickOpenController extends Disposable {
 
 		this.registerListeners();
 
-		setTimeout(() => { this.quickInputService.quickAccess.show(); }, 0);
+		setTimeout(() => this.quickInputService.quickAccess.show('?'), 0);
 	}
 
 	private registerListeners(): void {
@@ -205,3 +207,28 @@ export class LegacyQuickInputQuickOpenController extends Disposable {
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(LegacyQuickInputQuickOpenController, LifecyclePhase.Ready);
+
+class SampleQuickAccessProvider implements IQuickAccessProvider {
+	async provide(service: IQuickInputService, token: CancellationToken): Promise<void> {
+		service.pick([
+			{ label: '1' },
+			{ label: '2' },
+			{ label: '3' }
+		]);
+	}
+}
+
+const quickAccessRegistry = Registry.as<IQuickAccessRegistry>(QuickinputExtensions.Quickaccess);
+['', '>', '@'].forEach(prefix => {
+	const provider = {
+		ctor: SampleQuickAccessProvider,
+		prefix,
+		helpEntries: [{ description: `Sample Provider with prefix ${prefix}`, needsEditor: false }]
+	};
+
+	if (!prefix) {
+		quickAccessRegistry.defaultProvider = provider;
+	} else {
+		quickAccessRegistry.registerQuickAccessProvider(provider);
+	}
+});
