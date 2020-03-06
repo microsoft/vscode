@@ -6,7 +6,7 @@
 import { IRequestService } from 'vs/platform/request/common/request';
 import { IRequestOptions, IRequestContext, IHeaders } from 'vs/base/parts/request/common/request';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IUserData, ResourceKey, IUserDataManifest, ALL_RESOURCE_KEYS, IUserDataSyncLogService, IUserDataSyncStoreService, IUserDataSyncUtilService, IUserDataSyncEnablementService, ISettingsSyncService, IUserDataSyncService, getDefaultIgnoredSettings } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData, ResourceKey, IUserDataManifest, ALL_RESOURCE_KEYS, IUserDataSyncLogService, IUserDataSyncStoreService, IUserDataSyncUtilService, IUserDataSyncEnablementService, ISettingsSyncService, IUserDataSyncService, getDefaultIgnoredSettings, IUserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSync';
 import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
 import { generateUuid } from 'vs/base/common/uuid';
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
@@ -36,6 +36,7 @@ import { Emitter } from 'vs/base/common/event';
 import { IAuthenticationTokenService } from 'vs/platform/authentication/common/authentication';
 import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { UserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSyncBackupStoreService';
 
 export class UserDataSyncClient extends Disposable {
 
@@ -89,6 +90,7 @@ export class UserDataSyncClient extends Disposable {
 		this.instantiationService.stub(IUserDataSyncLogService, logService);
 		this.instantiationService.stub(ITelemetryService, NullTelemetryService);
 		this.instantiationService.stub(IUserDataSyncStoreService, this.instantiationService.createInstance(UserDataSyncStoreService));
+		this.instantiationService.stub(IUserDataSyncBackupStoreService, this.instantiationService.createInstance(UserDataSyncBackupStoreService));
 		this.instantiationService.stub(IUserDataSyncUtilService, new TestUserDataSyncUtilService());
 		this.instantiationService.stub(IUserDataSyncEnablementService, this.instantiationService.createInstance(UserDataSyncEnablementService));
 
