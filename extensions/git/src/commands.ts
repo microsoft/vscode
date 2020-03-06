@@ -2369,7 +2369,7 @@ export class CommandCenter {
 			return;
 		}
 
-		env.clipboard.writeText(item.ref);
+		env.clipboard.writeText(item.shortRef);
 	}
 
 	@command('git.timeline.copyCommitMessage', { repository: false })
