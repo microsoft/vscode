@@ -126,7 +126,8 @@ export class ThemeRegistry<T extends IThemeData> {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		private readonly themesExtPoint: IExtensionPoint<IThemeExtensionPoint[]>,
 		private create: (theme: IThemeExtensionPoint, themeLocation: URI, extensionData: ExtensionData) => T,
-		private idRequired = false
+		private idRequired = false,
+		private builtInTheme: T | undefined = undefined
 	) {
 		this.extensionThemes = [];
 		this.initialize();
@@ -198,34 +199,38 @@ export class ThemeRegistry<T extends IThemeData> {
 		});
 	}
 
-	public findThemeById(themeId: string, defaultId?: string): Promise<T | undefined> {
-		return this.getThemes().then(allThemes => {
-			let defaultTheme: T | undefined = undefined;
-			for (let t of allThemes) {
-				if (t.id === themeId) {
-					return t;
-				}
-				if (t.id === defaultId) {
-					defaultTheme = t;
-				}
+	public async findThemeById(themeId: string, defaultId?: string): Promise<T | undefined> {
+		if (this.builtInTheme && this.builtInTheme.id === themeId) {
+			return this.builtInTheme;
+		}
+		const allThemes = await this.getThemes();
+		let defaultTheme: T | undefined = undefined;
+		for (let t of allThemes) {
+			if (t.id === themeId) {
+				return t;
 			}
-			return defaultTheme;
-		});
+			if (t.id === defaultId) {
+				defaultTheme = t;
+			}
+		}
+		return defaultTheme;
 	}
 
-	public findThemeBySettingsId(settingsId: string | null, defaultId?: string): Promise<T | undefined> {
-		return this.getThemes().then(allThemes => {
-			let defaultTheme: T | undefined = undefined;
-			for (let t of allThemes) {
-				if (t.settingsId === settingsId) {
-					return t;
-				}
-				if (t.id === defaultId) {
-					defaultTheme = t;
-				}
+	public async findThemeBySettingsId(settingsId: string | null, defaultId?: string): Promise<T | undefined> {
+		if (this.builtInTheme && this.builtInTheme.settingsId === settingsId) {
+			return this.builtInTheme;
+		}
+		const allThemes = await this.getThemes();
+		let defaultTheme: T | undefined = undefined;
+		for (let t of allThemes) {
+			if (t.settingsId === settingsId) {
+				return t;
 			}
-			return defaultTheme;
-		});
+			if (t.id === defaultId) {
+				defaultTheme = t;
+			}
+		}
+		return defaultTheme;
 	}
 
 	public findThemeByExtensionLocation(extLocation: URI | undefined): Promise<T[]> {

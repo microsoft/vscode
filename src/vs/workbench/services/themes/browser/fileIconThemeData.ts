@@ -81,7 +81,7 @@ export class FileIconThemeData implements IWorkbenchFileIconTheme {
 
 	private static _noIconTheme: FileIconThemeData | null = null;
 
-	static noIconTheme(): FileIconThemeData {
+	static get noIconTheme(): FileIconThemeData {
 		let themeData = FileIconThemeData._noIconTheme;
 		if (!themeData) {
 			themeData = FileIconThemeData._noIconTheme = new FileIconThemeData('', '', null);

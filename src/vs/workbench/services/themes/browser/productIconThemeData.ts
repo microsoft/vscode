@@ -83,7 +83,7 @@ export class ProductIconThemeData implements IWorkbenchProductIconTheme {
 
 	private static _defaultProductIconTheme: ProductIconThemeData | null = null;
 
-	static defaultTheme(): ProductIconThemeData {
+	static get defaultTheme(): ProductIconThemeData {
 		let themeData = ProductIconThemeData._defaultProductIconTheme;
 		if (!themeData) {
 			themeData = ProductIconThemeData._defaultProductIconTheme = new ProductIconThemeData(DEFAULT_PRODUCT_ICON_THEME_ID, nls.localize('defaultTheme', 'Default theme'), DEFAULT_PRODUCT_ICON_THEME_SETTING_VALUE);
