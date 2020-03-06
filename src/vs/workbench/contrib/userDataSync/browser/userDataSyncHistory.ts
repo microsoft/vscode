@@ -40,6 +40,8 @@ export class UserDataSyncHistoryViewContribution implements IWorkbenchContributi
 		const name = localize('title', "Sync History");
 		const viewEnablementContext = CONTEXT_SHOW_USER_DATA_SYNC_HISTORY_VIEW.bindTo(this.contextKeyService);
 		const treeView = this.instantiationService.createInstance(TreeView, this.viewId, name);
+		treeView.showCollapseAllAction = true;
+		treeView.showRefreshAction = true;
 		const disposable = treeView.onDidChangeVisibility(visible => {
 			if (visible && !treeView.dataProvider) {
 				disposable.dispose();
@@ -52,7 +54,7 @@ export class UserDataSyncHistoryViewContribution implements IWorkbenchContributi
 			name,
 			ctorDescriptor: new SyncDescriptor(TreeViewPane),
 			when: ContextKeyExpr.and(CONTEXT_SYNC_ENABLEMENT, CONTEXT_SHOW_USER_DATA_SYNC_HISTORY_VIEW),
-			canToggleVisibility: false,
+			canToggleVisibility: true,
 			canMoveView: true,
 			treeView,
 			collapsed: false,

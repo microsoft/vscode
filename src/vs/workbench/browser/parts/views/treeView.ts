@@ -127,6 +127,7 @@ export class TreeView extends Disposable implements ITreeView {
 	private _hasIconForParentNode = false;
 	private _hasIconForLeafNode = false;
 	private _showCollapseAllAction = false;
+	private _showRefreshAction = false;
 
 	private focused: boolean = false;
 	private domNode!: HTMLElement;
@@ -284,12 +285,26 @@ export class TreeView extends Disposable implements ITreeView {
 		}
 	}
 
-	getPrimaryActions(): IAction[] {
-		if (this.showCollapseAllAction) {
-			return [new Action('vs.tree.collapse', localize('collapseAll', "Collapse All"), 'monaco-tree-action codicon-collapse-all', true, () => this.tree ? new CollapseAllAction<ITreeItem, ITreeItem, FuzzyScore>(this.tree, true).run() : Promise.resolve())];
-		} else {
-			return [];
+	get showRefreshAction(): boolean {
+		return this._showRefreshAction;
+	}
+
+	set showRefreshAction(showRefreshAction: boolean) {
+		if (this._showRefreshAction !== !!showRefreshAction) {
+			this._showRefreshAction = !!showRefreshAction;
+			this._onDidChangeActions.fire();
 		}
+	}
+
+	getPrimaryActions(): IAction[] {
+		const actions: IAction[] = [];
+		if (this.showRefreshAction) {
+			actions.push(new Action('vs.tree.refresh', localize('refresh', "Refresh"), 'monaco-tree-action codicon-refresh', true, () => this.refresh()));
+		}
+		if (this.showCollapseAllAction) {
+			actions.push(new Action('vs.tree.collapse', localize('collapseAll', "Collapse All"), 'monaco-tree-action codicon-collapse-all', true, () => this.tree ? new CollapseAllAction<ITreeItem, ITreeItem, FuzzyScore>(this.tree, true).run() : Promise.resolve()));
+		}
+		return actions;
 	}
 
 	getSecondaryActions(): IAction[] {
