@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
-import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/notebookViewModel';
+import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { createTestCellViewModel, TestNotebook, withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 

@@ -6,8 +6,8 @@
 import * as nls from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/renderers/cellViewModel';
-import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/renderers/sizeObserver';
+import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
+import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/sizeObserver';
 import { CELL_MARGIN, IOutput, EDITOR_TOP_PADDING, EDITOR_BOTTOM_PADDING, ITransformedDisplayOutputDto, IRenderOutput, CellOutputKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellRenderTemplate, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { raceCancellation } from 'vs/base/common/async';

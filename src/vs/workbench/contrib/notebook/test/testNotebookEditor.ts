@@ -8,13 +8,13 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { PieceTreeTextBufferFactory } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { CellKind, generateCellPath, ICell, INotebook, IOutput, NotebookCellOutputsSplice, NotebookCellsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/notebookViewModel';
+import { NotebookViewModel, IModelDecorationsChangeAccessor } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/renderers/cellViewModel';
+import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
 import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/output/outputRenderer';
+import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { Dimension } from 'vs/base/browser/dom';
 
@@ -89,6 +89,10 @@ export class TestNotebook extends Disposable implements INotebook {
 
 export class TestNotebookEditor implements INotebookEditor {
 
+	get viewModel() {
+		return undefined;
+	}
+
 	constructor(
 		public viewType: string
 	) {
@@ -136,6 +140,10 @@ export class TestNotebookEditor implements INotebookEditor {
 	}
 
 	getOutputRenderer(): OutputRenderer {
+		throw new Error('Method not implemented.');
+	}
+
+	changeDecorations(callback: (changeAccessor: IModelDecorationsChangeAccessor) => any): any {
 		throw new Error('Method not implemented.');
 	}
 }

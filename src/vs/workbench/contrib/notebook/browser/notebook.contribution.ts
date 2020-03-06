@@ -27,16 +27,16 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { assertType } from 'vs/base/common/types';
 import { parse } from 'vs/base/common/marshalling';
+import { parseCellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 // Output renderers registration
 
-import 'vs/workbench/contrib/notebook/browser/output/transforms/streamTransform';
-import 'vs/workbench/contrib/notebook/browser/output/transforms/errorTransform';
-import 'vs/workbench/contrib/notebook/browser/output/transforms/richTransform';
+import 'vs/workbench/contrib/notebook/browser/view/output/transforms/streamTransform';
+import 'vs/workbench/contrib/notebook/browser/view/output/transforms/errorTransform';
+import 'vs/workbench/contrib/notebook/browser/view/output/transforms/richTransform';
 
 // Actions
-import 'vs/workbench/contrib/notebook/browser/notebookActions';
-import { parseCellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import 'vs/workbench/contrib/notebook/browser/contrib/notebookActions';
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	EditorDescriptor.create(

@@ -21,13 +21,12 @@ import { contrastBorder, editorBackground, focusBorder, foreground, textBlockQuo
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions, IEditorMemento, ICompositeCodeEditor, IEditorCloseEvent } from 'vs/workbench/common/editor';
-import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor, NotebookFindDelegate, CellFindMatch } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorInput, NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
-import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/output/outputRenderer';
-import { BackLayerWebView } from 'vs/workbench/contrib/notebook/browser/renderers/backLayerWebView';
-import { CodeCellRenderer, MarkdownCellRenderer, NotebookCellListDelegate } from 'vs/workbench/contrib/notebook/browser/renderers/cellRenderer';
-import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/renderers/cellViewModel';
+import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
+import { BackLayerWebView } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
+import { CodeCellRenderer, MarkdownCellRenderer, NotebookCellListDelegate } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
 import { CELL_MARGIN, NotebookCellsSplice, IOutput, parseCellUri, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
@@ -36,10 +35,11 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { Emitter, Event } from 'vs/base/common/event';
-import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/notebookCellList';
-import { NotebookFindWidget, NotebookFindDelegate, CellFindMatch } from 'vs/workbench/contrib/notebook/browser/notebookFindWidget';
-import { NotebookViewModel, INotebookEditorViewState } from 'vs/workbench/contrib/notebook/browser/notebookViewModel';
+import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
+import { NotebookFindWidget } from 'vs/workbench/contrib/notebook/browser/contrib/notebookFindWidget';
+import { NotebookViewModel, INotebookEditorViewState, IModelDecorationsChangeAccessor } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
+import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
 
 const $ = DOM.$;
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
@@ -142,6 +142,10 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 		this.outputRenderer = new OutputRenderer(this, this.instantiationService);
 		this.findWidget = this.instantiationService.createInstance(NotebookFindWidget, this);
 		this.findWidget.updateTheme(this.themeService.getColorTheme());
+	}
+
+	get viewModel() {
+		return this.notebookViewModel;
 	}
 
 	get minimumWidth(): number { return 375; }
@@ -403,12 +407,22 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 
 	//#endregion
 
+	//#region Decorations
+
+	changeDecorations(callback: (changeAccessor: IModelDecorationsChangeAccessor) => any): any {
+		return this.notebookViewModel?.changeDecorations(callback);
+	}
+
+	//#endregion
+
 	//#region Find Delegate
 	startFind(value: string): CellFindMatch[] {
 		let matches: CellFindMatch[] = [];
 		this.notebookViewModel!.viewCells.forEach(cell => {
 			let cellMatches = cell.startFind(value);
-			matches.push(...cellMatches);
+			if (cellMatches) {
+				matches.push(cellMatches);
+			}
 		});
 
 		return matches;

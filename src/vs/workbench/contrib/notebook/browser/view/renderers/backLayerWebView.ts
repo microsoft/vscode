@@ -11,7 +11,7 @@ import * as UUID from 'vs/base/common/uuid';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
-import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/renderers/cellViewModel';
+import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
 import { CELL_MARGIN, IOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IWebviewService, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewResourceScheme } from 'vs/workbench/contrib/webview/common/resourceLoader';

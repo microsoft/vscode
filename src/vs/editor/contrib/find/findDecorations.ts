@@ -276,7 +276,7 @@ export class FindDecorations implements IDisposable {
 		}
 	});
 
-	private static readonly _FIND_MATCH_DECORATION = ModelDecorationOptions.register({
+	public static readonly _FIND_MATCH_DECORATION = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'findMatch',
 		showIfCollapsed: true,
@@ -290,7 +290,7 @@ export class FindDecorations implements IDisposable {
 		}
 	});
 
-	private static readonly _FIND_MATCH_NO_OVERVIEW_DECORATION = ModelDecorationOptions.register({
+	public static readonly _FIND_MATCH_NO_OVERVIEW_DECORATION = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'findMatch',
 		showIfCollapsed: true

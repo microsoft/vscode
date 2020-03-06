@@ -17,9 +17,9 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CellRenderTemplate, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CodeCell } from 'vs/workbench/contrib/notebook/browser/renderers/codeCell';
-import { StatefullMarkdownCell } from 'vs/workbench/contrib/notebook/browser/renderers/markdownCell';
-import { CellViewModel } from './cellViewModel';
+import { CodeCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/codeCell';
+import { StatefullMarkdownCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/markdownCell';
+import { CellViewModel } from '../../viewModel/notebookCellViewModel';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EDITOR_TOP_PADDING, EDITOR_BOTTOM_PADDING, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 

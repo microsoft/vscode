@@ -8,14 +8,33 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
-import { CellFindMatch } from 'vs/workbench/contrib/notebook/browser/notebookFindWidget';
-import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/renderers/cellViewModel';
+import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
 import { NotebookCellsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IModelDeltaDecoration } from 'vs/editor/common/model';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { CellFindMatch } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 export interface INotebookEditorViewState {
 	editingCells: { [key: number]: boolean };
 	editorViewStates: { [key: number]: editorCommon.ICodeEditorViewState | null };
 }
+
+export interface ICellModelDecorations {
+	ownerId: number;
+	decorations: string[];
+}
+
+export interface ICellModelDeltaDecorations {
+	ownerId: number;
+	decorations: IModelDeltaDecoration[];
+}
+
+export interface IModelDecorationsChangeAccessor {
+	deltaDecorations(oldDecorations: ICellModelDecorations[], newDecorations: ICellModelDeltaDecorations[]): ICellModelDecorations[];
+}
+
+const invalidFunc = () => { throw new Error(`Invalid change accessor`); };
+
 
 export class NotebookViewModel extends Disposable {
 	private _localStore: DisposableStore = this._register(new DisposableStore());
@@ -79,11 +98,17 @@ export class NotebookViewModel extends Disposable {
 		return this.viewCells.indexOf(cell);
 	}
 
+	/**
+	 * Search in notebook text model
+	 * @param value
+	 */
 	find(value: string): CellFindMatch[] {
-		let matches: CellFindMatch[] = [];
+		const matches: CellFindMatch[] = [];
 		this.viewCells.forEach(cell => {
-			let cellMatches = cell.startFind(value);
-			matches.push(...cellMatches);
+			const cellMatches = cell.startFind(value);
+			if (cellMatches) {
+				matches.push(cellMatches);
+			}
 		});
 
 		return matches;
@@ -128,6 +153,68 @@ export class NotebookViewModel extends Disposable {
 			cell.isEditing = isEditing;
 			cell.restoreEditorViewState(editorViewState);
 		});
+	}
+
+	/**
+	 * Editor decorations across cells. For example, find decorations for multiple code cells
+	 * The reason that we can't completely delegate this to CodeEditorWidget is most of the time, the editors for cells are not created yet but we already have decorations for them.
+	 */
+	changeDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null {
+		const changeAccessor: IModelDecorationsChangeAccessor = {
+			deltaDecorations: (oldDecorations: ICellModelDecorations[], newDecorations: ICellModelDeltaDecorations[]): ICellModelDecorations[] => {
+				return this.deltaDecorationsImpl(oldDecorations, newDecorations);
+			}
+		};
+
+		let result: T | null = null;
+		try {
+			result = callback(changeAccessor);
+		} catch (e) {
+			onUnexpectedError(e);
+		}
+
+		changeAccessor.deltaDecorations = invalidFunc;
+
+		return result;
+	}
+
+	deltaDecorationsImpl(oldDecorations: ICellModelDecorations[], newDecorations: ICellModelDeltaDecorations[]): ICellModelDecorations[] {
+
+		const mapping = new Map<number, { cell: CellViewModel, oldDecorations: string[]; newDecorations: IModelDeltaDecoration[] }>();
+		oldDecorations.forEach(oldDecoration => {
+			const ownerId = oldDecoration.ownerId;
+
+			if (!mapping.has(ownerId)) {
+				const cell = this.viewCells.find(cell => cell.handle === ownerId);
+				mapping.set(ownerId, { cell: cell!, oldDecorations: [], newDecorations: [] });
+			}
+
+			const data = mapping.get(ownerId)!;
+			data.oldDecorations = oldDecoration.decorations;
+		});
+
+		newDecorations.forEach(newDecoration => {
+			const ownerId = newDecoration.ownerId;
+
+			if (!mapping.has(ownerId)) {
+				const cell = this.viewCells.find(cell => cell.handle === ownerId);
+				mapping.set(ownerId, { cell: cell!, oldDecorations: [], newDecorations: [] });
+			}
+
+			const data = mapping.get(ownerId)!;
+			data.newDecorations = newDecoration.decorations;
+		});
+
+		const ret: ICellModelDecorations[] = [];
+		mapping.forEach((value, ownerId) => {
+			const cellRet = value.cell.deltaDecorations(value.oldDecorations, value.newDecorations);
+			ret.push({
+				ownerId: ownerId,
+				decorations: cellRet
+			});
+		});
+
+		return ret;
 	}
 
 	equal(model: NotebookEditorModel) {

@@ -5,10 +5,10 @@
 
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/renderers/cellViewModel';
+import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/renderers/sizeObserver';
+import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/sizeObserver';
 import { CELL_MARGIN, EDITOR_TOP_PADDING, EDITOR_BOTTOM_PADDING } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookEditor, CellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';

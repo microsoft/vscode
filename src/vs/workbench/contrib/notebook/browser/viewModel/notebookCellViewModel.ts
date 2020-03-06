@@ -14,9 +14,9 @@ import { SearchParams } from 'vs/editor/common/model/textModelSearch';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CellFindMatch } from 'vs/workbench/contrib/notebook/browser/notebookFindWidget';
-import { MarkdownRenderer } from 'vs/workbench/contrib/notebook/browser/renderers/mdRenderer';
+import { MarkdownRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/mdRenderer';
 import { CellKind, EDITOR_BOTTOM_PADDING, EDITOR_TOP_PADDING, ICell, IOutput, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellFindMatch } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 export class CellViewModel extends Disposable {
 
@@ -78,6 +78,7 @@ export class CellViewModel extends Disposable {
 	private _textEditor?: ICodeEditor;
 	private _buffer: model.ITextBuffer | null;
 	private _editorViewStates: editorCommon.ICodeEditorViewState | null;
+	private _initialDecorations: { oldDecorations: string[], newDecorations: model.IModelDeltaDecoration[] } | null = null;
 
 	readonly id: string = UUID.generateUuid();
 
@@ -120,7 +121,7 @@ export class CellViewModel extends Disposable {
 	private readonly _hasFindResult = this._register(new Emitter<boolean>());
 	public readonly hasFindResult: Event<boolean> = this._hasFindResult.event;
 
-	startFind(value: string): CellFindMatch[] {
+	startFind(value: string): CellFindMatch | null {
 		let cellMatches: model.FindMatch[] = [];
 		if (this.assertTextModelAttached()) {
 			cellMatches = this._textModel!.findMatches(value, false, false, false, null, false);
@@ -135,16 +136,16 @@ export class CellViewModel extends Disposable {
 			const searchData = searchParams.parseSearchRequest();
 
 			if (!searchData) {
-				return [];
+				return null;
 			}
 
 			cellMatches = this._buffer.findMatchesLineByLine(fullRange, searchData, false, 1000);
 		}
 
-		return cellMatches.map(match => ({
+		return {
 			cell: this,
-			match: match
-		}));
+			matches: cellMatches
+		};
 	}
 
 	stopFind(keepSelection?: boolean | undefined): void {
@@ -259,11 +260,27 @@ export class CellViewModel extends Disposable {
 		if (this._editorViewStates) {
 			this.restoreViewState(this._editorViewStates);
 		}
+
+		if (this._initialDecorations) {
+			this._textEditor.deltaDecorations(this._initialDecorations.oldDecorations, this._initialDecorations.newDecorations);
+			this._initialDecorations = null;
+		}
 	}
 
 	detachTextEditor() {
 		this._editorViewStates = this.saveViewState();
 		this._textEditor = undefined;
+	}
+
+	deltaDecorations(oldDecorations: string[], newDecorations: model.IModelDeltaDecoration[]): string[] {
+		if (!this._textEditor) {
+			this._initialDecorations = { oldDecorations, newDecorations };
+			return [];
+		}
+
+		this._initialDecorations = null;
+		// how do we make sure all decorations are cleared?
+		return this._textEditor.deltaDecorations(oldDecorations, newDecorations);
 	}
 
 	getMarkdownRenderer() {
