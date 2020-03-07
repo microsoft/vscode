@@ -32,7 +32,7 @@ export interface IQuickAccessProvider {
 	provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): void;
 }
 
-export interface QuickAccessProviderHelp {
+export interface IQuickAccessProviderHelp {
 
 	/**
 	 * The prefix to show for the help entry. If not provided,
@@ -66,7 +66,7 @@ export interface IQuickAccessProviderDescriptor {
 	/**
 	 * Documentation for the provider in the quick access help.
 	 */
-	readonly helpEntries: QuickAccessProviderHelp[];
+	readonly helpEntries: IQuickAccessProviderHelp[];
 
 	/**
 	 * A context key that will be set automatically when the
