@@ -51,7 +51,7 @@ export class UserDataSyncViewContribution implements IWorkbenchContribution {
 
 	private registerBackupView(container: ViewContainer, remote: boolean): void {
 		const id = `workbench.views.sync.${remote ? 'remote' : 'local'}BackupView`;
-		const name = remote ? localize('remote title', "Backup (Remote)") : localize('local title', "Backup (Local)");
+		const name = remote ? localize('remote title', "Remote Backup") : localize('local title', "Local Backup");
 		const contextKey = new RawContextKey<boolean>(`showUserDataSync${remote ? 'Remote' : 'Local'}BackupView`, false);
 		const viewEnablementContext = contextKey.bindTo(this.contextKeyService);
 		const treeView = this.instantiationService.createInstance(TreeView, id, name);
@@ -83,8 +83,8 @@ export class UserDataSyncViewContribution implements IWorkbenchContribution {
 				super({
 					id: `workbench.actions.showSync${remote ? 'Remote' : 'Local'}BackupView`,
 					title: remote ?
-						{ value: localize('workbench.action.showSyncRemoteBackup', "Show Backup (Remote)"), original: `Show Backup (Remote)` }
-						: { value: localize('workbench.action.showSyncLocalBackup', "Show Backup (Local)"), original: `Show Backup (Local)` },
+						{ value: localize('workbench.action.showSyncRemoteBackup', "Show Remote Backup"), original: `Show Remote Backup` }
+						: { value: localize('workbench.action.showSyncLocalBackup', "Show Local Backup"), original: `Show Local Backup` },
 					category: { value: localize('sync', "Sync"), original: `Sync` },
 					menu: {
 						id: MenuId.CommandPalette,
