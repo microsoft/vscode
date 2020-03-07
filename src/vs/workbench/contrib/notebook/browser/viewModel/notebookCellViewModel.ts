@@ -292,7 +292,7 @@ export class CellViewModel extends Disposable {
 	addDecoration(decoration: model.IModelDeltaDecoration): string {
 		if (!this._textEditor) {
 			const id = ++this._lastDecorationId;
-			const decorationId = `_lazy_${this.handle};${id}`;
+			const decorationId = `_lazy_${this.id};${id}`;
 
 			this._resolvedDecorations.set(decorationId, { options: decoration });
 			return decorationId;
