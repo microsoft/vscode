@@ -156,6 +156,12 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 
 	value: string;
 
+	/**
+	 * A method that allows to massage the value used
+	 * for filtering, e.g, to remove certain parts.
+	 */
+	filterValue: (value: string) => string;
+
 	placeholder: string | undefined;
 
 	readonly onDidChangeValue: Event<string>;

@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -209,12 +209,14 @@ export class LegacyQuickInputQuickOpenController extends Disposable {
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(LegacyQuickInputQuickOpenController, LifecyclePhase.Ready);
 
 class SampleQuickAccessProvider implements IQuickAccessProvider {
-	async provide(service: IQuickInputService, token: CancellationToken): Promise<void> {
-		service.pick([
+	async provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): Promise<void> {
+		picker.items = [
 			{ label: '1' },
 			{ label: '2' },
 			{ label: '3' }
-		]);
+		];
+
+		picker.show();
 	}
 }
 

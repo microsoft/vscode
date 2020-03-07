@@ -402,7 +402,6 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 
 	quickNavigate: IQuickNavigateConfiguration | undefined;
 
-
 	get value() {
 		return this._value;
 	}
@@ -411,6 +410,8 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		this._value = value || '';
 		this.update();
 	}
+
+	filterValue = (value: string) => value;
 
 	get placeholder() {
 		return this._placeholder;
@@ -597,7 +598,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 						return;
 					}
 					this._value = value;
-					this.ui.list.filter(this.ui.inputBox.value);
+					this.ui.list.filter(this.filterValue(this.ui.inputBox.value));
 					this.trySelectFirst();
 					this.onDidChangeValueEmitter.fire(value);
 				}));
@@ -771,7 +772,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		if (this.itemsUpdated) {
 			this.itemsUpdated = false;
 			this.ui.list.setElements(this.items);
-			this.ui.list.filter(this.ui.inputBox.value);
+			this.ui.list.filter(this.filterValue(this.ui.inputBox.value));
 			this.ui.checkAll.checked = this.ui.list.getAllVisibleChecked();
 			this.ui.visibleCount.setCount(this.ui.list.getVisibleCount());
 			this.ui.count.setCount(this.ui.list.getCheckedCount());

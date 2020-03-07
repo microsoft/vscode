@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { first } from 'vs/base/common/arrays';
 import { startsWith } from 'vs/base/common/strings';
@@ -14,9 +13,9 @@ import { assertIsDefined } from 'vs/base/common/types';
 export interface IQuickAccessController {
 
 	/**
-	 * Open the quick access picker with the optional prefix.
+	 * Open the quick access picker with the optional value prefilled.
 	 */
-	show(prefix?: string): Promise<void>;
+	show(value?: string): void;
 }
 
 export interface IQuickAccessProvider {
@@ -24,10 +23,12 @@ export interface IQuickAccessProvider {
 	/**
 	 * Called whenever a prefix was typed into quick pick that matches the provider.
 	 *
-	 * @param service the service to use to drive the quick input widget
-	 * @param token cancellation support
+	 * @param picker the picker to use for showing provider results.
+	 * @param token providers have to check the cancellation token everytime after
+	 * a long running operation because it could be that the picker has been closed
+	 * or changed meanwhile.
 	 */
-	provide(service: IQuickInputService, token: CancellationToken): Promise<void>;
+	provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): Promise<void>;
 }
 
 export interface QuickAccessProviderHelp {
@@ -50,9 +51,26 @@ export interface QuickAccessProviderHelp {
 }
 
 export interface IQuickAccessProviderDescriptor {
-	readonly ctor: IConstructorSignature0<IQuickAccessProvider>;
+
+	/**
+	 * The actual provider that will be instantiated as needed.
+	 */
+	readonly ctor: { new(...services: any /* TS BrandedService but no clue how to type this properly */[]): IQuickAccessProvider };
+
+	/**
+	 * The prefix for quick access picker to use the provider for.
+	 */
 	readonly prefix: string;
+
+	/**
+	 * Documentation for the provider in the quick access help.
+	 */
 	readonly helpEntries: QuickAccessProviderHelp[];
+
+	/**
+	 * A context key that will be set automatically when the
+	 * picker for the provider is showing.
+	 */
 	readonly contextKey?: string;
 }
 
