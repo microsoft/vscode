@@ -18,9 +18,9 @@ import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/vie
 import { ResourceNavigator, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ITimelineService, TimelineChangeEvent, TimelineItem, TimelineOptions, TimelineProvidersChangeEvent, TimelineRequest, Timeline, TimelinePaneId } from 'vs/workbench/contrib/timeline/common/timeline';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { SideBySideEditor, toResource } from 'vs/workbench/common/editor';
@@ -31,12 +31,13 @@ import { basename } from 'vs/base/common/path';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { debounce } from 'vs/base/common/decorators';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IActionViewItemProvider, ActionBar, ActionViewItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IAction, ActionRunner, Action } from 'vs/base/common/actions';
+import { IActionViewItemProvider, ActionBar, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IAction, ActionRunner } from 'vs/base/common/actions';
 import { ContextAwareMenuEntryActionViewItem, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { MenuItemAction, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { MenuItemAction, IMenuService, MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { fromNow } from 'vs/base/common/date';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { escapeRegExpCharacters } from 'vs/base/common/strings';
 
 const InitialPageSize = 20;
 const SubsequentPageSize = 40;
@@ -85,8 +86,10 @@ interface TimelineCursors {
 	more: boolean;
 }
 
+export const TimelineFollowActiveEditorContext = new RawContextKey<boolean>('timelineFollowActiveEditor', true);
+
 export class TimelinePane extends ViewPane {
-	static readonly TITLE = localize('timeline', 'Timeline');
+	static readonly TITLE = localize('timeline', "Timeline");
 
 	private _$container!: HTMLElement;
 	private _$message!: HTMLDivElement;
@@ -94,8 +97,10 @@ export class TimelinePane extends ViewPane {
 	private _$tree!: HTMLDivElement;
 	private _tree!: WorkbenchObjectTree<TreeElement, FuzzyScore>;
 	private _treeRenderer: TimelineTreeRenderer | undefined;
-	private _menus: TimelinePaneMenus;
+	private commands: TimelinePaneCommands;
 	private _visibilityDisposables: DisposableStore | undefined;
+
+	private _followActiveEditorContext: IContextKey<boolean>;
 
 	private _excludedSources: Set<string>;
 	private _cursorsByProvider: Map<string, TimelineCursors> = new Map();
@@ -121,10 +126,12 @@ export class TimelinePane extends ViewPane {
 	) {
 		super({ ...options, titleMenuId: MenuId.TimelineTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
-		this._menus = this._register(this.instantiationService.createInstance(TimelinePaneMenus, this.id));
+		this.commands = this._register(this.instantiationService.createInstance(TimelinePaneCommands, this));
 
 		const scopedContextKeyService = this._register(this.contextKeyService.createScoped());
 		scopedContextKeyService.createKey('view', TimelinePaneId);
+
+		this._followActiveEditorContext = TimelineFollowActiveEditorContext.bindTo(this.contextKeyService);
 
 		this._excludedSources = new Set(configurationService.getValue('timeline.excludeSources'));
 		configurationService.onDidChangeConfiguration(this.onConfigurationChanged, this);
@@ -142,7 +149,7 @@ export class TimelinePane extends ViewPane {
 		}
 
 		this._followActiveEditor = value;
-		this.updateActions();
+		this._followActiveEditorContext.set(value);
 
 		if (value) {
 			this.onActiveEditorChanged();
@@ -163,6 +170,7 @@ export class TimelinePane extends ViewPane {
 		}
 
 		this._uri = uri;
+		this.titleDescription = uri ? basename(uri.fsPath) : '';
 		this._treeRenderer?.setUri(uri);
 		this.loadTimeline(true);
 	}
@@ -173,7 +181,6 @@ export class TimelinePane extends ViewPane {
 		}
 
 		this._excludedSources = new Set(this.configurationService.getValue('timeline.excludeSources'));
-		this.updateActions();
 		this.loadTimeline(true);
 	}
 
@@ -199,8 +206,6 @@ export class TimelinePane extends ViewPane {
 	}
 
 	private onProvidersChanged(e: TimelineProvidersChangeEvent) {
-		this.updateActions();
-
 		if (e.removed) {
 			for (const source of e.removed) {
 				this.replaceItems(source);
@@ -599,39 +604,6 @@ export class TimelinePane extends ViewPane {
 		this.refresh();
 	}
 
-	getActions(): IAction[] {
-		return [
-			...super.getActions(),
-			this.followActiveEditor
-				? new Action('toggleFollowActiveEditorCommand', localize('timeline.toggleFollowActiveEditorCommand.stop', "Stop following the Active Editor"), 'explorer-action codicon-eye', true, () => Promise.resolve(this.followActiveEditor = !this.followActiveEditor))
-				: new Action('toggleFollowActiveEditorCommand', localize('timeline.toggleFollowActiveEditorCommand.follow', "Follow the Active Editor"), 'explorer-action codicon-eye-closed', true, () => Promise.resolve(this.followActiveEditor = !this.followActiveEditor)),
-			new Action('refresh', localize('refresh', "Refresh"), 'explorer-action codicon-refresh', true, () => Promise.resolve(this.reset())),
-		];
-	}
-
-	getSecondaryActions(): IAction[] {
-		const actions: IAction[] = [new Separator()];
-
-		const excluded = new Set(this._excludedSources);
-
-		for (const source of this.timelineService.getSources()) {
-			const action = new Action(`filter:${source.id}`, localize('timeline.filterSource', "Include: {0}", source.label), undefined, true, () => {
-				if (excluded.has(source.id)) {
-					excluded.delete(source.id);
-				} else {
-					excluded.add(source.id);
-				}
-				this.configurationService.updateValue('timeline.excludeSources', [...excluded.keys()]);
-				return Promise.resolve();
-			});
-			action.checked = !excluded.has(source.id);
-
-			actions.push(action);
-		}
-
-		return [...super.getSecondaryActions(), ...actions];
-	}
-
 	focus(): void {
 		super.focus();
 		this._tree.domFocus();
@@ -665,6 +637,8 @@ export class TimelinePane extends ViewPane {
 	}
 
 	protected renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+
 		this._$container = container;
 		DOM.addClasses(container, 'tree-explorer-viewlet-tree-view', 'timeline-tree-view');
 
@@ -678,7 +652,7 @@ export class TimelinePane extends ViewPane {
 		// DOM.addClass(this._treeElement, 'show-file-icons');
 		container.appendChild(this._$tree);
 
-		this._treeRenderer = this.instantiationService.createInstance(TimelineTreeRenderer, this._menus);
+		this._treeRenderer = this.instantiationService.createInstance(TimelineTreeRenderer, this.commands);
 		this._tree = <WorkbenchObjectTree<TreeElement, FuzzyScore>>this.instantiationService.createInstance(WorkbenchObjectTree, 'TimelinePane',
 			this._$tree, new TimelineListVirtualDelegate(), [this._treeRenderer], {
 			identityProvider: new TimelineIdentityProvider(),
@@ -691,7 +665,7 @@ export class TimelinePane extends ViewPane {
 
 		const customTreeNavigator = ResourceNavigator.createTreeResourceNavigator(this._tree, { openOnFocus: false, openOnSelection: false });
 		this._register(customTreeNavigator);
-		this._register(this._tree.onContextMenu(e => this.onContextMenu(this._menus, e)));
+		this._register(this._tree.onContextMenu(e => this.onContextMenu(this.commands, e)));
 		this._register(this._tree.onDidChangeSelection(e => this.ensureValidItems()));
 		this._register(
 			customTreeNavigator.onDidOpenResource(e => {
@@ -741,7 +715,7 @@ export class TimelinePane extends ViewPane {
 		this.message = file ? localize('timeline.loading', 'Loading timeline for {0}...', file) : '';
 	}
 
-	private onContextMenu(menus: TimelinePaneMenus, treeEvent: ITreeContextMenuEvent<TreeElement | null>): void {
+	private onContextMenu(commands: TimelinePaneCommands, treeEvent: ITreeContextMenuEvent<TreeElement | null>): void {
 		const item = treeEvent.element;
 		if (item === null) {
 			return;
@@ -756,7 +730,7 @@ export class TimelinePane extends ViewPane {
 		}
 
 		this._tree.setFocus([item]);
-		const actions = menus.getResourceContextActions(item);
+		const actions = commands.getItemContextActions(item);
 		if (!actions.length) {
 			return;
 		}
@@ -865,7 +839,7 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 	private _actionViewItemProvider: IActionViewItemProvider;
 
 	constructor(
-		private readonly _menus: TimelinePaneMenus,
+		private readonly commands: TimelinePaneCommands,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IThemeService private _themeService: IThemeService
 	) {
@@ -916,7 +890,7 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 
 		template.actionBar.context = { uri: this._uri, item: item } as TimelineActionContext;
 		template.actionBar.actionRunner = new TimelineActionRunner();
-		template.actionBar.push(this._menus.getResourceActions(item), { icon: true, label: false });
+		template.actionBar.push(this.commands.getItemActions(item), { icon: true, label: false });
 	}
 
 	disposeTemplate(template: TimelineElementTemplate): void {
@@ -924,28 +898,88 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 	}
 }
 
-class TimelinePaneMenus extends Disposable {
+class TimelinePaneCommands extends Disposable {
+	private sourceDisposables: DisposableStore;
 
 	constructor(
-		private id: string,
+		private readonly pane: TimelinePane,
+		@ITimelineService private readonly timelineService: ITimelineService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
 		super();
+
+		this._register(this.sourceDisposables = new DisposableStore());
+
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: 'timeline.refresh',
+					title: { value: localize('refresh', "Refresh"), original: 'Refresh' },
+					icon: { id: 'codicon/refresh' },
+					category: { value: localize('timeline', "Timeline"), original: 'Timeline' },
+					menu: {
+						id: MenuId.TimelineTitle,
+						group: 'navigation',
+						order: 99,
+					}
+				});
+			}
+			run(accessor: ServicesAccessor, ...args: any[]) {
+				pane.reset();
+			}
+		}));
+
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: 'timeline.toggleFollowActiveEditor',
+					title: { value: localize('timeline.toggleFollowActiveEditorCommand', "Toggle Active Editor Following"), original: 'Toggle Active Editor Following' },
+					category: { value: localize('timeline', "Timeline"), original: 'Timeline' },
+					menu: [{
+						id: MenuId.TimelineTitle,
+						command: {
+							// title: localize(`timeline.toggleFollowActiveEditorCommand.stop`, "Stop following the Active Editor"),
+							icon: { id: 'codicon/eye' }
+						},
+						group: 'navigation',
+						order: 98,
+						when: TimelineFollowActiveEditorContext
+					},
+					{
+						id: MenuId.TimelineTitle,
+						command: {
+							// title: localize(`ToggleFollowActiveEditorCommand.follow`, "Follow the Active Editor"),
+							icon: { id: 'codicon/eye-closed' }
+						},
+						group: 'navigation',
+						order: 98,
+						when: TimelineFollowActiveEditorContext.toNegated()
+					}]
+				});
+			}
+			run(accessor: ServicesAccessor, ...args: any[]) {
+				pane.followActiveEditor = !pane.followActiveEditor;
+			}
+		}));
+
+		this._register(timelineService.onDidChangeProviders(() => this.updateTimelineSourceFilters()));
+		this.updateTimelineSourceFilters();
 	}
 
-	getResourceActions(element: TreeElement): IAction[] {
+	getItemActions(element: TreeElement): IAction[] {
 		return this.getActions(MenuId.TimelineItemContext, { key: 'timelineItem', value: element.contextValue }).primary;
 	}
 
-	getResourceContextActions(element: TreeElement): IAction[] {
+	getItemContextActions(element: TreeElement): IAction[] {
 		return this.getActions(MenuId.TimelineItemContext, { key: 'timelineItem', value: element.contextValue }).secondary;
 	}
 
 	private getActions(menuId: MenuId, context: { key: string, value?: string }): { primary: IAction[]; secondary: IAction[]; } {
 		const contextKeyService = this.contextKeyService.createScoped();
-		contextKeyService.createKey('view', this.id);
+		contextKeyService.createKey('view', this.pane.id);
 		contextKeyService.createKey(context.key, context.value);
 
 		const menu = this.menuService.createMenu(menuId, contextKeyService);
@@ -958,5 +992,38 @@ class TimelinePaneMenus extends Disposable {
 		contextKeyService.dispose();
 
 		return result;
+	}
+
+	private updateTimelineSourceFilters() {
+		this.sourceDisposables.clear();
+
+		const excluded = new Set(this.configurationService.getValue<string[] | undefined>('timeline.excludeSources') ?? []);
+
+		for (const source of this.timelineService.getSources()) {
+			this.sourceDisposables.add(registerAction2(class extends Action2 {
+				constructor() {
+					super({
+						id: `timeline.toggleExcludeSource:${source.id}`,
+						title: { value: localize('timeline.filterSource', "Include: {0}", source.label), original: `Include: ${source.label}` },
+						category: { value: localize('timeline', "Timeline"), original: 'Timeline' },
+						menu: {
+							id: MenuId.TimelineTitle,
+							group: '2_sources',
+						},
+						toggled: ContextKeyExpr.regex(`config.timeline.excludeSources`, new RegExp(`\\b${escapeRegExpCharacters(source.id)}\\b`)).negate()
+					});
+				}
+				run(accessor: ServicesAccessor, ...args: any[]) {
+					if (excluded.has(source.id)) {
+						excluded.delete(source.id);
+					} else {
+						excluded.add(source.id);
+					}
+
+					const configurationService = accessor.get(IConfigurationService);
+					configurationService.updateValue('timeline.excludeSources', [...excluded.keys()]);
+				}
+			}));
+		}
 	}
 }
