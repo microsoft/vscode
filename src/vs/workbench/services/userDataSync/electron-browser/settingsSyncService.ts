@@ -84,8 +84,16 @@ export class SettingsSyncService extends Disposable implements ISettingsSyncServ
 		return this.channel.call('resolveConflicts', [conflicts]);
 	}
 
-	getRemoteContent(preview?: boolean): Promise<string | null> {
-		return this.channel.call('getRemoteContent', [!!preview]);
+	getRemoteContent(ref?: string, fragment?: string): Promise<string | null> {
+		return this.channel.call('getRemoteContent', [ref, fragment]);
+	}
+
+	getLocalBackupContent(ref?: string, fragment?: string): Promise<string | null> {
+		return this.channel.call('getLocalBackupContent', [ref, fragment]);
+	}
+
+	getRemoteContentFromPreview(): Promise<string | null> {
+		return this.channel.call('getRemoteContentFromPreview', []);
 	}
 
 	private async updateStatus(status: SyncStatus): Promise<void> {

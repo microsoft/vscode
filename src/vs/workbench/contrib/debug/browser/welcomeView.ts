@@ -29,10 +29,10 @@ const debugStartLanguageKey = 'debugStartLanguage';
 const CONTEXT_DEBUG_START_LANGUAGE = new RawContextKey<string>(debugStartLanguageKey, undefined);
 const CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR = new RawContextKey<boolean>('debuggerInterestedInActiveEditor', false);
 
-export class StartView extends ViewPane {
+export class WelcomeView extends ViewPane {
 
-	static ID = 'workbench.debug.startView';
-	static LABEL = localize('start', "Start");
+	static ID = 'workbench.debug.welcome';
+	static LABEL = localize('run', "Run");
 
 	private debugStartLanguageContext: IContextKey<string | undefined>;
 	private debuggerInterestedContext: IContextKey<boolean>;
@@ -52,7 +52,7 @@ export class StartView extends ViewPane {
 		@IStorageService storageSevice: IStorageService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: localize('debugStart', "Debug Start Section") }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: localize('debugStart', "Debug Welcome Section") }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
 		this.debugStartLanguageContext = CONTEXT_DEBUG_START_LANGUAGE.bindTo(contextKeyService);
 		this.debuggerInterestedContext = CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR.bindTo(contextKeyService);
@@ -87,23 +87,23 @@ export class StartView extends ViewPane {
 }
 
 const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
-viewsRegistry.registerViewWelcomeContent(StartView.ID, {
+viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
 	content: localize('openAFileWhichCanBeDebugged', "[Open a file](command:{0}) which can be debugged or run.", isMacintosh ? OpenFileFolderAction.ID : OpenFileAction.ID),
 	when: CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR.toNegated()
 });
 
 let debugKeybindingLabel = '';
-viewsRegistry.registerViewWelcomeContent(StartView.ID, {
+viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
 	content: localize('runAndDebugAction', "[Run and Debug{0}](command:{1})", debugKeybindingLabel, StartAction.ID),
 	preconditions: [CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR]
 });
 
-viewsRegistry.registerViewWelcomeContent(StartView.ID, {
+viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
 	content: localize('customizeRunAndDebug', "To customize Run and Debug [create a launch.json file](command:{0}).", ConfigureAction.ID),
 	when: WorkbenchStateContext.notEqualsTo('empty')
 });
 
-viewsRegistry.registerViewWelcomeContent(StartView.ID, {
+viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
 	content: localize('customizeRunAndDebugOpenFolder', "To customize Run and Debug, [open a folder](command:{0}) and create a launch.json file.", isMacintosh ? OpenFileFolderAction.ID : OpenFolderAction.ID),
 	when: WorkbenchStateContext.isEqualTo('empty')
 });

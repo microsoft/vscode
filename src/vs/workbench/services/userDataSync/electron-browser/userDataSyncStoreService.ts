@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SyncSource, IUserDataSyncStoreService, IUserDataSyncStore, getUserDataSyncStore, ResourceKey, IUserData, IUserDataManifest } from 'vs/platform/userDataSync/common/userDataSync';
+import { SyncSource, IUserDataSyncStoreService, IUserDataSyncStore, getUserDataSyncStore, ResourceKey, IUserData, IUserDataManifest, IResourceRefHandle } from 'vs/platform/userDataSync/common/userDataSync';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -41,7 +41,7 @@ export class UserDataSyncStoreService implements IUserDataSyncStoreService {
 		throw new Error('Not Supported');
 	}
 
-	getAllRefs(key: ResourceKey): Promise<string[]> {
+	getAllRefs(key: ResourceKey): Promise<IResourceRefHandle[]> {
 		return this.channel.call('getAllRefs', [key]);
 	}
 

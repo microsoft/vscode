@@ -10,6 +10,7 @@ import { Event } from 'vs/base/common/event';
 import { Platform } from 'vs/base/common/platform';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { Task, TaskEvent, KeyedTaskIdentifier } from './tasks';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 
 export const enum TaskErrors {
 	NotConfigured,
@@ -118,7 +119,7 @@ export interface TaskSystemInfo {
 	platform: Platform;
 	context: any;
 	uriProvider: (this: void, path: string) => URI;
-	resolveVariables(workspaceFolder: IWorkspaceFolder, toResolve: ResolveSet): Promise<ResolvedVariables>;
+	resolveVariables(workspaceFolder: IWorkspaceFolder, toResolve: ResolveSet, target: ConfigurationTarget): Promise<ResolvedVariables>;
 	getDefaultShellAndArgs(): Promise<{ shell: string, args: string[] | string | undefined }>;
 }
 

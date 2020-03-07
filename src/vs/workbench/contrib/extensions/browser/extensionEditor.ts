@@ -1208,7 +1208,7 @@ export class ExtensionEditor extends BaseEditor {
 					$('th', undefined, localize('schema', "Schema"))
 				),
 				...contrib.map(v => $('tr', undefined,
-					$('td', undefined, $('code', undefined, v.fileMatch)),
+					$('td', undefined, $('code', undefined, Array.isArray(v.fileMatch) ? v.fileMatch.join(', ') : v.fileMatch)),
 					$('td', undefined, v.url)
 				))));
 
