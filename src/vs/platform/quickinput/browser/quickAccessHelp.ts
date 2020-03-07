@@ -17,30 +17,47 @@ class HelpQuickAccessProvider implements IQuickAccessProvider {
 
 	constructor(@IQuickInputService private readonly quickInputService: IQuickInputService) { }
 
-	async provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): Promise<void> {
-		const picks: QuickPickInput[] = [];
+	provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): void {
+		const disposables = new DisposableStore();
+		once(token.onCancellationRequested)(() => disposables.dispose());
 
-		for (const provider of this.registry.getQuickAccessProviders()) {
-			for (const helpEntries of provider.helpEntries) {
-				picks.push({
-					label: helpEntries.prefix || provider.prefix,
-					description: helpEntries.description
+		// Open a picker with the selected value if picked
+		disposables.add(picker.onDidAccept(() => {
+			const items = picker.selectedItems;
+			if (items.length === 1) {
+				this.quickInputService.quickAccess.show(`${items[0].label} `);
+			}
+		}));
+
+		// Fill in all providers separated by editor/global scope
+		const { editorProviders, globalProviders } = this.getQuickAccessProviders();
+		picker.items = [
+			{ label: localize('globalCommands', "global commands"), type: 'separator' },
+			...globalProviders,
+			{ label: localize('editorCommands', "editor commands"), type: 'separator' },
+			...editorProviders
+		];
+
+		picker.show();
+	}
+
+	private getQuickAccessProviders(): { editorProviders: QuickPickInput[], globalProviders: QuickPickInput[] } {
+		const globalProviders: QuickPickInput[] = [];
+		const editorProviders: QuickPickInput[] = [];
+
+		for (const provider of this.registry.getQuickAccessProviders().sort((p1, p2) => p1.prefix.localeCompare(p2.prefix))) {
+			for (const helpEntry of provider.helpEntries) {
+				const label = helpEntry.prefix || provider.prefix || '\u2026' /* ... */;
+
+				(helpEntry.needsEditor ? editorProviders : globalProviders).push({
+					label,
+					description: helpEntry.description,
+					ariaLabel: localize('entryAriaLabel', "{0}, picker help", label)
 				});
 			}
 		}
 
-		const disposables = new DisposableStore();
-		once(token.onCancellationRequested)(() => disposables.dispose());
-
-		disposables.add(picker.onDidAccept(() => {
-			const items = picker.selectedItems;
-			if (items.length === 1) {
-				this.quickInputService.quickAccess.show(items[0].label);
-			}
-		}));
-
-		picker.items = picks;
-		picker.show();
+		return { editorProviders, globalProviders };
 	}
 }
 

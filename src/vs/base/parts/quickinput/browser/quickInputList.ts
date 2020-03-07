@@ -35,6 +35,7 @@ interface IListElement {
 	readonly saneLabel: string;
 	readonly saneDescription?: string;
 	readonly saneDetail?: string;
+	readonly saneAriaLabel: string;
 	readonly checked: boolean;
 	readonly separator?: IQuickPickSeparator;
 	readonly fireButtonTriggered: (event: IQuickPickItemButtonEvent<IQuickPickItem>) => void;
@@ -46,6 +47,7 @@ class ListElement implements IListElement {
 	saneLabel!: string;
 	saneDescription?: string;
 	saneDetail?: string;
+	saneAriaLabel!: string;
 	hidden = false;
 	private readonly _onChecked = new Emitter<boolean>();
 	onChecked = this._onChecked.event;
@@ -148,10 +150,7 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 		data.detail.set(element.saneDetail, detailHighlights);
 
 		// ARIA label
-		data.entry.setAttribute('aria-label', [element.saneLabel, element.saneDescription, element.saneDetail]
-			.map(s => s && parseCodicons(s).text)
-			.filter(s => !!s)
-			.join(', '));
+		data.entry.setAttribute('aria-label', element.saneAriaLabel);
 
 		// Separator
 		if (element.separator && element.separator.label) {
@@ -364,12 +363,21 @@ export class QuickInputList {
 		this.elements = inputElements.reduce((result, item, index) => {
 			if (item.type !== 'separator') {
 				const previous = index && inputElements[index - 1];
+				const saneLabel = item.label && item.label.replace(/\r?\n/g, ' ');
+				const saneDescription = item.description && item.description.replace(/\r?\n/g, ' ');
+				const saneDetail = item.detail && item.detail.replace(/\r?\n/g, ' ');
+				const saneAriaLabel = item.ariaLabel || [saneLabel, saneDescription, saneDetail]
+					.map(s => s && parseCodicons(s).text)
+					.filter(s => !!s)
+					.join(', ');
+
 				result.push(new ListElement({
 					index,
 					item,
-					saneLabel: item.label && item.label.replace(/\r?\n/g, ' '),
-					saneDescription: item.description && item.description.replace(/\r?\n/g, ' '),
-					saneDetail: item.detail && item.detail.replace(/\r?\n/g, ' '),
+					saneLabel,
+					saneDescription,
+					saneDetail,
+					saneAriaLabel,
 					checked: false,
 					separator: previous && previous.type === 'separator' ? previous : undefined,
 					fireButtonTriggered
