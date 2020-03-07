@@ -163,6 +163,8 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	 */
 	filterValue: (value: string) => string;
 
+	ariaLabel: string;
+
 	placeholder: string | undefined;
 
 	readonly onDidChangeValue: Event<string>;

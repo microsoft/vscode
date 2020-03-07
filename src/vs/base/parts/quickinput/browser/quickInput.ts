@@ -374,9 +374,10 @@ class QuickInput extends Disposable implements IQuickInput {
 
 class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPick<T> {
 
-	private static readonly INPUT_BOX_ARIA_LABEL = localize('quickInputBox.ariaLabel', "Type to narrow down results.");
+	private static readonly DEFAULT_ARIA_LABEL = localize('quickInputBox.ariaLabel', "Type to narrow down results.");
 
 	private _value = '';
+	private _ariaLabel = QuickPick.DEFAULT_ARIA_LABEL;
 	private _placeholder: string | undefined;
 	private readonly onDidChangeValueEmitter = this._register(new Emitter<string>());
 	private readonly onDidAcceptEmitter = this._register(new Emitter<void>());
@@ -418,6 +419,15 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	}
 
 	filterValue = (value: string) => value;
+
+	set ariaLabel(ariaLabel: string) {
+		this._ariaLabel = ariaLabel || QuickPick.DEFAULT_ARIA_LABEL;
+		this.update();
+	}
+
+	get ariaLabel() {
+		return this._ariaLabel;
+	}
 
 	get placeholder() {
 		return this._placeholder;
@@ -775,6 +785,9 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		if (this.ui.inputBox.placeholder !== (this.placeholder || '')) {
 			this.ui.inputBox.placeholder = (this.placeholder || '');
 		}
+		if (this.ui.inputBox.ariaLabel !== this.ariaLabel) {
+			this.ui.inputBox.ariaLabel = this.ariaLabel;
+		}
 		if (this.itemsUpdated) {
 			this.itemsUpdated = false;
 			this.ui.list.setElements(this.items);
@@ -825,7 +838,6 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		this.ui.list.matchOnLabel = this.matchOnLabel;
 		this.ui.list.sortByLabel = this.sortByLabel;
 		this.ui.setComboboxAccessibility(true);
-		this.ui.inputBox.setAttribute('aria-label', QuickPick.INPUT_BOX_ARIA_LABEL);
 	}
 }
 
@@ -1383,7 +1395,7 @@ export class QuickInputController extends Disposable {
 		ui.list.sortByLabel = true;
 		ui.ignoreFocusOut = false;
 		this.setComboboxAccessibility(false);
-		ui.inputBox.removeAttribute('aria-label');
+		ui.inputBox.ariaLabel = '';
 
 		const backKeybindingLabel = this.options.backKeybindingLabel();
 		backButton.tooltip = backKeybindingLabel ? localize('quickInput.backWithKeybinding', "Back ({0})", backKeybindingLabel) : localize('quickInput.back', "Back");
