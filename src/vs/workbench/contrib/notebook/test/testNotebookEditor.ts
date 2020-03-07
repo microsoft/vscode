@@ -98,6 +98,15 @@ export class TestNotebookEditor implements INotebookEditor {
 	) {
 
 	}
+	revealInView(cell: CellViewModel, offset?: number | undefined): void {
+		throw new Error('Method not implemented.');
+	}
+	revealInCenter(cell: CellViewModel, offset?: number | undefined): void {
+		throw new Error('Method not implemented.');
+	}
+	revealInCenterIfOutsideViewport(cell: CellViewModel, offset?: number | undefined): void {
+		throw new Error('Method not implemented.');
+	}
 	async insertEmptyNotebookCell(cell: CellViewModel, type: CellKind, direction: 'above' | 'below'): Promise<void> {
 		// throw new Error('Method not implemented.');
 	}
