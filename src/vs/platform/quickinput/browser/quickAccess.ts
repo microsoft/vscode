@@ -4,18 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/platform/quickinput/browser/quickAccessHelp';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { IQuickAccessController, IQuickAccessProvider, IQuickAccessRegistry, Extensions, IQuickAccessProviderDescriptor } from 'vs/platform/quickinput/common/quickAccess';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { once } from 'vs/base/common/functional';
+import { Event } from 'vs/base/common/event';
 
 export class QuickAccessController extends Disposable implements IQuickAccessController {
 
 	private readonly registry = Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess);
 	private readonly mapProviderToDescriptor = new Map<IQuickAccessProviderDescriptor, IQuickAccessProvider>();
+
+	private lastActivePicker: IQuickPick<IQuickPickItem> | undefined = undefined;
 
 	constructor(
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -26,19 +29,22 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 
 	show(value = ''): void {
 
+		// Hide any previous picker if any
+		this.lastActivePicker?.dispose();
+
 		// Find provider for the value to show
 		const [provider, prefix] = this.getOrInstantiateProvider(value);
 
 		// Create a picker for the provider to use with the initial value
 		// and adjust the filtering to exclude the prefix from filtering
-		const picker = this.quickInputService.createQuickPick();
+		const picker = this.lastActivePicker = this.quickInputService.createQuickPick();
 		picker.value = value;
 		picker.valueSelection = [value.length, value.length];
 		picker.filterValue = (value: string) => value.substring(prefix.length);
 
-		// Cleanup when picker hides
+		// Cleanup when picker hides or gets disposed
 		const disposables = new DisposableStore();
-		once(picker.onDidHide)(() => disposables.dispose());
+		once(Event.any(picker.onDidHide, picker.onDispose))(() => disposables.dispose());
 
 		// Whenever the value changes, check if the provider has
 		// changed and if so - re-create the picker from the beginning

@@ -9,6 +9,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { first } from 'vs/base/common/arrays';
 import { startsWith } from 'vs/base/common/strings';
 import { assertIsDefined } from 'vs/base/common/types';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 
 export interface IQuickAccessController {
 
@@ -28,7 +29,7 @@ export interface IQuickAccessProvider {
 	 * a long running operation because it could be that the picker has been closed
 	 * or changed meanwhile.
 	 */
-	provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): Promise<void>;
+	provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): void;
 }
 
 export interface QuickAccessProviderHelp {
@@ -88,7 +89,7 @@ export interface IQuickAccessRegistry {
 	/**
 	 * Registers a quick access provider to the platform.
 	 */
-	registerQuickAccessProvider(provider: IQuickAccessProviderDescriptor): void;
+	registerQuickAccessProvider(provider: IQuickAccessProviderDescriptor): IDisposable;
 
 	/**
 	 * Get all registered quick access providers.
@@ -108,16 +109,18 @@ class QuickAccessRegistry implements IQuickAccessRegistry {
 	get defaultProvider(): IQuickAccessProviderDescriptor { return assertIsDefined(this._defaultProvider); }
 	set defaultProvider(provider: IQuickAccessProviderDescriptor) { this._defaultProvider = provider; }
 
-	registerQuickAccessProvider(provider: IQuickAccessProviderDescriptor): void {
+	registerQuickAccessProvider(provider: IQuickAccessProviderDescriptor): IDisposable {
 		this.providers.push(provider);
 
 		// sort the providers by decreasing prefix length, such that longer
 		// prefixes take priority: 'ext' vs 'ext install' - the latter should win
 		this.providers.sort((providerA, providerB) => providerB.prefix.length - providerA.prefix.length);
+
+		return toDisposable(() => this.providers.splice(this.providers.indexOf(provider), 1));
 	}
 
 	getQuickAccessProviders(): IQuickAccessProviderDescriptor[] {
-		return this.providers.slice(0);
+		return [this.defaultProvider, ...this.providers];
 	}
 
 	getQuickAccessProvider(prefix: string): IQuickAccessProviderDescriptor | undefined {

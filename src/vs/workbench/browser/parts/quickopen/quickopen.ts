@@ -209,11 +209,11 @@ export class LegacyQuickInputQuickOpenController extends Disposable {
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(LegacyQuickInputQuickOpenController, LifecyclePhase.Ready);
 
 class SampleQuickAccessProvider implements IQuickAccessProvider {
-	async provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): Promise<void> {
+	provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): void {
 		picker.items = [
-			{ label: '1' },
-			{ label: '2' },
-			{ label: '3' }
+			{ label: 'Hello World' },
+			{ label: 'Lorem Ipsum' },
+			{ label: 'Something Else' }
 		];
 
 		picker.show();

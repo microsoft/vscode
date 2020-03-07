@@ -129,6 +129,10 @@ type Visibilities = {
 
 class QuickInput extends Disposable implements IQuickInput {
 
+	private readonly onDidTriggerButtonEmitter = this._register(new Emitter<IQuickInputButton>());
+	private readonly onDidHideEmitter = this._register(new Emitter<void>());
+	private readonly onDisposeEmitter = this._register(new Emitter<void>());
+
 	private _title: string | undefined;
 	private _description: string | undefined;
 	private _steps: number | undefined;
@@ -140,8 +144,6 @@ class QuickInput extends Disposable implements IQuickInput {
 	private _ignoreFocusOut = false;
 	private _buttons: IQuickInputButton[] = [];
 	private buttonsUpdated = false;
-	private readonly onDidTriggerButtonEmitter = this._register(new Emitter<IQuickInputButton>());
-	private readonly onDidHideEmitter = this._register(new Emitter<void>());
 
 	protected readonly visibleDisposables = this._register(new DisposableStore());
 
@@ -235,7 +237,7 @@ class QuickInput extends Disposable implements IQuickInput {
 		this.update();
 	}
 
-	onDidTriggerButton = this.onDidTriggerButtonEmitter.event;
+	readonly onDidTriggerButton = this.onDidTriggerButtonEmitter.event;
 
 	show(): void {
 		if (this.visible) {
@@ -266,7 +268,7 @@ class QuickInput extends Disposable implements IQuickInput {
 		this.onDidHideEmitter.fire();
 	}
 
-	onDidHide = this.onDidHideEmitter.event;
+	readonly onDidHide = this.onDidHideEmitter.event;
 
 	protected update() {
 		if (!this.visible) {
@@ -360,8 +362,12 @@ class QuickInput extends Disposable implements IQuickInput {
 		}
 	}
 
+	readonly onDispose = this.onDisposeEmitter.event;
+
 	public dispose(): void {
 		this.hide();
+		this.onDisposeEmitter.fire();
+
 		super.dispose();
 	}
 }
