@@ -15,7 +15,7 @@ interface Directive {
 	readonly description: string;
 }
 
-const directives260: Directive[] = [
+const directives: Directive[] = [
 	{
 		value: '@ts-check',
 		description: localize(
@@ -35,7 +35,7 @@ const directives260: Directive[] = [
 ];
 
 const directives390: Directive[] = [
-	...directives260,
+	...directives,
 	{
 		value: '@ts-expect-error',
 		description: localize(
@@ -52,9 +52,7 @@ class DirectiveCommentCompletionProvider implements vscode.CompletionItemProvide
 	) {
 		this.directives = client.apiVersion.gte(API.v390)
 			? directives390
-			: client.apiVersion.gte(API.v260)
-				? directives260
-				: [];
+			: directives;
 	}
 
 	public provideCompletionItems(
