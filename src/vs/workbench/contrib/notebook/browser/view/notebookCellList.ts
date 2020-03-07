@@ -14,6 +14,7 @@ import { IListService, IWorkbenchListOptions, WorkbenchList } from 'vs/platform/
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { isMacintosh } from 'vs/base/common/platform';
+import { isNumber } from 'vs/base/common/types';
 
 export class NotebookCellList<T> extends WorkbenchList<T> {
 	get onWillScroll(): Event<ScrollEvent> { return this.view.onWillScroll; }
@@ -75,6 +76,36 @@ export class NotebookCellList<T> extends WorkbenchList<T> {
 		}
 
 		super.domFocus();
+	}
+
+	revealInView(index: number, offset?: number) {
+		const scrollTop = this.view.getScrollTop();
+		const wrapperBottom = scrollTop + this.view.renderHeight;
+		const elementTop = this.view.elementTop(index);
+
+		const viewItemOffset = elementTop + (isNumber(offset) ? offset : 0);
+
+		if (viewItemOffset < scrollTop || viewItemOffset > wrapperBottom) {
+			this.view.setScrollTop(viewItemOffset);
+		}
+	}
+
+	revealInCenterIfOutsideViewport(index: number, offset?: number) {
+		const scrollTop = this.view.getScrollTop();
+		const wrapperBottom = scrollTop + this.view.renderHeight;
+		const elementTop = this.view.elementTop(index);
+		const viewItemOffset = elementTop + (isNumber(offset) ? offset : 0);
+
+		if (viewItemOffset < scrollTop || viewItemOffset > wrapperBottom) {
+			this.view.setScrollTop(viewItemOffset - this.view.renderHeight / 2);
+		}
+	}
+
+	revealInCenter(index: number, offset?: number) {
+		const elementTop = this.view.elementTop(index);
+		const viewItemOffset = elementTop + (isNumber(offset) ? offset : 0);
+
+		this.view.setScrollTop(viewItemOffset - this.view.renderHeight / 2);
 	}
 }
 

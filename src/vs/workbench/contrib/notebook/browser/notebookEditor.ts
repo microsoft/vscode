@@ -158,7 +158,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 	get viewType() { return this.notebookViewModel?.viewType; }
 
 
-	//#region Editor
+	//#region Editor Core
 
 
 	public get isNotebookEditor() {
@@ -407,7 +407,31 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 
 	//#endregion
 
-	//#region Decorations
+	//#region Editor Features
+
+	revealInView(cell: CellViewModel, offset?: number) {
+		const index = this.notebookViewModel?.getViewCellIndex(cell);
+
+		if (index !== undefined) {
+			this.list?.revealInView(index, offset);
+		}
+	}
+
+	revealInCenterIfOutsideViewport(cell: CellViewModel, offset?: number) {
+		const index = this.notebookViewModel?.getViewCellIndex(cell);
+
+		if (index !== undefined) {
+			this.list?.revealInCenterIfOutsideViewport(index, offset);
+		}
+	}
+
+	revealInCenter(cell: CellViewModel, offset?: number) {
+		const index = this.notebookViewModel?.getViewCellIndex(cell);
+
+		if (index !== undefined) {
+			this.list?.revealInCenter(index, offset);
+		}
+	}
 
 	changeDecorations(callback: (changeAccessor: IModelDecorationsChangeAccessor) => any): any {
 		return this.notebookViewModel?.changeDecorations(callback);
@@ -435,7 +459,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 		let cell = match.cell;
 		let index = this.notebookViewModel!.viewCells.indexOf(cell);
 
-		this.list?.reveal(index);
+		this.list?.revealInView(index);
 	}
 
 	public showFind() {
@@ -489,7 +513,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 		}
 
 		DOM.scheduleAtNextAnimationFrame(() => {
-			this.list?.reveal(insertIndex, 0.33);
+			this.list?.revealInCenterIfOutsideViewport(insertIndex);
 		});
 	}
 

@@ -30,7 +30,7 @@ export class NotebookFindWidget extends SimpleFindWidget {
 	protected onInputChanged(): boolean {
 		const val = this.inputValue;
 		if (val) {
-			this._findMatches = this._notebookEditor.startFind(val);
+			this._findMatches = this._notebookEditor.startFind(val).filter(match => match.matches.length > 0);
 			if (this._findMatches.length) {
 				this._currentMatch = this._findMatches[0];
 				this.set(this._findMatches);

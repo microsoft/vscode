@@ -32,6 +32,9 @@ export interface INotebookEditor {
 	getFontInfo(): BareFontInfo | undefined;
 	getListDimension(): DOM.Dimension | null;
 	getOutputRenderer(): OutputRenderer;
+	revealInView(cell: CellViewModel, offset?: number): void;
+	revealInCenter(cell: CellViewModel, offset?: number): void;
+	revealInCenterIfOutsideViewport(cell: CellViewModel, offset?: number): void;
 	changeDecorations(callback: (changeAccessor: IModelDecorationsChangeAccessor) => any): any;
 }
 
