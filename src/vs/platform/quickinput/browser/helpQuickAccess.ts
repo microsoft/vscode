@@ -11,25 +11,25 @@ import { localize } from 'vs/nls';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { once } from 'vs/base/common/functional';
 
-interface IQuickAccessHelpPickItem extends IQuickPickItem {
+interface IHelpQuickAccessPickItem extends IQuickPickItem {
 	prefix: string;
 }
 
-class HelpQuickAccessProvider implements IQuickAccessProvider {
+export class HelpQuickAccessProvider implements IQuickAccessProvider {
 
 	private readonly registry = Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess);
 
 	constructor(@IQuickInputService private readonly quickInputService: IQuickInputService) { }
 
-	provide(picker: IQuickPick<IQuickAccessHelpPickItem>, token: CancellationToken): void {
+	provide(picker: IQuickPick<IHelpQuickAccessPickItem>, token: CancellationToken): void {
 		const disposables = new DisposableStore();
 		once(token.onCancellationRequested)(() => disposables.dispose());
 
 		// Open a picker with the selected value if picked
 		disposables.add(picker.onDidAccept(() => {
-			const items = picker.selectedItems;
-			if (items.length === 1) {
-				this.quickInputService.quickAccess.show(`${items[0].prefix} `);
+			const [item] = picker.selectedItems;
+			if (item) {
+				this.quickInputService.quickAccess.show(item.prefix);
 			}
 		}));
 
@@ -45,9 +45,9 @@ class HelpQuickAccessProvider implements IQuickAccessProvider {
 		picker.show();
 	}
 
-	private getQuickAccessProviders(): { editorProviders: IQuickAccessHelpPickItem[], globalProviders: IQuickAccessHelpPickItem[] } {
-		const globalProviders: IQuickAccessHelpPickItem[] = [];
-		const editorProviders: IQuickAccessHelpPickItem[] = [];
+	private getQuickAccessProviders(): { editorProviders: IHelpQuickAccessPickItem[], globalProviders: IHelpQuickAccessPickItem[] } {
+		const globalProviders: IHelpQuickAccessPickItem[] = [];
+		const editorProviders: IHelpQuickAccessPickItem[] = [];
 
 		for (const provider of this.registry.getQuickAccessProviders().sort((p1, p2) => p1.prefix.localeCompare(p2.prefix))) {
 			for (const helpEntry of provider.helpEntries) {
@@ -67,8 +67,3 @@ class HelpQuickAccessProvider implements IQuickAccessProvider {
 	}
 }
 
-Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessProvider({
-	ctor: HelpQuickAccessProvider,
-	prefix: '?',
-	helpEntries: [{ description: localize('quickAccessHelp', "Show all Quick Access Providers"), needsEditor: false }]
-});
