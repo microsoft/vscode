@@ -221,11 +221,11 @@ class SampleQuickAccessProvider implements IQuickAccessProvider {
 }
 
 const quickAccessRegistry = Registry.as<IQuickAccessRegistry>(QuickinputExtensions.Quickaccess);
-['', '>', '@', 'edt', 'edt active', 'edt mru', 'view'].forEach(prefix => {
+['', '>', '@', ':', 'edt', 'edt active', 'edt mru', 'view'].forEach(prefix => {
 	const provider = {
 		ctor: SampleQuickAccessProvider,
 		prefix,
-		helpEntries: [{ description: `Sample Provider with prefix ${prefix}`, needsEditor: false }]
+		helpEntries: [{ description: `Sample Provider with prefix ${prefix}`, needsEditor: prefix === '@' || prefix === ':' }]
 	};
 
 	if (!prefix) {
