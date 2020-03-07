@@ -767,6 +767,17 @@ export function validateFileName(item: ExplorerItem, name: string): string | nul
 	return null;
 }
 
+function fileNameNotificationMessage(name: string): { content: string, severity: Severity } | null {
+	if (/^\s|\s$/.test(name)) {
+		return {
+			content: nls.localize('fileNameWhitespaceWarning', "Leading or trailing whitespace detected."),
+			severity: Severity.Warning
+		};
+	}
+
+	return null;
+}
+
 function trimLongName(name: string): string {
 	if (name?.length > 255) {
 		return `${name.substr(0, 255)}...`;
@@ -906,6 +917,7 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 
 	explorerService.setEditable(newStat, {
 		validationMessage: value => validateFileName(newStat, value),
+		notificationMessage: value => fileNameNotificationMessage(value),
 		onFinish: (value, success) => {
 			folder.removeChild(newStat);
 			explorerService.setEditable(newStat, null);
@@ -943,6 +955,7 @@ export const renameHandler = (accessor: ServicesAccessor) => {
 
 	explorerService.setEditable(stat, {
 		validationMessage: value => validateFileName(stat, value),
+		notificationMessage: value => fileNameNotificationMessage(value),
 		onFinish: async (value, success) => {
 			if (success) {
 				const parentResource = stat.parent!.resource;

@@ -391,10 +391,6 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		});
 		const styler = attachInputBoxStyler(inputBox, this.themeService);
 
-		inputBox.onDidChange(value => {
-			label.setFile(joinPath(parent, value || ' '), labelOptions); // update label icon while typing!
-		});
-
 		const lastDot = value.lastIndexOf('.');
 
 		inputBox.value = value;
@@ -411,8 +407,27 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			}
 		});
 
+		const showInputBoxNotification = () => {
+			if (editableData.notificationMessage && inputBox.isInputValid()) {
+				const message = editableData.notificationMessage(inputBox.value);
+				if (message) {
+					inputBox.showMessage({
+						content: message.content,
+						formatContent: true,
+						type: message.severity === Severity.Info ? MessageType.INFO : message.severity === Severity.Warning ? MessageType.WARNING : MessageType.ERROR
+					});
+				} else {
+					inputBox.hideMessage();
+				}
+			}
+		};
+		showInputBoxNotification();
+
 		const toDispose = [
 			inputBox,
+			inputBox.onDidChange(value => {
+				label.setFile(joinPath(parent, value || ' '), labelOptions); // update label icon while typing!
+			}),
 			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
 				if (e.equals(KeyCode.Enter)) {
 					if (inputBox.validate()) {
@@ -421,6 +436,9 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 				} else if (e.equals(KeyCode.Escape)) {
 					done(false, true);
 				}
+			}),
+			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_UP, (e: IKeyboardEvent) => {
+				showInputBoxNotification();
 			}),
 			DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, () => {
 				done(inputBox.isInputValid(), true);
