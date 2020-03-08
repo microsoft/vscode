@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { Event } from 'vs/base/common/event';
 import { URI as uri } from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -530,6 +531,9 @@ class MockCommandService implements ICommandService {
 class MockQuickInputService implements IQuickInputService {
 	_serviceBrand: undefined;
 
+	readonly onShow = Event.None;
+	readonly onHide = Event.None;
+
 	public pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: true }, token?: CancellationToken): Promise<T[]>;
 	public pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: false }, token?: CancellationToken): Promise<T>;
 	public pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: Omit<IPickOptions<T>, 'canPickMany'>, token?: CancellationToken): Promise<T | undefined> {
@@ -575,6 +579,10 @@ class MockQuickInputService implements IQuickInputService {
 	}
 
 	cancel(): Promise<void> {
+		throw new Error('not implemented.');
+	}
+
+	hide(): void {
 		throw new Error('not implemented.');
 	}
 }

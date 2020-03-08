@@ -5,7 +5,7 @@
 
 @font-face {
 	font-family: "codicon";
-	src: url("./codicon.ttf?b5dd8f5aa953889dc1f4c9fa9b44d3dd") format("truetype");
+	src: url("./codicon.ttf?df9e07bbeddc0cf98f4d7a7c92bef3d8") format("truetype");
 }
 
 .codicon[class*='codicon-'] {
@@ -360,6 +360,8 @@
 .codicon-symbol-misc:before { content: "\eb63" }
 .codicon-symbol-operator:before { content: "\eb64" }
 .codicon-symbol-property:before { content: "\eb65" }
+.codicon-wrench:before { content: "\eb65" }
+.codicon-wrench-subaction:before { content: "\eb65" }
 .codicon-symbol-snippet:before { content: "\eb66" }
 .codicon-tasklist:before { content: "\eb67" }
 .codicon-telescope:before { content: "\eb68" }
@@ -415,6 +417,5 @@
 .codicon-group-by-ref-type:before { content: "\eb97" }
 .codicon-ungroup-by-ref-type:before { content: "\eb98" }
 .codicon-bell-dot:before { content: "\f101" }
-.codicon-bell-progress:before { content: "\f102" }
-.codicon-debug-alt-2:before { content: "\f103" }
-.codicon-debug-alt:before { content: "\f104" }
+.codicon-debug-alt-2:before { content: "\f102" }
+.codicon-debug-alt:before { content: "\f103" }

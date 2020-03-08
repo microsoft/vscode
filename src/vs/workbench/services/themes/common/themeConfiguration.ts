@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
+import * as types from 'vs/base/common/types';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
 
@@ -11,7 +12,8 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { textmateColorsSchemaId, textmateColorGroupSchemaId } from 'vs/workbench/services/themes/common/colorThemeSchema';
 import { workbenchColorsSchemaId } from 'vs/platform/theme/common/colorRegistry';
 import { tokenStylingSchemaId } from 'vs/platform/theme/common/tokenClassificationRegistry';
-import { ThemeSettings, IWorkbenchColorTheme, IWorkbenchFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { ThemeSettings, IWorkbenchColorTheme, IWorkbenchFileIconTheme, IColorCustomizations, ITokenColorCustomizations, IExperimentalTokenStyleCustomizations } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 
 const DEFAULT_THEME_SETTING_VALUE = 'Default Dark+';
 const DEFAULT_THEME_DARK_SETTING_VALUE = 'Default Dark+';
@@ -174,4 +176,74 @@ export function updateFileIconThemeConfigurationSchemas(themes: IWorkbenchFileIc
 	iconThemeSettingSchema.enumDescriptions = [iconThemeSettingSchema.enumDescriptions![0], ...themes.map(t => t.description || '')];
 
 	configurationRegistry.notifyConfigurationSchemaUpdated(themeSettingsConfiguration);
+}
+
+
+export class ThemeConfiguration {
+	constructor(private configurationService: IConfigurationService) {
+	}
+
+	public get colorTheme(): string {
+		return this.configurationService.getValue<string>(ThemeSettings.COLOR_THEME);
+	}
+
+	public get fileIconTheme(): string | null {
+		return this.configurationService.getValue<string | null>(ThemeSettings.ICON_THEME);
+	}
+
+	public get colorCustomizations(): IColorCustomizations {
+		return this.configurationService.getValue<IColorCustomizations>(ThemeSettings.COLOR_CUSTOMIZATIONS) || {};
+	}
+
+	public get tokenColorCustomizations(): ITokenColorCustomizations {
+		return this.configurationService.getValue<ITokenColorCustomizations>(ThemeSettings.TOKEN_COLOR_CUSTOMIZATIONS) || {};
+	}
+
+	public get tokenStylesCustomizations(): IExperimentalTokenStyleCustomizations {
+		return this.configurationService.getValue<IExperimentalTokenStyleCustomizations>(ThemeSettings.TOKEN_COLOR_CUSTOMIZATIONS_EXPERIMENTAL) || {};
+	}
+
+	public async setColorTheme(theme: IWorkbenchColorTheme, settingsTarget: ConfigurationTarget | undefined | 'auto',): Promise<IWorkbenchColorTheme> {
+		if (!types.isUndefinedOrNull(settingsTarget)) {
+			await this.writeConfiguration(ThemeSettings.COLOR_THEME, theme.settingsId, settingsTarget);
+		}
+		return theme;
+	}
+
+	public async setFileIconTheme(theme: IWorkbenchFileIconTheme, settingsTarget: ConfigurationTarget | undefined | 'auto',): Promise<IWorkbenchFileIconTheme> {
+		if (!types.isUndefinedOrNull(settingsTarget)) {
+			await this.writeConfiguration(ThemeSettings.ICON_THEME, theme.settingsId, settingsTarget);
+		}
+		return theme;
+	}
+
+	private writeConfiguration(key: string, value: any, settingsTarget: ConfigurationTarget | 'auto'): Promise<void> {
+		let settings = this.configurationService.inspect(key);
+		if (settingsTarget === 'auto') {
+			if (!types.isUndefined(settings.workspaceFolderValue)) {
+				settingsTarget = ConfigurationTarget.WORKSPACE_FOLDER;
+			} else if (!types.isUndefined(settings.workspaceValue)) {
+				settingsTarget = ConfigurationTarget.WORKSPACE;
+			} else {
+				settingsTarget = ConfigurationTarget.USER;
+			}
+		}
+
+		if (settingsTarget === ConfigurationTarget.USER) {
+			if (value === settings.userValue) {
+				return Promise.resolve(undefined); // nothing to do
+			} else if (value === settings.defaultValue) {
+				if (types.isUndefined(settings.userValue)) {
+					return Promise.resolve(undefined); // nothing to do
+				}
+				value = undefined; // remove configuration from user settings
+			}
+		} else if (settingsTarget === ConfigurationTarget.WORKSPACE || settingsTarget === ConfigurationTarget.WORKSPACE_FOLDER) {
+			if (value === settings.value) {
+				return Promise.resolve(undefined); // nothing to do
+			}
+		}
+		return this.configurationService.updateValue(key, value, settingsTarget);
+	}
+
 }

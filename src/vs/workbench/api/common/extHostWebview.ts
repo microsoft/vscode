@@ -350,8 +350,8 @@ class CustomDocument extends Disposable implements vscode.CustomDocument {
 		this.updateState();
 	}
 
-	/** @internal*/ _save() {
-		return this.getEditingCapability().save();
+	/** @internal*/ _save(cancellation: CancellationToken) {
+		return this.getEditingCapability().save(cancellation);
 	}
 
 	/** @internal*/ _saveAs(target: vscode.Uri) {
@@ -714,9 +714,9 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		document._revert();
 	}
 
-	async $onSave(resourceComponents: UriComponents, viewType: string): Promise<void> {
+	async $onSave(resourceComponents: UriComponents, viewType: string, cancellation: CancellationToken): Promise<void> {
 		const document = this.getCustomDocument(viewType, resourceComponents);
-		document._save();
+		document._save(cancellation);
 	}
 
 	async $onSaveAs(resourceComponents: UriComponents, viewType: string, targetResource: UriComponents): Promise<void> {

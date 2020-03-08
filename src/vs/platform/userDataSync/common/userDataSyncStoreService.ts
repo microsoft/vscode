@@ -4,14 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, } from 'vs/base/common/lifecycle';
-import { IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, IUserDataSyncStore, getUserDataSyncStore, SyncSource, UserDataSyncStoreError, IUserDataSyncLogService, IUserDataManifest } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, IUserDataSyncStore, getUserDataSyncStore, SyncSource, UserDataSyncStoreError, IUserDataSyncLogService, IUserDataManifest, ResourceKey, IResourceRefHandle } from 'vs/platform/userDataSync/common/userDataSync';
 import { IRequestService, asText, isSuccess, asJson } from 'vs/platform/request/common/request';
-import { joinPath } from 'vs/base/common/resources';
+import { joinPath, relativePath } from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IHeaders, IRequestOptions, IRequestContext } from 'vs/base/parts/request/common/request';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IAuthenticationTokenService } from 'vs/platform/authentication/common/authentication';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { URI } from 'vs/base/common/uri';
 
 export class UserDataSyncStoreService extends Disposable implements IUserDataSyncStoreService {
 
@@ -30,7 +31,58 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		this.userDataSyncStore = getUserDataSyncStore(productService, configurationService);
 	}
 
-	async read(key: string, oldValue: IUserData | null, source?: SyncSource): Promise<IUserData> {
+	async getAllRefs(key: ResourceKey): Promise<IResourceRefHandle[]> {
+		if (!this.userDataSyncStore) {
+			throw new Error('No settings sync store url configured.');
+		}
+
+		const uri = joinPath(this.userDataSyncStore.url, 'resource', key);
+		const headers: IHeaders = {};
+
+		const context = await this.request({ type: 'GET', url: uri.toString(), headers }, undefined, CancellationToken.None);
+
+		if (!isSuccess(context)) {
+			throw new UserDataSyncStoreError('Server returned ' + context.res.statusCode, UserDataSyncErrorCode.Unknown, undefined);
+		}
+
+		const result = await asJson<{ url: string, created: number }[]>(context) || [];
+		return result.map(({ url, created }) => ({ ref: relativePath(uri, URI.parse(url))!, created: created }));
+	}
+
+	async resolveContent(key: ResourceKey, ref: string): Promise<string | null> {
+		if (!this.userDataSyncStore) {
+			throw new Error('No settings sync store url configured.');
+		}
+
+		const url = joinPath(this.userDataSyncStore.url, 'resource', key, ref).toString();
+		const headers: IHeaders = {};
+
+		const context = await this.request({ type: 'GET', url, headers }, undefined, CancellationToken.None);
+
+		if (!isSuccess(context)) {
+			throw new UserDataSyncStoreError('Server returned ' + context.res.statusCode, UserDataSyncErrorCode.Unknown, undefined);
+		}
+
+		const content = await asText(context);
+		return content;
+	}
+
+	async delete(key: ResourceKey): Promise<void> {
+		if (!this.userDataSyncStore) {
+			throw new Error('No settings sync store url configured.');
+		}
+
+		const url = joinPath(this.userDataSyncStore.url, 'resource', key).toString();
+		const headers: IHeaders = {};
+
+		const context = await this.request({ type: 'DELETE', url, headers }, undefined, CancellationToken.None);
+
+		if (!isSuccess(context)) {
+			throw new UserDataSyncStoreError('Server returned ' + context.res.statusCode, UserDataSyncErrorCode.Unknown, undefined);
+		}
+	}
+
+	async read(key: ResourceKey, oldValue: IUserData | null, source?: SyncSource): Promise<IUserData> {
 		if (!this.userDataSyncStore) {
 			throw new Error('No settings sync store url configured.');
 		}
@@ -62,7 +114,7 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		return { ref, content };
 	}
 
-	async write(key: string, data: string, ref: string | null, source?: SyncSource): Promise<string> {
+	async write(key: ResourceKey, data: string, ref: string | null, source?: SyncSource): Promise<string> {
 		if (!this.userDataSyncStore) {
 			throw new Error('No settings sync store url configured.');
 		}

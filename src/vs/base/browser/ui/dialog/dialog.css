@@ -25,7 +25,7 @@
 	flex-direction: column-reverse;
 	width: min-content;
 	min-width: 500px;
-	max-width: 90%;
+	max-width: 90vw;
 	min-height: 75px;
 	padding: 10px;
 	transform: translate3d(0px, 0px, 0px);
