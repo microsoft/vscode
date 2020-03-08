@@ -11,5 +11,5 @@ import { HelpQuickAccessProvider } from 'vs/platform/quickinput/browser/helpQuic
 Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).defaultProvider = {
 	ctor: HelpQuickAccessProvider,
 	prefix: '',
-	helpEntries: [{ description: QuickHelpNLS.helpQuickAccessActionLabel, needsEditor: false }]
+	helpEntries: [{ description: QuickHelpNLS.helpQuickAccessActionLabel, needsEditor: true }]
 };

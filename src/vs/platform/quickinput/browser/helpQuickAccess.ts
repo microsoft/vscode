@@ -35,12 +35,20 @@ export class HelpQuickAccessProvider implements IQuickAccessProvider {
 
 		// Fill in all providers separated by editor/global scope
 		const { editorProviders, globalProviders } = this.getQuickAccessProviders();
-		picker.items = [
-			{ label: localize('globalCommands', "global commands"), type: 'separator' },
-			...globalProviders,
-			{ label: localize('editorCommands', "editor commands"), type: 'separator' },
-			...editorProviders
-		];
+		picker.items = editorProviders.length === 0 || globalProviders.length === 0 ?
+
+			// Without groups
+			[
+				...(editorProviders.length === 0 ? globalProviders : editorProviders)
+			] :
+
+			// With groups
+			[
+				{ label: localize('globalCommands', "global commands"), type: 'separator' },
+				...globalProviders,
+				{ label: localize('editorCommands', "editor commands"), type: 'separator' },
+				...editorProviders
+			];
 
 		picker.show();
 	}
