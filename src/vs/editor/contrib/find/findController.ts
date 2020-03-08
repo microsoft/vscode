@@ -66,6 +66,7 @@ export interface IFindStartOptions {
 	shouldFocus: FindStartFocusAction;
 	shouldAnimate: boolean;
 	updateSearchScope: boolean;
+	loop: boolean;
 }
 
 export class CommonFindController extends Disposable implements IEditorContribution {
@@ -125,7 +126,8 @@ export class CommonFindController extends Disposable implements IEditorContribut
 					seedSearchStringFromGlobalClipboard: false,
 					shouldFocus: FindStartFocusAction.NoFocusChange,
 					shouldAnimate: false,
-					updateSearchScope: false
+					updateSearchScope: false,
+					loop: this._editor.getOption(EditorOption.find).loop
 				});
 			}
 		}));
@@ -295,6 +297,8 @@ export class CommonFindController extends Disposable implements IEditorContribut
 				stateChanges.searchScope = currentSelection;
 			}
 		}
+
+		stateChanges.loop = opts.loop;
 
 		this._state.change(stateChanges, false);
 
@@ -473,7 +477,8 @@ export class StartFindAction extends EditorAction {
 				seedSearchStringFromGlobalClipboard: editor.getOption(EditorOption.find).globalFindClipboard,
 				shouldFocus: FindStartFocusAction.FocusFindInput,
 				shouldAnimate: true,
-				updateSearchScope: false
+				updateSearchScope: false,
+				loop: editor.getOption(EditorOption.find).loop
 			});
 		}
 	}
@@ -507,7 +512,8 @@ export class StartFindWithSelectionAction extends EditorAction {
 				seedSearchStringFromGlobalClipboard: false,
 				shouldFocus: FindStartFocusAction.NoFocusChange,
 				shouldAnimate: true,
-				updateSearchScope: false
+				updateSearchScope: false,
+				loop: editor.getOption(EditorOption.find).loop
 			});
 
 			controller.setGlobalBufferTerm(controller.getState().searchString);
@@ -524,7 +530,8 @@ export abstract class MatchFindAction extends EditorAction {
 				seedSearchStringFromGlobalClipboard: true,
 				shouldFocus: FindStartFocusAction.NoFocusChange,
 				shouldAnimate: true,
-				updateSearchScope: false
+				updateSearchScope: false,
+				loop: editor.getOption(EditorOption.find).loop
 			});
 			this._run(controller);
 		}
@@ -636,7 +643,8 @@ export abstract class SelectionMatchFindAction extends EditorAction {
 				seedSearchStringFromGlobalClipboard: false,
 				shouldFocus: FindStartFocusAction.NoFocusChange,
 				shouldAnimate: true,
-				updateSearchScope: false
+				updateSearchScope: false,
+				loop: editor.getOption(EditorOption.find).loop
 			});
 			this._run(controller);
 		}
@@ -741,7 +749,8 @@ export class StartFindReplaceAction extends EditorAction {
 				seedSearchStringFromGlobalClipboard: editor.getOption(EditorOption.find).seedSearchStringFromSelection,
 				shouldFocus: shouldFocus,
 				shouldAnimate: true,
-				updateSearchScope: false
+				updateSearchScope: false,
+				loop: editor.getOption(EditorOption.find).loop
 			});
 		}
 	}
