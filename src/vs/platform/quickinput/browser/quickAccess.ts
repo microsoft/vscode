@@ -10,7 +10,6 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { once } from 'vs/base/common/functional';
-import { Event } from 'vs/base/common/event';
 
 export class QuickAccessController extends Disposable implements IQuickAccessController {
 
@@ -27,23 +26,40 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 	}
 
 	show(value = ''): void {
+		const disposables = new DisposableStore();
 
 		// Hide any previous picker if any
-		this.lastActivePicker?.dispose();
+		this.lastActivePicker?.hide();
 
 		// Find provider for the value to show
 		const [provider, prefix] = this.getOrInstantiateProvider(value);
 
 		// Create a picker for the provider to use with the initial value
 		// and adjust the filtering to exclude the prefix from filtering
-		const picker = this.lastActivePicker = this.quickInputService.createQuickPick();
+		const picker = disposables.add(this.quickInputService.createQuickPick());
 		picker.value = value;
 		picker.valueSelection = [value.length, value.length];
 		picker.filterValue = (value: string) => value.substring(prefix.length);
 
-		// Cleanup when picker hides or gets disposed
-		const disposables = new DisposableStore();
-		once(Event.any(picker.onDidHide, picker.onDispose))(() => disposables.dispose());
+		// Remember as last active picker and clean up once picker get's disposed
+		this.lastActivePicker = picker;
+		disposables.add(toDisposable(() => {
+			if (picker === this.lastActivePicker) {
+				this.lastActivePicker = undefined;
+			}
+		}));
+
+		// Create a cancellation token source that is valid as long as the
+		// picker has not been closed without picking an item
+		const cts = disposables.add(new CancellationTokenSource());
+		once(picker.onDidHide)(() => {
+			if (picker.selectedItems.length === 0) {
+				cts.cancel();
+			}
+
+			// Start to dispose once picker hides
+			disposables.dispose();
+		});
 
 		// Whenever the value changes, check if the provider has
 		// changed and if so - re-create the picker from the beginning
@@ -54,13 +70,13 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 			}
 		}));
 
-		// Create a cancellation token source that is valid
-		// as long as the picker has not been closed
-		const cts = new CancellationTokenSource();
-		disposables.add(toDisposable(() => cts.dispose(true)));
+		// Ask provider to fill the picker as needed
+		disposables.add(provider.provide(picker, cts.token));
 
-		// Finally ask provider to fill the picker as needed
-		provider.provide(picker, cts.token);
+		// Finally, show the picker. This is important because a provider
+		// may not call this and then our disposables would leak that rely
+		// on the onDidHide event.
+		picker.show();
 	}
 
 	private getOrInstantiateProvider(value: string): [IQuickAccessProvider, string /* prefix */] {

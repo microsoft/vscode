@@ -8,8 +8,7 @@ import { IQuickAccessProvider, IQuickAccessRegistry, Extensions } from 'vs/platf
 import { Registry } from 'vs/platform/registry/common/platform';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { localize } from 'vs/nls';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { once } from 'vs/base/common/functional';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 
 interface IHelpQuickAccessPickItem extends IQuickPickItem {
 	prefix: string;
@@ -21,9 +20,8 @@ export class HelpQuickAccessProvider implements IQuickAccessProvider {
 
 	constructor(@IQuickInputService private readonly quickInputService: IQuickInputService) { }
 
-	provide(picker: IQuickPick<IHelpQuickAccessPickItem>, token: CancellationToken): void {
+	provide(picker: IQuickPick<IHelpQuickAccessPickItem>, token: CancellationToken): IDisposable {
 		const disposables = new DisposableStore();
-		once(token.onCancellationRequested)(() => disposables.dispose());
 
 		// Open a picker with the selected value if picked
 		disposables.add(picker.onDidAccept(() => {
@@ -50,7 +48,7 @@ export class HelpQuickAccessProvider implements IQuickAccessProvider {
 				...editorProviders
 			];
 
-		picker.show();
+		return disposables;
 	}
 
 	private getQuickAccessProviders(): { editorProviders: IHelpQuickAccessPickItem[], globalProviders: IHelpQuickAccessPickItem[] } {

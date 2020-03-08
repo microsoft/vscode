@@ -11,11 +11,11 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IQuickAccessRegistry, Extensions as QuickinputExtensions, IQuickAccessProvider } from 'vs/platform/quickinput/common/quickAccess';
+import { IQuickAccessProvider, IQuickAccessRegistry, Extensions as QuickInputExtensions } from 'vs/platform/quickinput/common/quickAccess';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
 const inQuickOpenKey = 'inQuickOpen';
@@ -209,19 +209,19 @@ export class LegacyQuickInputQuickOpenController extends Disposable {
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(LegacyQuickInputQuickOpenController, LifecyclePhase.Ready);
 
 class SampleQuickAccessProvider implements IQuickAccessProvider {
-	provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): void {
+	provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable {
 		picker.items = [
 			{ label: 'Hello World' },
 			{ label: 'Lorem Ipsum' },
 			{ label: 'Something Else' }
 		];
 
-		picker.show();
+		return Disposable.None;
 	}
 }
 
-const quickAccessRegistry = Registry.as<IQuickAccessRegistry>(QuickinputExtensions.Quickaccess);
-['', '>', '@', ':', 'edt', 'edt active', 'edt mru', 'view'].forEach(prefix => {
+const quickAccessRegistry = Registry.as<IQuickAccessRegistry>(QuickInputExtensions.Quickaccess);
+[''/*, '>', '@', ':', 'edt', 'edt active', 'edt mru', 'view'*/].forEach(prefix => {
 	const provider = {
 		ctor: SampleQuickAccessProvider,
 		prefix,

@@ -24,12 +24,16 @@ export interface IQuickAccessProvider {
 	/**
 	 * Called whenever a prefix was typed into quick pick that matches the provider.
 	 *
-	 * @param picker the picker to use for showing provider results.
+	 * @param picker the picker to use for showing provider results. The picker is
+	 * automatically shown after the method returns, no need to call `show()`.
 	 * @param token providers have to check the cancellation token everytime after
-	 * a long running operation because it could be that the picker has been closed
-	 * or changed meanwhile.
+	 * a long running operation or from event handlers because it could be that the
+	 * picker has been closed or changed meanwhile. The token can be used to find out
+	 * that the picker was closed without picking an entry (e.g. was canceled by the user).
+	 * @return a disposable that will automatically be disposed when the picker
+	 * closes or is replaced by another picker.
 	 */
-	provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): void;
+	provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable;
 }
 
 export interface IQuickAccessProviderHelp {
