@@ -40,3 +40,53 @@
 .runtime-extensions-editor .monaco-action-bar .actions-container {
 	justify-content: left;
 }
+
+.runtime-extensions-editor .extension > .icon-container {
+	position: relative;
+}
+
+.runtime-extensions-editor .extension > .icon-container > .icon {
+	width: 42px;
+	height: 42px;
+	padding: 10px 14px 10px 0;
+	flex-shrink: 0;
+	object-fit: contain;
+}
+
+.runtime-extensions-editor .extension > .icon-container .extension-remote-badge .codicon {
+	color: currentColor;
+}
+
+.vs .runtime-extensions-editor .extension > .icon-container > .icon,
+.vs-dark .runtime-extensions-editor .extension > .icon-container > .icon {
+	opacity: 0.5;
+}
+
+.runtime-extensions-editor .extension > .desc > .header-container {
+	display: flex;
+	overflow: hidden;
+}
+
+.runtime-extensions-editor .extension > .desc > .header-container > .header {
+	display: flex;
+	align-items: baseline;
+	flex-wrap: nowrap;
+	overflow: hidden;
+	flex: 1;
+	min-width: 0;
+}
+
+.runtime-extensions-editor .extension > .desc > .header-container > .header > .name {
+	font-weight: bold;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	overflow: hidden;
+}
+
+.runtime-extensions-editor .extension > .desc > .header-container > .header > .version {
+	opacity: 0.85;
+	font-size: 80%;
+	padding-left: 6px;
+	min-width: fit-content;
+	min-width: -moz-fit-content;
+}

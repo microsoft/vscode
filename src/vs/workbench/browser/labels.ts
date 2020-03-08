@@ -6,7 +6,6 @@
 import { URI } from 'vs/base/common/uri';
 import { dirname, isEqual, basenameOrAuthority } from 'vs/base/common/resources';
 import { IconLabel, IIconLabelValueOptions, IIconLabelCreationOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -82,9 +81,9 @@ export class ResourceLabels extends Disposable {
 	constructor(
 		container: IResourceLabelsContainer,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IExtensionService private readonly extensionService: IExtensionService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IModelService private readonly modelService: IModelService,
+		@IModeService private readonly modeService: IModeService,
 		@IDecorationsService private readonly decorationsService: IDecorationsService,
 		@IThemeService private readonly themeService: IThemeService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -103,7 +102,7 @@ export class ResourceLabels extends Disposable {
 		}));
 
 		// notify when extensions are registered with potentially new languages
-		this._register(this.extensionService.onDidRegisterExtensions(() => this._widgets.forEach(widget => widget.notifyExtensionsRegistered())));
+		this._register(this.modeService.onLanguagesMaybeChanged(() => this._widgets.forEach(widget => widget.notifyExtensionsRegistered())));
 
 		// notify when model mode changes
 		this._register(this.modelService.onModelModeChanged(e => {
@@ -127,7 +126,7 @@ export class ResourceLabels extends Disposable {
 		this._register(this.decorationsService.onDidChangeDecorations(e => this._widgets.forEach(widget => widget.notifyFileDecorationsChanges(e))));
 
 		// notify when theme changes
-		this._register(this.themeService.onThemeChange(() => this._widgets.forEach(widget => widget.notifyThemeChange())));
+		this._register(this.themeService.onDidColorThemeChange(() => this._widgets.forEach(widget => widget.notifyThemeChange())));
 
 		// notify when files.associations changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -137,14 +136,14 @@ export class ResourceLabels extends Disposable {
 		}));
 
 		// notify when label formatters change
-		this._register(this.labelService.onDidChangeFormatters(() => {
-			this._widgets.forEach(widget => widget.notifyFormattersChange());
+		this._register(this.labelService.onDidChangeFormatters(e => {
+			this._widgets.forEach(widget => widget.notifyFormattersChange(e.scheme));
 		}));
 
 		// notify when untitled labels change
-		this.textFileService.untitled.onDidChangeLabel(model => {
+		this._register(this.textFileService.untitled.onDidChangeLabel(model => {
 			this._widgets.forEach(widget => widget.notifyUntitledLabelChange(model.resource));
-		});
+		}));
 	}
 
 	get(index: number): IResourceLabel {
@@ -206,15 +205,15 @@ export class ResourceLabel extends ResourceLabels {
 		container: HTMLElement,
 		options: IIconLabelCreationOptions | undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IExtensionService extensionService: IExtensionService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IModelService modelService: IModelService,
+		@IModeService modeService: IModeService,
 		@IDecorationsService decorationsService: IDecorationsService,
 		@IThemeService themeService: IThemeService,
 		@ILabelService labelService: ILabelService,
 		@ITextFileService textFileService: ITextFileService
 	) {
-		super(DEFAULT_LABELS_CONTAINER, instantiationService, extensionService, configurationService, modelService, decorationsService, themeService, labelService, textFileService);
+		super(DEFAULT_LABELS_CONTAINER, instantiationService, configurationService, modelService, modeService, decorationsService, themeService, labelService, textFileService);
 
 		this._label = this._register(this.create(container, options));
 	}
@@ -311,8 +310,10 @@ class ResourceLabelWidget extends IconLabel {
 		this.render(true);
 	}
 
-	notifyFormattersChange(): void {
-		this.render(false);
+	notifyFormattersChange(scheme: string): void {
+		if (this.label?.resource?.scheme === scheme) {
+			this.render(false);
+		}
 	}
 
 	notifyUntitledLabelChange(resource: URI): void {

@@ -323,7 +323,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 	}
 
 	public revealRange(source: string, revealHorizontal: boolean, viewRange: Range, verticalType: viewEvents.VerticalRevealType, scrollType: editorCommon.ScrollType) {
-		this.emitCursorRevealRange(source, viewRange, verticalType, revealHorizontal, scrollType);
+		this.emitCursorRevealRange(source, viewRange, null, verticalType, revealHorizontal, scrollType);
 	}
 
 	public scrollTo(desiredScrollTop: number): void {
@@ -430,15 +430,14 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 			return this._columnSelectData;
 		}
 		const primaryCursor = this._cursors.getPrimaryCursor();
-		const primaryPos = primaryCursor.viewState.selectionStart.getStartPosition();
-		const viewLineNumber = primaryPos.lineNumber;
-		const viewVisualColumn = CursorColumns.visibleColumnFromColumn2(this.context.config, this.context.viewModel, primaryPos);
+		const viewSelectionStart = primaryCursor.viewState.selectionStart.getStartPosition();
+		const viewPosition = primaryCursor.viewState.position;
 		return {
 			isReal: false,
-			fromViewLineNumber: viewLineNumber,
-			fromViewVisualColumn: viewVisualColumn,
-			toViewLineNumber: viewLineNumber,
-			toViewVisualColumn: viewVisualColumn,
+			fromViewLineNumber: viewSelectionStart.lineNumber,
+			fromViewVisualColumn: CursorColumns.visibleColumnFromColumn2(this.context.config, this.context.viewModel, viewSelectionStart),
+			toViewLineNumber: viewPosition.lineNumber,
+			toViewVisualColumn: CursorColumns.visibleColumnFromColumn2(this.context.config, this.context.viewModel, viewPosition),
 		};
 	}
 
@@ -595,19 +594,19 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 			}
 		} else {
 			if (viewPositions.length > 1) {
-				// no revealing!
+				this.emitCursorRevealRange(source, null, this._cursors.getViewSelections(), verticalType, revealHorizontal, scrollType);
 				return;
 			}
 		}
 
 		const viewRange = new Range(viewPosition.lineNumber, viewPosition.column, viewPosition.lineNumber, viewPosition.column);
-		this.emitCursorRevealRange(source, viewRange, verticalType, revealHorizontal, scrollType);
+		this.emitCursorRevealRange(source, viewRange, null, verticalType, revealHorizontal, scrollType);
 	}
 
-	public emitCursorRevealRange(source: string, viewRange: Range, verticalType: viewEvents.VerticalRevealType, revealHorizontal: boolean, scrollType: editorCommon.ScrollType) {
+	public emitCursorRevealRange(source: string, viewRange: Range | null, viewSelections: Selection[] | null, verticalType: viewEvents.VerticalRevealType, revealHorizontal: boolean, scrollType: editorCommon.ScrollType) {
 		try {
 			const eventsCollector = this._beginEmit();
-			eventsCollector.emit(new viewEvents.ViewRevealRangeRequestEvent(source, viewRange, verticalType, revealHorizontal, scrollType));
+			eventsCollector.emit(new viewEvents.ViewRevealRangeRequestEvent(source, viewRange, viewSelections, verticalType, revealHorizontal, scrollType));
 		} finally {
 			this._endEmit();
 		}
@@ -780,7 +779,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 	}
 
 	private _type(source: string, text: string): void {
-		if (!this._isDoingComposition && source === 'keyboard') {
+		if (source === 'keyboard') {
 			// If this event is coming straight from the keyboard, look for electric characters and enter
 
 			const len = text.length;
@@ -791,7 +790,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
 				// Here we must interpret each typed character individually
 				const autoClosedCharacters = AutoClosedAction.getAllAutoClosedCharacters(this._autoClosedActions);
-				this._executeEditOperation(TypeOperations.typeWithInterceptors(this._prevEditOperationType, this.context.config, this.context.model, this.getSelections(), autoClosedCharacters, chr));
+				this._executeEditOperation(TypeOperations.typeWithInterceptors(this._isDoingComposition, this._prevEditOperationType, this.context.config, this.context.model, this.getSelections(), autoClosedCharacters, chr));
 
 				offset += charLength;
 			}

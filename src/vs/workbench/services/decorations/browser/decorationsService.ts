@@ -11,7 +11,7 @@ import { IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifec
 import { isThenable } from 'vs/base/common/async';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { createStyleSheet, createCSSRule, removeCSSRulesContainingSelector } from 'vs/base/browser/dom';
-import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
+import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { localize } from 'vs/nls';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
@@ -56,7 +56,7 @@ class DecorationRule {
 		return --this._refCounter === 0;
 	}
 
-	appendCSSRules(element: HTMLStyleElement, theme: ITheme): void {
+	appendCSSRules(element: HTMLStyleElement, theme: IColorTheme): void {
 		if (!Array.isArray(this.data)) {
 			this._appendForOne(this.data, element, theme);
 		} else {
@@ -64,7 +64,7 @@ class DecorationRule {
 		}
 	}
 
-	private _appendForOne(data: IDecorationData, element: HTMLStyleElement, theme: ITheme): void {
+	private _appendForOne(data: IDecorationData, element: HTMLStyleElement, theme: IColorTheme): void {
 		const { color, letter } = data;
 		// label
 		createCSSRule(`.${this.itemColorClassName}`, `color: ${getColor(theme, color)};`, element);
@@ -74,7 +74,7 @@ class DecorationRule {
 		}
 	}
 
-	private _appendForMany(data: IDecorationData[], element: HTMLStyleElement, theme: ITheme): void {
+	private _appendForMany(data: IDecorationData[], element: HTMLStyleElement, theme: IColorTheme): void {
 		// label
 		const { color } = data[0];
 		createCSSRule(`.${this.itemColorClassName}`, `color: ${getColor(theme, color)};`, element);
@@ -110,7 +110,7 @@ class DecorationStyles {
 	constructor(
 		private _themeService: IThemeService,
 	) {
-		this._themeService.onThemeChange(this._onThemeChange, this, this._dispoables);
+		this._themeService.onDidColorThemeChange(this._onThemeChange, this, this._dispoables);
 	}
 
 	dispose(): void {
@@ -130,7 +130,7 @@ class DecorationStyles {
 			// new css rule
 			rule = new DecorationRule(data, key);
 			this._decorationRules.set(key, rule);
-			rule.appendCSSRules(this._styleElement, this._themeService.getTheme());
+			rule.appendCSSRules(this._styleElement, this._themeService.getColorTheme());
 		}
 
 		rule.acquire();
@@ -162,7 +162,7 @@ class DecorationStyles {
 	private _onThemeChange(): void {
 		this._decorationRules.forEach(rule => {
 			rule.removeCSSRules(this._styleElement);
-			rule.appendCSSRules(this._styleElement, this._themeService.getTheme());
+			rule.appendCSSRules(this._styleElement, this._themeService.getColorTheme());
 		});
 	}
 }
@@ -364,23 +364,21 @@ export class DecorationsService implements IDecorationsService {
 	getDecoration(uri: URI, includeChildren: boolean): IDecoration | undefined {
 		let data: IDecorationData[] = [];
 		let containsChildren: boolean = false;
-		for (let iter = this._data.iterator(), next = iter.next(); !next.done; next = iter.next()) {
-			const { label } = next.value.provider;
-			next.value.getOrRetrieve(uri, includeChildren, (deco, isChild) => {
+		for (let wrapper of this._data) {
+			wrapper.getOrRetrieve(uri, includeChildren, (deco, isChild) => {
 				if (!isChild || deco.bubble) {
 					data.push(deco);
 					containsChildren = isChild || containsChildren;
-					this._logService.trace('DecorationsService#getDecoration#getOrRetrieve', label, deco, isChild, uri);
+					this._logService.trace('DecorationsService#getDecoration#getOrRetrieve', wrapper.provider.label, deco, isChild, uri);
 				}
 			});
 		}
-
 		return data.length === 0
 			? undefined
 			: this._decorationStyles.asDecoration(data, containsChildren);
 	}
 }
-function getColor(theme: ITheme, color: string | undefined) {
+function getColor(theme: IColorTheme, color: string | undefined) {
 	if (color) {
 		const foundColor = theme.getColor(color);
 		if (foundColor) {

@@ -53,7 +53,7 @@ export class SearchEditorInput extends EditorInput {
 	private _cachedContentsModel: ITextModel | undefined;
 	private _cachedConfig?: SearchConfiguration;
 
-	private readonly _onDidChangeContent = new Emitter<void>();
+	private readonly _onDidChangeContent = this._register(new Emitter<void>());
 	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 
 	private oldDecorationsIDs: string[] = [];
@@ -112,7 +112,7 @@ export class SearchEditorInput extends EditorInput {
 			isDirty(): boolean { return input.isDirty(); }
 			backup(): Promise<IWorkingCopyBackup> { return input.backup(); }
 			save(options?: ISaveOptions): Promise<boolean> { return input.save(0, options).then(editor => !!editor); }
-			revert(options?: IRevertOptions): Promise<boolean> { return input.revert(0, options); }
+			revert(options?: IRevertOptions): Promise<void> { return input.revert(0, options); }
 		};
 
 		this.workingCopyService.registerWorkingCopy(workingCopyAdapter);
@@ -249,6 +249,7 @@ export class SearchEditorInput extends EditorInput {
 	public getMatchRanges(): Range[] {
 		return (this._cachedContentsModel?.getAllDecorations() ?? [])
 			.filter(decoration => decoration.options.className === SearchEditorFindMatchClass)
+			.filter(({ range }) => !(range.startColumn === 1 && range.endColumn === 1))
 			.map(({ range }) => range);
 	}
 
@@ -261,7 +262,6 @@ export class SearchEditorInput extends EditorInput {
 		// TODO: this should actually revert the contents. But it needs to set dirty false.
 		super.revert(group, options);
 		this.setDirty(false);
-		return true;
 	}
 
 	private async backup(): Promise<IWorkingCopyBackup> {

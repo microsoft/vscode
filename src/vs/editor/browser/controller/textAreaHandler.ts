@@ -53,7 +53,7 @@ class VisibleTextAreaData {
 	}
 }
 
-const canUseZeroSizeTextarea = (browser.isEdgeOrIE || browser.isFirefox);
+const canUseZeroSizeTextarea = (browser.isEdge || browser.isFirefox);
 
 export class TextAreaHandler extends ViewPart {
 
@@ -252,13 +252,14 @@ export class TextAreaHandler extends ViewPart {
 			this._viewController.setSelection('keyboard', modelSelection);
 		}));
 
-		this._register(this._textAreaInput.onCompositionStart(() => {
+		this._register(this._textAreaInput.onCompositionStart((e) => {
 			const lineNumber = this._selections[0].startLineNumber;
-			const column = this._selections[0].startColumn;
+			const column = this._selections[0].startColumn - (e.moveOneCharacterLeft ? 1 : 0);
 
 			this._context.privateViewEventBus.emit(new viewEvents.ViewRevealRangeRequestEvent(
 				'keyboard',
 				new Range(lineNumber, column, lineNumber, column),
+				null,
 				viewEvents.VerticalRevealType.Simple,
 				true,
 				ScrollType.Immediate
@@ -283,7 +284,7 @@ export class TextAreaHandler extends ViewPart {
 		}));
 
 		this._register(this._textAreaInput.onCompositionUpdate((e: ICompositionData) => {
-			if (browser.isEdgeOrIE) {
+			if (browser.isEdge) {
 				// Due to isEdgeOrIE (where the textarea was not cleared initially)
 				// we cannot assume the text consists only of the composited text
 				this._visibleTextArea = this._visibleTextArea!.setWidth(0);
@@ -357,9 +358,9 @@ export class TextAreaHandler extends ViewPart {
 		this._accessibilitySupport = options.get(EditorOption.accessibilitySupport);
 		const accessibilityPageSize = options.get(EditorOption.accessibilityPageSize);
 		if (this._accessibilitySupport === AccessibilitySupport.Enabled && accessibilityPageSize === EditorOptions.accessibilityPageSize.defaultValue) {
-			// If a screen reader is attached and the default value is not set we shuold automatically increase the page size to 160 for a better experience
-			// If we put more than 160 lines the nvda can not handle this https://github.com/microsoft/vscode/issues/89717
-			this._accessibilityPageSize = 160;
+			// If a screen reader is attached and the default value is not set we shuold automatically increase the page size to 100 for a better experience
+			// If we put more than 100 lines the nvda can not handle this https://github.com/microsoft/vscode/issues/89717
+			this._accessibilityPageSize = 100;
 		} else {
 			this._accessibilityPageSize = accessibilityPageSize;
 		}

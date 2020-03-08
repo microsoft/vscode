@@ -39,7 +39,7 @@ export function getSelectionSearchString(editor: ICodeEditor): string | null {
 	// if selection spans multiple lines, default search string to empty
 	if (selection.startLineNumber === selection.endLineNumber) {
 		if (selection.isEmpty()) {
-			let wordAtPosition = editor.getModel().getWordAtPosition(selection.getStartPosition());
+			const wordAtPosition = editor.getConfiguredWordAtPosition(selection.getStartPosition());
 			if (wordAtPosition) {
 				return wordAtPosition.word;
 			}

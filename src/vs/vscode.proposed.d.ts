@@ -20,7 +20,7 @@ declare module 'vscode' {
 
 	export interface AuthenticationSession {
 		id: string;
-		accessToken(): Thenable<string>;
+		getAccessToken(): Thenable<string>;
 		accountName: string;
 		scopes: string[]
 	}
@@ -35,7 +35,7 @@ declare module 'vscode' {
 		readonly added: string[];
 
 		/**
-		 * The ids of the [authenticationProvider](#AuthenticationProvider)s that have been removed..
+		 * The ids of the [authenticationProvider](#AuthenticationProvider)s that have been removed.
 		 */
 		readonly removed: string[];
 	}
@@ -50,7 +50,7 @@ declare module 'vscode' {
 		readonly displayName: string;
 
 		/**
-		 * A [enent](#Event) which fires when the array of sessions has changed, or data
+		 * A [event](#Event) which fires when the array of sessions has changed, or data
 		 * within a session has changed.
 		 */
 		readonly onDidChangeSessions: Event<void>;
@@ -75,7 +75,31 @@ declare module 'vscode' {
 		 */
 		export const onDidChangeAuthenticationProviders: Event<AuthenticationProvidersChangeEvent>;
 
-		export const providers: ReadonlyArray<AuthenticationProvider>;
+		/**
+		 * Returns whether a provider with providerId is currently registered.
+		 */
+		export function hasProvider(providerId: string): boolean;
+
+		/**
+		 * Get existing authentication sessions. Rejects if a provider with providerId is not
+		 * registered, or if the user does not consent to sharing authentication information with
+		 * the extension.
+		 */
+		export function getSessions(providerId: string): Thenable<readonly AuthenticationSession[]>;
+
+		/**
+		* Prompt a user to login to create a new authenticaiton session. Rejects if a provider with
+		* providerId is not registered, or if the user does not consent to sharing authentication
+		* information with the extension.
+		*/
+		export function login(providerId: string, scopes: string[]): Thenable<AuthenticationSession>;
+
+		/**
+		* A [event](#Event) which fires when the array of sessions has changed, or data
+		* within a session has changed for a provider. Fires with the ids of the providers
+		* that have had session data change.
+		*/
+		export const onDidChangeSessions: Event<string[]>;
 	}
 
 	//#endregion
@@ -107,7 +131,7 @@ declare module 'vscode' {
 	export interface TunnelDescription {
 		remoteAddress: { port: number, host: string };
 		//The complete local address(ex. localhost:1234)
-		localAddress: string;
+		localAddress: { port: number, host: string } | string;
 	}
 
 	export interface Tunnel extends TunnelDescription {
@@ -168,13 +192,6 @@ declare module 'vscode' {
 		 */
 		export let tunnels: Thenable<TunnelDescription[]>;
 
-		/**
-		 * Fired when the list of tunnels has changed.
-		 * @deprecated use onDidChangeTunnels instead
-		 */
-		// TODO@alexr
-		// eslint-disable-next-line vscode-dts-event-naming
-		export const onDidTunnelsChange: Event<void>;
 		/**
 		 * Fired when the list of tunnels has changed.
 		 */
@@ -258,6 +275,11 @@ declare module 'vscode' {
 	 */
 	export interface DocumentSemanticTokensProvider {
 		/**
+		 * An optional event to signal that the semantic tokens from this provider have changed.
+		 */
+		onDidChangeSemanticTokens?: Event<void>;
+
+		/**
 		 * A file can contain many tokens, perhaps even hundreds of thousands of tokens. Therefore, to improve
 		 * the memory consumption around describing semantic tokens, we have decided to avoid allocating an object
 		 * for each token and we represent tokens from a file as an array of integers. Furthermore, the position
@@ -314,6 +336,9 @@ declare module 'vscode' {
 		 *    // 1st token,  2nd token,  3rd token
 		 *    [  2,5,3,0,3,  0,5,4,1,0,  3,2,7,2,0 ]
 		 * ```
+		 *
+		 * *NOTE*: When doing edits, it is possible that multiple edits occur until VS Code decides to invoke the semantic tokens provider.
+		 * *NOTE*: If the provider cannot temporarily compute semantic tokens, it can indicate this by throwing an error with the message 'Busy'.
 		 */
 		provideDocumentSemanticTokens(document: TextDocument, token: CancellationToken): ProviderResult<SemanticTokens>;
 
@@ -366,7 +391,6 @@ declare module 'vscode' {
 		 *    edit: { start: 10, deleteCount: 1, data: [1,3,5,0,2,2] } // replace integer at offset 10 with [1,3,5,0,2,2]
 		 * ```
 		 *
-		 * *NOTE*: When doing edits, it is possible that multiple edits occur until VS Code decides to invoke the semantic tokens provider.
 		 * *NOTE*: If the provider cannot compute `SemanticTokensEdits`, it can "give up" and return all the tokens in the document again.
 		 * *NOTE*: All edits in `SemanticTokensEdits` contain indices in the old integers array, so they all refer to the previous result state.
 		 */
@@ -749,10 +773,15 @@ declare module 'vscode' {
 
 		/**
 		 * A [glob pattern](#GlobPattern) that defines files and folders to exclude. The glob pattern
-		 * will be matched against the file paths of resulting matches relative to their workspace. When `undefined` only default excludes will
-		 * apply, when `null` no excludes will apply.
+		 * will be matched against the file paths of resulting matches relative to their workspace. When `undefined`, default excludes will
+		 * apply.
 		 */
-		exclude?: GlobPattern | null;
+		exclude?: GlobPattern;
+
+		/**
+		 * Whether to use the default and user-configured excludes. Defaults to true.
+		 */
+		useDefaultExcludes?: boolean;
 
 		/**
 		 * The maximum number of results to search for
@@ -1215,9 +1244,11 @@ declare module 'vscode' {
 		/**
 		 * Save the resource.
 		 *
+		 * @param cancellation Token that signals the save is no longer required (for example, if another save was triggered).
+		 *
 		 * @return Thenable signaling that the save has completed.
 		 */
-		save(): Thenable<void>;
+		save(cancellation: CancellationToken): Thenable<void>;
 
 		/**
 		 * Save the existing resource at a new path.
@@ -1273,14 +1304,14 @@ declare module 'vscode' {
 		 * in an operation that takes time to complete, your extension may decide to finish the ongoing backup rather
 		 * than cancelling it to ensure that VS Code has some valid backup.
 		 */
-		backup(cancellation: CancellationToken): Thenable<boolean>;
+		backup(cancellation: CancellationToken): Thenable<void>;
 	}
 
 	/**
 	 * Represents a custom document for a custom webview editor.
 	 *
-	 * Custom documents are only used within a given `WebviewCustomEditorProvider`. The lifecycle of a
-	 * `WebviewEditorCustomDocument` is managed by VS Code. When more more references remain to a given `WebviewEditorCustomDocument`
+	 * Custom documents are only used within a given `CustomEditorProvider`. The lifecycle of a
+	 * `CustomDocument` is managed by VS Code. When more more references remain to a given `CustomDocument`
 	 * then it is disposed of.
 	 *
 	 * @param UserDataType Type of custom object that extensions can store on the document.
@@ -1297,7 +1328,7 @@ declare module 'vscode' {
 		readonly uri: Uri;
 
 		/**
-		 * Event fired when there are no more references to the `WebviewEditorCustomDocument`.
+		 * Event fired when there are no more references to the `CustomDocument`.
 		 */
 		readonly onDidDispose: Event<void>;
 
@@ -1313,7 +1344,7 @@ declare module 'vscode' {
 	/**
 	 * Provider for webview editors that use a custom data model.
 	 *
-	 * Custom webview editors use [`WebviewEditorCustomDocument`](#WebviewEditorCustomDocument) as their data model.
+	 * Custom webview editors use [`CustomDocument`](#CustomDocument) as their data model.
 	 * This gives extensions full control over actions such as edit, save, and backup.
 	 *
 	 * You should use custom text based editors when dealing with binary files or more complex scenarios. For simple text
@@ -1321,20 +1352,22 @@ declare module 'vscode' {
 	 */
 	export interface CustomEditorProvider {
 		/**
-		 * Create the model for a given
+		 * Resolve the model for a given resource.
 		 *
-		 * @param document Resource being resolved.
+		 * @param document Document to resolve.
+		 *
+		 * @return The capabilities of the resolved document.
 		 */
 		resolveCustomDocument(document: CustomDocument): Thenable<CustomEditorCapabilities>;
 
 		/**
 		 * Resolve a webview editor for a given resource.
 		 *
-		 * To resolve a webview editor, a provider must fill in its initial html content and hook up all
+		 * To resolve a webview editor, the provider must fill in its initial html content and hook up all
 		 * the event listeners it is interested it. The provider should also take ownership of the passed in `WebviewPanel`.
 		 *
-		 * @param document Document for resource being resolved.
-		 * @param webviewPanel Webview being resolved. The provider should take ownership of this webview.
+		 * @param document Document for the resource being resolved.
+		 * @param webviewPanel Webview to resolve. The provider should take ownership of this webview.
 		 *
 		 * @return Thenable indicating that the webview editor has been resolved.
 		 */
@@ -1349,7 +1382,7 @@ declare module 'vscode' {
 	 * undo and backup. The provider is responsible for synchronizing text changes between the webview and the `TextDocument`.
 	 *
 	 * You should use text based webview editors when dealing with text based file formats, such as `xml` or `json`.
-	 * For binary files or more specialized use cases, see [WebviewCustomEditorProvider](#WebviewCustomEditorProvider).
+	 * For binary files or more specialized use cases, see [CustomEditorProvider](#CustomEditorProvider).
 	 */
 	export interface CustomTextEditorProvider {
 		/**
@@ -1359,7 +1392,7 @@ declare module 'vscode' {
 		 * the event listeners it is interested it. The provider should also take ownership of the passed in `WebviewPanel`.
 		 *
 		 * @param document Resource being resolved.
-		 * @param webviewPanel Webview being resolved. The provider should take ownership of this webview.
+		 * @param webviewPanel Webview to resolve. The provider should take ownership of this webview.
 		 *
 		 * @return Thenable indicating that the webview editor has been resolved.
 		 */
@@ -1598,7 +1631,7 @@ declare module 'vscode' {
 		/**
 		 * The maximum number or the ending cursor of timeline items that should be returned.
 		 */
-		limit?: number | string;
+		limit?: number | { cursor: string };
 	}
 
 	export interface TimelineProvider {
@@ -1658,6 +1691,11 @@ declare module 'vscode' {
 		 * @return The uri of the resource.
 		 */
 		asExtensionUri(relativePath: string): Uri;
+
+		/**
+		 *
+		 */
+		readonly extensionUri: Uri;
 	}
 
 	export interface Extension<T> {
@@ -1668,6 +1706,11 @@ declare module 'vscode' {
 		 * @return The uri of the resource.
 		 */
 		asExtensionUri(relativePath: string): Uri;
+
+		/**
+		 *
+		 */
+		readonly extensionUri: Uri;
 	}
 
 	//#endregion
@@ -1680,9 +1723,10 @@ declare module 'vscode' {
 		 *
 		 * The documentation is shown in the code actions menu if either:
 		 *
-		 * - Code actions of `kind` are requested by VS Code. Note that in this case, we always pick the most specific
-		 *  documentation. For example, if documentation for both `Refactor` and `RefactorExtract` is provided, and we
-		 *  request code actions for `RefactorExtract`, we prefer the more specific documentation for `RefactorExtract`.
+		 * - Code actions of `kind` are requested by VS Code. In this case, VS Code will show the documentation that
+		 *   most closely matches the requested code action kind. For example, if a provider has documentation for
+		 *   both `Refactor` and `RefactorExtract`, when the user requests code actions for `RefactorExtract`,
+		 *   VS Code will use the documentation for `RefactorExtract` intead of the documentation for `Refactor`.
 		 *
 		 * - Any code actions of `kind` are returned by the provider.
 		 */
@@ -1725,4 +1769,18 @@ declare module 'vscode' {
 	}
 
 	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/90517
+
+	export interface FileSystemError {
+		/**
+		 * A code that identifies this error.
+		 *
+		 * Possible values are names of errors, like [`FileNotFound`](#FileSystemError.FileNotFound),
+		 * or `undefined` for an unspecified error.
+		 */
+		readonly code?: string;
+	}
+
+	////#endregion
 }

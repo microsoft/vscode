@@ -162,7 +162,7 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 
 	readonly onDidAccept: Event<void>;
 
-	ok: boolean;
+	ok: boolean | 'default';
 
 	readonly onDidCustom: Event<void>;
 

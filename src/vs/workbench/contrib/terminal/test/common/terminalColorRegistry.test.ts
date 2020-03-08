@@ -7,13 +7,13 @@ import * as assert from 'assert';
 import { Extensions as ThemeingExtensions, IColorRegistry, ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ansiColorIdentifiers, registerColors } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
-import { ITheme, ThemeType } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, ThemeType } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 
 registerColors();
 
 let themingRegistry = Registry.as<IColorRegistry>(ThemeingExtensions.ColorContribution);
-function getMockTheme(type: ThemeType): ITheme {
+function getMockTheme(type: ThemeType): IColorTheme {
 	let theme = {
 		selector: '',
 		label: '',

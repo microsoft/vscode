@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
-import { find } from 'vs/base/common/arrays';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
@@ -123,7 +122,7 @@ export class CodeActionUi extends Disposable {
 		if ((trigger.autoApply === CodeActionAutoApply.First && actions.validActions.length === 0)
 			|| (trigger.autoApply === CodeActionAutoApply.IfSingle && actions.allActions.length === 1)
 		) {
-			return find(actions.allActions, action => action.disabled);
+			return actions.allActions.find(action => action.disabled);
 		}
 
 		return undefined;

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { NotificationsModel, NotificationViewItem, INotificationChangeEvent, NotificationChangeType, NotificationViewItemLabelKind, IStatusMessageChangeEvent, StatusMessageChangeType } from 'vs/workbench/common/notifications';
+import { NotificationsModel, NotificationViewItem, INotificationChangeEvent, NotificationChangeType, NotificationViewItemContentChangeKind, IStatusMessageChangeEvent, StatusMessageChangeType } from 'vs/workbench/common/notifications';
 import { Action } from 'vs/base/common/actions';
 import { INotification, Severity, NotificationsFilter } from 'vs/platform/notification/common/notification';
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
@@ -58,8 +58,8 @@ suite('Notifications', () => {
 		assert.equal(called, 2);
 
 		called = 0;
-		item1.onDidChangeLabel(e => {
-			if (e.kind === NotificationViewItemLabelKind.PROGRESS) {
+		item1.onDidChangeContent(e => {
+			if (e.kind === NotificationViewItemContentChangeKind.PROGRESS) {
 				called++;
 			}
 		});
@@ -70,8 +70,8 @@ suite('Notifications', () => {
 		assert.equal(called, 2);
 
 		called = 0;
-		item1.onDidChangeLabel(e => {
-			if (e.kind === NotificationViewItemLabelKind.MESSAGE) {
+		item1.onDidChangeContent(e => {
+			if (e.kind === NotificationViewItemContentChangeKind.MESSAGE) {
 				called++;
 			}
 		});
@@ -79,8 +79,8 @@ suite('Notifications', () => {
 		item1.updateMessage('message update');
 
 		called = 0;
-		item1.onDidChangeLabel(e => {
-			if (e.kind === NotificationViewItemLabelKind.SEVERITY) {
+		item1.onDidChangeContent(e => {
+			if (e.kind === NotificationViewItemContentChangeKind.SEVERITY) {
 				called++;
 			}
 		});
@@ -88,8 +88,8 @@ suite('Notifications', () => {
 		item1.updateSeverity(Severity.Error);
 
 		called = 0;
-		item1.onDidChangeLabel(e => {
-			if (e.kind === NotificationViewItemLabelKind.ACTIONS) {
+		item1.onDidChangeContent(e => {
+			if (e.kind === NotificationViewItemContentChangeKind.ACTIONS) {
 				called++;
 			}
 		});
@@ -97,6 +97,17 @@ suite('Notifications', () => {
 		item1.updateActions({ primary: [new Action('id2', 'label')] });
 
 		assert.equal(called, 1);
+
+		called = 0;
+		item1.onDidChangeVisibility(e => {
+			called++;
+		});
+
+		item1.updateVisibility(true);
+		item1.updateVisibility(false);
+		item1.updateVisibility(false);
+
+		assert.equal(called, 2);
 
 		called = 0;
 		item1.onDidClose(() => {
@@ -148,6 +159,22 @@ suite('Notifications', () => {
 		assert.equal(lastNotificationEvent.index, 0);
 		assert.equal(lastNotificationEvent.kind, NotificationChangeType.ADD);
 
+		item1Handle.updateMessage('Error Message');
+		assert.equal(lastNotificationEvent.kind, NotificationChangeType.CHANGE);
+		assert.equal(lastNotificationEvent.detail, NotificationViewItemContentChangeKind.MESSAGE);
+
+		item1Handle.updateSeverity(Severity.Error);
+		assert.equal(lastNotificationEvent.kind, NotificationChangeType.CHANGE);
+		assert.equal(lastNotificationEvent.detail, NotificationViewItemContentChangeKind.SEVERITY);
+
+		item1Handle.updateActions({ primary: [], secondary: [] });
+		assert.equal(lastNotificationEvent.kind, NotificationChangeType.CHANGE);
+		assert.equal(lastNotificationEvent.detail, NotificationViewItemContentChangeKind.ACTIONS);
+
+		item1Handle.progress.infinite();
+		assert.equal(lastNotificationEvent.kind, NotificationChangeType.CHANGE);
+		assert.equal(lastNotificationEvent.detail, NotificationViewItemContentChangeKind.PROGRESS);
+
 		let item2Handle = model.addNotification(item2);
 		assert.equal(lastNotificationEvent.item.severity, item2.severity);
 		assert.equal(lastNotificationEvent.item.message.linkedText.toString(), item2.message);
@@ -193,7 +220,7 @@ suite('Notifications', () => {
 		assert.equal(lastNotificationEvent.item.severity, item3.severity);
 		assert.equal(lastNotificationEvent.item.message.linkedText.toString(), item3.message);
 		assert.equal(lastNotificationEvent.index, 0);
-		assert.equal(lastNotificationEvent.kind, NotificationChangeType.CHANGE);
+		assert.equal(lastNotificationEvent.kind, NotificationChangeType.EXPAND_COLLAPSE);
 
 		const disposable = model.showStatusMessage('Hello World');
 		assert.equal(model.statusMessage!.message, 'Hello World');

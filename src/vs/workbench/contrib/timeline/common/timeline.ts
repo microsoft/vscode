@@ -15,6 +15,8 @@ export function toKey(extension: ExtensionIdentifier | string, source: string) {
 	return `${typeof extension === 'string' ? extension : ExtensionIdentifier.toKey(extension)}|${source}`;
 }
 
+export const TimelinePaneId = 'timeline';
+
 export interface TimelineItem {
 	handle: string;
 	source: string;
@@ -40,7 +42,12 @@ export interface TimelineChangeEvent {
 export interface TimelineOptions {
 	cursor?: string;
 	before?: boolean;
-	limit?: number | string;
+	limit?: number | { cursor: string };
+}
+
+export interface InternalTimelineOptions {
+	cacheResults: boolean;
+	resetCache: boolean;
 }
 
 export interface Timeline {
@@ -59,7 +66,12 @@ export interface Timeline {
 export interface TimelineProvider extends TimelineProviderDescriptor, IDisposable {
 	onDidChange?: Event<TimelineChangeEvent>;
 
-	provideTimeline(uri: URI, options: TimelineOptions, token: CancellationToken, internalOptions?: { cacheResults?: boolean }): Promise<Timeline | undefined>;
+	provideTimeline(uri: URI, options: TimelineOptions, token: CancellationToken, internalOptions?: InternalTimelineOptions): Promise<Timeline | undefined>;
+}
+
+export interface TimelineSource {
+	id: string;
+	label: string;
 }
 
 export interface TimelineProviderDescriptor {
@@ -86,17 +98,16 @@ export interface ITimelineService {
 
 	onDidChangeProviders: Event<TimelineProvidersChangeEvent>;
 	onDidChangeTimeline: Event<TimelineChangeEvent>;
-	onDidReset: Event<void>;
+	onDidChangeUri: Event<URI>;
 
 	registerTimelineProvider(provider: TimelineProvider): IDisposable;
 	unregisterTimelineProvider(id: string): void;
 
-	getSources(): string[];
+	getSources(): TimelineSource[];
 
-	getTimeline(id: string, uri: URI, options: TimelineOptions, tokenSource: CancellationTokenSource, internalOptions?: { cacheResults?: boolean }): TimelineRequest | undefined;
+	getTimeline(id: string, uri: URI, options: TimelineOptions, tokenSource: CancellationTokenSource, internalOptions?: InternalTimelineOptions): TimelineRequest | undefined;
 
-	// refresh(fetch?: 'all' | 'more'): void;
-	reset(): void;
+	setUri(uri: URI): void;
 }
 
 const TIMELINE_SERVICE_ID = 'timeline';

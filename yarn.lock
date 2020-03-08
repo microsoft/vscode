@@ -9220,10 +9220,10 @@ typescript-formatter@7.1.0:
     commandpost "^1.0.0"
     editorconfig "^0.15.0"
 
-typescript@3.8.2:
-  version "3.8.2"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.8.2.tgz#91d6868aaead7da74f493c553aeff76c0c0b1d5a"
-  integrity sha512-EgOVgL/4xfVrCMbhYKUQTdF37SQn4Iw73H5BgCrF1Abdun7Kwy/QZsE/ssAy0y4LxBbvua3PIbFsbRczWWnDdQ==
+typescript@3.9.0-dev.20200304:
+  version "3.9.0-dev.20200304"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.9.0-dev.20200304.tgz#3cc35357eff29dc5604b4fa56d6597e13daf86ed"
+  integrity sha512-eUip/GgJmjp4qtHiJDxVhE5SDDiPzBUg7KBAFUgb7HgL/tv10JAHej7fnS1i+7xrq1eDtbkJyPaYOVnhL9db7Q==
 
 typescript@^2.6.2:
   version "2.6.2"

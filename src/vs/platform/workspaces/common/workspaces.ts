@@ -93,7 +93,7 @@ export function reviveWorkspaceIdentifier(workspace: { id: string, configPath: U
 	return { id: workspace.id, configPath: URI.revive(workspace.configPath) };
 }
 
-export function isStoredWorkspaceFolder(thing: any): thing is IStoredWorkspaceFolder {
+export function isStoredWorkspaceFolder(thing: unknown): thing is IStoredWorkspaceFolder {
 	return isRawFileWorkspaceFolder(thing) || isRawUriWorkspaceFolder(thing);
 }
 
@@ -148,11 +148,11 @@ export interface IEnterWorkspaceResult {
 	backupPath?: string;
 }
 
-export function isSingleFolderWorkspaceIdentifier(obj: any): obj is ISingleFolderWorkspaceIdentifier {
+export function isSingleFolderWorkspaceIdentifier(obj: unknown): obj is ISingleFolderWorkspaceIdentifier {
 	return obj instanceof URI;
 }
 
-export function isWorkspaceIdentifier(obj: any): obj is IWorkspaceIdentifier {
+export function isWorkspaceIdentifier(obj: unknown): obj is IWorkspaceIdentifier {
 	const workspaceIdentifier = obj as IWorkspaceIdentifier;
 
 	return workspaceIdentifier && typeof workspaceIdentifier.id === 'string' && workspaceIdentifier.configPath instanceof URI;

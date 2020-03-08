@@ -145,9 +145,7 @@ let INVERSE_KEY_CODE_MAP: KeyCode[] = new Array(KeyCode.MAX_VALUE);
 	 */
 	define(229, KeyCode.KEY_IN_COMPOSITION);
 
-	if (browser.isIE) {
-		define(91, KeyCode.Meta);
-	} else if (browser.isFirefox) {
+	if (browser.isFirefox) {
 		define(59, KeyCode.US_SEMICOLON);
 		define(107, KeyCode.US_EQUAL);
 		define(109, KeyCode.US_MINUS);

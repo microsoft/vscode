@@ -750,7 +750,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			.on(e => this.onMouseUp(e), this));
 
 		this._register(this.selectList.onMouseOver(e => typeof e.index !== 'undefined' && this.selectList.setFocus([e.index])));
-		this._register(this.selectList.onFocusChange(e => this.onListFocus(e)));
+		this._register(this.selectList.onDidChangeFocus(e => this.onListFocus(e)));
 
 		this._register(dom.addDisposableListener(this.selectDropDownContainer, dom.EventType.FOCUS_OUT, e => {
 			if (!this._isVisible || dom.isAncestor(e.relatedTarget as HTMLElement, this.selectDropDownContainer)) {

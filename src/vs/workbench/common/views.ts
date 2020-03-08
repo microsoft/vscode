@@ -6,7 +6,7 @@
 import { Command } from 'vs/editor/common/modes';
 import { UriComponents, URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { RawContextKey, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { localize } from 'vs/nls';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -17,7 +17,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IAction, IActionViewItem } from 'vs/base/common/actions';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { flatten } from 'vs/base/common/arrays';
+import { flatten, mergeSort } from 'vs/base/common/arrays';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { SetMap } from 'vs/base/common/collections';
 
@@ -178,7 +178,7 @@ export interface IViewDescriptor {
 
 	readonly ctorDescriptor: SyncDescriptor<IView>;
 
-	readonly when?: ContextKeyExpr;
+	readonly when?: ContextKeyExpression;
 
 	readonly order?: number;
 
@@ -212,14 +212,21 @@ export interface IViewDescriptorCollection extends IDisposable {
 	readonly allViewDescriptors: IViewDescriptor[];
 }
 
+export enum ViewContentPriority {
+	Normal = 0,
+	Low = 1,
+	Lowest = 2
+}
+
 export interface IViewContentDescriptor {
 	readonly content: string;
-	readonly when?: ContextKeyExpr | 'default';
+	readonly when?: ContextKeyExpression | 'default';
+	readonly priority?: ViewContentPriority;
 
 	/**
 	 * ordered preconditions for each button in the content
 	 */
-	readonly preconditions?: (ContextKeyExpr | undefined)[];
+	readonly preconditions?: (ContextKeyExpression | undefined)[];
 }
 
 export interface IViewsRegistry {
@@ -248,7 +255,15 @@ export interface IViewsRegistry {
 }
 
 function compareViewContentDescriptors(a: IViewContentDescriptor, b: IViewContentDescriptor): number {
-	return a.content < b.content ? -1 : 1;
+	const aPriority = a.priority ?? ViewContentPriority.Normal;
+	const bPriority = b.priority ?? ViewContentPriority.Normal;
+
+	if (aPriority !== bPriority) {
+		return aPriority - bPriority;
+	}
+
+	// No priroity, keep views sorted in the order they got registered
+	return 0;
 }
 
 class ViewsRegistry extends Disposable implements IViewsRegistry {
@@ -329,8 +344,8 @@ class ViewsRegistry extends Disposable implements IViewsRegistry {
 
 	getViewWelcomeContent(id: string): IViewContentDescriptor[] {
 		const result: IViewContentDescriptor[] = [];
-		result.sort(compareViewContentDescriptors);
 		this._viewWelcomeContents.forEach(id, descriptor => result.push(descriptor));
+		mergeSort(result, compareViewContentDescriptors);
 		return result;
 	}
 
@@ -473,6 +488,8 @@ export interface ITreeView extends IDisposable {
 
 	readonly onDidChangeTitle: Event<string>;
 
+	readonly onDidChangeWelcomeState: Event<void>;
+
 	refresh(treeItems?: ITreeItem[]): Promise<void>;
 
 	setVisibility(visible: boolean): void;
@@ -491,9 +508,6 @@ export interface ITreeView extends IDisposable {
 
 	setFocus(item: ITreeItem): void;
 
-	getPrimaryActions(): IAction[];
-
-	getSecondaryActions(): IAction[];
 }
 
 export interface IRevealOptions {
@@ -587,4 +601,3 @@ export interface IViewPaneContainer {
 	getView(viewId: string): IView | undefined;
 	saveState(): void;
 }
-

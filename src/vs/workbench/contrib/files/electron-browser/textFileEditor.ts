@@ -24,6 +24,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IExplorerService } from 'vs/workbench/contrib/files/common/files';
 import { IElectronService } from 'vs/platform/electron/node/electron';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 /**
  * An implementation of editor for file system resources.
@@ -37,16 +38,17 @@ export class NativeTextFileEditor extends TextFileEditor {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IStorageService storageService: IStorageService,
-		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
+		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IEditorService editorService: IEditorService,
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITextFileService textFileService: ITextFileService,
 		@IElectronService private readonly electronService: IElectronService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
-		@IExplorerService explorerService: IExplorerService
+		@IExplorerService explorerService: IExplorerService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(telemetryService, fileService, viewletService, instantiationService, contextService, storageService, configurationService, editorService, themeService, editorGroupService, textFileService, explorerService);
+		super(telemetryService, fileService, viewletService, instantiationService, contextService, storageService, textResourceConfigurationService, editorService, themeService, editorGroupService, textFileService, explorerService, configurationService);
 	}
 
 	protected handleSetInputError(error: Error, input: FileEditorInput, options: EditorOptions | undefined): void {

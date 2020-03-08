@@ -12,7 +12,6 @@ import { DiagnosticSeverity } from './extHostTypes';
 import * as converter from './extHostTypeConverters';
 import { mergeSort } from 'vs/base/common/arrays';
 import { Event, Emitter } from 'vs/base/common/event';
-import { keys } from 'vs/base/common/map';
 import { ILogService } from 'vs/platform/log/common/log';
 
 export class DiagnosticCollection implements vscode.DiagnosticCollection {
@@ -36,7 +35,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 
 	dispose(): void {
 		if (!this._isDisposed) {
-			this._onDidChangeDiagnostics.fire(keys(this._data));
+			this._onDidChangeDiagnostics.fire([...this._data.keys()]);
 			if (this._proxy) {
 				this._proxy.$clear(this._owner);
 			}
@@ -169,7 +168,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 
 	clear(): void {
 		this._checkDisposed();
-		this._onDidChangeDiagnostics.fire(keys(this._data));
+		this._onDidChangeDiagnostics.fire([...this._data.keys()]);
 		this._data.clear();
 		if (this._proxy) {
 			this._proxy.$clear(this._owner);

@@ -27,6 +27,7 @@ import { WorkspaceFileEdit } from 'vs/editor/common/modes';
 import { compare } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
+import { Iterable } from 'vs/base/common/iterator';
 
 // --- VIEW MODEL
 
@@ -201,7 +202,7 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 
 		// category
 		if (element instanceof CategoryElement) {
-			return element.category.fileOperations.map(op => new FileElement(element, op));
+			return [...Iterable.map(element.category.fileOperations, op => new FileElement(element, op))];
 		}
 
 		// file: text edit
@@ -258,19 +259,6 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 export class BulkEditSorter implements ITreeSorter<BulkEditElement> {
 
 	compare(a: BulkEditElement, b: BulkEditElement): number {
-		if (a instanceof CategoryElement && b instanceof CategoryElement) {
-			//
-			const aConfirm = BulkEditSorter._needsConfirmation(a.category);
-			const bConfirm = BulkEditSorter._needsConfirmation(b.category);
-			if (aConfirm === bConfirm) {
-				return a.category.metadata.label.localeCompare(b.category.metadata.label);
-			} else if (aConfirm) {
-				return -1;
-			} else {
-				return 1;
-			}
-		}
-
 		if (a instanceof FileElement && b instanceof FileElement) {
 			return compare(a.edit.uri.toString(), b.edit.uri.toString());
 		}
@@ -280,10 +268,6 @@ export class BulkEditSorter implements ITreeSorter<BulkEditElement> {
 		}
 
 		return 0;
-	}
-
-	private static _needsConfirmation(a: BulkCategory): boolean {
-		return a.fileOperations.some(ops => ops.needsConfirmation());
 	}
 }
 

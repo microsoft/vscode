@@ -7,7 +7,7 @@ import { Action } from 'vs/base/common/actions';
 import { SyncDescriptor0, createSyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IConstructorSignature2, createDecorator, BrandedService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindings, KeybindingsRegistry, IKeybindingRule } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService, CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -25,8 +25,8 @@ export interface ICommandAction {
 	title: string | ILocalizedString;
 	category?: string | ILocalizedString;
 	icon?: { dark?: URI; light?: URI; } | ThemeIcon;
-	precondition?: ContextKeyExpr;
-	toggled?: ContextKeyExpr;
+	precondition?: ContextKeyExpression;
+	toggled?: ContextKeyExpression;
 }
 
 export type ISerializableCommandAction = UriDto<ICommandAction>;
@@ -34,7 +34,7 @@ export type ISerializableCommandAction = UriDto<ICommandAction>;
 export interface IMenuItem {
 	command: ICommandAction;
 	alt?: ICommandAction;
-	when?: ContextKeyExpr;
+	when?: ContextKeyExpression;
 	group?: 'navigation' | string;
 	order?: number;
 }
@@ -42,7 +42,7 @@ export interface IMenuItem {
 export interface ISubmenuItem {
 	title: string | ILocalizedString;
 	submenu: MenuId;
-	when?: ContextKeyExpr;
+	when?: ContextKeyExpression;
 	group?: 'navigation' | string;
 	order?: number;
 }
@@ -314,17 +314,17 @@ export class SyncActionDescriptor {
 	private readonly _id: string;
 	private readonly _label?: string;
 	private readonly _keybindings: IKeybindings | undefined;
-	private readonly _keybindingContext: ContextKeyExpr | undefined;
+	private readonly _keybindingContext: ContextKeyExpression | undefined;
 	private readonly _keybindingWeight: number | undefined;
 
 	public static create<Services extends BrandedService[]>(ctor: { new(id: string, label: string, ...services: Services): Action },
-		id: string, label: string | undefined, keybindings?: IKeybindings, keybindingContext?: ContextKeyExpr, keybindingWeight?: number
+		id: string, label: string | undefined, keybindings?: IKeybindings, keybindingContext?: ContextKeyExpression, keybindingWeight?: number
 	): SyncActionDescriptor {
 		return new SyncActionDescriptor(ctor as IConstructorSignature2<string, string | undefined, Action>, id, label, keybindings, keybindingContext, keybindingWeight);
 	}
 
 	private constructor(ctor: IConstructorSignature2<string, string | undefined, Action>,
-		id: string, label: string | undefined, keybindings?: IKeybindings, keybindingContext?: ContextKeyExpr, keybindingWeight?: number
+		id: string, label: string | undefined, keybindings?: IKeybindings, keybindingContext?: ContextKeyExpression, keybindingWeight?: number
 	) {
 		this._id = id;
 		this._label = label;
@@ -350,7 +350,7 @@ export class SyncActionDescriptor {
 		return this._keybindings;
 	}
 
-	public get keybindingContext(): ContextKeyExpr | undefined {
+	public get keybindingContext(): ContextKeyExpression | undefined {
 		return this._keybindingContext;
 	}
 
@@ -373,7 +373,7 @@ export interface IAction2Options extends ICommandAction {
 	/**
 	 * One or many menu items.
 	 */
-	menu?: OneOrN<{ id: MenuId } & Omit<IMenuItem, 'command'>>;
+	menu?: OneOrN<{ id: MenuId } & Omit<IMenuItem, 'command'> & { command?: Partial<Omit<ICommandAction, 'id'>> }>;
 
 	/**
 	 * One keybinding.
@@ -396,39 +396,43 @@ export function registerAction2(ctor: { new(): Action2 }): IDisposable {
 	const disposables = new DisposableStore();
 	const action = new ctor();
 
+	const { f1, menu: menus, keybinding, description, ...command } = action.desc;
+
 	// command
 	disposables.add(CommandsRegistry.registerCommand({
-		id: action.desc.id,
+		id: command.id,
 		handler: (accessor, ...args) => action.run(accessor, ...args),
-		description: action.desc.description,
+		description: description,
 	}));
 
 	// menu
-	if (Array.isArray(action.desc.menu)) {
-		for (let item of action.desc.menu) {
-			disposables.add(MenuRegistry.appendMenuItem(item.id, { command: action.desc, ...item }));
+	if (Array.isArray(menus)) {
+		for (let item of menus) {
+			const { command: commandOverrides, ...menu } = item;
+			disposables.add(MenuRegistry.appendMenuItem(item.id, { command: { ...command, ...commandOverrides }, ...menu }));
 		}
-	} else if (action.desc.menu) {
-		disposables.add(MenuRegistry.appendMenuItem(action.desc.menu.id, { command: action.desc, ...action.desc.menu }));
+	} else if (menus) {
+		const { command: commandOverrides, ...menu } = menus;
+		disposables.add(MenuRegistry.appendMenuItem(menu.id, { command: { ...command, ...commandOverrides }, ...menu }));
 	}
-	if (action.desc.f1) {
-		disposables.add(MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: action.desc, ...action.desc }));
+	if (f1) {
+		disposables.add(MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: command }));
 	}
 
 	// keybinding
-	if (Array.isArray(action.desc.keybinding)) {
-		for (let item of action.desc.keybinding) {
+	if (Array.isArray(keybinding)) {
+		for (let item of keybinding) {
 			KeybindingsRegistry.registerKeybindingRule({
 				...item,
-				id: action.desc.id,
-				when: ContextKeyExpr.and(action.desc.precondition, item.when)
+				id: command.id,
+				when: ContextKeyExpr.and(command.precondition, item.when)
 			});
 		}
-	} else if (action.desc.keybinding) {
+	} else if (keybinding) {
 		KeybindingsRegistry.registerKeybindingRule({
-			...action.desc.keybinding,
-			id: action.desc.id,
-			when: ContextKeyExpr.and(action.desc.precondition, action.desc.keybinding.when)
+			...keybinding,
+			id: command.id,
+			when: ContextKeyExpr.and(command.precondition, keybinding.when)
 		});
 	}
 

@@ -31,7 +31,7 @@ import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
-import { DirtyEditorContext, OpenEditorsGroupContext, ReadonlyEditorContext as ReadonlyEditorContext } from 'vs/workbench/contrib/files/browser/fileCommands';
+import { DirtyEditorContext, OpenEditorsGroupContext, ReadonlyEditorContext } from 'vs/workbench/contrib/files/browser/fileCommands';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { ResourcesDropHandler, fillResourceDataTransfers, CodeDataTransfers, containsDragType } from 'vs/workbench/browser/dnd';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
@@ -185,7 +185,7 @@ export class OpenEditorsView extends ViewPane {
 		super.renderHeaderTitle(container, this.title);
 
 		const count = dom.append(container, $('.count'));
-		this.dirtyCountElement = dom.append(count, $('.monaco-count-badge'));
+		this.dirtyCountElement = dom.append(count, $('.dirty-count.monaco-count-badge'));
 
 		this._register((attachStylerCallback(this.themeService, { badgeBackground, badgeForeground, contrastBorder }, colors => {
 			const background = colors.badgeBackground ? colors.badgeBackground.toString() : '';
@@ -247,7 +247,7 @@ export class OpenEditorsView extends ViewPane {
 		this.readonlyEditorFocusedContext = ReadonlyEditorContext.bindTo(this.contextKeyService);
 
 		this._register(this.list.onContextMenu(e => this.onListContextMenu(e)));
-		this.list.onFocusChange(e => {
+		this.list.onDidChangeFocus(e => {
 			this.resourceContext.reset();
 			this.groupFocusedContext.reset();
 			this.dirtyEditorFocusedContext.reset();
@@ -491,9 +491,9 @@ interface IEditorGroupTemplateData {
 class OpenEditorActionRunner extends ActionRunner {
 	public editor: OpenEditor | undefined;
 
-	run(action: IAction, context?: any): Promise<void> {
+	async run(action: IAction): Promise<void> {
 		if (!this.editor) {
-			return Promise.resolve();
+			return;
 		}
 
 		return super.run(action, { groupId: this.editor.groupId, editorIndex: this.editor.editorIndex });
@@ -677,7 +677,7 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 
 	drop(data: IDragAndDropData, targetElement: OpenEditor | IEditorGroup, _targetIndex: number, originalEvent: DragEvent): void {
 		const group = targetElement instanceof OpenEditor ? targetElement.group : targetElement;
-		const index = targetElement instanceof OpenEditor ? targetElement.group.getIndexOfEditor(targetElement.editor) : 0;
+		const index = targetElement instanceof OpenEditor ? targetElement.editorIndex : 0;
 
 		if (data instanceof ElementsDragAndDropData) {
 			const elementsData = data.elements;

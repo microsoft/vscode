@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jeff-hykin/cpp-textmate-grammar/commit/a20584ae37e3bd9894e9d513a1b0fecdde045af4",
+	"version": "https://github.com/jeff-hykin/cpp-textmate-grammar/commit/7d3fe7ab806374a3b11ddd8ac4f674cdff20a647",
 	"name": "C++",
 	"scopeName": "source.cpp",
 	"patterns": [
@@ -579,7 +579,7 @@
 			"name": "comment.block.cpp"
 		},
 		"builtin_storage_type_initilizer": {
-			"begin": "((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))(?:(?:(?:((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))((?<!\\w)(?:(?:unsigned)|(?:wchar_t)|(?:double)|(?:signed)|(?:short)|(?:float)|(?:auto)|(?:void)|(?:long)|(?:char)|(?:bool)|(?:int))(?!\\w))|((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))((?<!\\w)(?:(?:uint_least32_t)|(?:uint_least64_t)|(?:uint_least16_t)|(?:int_least16_t)|(?:int_least64_t)|(?:int_least32_t)|(?:uint_fast32_t)|(?:uint_fast16_t)|(?:uint_fast64_t)|(?:uint_least8_t)|(?:int_fast64_t)|(?:int_fast16_t)|(?:uint_fast8_t)|(?:int_fast32_t)|(?:int_least8_t)|(?:int_fast8_t)|(?:suseconds_t)|(?:useconds_t)|(?:uintmax_t)|(?:uintptr_t)|(?:in_addr_t)|(?:uintmax_t)|(?:blksize_t)|(?:in_port_t)|(?:blkcnt_t)|(?:intptr_t)|(?:intmax_t)|(?:uint64_t)|(?:u_quad_t)|(?:uint16_t)|(?:uint32_t)|(?:intmax_t)|(?:segsz_t)|(?:fixpt_t)|(?:caddr_t)|(?:daddr_t)|(?:u_short)|(?:int16_t)|(?:int32_t)|(?:int64_t)|(?:uint8_t)|(?:nlink_t)|(?:qaddr_t)|(?:swblk_t)|(?:clock_t)|(?:ssize_t)|(?:time_t)|(?:u_long)|(?:ushort)|(?:quad_t)|(?:mode_t)|(?:size_t)|(?:u_char)|(?:int8_t)|(?:u_int)|(?:uid_t)|(?:off_t)|(?:pid_t)|(?:gid_t)|(?:dev_t)|(?:div_t)|(?:key_t)|(?:ino_t)|(?:id_t)|(?:id_t)|(?:uint))(?!\\w)))|((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))((?<!\\w)pthread_attr_t|pthread_cond_t|pthread_condattr_t|pthread_mutex_t|pthread_mutexattr_t|pthread_once_t|pthread_rwlock_t|pthread_rwlockattr_t|pthread_t|pthread_key_t(?!\\w)))|((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))((?<!\\w)[a-zA-Z_](?:\\w)*_t(?!\\w)))((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))(\\()",
+			"begin": "((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))(?:(?:(?:((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))((?<!\\w)(?:(?:unsigned)|(?:wchar_t)|(?:double)|(?:signed)|(?:short)|(?:float)|(?:auto)|(?:void)|(?:long)|(?:char)|(?:bool)|(?:int))(?!\\w))|((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))((?<!\\w)(?:(?:uint_least32_t)|(?:uint_least64_t)|(?:uint_least16_t)|(?:int_least16_t)|(?:int_least64_t)|(?:int_least32_t)|(?:uint_fast32_t)|(?:uint_fast16_t)|(?:uint_fast64_t)|(?:uint_least8_t)|(?:int_fast64_t)|(?:int_fast16_t)|(?:uint_fast8_t)|(?:int_fast32_t)|(?:int_least8_t)|(?:int_fast8_t)|(?:suseconds_t)|(?:useconds_t)|(?:uintmax_t)|(?:uintptr_t)|(?:in_addr_t)|(?:uintmax_t)|(?:blksize_t)|(?:in_port_t)|(?:blkcnt_t)|(?:intptr_t)|(?:intmax_t)|(?:uint64_t)|(?:u_quad_t)|(?:uint16_t)|(?:uint32_t)|(?:intmax_t)|(?:segsz_t)|(?:fixpt_t)|(?:caddr_t)|(?:daddr_t)|(?:u_short)|(?:int16_t)|(?:int32_t)|(?:int64_t)|(?:uint8_t)|(?:nlink_t)|(?:qaddr_t)|(?:swblk_t)|(?:clock_t)|(?:ssize_t)|(?:time_t)|(?:u_long)|(?:ushort)|(?:quad_t)|(?:mode_t)|(?:size_t)|(?:u_char)|(?:int8_t)|(?:u_int)|(?:uid_t)|(?:off_t)|(?:pid_t)|(?:gid_t)|(?:dev_t)|(?:div_t)|(?:key_t)|(?:ino_t)|(?:id_t)|(?:id_t)|(?:uint))(?!\\w)))|((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))((?<!\\w)(?:(?:pthread_t)|(?:pthread_attr_t)|(?:pthread_cond_t)|(?:pthread_condattr_t)|(?:pthread_mutex_t)|(?:pthread_mutexattr_t)|(?:pthread_once_t)|(?:pthread_rwlock_t)|(?:pthread_rwlockattr_t)|(?:pthread_key_t))(?!\\w)))|((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))((?<!\\w)[a-zA-Z_](?:\\w)*_t(?!\\w)))((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))(\\()",
 			"end": "\\)",
 			"beginCaptures": {
 				"1": {
@@ -1415,7 +1415,7 @@
 							}
 						},
 						{
-							"match": "(?<=[\\s*!\\/])[\\\\@](?:arg|attention|author|authors|brief|bug|copyright|date|deprecated|details|exception|invariant|li|note|par|paragraph|param|post|pre|remark|remarks|result|return|returns|retval|sa|see|short|since|test|throw|todo|tparam|version|warning|xrefitem)\\b(?:\\{[^}]*\\})?",
+							"match": "(?<=[\\s*!\\/])[\\\\@](?:arg|attention|author|authors|brief|bug|copyright|date|deprecated|details|exception|invariant|li|note|par|paragraph|param|post|pre|remark|remarks|result|return|returns|retval|sa|see|short|since|test|throw|throws|todo|tparam|version|warning|xrefitem)\\b(?:\\{[^}]*\\})?",
 							"name": "storage.type.class.doxygen.cpp"
 						},
 						{
@@ -1501,7 +1501,7 @@
 									}
 								},
 								{
-									"match": "(?<=[\\s*!\\/])[\\\\@](?:arg|attention|author|authors|brief|bug|copyright|date|deprecated|details|exception|invariant|li|note|par|paragraph|param|post|pre|remark|remarks|result|return|returns|retval|sa|see|short|since|test|throw|todo|tparam|version|warning|xrefitem)\\b(?:\\{[^}]*\\})?",
+									"match": "(?<=[\\s*!\\/])[\\\\@](?:arg|attention|author|authors|brief|bug|copyright|date|deprecated|details|exception|invariant|li|note|par|paragraph|param|post|pre|remark|remarks|result|return|returns|retval|sa|see|short|since|test|throw|throws|todo|tparam|version|warning|xrefitem)\\b(?:\\{[^}]*\\})?",
 									"name": "storage.type.class.doxygen.cpp"
 								},
 								{
@@ -1600,7 +1600,7 @@
 							}
 						},
 						{
-							"match": "(?<=[\\s*!\\/])[\\\\@](?:arg|attention|author|authors|brief|bug|copyright|date|deprecated|details|exception|invariant|li|note|par|paragraph|param|post|pre|remark|remarks|result|return|returns|retval|sa|see|short|since|test|throw|todo|tparam|version|warning|xrefitem)\\b(?:\\{[^}]*\\})?",
+							"match": "(?<=[\\s*!\\/])[\\\\@](?:arg|attention|author|authors|brief|bug|copyright|date|deprecated|details|exception|invariant|li|note|par|paragraph|param|post|pre|remark|remarks|result|return|returns|retval|sa|see|short|since|test|throw|throws|todo|tparam|version|warning|xrefitem)\\b(?:\\{[^}]*\\})?",
 							"name": "storage.type.class.doxygen.cpp"
 						},
 						{
@@ -4739,7 +4739,7 @@
 			]
 		},
 		"function_definition": {
-			"begin": "(?:(?:^|\\G|(?<=;|\\}))|(?<=>))((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))(?:((?<!\\w)template(?!\\w))((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z))))?((?:((?<!\\w)(?:(?:(?:constexpr)|(?:explicit)|(?:mutable)|(?:virtual)|(?:inline)|(?:friend))|(?:(?:volatile)|(?:register)|(?:restrict)|(?:static)|(?:extern)|(?:const)))(?!\\w))((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z))))*)(\\s*+((?:(?:(?:\\[\\[.*?\\]\\]|__attribute(?:__)?\\(\\(.*?\\)\\))|__declspec\\(.*?\\))|alignas\\(.*?\\))(?!\\)))?((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))(?:(?:(?:(?:unsigned)|(?:signed)|(?:short)|(?:long))|(?:(?:struct)|(?:class)|(?:union)|(?:enum)))((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z))))*(?:((::)?(?:(?!\\b(?:__has_cpp_attribute|reinterpret_cast|atomic_noexcept|atomic_commit|atomic_cancel|__has_include|synchronized|dynamic_cast|thread_local|static_cast|const_cast|co_return|constexpr|constexpr|constexpr|co_return|protected|namespace|consteval|noexcept|decltype|template|operator|noexcept|co_yield|co_await|reflexpr|continue|co_await|co_yield|requires|volatile|register|restrict|explicit|volatile|noexcept|typename|default|_Pragma|mutable|include|concept|alignas|virtual|alignof|__asm__|defined|mutable|typedef|warning|private|and_eq|define|pragma|typeid|switch|bitand|return|ifndef|export|struct|sizeof|module|static|public|extern|inline|friend|delete|xor_eq|import|not_eq|class|compl|bitor|throw|or_eq|while|catch|break|union|const|const|endif|ifdef|undef|error|using|else|line|goto|else|elif|this|enum|case|new|asm|not|try|for|and|xor|or|if|do|if)\\b)(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))*\\s*+(((?<!<)<(?!<)(?:(?:(?:[^'\"<>]*+|\"(?:[^\"]*|\\\\\")\")|'(?:[^']*|\\\\')')\\g<66>?)+>)(?:(?:\\s)+)?)?::)*\\s*+)((?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))*)\\s*+(((?<!<)<(?!<)(?:(?:(?:[^'\"<>]*+|\"(?:[^\"]*|\\\\\")\")|'(?:[^']*|\\\\')')\\g<66>?)+>)(?:(?:\\s)+)?)?(::))?((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))(?!(?:(?:transaction_safe_dynamic)|(?:__has_cpp_attribute)|(?:reinterpret_cast)|(?:transaction_safe)|(?:atomic_noexcept)|(?:atomic_commit)|(?:atomic_cancel)|(?:__has_include)|(?:dynamic_cast)|(?:synchronized)|(?:thread_local)|(?:static_cast)|(?:const_cast)|(?:constexpr)|(?:consteval)|(?:co_return)|(?:co_return)|(?:constexpr)|(?:protected)|(?:constexpr)|(?:namespace)|(?:noexcept)|(?:typename)|(?:decltype)|(?:template)|(?:operator)|(?:noexcept)|(?:co_yield)|(?:co_await)|(?:continue)|(?:co_await)|(?:co_yield)|(?:volatile)|(?:register)|(?:restrict)|(?:explicit)|(?:override)|(?:volatile)|(?:reflexpr)|(?:noexcept)|(?:requires)|(?:alignas)|(?:typedef)|(?:nullptr)|(?:alignof)|(?:mutable)|(?:concept)|(?:virtual)|(?:defined)|(?:__asm__)|(?:include)|(?:_Pragma)|(?:mutable)|(?:default)|(?:warning)|(?:private)|(?:module)|(?:return)|(?:not_eq)|(?:xor_eq)|(?:and_eq)|(?:ifndef)|(?:pragma)|(?:export)|(?:import)|(?:sizeof)|(?:static)|(?:delete)|(?:public)|(?:define)|(?:extern)|(?:inline)|(?:typeid)|(?:switch)|(?:friend)|(?:bitand)|(?:false)|(?:compl)|(?:bitor)|(?:throw)|(?:or_eq)|(?:while)|(?:catch)|(?:break)|(?:const)|(?:final)|(?:const)|(?:endif)|(?:ifdef)|(?:undef)|(?:error)|(?:using)|(?:audit)|(?:axiom)|(?:line)|(?:else)|(?:elif)|(?:true)|(?:NULL)|(?:case)|(?:goto)|(?:else)|(?:this)|(?:new)|(?:asm)|(?:not)|(?:and)|(?:xor)|(?:try)|(?:for)|(?:if)|(?:do)|(?:or)|(?:if))\\b)((?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))*)\\b(((?<!<)<(?!<)(?:(?:(?:[^'\"<>]*+|\"(?:[^\"]*|\\\\\")\")|'(?:[^']*|\\\\')')\\g<66>?)+>)(?:(?:\\s)+)?)?(?![\\w<:.]))(((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))?(?:(?:&|(?:\\*))((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z))))*(?:&|(?:\\*)))?((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))((?:__cdecl|__clrcall|__stdcall|__fastcall|__thiscall|__vectorcall)?)((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))((::)?(?:(?!\\b(?:__has_cpp_attribute|reinterpret_cast|atomic_noexcept|atomic_commit|atomic_cancel|__has_include|synchronized|dynamic_cast|thread_local|static_cast|const_cast|co_return|constexpr|constexpr|constexpr|co_return|protected|namespace|consteval|noexcept|decltype|template|operator|noexcept|co_yield|co_await|reflexpr|continue|co_await|co_yield|requires|volatile|register|restrict|explicit|volatile|noexcept|typename|default|_Pragma|mutable|include|concept|alignas|virtual|alignof|__asm__|defined|mutable|typedef|warning|private|and_eq|define|pragma|typeid|switch|bitand|return|ifndef|export|struct|sizeof|module|static|public|extern|inline|friend|delete|xor_eq|import|not_eq|class|compl|bitor|throw|or_eq|while|catch|break|union|const|const|endif|ifdef|undef|error|using|else|line|goto|else|elif|this|enum|case|new|asm|not|try|for|and|xor|or|if|do|if)\\b)(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))*\\s*+(((?<!<)<(?!<)(?:(?:(?:[^'\"<>]*+|\"(?:[^\"]*|\\\\\")\")|'(?:[^']*|\\\\')')\\g<66>?)+>)(?:(?:\\s)+)?)?::)*\\s*+)((?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))*)\\b(?<!\\Wreinterpret_cast|^reinterpret_cast|\\Watomic_noexcept|^atomic_noexcept|\\Wuint_least64_t|^uint_least64_t|\\Wuint_least16_t|^uint_least16_t|\\Wuint_least32_t|^uint_least32_t|\\Watomic_commit|^atomic_commit|\\Wuint_fast16_t|^uint_fast16_t|\\Wint_least32_t|^int_least32_t|\\Wuint_fast32_t|^uint_fast32_t|\\Wint_least64_t|^int_least64_t|\\Wuint_fast64_t|^uint_fast64_t|\\Watomic_cancel|^atomic_cancel|\\Wuint_least8_t|^uint_least8_t|\\Wint_least16_t|^int_least16_t|\\Wsynchronized|^synchronized|\\Wint_fast64_t|^int_fast64_t|\\Wuint_fast8_t|^uint_fast8_t|\\Wint_least8_t|^int_least8_t|\\Wdynamic_cast|^dynamic_cast|\\Wthread_local|^thread_local|\\Wint_fast16_t|^int_fast16_t|\\Wint_fast32_t|^int_fast32_t|\\Wsuseconds_t|^suseconds_t|\\Wint_fast8_t|^int_fast8_t|\\Wstatic_cast|^static_cast|\\Wuseconds_t|^useconds_t|\\Wconst_cast|^const_cast|\\Win_port_t|^in_port_t|\\Wco_return|^co_return|\\Wuintptr_t|^uintptr_t|\\Wconstexpr|^constexpr|\\Wconsteval|^consteval|\\Wnamespace|^namespace|\\Wuintmax_t|^uintmax_t|\\Wprotected|^protected|\\Wconstexpr|^constexpr|\\Wuintmax_t|^uintmax_t|\\Wblksize_t|^blksize_t|\\Wco_return|^co_return|\\Win_addr_t|^in_addr_t|\\Wconstexpr|^constexpr|\\Wregister|^register|\\Wuint64_t|^uint64_t|\\Wintptr_t|^intptr_t|\\Wnoexcept|^noexcept|\\Wrequires|^requires|\\Wtypename|^typename|\\Wdecltype|^decltype|\\Woperator|^operator|\\Wco_await|^co_await|\\Wtemplate|^template|\\Wcontinue|^continue|\\Wco_await|^co_await|\\Wco_yield|^co_yield|\\Wunsigned|^unsigned|\\Wnoexcept|^noexcept|\\Wvolatile|^volatile|\\Wreflexpr|^reflexpr|\\Wexplicit|^explicit|\\Wu_quad_t|^u_quad_t|\\Wblkcnt_t|^blkcnt_t|\\Wrestrict|^restrict|\\Wuint32_t|^uint32_t|\\Wvolatile|^volatile|\\Wintmax_t|^intmax_t|\\Wintmax_t|^intmax_t|\\Wco_yield|^co_yield|\\Wnoexcept|^noexcept|\\Wuint16_t|^uint16_t|\\Wu_short|^u_short|\\Wwchar_t|^wchar_t|\\Wmutable|^mutable|\\Wconcept|^concept|\\Wuint8_t|^uint8_t|\\Walignas|^alignas|\\Wnlink_t|^nlink_t|\\Wnullptr|^nullptr|\\Wprivate|^private|\\Wdefault|^default|\\Wsegsz_t|^segsz_t|\\Wswblk_t|^swblk_t|\\Wint16_t|^int16_t|\\Wint32_t|^int32_t|\\Wclock_t|^clock_t|\\Wint64_t|^int64_t|\\Wssize_t|^ssize_t|\\Walignof|^alignof|\\Wqaddr_t|^qaddr_t|\\Wcaddr_t|^caddr_t|\\Wdaddr_t|^daddr_t|\\Wmutable|^mutable|\\Wvirtual|^virtual|\\Wfixpt_t|^fixpt_t|\\Wtypedef|^typedef|\\W__asm__|^__asm__|\\Wtime_t|^time_t|\\Wsizeof|^sizeof|\\Wdelete|^delete|\\Wnot_eq|^not_eq|\\Wbitand|^bitand|\\Wand_eq|^and_eq|\\Wxor_eq|^xor_eq|\\Wtypeid|^typeid|\\Wswitch|^switch|\\Wreturn|^return|\\Wsigned|^signed|\\Wdouble|^double|\\Wu_char|^u_char|\\Wu_long|^u_long|\\Wushort|^ushort|\\Wquad_t|^quad_t|\\Wmode_t|^mode_t|\\Wsize_t|^size_t|\\Wint8_t|^int8_t|\\Wstruct|^struct|\\Wstatic|^static|\\Wextern|^extern|\\Winline|^inline|\\Wfriend|^friend|\\Wpublic|^public|\\Wexport|^export|\\Wimport|^import|\\Wmodule|^module|\\Wkey_t|^key_t|\\Wuid_t|^uid_t|\\Wgid_t|^gid_t|\\Wfalse|^false|\\Wbreak|^break|\\Wusing|^using|\\Wcatch|^catch|\\Wor_eq|^or_eq|\\Wbitor|^bitor|\\Wdev_t|^dev_t|\\Wwhile|^while|\\Wcompl|^compl|\\Wdiv_t|^div_t|\\Wpid_t|^pid_t|\\Wunion|^union|\\Wu_int|^u_int|\\Wthrow|^throw|\\Wconst|^const|\\Wfloat|^float|\\Wconst|^const|\\Woff_t|^off_t|\\Wshort|^short|\\Wclass|^class|\\Wino_t|^ino_t|\\Wid_t|^id_t|\\Wenum|^enum|\\Wuint|^uint|\\Wbool|^bool|\\Wlong|^long|\\Wchar|^char|\\Wvoid|^void|\\Wauto|^auto|\\Wthis|^this|\\Wcase|^case|\\Wgoto|^goto|\\Welse|^else|\\Wid_t|^id_t|\\WNULL|^NULL|\\Wtrue|^true|\\Wasm|^asm|\\Wtry|^try|\\Wnot|^not|\\Wxor|^xor|\\Wand|^and|\\Wfor|^for|\\Wnew|^new|\\Wint|^int|\\Wor|^or|\\Wdo|^do|\\Wif|^if)((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))(?=\\()",
+			"begin": "(?:(?:^|\\G|(?<=;|\\}))|(?<=>))((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))(?:((?<!\\w)template(?!\\w))((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z))))?((?:(?:(?:\\[\\[.*?\\]\\]|__attribute(?:__)?\\(\\(.*?\\)\\))|__declspec\\(.*?\\))|alignas\\(.*?\\))(?!\\)))?((?:((?<!\\w)(?:(?:(?:constexpr)|(?:explicit)|(?:mutable)|(?:virtual)|(?:inline)|(?:friend))|(?:(?:volatile)|(?:register)|(?:restrict)|(?:static)|(?:extern)|(?:const)))(?!\\w))((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z))))*)(\\s*+((?:(?:(?:\\[\\[.*?\\]\\]|__attribute(?:__)?\\(\\(.*?\\)\\))|__declspec\\(.*?\\))|alignas\\(.*?\\))(?!\\)))?((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))(?:(?:(?:(?:unsigned)|(?:signed)|(?:short)|(?:long))|(?:(?:struct)|(?:class)|(?:union)|(?:enum)))((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z))))*(?:((::)?(?:(?!\\b(?:__has_cpp_attribute|reinterpret_cast|atomic_noexcept|atomic_commit|atomic_cancel|__has_include|synchronized|dynamic_cast|thread_local|static_cast|const_cast|co_return|constexpr|constexpr|constexpr|co_return|protected|namespace|consteval|noexcept|decltype|template|operator|noexcept|co_yield|co_await|reflexpr|continue|co_await|co_yield|requires|volatile|register|restrict|explicit|volatile|noexcept|typename|default|_Pragma|mutable|include|concept|alignas|virtual|alignof|__asm__|defined|mutable|typedef|warning|private|and_eq|define|pragma|typeid|switch|bitand|return|ifndef|export|struct|sizeof|module|static|public|extern|inline|friend|delete|xor_eq|import|not_eq|class|compl|bitor|throw|or_eq|while|catch|break|union|const|const|endif|ifdef|undef|error|using|else|line|goto|else|elif|this|enum|case|new|asm|not|try|for|and|xor|or|if|do|if)\\b)(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))*\\s*+(((?<!<)<(?!<)(?:(?:(?:[^'\"<>]*+|\"(?:[^\"]*|\\\\\")\")|'(?:[^']*|\\\\')')\\g<67>?)+>)(?:(?:\\s)+)?)?::)*\\s*+)((?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))*)\\s*+(((?<!<)<(?!<)(?:(?:(?:[^'\"<>]*+|\"(?:[^\"]*|\\\\\")\")|'(?:[^']*|\\\\')')\\g<67>?)+>)(?:(?:\\s)+)?)?(::))?((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))(?!(?:(?:transaction_safe_dynamic)|(?:__has_cpp_attribute)|(?:reinterpret_cast)|(?:transaction_safe)|(?:atomic_noexcept)|(?:atomic_commit)|(?:atomic_cancel)|(?:__has_include)|(?:dynamic_cast)|(?:synchronized)|(?:thread_local)|(?:static_cast)|(?:const_cast)|(?:constexpr)|(?:consteval)|(?:co_return)|(?:co_return)|(?:constexpr)|(?:protected)|(?:constexpr)|(?:namespace)|(?:noexcept)|(?:typename)|(?:decltype)|(?:template)|(?:operator)|(?:noexcept)|(?:co_yield)|(?:co_await)|(?:continue)|(?:co_await)|(?:co_yield)|(?:volatile)|(?:register)|(?:restrict)|(?:explicit)|(?:override)|(?:volatile)|(?:reflexpr)|(?:noexcept)|(?:requires)|(?:alignas)|(?:typedef)|(?:nullptr)|(?:alignof)|(?:mutable)|(?:concept)|(?:virtual)|(?:defined)|(?:__asm__)|(?:include)|(?:_Pragma)|(?:mutable)|(?:default)|(?:warning)|(?:private)|(?:module)|(?:return)|(?:not_eq)|(?:xor_eq)|(?:and_eq)|(?:ifndef)|(?:pragma)|(?:export)|(?:import)|(?:sizeof)|(?:static)|(?:delete)|(?:public)|(?:define)|(?:extern)|(?:inline)|(?:typeid)|(?:switch)|(?:friend)|(?:bitand)|(?:false)|(?:compl)|(?:bitor)|(?:throw)|(?:or_eq)|(?:while)|(?:catch)|(?:break)|(?:const)|(?:final)|(?:const)|(?:endif)|(?:ifdef)|(?:undef)|(?:error)|(?:using)|(?:audit)|(?:axiom)|(?:line)|(?:else)|(?:elif)|(?:true)|(?:NULL)|(?:case)|(?:goto)|(?:else)|(?:this)|(?:new)|(?:asm)|(?:not)|(?:and)|(?:xor)|(?:try)|(?:for)|(?:if)|(?:do)|(?:or)|(?:if))\\b)((?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))*)\\b(((?<!<)<(?!<)(?:(?:(?:[^'\"<>]*+|\"(?:[^\"]*|\\\\\")\")|'(?:[^']*|\\\\')')\\g<67>?)+>)(?:(?:\\s)+)?)?(?![\\w<:.]))(((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))?(?:(?:&|(?:\\*))((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z))))*(?:&|(?:\\*)))?((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))((?:__cdecl|__clrcall|__stdcall|__fastcall|__thiscall|__vectorcall)?)((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))((::)?(?:(?!\\b(?:__has_cpp_attribute|reinterpret_cast|atomic_noexcept|atomic_commit|atomic_cancel|__has_include|synchronized|dynamic_cast|thread_local|static_cast|const_cast|co_return|constexpr|constexpr|constexpr|co_return|protected|namespace|consteval|noexcept|decltype|template|operator|noexcept|co_yield|co_await|reflexpr|continue|co_await|co_yield|requires|volatile|register|restrict|explicit|volatile|noexcept|typename|default|_Pragma|mutable|include|concept|alignas|virtual|alignof|__asm__|defined|mutable|typedef|warning|private|and_eq|define|pragma|typeid|switch|bitand|return|ifndef|export|struct|sizeof|module|static|public|extern|inline|friend|delete|xor_eq|import|not_eq|class|compl|bitor|throw|or_eq|while|catch|break|union|const|const|endif|ifdef|undef|error|using|else|line|goto|else|elif|this|enum|case|new|asm|not|try|for|and|xor|or|if|do|if)\\b)(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))*\\s*+(((?<!<)<(?!<)(?:(?:(?:[^'\"<>]*+|\"(?:[^\"]*|\\\\\")\")|'(?:[^']*|\\\\')')\\g<67>?)+>)(?:(?:\\s)+)?)?::)*\\s*+)((?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))*)\\b(?<!\\Wreinterpret_cast|^reinterpret_cast|\\Watomic_noexcept|^atomic_noexcept|\\Wuint_least64_t|^uint_least64_t|\\Wuint_least16_t|^uint_least16_t|\\Wuint_least32_t|^uint_least32_t|\\Watomic_commit|^atomic_commit|\\Wuint_fast16_t|^uint_fast16_t|\\Wint_least32_t|^int_least32_t|\\Wuint_fast32_t|^uint_fast32_t|\\Wint_least64_t|^int_least64_t|\\Wuint_fast64_t|^uint_fast64_t|\\Watomic_cancel|^atomic_cancel|\\Wuint_least8_t|^uint_least8_t|\\Wint_least16_t|^int_least16_t|\\Wsynchronized|^synchronized|\\Wint_fast64_t|^int_fast64_t|\\Wuint_fast8_t|^uint_fast8_t|\\Wint_least8_t|^int_least8_t|\\Wdynamic_cast|^dynamic_cast|\\Wthread_local|^thread_local|\\Wint_fast16_t|^int_fast16_t|\\Wint_fast32_t|^int_fast32_t|\\Wsuseconds_t|^suseconds_t|\\Wint_fast8_t|^int_fast8_t|\\Wstatic_cast|^static_cast|\\Wuseconds_t|^useconds_t|\\Wconst_cast|^const_cast|\\Win_port_t|^in_port_t|\\Wco_return|^co_return|\\Wuintptr_t|^uintptr_t|\\Wconstexpr|^constexpr|\\Wconsteval|^consteval|\\Wnamespace|^namespace|\\Wuintmax_t|^uintmax_t|\\Wprotected|^protected|\\Wconstexpr|^constexpr|\\Wuintmax_t|^uintmax_t|\\Wblksize_t|^blksize_t|\\Wco_return|^co_return|\\Win_addr_t|^in_addr_t|\\Wconstexpr|^constexpr|\\Wregister|^register|\\Wuint64_t|^uint64_t|\\Wintptr_t|^intptr_t|\\Wnoexcept|^noexcept|\\Wrequires|^requires|\\Wtypename|^typename|\\Wdecltype|^decltype|\\Woperator|^operator|\\Wco_await|^co_await|\\Wtemplate|^template|\\Wcontinue|^continue|\\Wco_await|^co_await|\\Wco_yield|^co_yield|\\Wunsigned|^unsigned|\\Wnoexcept|^noexcept|\\Wvolatile|^volatile|\\Wreflexpr|^reflexpr|\\Wexplicit|^explicit|\\Wu_quad_t|^u_quad_t|\\Wblkcnt_t|^blkcnt_t|\\Wrestrict|^restrict|\\Wuint32_t|^uint32_t|\\Wvolatile|^volatile|\\Wintmax_t|^intmax_t|\\Wintmax_t|^intmax_t|\\Wco_yield|^co_yield|\\Wnoexcept|^noexcept|\\Wuint16_t|^uint16_t|\\Wu_short|^u_short|\\Wwchar_t|^wchar_t|\\Wmutable|^mutable|\\Wconcept|^concept|\\Wuint8_t|^uint8_t|\\Walignas|^alignas|\\Wnlink_t|^nlink_t|\\Wnullptr|^nullptr|\\Wprivate|^private|\\Wdefault|^default|\\Wsegsz_t|^segsz_t|\\Wswblk_t|^swblk_t|\\Wint16_t|^int16_t|\\Wint32_t|^int32_t|\\Wclock_t|^clock_t|\\Wint64_t|^int64_t|\\Wssize_t|^ssize_t|\\Walignof|^alignof|\\Wqaddr_t|^qaddr_t|\\Wcaddr_t|^caddr_t|\\Wdaddr_t|^daddr_t|\\Wmutable|^mutable|\\Wvirtual|^virtual|\\Wfixpt_t|^fixpt_t|\\Wtypedef|^typedef|\\W__asm__|^__asm__|\\Wtime_t|^time_t|\\Wsizeof|^sizeof|\\Wdelete|^delete|\\Wnot_eq|^not_eq|\\Wbitand|^bitand|\\Wand_eq|^and_eq|\\Wxor_eq|^xor_eq|\\Wtypeid|^typeid|\\Wswitch|^switch|\\Wreturn|^return|\\Wsigned|^signed|\\Wdouble|^double|\\Wu_char|^u_char|\\Wu_long|^u_long|\\Wushort|^ushort|\\Wquad_t|^quad_t|\\Wmode_t|^mode_t|\\Wsize_t|^size_t|\\Wint8_t|^int8_t|\\Wstruct|^struct|\\Wstatic|^static|\\Wextern|^extern|\\Winline|^inline|\\Wfriend|^friend|\\Wpublic|^public|\\Wexport|^export|\\Wimport|^import|\\Wmodule|^module|\\Wkey_t|^key_t|\\Wuid_t|^uid_t|\\Wgid_t|^gid_t|\\Wfalse|^false|\\Wbreak|^break|\\Wusing|^using|\\Wcatch|^catch|\\Wor_eq|^or_eq|\\Wbitor|^bitor|\\Wdev_t|^dev_t|\\Wwhile|^while|\\Wcompl|^compl|\\Wdiv_t|^div_t|\\Wpid_t|^pid_t|\\Wunion|^union|\\Wu_int|^u_int|\\Wthrow|^throw|\\Wconst|^const|\\Wfloat|^float|\\Wconst|^const|\\Woff_t|^off_t|\\Wshort|^short|\\Wclass|^class|\\Wino_t|^ino_t|\\Wid_t|^id_t|\\Wenum|^enum|\\Wuint|^uint|\\Wbool|^bool|\\Wlong|^long|\\Wchar|^char|\\Wvoid|^void|\\Wauto|^auto|\\Wthis|^this|\\Wcase|^case|\\Wgoto|^goto|\\Welse|^else|\\Wid_t|^id_t|\\WNULL|^NULL|\\Wtrue|^true|\\Wasm|^asm|\\Wtry|^try|\\Wnot|^not|\\Wxor|^xor|\\Wand|^and|\\Wfor|^for|\\Wnew|^new|\\Wint|^int|\\Wor|^or|\\Wdo|^do|\\Wif|^if)((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))(?=\\()",
 			"end": "(?:(?<=\\}|%>|\\?\\?>)|(?=[;>\\[\\]=]))",
 			"beginCaptures": {
 				"0": {
@@ -4801,6 +4801,16 @@
 				"10": {
 					"patterns": [
 						{
+							"include": "#attributes_context"
+						},
+						{
+							"include": "#number_literal"
+						}
+					]
+				},
+				"11": {
+					"patterns": [
+						{
 							"match": "((?<!\\w)(?:(?:(?:constexpr)|(?:explicit)|(?:mutable)|(?:virtual)|(?:inline)|(?:friend))|(?:(?:volatile)|(?:register)|(?:restrict)|(?:static)|(?:extern)|(?:const)))(?!\\w))((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))",
 							"captures": {
 								"1": {
@@ -4835,23 +4845,23 @@
 						}
 					]
 				},
-				"11": {
-					"name": "storage.modifier.$11.cpp"
-				},
 				"12": {
+					"name": "storage.modifier.$12.cpp"
+				},
+				"13": {
 					"patterns": [
 						{
 							"include": "#inline_comment"
 						}
 					]
 				},
-				"13": {
+				"14": {
 					"name": "comment.block.cpp punctuation.definition.comment.begin.cpp"
 				},
-				"14": {
+				"15": {
 					"name": "comment.block.cpp"
 				},
-				"15": {
+				"16": {
 					"patterns": [
 						{
 							"match": "\\*\\/",
@@ -4863,7 +4873,7 @@
 						}
 					]
 				},
-				"16": {
+				"17": {
 					"name": "meta.qualified_type.cpp",
 					"patterns": [
 						{
@@ -4917,7 +4927,7 @@
 						}
 					]
 				},
-				"17": {
+				"18": {
 					"patterns": [
 						{
 							"include": "#attributes_context"
@@ -4927,45 +4937,45 @@
 						}
 					]
 				},
-				"18": {
+				"19": {
 					"patterns": [
 						{
 							"include": "#inline_comment"
 						}
 					]
 				},
-				"19": {
+				"20": {
 					"name": "comment.block.cpp punctuation.definition.comment.begin.cpp"
 				},
-				"20": {
-					"name": "comment.block.cpp"
-				},
 				"21": {
-					"patterns": [
-						{
-							"match": "\\*\\/",
-							"name": "comment.block.cpp punctuation.definition.comment.end.cpp"
-						},
-						{
-							"match": "\\*",
-							"name": "comment.block.cpp"
-						}
-					]
+					"name": "comment.block.cpp"
 				},
 				"22": {
 					"patterns": [
 						{
-							"include": "#inline_comment"
+							"match": "\\*\\/",
+							"name": "comment.block.cpp punctuation.definition.comment.end.cpp"
+						},
+						{
+							"match": "\\*",
+							"name": "comment.block.cpp"
 						}
 					]
 				},
 				"23": {
-					"name": "comment.block.cpp punctuation.definition.comment.begin.cpp"
+					"patterns": [
+						{
+							"include": "#inline_comment"
+						}
+					]
 				},
 				"24": {
-					"name": "comment.block.cpp"
+					"name": "comment.block.cpp punctuation.definition.comment.begin.cpp"
 				},
 				"25": {
+					"name": "comment.block.cpp"
+				},
+				"26": {
 					"patterns": [
 						{
 							"match": "\\*\\/",
@@ -4977,17 +4987,17 @@
 						}
 					]
 				},
-				"26": {
+				"27": {
 					"patterns": [
 						{
 							"include": "#scope_resolution_inner_generated"
 						}
 					]
 				},
-				"27": {
+				"28": {
 					"name": "punctuation.separator.namespace.access.cpp punctuation.separator.scope-resolution.cpp"
 				},
-				"28": {
+				"29": {
 					"name": "meta.template.call.cpp",
 					"patterns": [
 						{
@@ -4995,11 +5005,11 @@
 						}
 					]
 				},
-				"29": {},
-				"30": {
+				"30": {},
+				"31": {
 					"name": "entity.name.scope-resolution.cpp"
 				},
-				"31": {
+				"32": {
 					"name": "meta.template.call.cpp",
 					"patterns": [
 						{
@@ -5007,24 +5017,24 @@
 						}
 					]
 				},
-				"32": {},
-				"33": {
+				"33": {},
+				"34": {
 					"name": "punctuation.separator.namespace.access.cpp punctuation.separator.scope-resolution.cpp"
 				},
-				"34": {
+				"35": {
 					"patterns": [
 						{
 							"include": "#inline_comment"
 						}
 					]
 				},
-				"35": {
+				"36": {
 					"name": "comment.block.cpp punctuation.definition.comment.begin.cpp"
 				},
-				"36": {
+				"37": {
 					"name": "comment.block.cpp"
 				},
-				"37": {
+				"38": {
 					"patterns": [
 						{
 							"match": "\\*\\/",
@@ -5036,10 +5046,10 @@
 						}
 					]
 				},
-				"38": {
+				"39": {
 					"name": "entity.name.type.cpp"
 				},
-				"39": {
+				"40": {
 					"name": "meta.template.call.cpp",
 					"patterns": [
 						{
@@ -5047,8 +5057,8 @@
 						}
 					]
 				},
-				"40": {},
-				"41": {
+				"41": {},
+				"42": {
 					"patterns": [
 						{
 							"match": "\\*",
@@ -5091,123 +5101,95 @@
 						}
 					]
 				},
-				"42": {
+				"43": {
 					"patterns": [
 						{
 							"include": "#inline_comment"
 						}
 					]
 				},
-				"43": {
+				"44": {
 					"name": "comment.block.cpp punctuation.definition.comment.begin.cpp"
 				},
-				"44": {
-					"name": "comment.block.cpp"
-				},
 				"45": {
-					"patterns": [
-						{
-							"match": "\\*\\/",
-							"name": "comment.block.cpp punctuation.definition.comment.end.cpp"
-						},
-						{
-							"match": "\\*",
-							"name": "comment.block.cpp"
-						}
-					]
+					"name": "comment.block.cpp"
 				},
 				"46": {
 					"patterns": [
 						{
-							"include": "#inline_comment"
+							"match": "\\*\\/",
+							"name": "comment.block.cpp punctuation.definition.comment.end.cpp"
+						},
+						{
+							"match": "\\*",
+							"name": "comment.block.cpp"
 						}
 					]
 				},
 				"47": {
-					"name": "comment.block.cpp punctuation.definition.comment.begin.cpp"
-				},
-				"48": {
-					"name": "comment.block.cpp"
-				},
-				"49": {
 					"patterns": [
 						{
-							"match": "\\*\\/",
-							"name": "comment.block.cpp punctuation.definition.comment.end.cpp"
-						},
-						{
-							"match": "\\*",
-							"name": "comment.block.cpp"
+							"include": "#inline_comment"
 						}
 					]
+				},
+				"48": {
+					"name": "comment.block.cpp punctuation.definition.comment.begin.cpp"
+				},
+				"49": {
+					"name": "comment.block.cpp"
 				},
 				"50": {
 					"patterns": [
 						{
-							"include": "#inline_comment"
+							"match": "\\*\\/",
+							"name": "comment.block.cpp punctuation.definition.comment.end.cpp"
+						},
+						{
+							"match": "\\*",
+							"name": "comment.block.cpp"
 						}
 					]
 				},
 				"51": {
-					"name": "comment.block.cpp punctuation.definition.comment.begin.cpp"
-				},
-				"52": {
-					"name": "comment.block.cpp"
-				},
-				"53": {
 					"patterns": [
 						{
-							"match": "\\*\\/",
-							"name": "comment.block.cpp punctuation.definition.comment.end.cpp"
-						},
-						{
-							"match": "\\*",
-							"name": "comment.block.cpp"
+							"include": "#inline_comment"
 						}
 					]
+				},
+				"52": {
+					"name": "comment.block.cpp punctuation.definition.comment.begin.cpp"
+				},
+				"53": {
+					"name": "comment.block.cpp"
 				},
 				"54": {
 					"patterns": [
 						{
-							"include": "#inline_comment"
+							"match": "\\*\\/",
+							"name": "comment.block.cpp punctuation.definition.comment.end.cpp"
+						},
+						{
+							"match": "\\*",
+							"name": "comment.block.cpp"
 						}
 					]
 				},
 				"55": {
-					"name": "comment.block.cpp punctuation.definition.comment.begin.cpp"
-				},
-				"56": {
-					"name": "comment.block.cpp"
-				},
-				"57": {
-					"patterns": [
-						{
-							"match": "\\*\\/",
-							"name": "comment.block.cpp punctuation.definition.comment.end.cpp"
-						},
-						{
-							"match": "\\*",
-							"name": "comment.block.cpp"
-						}
-					]
-				},
-				"58": {
-					"name": "storage.type.modifier.calling-convention.cpp"
-				},
-				"59": {
 					"patterns": [
 						{
 							"include": "#inline_comment"
 						}
 					]
 				},
-				"60": {
+				"56": {
 					"name": "comment.block.cpp punctuation.definition.comment.begin.cpp"
 				},
-				"61": {
+				"57": {
 					"name": "comment.block.cpp"
 				},
-				"62": {
+				"58": {
 					"patterns": [
 						{
 							"match": "\\*\\/",
@@ -5219,17 +5201,45 @@
 						}
 					]
 				},
+				"59": {
+					"name": "storage.type.modifier.calling-convention.cpp"
+				},
+				"60": {
+					"patterns": [
+						{
+							"include": "#inline_comment"
+						}
+					]
+				},
+				"61": {
+					"name": "comment.block.cpp punctuation.definition.comment.begin.cpp"
+				},
+				"62": {
+					"name": "comment.block.cpp"
+				},
 				"63": {
+					"patterns": [
+						{
+							"match": "\\*\\/",
+							"name": "comment.block.cpp punctuation.definition.comment.end.cpp"
+						},
+						{
+							"match": "\\*",
+							"name": "comment.block.cpp"
+						}
+					]
+				},
+				"64": {
 					"patterns": [
 						{
 							"include": "#scope_resolution_function_definition_inner_generated"
 						}
 					]
 				},
-				"64": {
+				"65": {
 					"name": "punctuation.separator.namespace.access.cpp punctuation.separator.scope-resolution.function.definition.cpp"
 				},
-				"65": {
+				"66": {
 					"name": "meta.template.call.cpp",
 					"patterns": [
 						{
@@ -5237,24 +5247,24 @@
 						}
 					]
 				},
-				"66": {},
-				"67": {
+				"67": {},
+				"68": {
 					"name": "entity.name.function.definition.cpp"
 				},
-				"68": {
+				"69": {
 					"patterns": [
 						{
 							"include": "#inline_comment"
 						}
 					]
 				},
-				"69": {
+				"70": {
 					"name": "comment.block.cpp punctuation.definition.comment.begin.cpp"
 				},
-				"70": {
+				"71": {
 					"name": "comment.block.cpp"
 				},
-				"71": {
+				"72": {
 					"patterns": [
 						{
 							"match": "\\*\\/",
@@ -10532,7 +10542,7 @@
 					"include": "#vararg_ellipses"
 				},
 				{
-					"match": "((?:((?:(?:volatile)|(?:register)|(?:restrict)|(?:static)|(?:extern)|(?:const)))((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z))))+)((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))(?:((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))(?:(?:(?:((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))((?<!\\w)(?:(?:unsigned)|(?:wchar_t)|(?:double)|(?:signed)|(?:short)|(?:float)|(?:auto)|(?:void)|(?:long)|(?:char)|(?:bool)|(?:int))(?!\\w))|((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))((?<!\\w)(?:(?:uint_least32_t)|(?:uint_least64_t)|(?:uint_least16_t)|(?:int_least16_t)|(?:int_least64_t)|(?:int_least32_t)|(?:uint_fast32_t)|(?:uint_fast16_t)|(?:uint_fast64_t)|(?:uint_least8_t)|(?:int_fast64_t)|(?:int_fast16_t)|(?:uint_fast8_t)|(?:int_fast32_t)|(?:int_least8_t)|(?:int_fast8_t)|(?:suseconds_t)|(?:useconds_t)|(?:uintmax_t)|(?:uintptr_t)|(?:in_addr_t)|(?:uintmax_t)|(?:blksize_t)|(?:in_port_t)|(?:blkcnt_t)|(?:intptr_t)|(?:intmax_t)|(?:uint64_t)|(?:u_quad_t)|(?:uint16_t)|(?:uint32_t)|(?:intmax_t)|(?:segsz_t)|(?:fixpt_t)|(?:caddr_t)|(?:daddr_t)|(?:u_short)|(?:int16_t)|(?:int32_t)|(?:int64_t)|(?:uint8_t)|(?:nlink_t)|(?:qaddr_t)|(?:swblk_t)|(?:clock_t)|(?:ssize_t)|(?:time_t)|(?:u_long)|(?:ushort)|(?:quad_t)|(?:mode_t)|(?:size_t)|(?:u_char)|(?:int8_t)|(?:u_int)|(?:uid_t)|(?:off_t)|(?:pid_t)|(?:gid_t)|(?:dev_t)|(?:div_t)|(?:key_t)|(?:ino_t)|(?:id_t)|(?:id_t)|(?:uint))(?!\\w)))|((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))((?<!\\w)pthread_attr_t|pthread_cond_t|pthread_condattr_t|pthread_mutex_t|pthread_mutexattr_t|pthread_once_t|pthread_rwlock_t|pthread_rwlockattr_t|pthread_t|pthread_key_t(?!\\w)))|((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))((?<!\\w)[a-zA-Z_](?:\\w)*_t(?!\\w)))|((?<!\\w)(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))*(?!\\w)\\b\\b(?<!\\Wvolatile|^volatile|\\Wregister|^register|\\Wrestrict|^restrict|\\Wstatic|^static|\\Wextern|^extern|\\Wconst|^const)))((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))(?=,|\\)|=)",
+					"match": "((?:((?:(?:volatile)|(?:register)|(?:restrict)|(?:static)|(?:extern)|(?:const)))((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z))))+)((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))(?:((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))(?:(?:(?:((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))((?<!\\w)(?:(?:unsigned)|(?:wchar_t)|(?:double)|(?:signed)|(?:short)|(?:float)|(?:auto)|(?:void)|(?:long)|(?:char)|(?:bool)|(?:int))(?!\\w))|((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))((?<!\\w)(?:(?:uint_least32_t)|(?:uint_least64_t)|(?:uint_least16_t)|(?:int_least16_t)|(?:int_least64_t)|(?:int_least32_t)|(?:uint_fast32_t)|(?:uint_fast16_t)|(?:uint_fast64_t)|(?:uint_least8_t)|(?:int_fast64_t)|(?:int_fast16_t)|(?:uint_fast8_t)|(?:int_fast32_t)|(?:int_least8_t)|(?:int_fast8_t)|(?:suseconds_t)|(?:useconds_t)|(?:uintmax_t)|(?:uintptr_t)|(?:in_addr_t)|(?:uintmax_t)|(?:blksize_t)|(?:in_port_t)|(?:blkcnt_t)|(?:intptr_t)|(?:intmax_t)|(?:uint64_t)|(?:u_quad_t)|(?:uint16_t)|(?:uint32_t)|(?:intmax_t)|(?:segsz_t)|(?:fixpt_t)|(?:caddr_t)|(?:daddr_t)|(?:u_short)|(?:int16_t)|(?:int32_t)|(?:int64_t)|(?:uint8_t)|(?:nlink_t)|(?:qaddr_t)|(?:swblk_t)|(?:clock_t)|(?:ssize_t)|(?:time_t)|(?:u_long)|(?:ushort)|(?:quad_t)|(?:mode_t)|(?:size_t)|(?:u_char)|(?:int8_t)|(?:u_int)|(?:uid_t)|(?:off_t)|(?:pid_t)|(?:gid_t)|(?:dev_t)|(?:div_t)|(?:key_t)|(?:ino_t)|(?:id_t)|(?:id_t)|(?:uint))(?!\\w)))|((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))((?<!\\w)(?:(?:pthread_t)|(?:pthread_attr_t)|(?:pthread_cond_t)|(?:pthread_condattr_t)|(?:pthread_mutex_t)|(?:pthread_mutexattr_t)|(?:pthread_once_t)|(?:pthread_rwlock_t)|(?:pthread_rwlockattr_t)|(?:pthread_key_t))(?!\\w)))|((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))((?<!\\w)[a-zA-Z_](?:\\w)*_t(?!\\w)))|((?<!\\w)(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))*(?!\\w)\\b\\b(?<!\\Wvolatile|^volatile|\\Wregister|^register|\\Wrestrict|^restrict|\\Wstatic|^static|\\Wextern|^extern|\\Wconst|^const)))((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))(?=,|\\)|=)",
 					"captures": {
 						"1": {
 							"patterns": [
@@ -11695,7 +11705,7 @@
 					"include": "#vararg_ellipses"
 				},
 				{
-					"match": "((?:((?:(?:volatile)|(?:register)|(?:restrict)|(?:static)|(?:extern)|(?:const)))((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z))))+)((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))(?:((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))(?:(?:(?:((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))((?<!\\w)(?:(?:unsigned)|(?:wchar_t)|(?:double)|(?:signed)|(?:short)|(?:float)|(?:auto)|(?:void)|(?:long)|(?:char)|(?:bool)|(?:int))(?!\\w))|((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))((?<!\\w)(?:(?:uint_least32_t)|(?:uint_least64_t)|(?:uint_least16_t)|(?:int_least16_t)|(?:int_least64_t)|(?:int_least32_t)|(?:uint_fast32_t)|(?:uint_fast16_t)|(?:uint_fast64_t)|(?:uint_least8_t)|(?:int_fast64_t)|(?:int_fast16_t)|(?:uint_fast8_t)|(?:int_fast32_t)|(?:int_least8_t)|(?:int_fast8_t)|(?:suseconds_t)|(?:useconds_t)|(?:uintmax_t)|(?:uintptr_t)|(?:in_addr_t)|(?:uintmax_t)|(?:blksize_t)|(?:in_port_t)|(?:blkcnt_t)|(?:intptr_t)|(?:intmax_t)|(?:uint64_t)|(?:u_quad_t)|(?:uint16_t)|(?:uint32_t)|(?:intmax_t)|(?:segsz_t)|(?:fixpt_t)|(?:caddr_t)|(?:daddr_t)|(?:u_short)|(?:int16_t)|(?:int32_t)|(?:int64_t)|(?:uint8_t)|(?:nlink_t)|(?:qaddr_t)|(?:swblk_t)|(?:clock_t)|(?:ssize_t)|(?:time_t)|(?:u_long)|(?:ushort)|(?:quad_t)|(?:mode_t)|(?:size_t)|(?:u_char)|(?:int8_t)|(?:u_int)|(?:uid_t)|(?:off_t)|(?:pid_t)|(?:gid_t)|(?:dev_t)|(?:div_t)|(?:key_t)|(?:ino_t)|(?:id_t)|(?:id_t)|(?:uint))(?!\\w)))|((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))((?<!\\w)pthread_attr_t|pthread_cond_t|pthread_condattr_t|pthread_mutex_t|pthread_mutexattr_t|pthread_once_t|pthread_rwlock_t|pthread_rwlockattr_t|pthread_t|pthread_key_t(?!\\w)))|((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))((?<!\\w)[a-zA-Z_](?:\\w)*_t(?!\\w)))|((?<!\\w)(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))*(?!\\w)\\b\\b(?<!\\Wvolatile|^volatile|\\Wregister|^register|\\Wrestrict|^restrict|\\Wstatic|^static|\\Wextern|^extern|\\Wconst|^const)))((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))(?=,|\\)|=)",
+					"match": "((?:((?:(?:volatile)|(?:register)|(?:restrict)|(?:static)|(?:extern)|(?:const)))((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z))))+)((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))(?:((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))(?:(?:(?:((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))((?<!\\w)(?:(?:unsigned)|(?:wchar_t)|(?:double)|(?:signed)|(?:short)|(?:float)|(?:auto)|(?:void)|(?:long)|(?:char)|(?:bool)|(?:int))(?!\\w))|((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))((?<!\\w)(?:(?:uint_least32_t)|(?:uint_least64_t)|(?:uint_least16_t)|(?:int_least16_t)|(?:int_least64_t)|(?:int_least32_t)|(?:uint_fast32_t)|(?:uint_fast16_t)|(?:uint_fast64_t)|(?:uint_least8_t)|(?:int_fast64_t)|(?:int_fast16_t)|(?:uint_fast8_t)|(?:int_fast32_t)|(?:int_least8_t)|(?:int_fast8_t)|(?:suseconds_t)|(?:useconds_t)|(?:uintmax_t)|(?:uintptr_t)|(?:in_addr_t)|(?:uintmax_t)|(?:blksize_t)|(?:in_port_t)|(?:blkcnt_t)|(?:intptr_t)|(?:intmax_t)|(?:uint64_t)|(?:u_quad_t)|(?:uint16_t)|(?:uint32_t)|(?:intmax_t)|(?:segsz_t)|(?:fixpt_t)|(?:caddr_t)|(?:daddr_t)|(?:u_short)|(?:int16_t)|(?:int32_t)|(?:int64_t)|(?:uint8_t)|(?:nlink_t)|(?:qaddr_t)|(?:swblk_t)|(?:clock_t)|(?:ssize_t)|(?:time_t)|(?:u_long)|(?:ushort)|(?:quad_t)|(?:mode_t)|(?:size_t)|(?:u_char)|(?:int8_t)|(?:u_int)|(?:uid_t)|(?:off_t)|(?:pid_t)|(?:gid_t)|(?:dev_t)|(?:div_t)|(?:key_t)|(?:ino_t)|(?:id_t)|(?:id_t)|(?:uint))(?!\\w)))|((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))((?<!\\w)(?:(?:pthread_t)|(?:pthread_attr_t)|(?:pthread_cond_t)|(?:pthread_condattr_t)|(?:pthread_mutex_t)|(?:pthread_mutexattr_t)|(?:pthread_once_t)|(?:pthread_rwlock_t)|(?:pthread_rwlockattr_t)|(?:pthread_key_t))(?!\\w)))|((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))((?<!\\w)[a-zA-Z_](?:\\w)*_t(?!\\w)))|((?<!\\w)(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))*(?!\\w)\\b\\b(?<!\\Wvolatile|^volatile|\\Wregister|^register|\\Wrestrict|^restrict|\\Wstatic|^static|\\Wextern|^extern|\\Wconst|^const)))((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))(?=,|\\)|=)",
 					"captures": {
 						"1": {
 							"patterns": [
@@ -13239,7 +13249,7 @@
 			}
 		},
 		"pthread_types": {
-			"match": "((?:((?:(?>(?:\\s)+)|\\/\\*(?:[^\\*]|(?:\\*)++[^\\/])*+(?:\\*)++\\/)+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))((?<!\\w)pthread_attr_t|pthread_cond_t|pthread_condattr_t|pthread_mutex_t|pthread_mutexattr_t|pthread_once_t|pthread_rwlock_t|pthread_rwlockattr_t|pthread_t|pthread_key_t(?!\\w))",
+			"match": "((?:((?:(?>(?:\\s)+)|\\/\\*(?:[^\\*]|(?:\\*)++[^\\/])*+(?:\\*)++\\/)+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))((?<!\\w)(?:(?:pthread_t)|(?:pthread_attr_t)|(?:pthread_cond_t)|(?:pthread_condattr_t)|(?:pthread_mutex_t)|(?:pthread_mutexattr_t)|(?:pthread_once_t)|(?:pthread_rwlock_t)|(?:pthread_rwlockattr_t)|(?:pthread_key_t))(?!\\w))",
 			"captures": {
 				"1": {
 					"patterns": [

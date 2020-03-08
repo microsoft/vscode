@@ -27,7 +27,8 @@ export interface IUpdateRequest {
 }
 
 export interface IStorageItemsChangeEvent {
-	items: Map<string, string>;
+	changed?: Map<string, string>;
+	deleted?: Set<string>;
 }
 
 export interface IStorageDatabase {
@@ -104,10 +105,11 @@ export class Storage extends Disposable implements IStorage {
 		// items that change external require us to update our
 		// caches with the values. we just accept the value and
 		// emit an event if there is a change.
-		e.items.forEach((value, key) => this.accept(key, value));
+		e.changed?.forEach((value, key) => this.accept(key, value));
+		e.deleted?.forEach(key => this.accept(key, undefined));
 	}
 
-	private accept(key: string, value: string): void {
+	private accept(key: string, value: string | undefined): void {
 		if (this.state === StorageState.Closed) {
 			return; // Return early if we are already closed
 		}

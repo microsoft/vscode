@@ -8,12 +8,12 @@ import * as nls from 'vs/nls';
 import * as Paths from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import * as Json from 'vs/base/common/json';
-import { ExtensionData, IThemeExtensionPoint, IFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { ExtensionData, IThemeExtensionPoint, IWorkbenchFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import { asCSSUrl } from 'vs/base/browser/dom';
 
-export class FileIconThemeData implements IFileIconTheme {
+export class FileIconThemeData implements IWorkbenchFileIconTheme {
 	id: string;
 	label: string;
 	settingsId: string | null;
