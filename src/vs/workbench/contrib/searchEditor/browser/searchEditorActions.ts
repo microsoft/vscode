@@ -19,7 +19,7 @@ import * as Constants from 'vs/workbench/contrib/searchEditor/browser/constants'
 import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditor';
 import { getOrMakeSearchEditorInput, SearchEditorInput } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
 import { serializeSearchResultForEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
 
 export const toggleSearchEditorCaseSensitiveCommand = (accessor: ServicesAccessor) => {
@@ -87,6 +87,22 @@ export class OpenSearchEditorAction extends Action {
 	}
 }
 
+export class OpenSearchEditorToSideAction extends Action {
+
+	static readonly ID: string = Constants.OpenNewEditorToSideCommandId;
+	static readonly LABEL = localize('search.openNewEditorToSide', "Open New Search Editor to Side");
+
+	constructor(id: string, label: string,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	) {
+		super(id, label, 'codicon-new-file');
+	}
+
+	async run() {
+		await this.instantiationService.invokeFunction(openNewSearchEditor, true);
+	}
+}
+
 export class OpenResultsInEditorAction extends Action {
 
 	static readonly ID: string = Constants.OpenInEditorCommandId;
@@ -135,7 +151,7 @@ export class RerunSearchEditorSearchAction extends Action {
 }
 
 const openNewSearchEditor =
-	async (accessor: ServicesAccessor) => {
+	async (accessor: ServicesAccessor, toSide = false) => {
 		const editorService = accessor.get(IEditorService);
 		const telemetryService = accessor.get(ITelemetryService);
 		const instantiationService = accessor.get(IInstantiationService);
@@ -166,7 +182,7 @@ const openNewSearchEditor =
 		telemetryService.publicLog2('searchEditor/openNewSearchEditor');
 
 		const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { config: { query: selected } });
-		const editor = await editorService.openEditor(input, { pinned: true }) as SearchEditor;
+		const editor = await editorService.openEditor(input, { pinned: true }, toSide ? SIDE_GROUP : ACTIVE_GROUP) as SearchEditor;
 
 		if (selected && configurationService.getValue<ISearchConfigurationProperties>('search').searchOnType) {
 			editor.triggerSearch();
