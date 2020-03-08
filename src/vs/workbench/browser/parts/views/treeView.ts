@@ -294,7 +294,7 @@ export class TreeView extends Disposable implements ITreeView {
 
 	private registerActions() {
 		const that = this;
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: `workbench.actions.treeView.${that.id}.refresh`,
@@ -311,8 +311,8 @@ export class TreeView extends Disposable implements ITreeView {
 			async run(): Promise<void> {
 				return that.refresh();
 			}
-		});
-		registerAction2(class extends Action2 {
+		}));
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: `workbench.actions.treeView.${that.id}.collapseAll`,
@@ -331,7 +331,7 @@ export class TreeView extends Disposable implements ITreeView {
 					return new CollapseAllAction<ITreeItem, ITreeItem, FuzzyScore>(that.tree, true).run();
 				}
 			}
-		});
+		}));
 	}
 
 	setVisibility(isVisible: boolean): void {
