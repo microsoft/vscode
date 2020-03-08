@@ -13,6 +13,9 @@ export const ToggleSearchEditorCaseSensitiveCommandId = 'toggleSearchEditorCaseS
 export const ToggleSearchEditorWholeWordCommandId = 'toggleSearchEditorWholeWord';
 export const ToggleSearchEditorRegexCommandId = 'toggleSearchEditorRegex';
 export const ToggleSearchEditorContextLinesCommandId = 'toggleSearchEditorContextLines';
+export const IncreaseSearchEditorContextLinesCommandId = 'increaseSearchEditorContextLines';
+export const DecreaseSearchEditorContextLinesCommandId = 'decreaseSearchEditorContextLines';
+
 export const RerunSearchEditorSearchCommandId = 'rerunSearchEditorSearch';
 export const CleanSearchEditorStateCommandId = 'cleanSearchEditorState';
 export const SelectAllSearchEditorMatchesCommandId = 'selectAllSearchEditorMatches';

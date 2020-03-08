@@ -24,7 +24,7 @@ import { Extensions as EditorInputExtensions, IEditorInputFactory, IEditorInputF
 import * as SearchConstants from 'vs/workbench/contrib/search/common/constants';
 import * as SearchEditorConstants from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditor';
-import { OpenResultsInEditorAction, OpenSearchEditorAction, toggleSearchEditorCaseSensitiveCommand, toggleSearchEditorContextLinesCommand, toggleSearchEditorRegexCommand, toggleSearchEditorWholeWordCommand, selectAllSearchEditorMatchesCommand, RerunSearchEditorSearchAction, OpenSearchEditorToSideAction } from 'vs/workbench/contrib/searchEditor/browser/searchEditorActions';
+import { OpenResultsInEditorAction, OpenSearchEditorAction, toggleSearchEditorCaseSensitiveCommand, toggleSearchEditorContextLinesCommand, toggleSearchEditorRegexCommand, toggleSearchEditorWholeWordCommand, selectAllSearchEditorMatchesCommand, RerunSearchEditorSearchAction, OpenSearchEditorToSideAction, modifySearchEditorContextLinesCommand } from 'vs/workbench/contrib/searchEditor/browser/searchEditorActions';
 import { getOrMakeSearchEditorInput, SearchEditorInput } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -149,6 +149,24 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: toggleSearchEditorContextLinesCommand,
 	primary: KeyMod.Alt | KeyCode.KEY_L,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_L }
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: SearchEditorConstants.IncreaseSearchEditorContextLinesCommandId,
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeyExpr.and(SearchEditorConstants.InSearchEditor),
+	handler: (accessor: ServicesAccessor) => modifySearchEditorContextLinesCommand(accessor, true),
+	primary: KeyMod.Alt | KeyCode.KEY_L,
+	mac: { primary: KeyMod.Alt | KeyCode.US_EQUAL }
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: SearchEditorConstants.DecreaseSearchEditorContextLinesCommandId,
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeyExpr.and(SearchEditorConstants.InSearchEditor),
+	handler: (accessor: ServicesAccessor) => modifySearchEditorContextLinesCommand(accessor, false),
+	primary: KeyMod.Alt | KeyCode.KEY_L,
+	mac: { primary: KeyMod.Alt | KeyCode.US_MINUS }
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({

@@ -54,6 +54,14 @@ export const toggleSearchEditorContextLinesCommand = (accessor: ServicesAccessor
 	}
 };
 
+export const modifySearchEditorContextLinesCommand = (accessor: ServicesAccessor, increase: boolean) => {
+	const editorService = accessor.get(IEditorService);
+	const input = editorService.activeEditor;
+	if (input instanceof SearchEditorInput) {
+		(editorService.activeEditorPane as SearchEditor).modifyContextLines(increase);
+	}
+};
+
 export const selectAllSearchEditorMatchesCommand = (accessor: ServicesAccessor) => {
 	const editorService = accessor.get(IEditorService);
 	const input = editorService.activeEditor;
