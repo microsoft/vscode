@@ -143,7 +143,9 @@ class ConfigAwareContextValuesContainer extends Context {
 				value = configValue;
 				break;
 			default:
-				value = JSON.stringify(configValue);
+				if (Array.isArray(configValue)) {
+					value = JSON.stringify(configValue);
+				}
 		}
 
 		this._values.set(key, value);
