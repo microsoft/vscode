@@ -64,7 +64,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ViewletDescriptor, Viewlet } from 'vs/workbench/browser/viewlet';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { isLinux } from 'vs/base/common/platform';
+import { isLinux, isWindows } from 'vs/base/common/platform';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { Part } from 'vs/workbench/browser/part';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -103,6 +103,7 @@ import { IDiffEditor } from 'vs/editor/common/editorCommon';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { QuickInputService } from 'vs/workbench/services/quickinput/browser/quickInputService';
 import { IListService } from 'vs/platform/list/browser/listService';
+import { win32, posix } from 'vs/base/common/path';
 
 export import TestTextResourcePropertiesService = CommonWorkbenchTestServices.TestTextResourcePropertiesService;
 export import TestContextService = CommonWorkbenchTestServices.TestContextService;
@@ -133,6 +134,7 @@ export function workbenchInstantiationService(overrides?: { textFileService?: (i
 	instantiationService.stub(ITextResourceConfigurationService, new TestTextResourceConfigurationService(configService));
 	instantiationService.stub(IUntitledTextEditorService, instantiationService.createInstance(UntitledTextEditorService));
 	instantiationService.stub(IStorageService, new TestStorageService());
+	instantiationService.stub(IRemotePathService, new TestRemotePathService(TestEnvironmentService));
 	const layoutService = new TestLayoutService();
 	instantiationService.stub(IWorkbenchLayoutService, layoutService);
 	instantiationService.stub(IDialogService, new TestDialogService());
@@ -1082,5 +1084,20 @@ export class TestListService implements IListService {
 
 	register(): IDisposable {
 		return Disposable.None;
+	}
+}
+
+export class TestRemotePathService implements IRemotePathService {
+
+	_serviceBrand: undefined;
+
+	constructor(@IWorkbenchEnvironmentService private readonly environmentService: IEnvironmentService) { }
+
+	get path() { return Promise.resolve(isWindows ? win32 : posix); }
+
+	get userHome() { return Promise.resolve(URI.file(this.environmentService.userHome)); }
+
+	async fileURI(path: string): Promise<URI> {
+		return URI.file(path);
 	}
 }
