@@ -32,14 +32,16 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 		this.lastActivePicker?.hide();
 
 		// Find provider for the value to show
-		const [provider, prefix] = this.getOrInstantiateProvider(value);
+		const [provider, descriptor] = this.getOrInstantiateProvider(value);
 
 		// Create a picker for the provider to use with the initial value
 		// and adjust the filtering to exclude the prefix from filtering
 		const picker = disposables.add(this.quickInputService.createQuickPick());
+		picker.placeholder = descriptor.placeholder;
 		picker.value = value;
 		picker.valueSelection = [value.length, value.length];
-		picker.filterValue = (value: string) => value.substring(prefix.length);
+		picker.contextKey = descriptor.contextKey;
+		picker.filterValue = (value: string) => value.substring(descriptor.prefix.length);
 
 		// Remember as last active picker and clean up once picker get's disposed
 		this.lastActivePicker = picker;
@@ -79,7 +81,7 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 		picker.show();
 	}
 
-	private getOrInstantiateProvider(value: string): [IQuickAccessProvider, string /* prefix */] {
+	private getOrInstantiateProvider(value: string): [IQuickAccessProvider, IQuickAccessProviderDescriptor] {
 		const providerDescriptor = this.registry.getQuickAccessProvider(value) || this.registry.defaultProvider;
 
 		let provider = this.mapProviderToDescriptor.get(providerDescriptor);
@@ -88,6 +90,6 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 			this.mapProviderToDescriptor.set(providerDescriptor, provider);
 		}
 
-		return [provider, providerDescriptor.prefix];
+		return [provider, providerDescriptor];
 	}
 }

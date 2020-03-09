@@ -68,6 +68,13 @@ export interface IQuickAccessProviderDescriptor {
 	readonly prefix: string;
 
 	/**
+	 * A placeholder to use for the input field when the provider is active.
+	 * This will also be read out by screen readers and thus helps for
+	 * accessibility.
+	 */
+	readonly placeholder?: string;
+
+	/**
 	 * Documentation for the provider in the quick access help.
 	 */
 	readonly helpEntries: IQuickAccessProviderHelp[];
