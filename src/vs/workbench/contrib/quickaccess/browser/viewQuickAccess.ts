@@ -46,13 +46,10 @@ export class ViewQuickAccessProvider implements IQuickAccessProvider {
 		// Disable filtering & sorting, we control the results
 		picker.matchOnLabel = picker.matchOnDescription = picker.matchOnDetail = picker.sortByLabel = false;
 
-		// Add all view items
-		picker.items = this.getViewPickItems('');
-
-		// Filter on type
-		disposables.add(picker.onDidChangeValue(value => {
-			picker.items = this.getViewPickItems(value.trim().substr(VIEW_QUICK_ACCESS_PREFIX.length));
-		}));
+		// Add all view items & filter on type
+		const updatePickerItems = () => picker.items = this.getViewPickItems(picker.value.trim().substr(VIEW_QUICK_ACCESS_PREFIX.length));
+		disposables.add(picker.onDidChangeValue(() => updatePickerItems()));
+		updatePickerItems();
 
 		// Open the picked view on accept
 		disposables.add(picker.onDidAccept(() => {
@@ -87,9 +84,8 @@ export class ViewQuickAccessProvider implements IQuickAccessProvider {
 			}
 		}
 
-		const filteredViewEntriesWithSeparators: Array<IViewQuickPickItem | IQuickPickSeparator> = [];
-
 		// Add separators for containers
+		const filteredViewEntriesWithSeparators: Array<IViewQuickPickItem | IQuickPickSeparator> = [];
 		let lastContainer: string | undefined = undefined;
 		for (const entry of filteredViewEntries) {
 			if (lastContainer !== entry.containerLabel) {

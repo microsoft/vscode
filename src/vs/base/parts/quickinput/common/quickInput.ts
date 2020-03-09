@@ -23,6 +23,7 @@ export interface IQuickPickItem {
 	description?: string;
 	detail?: string;
 	iconClasses?: string[];
+	italic?: boolean;
 	highlights?: IQuickPickItemHighlights;
 	buttons?: IQuickInputButton[];
 	picked?: boolean;

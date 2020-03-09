@@ -147,6 +147,7 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 		options.descriptionTitle = element.saneDescription;
 		options.descriptionMatches = descriptionHighlights || [];
 		options.extraClasses = element.item.iconClasses;
+		options.italic = element.item.italic;
 		data.label.setLabel(element.saneLabel, element.saneDescription, options);
 
 		// Meta
