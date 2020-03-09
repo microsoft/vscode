@@ -20,16 +20,37 @@ export interface ILocalizedString {
 	original: string;
 }
 
+export type Icon = { dark?: URI; light?: URI; } | ThemeIcon;
+export type ToggleAwareIcon = { toggled?: Icon, untoggled?: Icon };
+export type ToggleAwareTitle = { toggled?: string | ILocalizedString, untoggled?: string | ILocalizedString };
+
 export interface ICommandAction {
 	id: string;
-	title: string | ILocalizedString;
+	title: string | ILocalizedString | ToggleAwareTitle;
 	category?: string | ILocalizedString;
-	icon?: { dark?: URI; light?: URI; } | ThemeIcon;
+	icon?: Icon | ToggleAwareIcon;
 	precondition?: ContextKeyExpression;
 	toggled?: ContextKeyExpression;
 }
 
-export type ISerializableCommandAction = UriDto<ICommandAction>;
+export function isToggleAwareTitle(thing: unknown): thing is ToggleAwareTitle {
+	return thing && typeof thing === 'object'
+		&& ((typeof (thing as ToggleAwareTitle).toggled === 'string' || typeof (thing as ToggleAwareTitle).toggled === 'object')
+			|| (typeof (thing as ToggleAwareTitle).untoggled === 'string' || typeof (thing as ToggleAwareTitle).untoggled === 'object'));
+}
+
+export function isIcon(thing: unknown): thing is Icon {
+	if (ThemeIcon.isThemeIcon(thing)) {
+		return true;
+	}
+	return thing && typeof thing === 'object'
+		&& ((thing as { dark?: URI, light?: URI }).dark instanceof URI || (thing as { dark?: URI, light?: URI }).light instanceof URI);
+}
+
+export function isToggleAwareIcon(thing: unknown): thing is ToggleAwareIcon {
+	return thing && typeof thing === 'object'
+		&& (isIcon((thing as ToggleAwareIcon).toggled) || isIcon((thing as ToggleAwareIcon).untoggled));
+}
 
 export interface IMenuItem {
 	command: ICommandAction;
@@ -260,9 +281,18 @@ export class SubmenuItemAction extends Action {
 	}
 }
 
+export type ISerializableMenuItemAction = UriDto<{
+	id: string;
+	title: string | ILocalizedString;
+	category: string | ILocalizedString | undefined;
+	icon: Icon | undefined;
+}>;
+
 export class MenuItemAction extends ExecuteCommandAction {
 
-	readonly item: ICommandAction;
+	readonly title: string | ILocalizedString;
+	readonly category: string | ILocalizedString | undefined;
+	readonly icon: Icon | undefined;
 	readonly alt: MenuItemAction | undefined;
 
 	private _options: IMenuActionOptions;
@@ -274,14 +304,17 @@ export class MenuItemAction extends ExecuteCommandAction {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService commandService: ICommandService
 	) {
-		typeof item.title === 'string' ? super(item.id, item.title, commandService) : super(item.id, item.title.value, commandService);
+		super(item.id, '', commandService);
+		this.title = (isToggleAwareTitle(item.title) ? this._checked ? item.title.toggled : item.title.untoggled : item.title) || '';
+		this._label = typeof this.title === 'string' ? this.title : this.title.value;
 		this._cssClass = undefined;
 		this._enabled = !item.precondition || contextKeyService.contextMatchesRules(item.precondition);
 		this._checked = Boolean(item.toggled && contextKeyService.contextMatchesRules(item.toggled));
+		this.category = item.category;
+		this.icon = isToggleAwareIcon(item.icon) ? this.checked ? item.icon.toggled : item.icon.untoggled : item.icon;
 
 		this._options = options || {};
 
-		this.item = item;
 		this.alt = alt ? new MenuItemAction(alt, undefined, this._options, contextKeyService, commandService) : undefined;
 	}
 
@@ -304,6 +337,15 @@ export class MenuItemAction extends ExecuteCommandAction {
 		}
 
 		return super.run(...runArgs);
+	}
+
+	serialize(): ISerializableMenuItemAction {
+		return {
+			id: this.id,
+			title: this.title,
+			category: this.category,
+			icon: this.icon
+		};
 	}
 }
 

@@ -23,7 +23,7 @@ import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/nativeKeymapService';
 import { ipcRenderer as ipc, webFrame, crashReporter, CrashReporterStartOptions, Event as IpcEvent } from 'electron';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
-import { IMenuService, MenuId, IMenu, MenuItemAction, ICommandAction, SubmenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId, IMenu, MenuItemAction, SubmenuItemAction, MenuRegistry, ISerializableMenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -68,7 +68,7 @@ export class NativeWindow extends Disposable {
 
 	private touchBarMenu: IMenu | undefined;
 	private readonly touchBarDisposables = this._register(new DisposableStore());
-	private lastInstalledTouchedBar: ICommandAction[][] | undefined;
+	private lastInstalledTouchedBar: ISerializableMenuItemAction[][] | undefined;
 
 	private readonly customTitleContextMenuDisposable = this._register(new DisposableStore());
 
@@ -504,18 +504,18 @@ export class NativeWindow extends Disposable {
 		this.touchBarDisposables.add(createAndFillInActionBarActions(this.touchBarMenu, undefined, actions));
 
 		// Convert into command action multi array
-		const items: ICommandAction[][] = [];
-		let group: ICommandAction[] = [];
+		const items: ISerializableMenuItemAction[][] = [];
+		let group: ISerializableMenuItemAction[] = [];
 		if (!disabled) {
 			for (const action of actions) {
 
 				// Command
 				if (action instanceof MenuItemAction) {
-					if (ignoredItems.indexOf(action.item.id) >= 0) {
+					if (ignoredItems.indexOf(action.id) >= 0) {
 						continue; // ignored
 					}
 
-					group.push(action.item);
+					group.push(action.serialize());
 				}
 
 				// Separator

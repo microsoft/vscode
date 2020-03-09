@@ -10,7 +10,7 @@ import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
+import { ISerializableMenuItemAction } from 'vs/platform/actions/common/actions';
 import { URI } from 'vs/base/common/uri';
 import { Rectangle, BrowserWindow } from 'electron';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -82,7 +82,7 @@ export interface ICodeWindow extends IDisposable {
 
 	handleTitleDoubleClick(): void;
 
-	updateTouchBar(items: ISerializableCommandAction[][]): void;
+	updateTouchBar(items: ISerializableMenuItemAction[][]): void;
 
 	serializeWindowState(): IWindowState;
 }

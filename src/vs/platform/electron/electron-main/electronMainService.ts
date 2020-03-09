@@ -12,7 +12,7 @@ import { IOpenedWindow, OpenContext, IWindowOpenable, IOpenEmptyWindowOptions } 
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/node/dialogs';
 import { isMacintosh } from 'vs/base/common/platform';
 import { IElectronService } from 'vs/platform/electron/node/electron';
-import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
+import { ISerializableMenuItemAction } from 'vs/platform/actions/common/actions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { AddFirstParameterToFunctions } from 'vs/base/common/types';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
@@ -279,7 +279,7 @@ export class ElectronMainService implements IElectronMainService {
 		return true;
 	}
 
-	async updateTouchBar(windowId: number | undefined, items: ISerializableCommandAction[][]): Promise<void> {
+	async updateTouchBar(windowId: number | undefined, items: ISerializableMenuItemAction[][]): Promise<void> {
 		const window = this.windowById(windowId);
 		if (window) {
 			window.updateTouchBar(items);

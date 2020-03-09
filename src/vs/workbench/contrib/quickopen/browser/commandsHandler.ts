@@ -569,10 +569,10 @@ export class CommandsHandler extends QuickOpenHandler implements IDisposable {
 		const entries: ActionCommandEntry[] = [];
 
 		for (let action of actions) {
-			const title = typeof action.item.title === 'string' ? action.item.title : action.item.title.value;
+			const title = typeof action.title === 'string' ? action.title : action.title.value;
 			let category, label = title;
-			if (action.item.category) {
-				category = typeof action.item.category === 'string' ? action.item.category : action.item.category.value;
+			if (action.category) {
+				category = typeof action.category === 'string' ? action.category : action.category.value;
 				label = localize('cat.title', "{0}: {1}", category, title);
 			}
 
@@ -580,8 +580,8 @@ export class CommandsHandler extends QuickOpenHandler implements IDisposable {
 				const labelHighlights = wordFilter(searchValue, label);
 
 				// Add an 'alias' in original language when running in different locale
-				const aliasTitle = (!Language.isDefaultVariant() && typeof action.item.title !== 'string') ? action.item.title.original : undefined;
-				const aliasCategory = (!Language.isDefaultVariant() && category && action.item.category && typeof action.item.category !== 'string') ? action.item.category.original : undefined;
+				const aliasTitle = (!Language.isDefaultVariant() && typeof action.title !== 'string') ? action.title.original : undefined;
+				const aliasCategory = (!Language.isDefaultVariant() && category && action.category && typeof action.category !== 'string') ? action.category.original : undefined;
 				let alias;
 				if (aliasTitle && category) {
 					alias = aliasCategory ? `${aliasCategory}: ${aliasTitle}` : `${category}: ${aliasTitle}`;
@@ -591,7 +591,7 @@ export class CommandsHandler extends QuickOpenHandler implements IDisposable {
 				const aliasHighlights = alias ? wordFilter(searchValue, alias) : null;
 
 				if (labelHighlights || aliasHighlights) {
-					entries.push(this.instantiationService.createInstance(ActionCommandEntry, action.id, this.keybindingService.lookupKeybinding(action.item.id), label, alias, { label: labelHighlights, alias: aliasHighlights }, action, (id: string) => this.onBeforeRunCommand(id)));
+					entries.push(this.instantiationService.createInstance(ActionCommandEntry, action.id, this.keybindingService.lookupKeybinding(action.id), label, alias, { label: labelHighlights, alias: aliasHighlights }, action, (id: string) => this.onBeforeRunCommand(id)));
 				}
 			}
 		}

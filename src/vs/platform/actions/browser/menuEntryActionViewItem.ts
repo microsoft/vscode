@@ -12,7 +12,7 @@ import { IdGenerator } from 'vs/base/common/idGenerator';
 import { IDisposable, toDisposable, MutableDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
-import { ICommandAction, IMenu, IMenuActionOptions, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { IMenu, IMenuActionOptions, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -148,7 +148,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 		@INotificationService protected _notificationService: INotificationService,
 		@IContextMenuService _contextMenuService: IContextMenuService
 	) {
-		super(undefined, _action, { icon: !!(_action.class || _action.item.icon), label: !_action.class && !_action.item.icon });
+		super(undefined, _action, { icon: !!(_action.class || _action.icon), label: !_action.class && !_action.icon });
 		this._altKey = AlternativeKeyEmitter.getInstance(_contextMenuService);
 	}
 
@@ -171,7 +171,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 	render(container: HTMLElement): void {
 		super.render(container);
 
-		this._updateItemClass(this._action.item);
+		this._updateItemClass(this._action);
 
 		let mouseOver = false;
 
@@ -226,15 +226,15 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 		if (this.options.icon) {
 			if (this._commandAction !== this._action) {
 				if (this._action.alt) {
-					this._updateItemClass(this._action.alt.item);
+					this._updateItemClass(this._action.alt);
 				}
 			} else if ((<MenuItemAction>this._action).alt) {
-				this._updateItemClass(this._action.item);
+				this._updateItemClass(this._action);
 			}
 		}
 	}
 
-	_updateItemClass(item: ICommandAction): void {
+	_updateItemClass(item: MenuItemAction): void {
 		this._itemClassDispose.value = undefined;
 
 		if (ThemeIcon.isThemeIcon(item.icon)) {
