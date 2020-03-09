@@ -258,7 +258,7 @@ suite('Files - Increment file name smart', () => {
 		assert.strictEqual(result, '2-test.js');
 	});
 
-	test('Increment file name with prefix version with `-` as separator', function () {
+	test('Increment file name with prefix version with `_` as separator', function () {
 		const name = '1_test.js';
 		const result = incrementFileName(name, false, 'smart');
 		assert.strictEqual(result, '2_test.js');
