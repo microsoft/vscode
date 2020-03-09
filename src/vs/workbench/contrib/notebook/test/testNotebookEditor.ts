@@ -98,6 +98,12 @@ export class TestNotebookEditor implements INotebookEditor {
 	) {
 
 	}
+	revealLineInCenterIfOutsideViewport(cell: CellViewModel, line: number): void {
+		throw new Error('Method not implemented.');
+	}
+	revealLineInCenter(cell: CellViewModel, line: number): void {
+		throw new Error('Method not implemented.');
+	}
 	focus(): void {
 		throw new Error('Method not implemented.');
 	}

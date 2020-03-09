@@ -15,8 +15,9 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { isMacintosh } from 'vs/base/common/platform';
 import { isNumber } from 'vs/base/common/types';
+import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
 
-export class NotebookCellList<T> extends WorkbenchList<T> {
+export class NotebookCellList extends WorkbenchList<CellViewModel> {
 	get onWillScroll(): Event<ScrollEvent> { return this.view.onWillScroll; }
 
 	get rowsContainer(): HTMLElement {
@@ -26,9 +27,9 @@ export class NotebookCellList<T> extends WorkbenchList<T> {
 	constructor(
 		private listUser: string,
 		container: HTMLElement,
-		delegate: IListVirtualDelegate<T>,
-		renderers: IListRenderer<T, any>[],
-		options: IWorkbenchListOptions<T>,
+		delegate: IListVirtualDelegate<CellViewModel>,
+		renderers: IListRenderer<CellViewModel, any>[],
+		options: IWorkbenchListOptions<CellViewModel>,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
@@ -76,6 +77,84 @@ export class NotebookCellList<T> extends WorkbenchList<T> {
 		}
 
 		super.domFocus();
+	}
+
+	revealLineInViewCenter(index: number, line: number) {
+		const elementTop = this.view.elementTop(index);
+		const viewItemOffset = elementTop;
+		// TODO@rebornix scroll the bottom to the center if the view is not visible before and it's scrolling upwards
+		this.view.setScrollTop(viewItemOffset - this.view.renderHeight / 2);
+
+		const element = this.view.element(index);
+
+		const revealLine = () => {
+			let lineOffset = element.getLineScrollTopOffset(line);
+			let lineOffsetInView = this.view.elementTop(index) + lineOffset;
+			this.view.setScrollTop(lineOffsetInView - this.view.renderHeight / 2);
+		};
+
+		const editorAttached = element.editorAttached;
+		if (!editorAttached) {
+			const editorAttachedPromise = new Promise((resolve, reject) => {
+				element.onDidChangeEditorAttachState(state => {
+					if (state) {
+						resolve();
+					} else {
+						reject();
+					}
+				});
+			});
+
+			editorAttachedPromise.then(() => {
+				revealLine();
+			});
+		} else {
+			revealLine();
+		}
+	}
+
+	revealLineInCenterIfOutsideViewport(index: number, line: number) {
+		const scrollTop = this.view.getScrollTop();
+		const wrapperBottom = scrollTop + this.view.renderHeight;
+		const elementTop = this.view.elementTop(index);
+		const viewItemOffset = elementTop;
+
+		if (viewItemOffset < scrollTop || viewItemOffset > wrapperBottom) {
+			this.view.setScrollTop(viewItemOffset - this.view.renderHeight / 2);
+
+			const element = this.view.element(index);
+			const revealLine = () => {
+				let lineOffset = element.getLineScrollTopOffset(line);
+				let lineOffsetInView = this.view.elementTop(index) + lineOffset;
+				this.view.setScrollTop(lineOffsetInView - this.view.renderHeight / 2);
+			};
+
+			const editorAttached = element.editorAttached;
+			if (!editorAttached) {
+				const editorAttachedPromise = new Promise((resolve, reject) => {
+					element.onDidChangeEditorAttachState(state => {
+						if (state) {
+							resolve();
+						} else {
+							reject();
+						}
+					});
+				});
+
+				editorAttachedPromise.then(() => {
+					revealLine();
+				});
+			} else {
+				// should not happen
+			}
+		} else {
+			const element = this.view.element(index);
+			let lineOffset = element.getLineScrollTopOffset(line);
+			let lineOffsetInView = this.view.elementTop(index) + lineOffset;
+			if (lineOffsetInView > wrapperBottom) {
+				this.view.setScrollTop(lineOffsetInView - this.view.renderHeight / 2);
+			}
+		}
 	}
 
 	revealInView(index: number, offset?: number) {

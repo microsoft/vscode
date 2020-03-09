@@ -68,7 +68,7 @@ export class NotebookCodeEditors implements ICompositeCodeEditor {
 	readonly onDidChangeActiveEditor: Event<this> = this._onDidChangeActiveEditor.event;
 
 	constructor(
-		private _list: NotebookCellList<CellViewModel>,
+		private _list: NotebookCellList,
 		private _renderedEditors: Map<CellViewModel, ICodeEditor | undefined>
 	) {
 		_list.onDidChangeFocus(e => this._onDidChangeActiveEditor.fire(this), undefined, this._disposables);
@@ -126,7 +126,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	private rootElement!: HTMLElement;
 	private body!: HTMLElement;
 	private webview: BackLayerWebView | null = null;
-	private list: NotebookCellList<CellViewModel> | undefined;
+	private list: NotebookCellList | undefined;
 	private control: ICompositeCodeEditor | undefined;
 	private renderedEditors: Map<CellViewModel, ICodeEditor | undefined> = new Map();
 	private notebookViewModel: NotebookViewModel | undefined;
@@ -215,7 +215,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			this.instantiationService.createInstance(MarkdownCellRenderer, this),
 		];
 
-		this.list = <NotebookCellList<CellViewModel>>this.instantiationService.createInstance(
+		this.list = <NotebookCellList>this.instantiationService.createInstance(
 			NotebookCellList,
 			'NotebookCellList',
 			this.body,
@@ -453,6 +453,22 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		}
 	}
 
+	revealLineInCenter(cell: CellViewModel, line: number) {
+		const index = this.notebookViewModel?.getViewCellIndex(cell);
+
+		if (index !== undefined) {
+			this.list?.revealLineInViewCenter(index, line);
+		}
+	}
+
+	revealLineInCenterIfOutsideViewport(cell: CellViewModel, line: number) {
+		const index = this.notebookViewModel?.getViewCellIndex(cell);
+
+		if (index !== undefined) {
+			this.list?.revealLineInCenterIfOutsideViewport(index, line);
+		}
+	}
+
 	changeDecorations(callback: (changeAccessor: IModelDecorationsChangeAccessor) => any): any {
 		return this.notebookViewModel?.changeDecorations(callback);
 	}
@@ -473,6 +489,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 	public hideFind() {
 		this.findWidget.hide();
+		this.focus();
 	}
 
 	//#endregion

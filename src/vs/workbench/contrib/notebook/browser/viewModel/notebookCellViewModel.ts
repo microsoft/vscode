@@ -74,6 +74,13 @@ export class CellViewModel extends Disposable {
 		return this._editorHeight;
 	}
 
+	protected readonly _onDidChangeEditorAttachState = new Emitter<boolean>();
+	readonly onDidChangeEditorAttachState = this._onDidChangeEditorAttachState.event;
+
+	get editorAttached(): boolean {
+		return !!this._textEditor;
+	}
+
 	private _textModel?: model.ITextModel;
 	private _textEditor?: ICodeEditor;
 	private _buffer: model.ITextBuffer | null;
@@ -268,6 +275,8 @@ export class CellViewModel extends Disposable {
 				this._resolvedDecorations.get(key)!.id = ret[0];
 			}
 		});
+
+		this._onDidChangeEditorAttachState.fire(true);
 	}
 
 	detachTextEditor() {
@@ -282,6 +291,15 @@ export class CellViewModel extends Disposable {
 			}
 		});
 		this._textEditor = undefined;
+		this._onDidChangeEditorAttachState.fire(false);
+	}
+
+	getLineScrollTopOffset(line: number): number {
+		if (!this._textEditor) {
+			return 0;
+		}
+
+		return this._textEditor.getTopForLineNumber(line);
 	}
 
 	addDecoration(decoration: model.IModelDeltaDecoration): string {

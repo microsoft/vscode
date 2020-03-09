@@ -52,6 +52,18 @@ export interface INotebookEditor {
 	revealInCenterIfOutsideViewport(cell: CellViewModel, offset?: number): void;
 
 	/**
+	 * Reveal a line in notebook cell into viewport center.
+	 * If `offset` is provided, `top(cell) + offset` will be scrolled into view.
+	 */
+	revealLineInCenter(cell: CellViewModel, line: number): void;
+
+	/**
+	 * Reveal a line in notebook cell into viewport center.
+	 * If `offset` is provided, `top(cell) + offset` will be scrolled into view.
+	 */
+	revealLineInCenterIfOutsideViewport(cell: CellViewModel, line: number): void;
+
+	/**
 	 * Change the decorations on cells.
 	 * The notebook is virtualized and this method should be called to create/delete editor decorations safely.
 	 */
