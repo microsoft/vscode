@@ -50,7 +50,7 @@ declare module 'vscode' {
 		readonly displayName: string;
 
 		/**
-		 * A [event](#Event) which fires when the array of sessions has changed, or data
+		 * An [event](#Event) which fires when the array of sessions has changed, or data
 		 * within a session has changed.
 		 */
 		readonly onDidChangeSessions: Event<void>;
@@ -85,7 +85,7 @@ declare module 'vscode' {
 		 * registered, or if the user does not consent to sharing authentication information with
 		 * the extension.
 		 */
-		export function getSessions(providerId: string): Thenable<readonly AuthenticationSession[]>;
+		export function getSessions(providerId: string, scopes: string[]): Thenable<readonly AuthenticationSession[]>;
 
 		/**
 		* Prompt a user to login to create a new authenticaiton session. Rejects if a provider with
@@ -95,7 +95,7 @@ declare module 'vscode' {
 		export function login(providerId: string, scopes: string[]): Thenable<AuthenticationSession>;
 
 		/**
-		* A [event](#Event) which fires when the array of sessions has changed, or data
+		* An [event](#Event) which fires when the array of sessions has changed, or data
 		* within a session has changed for a provider. Fires with the ids of the providers
 		* that have had session data change.
 		*/

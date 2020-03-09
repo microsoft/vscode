@@ -28,32 +28,35 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		return !!this._authenticationProviders.get(providerId);
 	}
 
-	async getSessions(requestingExtension: IExtensionDescription, providerId: string): Promise<readonly vscode.AuthenticationSession[]> {
+	async getSessions(requestingExtension: IExtensionDescription, providerId: string, scopes: string[]): Promise<readonly vscode.AuthenticationSession[]> {
 		const provider = this._authenticationProviders.get(providerId);
 		if (!provider) {
 			throw new Error(`No authentication provider with id '${providerId}' is currently registered.`);
 		}
 
-		return (await provider.getSessions()).map(session => {
-			return {
-				id: session.id,
-				accountName: session.accountName,
-				scopes: session.scopes,
-				getAccessToken: async () => {
-					const isAllowed = await this._proxy.$getSessionsPrompt(
-						provider.id,
-						provider.displayName,
-						ExtensionIdentifier.toKey(requestingExtension.identifier),
-						requestingExtension.displayName || requestingExtension.name);
+		const orderedScopes = scopes.sort().join(' ');
+		return (await provider.getSessions())
+			.filter(session => session.scopes.sort().join(' ') === orderedScopes)
+			.map(session => {
+				return {
+					id: session.id,
+					accountName: session.accountName,
+					scopes: session.scopes,
+					getAccessToken: async () => {
+						const isAllowed = await this._proxy.$getSessionsPrompt(
+							provider.id,
+							provider.displayName,
+							ExtensionIdentifier.toKey(requestingExtension.identifier),
+							requestingExtension.displayName || requestingExtension.name);
 
-					if (!isAllowed) {
-						throw new Error('User did not consent to token access.');
+						if (!isAllowed) {
+							throw new Error('User did not consent to token access.');
+						}
+
+						return session.getAccessToken();
 					}
-
-					return session.getAccessToken();
-				}
-			};
-		});
+				};
+			});
 	}
 
 	async login(requestingExtension: IExtensionDescription, providerId: string, scopes: string[]): Promise<vscode.AuthenticationSession> {
