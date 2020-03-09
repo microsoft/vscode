@@ -66,6 +66,14 @@ export class QuickInputBox extends Disposable {
 		this.inputBox.setPlaceHolder(placeholder);
 	}
 
+	get ariaLabel() {
+		return this.inputBox.getAriaLabel();
+	}
+
+	set ariaLabel(ariaLabel: string) {
+		this.inputBox.setAriaLabel(ariaLabel);
+	}
+
 	get password() {
 		return this.inputBox.inputElement.type === 'password';
 	}
