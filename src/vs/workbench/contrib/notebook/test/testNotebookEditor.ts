@@ -12,7 +12,7 @@ import { NotebookViewModel, IModelDecorationsChangeAccessor } from 'vs/workbench
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
 import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
-import { INotebookEditor, CellFindMatch, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
@@ -93,7 +93,6 @@ export class TestNotebookEditor implements INotebookEditor {
 	}
 
 	constructor(
-		public viewType: string
 	) {
 
 	}
@@ -176,7 +175,7 @@ export function createTestCellViewModel(instantiationService: IInstantiationServ
 
 export function withTestNotebook(instantiationService: IInstantiationService, cells: [string[], string, CellKind, IOutput[]][], callback: (editor: TestNotebookEditor, viewModel: NotebookViewModel) => void) {
 	const viewType = 'notebook';
-	const editor = new TestNotebookEditor(viewType);
+	const editor = new TestNotebookEditor();
 	const notebook = new TestNotebook(0, viewType, URI.parse('test'));
 	notebook.cells = cells.map((cell, index) => {
 		return new TestCell(viewType, index, cell[0], cell[1], cell[2], cell[3]);

@@ -22,20 +22,77 @@ export interface NotebookLayoutInfo {
 }
 
 export interface INotebookEditor {
-	viewType: string | undefined;
+
+	/**
+	 * Notebook view model attached to the current editor
+	 */
 	viewModel: NotebookViewModel | undefined;
+
+	/**
+	 * Focus the notebook editor cell list
+	 */
 	focus(): void;
+
+	/**
+	 * Layout info for the notebook editor
+	 */
 	getLayoutInfo(): NotebookLayoutInfo;
+	/**
+	 * Fetch the output renderers for notebook outputs.
+	 */
 	getOutputRenderer(): OutputRenderer;
+
+	/**
+	 * Insert a new cell around `cell`
+	 */
 	insertEmptyNotebookCell(cell: CellViewModel, type: CellKind, direction: 'above' | 'below'): Promise<void>;
+
+	/**
+	 * Delete a cell from the notebook
+	 */
 	deleteNotebookCell(cell: CellViewModel): void;
+
+	/**
+	 * Switch the cell into editing mode.
+	 *
+	 * For code cell, the monaco editor will be focused.
+	 * For markdown cell, it will switch from preview mode to editing mode, which focuses the monaco editor.
+	 */
 	editNotebookCell(cell: CellViewModel): void;
+
+	/**
+	 * Quit cell editing mode.
+	 */
 	saveNotebookCell(cell: CellViewModel): void;
+
+	/**
+	 * Focus the container of a cell (the monaco editor inside is not focused).
+	 */
 	focusNotebookCell(cell: CellViewModel, focusEditor: boolean): void;
+
+	/**
+	 * Get current active cell
+	 */
 	getActiveCell(): CellViewModel | undefined;
+
+	/**
+	 * Layout the cell with a new height
+	 */
 	layoutNotebookCell(cell: CellViewModel, height: number): void;
+
+	/**
+	 * Render the output in webview layer
+	 */
 	createInset(cell: CellViewModel, output: IOutput, shadowContent: string, offset: number): void;
+
+	/**
+	 * Remove the output from the webview layer
+	 */
 	removeInset(output: IOutput): void;
+
+	/**
+	 * Trigger the editor to scroll from scroll event programmatically
+	 */
 	triggerScroll(event: IMouseWheelEvent): void;
 
 	/**
@@ -73,7 +130,17 @@ export interface INotebookEditor {
 	 * The notebook is virtualized and this method should be called to create/delete editor decorations safely.
 	 */
 	changeDecorations(callback: (changeAccessor: IModelDecorationsChangeAccessor) => any): any;
+
+	/**
+	 * Show Find Widget.
+	 *
+	 * Currently Find is still part of the NotebookEditor core
+	 */
 	showFind(): void;
+
+	/**
+	 * Hide Find Widget
+	 */
 	hideFind(): void;
 }
 

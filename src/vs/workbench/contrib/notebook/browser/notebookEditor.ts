@@ -21,7 +21,7 @@ import { contrastBorder, editorBackground, focusBorder, foreground, textBlockQuo
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions, IEditorMemento, ICompositeCodeEditor, IEditorCloseEvent } from 'vs/workbench/common/editor';
-import { INotebookEditor, CellFindMatch, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorInput, NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
@@ -170,8 +170,6 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	set minimumWidth(value: number) { /*noop*/ }
 	set maximumWidth(value: number) { /*noop*/ }
 
-	get viewType() { return this.notebookViewModel?.viewType; }
-
 
 	//#region Editor Core
 
@@ -272,7 +270,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		this.list?.splice(0, this.list?.length);
 
 		if (this.notebookViewModel && !this.notebookViewModel.isDirty()) {
-			this.notebookService.destoryNotebookDocument(this.viewType!, this.notebookViewModel!.notebookDocument);
+			this.notebookService.destoryNotebookDocument(this.notebookViewModel.viewType!, this.notebookViewModel!.notebookDocument);
 			this.notebookViewModel.dispose();
 			this.notebookViewModel = undefined;
 		}
@@ -506,7 +504,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		DOM.scheduleAtNextAnimationFrame(() => {
 			splices.reverse().forEach((diff) => {
 				this.list?.splice(diff[0], diff[1], diff[2].map(cell => {
-					return this.instantiationService.createInstance(CellViewModel, this.viewType!, this.notebookViewModel!.handle, cell);
+					return this.instantiationService.createInstance(CellViewModel, this.notebookViewModel!.viewType, this.notebookViewModel!.handle, cell);
 				}));
 			});
 		});
@@ -517,7 +515,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		const language = newLanguages && newLanguages.length ? newLanguages[0] : 'markdown';
 		const index = this.notebookViewModel!.getViewCellIndex(cell);
 		const insertIndex = direction === 'above' ? index : index + 1;
-		const newModeCell = await this.notebookService.createNotebookCell(this.viewType!, this.notebookViewModel!.uri, insertIndex, language, type);
+		const newModeCell = await this.notebookService.createNotebookCell(this.notebookViewModel!.viewType, this.notebookViewModel!.uri, insertIndex, language, type);
 		const newCell = this.notebookViewModel!.insertCell(insertIndex, newModeCell!);
 
 		this.list?.splice(insertIndex, 0, [newCell]);
@@ -534,7 +532,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 	async deleteNotebookCell(cell: CellViewModel): Promise<void> {
 		const index = this.notebookViewModel!.getViewCellIndex(cell);
-		await this.notebookService.deleteNotebookCell(this.viewType!, this.notebookViewModel!.uri, index);
+		await this.notebookService.deleteNotebookCell(this.notebookViewModel!.viewType, this.notebookViewModel!.uri, index);
 		this.notebookViewModel!.deleteCell(index);
 		this.list?.splice(index, 1);
 	}
