@@ -9,7 +9,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
-import { NotebookCellsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookCellsSplice, ICell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { CellFindMatch } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -114,15 +114,19 @@ export class NotebookViewModel extends Disposable {
 		return matches;
 	}
 
-	insertCell(index: number, newCell: CellViewModel) {
+	insertCell(index: number, cell: ICell): CellViewModel {
+		const newCell = this.instantiationService.createInstance(CellViewModel, this.viewType, this.handle, cell);
 		this.viewCells!.splice(index, 0, newCell);
 		this._model.insertCell(newCell.cell, index);
+		this._localStore.add(newCell);
+		return newCell;
 	}
 
 	deleteCell(index: number) {
 		let viewCell = this.viewCells[index];
 		this.viewCells.splice(index, 1);
 		this._model.deleteCell(viewCell.cell);
+		viewCell.dispose();
 	}
 
 	saveEditorViewState(): INotebookEditorViewState {

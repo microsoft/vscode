@@ -507,9 +507,8 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		const index = this.notebookViewModel!.getViewCellIndex(cell);
 		const insertIndex = direction === 'above' ? index : index + 1;
 		const newModeCell = await this.notebookService.createNotebookCell(this.viewType!, this.notebookViewModel!.uri, insertIndex, language, type);
-		const newCell = this.instantiationService.createInstance(CellViewModel, this.viewType!, this.notebookViewModel!.handle, newModeCell!);
+		const newCell = this.notebookViewModel!.insertCell(insertIndex, newModeCell!);
 
-		this.notebookViewModel!.insertCell(insertIndex, newCell);
 		this.list?.splice(insertIndex, 0, [newCell]);
 		this.list?.setFocus([insertIndex]);
 

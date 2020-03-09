@@ -9,7 +9,7 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { createTestCellViewModel, TestNotebook, withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
+import { TestNotebook, withTestNotebook, TestCell } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 
 suite('NotebookViewModel', () => {
 	const instantiationService = new TestInstantiationService();
@@ -29,8 +29,7 @@ suite('NotebookViewModel', () => {
 				[['var b = 2;'], 'javascript', CellKind.Code, []]
 			],
 			(editor, viewModel) => {
-				const cell = createTestCellViewModel(instantiationService, viewModel.viewType, viewModel.handle, 0, ['var c = 3;'], 'javascript', CellKind.Code, []);
-				viewModel.insertCell(1, cell);
+				const cell = viewModel.insertCell(1, new TestCell(viewModel.viewType, 0, ['var c = 3;'], 'javascript', CellKind.Code, []));
 				assert.equal(viewModel.viewCells.length, 3);
 				assert.equal(viewModel.notebookDocument.cells.length, 3);
 				assert.equal(viewModel.getViewCellIndex(cell), 1);
@@ -55,15 +54,13 @@ suite('NotebookViewModel', () => {
 				const lastViewCell = viewModel.viewCells[viewModel.viewCells.length - 1];
 
 				const insertIndex = viewModel.getViewCellIndex(firstViewCell) + 1;
-				const cell = createTestCellViewModel(instantiationService, viewModel.viewType, viewModel.handle, 3, ['var c = 3;'], 'javascript', CellKind.Code, []);
-				viewModel.insertCell(insertIndex, cell);
+				const cell = viewModel.insertCell(insertIndex, new TestCell(viewModel.viewType, 3, ['var c = 3;'], 'javascript', CellKind.Code, []));
 
 				const addedCellIndex = viewModel.getViewCellIndex(cell);
 				viewModel.deleteCell(addedCellIndex);
 
 				const secondInsertIndex = viewModel.getViewCellIndex(lastViewCell) + 1;
-				const cell2 = createTestCellViewModel(instantiationService, viewModel.viewType, viewModel.handle, 4, ['var d = 4;'], 'javascript', CellKind.Code, []);
-				viewModel.insertCell(secondInsertIndex, cell2);
+				const cell2 = viewModel.insertCell(secondInsertIndex, new TestCell(viewModel.viewType, 4, ['var d = 4;'], 'javascript', CellKind.Code, []));
 
 				assert.equal(viewModel.viewCells.length, 3);
 				assert.equal(viewModel.notebookDocument.cells.length, 3);

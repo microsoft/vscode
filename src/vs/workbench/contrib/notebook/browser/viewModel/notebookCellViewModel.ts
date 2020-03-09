@@ -153,15 +153,6 @@ export class CellViewModel extends Disposable {
 		};
 	}
 
-	stopFind(keepSelection?: boolean | undefined): void {
-		if (!this.assertTextModelAttached()) {
-			return;
-		}
-	}
-
-	focus(): void {
-	}
-
 	assertTextModelAttached(): boolean {
 		if (this._textModel && this._textEditor && this._textEditor.getModel() === this._textModel) {
 			return true;
