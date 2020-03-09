@@ -163,6 +163,7 @@ export class MarkersFilters extends Disposable {
 
 export interface IMarkerFilterController {
 	readonly onDidFocusFilter: Event<void>;
+	readonly onDidClearFilterText: Event<void>;
 	readonly filters: MarkersFilters;
 	readonly onDidChangeFilterStats: Event<{ total: number, filtered: number }>;
 	getFilterStats(): { total: number, filtered: number };
@@ -273,6 +274,7 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 		this.delayedFilterUpdate = new Delayer<void>(200);
 		this._register(toDisposable(() => this.delayedFilterUpdate.cancel()));
 		this._register(filterController.onDidFocusFilter(() => this.focus()));
+		this._register(filterController.onDidClearFilterText(() => this.clearFilterText()));
 		this.filtersAction = new Action('markersFiltersAction', Messages.MARKERS_PANEL_ACTION_TOOLTIP_MORE_FILTERS, 'markers-filters codicon-filter');
 		this.filtersAction.checked = this.hasFiltersChanged();
 		this._register(filterController.filters.onDidChange(e => this.onDidFiltersChange(e)));
@@ -294,6 +296,12 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 	focus(): void {
 		if (this.filterInputBox) {
 			this.filterInputBox.focus();
+		}
+	}
+
+	private clearFilterText(): void {
+		if (this.filterInputBox) {
+			this.filterInputBox.value = '';
 		}
 	}
 
@@ -404,7 +412,7 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 	private onInputKeyDown(event: StandardKeyboardEvent, filterInputBox: HistoryInputBox) {
 		let handled = false;
 		if (event.equals(KeyCode.Escape)) {
-			filterInputBox.value = '';
+			this.clearFilterText();
 			handled = true;
 		}
 		if (handled) {

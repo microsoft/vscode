@@ -259,6 +259,25 @@ registerAction2(class extends Action2 {
 		}
 	}
 });
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: Constants.MARKERS_VIEW_CLEAR_FILTER_TEXT,
+			title: localize('clearFiltersText', "Clear filters text"),
+			category: localize('problems', "Problems"),
+			keybinding: {
+				when: Constants.MarkerViewFilterFocusContextKey,
+				weight: KeybindingWeight.WorkbenchContrib,
+			}
+		});
+	}
+	run(accessor: ServicesAccessor) {
+		const markersView = accessor.get(IViewsService).getActiveViewWithId<MarkersView>(Constants.MARKERS_VIEW_ID);
+		if (markersView) {
+			markersView.clearFilterText();
+		}
+	}
+});
 
 async function copyMarker(viewsService: IViewsService, clipboardService: IClipboardService) {
 	const markersView = viewsService.getActiveViewWithId<MarkersView>(Constants.MARKERS_VIEW_ID);

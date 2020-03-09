@@ -94,6 +94,9 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 	private readonly _onDidFocusFilter: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidFocusFilter: Event<void> = this._onDidFocusFilter.event;
 
+	private readonly _onDidClearFilterText: Emitter<void> = this._register(new Emitter<void>());
+	readonly onDidClearFilterText: Event<void> = this._onDidClearFilterText.event;
+
 	constructor(
 		options: IViewPaneOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -198,6 +201,10 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 
 	public focusFilter(): void {
 		this._onDidFocusFilter.fire();
+	}
+
+	public clearFilterText(): void {
+		this._onDidClearFilterText.fire();
 	}
 
 	private regiserActions(): void {
