@@ -22,7 +22,6 @@ export default {
 	TOGGLE_MARKERS_VIEW_ACTION_ID: 'workbench.actions.view.toggleProblems',
 
 	MarkersViewSmallLayoutContextKey: new RawContextKey<boolean>(`problemsView.smallLayout`, false),
-	MarkerViewFocusContextKey: new RawContextKey<boolean>('problemsViewFocus', false),
 	MarkerFocusContextKey: new RawContextKey<boolean>('problemFocus', false),
 	MarkerViewFilterFocusContextKey: new RawContextKey<boolean>('problemsFilterFocus', false),
 	RelatedInformationFocusContextKey: new RawContextKey<boolean>('relatedInformationFocus', false)

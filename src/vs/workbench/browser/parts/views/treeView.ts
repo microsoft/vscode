@@ -85,7 +85,7 @@ export class TreeViewPane extends ViewPane {
 	}
 
 	shouldShowWelcome(): boolean {
-		return (this.treeView.dataProvider === undefined) && (this.treeView.message === undefined);
+		return ((this.treeView.dataProvider === undefined) || !!this.treeView.dataProvider.isTreeEmpty) && (this.treeView.message === undefined);
 	}
 
 	layoutBody(height: number, width: number): void {
@@ -217,15 +217,35 @@ export class TreeView extends Disposable implements ITreeView {
 
 		if (dataProvider) {
 			this._dataProvider = new class implements ITreeViewDataProvider {
+				private _isEmpty: boolean = true;
+				private _onDidChangeEmpty: Emitter<void> = new Emitter();
+				public onDidChangeEmpty: Event<void> = this._onDidChangeEmpty.event;
+
+				get isTreeEmpty(): boolean {
+					return this._isEmpty;
+				}
+
 				async getChildren(node: ITreeItem): Promise<ITreeItem[]> {
+					let children: ITreeItem[];
 					if (node && node.children) {
-						return Promise.resolve(node.children);
+						children = node.children;
+					} else {
+						children = await (node instanceof Root ? dataProvider.getChildren() : dataProvider.getChildren(node));
+						node.children = children;
 					}
-					const children = await (node instanceof Root ? dataProvider.getChildren() : dataProvider.getChildren(node));
-					node.children = children;
+					if (node instanceof Root) {
+						const oldEmpty = this._isEmpty;
+						this._isEmpty = children.length === 0;
+						if (oldEmpty !== this._isEmpty) {
+							this._onDidChangeEmpty.fire();
+						}
+					}
 					return children;
 				}
 			};
+			if (this._dataProvider.onDidChangeEmpty) {
+				this._register(this._dataProvider.onDidChangeEmpty(() => this._onDidChangeWelcomeState.fire()));
+			}
 			this.updateMessage();
 			this.refresh();
 		} else {

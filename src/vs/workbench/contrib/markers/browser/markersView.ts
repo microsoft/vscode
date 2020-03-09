@@ -78,7 +78,6 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 	readonly filters: MarkersFilters;
 
 	private readonly panelState: MementoObject;
-	private readonly panelFoucusContextKey: IContextKey<boolean>;
 
 	private _onDidChangeFilterStats = this._register(new Emitter<{ total: number, filtered: number }>());
 	readonly onDidChangeFilterStats: Event<{ total: number, filtered: number }> = this._onDidChangeFilterStats.event;
@@ -114,7 +113,6 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 	) {
 		super({ ...(options as IViewPaneOptions), id: Constants.MARKERS_VIEW_ID, ariaHeaderLabel: Messages.MARKERS_PANEL_TITLE_PROBLEMS }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		this.smallLayoutContextKey = Constants.MarkersViewSmallLayoutContextKey.bindTo(this.contextKeyService);
-		this.panelFoucusContextKey = Constants.MarkerViewFocusContextKey.bindTo(this.contextKeyService);
 		this.panelState = new Memento(Constants.MARKERS_VIEW_STORAGE_ID, storageService).getMemento(StorageScope.WORKSPACE);
 		this.markersViewModel = this._register(instantiationService.createInstance(MarkersViewModel, this.panelState['multiline']));
 		this._register(this.markersViewModel.onDidChange(marker => this.onDidChangeViewState(marker)));
@@ -151,9 +149,6 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 		this.createListeners();
 
 		this.updateFilter();
-
-		this._register(this.onDidFocus(() => this.panelFoucusContextKey.set(true)));
-		this._register(this.onDidBlur(() => this.panelFoucusContextKey.set(false)));
 
 		this._register(this.onDidChangeVisibility(visible => {
 			if (visible) {
