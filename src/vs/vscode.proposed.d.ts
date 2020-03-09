@@ -1320,10 +1320,10 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Represents a custom document for a custom webview editor.
+	 * Represents a custom document used by a `CustomEditorProvider`.
 	 *
 	 * Custom documents are only used within a given `CustomEditorProvider`. The lifecycle of a
-	 * `CustomDocument` is managed by VS Code. When more more references remain to a given `CustomDocument`
+	 * `CustomDocument` is managed by VS Code. When no more references remain to a given `CustomDocument`,
 	 * then it is disposed of.
 	 *
 	 * @param UserDataType Type of custom object that extensions can store on the document.
@@ -1366,6 +1366,11 @@ declare module 'vscode' {
 		/**
 		 * Resolve the model for a given resource.
 		 *
+		 * `resolveCustomDocument` is called when the first editor for a given resource is opened, and the resolve document
+		 * is passed to `resolveCustomEditor`. The resolved `CustomDocument` is re-used for subsequent editor opens.
+		 * If all editors for a given resource are closed, the `CustomDocument` is disposed of. Opening an editor at
+		 * this point will trigger another call to `resolveCustomDocument`.
+		 *
 		 * @param document Document to resolve.
 		 *
 		 * @return The capabilities of the resolved document.
@@ -1375,11 +1380,15 @@ declare module 'vscode' {
 		/**
 		 * Resolve a webview editor for a given resource.
 		 *
+		 * This is called when a user first opens a resource for a `CustomTextEditorProvider`, or if they reopen an
+		 * existing editor using this `CustomTextEditorProvider`.
+		 *
 		 * To resolve a webview editor, the provider must fill in its initial html content and hook up all
-		 * the event listeners it is interested it. The provider should also take ownership of the passed in `WebviewPanel`.
+		 * the event listeners it is interested it. The provider can also hold onto the `WebviewPanel` to use later,
+		 * for example in a command. See [`WebviewPanel`](#WebviewPanel) for additional details
 		 *
 		 * @param document Document for the resource being resolved.
-		 * @param webviewPanel Webview to resolve. The provider should take ownership of this webview.
+		 * @param webviewPanel Webview to resolve.
 		 *
 		 * @return Thenable indicating that the webview editor has been resolved.
 		 */
@@ -1398,13 +1407,17 @@ declare module 'vscode' {
 	 */
 	export interface CustomTextEditorProvider {
 		/**
-		 * Resolve a webview editor for a given resource.
+		 * Resolve a webview editor for a given text resource.
+		 *
+		 * This is called when a user first opens a resource for a `CustomTextEditorProvider`, or if they reopen an
+		 * existing editor using this `CustomTextEditorProvider`.
 		 *
 		 * To resolve a webview editor, the provider must fill in its initial html content and hook up all
-		 * the event listeners it is interested it. The provider should also take ownership of the passed in `WebviewPanel`.
+		 * the event listeners it is interested it. The provider can also hold onto the `WebviewPanel` to use later,
+		 * for example in a command. See [`WebviewPanel`](#WebviewPanel) for additional details.
 		 *
-		 * @param document Resource being resolved.
-		 * @param webviewPanel Webview to resolve. The provider should take ownership of this webview.
+		 * @param document Document for the resource to resolve.
+		 * @param webviewPanel Webview to resolve.
 		 *
 		 * @return Thenable indicating that the webview editor has been resolved.
 		 */
