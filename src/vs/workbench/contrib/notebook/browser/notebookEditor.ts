@@ -273,6 +273,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 
 		if (this.notebookViewModel && !this.notebookViewModel.isDirty()) {
 			this.notebookService.destoryNotebookDocument(this.viewType!, this.notebookViewModel!.notebookDocument);
+			this.notebookViewModel.dispose();
 			this.notebookViewModel = undefined;
 		}
 

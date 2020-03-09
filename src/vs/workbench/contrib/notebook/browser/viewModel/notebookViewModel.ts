@@ -225,6 +225,7 @@ export class NotebookViewModel extends Disposable {
 		this._localStore.clear();
 		this._viewCells.forEach(cell => {
 			cell.save();
+			cell.dispose();
 		});
 
 		super.dispose();
