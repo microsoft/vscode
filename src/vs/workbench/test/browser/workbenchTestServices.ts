@@ -81,7 +81,6 @@ import { IFilesConfigurationService, FilesConfigurationService } from 'vs/workbe
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { BrowserTextFileService } from 'vs/workbench/services/textfile/browser/browserTextFileService';
-import * as CommonWorkbenchTestServices from 'vs/workbench/test/common/workbenchTestServices';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
@@ -104,11 +103,7 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { QuickInputService } from 'vs/workbench/services/quickinput/browser/quickInputService';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { win32, posix } from 'vs/base/common/path';
-
-export import TestTextResourcePropertiesService = CommonWorkbenchTestServices.TestTextResourcePropertiesService;
-export import TestContextService = CommonWorkbenchTestServices.TestContextService;
-export import TestStorageService = CommonWorkbenchTestServices.TestStorageService;
-export import TestWorkingCopyService = CommonWorkbenchTestServices.TestWorkingCopyService;
+import { TestWorkingCopyService, TestContextService, TestStorageService, TestTextResourcePropertiesService } from 'vs/workbench/test/common/workbenchTestServices';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined);

@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { EditorOptions, IEditorInputFactoryRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
-import { workbenchInstantiationService, TestStorageService, TestFileEditorInput, registerTestEditor, TestEditorPart } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService, TestFileEditorInput, registerTestEditor, TestEditorPart } from 'vs/workbench/test/browser/workbenchTestServices';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -16,6 +16,7 @@ import { WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { EditorsObserver } from 'vs/workbench/browser/parts/editor/editorsObserver';
 import { timeout } from 'vs/base/common/async';
+import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
 const TEST_EDITOR_ID = 'MyTestEditorForEditorsObserver';
 const TEST_EDITOR_INPUT_ID = 'testEditorInputForEditorsObserver';
