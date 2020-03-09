@@ -23,3 +23,12 @@ export interface ICompositeDragAndDrop {
 	onDragOver(data: IDragAndDropData, target: string | undefined, originalEvent: DragEvent): boolean;
 	onDragEnter(data: IDragAndDropData, target: string | undefined, originalEvent: DragEvent): boolean;
 }
+
+export interface ICompositeDragAndDropObserverCallbacks {
+	onDragEnter?: (e: DragEvent) => void;
+	onDragLeave?: (e: DragEvent) => void;
+	onDrop?: (e: DragEvent) => void;
+	onDragOver?: (e: DragEvent) => void;
+	onDragStart?: (e: DragEvent) => void;
+	onDragEnd?: (e: DragEvent) => void;
+}

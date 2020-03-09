@@ -19,7 +19,7 @@ import { ToggleActivityBarVisibilityAction, ToggleMenuBarAction } from 'vs/workb
 import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
 import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { CompositeBar, ICompositeBarItem, CompositeDragAndDrop } from 'vs/workbench/browser/parts/compositeBar';
+import { CompositeBar, ICompositeBarItem, CompositeDragAndDrop, CompositeDragAndDropObserver } from 'vs/workbench/browser/parts/compositeBar';
 import { Dimension, addClass, removeNode } from 'vs/base/browser/dom';
 import { IStorageService, StorageScope, IWorkspaceStorageChangeEvent } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -316,6 +316,15 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		this.content.appendChild(globalActivities);
 
 		this.createGlobalActivityActionBar(globalActivities);
+
+		CompositeDragAndDropObserver.INSTANCE.registerParticipant(this.element, {
+			onDragStart: e => {
+				this.element.style.border = `2px solid blue`;
+			},
+			onDragEnd: e => {
+				this.element.style.border = '';
+			}
+		});
 
 		return this.content;
 	}

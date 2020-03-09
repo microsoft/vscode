@@ -44,6 +44,7 @@ import { Button } from 'vs/base/browser/ui/button/button';
 import { Link } from 'vs/platform/opener/browser/link';
 import { LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
+import { CompositeDragAndDropObserver } from 'vs/workbench/browser/parts/compositeBar';
 
 export interface IPaneColors extends IColorMapping {
 	dropBackground?: ColorIdentifier;
@@ -936,6 +937,8 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 				ViewPaneContainer.viewTransfer.clearData(DraggedViewIdentifier.prototype);
 			}
 		}));
+
+		CompositeDragAndDropObserver.INSTANCE.registerParticipant(pane.draggableElement, {});
 	}
 
 	removePanes(panes: ViewPane[]): void {

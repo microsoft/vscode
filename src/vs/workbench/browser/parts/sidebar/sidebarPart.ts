@@ -36,6 +36,7 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
 import { DraggedViewIdentifier } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { DraggedCompositeIdentifier } from 'vs/workbench/browser/parts/compositeBarActions';
+import { CompositeDragAndDropObserver } from 'vs/workbench/browser/parts/compositeBar';
 
 export class SidebarPart extends CompositePart<Viewlet> implements IViewletService {
 
@@ -153,6 +154,15 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		this.element = parent;
 
 		super.create(parent);
+
+		CompositeDragAndDropObserver.INSTANCE.registerParticipant(this.element, {
+			onDragStart: e => {
+				this.element.style.border = `2px solid blue`;
+			},
+			onDragEnd: e => {
+				this.element.style.border = '';
+			}
+		});
 
 		const focusTracker = this._register(trackFocus(parent));
 		this._register(focusTracker.onDidFocus(() => this.sideBarFocusContextKey.set(true)));

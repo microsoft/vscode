@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { Action, IAction } from 'vs/base/common/actions';
 import { illegalArgument } from 'vs/base/common/errors';
 import * as arrays from 'vs/base/common/arrays';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ActionBar, ActionsOrientation, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -23,7 +23,7 @@ import { Emitter } from 'vs/base/common/event';
 import { DraggedViewIdentifier } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewDescriptorService } from 'vs/workbench/common/views';
-import { ICompositeDragAndDrop, CompositeDragAndDropData } from 'vs/base/parts/composite/browser/compositeDnd';
+import { ICompositeDragAndDrop, CompositeDragAndDropData, ICompositeDragAndDropObserverCallbacks } from 'vs/base/parts/composite/browser/compositeDnd';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IComposite } from 'vs/workbench/common/composite';
 
@@ -33,6 +33,72 @@ export interface ICompositeBarItem {
 	pinned: boolean;
 	order?: number;
 	visible: boolean;
+}
+
+export type ViewType = 'composite' | 'view';
+
+export class CompositeDragAndDropObserver extends Disposable {
+	private _onDragStart = this._register(new Emitter<DragEvent>());
+	private _onDragEnd = this._register(new Emitter<DragEvent>());
+
+	private static _instance: CompositeDragAndDropObserver | undefined;
+	static get INSTANCE(): CompositeDragAndDropObserver {
+		if (!CompositeDragAndDropObserver._instance) {
+			CompositeDragAndDropObserver._instance = new CompositeDragAndDropObserver();
+		}
+
+		return CompositeDragAndDropObserver._instance;
+	}
+
+	private constructor() { super(); }
+
+	registerParticipant(element: HTMLElement, callbacks: ICompositeDragAndDropObserverCallbacks): IDisposable {
+		const disposableStore = new DisposableStore();
+
+		disposableStore.add(addDisposableListener(element, EventType.DRAG_START, e => {
+			this._onDragStart.fire(e);
+		}));
+
+		disposableStore.add(new DragAndDropObserver(element, {
+			onDragEnd: e => {
+				this._onDragEnd.fire(e);
+			},
+			onDragEnter: e => {
+				if (callbacks.onDragEnter) {
+					callbacks.onDragEnter(e);
+				}
+			},
+			onDragLeave: e => {
+				if (callbacks.onDragLeave) {
+					callbacks.onDragLeave(e);
+				}
+			},
+			onDrop: e => {
+				if (callbacks.onDrop) {
+					callbacks.onDrop(e);
+				}
+			},
+			onDragOver: e => {
+				if (callbacks.onDragOver) {
+					callbacks.onDragOver(e);
+				}
+			}
+		}));
+
+		if (callbacks.onDragStart) {
+			this._onDragStart.event(e => {
+				callbacks.onDragStart!(e);
+			}, this, disposableStore);
+		}
+
+		if (callbacks.onDragEnd) {
+			this._onDragEnd.event(e => {
+				callbacks.onDragEnd!(e);
+			});
+		}
+
+		return this._register(disposableStore);
+	}
 }
 
 export class CompositeDragAndDrop implements ICompositeDragAndDrop {
@@ -279,7 +345,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, e => this.showContextMenu(e)));
 
 		// Allow to drop at the end to move composites to the end
-		this._register(new DragAndDropObserver(excessDiv, {
+		this._register(CompositeDragAndDropObserver.INSTANCE.registerParticipant(excessDiv, {
 			onDragOver: (e: DragEvent) => {
 				if (this.compositeTransfer.hasData(DraggedCompositeIdentifier.prototype)) {
 					EventHelper.stop(e, true);
@@ -344,9 +410,6 @@ export class CompositeBar extends Widget implements ICompositeBar {
 					this.updateFromDragging(excessDiv, false);
 				}
 			},
-			onDragEnd: (e: DragEvent) => {
-				// no-op, will not be called
-			},
 			onDrop: (e: DragEvent) => {
 				if (this.compositeTransfer.hasData(DraggedCompositeIdentifier.prototype)) {
 					EventHelper.stop(e, true);
@@ -372,6 +435,12 @@ export class CompositeBar extends Widget implements ICompositeBar {
 					}
 				}
 			},
+			onDragStart: (e: DragEvent) => {
+				// excessDiv.style.background = 'blue';
+			},
+			onDragEnd: (e: DragEvent) => {
+				// excessDiv.style.background = 'red';
+			}
 		}));
 
 		return actionBarDiv;

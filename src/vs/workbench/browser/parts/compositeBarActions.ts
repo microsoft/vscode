@@ -18,10 +18,11 @@ import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { IActivity } from 'vs/workbench/common/activity';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Emitter } from 'vs/base/common/event';
-import { DragAndDropObserver, LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
+import { LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
 import { Color } from 'vs/base/common/color';
 import { DraggedViewIdentifier } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { ICompositeDragAndDrop, CompositeDragAndDropData } from 'vs/base/parts/composite/browser/compositeDnd';
+import { CompositeDragAndDropObserver } from 'vs/workbench/browser/parts/compositeBar';
 
 export interface ICompositeActivity {
 	badge: IBadge;
@@ -537,7 +538,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 			}
 		}));
 
-		this._register(new DragAndDropObserver(this.container, {
+		this._register(CompositeDragAndDropObserver.INSTANCE.registerParticipant(this.container, {
 			onDragEnter: e => {
 				if (this.compositeTransfer.hasData(DraggedCompositeIdentifier.prototype)) {
 					const data = this.compositeTransfer.getData(DraggedCompositeIdentifier.prototype);
@@ -621,6 +622,24 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 
 						this.dndHandler.drop(new CompositeDragAndDropData('view', draggedViewId), this.activity.id, e);
 					}
+				}
+			},
+			onDragStart: e => {
+
+				if (e.target !== this.container) {
+					return;
+				}
+
+				if (e.dataTransfer) {
+					e.dataTransfer.effectAllowed = 'move';
+				}
+
+				// Register as dragged to local transfer
+				this.compositeTransfer.setData([new DraggedCompositeIdentifier(this.activity.id)], DraggedCompositeIdentifier.prototype);
+
+				// Trigger the action even on drag start to prevent clicks from failing that started a drag
+				if (!this.getAction().checked) {
+					this.getAction().run();
 				}
 			}
 		}));
