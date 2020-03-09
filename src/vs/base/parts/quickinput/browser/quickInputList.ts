@@ -33,9 +33,12 @@ interface IListElement {
 	readonly index: number;
 	readonly item: IQuickPickItem;
 	readonly saneLabel: string;
+	readonly saneAriaLabel: string;
 	readonly saneDescription?: string;
 	readonly saneDetail?: string;
-	readonly saneAriaLabel: string;
+	readonly labelHighlights?: IMatch[];
+	readonly descriptionHighlights?: IMatch[];
+	readonly detailHighlights?: IMatch[];
 	readonly checked: boolean;
 	readonly separator?: IQuickPickSeparator;
 	readonly fireButtonTriggered: (event: IQuickPickItemButtonEvent<IQuickPickItem>) => void;
@@ -45,9 +48,9 @@ class ListElement implements IListElement {
 	index!: number;
 	item!: IQuickPickItem;
 	saneLabel!: string;
+	saneAriaLabel!: string;
 	saneDescription?: string;
 	saneDetail?: string;
-	saneAriaLabel!: string;
 	hidden = false;
 	private readonly _onChecked = new Emitter<boolean>();
 	onChecked = this._onChecked.event;
@@ -375,9 +378,12 @@ export class QuickInputList {
 					index,
 					item,
 					saneLabel,
+					saneAriaLabel,
 					saneDescription,
 					saneDetail,
-					saneAriaLabel,
+					labelHighlights: item.highlights?.label,
+					descriptionHighlights: item.highlights?.description,
+					detailHighlights: item.highlights?.detail,
 					checked: false,
 					separator: previous && previous.type === 'separator' ? previous : undefined,
 					fireButtonTriggered

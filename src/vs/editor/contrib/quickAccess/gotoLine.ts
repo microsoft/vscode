@@ -25,8 +25,8 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 	provide(picker: IQuickPick<IGotoLineQuickPickItem>, token: CancellationToken): IDisposable {
 		const disposables = new DisposableStore();
 
-		// Disable filtering, we control the results
-		picker.filterValue = () => '';
+		// Disable filtering & sorting, we control the results
+		picker.matchOnLabel = picker.matchOnDescription = picker.matchOnDetail = picker.sortByLabel = false;
 
 		// Provide based on current active editor
 		let pickerDisposable = this.doProvide(picker, token);

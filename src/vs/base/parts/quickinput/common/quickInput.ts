@@ -7,15 +7,23 @@ import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { IMatch } from 'vs/base/common/filters';
+
+export interface IQuickPickItemHighlights {
+	label?: IMatch[];
+	description?: IMatch[];
+	detail?: IMatch[];
+}
 
 export interface IQuickPickItem {
 	type?: 'item';
 	id?: string;
 	label: string;
+	ariaLabel?: string;
 	description?: string;
 	detail?: string;
-	ariaLabel?: string;
 	iconClasses?: string[];
+	highlights?: IQuickPickItemHighlights;
 	buttons?: IQuickInputButton[];
 	picked?: boolean;
 	alwaysShow?: boolean;
