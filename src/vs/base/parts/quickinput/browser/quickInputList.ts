@@ -33,8 +33,12 @@ interface IListElement {
 	readonly index: number;
 	readonly item: IQuickPickItem;
 	readonly saneLabel: string;
+	readonly saneAriaLabel: string;
 	readonly saneDescription?: string;
 	readonly saneDetail?: string;
+	readonly labelHighlights?: IMatch[];
+	readonly descriptionHighlights?: IMatch[];
+	readonly detailHighlights?: IMatch[];
 	readonly checked: boolean;
 	readonly separator?: IQuickPickSeparator;
 	readonly fireButtonTriggered: (event: IQuickPickItemButtonEvent<IQuickPickItem>) => void;
@@ -44,6 +48,7 @@ class ListElement implements IListElement {
 	index!: number;
 	item!: IQuickPickItem;
 	saneLabel!: string;
+	saneAriaLabel!: string;
 	saneDescription?: string;
 	saneDetail?: string;
 	hidden = false;
@@ -142,16 +147,14 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 		options.descriptionTitle = element.saneDescription;
 		options.descriptionMatches = descriptionHighlights || [];
 		options.extraClasses = element.item.iconClasses;
+		options.italic = element.item.italic;
 		data.label.setLabel(element.saneLabel, element.saneDescription, options);
 
 		// Meta
 		data.detail.set(element.saneDetail, detailHighlights);
 
 		// ARIA label
-		data.entry.setAttribute('aria-label', [element.saneLabel, element.saneDescription, element.saneDetail]
-			.map(s => s && parseCodicons(s).text)
-			.filter(s => !!s)
-			.join(', '));
+		data.entry.setAttribute('aria-label', element.saneAriaLabel);
 
 		// Separator
 		if (element.separator && element.separator.label) {
@@ -364,12 +367,24 @@ export class QuickInputList {
 		this.elements = inputElements.reduce((result, item, index) => {
 			if (item.type !== 'separator') {
 				const previous = index && inputElements[index - 1];
+				const saneLabel = item.label && item.label.replace(/\r?\n/g, ' ');
+				const saneDescription = item.description && item.description.replace(/\r?\n/g, ' ');
+				const saneDetail = item.detail && item.detail.replace(/\r?\n/g, ' ');
+				const saneAriaLabel = item.ariaLabel || [saneLabel, saneDescription, saneDetail]
+					.map(s => s && parseCodicons(s).text)
+					.filter(s => !!s)
+					.join(', ');
+
 				result.push(new ListElement({
 					index,
 					item,
-					saneLabel: item.label && item.label.replace(/\r?\n/g, ' '),
-					saneDescription: item.description && item.description.replace(/\r?\n/g, ' '),
-					saneDetail: item.detail && item.detail.replace(/\r?\n/g, ' '),
+					saneLabel,
+					saneAriaLabel,
+					saneDescription,
+					saneDetail,
+					labelHighlights: item.highlights?.label,
+					descriptionHighlights: item.highlights?.description,
+					detailHighlights: item.highlights?.detail,
 					checked: false,
 					separator: previous && previous.type === 'separator' ? previous : undefined,
 					fireButtonTriggered
@@ -472,6 +487,7 @@ export class QuickInputList {
 
 	filter(query: string) {
 		if (!(this.sortByLabel || this.matchOnLabel || this.matchOnDescription || this.matchOnDetail)) {
+			this.list.layout();
 			return;
 		}
 		query = query.trim();

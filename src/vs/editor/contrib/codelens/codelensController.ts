@@ -8,7 +8,7 @@ import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/err
 import { toDisposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { StableEditorScrollState } from 'vs/editor/browser/core/editorState';
 import { ICodeEditor, MouseTargetType, IViewZoneChangeAccessor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { registerEditorContribution, EditorCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
 import { CodeLensProviderRegistry, CodeLens } from 'vs/editor/common/modes';
@@ -20,6 +20,7 @@ import { ICodeLensCache } from 'vs/editor/contrib/codelens/codeLensCache';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import * as dom from 'vs/base/browser/dom';
 import { hash } from 'vs/base/common/hash';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 
 export class CodeLensContribution implements IEditorContribution {
 
@@ -402,6 +403,53 @@ export class CodeLensContribution implements IEditorContribution {
 			}
 		});
 	}
+
+	public getLenses(): CodeLensWidget[] {
+		return this._lenses;
+	}
+}
+
+export class ShowLensesInCurrentLineCommand extends EditorCommand {
+	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | Promise<void> {
+		const quickInputService = accessor.get(IQuickInputService);
+		const commandService = accessor.get(ICommandService);
+		const notificationService = accessor.get(INotificationService);
+
+		const lineNumber = editor.getSelection()?.positionLineNumber;
+		const codelensController = editor.getContribution(CodeLensContribution.ID) as CodeLensContribution;
+
+		const activeLensesWidgets = codelensController.getLenses().filter(lens => lens.getLineNumber() === lineNumber);
+
+		const commandArguments: Map<string, any[] | undefined> = new Map();
+
+		const items: (IQuickPickItem | IQuickPickSeparator)[] = [];
+
+		activeLensesWidgets.forEach(widget => {
+			widget.getItems().forEach(codelens => {
+				const command = codelens.symbol.command;
+				if (!command) {
+					return;
+				}
+				items.push({ id: command.id, label: command.title });
+
+				commandArguments.set(command.id, command.arguments);
+			});
+		});
+
+		// We dont want an empty picker
+		if (!items.length) {
+			return;
+		}
+
+		quickInputService.pick(items, { canPickMany: false }).then(item => {
+			const id = item.id!;
+			commandService.executeCommand(id, ...(commandArguments.get(id) || [])).catch(err => notificationService.error(err));
+		});
+	}
+
 }
 
 registerEditorContribution(CodeLensContribution.ID, CodeLensContribution);
+
+const showLensesInCurrentLineCommand = new ShowLensesInCurrentLineCommand({ id: 'codelens.showLensesInCurrentLine', precondition: undefined });
+showLensesInCurrentLineCommand.register();

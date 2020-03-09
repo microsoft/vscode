@@ -285,15 +285,15 @@ export interface IItemAccessor<T> {
 	/**
 	 * Just the label of the item to score on.
 	 */
-	getItemLabel(item: T): string | null;
+	getItemLabel(item: T): string | undefined;
 
 	/**
-	 * The optional description of the item to score on. Can be null.
+	 * The optional description of the item to score on.
 	 */
-	getItemDescription(item: T): string | null;
+	getItemDescription(item: T): string | undefined;
 
 	/**
-	 * If the item is a file, the path of the file to score on. Can be null.
+	 * If the item is a file, the path of the file to score on.
 	 */
 	getItemPath(file: T): string | undefined;
 }
@@ -376,7 +376,7 @@ function createMatches(offsets: undefined | number[]): IMatch[] {
 	return ret;
 }
 
-function doScoreItem(label: string, description: string | null, path: string | undefined, query: IPreparedQuery, fuzzy: boolean): IItemScore {
+function doScoreItem(label: string, description: string | undefined, path: string | undefined, query: IPreparedQuery, fuzzy: boolean): IItemScore {
 
 	// 1.) treat identity matches on full path highest
 	if (path && (isLinux ? query.original === path : equalsIgnoreCase(query.original, path))) {

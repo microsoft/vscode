@@ -35,12 +35,12 @@ let IDS = 0;
 
 export class QuickOpenItemAccessorClass implements IItemAccessor<QuickOpenEntry> {
 
-	getItemLabel(entry: QuickOpenEntry): string | null {
-		return types.withUndefinedAsNull(entry.getLabel());
+	getItemLabel(entry: QuickOpenEntry): string | undefined {
+		return entry.getLabel();
 	}
 
-	getItemDescription(entry: QuickOpenEntry): string | null {
-		return types.withUndefinedAsNull(entry.getDescription());
+	getItemDescription(entry: QuickOpenEntry): string | undefined {
+		return entry.getDescription();
 	}
 
 	getItemPath(entry: QuickOpenEntry): string | undefined {

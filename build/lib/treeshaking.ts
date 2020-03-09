@@ -336,6 +336,7 @@ function markNodes(languageService: ts.LanguageService, options: ITreeShakingOpt
 
 	const black_queue: ts.Node[] = [];
 	const gray_queue: ts.Node[] = [];
+	const export_import_queue: ts.Node[] = [];
 	const sourceFilesLoaded: { [fileName: string]: boolean } = {};
 
 	function enqueueTopLevelModuleStatements(sourceFile: ts.SourceFile): void {
@@ -355,6 +356,11 @@ function markNodes(languageService: ts.LanguageService, options: ITreeShakingOpt
 					// export * from "foo";
 					setColor(node, NodeColor.Black);
 					enqueueImport(node, node.moduleSpecifier.text);
+				}
+				if (node.exportClause && ts.isNamedExports(node.exportClause)) {
+					for (const exportSpecifier of node.exportClause.elements) {
+						export_import_queue.push(exportSpecifier);
+					}
 				}
 				return;
 			}
@@ -566,6 +572,23 @@ function markNodes(languageService: ts.LanguageService, options: ITreeShakingOpt
 		};
 		node.forEachChild(loop);
 	}
+
+	while (export_import_queue.length > 0) {
+		const node = export_import_queue.shift()!;
+		if (nodeOrParentIsBlack(node)) {
+			continue;
+		}
+		const symbol: ts.Symbol | undefined = (<any>node).symbol;
+		if (!symbol) {
+			continue;
+		}
+		const aliased = checker.getAliasedSymbol(symbol);
+		if (aliased.declarations && aliased.declarations.length > 0) {
+			if (nodeOrParentIsBlack(aliased.declarations[0]) || nodeOrChildIsBlack(aliased.declarations[0])) {
+				setColor(node, NodeColor.Black);
+			}
+		}
+	}
 }
 
 function nodeIsInItsOwnDeclaration(nodeSourceFile: ts.SourceFile, node: ts.Node, symbol: ts.Symbol): boolean {
@@ -663,6 +686,22 @@ function generateResult(languageService: ts.LanguageService, shakeLevel: ShakeLe
 				} else {
 					if (node.importClause && getColor(node.importClause) === NodeColor.Black) {
 						return keep(node);
+					}
+				}
+			}
+
+			if (ts.isExportDeclaration(node)) {
+				if (node.exportClause && node.moduleSpecifier && ts.isNamedExports(node.exportClause)) {
+					let survivingExports: string[] = [];
+					for (const exportSpecifier of node.exportClause.elements) {
+						if (getColor(exportSpecifier) === NodeColor.Black) {
+							survivingExports.push(exportSpecifier.getFullText(sourceFile));
+						}
+					}
+					const leadingTriviaWidth = node.getLeadingTriviaWidth();
+					const leadingTrivia = sourceFile.text.substr(node.pos, leadingTriviaWidth);
+					if (survivingExports.length > 0) {
+						return write(`${leadingTrivia}export {${survivingExports.join(',')} } from${node.moduleSpecifier.getFullText(sourceFile)};`);
 					}
 				}
 			}

@@ -68,7 +68,7 @@ suite('TestSynchronizer', () => {
 	teardown(() => disposableStore.clear());
 
 	test('status is syncing', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncSource.Settings);
+		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncSource.Settings, 'settings');
 
 		const actual: SyncStatus[] = [];
 		disposableStore.add(testObject.onDidChangeStatus(status => actual.push(status)));
@@ -85,7 +85,7 @@ suite('TestSynchronizer', () => {
 	});
 
 	test('status is set correctly when sync is finished', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncSource.Settings);
+		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncSource.Settings, 'settings');
 		testObject.syncBarrier.open();
 
 		const actual: SyncStatus[] = [];
@@ -97,7 +97,7 @@ suite('TestSynchronizer', () => {
 	});
 
 	test('status is set correctly when sync has conflicts', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncSource.Settings);
+		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncSource.Settings, 'settings');
 		testObject.syncResult = { status: SyncStatus.HasConflicts };
 		testObject.syncBarrier.open();
 
@@ -110,7 +110,7 @@ suite('TestSynchronizer', () => {
 	});
 
 	test('status is set correctly when sync has errors', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncSource.Settings);
+		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncSource.Settings, 'settings');
 		testObject.syncResult = { error: true };
 		testObject.syncBarrier.open();
 
@@ -127,7 +127,7 @@ suite('TestSynchronizer', () => {
 	});
 
 	test('sync should not run if syncing already', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncSource.Settings);
+		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncSource.Settings, 'settings');
 		const promise = Event.toPromise(testObject.onDoSyncCall.event);
 
 		testObject.sync();
@@ -144,7 +144,7 @@ suite('TestSynchronizer', () => {
 	});
 
 	test('sync should not run if disabled', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncSource.Settings);
+		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncSource.Settings, 'settings');
 		client.instantiationService.get(IUserDataSyncEnablementService).setResourceEnablement(testObject.resourceKey, false);
 
 		const actual: SyncStatus[] = [];
@@ -157,7 +157,7 @@ suite('TestSynchronizer', () => {
 	});
 
 	test('sync should not run if there are conflicts', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncSource.Settings);
+		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncSource.Settings, 'settings');
 		testObject.syncResult = { status: SyncStatus.HasConflicts };
 		testObject.syncBarrier.open();
 		await testObject.sync();
@@ -171,7 +171,7 @@ suite('TestSynchronizer', () => {
 	});
 
 	test('request latest data on precondition failure', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncSource.Settings);
+		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncSource.Settings, 'settings');
 		// Sync once
 		testObject.syncBarrier.open();
 		await testObject.sync();

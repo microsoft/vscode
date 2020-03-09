@@ -707,8 +707,8 @@ class EditorHistoryItemAccessorClass extends QuickOpenItemAccessorClass {
 		super();
 	}
 
-	getItemDescription(entry: QuickOpenEntry): string | null {
-		return this.allowMatchOnDescription ? types.withUndefinedAsNull(entry.getDescription()) : null;
+	getItemDescription(entry: QuickOpenEntry): string | undefined {
+		return this.allowMatchOnDescription ? entry.getDescription() : undefined;
 	}
 }
 

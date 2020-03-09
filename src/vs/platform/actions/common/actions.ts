@@ -373,7 +373,7 @@ export interface IAction2Options extends ICommandAction {
 	/**
 	 * One or many menu items.
 	 */
-	menu?: OneOrN<{ id: MenuId } & Omit<IMenuItem, 'command'>>;
+	menu?: OneOrN<{ id: MenuId } & Omit<IMenuItem, 'command'> & { command?: Partial<Omit<ICommandAction, 'id'>> }>;
 
 	/**
 	 * One keybinding.
@@ -396,39 +396,43 @@ export function registerAction2(ctor: { new(): Action2 }): IDisposable {
 	const disposables = new DisposableStore();
 	const action = new ctor();
 
+	const { f1, menu: menus, keybinding, description, ...command } = action.desc;
+
 	// command
 	disposables.add(CommandsRegistry.registerCommand({
-		id: action.desc.id,
+		id: command.id,
 		handler: (accessor, ...args) => action.run(accessor, ...args),
-		description: action.desc.description,
+		description: description,
 	}));
 
 	// menu
-	if (Array.isArray(action.desc.menu)) {
-		for (let item of action.desc.menu) {
-			disposables.add(MenuRegistry.appendMenuItem(item.id, { command: action.desc, ...item }));
+	if (Array.isArray(menus)) {
+		for (let item of menus) {
+			const { command: commandOverrides, ...menu } = item;
+			disposables.add(MenuRegistry.appendMenuItem(item.id, { command: { ...command, ...commandOverrides }, ...menu }));
 		}
-	} else if (action.desc.menu) {
-		disposables.add(MenuRegistry.appendMenuItem(action.desc.menu.id, { command: action.desc, ...action.desc.menu }));
+	} else if (menus) {
+		const { command: commandOverrides, ...menu } = menus;
+		disposables.add(MenuRegistry.appendMenuItem(menu.id, { command: { ...command, ...commandOverrides }, ...menu }));
 	}
-	if (action.desc.f1) {
-		disposables.add(MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: action.desc, ...action.desc }));
+	if (f1) {
+		disposables.add(MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: command }));
 	}
 
 	// keybinding
-	if (Array.isArray(action.desc.keybinding)) {
-		for (let item of action.desc.keybinding) {
+	if (Array.isArray(keybinding)) {
+		for (let item of keybinding) {
 			KeybindingsRegistry.registerKeybindingRule({
 				...item,
-				id: action.desc.id,
-				when: ContextKeyExpr.and(action.desc.precondition, item.when)
+				id: command.id,
+				when: ContextKeyExpr.and(command.precondition, item.when)
 			});
 		}
-	} else if (action.desc.keybinding) {
+	} else if (keybinding) {
 		KeybindingsRegistry.registerKeybindingRule({
-			...action.desc.keybinding,
-			id: action.desc.id,
-			when: ContextKeyExpr.and(action.desc.precondition, action.desc.keybinding.when)
+			...keybinding,
+			id: command.id,
+			when: ContextKeyExpr.and(command.precondition, keybinding.when)
 		});
 	}
 
