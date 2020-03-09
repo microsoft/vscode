@@ -249,6 +249,7 @@ export class SearchEditorInput extends EditorInput {
 	public getMatchRanges(): Range[] {
 		return (this._cachedContentsModel?.getAllDecorations() ?? [])
 			.filter(decoration => decoration.options.className === SearchEditorFindMatchClass)
+			.filter(({ range }) => !(range.startColumn === 1 && range.endColumn === 1))
 			.map(({ range }) => range);
 	}
 

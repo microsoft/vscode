@@ -22,7 +22,7 @@ import { URI } from 'vs/base/common/uri';
 import { readdir } from 'vs/base/node/pfs';
 import { IFileQuery, IFolderQuery, IProgressMessage, ISearchEngineStats, IRawFileMatch, ISearchEngine, ISearchEngineSuccess, isFilePatternMatch } from 'vs/workbench/services/search/common/search';
 import { spawnRipgrepCmd } from './ripgrepFileSearch';
-import { prepareQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
+import { prepareQuery } from 'vs/base/common/fuzzyScorer';
 
 interface IDirectoryEntry {
 	base: string;

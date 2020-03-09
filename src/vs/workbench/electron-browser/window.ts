@@ -62,6 +62,7 @@ import { IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/servi
 import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { Event } from 'vs/base/common/event';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
+import { clearAllFontInfos } from 'vs/editor/browser/config/configuration';
 
 export class NativeWindow extends Disposable {
 
@@ -177,6 +178,10 @@ export class NativeWindow extends Disposable {
 		// Message support
 		ipc.on('vscode:showInfoMessage', (event: IpcEvent, message: string) => {
 			this.notificationService.info(message);
+		});
+
+		ipc.on('vscode:displayChanged', (event: IpcEvent) => {
+			clearAllFontInfos();
 		});
 
 		// Fullscreen Events

@@ -10,10 +10,7 @@ import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IQuickInputService, IQuickInputButton, IQuickPickItem, IQuickPick, IInputBox, IQuickNavigateConfiguration, IPickOptions, QuickPickInput, IInputOptions } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
@@ -21,6 +18,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { QuickInputController } from 'vs/base/parts/quickinput/browser/quickInput';
 import { QuickInputService, IQuickInputControllerHost } from 'vs/platform/quickinput/browser/quickInput';
 import { once } from 'vs/base/common/functional';
+import { IQuickAccessController } from 'vs/platform/quickinput/common/quickAccess';
 
 export class EditorScopedQuickInputServiceImpl extends QuickInputService {
 
@@ -28,15 +26,13 @@ export class EditorScopedQuickInputServiceImpl extends QuickInputService {
 
 	constructor(
 		editor: ICodeEditor,
-		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@ILayoutService layoutService: ILayoutService
 	) {
-		super({ args: Object.create(null) } as IEnvironmentService, configurationService, instantiationService, keybindingService, contextKeyService, themeService, accessibilityService, layoutService);
+		super(instantiationService, contextKeyService, themeService, accessibilityService, layoutService);
 
 		// Use the passed in code editor as host for the quick input widget
 		const contribution = QuickInputEditorContribution.get(editor);
@@ -80,6 +76,8 @@ export class StandaloneQuickInputServiceImpl implements IQuickInputService {
 
 		return quickInputService;
 	}
+
+	get quickAccess(): IQuickAccessController { return this.activeService.quickAccess; }
 
 	get backButton(): IQuickInputButton { return this.activeService.backButton; }
 

@@ -98,7 +98,7 @@ export class TimelineService implements ITimelineService {
 	}
 
 	getSources() {
-		return [...this._providers.keys()];
+		return [...this._providers.values()].map(p => ({ id: p.id, label: p.label }));
 	}
 
 	getTimeline(id: string, uri: URI, options: TimelineOptions, tokenSource: CancellationTokenSource, internalOptions?: InternalTimelineOptions) {

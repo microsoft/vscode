@@ -15,12 +15,13 @@ import { Color, RGBA } from 'vs/base/common/color';
 import { SplitView, IView } from './splitview';
 import { isFirefox } from 'vs/base/browser/browser';
 import { DataTransfers } from 'vs/base/browser/dnd';
+import { localize } from 'vs/nls';
 
 export interface IPaneOptions {
-	ariaHeaderLabel?: string;
 	minimumBodySize?: number;
 	maximumBodySize?: number;
 	expanded?: boolean;
+	title: string;
 }
 
 export interface IPaneStyles {
@@ -116,10 +117,10 @@ export abstract class Pane extends Disposable implements IView {
 
 	width: number = 0;
 
-	constructor(options: IPaneOptions = {}) {
+	constructor(options: IPaneOptions) {
 		super();
 		this._expanded = typeof options.expanded === 'undefined' ? true : !!options.expanded;
-		this.ariaHeaderLabel = options.ariaHeaderLabel || '';
+		this.ariaHeaderLabel = localize('viewSection', "{0} Section", options.title);
 		this._minimumBodySize = typeof options.minimumBodySize === 'number' ? options.minimumBodySize : 120;
 		this._maximumBodySize = typeof options.maximumBodySize === 'number' ? options.maximumBodySize : Number.POSITIVE_INFINITY;
 

@@ -6,14 +6,25 @@
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { IMatch } from 'vs/base/common/filters';
+
+export interface IQuickPickItemHighlights {
+	label?: IMatch[];
+	description?: IMatch[];
+	detail?: IMatch[];
+}
 
 export interface IQuickPickItem {
 	type?: 'item';
 	id?: string;
 	label: string;
+	ariaLabel?: string;
 	description?: string;
 	detail?: string;
 	iconClasses?: string[];
+	italic?: boolean;
+	highlights?: IQuickPickItemHighlights;
 	buttons?: IQuickInputButton[];
 	picked?: boolean;
 	alwaysShow?: boolean;
@@ -125,7 +136,10 @@ export interface IInputOptions {
 	validateInput?: (input: string) => Promise<string | null | undefined>;
 }
 
-export interface IQuickInput {
+export interface IQuickInput extends IDisposable {
+
+	readonly onDidHide: Event<void>;
+	readonly onDispose: Event<void>;
 
 	title: string | undefined;
 
@@ -146,15 +160,19 @@ export interface IQuickInput {
 	show(): void;
 
 	hide(): void;
-
-	onDidHide: Event<void>;
-
-	dispose(): void;
 }
 
 export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 
 	value: string;
+
+	/**
+	 * A method that allows to massage the value used
+	 * for filtering, e.g, to remove certain parts.
+	 */
+	filterValue: (value: string) => string;
+
+	ariaLabel: string;
 
 	placeholder: string | undefined;
 

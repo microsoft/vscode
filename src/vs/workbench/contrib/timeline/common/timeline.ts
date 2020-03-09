@@ -69,6 +69,11 @@ export interface TimelineProvider extends TimelineProviderDescriptor, IDisposabl
 	provideTimeline(uri: URI, options: TimelineOptions, token: CancellationToken, internalOptions?: InternalTimelineOptions): Promise<Timeline | undefined>;
 }
 
+export interface TimelineSource {
+	id: string;
+	label: string;
+}
+
 export interface TimelineProviderDescriptor {
 	id: string;
 	label: string;
@@ -98,7 +103,7 @@ export interface ITimelineService {
 	registerTimelineProvider(provider: TimelineProvider): IDisposable;
 	unregisterTimelineProvider(id: string): void;
 
-	getSources(): string[];
+	getSources(): TimelineSource[];
 
 	getTimeline(id: string, uri: URI, options: TimelineOptions, tokenSource: CancellationTokenSource, internalOptions?: InternalTimelineOptions): TimelineRequest | undefined;
 

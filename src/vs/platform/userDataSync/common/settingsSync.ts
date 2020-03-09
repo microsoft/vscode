@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IFileService, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { UserDataSyncError, UserDataSyncErrorCode, SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IUserDataSyncUtilService, IConflictSetting, ISettingsSyncService, CONFIGURATION_SYNC_STORE_KEY, SyncSource, ResourceKey, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { UserDataSyncError, UserDataSyncErrorCode, SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IUserDataSyncUtilService, IConflictSetting, ISettingsSyncService, CONFIGURATION_SYNC_STORE_KEY, SyncSource, IUserDataSyncEnablementService, IUserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSync';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { parse } from 'vs/base/common/json';
 import { localize } from 'vs/nls';
@@ -37,7 +37,6 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 
 	_serviceBrand: any;
 
-	readonly resourceKey: ResourceKey = 'settings';
 	protected readonly version: number = 1;
 	protected get conflictsPreviewResource(): URI { return this.environmentService.settingsSyncPreviewResource; }
 
@@ -50,6 +49,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 		@IFileService fileService: IFileService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
+		@IUserDataSyncBackupStoreService userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
 		@IUserDataSyncUtilService userDataSyncUtilService: IUserDataSyncUtilService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -57,7 +57,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 	) {
-		super(environmentService.settingsResource, SyncSource.Settings, fileService, environmentService, userDataSyncStoreService, userDataSyncEnablementService, telemetryService, logService, userDataSyncUtilService, configurationService);
+		super(environmentService.settingsResource, SyncSource.Settings, 'settings', fileService, environmentService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, userDataSyncUtilService, configurationService);
 	}
 
 	protected setStatus(status: SyncStatus): void {
@@ -187,19 +187,49 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 		return false;
 	}
 
-	async getRemoteContent(preview?: boolean): Promise<string | null> {
-		let content = await super.getRemoteContent(preview);
+	async getRemoteContentFromPreview(): Promise<string | null> {
+		let content = await super.getRemoteContentFromPreview();
 		if (content !== null) {
 			const settingsSyncContent = this.parseSettingsSyncContent(content);
 			content = settingsSyncContent ? settingsSyncContent.settings : null;
 		}
-		if (preview && content !== null) {
+		if (content !== null) {
 			const formatUtils = await this.getFormattingOptions();
 			// remove ignored settings from the remote content for preview
 			const ignoredSettings = await this.getIgnoredSettings();
 			content = updateIgnoredSettings(content, '{}', ignoredSettings, formatUtils);
 		}
 		return content;
+	}
+
+	async getRemoteContent(ref?: string, fragment?: string): Promise<string | null> {
+		let content = await super.getRemoteContent(ref);
+		if (content !== null && fragment) {
+			return this.getFragment(content, fragment);
+		}
+		return content;
+	}
+
+	async getLocalBackupContent(ref?: string, fragment?: string): Promise<string | null> {
+		let content = await super.getLocalBackupContent(ref);
+		if (content !== null && fragment) {
+			return this.getFragment(content, fragment);
+		}
+		return content;
+	}
+
+	private getFragment(content: string, fragment: string): string | null {
+		const syncData = this.parseSyncData(content);
+		if (syncData) {
+			const settingsSyncContent = this.parseSettingsSyncContent(syncData.content);
+			if (settingsSyncContent) {
+				switch (fragment) {
+					case 'settings':
+						return settingsSyncContent.settings;
+				}
+			}
+		}
+		return null;
 	}
 
 	async accept(content: string): Promise<void> {
@@ -259,6 +289,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 
 			if (hasLocalChanged) {
 				this.logService.trace('Settings: Updating local settings...');
+				await this.backupLocal(JSON.stringify(this.toSettingsSyncContent(content)));
 				await this.updateLocalFileContent(content, fileContent);
 				this.logService.info('Settings: Updated local settings');
 			}
@@ -269,7 +300,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 				const ignoredSettings = await this.getIgnoredSettings(content);
 				content = updateIgnoredSettings(content, remoteSettingsSyncContent ? remoteSettingsSyncContent.settings : '{}', ignoredSettings, formatUtils);
 				this.logService.trace('Settings: Updating remote settings...');
-				remoteUserData = await this.updateRemoteUserData(JSON.stringify(<ISettingsSyncContent>{ settings: content }), forcePush ? null : remoteUserData.ref);
+				remoteUserData = await this.updateRemoteUserData(JSON.stringify(this.toSettingsSyncContent(content)), forcePush ? null : remoteUserData.ref);
 				this.logService.info('Settings: Updated remote settings');
 			}
 
@@ -352,6 +383,10 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 			this.logService.error(e);
 		}
 		return null;
+	}
+
+	private toSettingsSyncContent(settings: string): ISettingsSyncContent {
+		return { settings };
 	}
 
 	private _defaultIgnoredSettings: Promise<string[]> | undefined = undefined;
