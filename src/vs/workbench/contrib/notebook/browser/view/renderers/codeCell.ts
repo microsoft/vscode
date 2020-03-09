@@ -121,9 +121,9 @@ export class CodeCell extends Disposable {
 
 					if (this.viewCell.outputs.length) {
 						let outputHeight = this.viewCell.getOutputTotalHeight();
-						notebookEditor.layoutNotebookCell(this.viewCell, viewCell.editorHeight + 32 + outputHeight);
+						notebookEditor.layoutNotebookCell(this.viewCell, viewCell.editorHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING + 16 /** padding between input and output */ + outputHeight);
 					} else {
-						notebookEditor.layoutNotebookCell(this.viewCell, viewCell.editorHeight + 16);
+						notebookEditor.layoutNotebookCell(this.viewCell, viewCell.editorHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING);
 					}
 
 				}
