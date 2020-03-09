@@ -17,7 +17,7 @@ import { IQuickOpenStyles } from 'vs/base/parts/quickopen/browser/quickOpenWidge
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { OS } from 'vs/base/common/platform';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { IItemAccessor } from 'vs/base/parts/quickopen/common/quickOpenScorer';
+import { IItemAccessor } from 'vs/base/common/fuzzyScorer';
 import { coalesce } from 'vs/base/common/arrays';
 import { IMatch } from 'vs/base/common/filters';
 

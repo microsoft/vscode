@@ -38,7 +38,7 @@ import { quickInputBackground, quickInputForeground } from 'vs/platform/theme/co
 import { attachQuickOpenStyler } from 'vs/platform/theme/common/styler';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
-import { scoreItem, ScorerCache, compareItemsByScore, prepareQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
+import { scoreItem, ScorerCache, compareItemsByScore, prepareQuery } from 'vs/base/common/fuzzyScorer';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { Schemas } from 'vs/base/common/network';
 import { INotificationService } from 'vs/platform/notification/common/notification';

@@ -311,7 +311,7 @@ export interface IPreparedQuery {
 }
 
 /**
- * Helper function to prepare a search value for scoring in quick open by removing unwanted characters.
+ * Helper function to prepare a search value for scoring by removing unwanted characters.
  */
 export function prepareQuery(original: string): IPreparedQuery {
 	if (!original) {
@@ -364,6 +364,7 @@ function createMatches(offsets: undefined | number[]): IMatch[] {
 	if (!offsets) {
 		return ret;
 	}
+
 	let last: IMatch | undefined;
 	for (const pos of offsets) {
 		if (last && last.end === pos) {
@@ -373,6 +374,7 @@ function createMatches(offsets: undefined | number[]): IMatch[] {
 			ret.push(last);
 		}
 	}
+
 	return ret;
 }
 
@@ -589,7 +591,7 @@ function compareByMatchLength(matchesA?: IMatch[], matchesB?: IMatch[]): number 
 	return matchLengthA === matchLengthB ? 0 : matchLengthB < matchLengthA ? 1 : -1;
 }
 
-export function fallbackCompare<T>(itemA: T, itemB: T, query: IPreparedQuery, accessor: IItemAccessor<T>): number {
+function fallbackCompare<T>(itemA: T, itemB: T, query: IPreparedQuery, accessor: IItemAccessor<T>): number {
 
 	// check for label + description length and prefer shorter
 	const labelA = accessor.getItemLabel(itemA) || '';

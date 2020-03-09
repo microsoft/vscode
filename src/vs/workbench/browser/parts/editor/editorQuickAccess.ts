@@ -14,7 +14,8 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
-import { prepareQuery, IPreparedQuery, ScorerCache, scoreItem, compareItemsByScore, IItemAccessor } from 'vs/base/parts/quickopen/common/quickOpenScorer';
+import { prepareQuery, IPreparedQuery, ScorerCache, scoreItem, compareItemsByScore, IItemAccessor } from 'vs/base/common/fuzzyScorer';
+import { Schemas } from 'vs/base/common/network';
 
 interface IEditorQuickPickItem extends IQuickPickItem, IEditorIdentifier { }
 
@@ -32,7 +33,12 @@ export abstract class BaseEditorQuickAccessProvider implements IQuickAccessProvi
 		}
 
 		getItemPath(entry: IEditorQuickPickItem): string | undefined {
-			return toResource(entry.editor, { supportSideBySide: SideBySideEditor.MASTER })?.fsPath;
+			const resource = toResource(entry.editor, { supportSideBySide: SideBySideEditor.MASTER });
+			if (resource?.scheme === Schemas.file) {
+				return resource?.fsPath;
+			}
+
+			return resource?.path;
 		}
 	};
 
