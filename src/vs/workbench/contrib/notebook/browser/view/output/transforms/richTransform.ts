@@ -88,9 +88,9 @@ class RichRenderer implements IOutputTransformContribution {
 		const textModel = this.modelService.createModel(str, mode, resource, false);
 		editor.setModel(textModel);
 
-		let width = this.notebookEditor.getListDimension()!.width;
-		let fontInfo = this.notebookEditor.getFontInfo();
-		let height = Math.min(textModel.getLineCount(), 16) * (fontInfo?.lineHeight || 18);
+		let width = this.notebookEditor.getLayoutInfo().width;
+		let fontInfo = this.notebookEditor.getLayoutInfo().fontInfo;
+		let height = Math.min(textModel.getLineCount(), 16) * (fontInfo.lineHeight || 18);
 
 		editor.layout({
 			height,
@@ -123,9 +123,9 @@ class RichRenderer implements IOutputTransformContribution {
 		const textModel = this.modelService.createModel(str, mode, resource, false);
 		editor.setModel(textModel);
 
-		let width = this.notebookEditor.getListDimension()!.width;
-		let fontInfo = this.notebookEditor.getFontInfo();
-		let height = Math.min(textModel.getLineCount(), 16) * (fontInfo?.lineHeight || 18);
+		let width = this.notebookEditor.getLayoutInfo().width;
+		let fontInfo = this.notebookEditor.getLayoutInfo().fontInfo;
+		let height = Math.min(textModel.getLineCount(), 16) * (fontInfo.lineHeight || 18);
 
 		editor.layout({
 			height,

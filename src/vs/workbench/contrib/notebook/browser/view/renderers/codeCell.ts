@@ -32,15 +32,15 @@ export class CodeCell extends Disposable {
 		super();
 
 		let width: number;
-		const listDimension = notebookEditor.getListDimension();
-		if (listDimension) {
-			width = listDimension.width - CELL_MARGIN * 2;
-		} else {
-			width = templateData.container.clientWidth - 24 /** for scrollbar and margin right */;
-		}
+		const listDimension = notebookEditor.getLayoutInfo();
+		width = listDimension.width - CELL_MARGIN * 2;
+		// if (listDimension) {
+		// } else {
+		// 	width = templateData.container.clientWidth - 24 /** for scrollbar and margin right */;
+		// }
 
 		const lineNum = viewCell.lineCount;
-		const lineHeight = notebookEditor.getFontInfo()?.lineHeight ?? 18;
+		const lineHeight = notebookEditor.getLayoutInfo().fontInfo.lineHeight;
 		const totalHeight = lineNum * lineHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING;
 		templateData.editor?.layout(
 			{
@@ -62,12 +62,12 @@ export class CodeCell extends Disposable {
 
 				let realContentHeight = templateData.editor?.getContentHeight();
 				let width: number;
-				const listDimension = notebookEditor.getListDimension();
-				if (listDimension) {
-					width = listDimension.width - CELL_MARGIN * 2;
-				} else {
-					width = templateData.container.clientWidth - 24 /** for scrollbar and margin right */;
-				}
+				const listDimension = notebookEditor.getLayoutInfo();
+				width = listDimension.width - CELL_MARGIN * 2;
+				// if (listDimension) {
+				// } else {
+				// 	width = templateData.container.clientWidth - 24 /** for scrollbar and margin right */;
+				// }
 
 				if (realContentHeight !== undefined && realContentHeight !== totalHeight) {
 					templateData.editor?.layout(
@@ -268,7 +268,7 @@ export class CodeCell extends Disposable {
 
 		if (hasDynamicHeight) {
 			let clientHeight = outputItemDiv.clientHeight;
-			let listDimension = this.notebookEditor.getListDimension();
+			let listDimension = this.notebookEditor.getLayoutInfo();
 			let dimension = listDimension ? {
 				width: listDimension.width - CELL_MARGIN * 2,
 				height: clientHeight

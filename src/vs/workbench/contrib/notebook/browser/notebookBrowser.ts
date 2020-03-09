@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -15,6 +14,12 @@ import { NotebookViewModel, IModelDecorationsChangeAccessor } from 'vs/workbench
 import { FindMatch } from 'vs/editor/common/model';
 
 export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('notebookFindWidgetFocused', false);
+
+export interface NotebookLayoutInfo {
+	width: number;
+	height: number;
+	fontInfo: BareFontInfo;
+}
 
 export interface INotebookEditor {
 	viewType: string | undefined;
@@ -29,8 +34,7 @@ export interface INotebookEditor {
 	createInset(cell: CellViewModel, output: IOutput, shadowContent: string, offset: number): void;
 	removeInset(output: IOutput): void;
 	triggerScroll(event: IMouseWheelEvent): void;
-	getFontInfo(): BareFontInfo | undefined;
-	getListDimension(): DOM.Dimension | null;
+	getLayoutInfo(): NotebookLayoutInfo;
 	getOutputRenderer(): OutputRenderer;
 
 	/**

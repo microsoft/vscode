@@ -21,7 +21,7 @@ import { contrastBorder, editorBackground, focusBorder, foreground, textBlockQuo
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions, IEditorMemento, ICompositeCodeEditor, IEditorCloseEvent } from 'vs/workbench/common/editor';
-import { INotebookEditor, CellFindMatch } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor, CellFindMatch, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorInput, NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
@@ -587,12 +587,19 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 	//#region MISC
 
+	getLayoutInfo(): NotebookLayoutInfo {
+		if (!this.list) {
+			throw new Error('Editor is not initalized successfully');
+		}
+
+		return {
+			width: this.dimension!.width,
+			height: this.dimension!.height,
+			fontInfo: this.fontInfo!
+		};
+	}
 	getFontInfo(): BareFontInfo | undefined {
 		return this.fontInfo;
-	}
-
-	getListDimension(): DOM.Dimension | null {
-		return this.dimension;
 	}
 
 	triggerScroll(event: IMouseWheelEvent) {

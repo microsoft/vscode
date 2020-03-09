@@ -39,15 +39,15 @@ export class StatefullMarkdownCell extends Disposable {
 			if (viewCell.isEditing) {
 				// switch to editing mode
 				let width: number;
-				const listDimension = notebookEditor.getListDimension();
-				if (listDimension) {
-					width = listDimension.width - CELL_MARGIN * 2;
-				} else {
-					width = this.cellContainer.clientWidth - 24 /** for scrollbar and margin right */;
-				}
+				const listDimension = notebookEditor.getLayoutInfo();
+				width = listDimension.width - CELL_MARGIN * 2;
+				// if (listDimension) {
+				// } else {
+				// 	width = this.cellContainer.clientWidth - 24 /** for scrollbar and margin right */;
+				// }
 
 				const lineNum = viewCell.lineCount;
-				const lineHeight = notebookEditor.getFontInfo()?.lineHeight ?? 18;
+				const lineHeight = notebookEditor.getLayoutInfo().fontInfo.lineHeight;
 				const totalHeight = Math.max(lineNum, 1) * lineHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING;
 
 				if (this.editor) {

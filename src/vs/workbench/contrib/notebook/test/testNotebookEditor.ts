@@ -12,11 +12,10 @@ import { NotebookViewModel, IModelDecorationsChangeAccessor } from 'vs/workbench
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
 import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
-import { INotebookEditor, CellFindMatch } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor, CellFindMatch, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
-import { Dimension } from 'vs/base/browser/dom';
 
 export class TestCell implements ICell {
 	uri: URI;
@@ -98,6 +97,9 @@ export class TestNotebookEditor implements INotebookEditor {
 	) {
 
 	}
+	getLayoutInfo(): NotebookLayoutInfo {
+		throw new Error('Method not implemented.');
+	}
 	revealLineInCenterIfOutsideViewport(cell: CellViewModel, line: number): void {
 		throw new Error('Method not implemented.');
 	}
@@ -161,11 +163,6 @@ export class TestNotebookEditor implements INotebookEditor {
 			fontFamily: 'Monaco',
 		}, 1, true);
 	}
-	getListDimension(): Dimension | null {
-		// throw new Error('Method not implemented.');
-		return new Dimension(800, 600);
-	}
-
 	getOutputRenderer(): OutputRenderer {
 		throw new Error('Method not implemented.');
 	}
