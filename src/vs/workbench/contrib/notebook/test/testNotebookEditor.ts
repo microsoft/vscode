@@ -115,9 +115,6 @@ export class TestNotebookEditor implements INotebookEditor {
 	hideFind(): void {
 		throw new Error('Method not implemented.');
 	}
-	focusNext(nextMatch: CellFindMatch, matchIndex: number): void {
-		throw new Error('Method not implemented.');
-	}
 	revealInView(cell: CellViewModel, offset?: number | undefined): void {
 		throw new Error('Method not implemented.');
 	}

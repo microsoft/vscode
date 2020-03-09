@@ -476,12 +476,6 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	//#endregion
 
 	//#region Find Delegate
-	focusNext(match: CellFindMatch, matchIndex: number) {
-		let cell = match.cell;
-		let index = this.notebookViewModel!.viewCells.indexOf(cell);
-
-		this.list?.revealInView(index);
-	}
 
 	public showFind() {
 		this.findWidget.reveal();

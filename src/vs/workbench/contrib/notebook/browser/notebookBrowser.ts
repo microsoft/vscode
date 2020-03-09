@@ -24,6 +24,9 @@ export interface NotebookLayoutInfo {
 export interface INotebookEditor {
 	viewType: string | undefined;
 	viewModel: NotebookViewModel | undefined;
+	focus(): void;
+	getLayoutInfo(): NotebookLayoutInfo;
+	getOutputRenderer(): OutputRenderer;
 	insertEmptyNotebookCell(cell: CellViewModel, type: CellKind, direction: 'above' | 'below'): Promise<void>;
 	deleteNotebookCell(cell: CellViewModel): void;
 	editNotebookCell(cell: CellViewModel): void;
@@ -34,8 +37,6 @@ export interface INotebookEditor {
 	createInset(cell: CellViewModel, output: IOutput, shadowContent: string, offset: number): void;
 	removeInset(output: IOutput): void;
 	triggerScroll(event: IMouseWheelEvent): void;
-	getLayoutInfo(): NotebookLayoutInfo;
-	getOutputRenderer(): OutputRenderer;
 
 	/**
 	 * Reveal cell into viewport.
@@ -72,10 +73,8 @@ export interface INotebookEditor {
 	 * The notebook is virtualized and this method should be called to create/delete editor decorations safely.
 	 */
 	changeDecorations(callback: (changeAccessor: IModelDecorationsChangeAccessor) => any): any;
-	focus(): void;
 	showFind(): void;
 	hideFind(): void;
-	focusNext(nextMatch: CellFindMatch, matchIndex: number): void;
 }
 
 export interface CellRenderTemplate {
