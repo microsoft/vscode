@@ -360,7 +360,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		if (e.updateHistory) {
 			this._delayedUpdateHistory();
 		}
-		if (e.loop || e.currentMatch) {
+		if (e.loop) {
 			this._updateButtons();
 		}
 	}
