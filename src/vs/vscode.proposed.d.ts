@@ -76,9 +76,9 @@ declare module 'vscode' {
 		export const onDidChangeAuthenticationProviders: Event<AuthenticationProvidersChangeEvent>;
 
 		/**
-		 * Returns whether a provider with providerId is currently registered.
+		 * An array of the ids of authentication providers that are currently registered.
 		 */
-		export function hasProvider(providerId: string): boolean;
+		export const providerIds: string[];
 
 		/**
 		 * Get existing authentication sessions. Rejects if a provider with providerId is not

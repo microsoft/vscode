@@ -188,8 +188,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get onDidChangeAuthenticationProviders(): Event<vscode.AuthenticationProvidersChangeEvent> {
 				return extHostAuthentication.onDidChangeAuthenticationProviders;
 			},
-			hasProvider(providerId: string): boolean {
-				return extHostAuthentication.hasProvider(providerId);
+			get providerIds(): string[] {
+				return extHostAuthentication.providerIds;
 			},
 			getSessions(providerId: string, scopes: string[]): Thenable<readonly vscode.AuthenticationSession[]> {
 				return extHostAuthentication.getSessions(extension, providerId, scopes);
