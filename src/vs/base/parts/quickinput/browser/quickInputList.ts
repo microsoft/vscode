@@ -486,6 +486,7 @@ export class QuickInputList {
 
 	filter(query: string) {
 		if (!(this.sortByLabel || this.matchOnLabel || this.matchOnDescription || this.matchOnDetail)) {
+			this.list.layout();
 			return;
 		}
 		query = query.trim();
