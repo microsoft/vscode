@@ -66,6 +66,6 @@ export interface NotebookFindDelegate {
 	startFind(value: string): CellFindMatch[];
 	stopFind(keepSelection?: boolean): void;
 	focus(): void;
-	focusNext(nextMatch: CellFindMatch): void;
+	focusNext(nextMatch: CellFindMatch, matchIndex: number): void;
 }
 

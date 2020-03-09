@@ -261,7 +261,7 @@ export class FindDecorations implements IDisposable {
 		return result;
 	}
 
-	private static readonly _CURRENT_FIND_MATCH_DECORATION = ModelDecorationOptions.register({
+	public static readonly _CURRENT_FIND_MATCH_DECORATION = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		zIndex: 13,
 		className: 'currentFindMatch',

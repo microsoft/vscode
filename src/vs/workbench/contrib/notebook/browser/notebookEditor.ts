@@ -469,13 +469,13 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 			}
 		});
 
-		return matches;
+		return matches.filter(match => match.matches.length > 0);
 	}
 
 	stopFind(keepSelection?: boolean | undefined): void {
 	}
 
-	focusNext(match: CellFindMatch) {
+	focusNext(match: CellFindMatch, matchIndex: number) {
 		let cell = match.cell;
 		let index = this.notebookViewModel!.viewCells.indexOf(cell);
 
