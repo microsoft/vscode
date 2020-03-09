@@ -83,6 +83,7 @@ suite('QuickAccess', () => {
 		}
 	}
 
+	const defaultProviderDescriptor = { ctor: TestProvider1, prefix: '', helpEntries: [] };
 	const providerDescriptor1 = { ctor: TestProvider1, prefix: 'test', helpEntries: [] };
 	const providerDescriptor2 = { ctor: TestProvider2, prefix: 'test something', helpEntries: [] };
 	const providerDescriptor3 = { ctor: TestProvider3, prefix: 'default', helpEntries: [] };
@@ -95,6 +96,8 @@ suite('QuickAccess', () => {
 
 	test('registry', () => {
 		const registry = (Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess));
+		registry.defaultProvider = defaultProviderDescriptor;
+
 		const initialSize = registry.getQuickAccessProviders().length;
 
 		const disposable = registry.registerQuickAccessProvider(providerDescriptor1);

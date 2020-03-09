@@ -6,17 +6,15 @@
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
-import { IQuickInputService, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IQuickAccessProvider, IQuickAccessRegistry, Extensions as QuickInputExtensions } from 'vs/platform/quickinput/common/quickAccess';
-import { CancellationToken } from 'vs/base/common/cancellation';
 
 const inQuickOpenKey = 'inQuickOpen';
 export const InQuickOpenContextKey = new RawContextKey<boolean>(inQuickOpenKey, false);
@@ -167,8 +165,6 @@ export class LegacyQuickInputQuickOpenController extends Disposable {
 		super();
 
 		this.registerListeners();
-
-		setTimeout(() => this.quickInputService.quickAccess.show('?'), 0);
 	}
 
 	private registerListeners(): void {
@@ -207,30 +203,3 @@ export class LegacyQuickInputQuickOpenController extends Disposable {
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(LegacyQuickInputQuickOpenController, LifecyclePhase.Ready);
-
-class SampleQuickAccessProvider implements IQuickAccessProvider {
-	provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable {
-		picker.items = [
-			{ label: 'Hello World' },
-			{ label: 'Lorem Ipsum' },
-			{ label: 'Something Else' }
-		];
-
-		return Disposable.None;
-	}
-}
-
-const quickAccessRegistry = Registry.as<IQuickAccessRegistry>(QuickInputExtensions.Quickaccess);
-[''/*, '>', '@', ':', 'edt', 'edt active', 'edt mru', 'view'*/].forEach(prefix => {
-	const provider = {
-		ctor: SampleQuickAccessProvider,
-		prefix,
-		helpEntries: [{ description: `Sample Provider with prefix ${prefix}`, needsEditor: prefix === '@' || prefix === ':' }]
-	};
-
-	if (!prefix) {
-		quickAccessRegistry.defaultProvider = provider;
-	} else {
-		quickAccessRegistry.registerQuickAccessProvider(provider);
-	}
-});

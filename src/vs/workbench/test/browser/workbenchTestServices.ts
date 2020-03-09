@@ -102,12 +102,12 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditor } from 'vs/editor/common/editorCommon';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { QuickInputService } from 'vs/workbench/services/quickinput/browser/quickInputService';
+import { IListService } from 'vs/platform/list/browser/listService';
 
 export import TestTextResourcePropertiesService = CommonWorkbenchTestServices.TestTextResourcePropertiesService;
 export import TestContextService = CommonWorkbenchTestServices.TestContextService;
 export import TestStorageService = CommonWorkbenchTestServices.TestStorageService;
 export import TestWorkingCopyService = CommonWorkbenchTestServices.TestWorkingCopyService;
-import { IListService } from 'vs/platform/list/browser/listService';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined);
