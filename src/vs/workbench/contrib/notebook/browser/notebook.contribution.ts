@@ -151,6 +151,10 @@ class CellContentProvider implements ITextModelContentProvider {
 	}
 
 	async provideTextContent(resource: URI): Promise<ITextModel | null> {
+		const existing = this._modelService.getModel(resource);
+		if (existing) {
+			return existing;
+		}
 		const data = parseCellUri(resource);
 		if (!data) {
 			return null;
