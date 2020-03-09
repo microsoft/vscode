@@ -1278,13 +1278,25 @@ declare module 'vscode' {
 		/**
 		 * Undo a set of edits.
 		 *
-		 * This is triggered when a user undoes an edit or when revert is called on a file.
+		 * This is triggered when a user undoes an edit.
 		 *
 		 * @param edit Array of edits. Sorted from most recent to oldest.
 		 *
 		 * @return Thenable signaling that the change has completed.
 		 */
 		undoEdits(edits: readonly EditType[]): Thenable<void>;
+
+		/**
+		 * Revert the file to its last saved state.
+		 *
+		 * @param change Added or applied edits.
+		 *
+		 * @return Thenable signaling that the change has completed.
+		 */
+		revert(change: {
+			readonly undoneEdits: readonly EditType[];
+			readonly appliedEdits: readonly EditType[];
+		}): Thenable<void>;
 
 		/**
 		 * Back up the resource in its current state.
