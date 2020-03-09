@@ -12,7 +12,7 @@ import { NotebookViewModel, IModelDecorationsChangeAccessor } from 'vs/workbench
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
 import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
-import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor, CellFindMatch } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
@@ -97,6 +97,18 @@ export class TestNotebookEditor implements INotebookEditor {
 		public viewType: string
 	) {
 
+	}
+	focus(): void {
+		throw new Error('Method not implemented.');
+	}
+	showFind(): void {
+		throw new Error('Method not implemented.');
+	}
+	hideFind(): void {
+		throw new Error('Method not implemented.');
+	}
+	focusNext(nextMatch: CellFindMatch, matchIndex: number): void {
+		throw new Error('Method not implemented.');
 	}
 	revealInView(cell: CellViewModel, offset?: number | undefined): void {
 		throw new Error('Method not implemented.');

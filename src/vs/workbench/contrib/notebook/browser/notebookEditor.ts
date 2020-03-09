@@ -21,7 +21,7 @@ import { contrastBorder, editorBackground, focusBorder, foreground, textBlockQuo
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions, IEditorMemento, ICompositeCodeEditor, IEditorCloseEvent } from 'vs/workbench/common/editor';
-import { INotebookEditor, NotebookFindDelegate, CellFindMatch } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor, CellFindMatch } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorInput, NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
@@ -121,7 +121,7 @@ export class NotebookCodeEditors implements ICompositeCodeEditor {
 	}
 }
 
-export class NotebookEditor extends BaseEditor implements INotebookEditor, NotebookFindDelegate {
+export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	static readonly ID: string = 'workbench.editor.notebook';
 	private rootElement!: HTMLElement;
 	private body!: HTMLElement;
@@ -460,21 +460,6 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 	//#endregion
 
 	//#region Find Delegate
-	startFind(value: string): CellFindMatch[] {
-		let matches: CellFindMatch[] = [];
-		this.notebookViewModel!.viewCells.forEach(cell => {
-			let cellMatches = cell.startFind(value);
-			if (cellMatches) {
-				matches.push(cellMatches);
-			}
-		});
-
-		return matches.filter(match => match.matches.length > 0);
-	}
-
-	stopFind(keepSelection?: boolean | undefined): void {
-	}
-
 	focusNext(match: CellFindMatch, matchIndex: number) {
 		let cell = match.cell;
 		let index = this.notebookViewModel!.viewCells.indexOf(cell);

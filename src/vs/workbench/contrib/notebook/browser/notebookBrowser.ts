@@ -32,10 +32,34 @@ export interface INotebookEditor {
 	getFontInfo(): BareFontInfo | undefined;
 	getListDimension(): DOM.Dimension | null;
 	getOutputRenderer(): OutputRenderer;
+
+	/**
+	 * Reveal cell into viewport.
+	 * If `offset` is provided, `top(cell) + offset` will be scrolled into view.
+	 */
 	revealInView(cell: CellViewModel, offset?: number): void;
+
+	/**
+	 * Reveal cell into viewport center.
+	 * If `offset` is provided, `top(cell) + offset` will be scrolled into view.
+	 */
 	revealInCenter(cell: CellViewModel, offset?: number): void;
+
+	/**
+	 * Reveal cell into viewport center if cell is currently out of the viewport.
+	 * If `offset` is provided, `top(cell) + offset` will be scrolled into view.
+	 */
 	revealInCenterIfOutsideViewport(cell: CellViewModel, offset?: number): void;
+
+	/**
+	 * Change the decorations on cells.
+	 * The notebook is virtualized and this method should be called to create/delete editor decorations safely.
+	 */
 	changeDecorations(callback: (changeAccessor: IModelDecorationsChangeAccessor) => any): any;
+	focus(): void;
+	showFind(): void;
+	hideFind(): void;
+	focusNext(nextMatch: CellFindMatch, matchIndex: number): void;
 }
 
 export interface CellRenderTemplate {
@@ -59,13 +83,5 @@ export interface IOutputTransformContribution {
 export interface CellFindMatch {
 	cell: CellViewModel;
 	matches: FindMatch[];
-}
-
-
-export interface NotebookFindDelegate {
-	startFind(value: string): CellFindMatch[];
-	stopFind(keepSelection?: boolean): void;
-	focus(): void;
-	focusNext(nextMatch: CellFindMatch, matchIndex: number): void;
 }
 

@@ -6,7 +6,7 @@
 import { SimpleFindWidget } from 'vs/workbench/contrib/codeEditor/browser/find/simpleFindWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, INotebookEditor, CellFindMatch, NotebookFindDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, INotebookEditor, CellFindMatch } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { FindDecorations } from 'vs/editor/contrib/find/findDecorations';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
@@ -22,7 +22,7 @@ export class NotebookFindWidget extends SimpleFindWidget {
 	private _currentMatchDecorations: ICellModelDecorations[] = [];
 
 	constructor(
-		private readonly _notebookEditor: INotebookEditor & NotebookFindDelegate,
+		private readonly _notebookEditor: INotebookEditor,
 		@IContextViewService contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
@@ -33,7 +33,7 @@ export class NotebookFindWidget extends SimpleFindWidget {
 	protected onInputChanged(): boolean {
 		const val = this.inputValue;
 		if (val) {
-			const newMatches = this._notebookEditor.startFind(val).filter(match => match.matches.length > 0);
+			const newMatches = this._notebookEditor.viewModel!.find(val).filter(match => match.matches.length > 0);
 			if (newMatches.length) {
 				this.set(newMatches);
 				return true;
@@ -43,7 +43,6 @@ export class NotebookFindWidget extends SimpleFindWidget {
 			}
 		} else {
 			this.set([]);
-			this._notebookEditor.stopFind(false);
 		}
 		return false;
 	}
@@ -62,15 +61,14 @@ export class NotebookFindWidget extends SimpleFindWidget {
 		const matchIndex = nextIndex.remainder;
 
 		this.setCurrentFindMatchDecoration(cellIndex, matchIndex);
-		this._notebookEditor.revealInView(this._findMatches[cellIndex].cell, 0);
-		// this._notebookEditor.focusNext(this._findMatches[cellIndex], matchIndex);
+		this._notebookEditor.revealInCenter(this._findMatches[cellIndex].cell, 0);
 		return;
 	}
 
 	public hide() {
 		super.hide();
 		this.set([]);
-		this._notebookEditor.stopFind(true);
+		this._notebookEditor.hideFind();
 		this._notebookEditor.focus();
 	}
 
