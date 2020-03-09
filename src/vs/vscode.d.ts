@@ -4975,10 +4975,11 @@ declare module 'vscode' {
 		color: string | ThemeColor | undefined;
 
 		/**
-		 * The identifier of a command to run on click. The command must be
-		 * [known](#commands.getCommands).
+		 * [`Command`](#Command) or identifier of a command to run on click.
+		 *
+		 * The command must be [known](#commands.getCommands).
 		 */
-		command: string | undefined;
+		command: string | Command | undefined;
 
 		/**
 		 * Shows the entry in the status bar.
