@@ -40,6 +40,7 @@ import { NotebookFindWidget } from 'vs/workbench/contrib/notebook/browser/contri
 import { NotebookViewModel, INotebookEditorViewState, IModelDecorationsChangeAccessor } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
+import { NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebook.contribution';
 
 const $ = DOM.$;
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
@@ -293,12 +294,16 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 		await super.setInput(input, options, token);
 		const model = await input.resolve();
 
-		if (this.notebookViewModel !== undefined && this.notebookViewModel.equal(model) && this.webview !== null) {
-			return;
+		if (this.notebookViewModel === undefined || !this.notebookViewModel.equal(model) || this.webview === null) {
+			this.detachModel();
+			await this.attachModel(input, model);
 		}
 
-		this.detachModel();
-		await this.attachModel(input, model);
+		if (options instanceof NotebookEditorOptions) {
+			if (options.cellUri) {
+				this.control?.activate({ resource: options.cellUri });
+			}
+		}
 	}
 
 	clearInput(): void {

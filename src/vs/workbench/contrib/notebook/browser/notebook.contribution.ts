@@ -13,7 +13,7 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { IEditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, IEditorInputFactory, EditorInput } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, IEditorInputFactory, EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { INotebookService, NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
@@ -28,6 +28,8 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { assertType } from 'vs/base/common/types';
 import { parse } from 'vs/base/common/marshalling';
 import { parseCellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ResourceMap } from 'vs/base/common/map';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 
 // Output renderers registration
 
@@ -37,6 +39,7 @@ import 'vs/workbench/contrib/notebook/browser/view/output/transforms/richTransfo
 
 // Actions
 import 'vs/workbench/contrib/notebook/browser/contrib/notebookActions';
+import { basename } from 'vs/base/common/resources';
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	EditorDescriptor.create(
@@ -83,8 +86,23 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 	}
 );
 
+export class NotebookEditorOptions extends EditorOptions {
+
+	readonly cellUri?: URI;
+
+	constructor(options: IEditorOptions & { cellUri?: URI | undefined }) {
+		super();
+		this.overwrite(options);
+		this.cellUri = options.cellUri;
+	}
+
+	with(options: Partial<NotebookEditorOptions>): NotebookEditorOptions {
+		return new NotebookEditorOptions({ ...this, ...options });
+	}
+}
+
 export class NotebookContribution implements IWorkbenchContribution {
-	private _resourceMapping: Map<string, NotebookEditorInput> = new Map<string, NotebookEditorInput>();
+	private _resourceMapping = new ResourceMap<NotebookEditorInput>();
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
@@ -102,32 +120,37 @@ export class NotebookContribution implements IWorkbenchContribution {
 		});
 	}
 
-	private onEditorOpening(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): IOpenEditorOverride | undefined {
-		const resource = editor.resource;
-		let viewType: string | undefined = undefined;
-
-		if (resource) {
-			let notebookProviders = this.notebookService.getContributedNotebookProviders(resource);
-
-			if (notebookProviders.length > 0) {
-				viewType = notebookProviders[0].id;
-			}
+	private onEditorOpening(originalInput: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): IOpenEditorOverride | undefined {
+		let resource = originalInput.resource;
+		if (!resource) {
+			return undefined;
 		}
 
+		const data = parseCellUri(resource);
+		if (data) {
+			// cell-uri -> open (container) notebook
+			const name = basename(data.notebook);
+			const input = this.instantiationService.createInstance(NotebookEditorInput, data.notebook, name, data.viewType);
+			this._resourceMapping.set(resource, input);
+			return { override: this.editorService.openEditor(input, new NotebookEditorOptions({ ...options, forceReload: true, cellUri: resource }), group) };
+		}
+
+		const notebookProviders = this.notebookService.getContributedNotebookProviders(resource);
+		const viewType = !isFalsyOrEmpty(notebookProviders) ? notebookProviders[0].id : undefined;
 		if (viewType === undefined) {
 			return undefined;
 		}
 
-		if (this._resourceMapping.has(resource!.path)) {
-			const input = this._resourceMapping.get(resource!.path);
+		if (this._resourceMapping.has(resource)) {
+			const input = this._resourceMapping.get(resource);
 
 			if (!input!.isDisposed()) {
-				return { override: this.editorService.openEditor(input!, { ...options, ignoreOverrides: true }, group) };
+				return { override: this.editorService.openEditor(input!, new NotebookEditorOptions(options || {}).with({ ignoreOverrides: true }), group) };
 			}
 		}
 
-		const input = this.instantiationService.createInstance(NotebookEditorInput, editor.resource!, editor.getName(), viewType);
-		this._resourceMapping.set(resource!.path, input);
+		const input = this.instantiationService.createInstance(NotebookEditorInput, resource, originalInput.getName(), viewType);
+		this._resourceMapping.set(resource, input);
 
 		return { override: this.editorService.openEditor(input, options, group) };
 	}
