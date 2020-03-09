@@ -24,6 +24,7 @@ import { MatcherWithPriority, Matcher, createMatchers } from 'vs/workbench/servi
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 import { CharCode } from 'vs/base/common/charCode';
 import { StorageScope, IStorageService } from 'vs/platform/storage/common/storage';
+import { ThemeConfiguration } from 'vs/workbench/services/themes/common/themeConfiguration';
 
 let colorRegistry = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution);
 
@@ -310,6 +311,12 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 
 	public defines(colorId: ColorIdentifier): boolean {
 		return this.customColorMap.hasOwnProperty(colorId) || this.colorMap.hasOwnProperty(colorId);
+	}
+
+	public setCustomizations(settings: ThemeConfiguration) {
+		this.setCustomColors(settings.colorCustomizations);
+		this.setCustomTokenColors(settings.tokenColorCustomizations);
+		this.setCustomTokenStyleRules(settings.tokenStylesCustomizations);
 	}
 
 	public setCustomColors(colors: IColorCustomizations) {
