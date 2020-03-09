@@ -170,7 +170,7 @@
 		{
 			"comment": "Reserved keyword",
 			"name": "invalid.deprecated.rust",
-			"match": "\\b(abstract|alignof|become|do|final|macro|offsetof|override|priv|proc|pure|sizeof|typeof|virtual|yield)\\b"
+			"match": "\\b(abstract|become|do|final|macro|override|priv|typeof|unsized|virtual|yield)\\b"
 		},
 		{
 			"include": "#unsafe"
