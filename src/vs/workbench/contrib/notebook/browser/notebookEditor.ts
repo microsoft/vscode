@@ -40,12 +40,26 @@ import { NotebookFindWidget } from 'vs/workbench/contrib/notebook/browser/contri
 import { NotebookViewModel, INotebookEditorViewState, IModelDecorationsChangeAccessor } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
-import { NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebook.contribution';
 
 const $ = DOM.$;
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
 
 export const NOTEBOOK_EDITOR_FOCUSED = new RawContextKey<boolean>('notebookEditorFocused', false);
+
+export class NotebookEditorOptions extends EditorOptions {
+
+	readonly cellOptions?: IResourceEditorInput;
+
+	constructor(options: Partial<NotebookEditorOptions>) {
+		super();
+		this.overwrite(options);
+		this.cellOptions = options.cellOptions;
+	}
+
+	with(options: Partial<NotebookEditorOptions>): NotebookEditorOptions {
+		return new NotebookEditorOptions({ ...this, ...options });
+	}
+}
 
 export class NotebookCodeEditors implements ICompositeCodeEditor {
 
@@ -300,8 +314,8 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor, Noteb
 		}
 
 		if (options instanceof NotebookEditorOptions) {
-			if (options.cellUri) {
-				this.control?.activate({ resource: options.cellUri });
+			if (options.cellOptions) {
+				this.control?.activate(options.cellOptions);
 			}
 		}
 	}

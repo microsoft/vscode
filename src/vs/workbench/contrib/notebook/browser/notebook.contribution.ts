@@ -13,8 +13,8 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { IEditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, IEditorInputFactory, EditorInput, EditorOptions } from 'vs/workbench/common/editor';
-import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
+import { IEditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, IEditorInputFactory, EditorInput } from 'vs/workbench/common/editor';
+import { NotebookEditor, NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { INotebookService, NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -86,21 +86,6 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 	}
 );
 
-export class NotebookEditorOptions extends EditorOptions {
-
-	readonly cellUri?: URI;
-
-	constructor(options: IEditorOptions & { cellUri?: URI | undefined }) {
-		super();
-		this.overwrite(options);
-		this.cellUri = options.cellUri;
-	}
-
-	with(options: Partial<NotebookEditorOptions>): NotebookEditorOptions {
-		return new NotebookEditorOptions({ ...this, ...options });
-	}
-}
-
 export class NotebookContribution implements IWorkbenchContribution {
 	private _resourceMapping = new ResourceMap<NotebookEditorInput>();
 
@@ -132,7 +117,7 @@ export class NotebookContribution implements IWorkbenchContribution {
 			const name = basename(data.notebook);
 			const input = this.instantiationService.createInstance(NotebookEditorInput, data.notebook, name, data.viewType);
 			this._resourceMapping.set(resource, input);
-			return { override: this.editorService.openEditor(input, new NotebookEditorOptions({ ...options, forceReload: true, cellUri: resource }), group) };
+			return { override: this.editorService.openEditor(input, new NotebookEditorOptions({ ...options, forceReload: true, cellOptions: { resource, options } }), group) };
 		}
 
 		const notebookProviders = this.notebookService.getContributedNotebookProviders(resource);
