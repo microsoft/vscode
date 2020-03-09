@@ -17,13 +17,13 @@ import { Configuration } from 'vs/workbench/services/configuration/common/config
 import { FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId, IConfigurationCache, machineSettingsSchemaId, LOCAL_MACHINE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions, allSettings, windowSettings, resourceSettings, applicationSettings, machineSettings, machineOverridableSettings } from 'vs/platform/configuration/common/configurationRegistry';
-import { IWorkspaceIdentifier, isWorkspaceIdentifier, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, isSingleFolderWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, IEmptyWorkspaceInitializationPayload, useSlashForPath, getStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, isWorkspaceIdentifier, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, isSingleFolderWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, IEmptyWorkspaceInitializationPayload, useSlashForPath, getStoredWorkspaceFolder, isUntitledWorkspace } from 'vs/platform/workspaces/common/workspaces';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ConfigurationEditingService, EditableConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditingService';
 import { WorkspaceConfiguration, FolderConfiguration, RemoteUserConfiguration, UserConfiguration } from 'vs/workbench/services/configuration/browser/configuration';
 import { JSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditingService';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { isEqual, dirname } from 'vs/base/common/resources';
+import { isEqual, dirname, isEqualOrParent } from 'vs/base/common/resources';
 import { mark } from 'vs/base/common/performance';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -45,8 +45,6 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 	private cachedFolderConfigs: ResourceMap<FolderConfiguration>;
 	private workspaceEditingQueue: Queue<void>;
 
-	private readonly fileService: IFileService;
-
 	protected readonly _onDidChangeConfiguration: Emitter<IConfigurationChangeEvent> = this._register(new Emitter<IConfigurationChangeEvent>());
 	public readonly onDidChangeConfiguration: Event<IConfigurationChangeEvent> = this._onDidChangeConfiguration.event;
 
@@ -67,8 +65,8 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 
 	constructor(
 		{ remoteAuthority, configurationCache }: { remoteAuthority?: string, configurationCache: IConfigurationCache },
-		environmentService: IWorkbenchEnvironmentService,
-		fileService: IFileService,
+		private readonly environmentService: IWorkbenchEnvironmentService,
+		private readonly fileService: IFileService,
 		remoteAgentService: IRemoteAgentService
 	) {
 		super();
@@ -79,7 +77,7 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 		this.fileService = fileService;
 		this._configuration = new Configuration(this.defaultConfiguration, new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ResourceMap(), new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), this.workspace);
 		this.cachedFolderConfigs = new ResourceMap<FolderConfiguration>();
-		this.localUserConfiguration = this._register(new UserConfiguration(environmentService.settingsResource, remoteAuthority ? LOCAL_MACHINE_SCOPES : undefined, fileService));
+		this.localUserConfiguration = this._register(new UserConfiguration(this.environmentService.settingsResource, remoteAuthority ? LOCAL_MACHINE_SCOPES : undefined, fileService));
 		this._register(this.localUserConfiguration.onDidChangeConfiguration(userConfiguration => this.onLocalUserConfigurationChanged(userConfiguration)));
 		if (remoteAuthority) {
 			this.remoteUserConfiguration = this._register(new RemoteUserConfiguration(remoteAuthority, configurationCache, fileService, remoteAgentService));
@@ -190,15 +188,27 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 			currentWorkspaceFolders = toWorkspaceFolders(newStoredFolders, workspaceConfigPath);
 			const currentWorkspaceFolderUris = currentWorkspaceFolders.map(folder => folder.uri);
 
-			const storedFoldersToAdd: IStoredWorkspaceFolder[] = [];
+			foldersToAdd = foldersToAdd.filter(folder => !this.contains(currentWorkspaceFolderUris, folder.uri));
 
-			foldersToAdd.forEach(folderToAdd => {
-				const folderURI = folderToAdd.uri;
-				if (this.contains(currentWorkspaceFolderUris, folderURI)) {
-					return; // already existing
+			let baseFolderURI: URI | undefined;
+			if (!isUntitledWorkspace(workspaceConfigPath, this.environmentService)) {
+				baseFolderURI = currentWorkspaceFolderUris.concat(foldersToAdd.map(folder => folder.uri))
+					.map(dirname)
+					.filter(folderURI => isEqualOrParent(workspaceConfigFolder, folderURI))
+					.reduce((result: URI | undefined, folderURI) => {
+						if (!result) {
+							return folderURI;
+						}
+						return folderURI.path.length < result.path.length ? folderURI : result;
+					}, undefined);
+				if (baseFolderURI) {
+					// Rewrite absolute paths to relative paths if the workspace config folder
+					// is equal or a child of a workspace parent folder. Otherwise keep using absolute paths.
+					newStoredFolders = currentWorkspaceFolders.map(wsFolder => getStoredWorkspaceFolder(wsFolder.uri, wsFolder.name, workspaceConfigFolder, baseFolderURI, slashForPath));
 				}
-				storedFoldersToAdd.push(getStoredWorkspaceFolder(folderURI, folderToAdd.name, workspaceConfigFolder, slashForPath));
-			});
+			}
+
+			const storedFoldersToAdd = foldersToAdd.map(folderToAdd => getStoredWorkspaceFolder(folderToAdd.uri, folderToAdd.name, workspaceConfigFolder, baseFolderURI, slashForPath));
 
 			// Apply to array of newStoredFolders
 			if (storedFoldersToAdd.length > 0) {

@@ -325,8 +325,8 @@ suite('WorkspacesMainService', () => {
 		ws = (JSON.parse(newContent) as IStoredWorkspace);
 		assert.equal(ws.folders.length, 3);
 		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[0]).path, folder1);
-		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[1]).path, tmpInsideDir);
-		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[2]).path, path.join(tmpInsideDir, 'somefolder'));
+		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[1]).path, path.join('..', 'inside'));
+		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[2]).path, path.join('..', 'inside', 'somefolder'));
 
 		origConfigPath = workspaceConfigPath;
 		workspaceConfigPath = URI.parse('foo://foo/bar/myworkspace2.code-workspace');
