@@ -15,6 +15,7 @@ import { Color, RGBA } from 'vs/base/common/color';
 import { SplitView, IView } from './splitview';
 import { isFirefox } from 'vs/base/browser/browser';
 import { DataTransfers } from 'vs/base/browser/dnd';
+import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { localize } from 'vs/nls';
 
 export interface IPaneOptions {
@@ -49,6 +50,7 @@ export abstract class Pane extends Disposable implements IView {
 	private body!: HTMLElement;
 
 	protected _expanded: boolean;
+	protected _preventCollapse?: boolean;
 
 	private expandedSize: number | undefined = undefined;
 	private _headerVisible = true;
@@ -184,20 +186,23 @@ export abstract class Pane extends Disposable implements IView {
 
 		this.updateHeader();
 
-		const onHeaderKeyDown = Event.chain(domEvent(this.header, 'keydown'))
-			.map(e => new StandardKeyboardEvent(e));
 
-		this._register(onHeaderKeyDown.filter(e => e.keyCode === KeyCode.Enter || e.keyCode === KeyCode.Space)
-			.event(() => this.setExpanded(!this.isExpanded()), null));
+		if (!this._preventCollapse) {
+			const onHeaderKeyDown = Event.chain(domEvent(this.header, 'keydown'))
+				.map(e => new StandardKeyboardEvent(e));
 
-		this._register(onHeaderKeyDown.filter(e => e.keyCode === KeyCode.LeftArrow)
-			.event(() => this.setExpanded(false), null));
+			this._register(onHeaderKeyDown.filter(e => e.keyCode === KeyCode.Enter || e.keyCode === KeyCode.Space)
+				.event(() => this.setExpanded(!this.isExpanded()), null));
 
-		this._register(onHeaderKeyDown.filter(e => e.keyCode === KeyCode.RightArrow)
-			.event(() => this.setExpanded(true), null));
+			this._register(onHeaderKeyDown.filter(e => e.keyCode === KeyCode.LeftArrow)
+				.event(() => this.setExpanded(false), null));
 
-		this._register(domEvent(this.header, 'click')
-			(() => this.setExpanded(!this.isExpanded()), null));
+			this._register(onHeaderKeyDown.filter(e => e.keyCode === KeyCode.RightArrow)
+				.event(() => this.setExpanded(true), null));
+
+			this._register(domEvent(this.header, 'click')
+				(() => this.setExpanded(!this.isExpanded()), null));
+		}
 
 		this.body = append(this.element, $('.pane-body'));
 		this.renderBody(this.body);
@@ -372,6 +377,7 @@ export class DefaultPaneDndController implements IPaneDndController {
 
 export interface IPaneViewOptions {
 	dnd?: IPaneDndController;
+	orientation?: Orientation;
 }
 
 interface IPaneItem {
@@ -387,6 +393,7 @@ export class PaneView extends Disposable {
 	private paneItems: IPaneItem[] = [];
 	private width: number = 0;
 	private splitview: SplitView;
+	private orientation: Orientation;
 	private animationTimer: number | undefined = undefined;
 
 	private _onDidDrop = this._register(new Emitter<{ from: Pane, to: Pane }>());
@@ -398,8 +405,9 @@ export class PaneView extends Disposable {
 		super();
 
 		this.dnd = options.dnd;
+		this.orientation = options.orientation ?? Orientation.VERTICAL;
 		this.el = append(container, $('.monaco-pane-view'));
-		this.splitview = this._register(new SplitView(this.el));
+		this.splitview = this._register(new SplitView(this.el, { orientation: this.orientation }));
 		this.onDidSashChange = this.splitview.onDidSashChange;
 	}
 
@@ -472,7 +480,7 @@ export class PaneView extends Disposable {
 			paneItem.pane.width = width;
 		}
 
-		this.splitview.layout(height);
+		this.splitview.layout(this.orientation === Orientation.HORIZONTAL ? width : height);
 	}
 
 	private setupAnimation(): void {
