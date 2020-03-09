@@ -111,7 +111,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 	) {
-		super({ ...(options as IViewPaneOptions), id: Constants.MARKERS_VIEW_ID, ariaHeaderLabel: Messages.MARKERS_PANEL_TITLE_PROBLEMS }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		this.smallLayoutContextKey = Constants.MarkersViewSmallLayoutContextKey.bindTo(this.contextKeyService);
 		this.panelState = new Memento(Constants.MARKERS_VIEW_STORAGE_ID, storageService).getMemento(StorageScope.WORKSPACE);
 		this.markersViewModel = this._register(instantiationService.createInstance(MarkersViewModel, this.panelState['multiline']));

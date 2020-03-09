@@ -53,7 +53,6 @@ export interface IPaneColors extends IColorMapping {
 
 export interface IViewPaneOptions extends IPaneOptions {
 	id: string;
-	title: string;
 	showActionsAlways?: boolean;
 	titleMenuId?: MenuId;
 }
