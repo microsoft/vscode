@@ -573,7 +573,8 @@ export interface ITreeItem {
 }
 
 export interface ITreeViewDataProvider {
-
+	readonly isTreeEmpty?: boolean;
+	onDidChangeEmpty?: Event<void>;
 	getChildren(element?: ITreeItem): Promise<ITreeItem[]>;
 
 }
