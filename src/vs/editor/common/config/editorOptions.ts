@@ -1034,6 +1034,11 @@ export interface IEditorCommentsOptions {
 	 * Defaults to true.
 	 */
 	insertSpace?: boolean;
+	/**
+	 * Includes commenting empty lines when inserting line comments.
+	 * Defaults to false.
+	 */
+	includeEmptyLines?: boolean;
 }
 
 export type EditorCommentsOptions = Readonly<Required<IEditorCommentsOptions>>;
@@ -1043,6 +1048,7 @@ class EditorComments extends BaseEditorOption<EditorOption.comments, EditorComme
 	constructor() {
 		const defaults: EditorCommentsOptions = {
 			insertSpace: true,
+			includeEmptyLines: false,
 		};
 		super(
 			EditorOption.comments, 'comments', defaults,
@@ -1051,6 +1057,11 @@ class EditorComments extends BaseEditorOption<EditorOption.comments, EditorComme
 					type: 'boolean',
 					default: defaults.insertSpace,
 					description: nls.localize('comments.insertSpace', "Controls whether a space character is inserted when commenting.")
+				},
+				'editor.comments.includeEmptyLines': {
+					type: 'boolean',
+					default: defaults.includeEmptyLines,
+					description: nls.localize('comments.includeEmptyLines', 'Controls if empty lines should be included with toggle, add or remove actions for line comments.')
 				},
 			}
 		);
@@ -1063,6 +1074,7 @@ class EditorComments extends BaseEditorOption<EditorOption.comments, EditorComme
 		const input = _input as IEditorCommentsOptions;
 		return {
 			insertSpace: EditorBooleanOption.boolean(input.insertSpace, this.defaultValue.insertSpace),
+			includeEmptyLines: EditorBooleanOption.boolean(input.includeEmptyLines, this.defaultValue.includeEmptyLines),
 		};
 	}
 }
