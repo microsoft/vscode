@@ -219,14 +219,6 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return this.onColorThemeChange.event;
 	}
 
-	public get onDidFileIconThemeChange(): Event<IWorkbenchFileIconTheme> {
-		return this.onFileIconThemeChange.event;
-	}
-
-	public get onDidProductIconThemeChange(): Event<IWorkbenchProductIconTheme> {
-		return this.onProductIconThemeChange.event;
-	}
-
 	private initialize(): Promise<[IWorkbenchColorTheme | null, IWorkbenchFileIconTheme | null, IWorkbenchProductIconTheme | null]> {
 		const extDevLocs = this.environmentService.extensionDevelopmentLocationURI;
 		const extDevLoc = extDevLocs && extDevLocs.length === 1 ? extDevLocs[0] : undefined; // in dev mode, switch to a theme provided by the extension under dev.
@@ -496,6 +488,11 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return this.currentFileIconTheme;
 	}
 
+	public get onDidFileIconThemeChange(): Event<IWorkbenchFileIconTheme> {
+		return this.onFileIconThemeChange.event;
+	}
+
+
 	public async setFileIconTheme(iconTheme: string | undefined, settingsTarget: ConfigurationTarget | undefined | 'auto'): Promise<IWorkbenchFileIconTheme> {
 		iconTheme = iconTheme || '';
 		if (iconTheme === this.currentFileIconTheme.id && this.currentFileIconTheme.isLoaded) {
@@ -535,9 +532,9 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	}
 
 	private applyAndSetFileIconTheme(iconThemeData: FileIconThemeData): void {
-		_applyRules(iconThemeData.styleSheetContent!, fileIconThemeRulesClassName);
-
 		this.currentFileIconTheme = iconThemeData;
+
+		_applyRules(iconThemeData.styleSheetContent!, fileIconThemeRulesClassName);
 
 		if (iconThemeData.id) {
 			addClasses(this.container, fileIconsEnabledClass);
@@ -560,6 +557,10 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 	public getProductIconTheme() {
 		return this.currentProductIconTheme;
+	}
+
+	public get onDidProductIconThemeChange(): Event<IWorkbenchProductIconTheme> {
+		return this.onProductIconThemeChange.event;
 	}
 
 	public async setProductIconTheme(iconTheme: string | undefined, settingsTarget: ConfigurationTarget | undefined | 'auto'): Promise<IWorkbenchProductIconTheme> {
@@ -601,9 +602,10 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	}
 
 	private applyAndSetProductIconTheme(iconThemeData: ProductIconThemeData): void {
-		_applyRules(this.currentProductIconTheme.styleSheetContent!, productIconThemeRulesClassName);
 
 		this.currentProductIconTheme = iconThemeData;
+
+		_applyRules(iconThemeData.styleSheetContent!, productIconThemeRulesClassName);
 
 		this.productIconThemeWatcher.update(iconThemeData);
 
