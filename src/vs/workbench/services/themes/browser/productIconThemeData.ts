@@ -203,34 +203,3 @@ function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, i
 	result.content = cssRules.join('\n');
 	return result;
 }
-
-/*
-@font-face {
-	font-family: "codicon";
-	src: url("./codicon.ttf?b5dd8f5aa953889dc1f4c9fa9b44d3dd") format("truetype");
-}
-
-.codicon[class*='codicon-'] {
-	font: normal normal normal 16px/1 codicon;
-	display: inline-block;
-	text-decoration: none;
-	text-rendering: auto;
-	text-align: center;
-	-webkit-font-smoothing: antialiased;
-	-moz-osx-font-smoothing: grayscale;
-	user-select: none;
-	-webkit-user-select: none;
-	-ms-user-select: none;
-}
-
-
-.codicon-add:before { content: "\ea60" }
-.codicon-plus:before { content: "\ea60" }
-.codicon-gist-new:before { content: "\ea60" }
-.codicon-repo-create:before { content: "\ea60" }
-.codicon-lightbulb:before { content: "\ea61" }
-.codicon-light-bulb:before { content: "\ea61" }
-.codicon-repo:before { content: "\ea62" }
-.codicon-repo-delete:before { content: "\ea62" }
-.codicon-gist-fork:before { content: "\ea63" }
-*/

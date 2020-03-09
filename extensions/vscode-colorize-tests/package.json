@@ -60,7 +60,8 @@
 			{
 				"id": "Test Product Icons",
 				"label": "The Test Product Icon Theme",
-				"path": "./producticons/test-product-icon-theme.json"
+				"path": "./producticons/test-product-icon-theme.json",
+				"_watch": true
 			}
 		]
 	}

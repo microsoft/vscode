@@ -27,10 +27,17 @@
 			"fontCharacter": "\\e063"
 		},
 		"settings-gear": {
-			"fontCharacter": "\\e035"
+			"fontCharacter": "\\e030"
 		},
-		"settings-files": {
-			"fontCharacter": "\\e006;"
+		"files": {
+			"fontCharacter": "\\e056"
+		},
+		"extensions": {
+			"fontCharacter": "\\e015"
+		},
+		"debug-alt-2": {
+			"fontCharacter": "\\e072"
 		}
+
 	}
 }

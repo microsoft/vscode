@@ -7,6 +7,8 @@ import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
+
 
 const schemaId = 'vscode://schemas/product-icon-theme';
 const schema: IJSONSchema = {
@@ -67,20 +69,8 @@ const schema: IJSONSchema = {
 		iconDefinitions: {
 			type: 'object',
 			description: nls.localize('schema.iconDefinitions', 'Assocation of icon name to a font character.'),
-			additionalProperties: {
-				type: 'object',
-				description: nls.localize('schema.iconDefinition', 'An icon definition. The object key is the icon name.'),
-				properties: {
-					fontCharacter: {
-						type: 'string',
-						description: nls.localize('schema.fontCharacter', 'The character in the font to use.')
-					},
-					fontId: {
-						type: 'string',
-						description: nls.localize('schema.fontId', 'When using a font: The id of the font. If not set, defaults to the first font definition.')
-					}
-				}
-			}
+			properties: getIconRegistry().getIconSchema().properties,
+			additionalProperties: false
 		}
 	}
 };
