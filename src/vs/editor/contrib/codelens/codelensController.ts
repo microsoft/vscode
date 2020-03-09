@@ -422,7 +422,6 @@ export class ShowLensesInCurrentLineCommand extends EditorCommand {
 
 		const commandArguments: Map<string, any[] | undefined> = new Map();
 
-		const picker = quickInputService.createQuickPick();
 		const items: (IQuickPickItem | IQuickPickSeparator)[] = [];
 
 		activeLensesWidgets.forEach(widget => {
@@ -437,23 +436,15 @@ export class ShowLensesInCurrentLineCommand extends EditorCommand {
 			});
 		});
 
-		picker.items = items;
-		picker.canSelectMany = false;
-		picker.onDidAccept(_ => {
-			const selectedItems = picker.selectedItems;
-			if (selectedItems.length === 1) {
-				const id = selectedItems[0].id!;
+		// We dont want an empty picker
+		if (!items.length) {
+			return;
+		}
 
-				if (!id) {
-					picker.hide();
-					return;
-				}
-
-				commandService.executeCommand(id, ...(commandArguments.get(id) || [])).catch(err => notificationService.error(err));
-			}
-			picker.hide();
+		quickInputService.pick(items, { canPickMany: false }).then(item => {
+			const id = item.id!;
+			commandService.executeCommand(id, ...(commandArguments.get(id) || [])).catch(err => notificationService.error(err));
 		});
-		picker.show();
 	}
 
 }
