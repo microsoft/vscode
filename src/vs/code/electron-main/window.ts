@@ -392,6 +392,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					this.setFullScreen(false);
 					this.setFullScreen(true);
 				}
+
+				this.sendWhenReady('vscode:displayChanged');
 			}, 100));
 
 			const displayChangedListener = () => simpleFullScreenScheduler.schedule();
