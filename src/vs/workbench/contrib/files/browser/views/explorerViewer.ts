@@ -563,7 +563,9 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 	}
 
 	private isVisible(stat: ExplorerItem, parentVisibility: TreeVisibility): boolean {
+		stat.isExcluded = false;
 		if (parentVisibility === TreeVisibility.Hidden) {
+			stat.isExcluded = true;
 			return false;
 		}
 		if (this.explorerService.getEditableData(stat) || stat.isRoot) {
@@ -573,6 +575,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 		// Hide those that match Hidden Patterns
 		const cached = this.hiddenExpressionPerRoot.get(stat.root.resource.toString());
 		if (cached && cached.parsed(path.relative(stat.root.resource.path, stat.resource.path), stat.name, name => !!(stat.parent && stat.parent.getChild(name)))) {
+			stat.isExcluded = true;
 			const editors = this.editorService.visibleEditors;
 			const editor = editors.filter(e => e.resource && isEqualOrParent(e.resource, stat.resource)).pop();
 			if (editor) {
