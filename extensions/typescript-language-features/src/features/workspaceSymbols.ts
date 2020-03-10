@@ -31,7 +31,7 @@ function getSymbolKind(item: Proto.NavtoItem): vscode.SymbolKind {
 class TypeScriptWorkspaceSymbolProvider implements vscode.WorkspaceSymbolProvider {
 	public constructor(
 		private readonly client: ITypeScriptServiceClient,
-		private readonly modeIds: string[]
+		private readonly modeIds: readonly string[]
 	) { }
 
 	public async provideWorkspaceSymbols(
@@ -121,7 +121,8 @@ class TypeScriptWorkspaceSymbolProvider implements vscode.WorkspaceSymbolProvide
 
 export function register(
 	client: ITypeScriptServiceClient,
-	modeIds: string[],
+	modeIds: readonly string[],
 ) {
-	return vscode.languages.registerWorkspaceSymbolProvider(new TypeScriptWorkspaceSymbolProvider(client, modeIds));
+	return vscode.languages.registerWorkspaceSymbolProvider(
+		new TypeScriptWorkspaceSymbolProvider(client, modeIds));
 }
