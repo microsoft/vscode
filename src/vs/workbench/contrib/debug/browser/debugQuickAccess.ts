@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { PickerQuickAccessProvider, IQuickPickItemRunnable } from 'vs/platform/quickinput/common/quickAccess';
+import { PickerQuickAccessProvider, IPickerQuickAccessItem } from 'vs/platform/quickinput/common/quickAccess';
 import { localize } from 'vs/nls';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
@@ -14,7 +14,7 @@ import { matchesFuzzy } from 'vs/base/common/filters';
 import { StartAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { withNullAsUndefined } from 'vs/base/common/types';
 
-export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IQuickPickItemRunnable> {
+export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
 
 	static PREFIX = 'debug ';
 
@@ -27,8 +27,8 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IQu
 		super(StartDebugQuickAccessProvider.PREFIX);
 	}
 
-	protected getPicks(filter: string): (IQuickPickSeparator | IQuickPickItemRunnable)[] {
-		const picks: Array<IQuickPickItemRunnable | IQuickPickSeparator> = [];
+	protected getPicks(filter: string): (IQuickPickSeparator | IPickerQuickAccessItem)[] {
+		const picks: Array<IPickerQuickAccessItem | IQuickPickSeparator> = [];
 
 		const configManager = this.debugService.getConfigurationManager();
 
@@ -50,7 +50,7 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IQu
 					ariaLabel: localize('entryAriaLabel', "{0}, debug", config.name),
 					description: this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? config.launch.name : '',
 					highlights: { label: highlights },
-					run: async () => {
+					accept: async () => {
 						if (StartAction.isEnabled(this.debugService)) {
 							this.debugService.getConfigurationManager().selectConfiguration(config.launch, config.name);
 							try {
@@ -83,7 +83,7 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IQu
 				ariaLabel: localize('entryAriaLabel', "{0}, debug", label),
 				description: this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? launch.name : '',
 				highlights: { label: withNullAsUndefined(matchesFuzzy(filter, label, true)) },
-				run: async () => this.commandService.executeCommand('debug.addConfiguration', launch.uri.toString())
+				accept: () => this.commandService.executeCommand('debug.addConfiguration', launch.uri.toString())
 			});
 		}
 

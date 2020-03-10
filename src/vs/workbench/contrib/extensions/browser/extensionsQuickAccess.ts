@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { IQuickPickItemRunnable, PickerQuickAccessProvider } from 'vs/platform/quickinput/common/quickAccess';
+import { IPickerQuickAccessItem, PickerQuickAccessProvider } from 'vs/platform/quickinput/common/quickAccess';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { localize } from 'vs/nls';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -13,7 +13,7 @@ import { IExtensionGalleryService, IExtensionManagementService, IGalleryExtensio
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ILogService } from 'vs/platform/log/common/log';
 
-export class InstallExtensionQuickAccessProvider extends PickerQuickAccessProvider<IQuickPickItemRunnable> {
+export class InstallExtensionQuickAccessProvider extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
 
 	static PREFIX = 'ext install ';
 
@@ -27,7 +27,7 @@ export class InstallExtensionQuickAccessProvider extends PickerQuickAccessProvid
 		super(InstallExtensionQuickAccessProvider.PREFIX);
 	}
 
-	protected getPicks(filter: string, token: CancellationToken): Array<IQuickPickItemRunnable | IQuickPickSeparator> | Promise<Array<IQuickPickItemRunnable | IQuickPickSeparator>> {
+	protected getPicks(filter: string, token: CancellationToken): Array<IPickerQuickAccessItem | IQuickPickSeparator> | Promise<Array<IPickerQuickAccessItem | IQuickPickSeparator>> {
 
 		// Nothing typed
 		if (!filter) {
@@ -36,9 +36,9 @@ export class InstallExtensionQuickAccessProvider extends PickerQuickAccessProvid
 			}];
 		}
 
-		const genericSearchPickItem: IQuickPickItemRunnable = {
+		const genericSearchPickItem: IPickerQuickAccessItem = {
 			label: localize('searchFor', "Press Enter to search for extension '{0}'.", filter),
-			run: () => this.searchExtension(filter)
+			accept: () => this.searchExtension(filter)
 		};
 
 		// Extension ID typed: try to find it
@@ -52,7 +52,7 @@ export class InstallExtensionQuickAccessProvider extends PickerQuickAccessProvid
 		}
 	}
 
-	protected async getPicksForExtensionId(filter: string, fallback: IQuickPickItemRunnable, token: CancellationToken): Promise<Array<IQuickPickItemRunnable | IQuickPickSeparator>> {
+	protected async getPicksForExtensionId(filter: string, fallback: IPickerQuickAccessItem, token: CancellationToken): Promise<Array<IPickerQuickAccessItem | IQuickPickSeparator>> {
 		try {
 			const galleryResult = await this.galleryService.query({ names: [filter], pageSize: 1 }, token);
 			if (token.isCancellationRequested) {
@@ -65,7 +65,7 @@ export class InstallExtensionQuickAccessProvider extends PickerQuickAccessProvid
 			} else {
 				return [{
 					label: localize('install', "Press Enter to install extension '{0}'.", filter),
-					run: () => this.installExtension(galleryExtension, filter)
+					accept: () => this.installExtension(galleryExtension, filter)
 				}];
 			}
 		} catch (error) {
@@ -93,7 +93,7 @@ export class InstallExtensionQuickAccessProvider extends PickerQuickAccessProvid
 	}
 }
 
-export class ManageExtensionsQuickAccessProvider extends PickerQuickAccessProvider<IQuickPickItemRunnable> {
+export class ManageExtensionsQuickAccessProvider extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
 
 	static PREFIX = 'ext ';
 
@@ -101,10 +101,10 @@ export class ManageExtensionsQuickAccessProvider extends PickerQuickAccessProvid
 		super(ManageExtensionsQuickAccessProvider.PREFIX);
 	}
 
-	protected getPicks(): Array<IQuickPickItemRunnable | IQuickPickSeparator> {
+	protected getPicks(): Array<IPickerQuickAccessItem | IQuickPickSeparator> {
 		return [{
 			label: localize('manage', "Press Enter to manage your extensions."),
-			run: () => openExtensionsViewlet(this.viewletService)
+			accept: () => openExtensionsViewlet(this.viewletService)
 		}];
 	}
 }

@@ -144,15 +144,27 @@ Registry.add(Extensions.Quickaccess, new QuickAccessRegistry());
 
 //#region Helper class for simple picker based providers
 
-export interface IQuickPickItemRunnable extends IQuickPickItem {
+export interface IPickerQuickAccessItem extends IQuickPickItem {
 
 	/**
-	 * A method that will be executed when the pick item is accepted from the picker.
+	* A method that will be executed when the pick item is accepted from
+	* the picker. The picker will close automatically before running this.
+	*/
+	accept?(): void;
+
+	/**
+	 * A method that will be executed when a button of the pick item was
+	 * clicked on. The picker will only close if `true` is returned.
+	 *
+	 * @param buttonIndex index of the button of the item that
+	 * was clicked.
+	 *
+	 * @returns a valud indicating if the picker should close or not.
 	 */
-	run?: () => Promise<unknown>;
+	trigger?(buttonIndex: number): boolean;
 }
 
-export abstract class PickerQuickAccessProvider<T extends IQuickPickItemRunnable> implements IQuickAccessProvider {
+export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem> implements IQuickAccessProvider {
 
 	constructor(private prefix: string) { }
 
@@ -191,12 +203,25 @@ export abstract class PickerQuickAccessProvider<T extends IQuickPickItemRunnable
 		disposables.add(picker.onDidChangeValue(() => updatePickerItems()));
 		updatePickerItems();
 
-		// Run the pick on accept and hide picker
+		// Accept the pick on accept and hide picker
 		disposables.add(picker.onDidAccept(() => {
 			const [item] = picker.selectedItems;
-			if (typeof item?.run === 'function') {
+			if (typeof item?.accept === 'function') {
 				picker.hide();
-				item.run();
+				item.accept();
+			}
+		}));
+
+		// Trigger the pick with button index if button triggered
+		disposables.add(picker.onDidTriggerItemButton(({ button, item }) => {
+			if (typeof item.trigger === 'function') {
+				const buttonIndex = item.buttons?.indexOf(button) ?? -1;
+				if (buttonIndex >= 0) {
+					const hide = item.trigger(buttonIndex);
+					if (hide !== false) {
+						picker.hide();
+					}
+				}
 			}
 		}));
 

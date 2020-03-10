@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { IQuickPickSeparator, quickPickItemScorerAccessor, IQuickPickItemWithResource } from 'vs/platform/quickinput/common/quickInput';
-import { PickerQuickAccessProvider, IQuickPickItemRunnable } from 'vs/platform/quickinput/common/quickAccess';
+import { PickerQuickAccessProvider, IPickerQuickAccessItem } from 'vs/platform/quickinput/common/quickAccess';
 import { IEditorGroupsService, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorsOrder, IEditorIdentifier, toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -14,7 +14,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { prepareQuery, scoreItem, compareItemsByScore } from 'vs/base/common/fuzzyScorer';
 
-interface IEditorQuickPickItem extends IQuickPickItemWithResource, IEditorIdentifier, IQuickPickItemRunnable { }
+interface IEditorQuickPickItem extends IQuickPickItemWithResource, IEditorIdentifier, IPickerQuickAccessItem { }
 
 export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessProvider<IEditorQuickPickItem> {
 
@@ -95,7 +95,7 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 				description: editor.getDescription(),
 				iconClasses: getIconClasses(this.modelService, this.modeService, resource),
 				italic: !this.editorGroupService.getGroup(groupId)?.isPinned(editor),
-				run: async () => this.editorGroupService.getGroup(groupId)?.openEditor(editor)
+				accept: () => this.editorGroupService.getGroup(groupId)?.openEditor(editor)
 			};
 		});
 	}
