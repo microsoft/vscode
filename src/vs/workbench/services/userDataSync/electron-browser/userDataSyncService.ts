@@ -10,6 +10,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { URI } from 'vs/base/common/uri';
 
 export class UserDataSyncService extends Disposable implements IUserDataSyncService {
 
@@ -88,8 +89,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return this.channel.call('stop');
 	}
 
-	getRemoteContent(source: SyncSource, preview: boolean): Promise<string | null> {
-		return this.channel.call('getRemoteContent', [source, preview]);
+	resolveContent(resource: URI): Promise<string | null> {
+		return this.channel.call('resolveContent', [resource]);
 	}
 
 	isFirstTimeSyncWithMerge(): Promise<boolean> {

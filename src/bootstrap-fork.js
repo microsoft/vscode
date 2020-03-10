@@ -8,6 +8,9 @@
 
 const bootstrap = require('./bootstrap');
 
+// Remove global paths from the node module lookup
+bootstrap.removeGlobalNodeModuleLookupPaths();
+
 // Enable ASAR in our forked processes
 bootstrap.enableASARSupport();
 

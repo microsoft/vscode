@@ -9,6 +9,7 @@ import './diffEditorHelper';
 import './inspectKeybindings';
 import './largeFileOptimizations';
 import './inspectEditorTokens/inspectEditorTokens';
+import './quickaccess/gotoLineQuickAccess';
 import './saveParticipants';
 import './toggleColumnSelection';
 import './toggleMinimap';

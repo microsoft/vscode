@@ -953,7 +953,7 @@ class CommandColumn extends Column {
 	}
 
 	private getAriaLabel(keybindingItemEntry: IKeybindingItemEntry): string {
-		return localize('commandAriaLabel', "Command is {0}.", keybindingItemEntry.keybindingItem.commandLabel ? keybindingItemEntry.keybindingItem.commandLabel : keybindingItemEntry.keybindingItem.command);
+		return keybindingItemEntry.keybindingItem.commandLabel ? keybindingItemEntry.keybindingItem.commandLabel : keybindingItemEntry.keybindingItem.command;
 	}
 }
 

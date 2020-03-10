@@ -248,6 +248,10 @@ export class InputBox extends Widget {
 		}
 	}
 
+	public getAriaLabel(): string {
+		return this.ariaLabel;
+	}
+
 	public get mirrorElement(): HTMLElement | undefined {
 		return this.mirror;
 	}

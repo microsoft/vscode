@@ -95,6 +95,10 @@ class InMemoryClipboardMetadataManager {
 	}
 }
 
+export interface ICompositionStartEvent {
+	moveOneCharacterLeft: boolean;
+}
+
 /**
  * Writes screen reader content to the textarea and is able to analyze its input events to generate:
  *  - onCut
@@ -126,8 +130,8 @@ export class TextAreaInput extends Disposable {
 	private _onType = this._register(new Emitter<ITypeData>());
 	public readonly onType: Event<ITypeData> = this._onType.event;
 
-	private _onCompositionStart = this._register(new Emitter<void>());
-	public readonly onCompositionStart: Event<void> = this._onCompositionStart.event;
+	private _onCompositionStart = this._register(new Emitter<ICompositionStartEvent>());
+	public readonly onCompositionStart: Event<ICompositionStartEvent> = this._onCompositionStart.event;
 
 	private _onCompositionUpdate = this._register(new Emitter<ICompositionData>());
 	public readonly onCompositionUpdate: Event<ICompositionData> = this._onCompositionUpdate.event;
@@ -165,9 +169,11 @@ export class TextAreaInput extends Disposable {
 		this._isDoingComposition = false;
 		this._nextCommand = ReadFromTextArea.Type;
 
+		let lastKeyDown: IKeyboardEvent | null = null;
+
 		this._register(dom.addStandardDisposableListener(textArea.domNode, 'keydown', (e: IKeyboardEvent) => {
-			if (this._isDoingComposition &&
-				(e.keyCode === KeyCode.KEY_IN_COMPOSITION || e.keyCode === KeyCode.Backspace)) {
+			if (e.keyCode === KeyCode.KEY_IN_COMPOSITION
+				|| (this._isDoingComposition && e.keyCode === KeyCode.Backspace)) {
 				// Stop propagation for keyDown events if the IME is processing key input
 				e.stopPropagation();
 			}
@@ -177,6 +183,8 @@ export class TextAreaInput extends Disposable {
 				// See https://msdn.microsoft.com/en-us/library/ie/ms536939(v=vs.85).aspx
 				e.preventDefault();
 			}
+
+			lastKeyDown = e;
 			this._onKeyDown.fire(e);
 		}));
 
@@ -190,12 +198,35 @@ export class TextAreaInput extends Disposable {
 			}
 			this._isDoingComposition = true;
 
-			// In IE we cannot set .value when handling 'compositionstart' because the entire composition will get canceled.
-			if (!browser.isEdge) {
+			let moveOneCharacterLeft = false;
+			if (
+				platform.isMacintosh
+				&& lastKeyDown
+				&& lastKeyDown.equals(KeyCode.KEY_IN_COMPOSITION)
+				&& this._textAreaState.selectionStart === this._textAreaState.selectionEnd
+				&& this._textAreaState.selectionStart > 0
+				&& this._textAreaState.value.substr(this._textAreaState.selectionStart - 1, 1) === e.data
+			) {
+				// Handling long press case on macOS + arrow key => pretend the character was selected
+				if (lastKeyDown.code === 'ArrowRight' || lastKeyDown.code === 'ArrowLeft') {
+					moveOneCharacterLeft = true;
+				}
+			}
+
+			if (moveOneCharacterLeft) {
+				this._textAreaState = new TextAreaState(
+					this._textAreaState.value,
+					this._textAreaState.selectionStart - 1,
+					this._textAreaState.selectionEnd,
+					this._textAreaState.selectionStartPosition ? new Position(this._textAreaState.selectionStartPosition.lineNumber, this._textAreaState.selectionStartPosition.column - 1) : null,
+					this._textAreaState.selectionEndPosition
+				);
+			} else if (!browser.isEdge) {
+				// In IE we cannot set .value when handling 'compositionstart' because the entire composition will get canceled.
 				this._setAndWriteTextAreaState('compositionstart', TextAreaState.EMPTY);
 			}
 
-			this._onCompositionStart.fire();
+			this._onCompositionStart.fire({ moveOneCharacterLeft });
 		}));
 
 		/**

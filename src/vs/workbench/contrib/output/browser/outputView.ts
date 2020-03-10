@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { IAction } from 'vs/base/common/actions';
-import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IActionViewItem, SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -13,11 +13,10 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { AbstractTextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
-import { OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, IOutputChannel, CONTEXT_ACTIVE_LOG_OUTPUT } from 'vs/workbench/contrib/output/common/output';
-import { SwitchOutputAction, SwitchOutputActionViewItem, ClearOutputAction, ToggleOrSetOutputScrollLockAction, OpenLogOutputFile } from 'vs/workbench/contrib/output/browser/outputActions';
+import { OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, IOutputChannel, CONTEXT_ACTIVE_LOG_OUTPUT, CONTEXT_OUTPUT_SCROLL_LOCK } from 'vs/workbench/contrib/output/common/output';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -26,10 +25,15 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IOutputChannelDescriptor, IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
+import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
+import { groupBy } from 'vs/base/common/arrays';
 
 export class OutputViewPane extends ViewPane {
 
@@ -37,6 +41,10 @@ export class OutputViewPane extends ViewPane {
 	private channelId: string | undefined;
 	private editorPromise: Promise<OutputEditor> | null = null;
 	private actions: IAction[] | undefined;
+
+	private readonly scrollLockContextKey: IContextKey<boolean>;
+	get scrollLock(): boolean { return !!this.scrollLockContextKey.get(); }
+	set scrollLock(scrollLock: boolean) { this.scrollLockContextKey.set(scrollLock); }
 
 	constructor(
 		options: IViewPaneOptions,
@@ -52,6 +60,7 @@ export class OutputViewPane extends ViewPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		this.scrollLockContextKey = CONTEXT_OUTPUT_SCROLL_LOCK.bindTo(this.contextKeyService);
 		this.editor = instantiationService.createInstance(OutputEditor);
 		this._register(this.editor.onTitleAreaUpdate(() => {
 			this.updateTitle(this.editor.getTitle());
@@ -81,7 +90,7 @@ export class OutputViewPane extends ViewPane {
 		const codeEditor = <ICodeEditor>this.editor.getControl();
 		this._register(codeEditor.onDidChangeModelContent(() => {
 			const activeChannel = this.outputService.getActiveChannel();
-			if (activeChannel && !activeChannel.scrollLock) {
+			if (activeChannel && !this.scrollLock) {
 				this.editor.revealLastLine();
 			}
 		}));
@@ -98,9 +107,7 @@ export class OutputViewPane extends ViewPane {
 			if (model && this.actions) {
 				const newPositionLine = e.position.lineNumber;
 				const lastLine = model.getLineCount();
-				const newLockState = lastLine !== newPositionLine;
-				const lockAction = this.actions.filter((action) => action.id === ToggleOrSetOutputScrollLockAction.ID)[0];
-				lockAction.run(newLockState);
+				this.scrollLock = lastLine !== newPositionLine;
 			}
 		}));
 	}
@@ -112,10 +119,10 @@ export class OutputViewPane extends ViewPane {
 	getActions(): IAction[] {
 		if (!this.actions) {
 			this.actions = [
-				this._register(this.instantiationService.createInstance(SwitchOutputAction)),
-				this._register(this.instantiationService.createInstance(ClearOutputAction, ClearOutputAction.ID, ClearOutputAction.LABEL)),
-				this._register(this.instantiationService.createInstance(ToggleOrSetOutputScrollLockAction, ToggleOrSetOutputScrollLockAction.ID, ToggleOrSetOutputScrollLockAction.LABEL)),
-				this._register(this.instantiationService.createInstance(OpenLogOutputFile))
+				// this._register(this.instantiationService.createInstance(SwitchOutputAction)),
+				// this._register(this.instantiationService.createInstance(ClearOutputAction, ClearOutputAction.ID, ClearOutputAction.LABEL)),
+				// this._register(this.instantiationService.createInstance(ToggleOrSetOutputScrollLockAction, ToggleOrSetOutputScrollLockAction.ID, ToggleOrSetOutputScrollLockAction.LABEL)),
+				// this._register(this.instantiationService.createInstance(OpenLogOutputFile))
 			];
 		}
 		return [...super.getActions(), ...this.actions];
@@ -126,12 +133,11 @@ export class OutputViewPane extends ViewPane {
 	}
 
 	getActionViewItem(action: IAction): IActionViewItem | undefined {
-		if (action.id === SwitchOutputAction.ID) {
+		if (action.id === 'workbench.output.action.switchBetweenOutputs') {
 			return this.instantiationService.createInstance(SwitchOutputActionViewItem, action);
 		}
 		return super.getActionViewItem(action);
 	}
-
 
 	private onDidChangeVisibility(visible: boolean): void {
 		this.editor.setVisible(visible);
@@ -268,3 +274,61 @@ export class OutputEditor extends AbstractTextResourceEditor {
 		CONTEXT_IN_OUTPUT.bindTo(scopedContextKeyService).set(true);
 	}
 }
+
+class SwitchOutputActionViewItem extends SelectActionViewItem {
+
+	private static readonly SEPARATOR = '─────────';
+
+	private outputChannels: IOutputChannelDescriptor[] = [];
+	private logChannels: IOutputChannelDescriptor[] = [];
+
+	constructor(
+		action: IAction,
+		@IOutputService private readonly outputService: IOutputService,
+		@IThemeService themeService: IThemeService,
+		@IContextViewService contextViewService: IContextViewService
+	) {
+		super(null, action, [], 0, contextViewService, { ariaLabel: nls.localize('outputChannels', 'Output Channels.') });
+
+		let outputChannelRegistry = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels);
+		this._register(outputChannelRegistry.onDidRegisterChannel(() => this.updateOtions()));
+		this._register(outputChannelRegistry.onDidRemoveChannel(() => this.updateOtions()));
+		this._register(this.outputService.onActiveOutputChannel(() => this.updateOtions()));
+		this._register(attachSelectBoxStyler(this.selectBox, themeService));
+
+		this.updateOtions();
+	}
+
+	protected getActionContext(option: string, index: number): string {
+		const channel = index < this.outputChannels.length ? this.outputChannels[index] : this.logChannels[index - this.outputChannels.length - 1];
+		return channel ? channel.id : option;
+	}
+
+	private updateOtions(): void {
+		const groups = groupBy(this.outputService.getChannelDescriptors(), (c1: IOutputChannelDescriptor, c2: IOutputChannelDescriptor) => {
+			if (!c1.log && c2.log) {
+				return -1;
+			}
+			if (c1.log && !c2.log) {
+				return 1;
+			}
+			return 0;
+		});
+		this.outputChannels = groups[0] || [];
+		this.logChannels = groups[1] || [];
+		const showSeparator = this.outputChannels.length && this.logChannels.length;
+		const separatorIndex = showSeparator ? this.outputChannels.length : -1;
+		const options: string[] = [...this.outputChannels.map(c => c.label), ...(showSeparator ? [SwitchOutputActionViewItem.SEPARATOR] : []), ...this.logChannels.map(c => nls.localize('logChannel', "Log ({0})", c.label))];
+		let selected = 0;
+		const activeChannel = this.outputService.getActiveChannel();
+		if (activeChannel) {
+			selected = this.outputChannels.map(c => c.id).indexOf(activeChannel.id);
+			if (selected === -1) {
+				const logChannelIndex = this.logChannels.map(c => c.id).indexOf(activeChannel.id);
+				selected = logChannelIndex !== -1 ? separatorIndex + 1 + logChannelIndex : 0;
+			}
+		}
+		this.setOptions(options.map((label, index) => <ISelectOptionItem>{ text: label, isDisabled: (index === separatorIndex ? true : false) }), Math.max(0, selected));
+	}
+}
+

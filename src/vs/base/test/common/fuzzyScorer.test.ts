@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as scorer from 'vs/base/parts/quickopen/common/quickOpenScorer';
+import * as scorer from 'vs/base/common/fuzzyScorer';
 import { URI } from 'vs/base/common/uri';
 import { basename, dirname, sep } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
@@ -49,14 +49,14 @@ function scoreItem<T>(item: T, query: string, fuzzy: boolean, accessor: scorer.I
 	return scorer.scoreItem(item, scorer.prepareQuery(query), fuzzy, accessor, cache);
 }
 
-function compareItemsByScore<T>(itemA: T, itemB: T, query: string, fuzzy: boolean, accessor: scorer.IItemAccessor<T>, cache: scorer.ScorerCache, fallbackComparer = scorer.fallbackCompare): number {
-	return scorer.compareItemsByScore(itemA, itemB, scorer.prepareQuery(query), fuzzy, accessor, cache, fallbackComparer);
+function compareItemsByScore<T>(itemA: T, itemB: T, query: string, fuzzy: boolean, accessor: scorer.IItemAccessor<T>, cache: scorer.ScorerCache, fallbackComparer?: (itemA: T, itemB: T, query: scorer.IPreparedQuery, accessor: scorer.IItemAccessor<T>) => number): number {
+	return scorer.compareItemsByScore(itemA, itemB, scorer.prepareQuery(query), fuzzy, accessor, cache, fallbackComparer as any);
 }
 
 const NullAccessor = new NullAccessorClass();
 let cache: scorer.ScorerCache = Object.create(null);
 
-suite('Quick Open Scorer', () => {
+suite('Fuzzy Scorer', () => {
 
 	setup(() => {
 		cache = Object.create(null);
