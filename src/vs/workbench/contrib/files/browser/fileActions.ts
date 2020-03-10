@@ -372,7 +372,7 @@ export function suggestFileName(name: string, isFolder: boolean, incrementalNami
 	if (stripExample) {
 		// name.sample(.txt) => name(.txt)
 		// name.example(.txt) => name(.txt)
-		const preExtensionExampleFileRegex = RegExp('(.*)(' + separators + exampleFileGroup + ')(\..*)$');
+		const preExtensionExampleFileRegex = RegExp(`(.*)(${separators}${exampleFileGroup})(\..*)$`);
 		if (!isFolder && name.match(preExtensionExampleFileRegex)) {
 			return name.replace(preExtensionExampleFileRegex, (match, g1?, g2?, g3?, g4?) => {
 				return strings.format('{0}{1}', g1, g4);
@@ -381,7 +381,7 @@ export function suggestFileName(name: string, isFolder: boolean, incrementalNami
 
 		// name(.txt).sample => name(.txt)
 		// name(.txt).example => name(.txt)
-		const postExtensionExampleFileRegex = RegExp('(.*)(' + separators + exampleFileGroup + ')$');
+		const postExtensionExampleFileRegex = RegExp(`(.*)(${separators}${exampleFileGroup})$`);
 		if (!isFolder && name.match(postExtensionExampleFileRegex)) {
 			return name.replace(postExtensionExampleFileRegex, (match, g1?) => {
 				return strings.format('{0}', g1);
@@ -418,7 +418,7 @@ export function suggestFileName(name: string, isFolder: boolean, incrementalNami
 	const maxNumber = Constants.MAX_SAFE_SMALL_INTEGER;
 
 	// file.1.txt=>file.2.txt
-	let suffixFileRegex = RegExp('(.*' + separators + ')(\\d+)(\\..*)$');
+	let suffixFileRegex = RegExp(`(.*'${separators})(\\d+)(\\..*)$`);
 	if (!isFolder && name.match(suffixFileRegex)) {
 		return name.replace(suffixFileRegex, (match, g1?, g2?, g3?) => {
 			let number = parseInt(g2);
@@ -429,7 +429,7 @@ export function suggestFileName(name: string, isFolder: boolean, incrementalNami
 	}
 
 	// 1.file.txt=>2.file.txt
-	let prefixFileRegex = RegExp('(\\d+)(' + separators + '.*)(\\..*)$');
+	let prefixFileRegex = RegExp(`(\\d+)(${separators}.*)(\\..*)$`);
 	if (!isFolder && name.match(prefixFileRegex)) {
 		return name.replace(prefixFileRegex, (match, g1?, g2?, g3?) => {
 			let number = parseInt(g1);
