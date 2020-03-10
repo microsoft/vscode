@@ -3,11 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IQuickPick, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { IQuickAccessProvider } from 'vs/platform/quickinput/common/quickAccess';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
+import { PickerQuickAccessProvider, IQuickPickItemRunnable } from 'vs/platform/quickinput/common/quickAccess';
 import { localize } from 'vs/nls';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -16,11 +14,7 @@ import { matchesFuzzy } from 'vs/base/common/filters';
 import { StartAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { withNullAsUndefined } from 'vs/base/common/types';
 
-interface IDebugQuickPickItem extends IQuickPickItem {
-	run: () => Promise<unknown>;
-}
-
-export class StartDebugQuickAccessProvider implements IQuickAccessProvider {
+export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IQuickPickItemRunnable> {
 
 	static PREFIX = 'debug ';
 
@@ -29,40 +23,19 @@ export class StartDebugQuickAccessProvider implements IQuickAccessProvider {
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@ICommandService private readonly commandService: ICommandService,
 		@INotificationService private readonly notificationService: INotificationService
-	) { }
-
-	provide(picker: IQuickPick<IDebugQuickPickItem>, token: CancellationToken): IDisposable {
-		const disposables = new DisposableStore();
-
-		// Disable filtering & sorting, we control the results
-		picker.matchOnLabel = picker.matchOnDescription = picker.matchOnDetail = picker.sortByLabel = false;
-
-		// Add all view items & filter on type
-		const updatePickerItems = () => picker.items = this.getDebugPickItems(picker.value.trim().substr(StartDebugQuickAccessProvider.PREFIX.length));
-		disposables.add(picker.onDidChangeValue(() => updatePickerItems()));
-		updatePickerItems();
-
-		// Open extensions view on accept
-		disposables.add(picker.onDidAccept(() => {
-			const [item] = picker.selectedItems;
-			if (item) {
-				picker.hide();
-				item.run();
-			}
-		}));
-
-		return disposables;
+	) {
+		super(StartDebugQuickAccessProvider.PREFIX);
 	}
 
-	private getDebugPickItems(value: string): Array<IDebugQuickPickItem | IQuickPickSeparator> {
-		const picks: Array<IDebugQuickPickItem | IQuickPickSeparator> = [];
+	protected getPicks(filter: string): (IQuickPickSeparator | IQuickPickItemRunnable)[] {
+		const picks: Array<IQuickPickItemRunnable | IQuickPickSeparator> = [];
 
 		const configManager = this.debugService.getConfigurationManager();
 
 		// Entries: configs
 		let lastGroup: string | undefined;
 		for (let config of configManager.getAllConfigurations()) {
-			const highlights = matchesFuzzy(value, config.name, true);
+			const highlights = matchesFuzzy(filter, config.name, true);
 			if (highlights) {
 
 				// Separator
@@ -109,7 +82,7 @@ export class StartDebugQuickAccessProvider implements IQuickAccessProvider {
 				label,
 				ariaLabel: localize('entryAriaLabel', "{0}, debug", label),
 				description: this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? launch.name : '',
-				highlights: { label: withNullAsUndefined(matchesFuzzy(value, label, true)) },
+				highlights: { label: withNullAsUndefined(matchesFuzzy(filter, label, true)) },
 				run: async () => this.commandService.executeCommand('debug.addConfiguration', launch.uri.toString())
 			});
 		}
@@ -117,4 +90,3 @@ export class StartDebugQuickAccessProvider implements IQuickAccessProvider {
 		return picks;
 	}
 }
-

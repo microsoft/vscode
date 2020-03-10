@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { first } from 'vs/base/common/arrays';
 import { startsWith } from 'vs/base/common/strings';
 import { assertIsDefined } from 'vs/base/common/types';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IQuickPickSeparator } from 'vs/base/parts/quickinput/common/quickInput';
 
 export interface IQuickAccessController {
 
@@ -140,3 +141,77 @@ class QuickAccessRegistry implements IQuickAccessRegistry {
 }
 
 Registry.add(Extensions.Quickaccess, new QuickAccessRegistry());
+
+//#region Helper class for simple picker based providers
+
+export interface IQuickPickItemRunnable extends IQuickPickItem {
+
+	/**
+	 * A method that will be executed when the pick item is accepted from the picker.
+	 */
+	run?: () => Promise<unknown>;
+}
+
+export abstract class PickerQuickAccessProvider<T extends IQuickPickItemRunnable> implements IQuickAccessProvider {
+
+	constructor(private prefix: string) { }
+
+	provide(picker: IQuickPick<T>, token: CancellationToken): IDisposable {
+		const disposables = new DisposableStore();
+
+		// Disable filtering & sorting, we control the results
+		picker.matchOnLabel = picker.matchOnDescription = picker.matchOnDetail = picker.sortByLabel = false;
+
+		// Set initial picks and update on type
+		let picksCts: CancellationTokenSource | undefined = undefined;
+		const updatePickerItems = async () => {
+
+			// Cancel any previous ask for picks and busy
+			picksCts?.dispose(true);
+			picker.busy = false;
+
+			// Create new cancellation source for this run
+			picksCts = new CancellationTokenSource(token);
+
+			// Collect picks and support both long running and short
+			const res = this.getPicks(picker.value.substr(this.prefix.length).trim(), picksCts.token);
+			if (Array.isArray(res)) {
+				picker.items = res;
+			} else {
+				picker.busy = true;
+				try {
+					picker.items = await res;
+				} finally {
+					picker.busy = false;
+				}
+			}
+
+			this.getPicks(picker.value.substr(this.prefix.length).trim(), picksCts.token);
+		};
+		disposables.add(picker.onDidChangeValue(() => updatePickerItems()));
+		updatePickerItems();
+
+		// Run the pick on accept and hide picker
+		disposables.add(picker.onDidAccept(() => {
+			const [item] = picker.selectedItems;
+			if (typeof item?.run === 'function') {
+				picker.hide();
+				item.run();
+			}
+		}));
+
+		return disposables;
+	}
+
+	/**
+	 * Returns an array of picks and separators as needed. If the picks are resolved
+	 * long running, the provided cancellation token should be used to cancel the
+	 * operation when the token signals this.
+	 *
+	 * The implementor is responsible for filtering and sorting the picks given the
+	 * provided `filter`.
+	 */
+	protected abstract getPicks(filter: string, token: CancellationToken): Array<T | IQuickPickSeparator> | Promise<Array<T | IQuickPickSeparator>>;
+}
+
+//#endregion

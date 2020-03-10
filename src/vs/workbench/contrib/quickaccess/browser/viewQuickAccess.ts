@@ -5,10 +5,8 @@
 
 import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IQuickPick, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IQuickAccessProvider } from 'vs/platform/quickinput/common/quickAccess';
+import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickPickItemRunnable, PickerQuickAccessProvider } from 'vs/platform/quickinput/common/quickAccess';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IViewDescriptorService, IViewsService, ViewContainer, IViewsRegistry, Extensions as ViewExtensions, IViewContainersRegistry } from 'vs/workbench/common/views';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
@@ -20,12 +18,11 @@ import { matchesFuzzy } from 'vs/base/common/filters';
 import { fuzzyContains } from 'vs/base/common/strings';
 import { withNullAsUndefined } from 'vs/base/common/types';
 
-interface IViewQuickPickItem extends IQuickPickItem {
+interface IViewQuickPickItem extends IQuickPickItemRunnable {
 	containerLabel: string;
-	run: () => Promise<unknown>;
 }
 
-export class ViewQuickAccessProvider implements IQuickAccessProvider {
+export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuickPickItem> {
 
 	static PREFIX = 'view ';
 
@@ -38,32 +35,10 @@ export class ViewQuickAccessProvider implements IQuickAccessProvider {
 		@IPanelService private readonly panelService: IPanelService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
+		super(ViewQuickAccessProvider.PREFIX);
 	}
 
-	provide(picker: IQuickPick<IViewQuickPickItem>, token: CancellationToken): IDisposable {
-		const disposables = new DisposableStore();
-
-		// Disable filtering & sorting, we control the results
-		picker.matchOnLabel = picker.matchOnDescription = picker.matchOnDetail = picker.sortByLabel = false;
-
-		// Add all view items & filter on type
-		const updatePickerItems = () => picker.items = this.getViewPickItems(picker.value.trim().substr(ViewQuickAccessProvider.PREFIX.length));
-		disposables.add(picker.onDidChangeValue(() => updatePickerItems()));
-		updatePickerItems();
-
-		// Open the picked view on accept
-		disposables.add(picker.onDidAccept(() => {
-			const [item] = picker.selectedItems;
-			if (item) {
-				picker.hide();
-				item.run();
-			}
-		}));
-
-		return disposables;
-	}
-
-	private getViewPickItems(filter: string): Array<IViewQuickPickItem | IQuickPickSeparator> {
+	protected getPicks(filter: string): Array<IViewQuickPickItem | IQuickPickSeparator> {
 		const filteredViewEntries = this.doGetViewPickItems().filter(entry => {
 			if (!filter) {
 				return true;
