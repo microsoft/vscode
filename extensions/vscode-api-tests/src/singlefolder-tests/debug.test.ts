@@ -37,8 +37,7 @@ suite('Debug', function () {
 		disposeAll(toDispose);
 	});
 
-	this.retries(2);
-	test('start debugging', async function () {
+	test.skip('start debugging', async function () {
 		let stoppedEvents = 0;
 		let variablesReceived: () => void;
 		let initializedReceived: () => void;
