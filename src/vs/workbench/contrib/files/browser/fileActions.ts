@@ -403,7 +403,7 @@ export function suggestFileName(name: string, isFolder: boolean, incrementalNami
 		const suffixRegex = /^(.+ copy)( \d+)?$/;
 		if (suffixRegex.test(namePrefix)) {
 			return namePrefix.replace(suffixRegex, (match, g1?, g2?) => {
-				let number = (g2 ? parseInt(g2) : 1);
+				const number = (g2 ? parseInt(g2) : 1);
 				return number === 0
 					? `${g1}`
 					: (number < maxNumber
@@ -417,10 +417,10 @@ export function suggestFileName(name: string, isFolder: boolean, incrementalNami
 	}
 
 	// file.1.txt=>file.2.txt
-	let suffixFileRegex = RegExp(`(.*'${separators})(\\d+)(\\..*)$`);
+	const suffixFileRegex = RegExp(`(.*'${separators})(\\d+)(\\..*)$`);
 	if (!isFolder && name.match(suffixFileRegex)) {
 		return name.replace(suffixFileRegex, (match, g1?, g2?, g3?) => {
-			let number = parseInt(g2);
+			const number = parseInt(g2);
 			return number < maxNumber
 				? g1 + strings.pad(number + 1, g2.length) + g3
 				: strings.format('{0}{1}.1{2}', g1, g2, g3);
@@ -428,10 +428,10 @@ export function suggestFileName(name: string, isFolder: boolean, incrementalNami
 	}
 
 	// 1.file.txt=>2.file.txt
-	let prefixFileRegex = RegExp(`(\\d+)(${separators}.*)(\\..*)$`);
+	const prefixFileRegex = RegExp(`(\\d+)(${separators}.*)(\\..*)$`);
 	if (!isFolder && name.match(prefixFileRegex)) {
 		return name.replace(prefixFileRegex, (match, g1?, g2?, g3?) => {
-			let number = parseInt(g1);
+			const number = parseInt(g1);
 			return number < maxNumber
 				? strings.pad(number + 1, g1.length) + g2 + g3
 				: strings.format('{0}{1}.1{2}', g1, g2, g3);
@@ -439,10 +439,10 @@ export function suggestFileName(name: string, isFolder: boolean, incrementalNami
 	}
 
 	// 1.txt=>2.txt
-	let prefixFileNoNameRegex = RegExp('(\\d+)(\\..*)$');
+	const prefixFileNoNameRegex = RegExp('(\\d+)(\\..*)$');
 	if (!isFolder && name.match(prefixFileNoNameRegex)) {
 		return name.replace(prefixFileNoNameRegex, (match, g1?, g2?) => {
-			let number = parseInt(g1);
+			const number = parseInt(g1);
 			return number < maxNumber
 				? strings.pad(number + 1, g1.length) + g2
 				: strings.format('{0}.1{1}', g1, g2);
@@ -458,7 +458,7 @@ export function suggestFileName(name: string, isFolder: boolean, incrementalNami
 	// folder.1=>folder.2
 	if (isFolder && name.match(/(\d+)$/)) {
 		return name.replace(/(\d+)$/, (match, ...groups) => {
-			let number = parseInt(groups[0]);
+			const number = parseInt(groups[0]);
 			return number < maxNumber
 				? strings.pad(number + 1, groups[0].length)
 				: strings.format('{0}.1', groups[0]);
@@ -468,7 +468,7 @@ export function suggestFileName(name: string, isFolder: boolean, incrementalNami
 	// 1.folder=>2.folder
 	if (isFolder && name.match(/^(\d+)/)) {
 		return name.replace(/^(\d+)(.*)$/, (match, ...groups) => {
-			let number = parseInt(groups[0]);
+			const number = parseInt(groups[0]);
 			return number < maxNumber
 				? strings.pad(number + 1, groups[0].length) + groups[1]
 				: strings.format('{0}{1}.1', groups[0], groups[1]);
