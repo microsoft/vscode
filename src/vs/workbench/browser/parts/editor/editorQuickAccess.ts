@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IQuickPick, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickPick, IQuickPickSeparator, quickPickItemScorerAccessor, IQuickPickItemWithResource } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IQuickAccessProvider } from 'vs/platform/quickinput/common/quickAccess';
@@ -14,33 +14,16 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
-import { prepareQuery, IPreparedQuery, ScorerCache, scoreItem, compareItemsByScore, IItemAccessor } from 'vs/base/common/fuzzyScorer';
-import { Schemas } from 'vs/base/common/network';
+import { prepareQuery, IPreparedQuery, ScorerCache, scoreItem, compareItemsByScore } from 'vs/base/common/fuzzyScorer';
+import { URI } from 'vs/base/common/uri';
 
-interface IEditorQuickPickItem extends IQuickPickItem, IEditorIdentifier { }
+interface IEditorQuickPickItem extends IQuickPickItemWithResource, IEditorIdentifier {
+	resource: URI | undefined;
+}
 
 export abstract class BaseEditorQuickAccessProvider implements IQuickAccessProvider {
 
 	protected abstract readonly prefix: string;
-
-	private editorQuickPickScoringAccessor = new class implements IItemAccessor<IEditorQuickPickItem> {
-		getItemLabel(entry: IEditorQuickPickItem): string | undefined {
-			return entry.label;
-		}
-
-		getItemDescription(entry: IEditorQuickPickItem): string | undefined {
-			return entry.description;
-		}
-
-		getItemPath(entry: IEditorQuickPickItem): string | undefined {
-			const resource = toResource(entry.editor, { supportSideBySide: SideBySideEditor.MASTER });
-			if (resource?.scheme === Schemas.file) {
-				return resource?.fsPath;
-			}
-
-			return resource?.path;
-		}
-	};
 
 	constructor(
 		@IEditorGroupsService protected readonly editorGroupService: IEditorGroupsService,
@@ -81,7 +64,7 @@ export abstract class BaseEditorQuickAccessProvider implements IQuickAccessProvi
 			}
 
 			// Score on label and description
-			const itemScore = scoreItem(entry, query, true, this.editorQuickPickScoringAccessor, scorerCache);
+			const itemScore = scoreItem(entry, query, true, quickPickItemScorerAccessor, scorerCache);
 			if (!itemScore.score) {
 				return false;
 			}
@@ -100,7 +83,7 @@ export abstract class BaseEditorQuickAccessProvider implements IQuickAccessProvi
 					return groups.indexOf(entryA.groupId) - groups.indexOf(entryB.groupId); // older groups first
 				}
 
-				return compareItemsByScore(entryA, entryB, query, true, this.editorQuickPickScoringAccessor, scorerCache);
+				return compareItemsByScore(entryA, entryB, query, true, quickPickItemScorerAccessor, scorerCache);
 			});
 		}
 
@@ -127,15 +110,20 @@ export abstract class BaseEditorQuickAccessProvider implements IQuickAccessProvi
 	}
 
 	private doGetEditorPickItems(): Array<IEditorQuickPickItem> {
-		return this.doGetEditors().map(({ editor, groupId }) => ({
-			editor,
-			groupId,
-			label: editor.isDirty() && !editor.isSaving() ? `$(circle-filled) ${editor.getName()}` : editor.getName(),
-			ariaLabel: localize('entryAriaLabel', "{0}, editor picker", editor.getName()),
-			description: editor.getDescription(),
-			iconClasses: getIconClasses(this.modelService, this.modeService, toResource(editor, { supportSideBySide: SideBySideEditor.MASTER })),
-			italic: !this.editorGroupService.getGroup(groupId)?.isPinned(editor)
-		}));
+		return this.doGetEditors().map(({ editor, groupId }) => {
+			const resource = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
+
+			return {
+				editor,
+				groupId,
+				resource,
+				label: editor.isDirty() && !editor.isSaving() ? `$(circle-filled) ${editor.getName()}` : editor.getName(),
+				ariaLabel: localize('entryAriaLabel', "{0}, editor picker", editor.getName()),
+				description: editor.getDescription(),
+				iconClasses: getIconClasses(this.modelService, this.modeService, resource),
+				italic: !this.editorGroupService.getGroup(groupId)?.isPinned(editor)
+			};
+		});
 	}
 
 	protected abstract doGetEditors(): IEditorIdentifier[];

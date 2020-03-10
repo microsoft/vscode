@@ -8,6 +8,8 @@ import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IMatch } from 'vs/base/common/filters';
+import { IItemAccessor } from 'vs/base/common/fuzzyScorer';
+import { Schemas } from 'vs/base/common/network';
 
 export interface IQuickPickItemHighlights {
 	label?: IMatch[];
@@ -272,3 +274,28 @@ export interface IQuickPickItemButtonContext<T extends IQuickPickItem> extends I
 }
 
 export type QuickPickInput<T = IQuickPickItem> = T | IQuickPickSeparator;
+
+
+//region Fuzzy Scorer Support
+
+export type IQuickPickItemWithResource = IQuickPickItem & { resource: URI | undefined };
+
+export const quickPickItemScorerAccessor = new class implements IItemAccessor<IQuickPickItemWithResource> {
+	getItemLabel(entry: IQuickPickItemWithResource): string {
+		return entry.label;
+	}
+
+	getItemDescription(entry: IQuickPickItemWithResource): string | undefined {
+		return entry.description;
+	}
+
+	getItemPath(entry: IQuickPickItemWithResource): string | undefined {
+		if (entry.resource?.scheme === Schemas.file) {
+			return entry.resource.fsPath;
+		}
+
+		return entry.resource?.path;
+	}
+};
+
+//#endregion
