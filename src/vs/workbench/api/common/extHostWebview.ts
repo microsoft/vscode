@@ -18,6 +18,7 @@ import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { EditorViewColumn } from 'vs/workbench/api/common/shared/editor';
 import { asWebviewUri, WebviewInitData } from 'vs/workbench/api/common/shared/webview';
 import type * as vscode from 'vscode';
+import { Cache } from './cache';
 import { ExtHostWebviewsShape, IMainContext, MainContext, MainThreadWebviewsShape, WebviewExtensionDescription, WebviewPanelHandle, WebviewPanelViewStateData } from './extHost.protocol';
 import { Disposable as VSCodeDisposable } from './extHostTypes';
 
@@ -245,8 +246,6 @@ export class ExtHostWebviewEditor extends Disposable implements vscode.WebviewPa
 	}
 }
 
-type EditType = unknown;
-
 class CustomDocument extends Disposable implements vscode.CustomDocument {
 
 	public static create(proxy: MainThreadWebviewsShape, viewType: string, uri: vscode.Uri) {
@@ -255,9 +254,7 @@ class CustomDocument extends Disposable implements vscode.CustomDocument {
 
 	// Explicitly initialize all properties as we seal the object after creation!
 
-	#currentEditIndex: number = -1;
-	#savePoint: number = -1;
-	readonly #edits: Array<EditType> = [];
+	readonly #_edits = new Cache<unknown>('edits');
 
 	readonly #proxy: MainThreadWebviewsShape;
 	readonly #viewType: string;
@@ -299,58 +296,28 @@ class CustomDocument extends Disposable implements vscode.CustomDocument {
 
 		this.#capabilities = capabilities;
 		capabilities.editing?.onDidEdit(edit => {
-			this.pushEdit(edit);
+			const id = this.#_edits.add([edit]);
+			this.#proxy.$onDidEdit(this.uri, this.viewType, id);
 		});
 	}
 
-	/** @internal*/ async _revert() {
+	/** @internal*/ async _revert(changes: { undoneEdits: number[], redoneEdits: number[] }) {
 		const editing = this.getEditingCapability();
-		if (this.#currentEditIndex === this.#savePoint) {
-			return true;
-		}
-
-
-		let undoneEdits: EditType[] = [];
-		let appliedEdits: EditType[] = [];
-		if (this.#currentEditIndex >= this.#savePoint) {
-			undoneEdits = this.#edits.slice(this.#savePoint, this.#currentEditIndex).reverse();
-		} else if (this.#currentEditIndex < this.#savePoint) {
-			appliedEdits = this.#edits.slice(this.#currentEditIndex, this.#savePoint);
-		}
-
-		this.#currentEditIndex = this.#savePoint;
-		this.spliceEdits();
-
-		await editing.revert({ undoneEdits, appliedEdits });
-
-		this.updateState();
-		return true;
+		const undoneEdits = changes.undoneEdits.map(id => this.#_edits.get(id, 0));
+		const appliedEdits = changes.redoneEdits.map(id => this.#_edits.get(id, 0));
+		return editing.revert({ undoneEdits, appliedEdits });
 	}
 
-	/** @internal*/ _undo() {
+	/** @internal*/ _undo(editId: number) {
 		const editing = this.getEditingCapability();
-		if (this.#currentEditIndex < 0) {
-			// nothing to undo
-			return;
-		}
-
-		const undoneEdit = this.#edits[this.#currentEditIndex];
-		--this.#currentEditIndex;
-		editing.undoEdits([undoneEdit]);
-		this.updateState();
+		const edit = this.#_edits.get(editId, 0);
+		return editing.undoEdits([edit]);
 	}
 
-	/** @internal*/ _redo() {
+	/** @internal*/ _redo(editId: number) {
 		const editing = this.getEditingCapability();
-		if (this.#currentEditIndex >= this.#edits.length - 1) {
-			// nothing to redo
-			return;
-		}
-
-		++this.#currentEditIndex;
-		const redoneEdit = this.#edits[this.#currentEditIndex];
-		editing.applyEdits([redoneEdit]);
-		this.updateState();
+		const edit = this.#_edits.get(editId, 0);
+		return editing.applyEdits([edit]);
 	}
 
 	/** @internal*/ _save(cancellation: CancellationToken) {
@@ -365,28 +332,13 @@ class CustomDocument extends Disposable implements vscode.CustomDocument {
 		return this.getEditingCapability().backup(cancellation);
 	}
 
+	/** @internal*/ _disposeEdits(editIds: number[]) {
+		for (const editId of editIds) {
+			this.#_edits.delete(editId);
+		}
+	}
+
 	//#endregion
-
-	private pushEdit(edit: EditType) {
-		this.spliceEdits(edit);
-
-		this.#currentEditIndex = this.#edits.length - 1;
-		this.updateState();
-	}
-
-	private updateState() {
-		const dirty = this.#edits.length > 0 && this.#savePoint !== this.#currentEditIndex;
-		this.#proxy.$onDidChangeCustomDocumentState(this.uri, this.viewType, { dirty });
-	}
-
-	private spliceEdits(editToInsert?: EditType) {
-		const start = this.#currentEditIndex + 1;
-		const toRemove = this.#edits.length - this.#currentEditIndex;
-
-		editToInsert
-			? this.#edits.splice(start, toRemove, editToInsert)
-			: this.#edits.splice(start, toRemove);
-	}
 
 	private getEditingCapability(): vscode.CustomEditorEditingCapability {
 		if (!this.#capabilities?.editing) {
@@ -702,24 +654,29 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		}
 	}
 
-	async $undo(resourceComponents: UriComponents, viewType: string): Promise<void> {
+	$disposeEdits(resourceComponents: UriComponents, viewType: string, editIds: number[]): void {
 		const document = this.getCustomDocument(viewType, resourceComponents);
-		document._undo();
+		document._disposeEdits(editIds);
 	}
 
-	async $redo(resourceComponents: UriComponents, viewType: string): Promise<void> {
+	async $undo(resourceComponents: UriComponents, viewType: string, editId: number): Promise<void> {
 		const document = this.getCustomDocument(viewType, resourceComponents);
-		document._redo();
+		return document._undo(editId);
 	}
 
-	async $revert(resourceComponents: UriComponents, viewType: string): Promise<void> {
+	async $redo(resourceComponents: UriComponents, viewType: string, editId: number): Promise<void> {
 		const document = this.getCustomDocument(viewType, resourceComponents);
-		document._revert();
+		return document._redo(editId);
+	}
+
+	async $revert(resourceComponents: UriComponents, viewType: string, changes: { undoneEdits: number[], redoneEdits: number[] }): Promise<void> {
+		const document = this.getCustomDocument(viewType, resourceComponents);
+		return document._revert(changes);
 	}
 
 	async $onSave(resourceComponents: UriComponents, viewType: string, cancellation: CancellationToken): Promise<void> {
 		const document = this.getCustomDocument(viewType, resourceComponents);
-		document._save(cancellation);
+		return document._save(cancellation);
 	}
 
 	async $onSaveAs(resourceComponents: UriComponents, viewType: string, targetResource: UriComponents): Promise<void> {

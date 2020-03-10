@@ -64,14 +64,6 @@ export class CustomTextEditorModel extends Disposable implements ICustomEditorMo
 		return this.textFileService.revert(this.resource, options);
 	}
 
-	public undo() {
-		this.textFileService.files.get(this.resource)?.textEditorModel?.undo();
-	}
-
-	public redo() {
-		this.textFileService.files.get(this.resource)?.textEditorModel?.redo();
-	}
-
 	public async save(options?: ISaveOptions): Promise<boolean> {
 		return !!await this.textFileService.save(this.resource, options);
 	}
