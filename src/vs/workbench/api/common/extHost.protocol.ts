@@ -648,6 +648,7 @@ export enum CellOutputKind {
 
 export interface ICellDto {
 	handle: number;
+	uri: UriComponents,
 	source: string[];
 	language: string;
 	cellKind: CellKind;

@@ -1527,6 +1527,7 @@ declare module 'vscode' {
 	export type CellOutput = CellStreamOutput | CellErrorOutput | CellDisplayOutput;
 
 	export interface NotebookCell {
+		readonly uri: Uri;
 		handle: number;
 		language: string;
 		cellKind: CellKind;

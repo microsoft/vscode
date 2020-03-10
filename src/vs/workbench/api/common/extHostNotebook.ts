@@ -12,13 +12,11 @@ import { DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { readonly } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { INotebookDisplayOrder, parseCellUri, parseCellHandle, ITransformedDisplayOutputDto, IOrderedMimeType, IStreamOutput, IErrorOutput, mimeTypeSupportedByCore, IOutput, sortMimeTypes, diff } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookDisplayOrder, parseCellUri, parseCellHandle, ITransformedDisplayOutputDto, IOrderedMimeType, IStreamOutput, IErrorOutput, mimeTypeSupportedByCore, IOutput, sortMimeTypes, diff, generateCellPath } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ISplice } from 'vs/base/common/sequence';
 
 export class ExtHostCell implements vscode.NotebookCell {
 
-	private static _handlePool: number = 0;
-	readonly handle = ExtHostCell._handlePool++;
 	public source: string[];
 	private _outputs: any[];
 	private _onDidChangeOutputs = new Emitter<ISplice<vscode.CellOutput>[]>();
@@ -28,6 +26,8 @@ export class ExtHostCell implements vscode.NotebookCell {
 	private _outputMapping = new Set<vscode.CellOutput>();
 
 	constructor(
+		readonly handle: number,
+		readonly uri: URI,
 		private _content: string,
 		public cellKind: CellKind,
 		public language: string,
@@ -182,6 +182,7 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 				}
 
 				return {
+					uri: cell.uri,
 					handle: cell.handle,
 					source: cell.source,
 					language: cell.language,
@@ -330,6 +331,7 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 
 export class ExtHostNotebookEditor extends Disposable implements vscode.NotebookEditor {
 	private _viewColumn: vscode.ViewColumn | undefined;
+	private static _cellhandlePool: number = 0;
 
 	constructor(
 		viewType: string,
@@ -385,7 +387,14 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 	}
 
 	createCell(content: string, language: string, type: CellKind, outputs: vscode.CellOutput[]): vscode.NotebookCell {
-		let cell = new ExtHostCell(content, type, language, outputs);
+		const handle = ExtHostNotebookEditor._cellhandlePool++;
+		const uri = URI.from({
+			scheme: 'vscode-notebook',
+			authority: this.document.viewType,
+			path: generateCellPath(type, handle),
+			query: this.document.uri.toString()
+		});
+		const cell = new ExtHostCell(handle, uri, content, type, language, outputs);
 		return cell;
 	}
 
@@ -581,6 +590,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 
 			return {
+				uri: rawCell.uri,
 				handle: rawCell.handle,
 				source: rawCell.source,
 				language: rawCell.language,

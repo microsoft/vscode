@@ -9,7 +9,7 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { INotebookService, IMainNotebookController } from 'vs/workbench/contrib/notebook/browser/notebookService';
 import { Emitter, Event } from 'vs/base/common/event';
-import { ICell, IOutput, INotebook, INotebookMimeTypeSelector, NOTEBOOK_DISPLAY_ORDER, NotebookCellsSplice, NotebookCellOutputsSplice, generateCellPath, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICell, IOutput, INotebook, INotebookMimeTypeSelector, NOTEBOOK_DISPLAY_ORDER, NotebookCellsSplice, NotebookCellOutputsSplice, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { PieceTreeTextBufferFactory, PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 
@@ -37,12 +37,11 @@ export class MainThreadCell implements ICell {
 		this._onDidChangeDirtyState.fire(newState);
 	}
 
-	readonly uri: URI;
 
 	private _buffer: PieceTreeTextBufferFactory | null = null;
 
 	constructor(
-		parent: MainThreadNotebookDocument,
+		readonly uri: URI,
 		public handle: number,
 		public source: string[],
 		public language: string,
@@ -50,12 +49,6 @@ export class MainThreadCell implements ICell {
 		outputs: IOutput[]
 	) {
 		this._outputs = outputs;
-		this.uri = URI.from({
-			scheme: 'vscode-notebook',
-			authority: parent.viewType,
-			path: generateCellPath(cellKind, handle),
-			query: parent.uri.toString()
-		});
 	}
 
 	spliceNotebookCellOutputs(splices: NotebookCellOutputsSplice[]): void {
@@ -134,7 +127,7 @@ export class MainThreadNotebookDocument extends Disposable implements INotebook 
 	async createRawCell(viewType: string, uri: URI, index: number, language: string, type: CellKind): Promise<MainThreadCell | undefined> {
 		let cell = await this._proxy.$createEmptyCell(viewType, uri, index, language, type);
 		if (cell) {
-			let mainCell = new MainThreadCell(this, cell.handle, cell.source, cell.language, cell.cellKind, cell.outputs);
+			let mainCell = new MainThreadCell(URI.revive(cell.uri), cell.handle, cell.source, cell.language, cell.cellKind, cell.outputs);
 			this._mapping.set(cell.handle, mainCell);
 			this.cells.splice(index, 0, mainCell);
 
@@ -178,7 +171,7 @@ export class MainThreadNotebookDocument extends Disposable implements INotebook 
 		splices.reverse().forEach(splice => {
 			let cellDtos = splice[2];
 			let newCells = cellDtos.map(cell => {
-				let mainCell = new MainThreadCell(this, cell.handle, cell.source, cell.language, cell.cellKind, cell.outputs || []);
+				let mainCell = new MainThreadCell(URI.revive(cell.uri), cell.handle, cell.source, cell.language, cell.cellKind, cell.outputs || []);
 				this._mapping.set(cell.handle, mainCell);
 				let dirtyStateListener = mainCell.onDidChangeDirtyState((cellState) => {
 					this.isDirty = this.isDirty || cellState;
