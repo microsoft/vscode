@@ -198,7 +198,7 @@ export class CompositeProgressIndicator extends CompositeScope implements IProgr
 		progressbar: ProgressBar,
 		scopeId: string,
 		isActive: boolean,
-		private readonly options: { hideWhenInactive?: boolean } | undefined,
+		private readonly options: { exclusiveProgressBar?: boolean } | undefined,
 		@IViewletService viewletService: IViewletService,
 		@IPanelService panelService: IPanelService,
 		@IViewsService viewsService: IViewsService
@@ -212,7 +212,7 @@ export class CompositeProgressIndicator extends CompositeScope implements IProgr
 	onScopeDeactivated(): void {
 		this.isActive = false;
 
-		if (this.options?.hideWhenInactive) {
+		if (this.options?.exclusiveProgressBar) {
 			this.progressbar.stop().hide();
 		}
 	}
@@ -314,7 +314,7 @@ export class CompositeProgressIndicator extends CompositeScope implements IProgr
 			done: () => {
 				this.progressState = ProgressIndicatorState.Done;
 
-				if (this.isActive || this.options?.hideWhenInactive) {
+				if (this.isActive || this.options?.exclusiveProgressBar) {
 					this.progressbar.stop().hide();
 				}
 			}
@@ -345,7 +345,7 @@ export class CompositeProgressIndicator extends CompositeScope implements IProgr
 				// The while promise is either null or equal the promise we last hooked on
 				this.progressState = ProgressIndicatorState.None;
 
-				if (this.isActive || this.options?.hideWhenInactive) {
+				if (this.isActive || this.options?.exclusiveProgressBar) {
 					this.progressbar.stop().hide();
 				}
 			}
