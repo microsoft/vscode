@@ -77,7 +77,7 @@ export const IExtensionBlocklistService = createDecorator<IExtensionBlocklistSer
 
 export interface IExtensionBlocklistService {
 	_serviceBrand: undefined;
-	isPermitted(extension: { publisher: string; name: string; version: string} ): boolean;
+	isPermitted(extension: { publisher: string; name: string; version: string }): boolean;
 }
 
 export interface IExtensionsConfigContent {
