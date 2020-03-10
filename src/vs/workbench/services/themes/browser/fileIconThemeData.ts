@@ -12,6 +12,9 @@ import { ExtensionData, IThemeExtensionPoint, IWorkbenchFileIconTheme } from 'vs
 import { IFileService } from 'vs/platform/files/common/files';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import { asCSSUrl } from 'vs/base/browser/dom';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+
+const PERSISTED_FILE_ICON_THEME_STORAGE_KEY = 'iconThemeData';
 
 export class FileIconThemeData implements IWorkbenchFileIconTheme {
 	id: string;
@@ -78,7 +81,7 @@ export class FileIconThemeData implements IWorkbenchFileIconTheme {
 
 	private static _noIconTheme: FileIconThemeData | null = null;
 
-	static noIconTheme(): FileIconThemeData {
+	static get noIconTheme(): FileIconThemeData {
 		let themeData = FileIconThemeData._noIconTheme;
 		if (!themeData) {
 			themeData = FileIconThemeData._noIconTheme = new FileIconThemeData('', '', null);
@@ -103,7 +106,12 @@ export class FileIconThemeData implements IWorkbenchFileIconTheme {
 		return themeData;
 	}
 
-	static fromStorageData(input: string): FileIconThemeData | null {
+
+	static fromStorageData(storageService: IStorageService): FileIconThemeData | undefined {
+		const input = storageService.get(PERSISTED_FILE_ICON_THEME_STORAGE_KEY, StorageScope.GLOBAL);
+		if (!input) {
+			return undefined;
+		}
 		try {
 			let data = JSON.parse(input);
 			const theme = new FileIconThemeData('', '', null);
@@ -128,12 +136,12 @@ export class FileIconThemeData implements IWorkbenchFileIconTheme {
 			}
 			return theme;
 		} catch (e) {
-			return null;
+			return undefined;
 		}
 	}
 
-	toStorageData() {
-		return JSON.stringify({
+	toStorage(storageService: IStorageService) {
+		const data = JSON.stringify({
 			id: this.id,
 			label: this.label,
 			description: this.description,
@@ -145,6 +153,7 @@ export class FileIconThemeData implements IWorkbenchFileIconTheme {
 			hidesExplorerArrows: this.hidesExplorerArrows,
 			watch: this.watch
 		});
+		storageService.store(PERSISTED_FILE_ICON_THEME_STORAGE_KEY, data, StorageScope.GLOBAL);
 	}
 }
 

@@ -133,8 +133,12 @@ class WebviewProtocolProvider extends Disposable {
 		});
 
 		this._register(handle.onFirstLoad(contents => {
-			registerFileProtocol(contents, WebviewResourceScheme, fileService, getExtensionLocation(), getLocalResourceRoots)
-				.then(this._resolve, this._reject);
+			try {
+				registerFileProtocol(contents, WebviewResourceScheme, fileService, getExtensionLocation(), getLocalResourceRoots);
+				this._resolve();
+			} catch {
+				this._reject();
+			}
 		}));
 	}
 }

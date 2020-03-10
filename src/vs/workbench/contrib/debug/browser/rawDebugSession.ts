@@ -270,7 +270,7 @@ export class RawDebugSession implements IDisposable {
 		if (this.capabilities.supportsTerminateRequest) {
 			if (!this.terminated) {
 				this.terminated = true;
-				return this.send('terminate', { restart }, undefined, 500);
+				return this.send('terminate', { restart }, undefined, 1000);
 			}
 			return this.disconnect(restart);
 		}
@@ -481,7 +481,7 @@ export class RawDebugSession implements IDisposable {
 			this.inShutdown = true;
 			if (this.debugAdapter) {
 				try {
-					await this.send('disconnect', { restart }, undefined, 500);
+					await this.send('disconnect', { restart }, undefined, 1000);
 				} finally {
 					this.stopAdapter(error);
 				}

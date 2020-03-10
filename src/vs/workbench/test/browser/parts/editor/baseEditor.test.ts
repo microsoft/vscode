@@ -11,7 +11,7 @@ import * as Platform from 'vs/platform/registry/common/platform';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { workbenchInstantiationService, TestEditorGroupView, TestEditorGroupsService, TestStorageService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService, TestEditorGroupView, TestEditorGroupsService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { URI } from 'vs/base/common/uri';
@@ -19,6 +19,7 @@ import { IEditorRegistry, Extensions, EditorDescriptor } from 'vs/workbench/brow
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { dispose } from 'vs/base/common/lifecycle';
+import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
 const NullThemeService = new TestThemeService();
 

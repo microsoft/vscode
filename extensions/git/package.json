@@ -40,10 +40,7 @@
         "command": "git.init",
         "title": "%command.init%",
         "category": "Git",
-        "icon": {
-          "light": "resources/icons/light/git.svg",
-          "dark": "resources/icons/dark/git.svg"
-        }
+        "icon": "$(add)"
       },
       {
         "command": "git.openRepository",
@@ -59,37 +56,25 @@
         "command": "git.refresh",
         "title": "%command.refresh%",
         "category": "Git",
-        "icon": {
-          "light": "resources/icons/light/refresh.svg",
-          "dark": "resources/icons/dark/refresh.svg"
-        }
+        "icon": "$(refresh)"
       },
       {
         "command": "git.openChange",
         "title": "%command.openChange%",
         "category": "Git",
-        "icon": {
-          "light": "resources/icons/light/open-change.svg",
-          "dark": "resources/icons/dark/open-change.svg"
-        }
+        "icon": "$(compare-changes)"
       },
       {
         "command": "git.openFile",
         "title": "%command.openFile%",
         "category": "Git",
-        "icon": {
-          "light": "resources/icons/light/open-file.svg",
-          "dark": "resources/icons/dark/open-file.svg"
-        }
+        "icon": "$(go-to-file)"
       },
       {
         "command": "git.openFile2",
         "title": "%command.openFile%",
         "category": "Git",
-        "icon": {
-          "light": "resources/icons/light/open-file.svg",
-          "dark": "resources/icons/dark/open-file.svg"
-        }
+        "icon": "$(go-to-file)"
       },
       {
         "command": "git.openHEADFile",
@@ -100,37 +85,25 @@
         "command": "git.stage",
         "title": "%command.stage%",
         "category": "Git",
-        "icon": {
-          "light": "resources/icons/light/stage.svg",
-          "dark": "resources/icons/dark/stage.svg"
-        }
+        "icon": "$(add)"
       },
       {
         "command": "git.stageAll",
         "title": "%command.stageAll%",
         "category": "Git",
-        "icon": {
-          "light": "resources/icons/light/stage.svg",
-          "dark": "resources/icons/dark/stage.svg"
-        }
+        "icon": "$(add)"
       },
       {
         "command": "git.stageAllTracked",
         "title": "%command.stageAllTracked%",
         "category": "Git",
-        "icon": {
-          "light": "resources/icons/light/stage.svg",
-          "dark": "resources/icons/dark/stage.svg"
-        }
+        "icon": "$(add)"
       },
       {
         "command": "git.stageAllUntracked",
         "title": "%command.stageAllUntracked%",
         "category": "Git",
-        "icon": {
-          "light": "resources/icons/light/stage.svg",
-          "dark": "resources/icons/dark/stage.svg"
-        }
+        "icon": "$(add)"
       },
       {
         "command": "git.stageSelectedRanges",
@@ -146,37 +119,25 @@
         "command": "git.stageChange",
         "title": "%command.stageChange%",
         "category": "Git",
-        "icon": {
-          "light": "resources/icons/light/stage.svg",
-          "dark": "resources/icons/dark/stage.svg"
-        }
+        "icon": "$(add)"
       },
       {
         "command": "git.revertChange",
         "title": "%command.revertChange%",
         "category": "Git",
-        "icon": {
-          "light": "resources/icons/light/clean.svg",
-          "dark": "resources/icons/dark/clean.svg"
-        }
+        "icon": "$(discard)"
       },
       {
         "command": "git.unstage",
         "title": "%command.unstage%",
         "category": "Git",
-        "icon": {
-          "light": "resources/icons/light/unstage.svg",
-          "dark": "resources/icons/dark/unstage.svg"
-        }
+        "icon": "$(remove)"
       },
       {
         "command": "git.unstageAll",
         "title": "%command.unstageAll%",
         "category": "Git",
-        "icon": {
-          "light": "resources/icons/light/unstage.svg",
-          "dark": "resources/icons/dark/unstage.svg"
-        }
+        "icon": "$(remove)"
       },
       {
         "command": "git.unstageSelectedRanges",
@@ -187,46 +148,31 @@
         "command": "git.clean",
         "title": "%command.clean%",
         "category": "Git",
-        "icon": {
-          "light": "resources/icons/light/clean.svg",
-          "dark": "resources/icons/dark/clean.svg"
-        }
+        "icon": "$(discard)"
       },
       {
         "command": "git.cleanAll",
         "title": "%command.cleanAll%",
         "category": "Git",
-        "icon": {
-          "light": "resources/icons/light/clean.svg",
-          "dark": "resources/icons/dark/clean.svg"
-        }
+        "icon": "$(discard)"
       },
       {
         "command": "git.cleanAllTracked",
         "title": "%command.cleanAllTracked%",
         "category": "Git",
-        "icon": {
-          "light": "resources/icons/light/clean.svg",
-          "dark": "resources/icons/dark/clean.svg"
-        }
+        "icon": "$(discard)"
       },
       {
         "command": "git.cleanAllUntracked",
         "title": "%command.cleanAllUntracked%",
         "category": "Git",
-        "icon": {
-          "light": "resources/icons/light/clean.svg",
-          "dark": "resources/icons/dark/clean.svg"
-        }
+        "icon": "$(discard)"
       },
       {
         "command": "git.commit",
         "title": "%command.commit%",
         "category": "Git",
-        "icon": {
-          "light": "resources/icons/light/check.svg",
-          "dark": "resources/icons/dark/check.svg"
-        }
+        "icon": "$(check)"
       },
       {
         "command": "git.commitStaged",

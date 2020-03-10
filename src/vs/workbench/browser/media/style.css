@@ -23,9 +23,9 @@
 .linux:lang(ja) { font-family: "Ubuntu", "Droid Sans", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", sans-serif; }
 .linux:lang(ko) { font-family: "Ubuntu", "Droid Sans", "Source Han Sans K", "Source Han Sans JR", "Source Han Sans", "UnDotum", "FBaekmuk Gulim", sans-serif; }
 
-.mac { --monaco-monospace-font: "SF Mono", Monaco, Menlo, Inconsolata, "Courier New", monospace; }
-.windows { --monaco-monospace-font: Consolas, Inconsolata, "Courier New", monospace; }
-.linux { --monaco-monospace-font: "Droid Sans Mono", Inconsolata, "Courier New", monospace, "Droid Sans Fallback"; }
+.mac { --monaco-monospace-font: "SF Mono", Monaco, Menlo, Courier, monospace; }
+.windows { --monaco-monospace-font: Consolas, "Courier New", monospace; }
+.linux { --monaco-monospace-font: "Ubuntu Mono", "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace; }
 
 /* Global Styles */
 

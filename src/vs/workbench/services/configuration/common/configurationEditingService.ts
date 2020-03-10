@@ -20,7 +20,7 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IConfigurationService, IConfigurationOverrides, keyFromOverrideIdentifier } from 'vs/platform/configuration/common/configuration';
-import { FOLDER_SETTINGS_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS, TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY, USER_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';
+import { FOLDER_SETTINGS_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS, TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY, USER_STANDALONE_CONFIGURATIONS, TASKS_DEFAULT } from 'vs/workbench/services/configuration/common/configuration';
 import { IFileService, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { OVERRIDE_PROPERTY_PATTERN, IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
@@ -434,10 +434,19 @@ export class ConfigurationEditingService {
 		return setProperty(model.getValue(), jsonPath, value, { tabSize, insertSpaces, eol });
 	}
 
+	private defaultResourceValue(resource: URI): string {
+		const basename: string = resources.basename(resource);
+		const configurationValue: string = basename.substr(0, basename.length - resources.extname(resource).length);
+		switch (configurationValue) {
+			case TASKS_CONFIGURATION_KEY: return TASKS_DEFAULT;
+			default: return '{}';
+		}
+	}
+
 	private async resolveModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
 		const exists = await this.fileService.exists(resource);
 		if (!exists) {
-			await this.textFileService.write(resource, '{}', { encoding: 'utf8' });
+			await this.textFileService.write(resource, this.defaultResourceValue(resource), { encoding: 'utf8' });
 		}
 		return this.textModelResolverService.createModelReference(resource);
 	}

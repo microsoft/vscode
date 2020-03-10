@@ -49,6 +49,7 @@ export interface IssueReporterExtensionData {
 	version: string;
 	id: string;
 	isTheme: boolean;
+	isBuiltin: boolean;
 	displayName: string | undefined;
 	repositoryUrl: string | undefined;
 	bugsUrl: string | undefined;

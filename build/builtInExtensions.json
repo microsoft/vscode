@@ -1,7 +1,7 @@
 [
 	{
 		"name": "ms-vscode.node-debug",
-		"version": "1.44.1",
+		"version": "1.44.2",
 		"repo": "https://github.com/Microsoft/vscode-node-debug",
 		"metadata": {
 			"id": "b6ded8fb-a0a0-4c1c-acbd-ab2a3bc995a6",
@@ -53,6 +53,21 @@
 		"repo": "https://github.com/Microsoft/vscode-js-debug",
 		"metadata": {
 			"id": "7acbb4ce-c85a-49d4-8d95-a8054406ae97",
+			"publisherId": {
+				"publisherId": "5f5636e7-69ed-4afe-b5d6-8d231fb3d3ee",
+				"publisherName": "ms-vscode",
+				"displayName": "Microsoft",
+				"flags": "verified"
+			},
+			"publisherDisplayName": "Microsoft"
+		}
+	},
+	{
+		"name": "ms-vscode.js-debug-companion",
+		"version": "0.0.4",
+		"repo": "https://github.com/microsoft/vscode-js-debug-companion",
+		"metadata": {
+			"id": "99cb0b7f-7354-4278-b8da-6cc79972169d",
 			"publisherId": {
 				"publisherId": "5f5636e7-69ed-4afe-b5d6-8d231fb3d3ee",
 				"publisherName": "ms-vscode",
