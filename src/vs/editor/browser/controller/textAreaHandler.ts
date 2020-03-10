@@ -252,9 +252,9 @@ export class TextAreaHandler extends ViewPart {
 			this._viewController.setSelection('keyboard', modelSelection);
 		}));
 
-		this._register(this._textAreaInput.onCompositionStart(() => {
+		this._register(this._textAreaInput.onCompositionStart((e) => {
 			const lineNumber = this._selections[0].startLineNumber;
-			const column = this._selections[0].startColumn;
+			const column = this._selections[0].startColumn - (e.moveOneCharacterLeft ? 1 : 0);
 
 			this._context.privateViewEventBus.emit(new viewEvents.ViewRevealRangeRequestEvent(
 				'keyboard',

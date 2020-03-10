@@ -285,15 +285,15 @@ export interface IItemAccessor<T> {
 	/**
 	 * Just the label of the item to score on.
 	 */
-	getItemLabel(item: T): string | null;
+	getItemLabel(item: T): string | undefined;
 
 	/**
-	 * The optional description of the item to score on. Can be null.
+	 * The optional description of the item to score on.
 	 */
-	getItemDescription(item: T): string | null;
+	getItemDescription(item: T): string | undefined;
 
 	/**
-	 * If the item is a file, the path of the file to score on. Can be null.
+	 * If the item is a file, the path of the file to score on.
 	 */
 	getItemPath(file: T): string | undefined;
 }
@@ -311,7 +311,7 @@ export interface IPreparedQuery {
 }
 
 /**
- * Helper function to prepare a search value for scoring in quick open by removing unwanted characters.
+ * Helper function to prepare a search value for scoring by removing unwanted characters.
  */
 export function prepareQuery(original: string): IPreparedQuery {
 	if (!original) {
@@ -364,6 +364,7 @@ function createMatches(offsets: undefined | number[]): IMatch[] {
 	if (!offsets) {
 		return ret;
 	}
+
 	let last: IMatch | undefined;
 	for (const pos of offsets) {
 		if (last && last.end === pos) {
@@ -373,10 +374,11 @@ function createMatches(offsets: undefined | number[]): IMatch[] {
 			ret.push(last);
 		}
 	}
+
 	return ret;
 }
 
-function doScoreItem(label: string, description: string | null, path: string | undefined, query: IPreparedQuery, fuzzy: boolean): IItemScore {
+function doScoreItem(label: string, description: string | undefined, path: string | undefined, query: IPreparedQuery, fuzzy: boolean): IItemScore {
 
 	// 1.) treat identity matches on full path highest
 	if (path && (isLinux ? query.original === path : equalsIgnoreCase(query.original, path))) {
@@ -589,7 +591,7 @@ function compareByMatchLength(matchesA?: IMatch[], matchesB?: IMatch[]): number 
 	return matchLengthA === matchLengthB ? 0 : matchLengthB < matchLengthA ? 1 : -1;
 }
 
-export function fallbackCompare<T>(itemA: T, itemB: T, query: IPreparedQuery, accessor: IItemAccessor<T>): number {
+function fallbackCompare<T>(itemA: T, itemB: T, query: IPreparedQuery, accessor: IItemAccessor<T>): number {
 
 	// check for label + description length and prefer shorter
 	const labelA = accessor.getItemLabel(itemA) || '';

@@ -1,0 +1,74 @@
+# Query: @deprecated ES6
+# Flags: CaseSensitive WordMatch
+# ContextLines: 2
+
+11 results - 3 files
+
+src/vs/base/common/arrays.ts:
+  401  
+  402  /**
+  403:  * @deprecated ES6: use `Array.findIndex`
+  404   */
+  405  export function firstIndex<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean): number {
+
+  417  
+  418  /**
+  419:  * @deprecated ES6: use `Array.find`
+  420   */
+  421  export function first<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean, notFoundValue: T): T;
+
+  474  
+  475  /**
+  476:  * @deprecated ES6: use `Array.fill`
+  477   */
+  478  export function fill<T>(num: number, value: T, arr: T[] = []): T[] {
+
+  571  
+  572  /**
+  573:  * @deprecated ES6: use `Array.find`
+  574   */
+  575  export function find<T>(arr: ArrayLike<T>, predicate: (value: T, index: number, arr: ArrayLike<T>) => any): T | undefined {
+
+src/vs/base/common/map.ts:
+  9  
+  10  /**
+  11:  * @deprecated ES6: use `[...SetOrMap.values()]`
+  12   */
+  13  export function values<V = any>(set: Set<V>): V[];
+
+  20  
+  21  /**
+  22:  * @deprecated ES6: use `[...map.keys()]`
+  23   */
+  24  export function keys<K, V>(map: Map<K, V>): K[] {
+
+  58  
+  59  /**
+  60:  * @deprecated ES6: use `...Map.entries()`
+  61   */
+  62  export function mapToSerializable(map: Map<string, string>): [string, string][] {
+
+  71  
+  72  /**
+  73:  * @deprecated ES6: use `new Map([[key1, value1],[key2, value2]])`
+  74   */
+  75  export function serializableToMap(serializable: [string, string][]): Map<string, string> {
+
+src/vs/base/common/strings.ts:
+  16  
+  17  /**
+  18:  * @deprecated ES6: use `String.padStart`
+  19   */
+  20  export function pad(n: number, l: number, char: string = '0'): string {
+
+  147  
+  148  /**
+  149:  * @deprecated ES6: use `String.startsWith`
+  150   */
+  151  export function startsWith(haystack: string, needle: string): boolean {
+
+  168  
+  169  /**
+  170:  * @deprecated ES6: use `String.endsWith`
+  171   */
+  172  export function endsWith(haystack: string, needle: string): boolean {

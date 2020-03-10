@@ -17,13 +17,13 @@ import { ITextBufferFactory } from 'vs/editor/common/model';
 import { URI } from 'vs/base/common/uri';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { TestTextResourcePropertiesService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { TestTextResourcePropertiesService } from 'vs/workbench/test/common/workbenchTestServices';
 
 class MyEditorModel extends EditorModel { }
 class MyTextEditorModel extends BaseTextEditorModel {

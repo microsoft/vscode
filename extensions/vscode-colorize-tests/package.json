@@ -22,7 +22,8 @@
 	"devDependencies": {
 		"@types/node": "^12.11.7",
 		"mocha-junit-reporter": "^1.17.0",
-		"mocha-multi-reporters": "^1.1.7"
+		"mocha-multi-reporters": "^1.1.7",
+		"vscode": "1.1.5"
 	},
 	"contributes": {
 		"semanticTokenTypes": [
@@ -40,9 +41,7 @@
 		"semanticTokenStyleDefaults": [
 			{
 				"selector": "testToken",
-				"scope": [
-					"entity.name.function.special"
-				]
+				"scope": [ "entity.name.function.special" ]
 			},
 			{
 				"selector": "*.testModifier",
@@ -55,6 +54,14 @@
 				"highContrast": {
 					"fontStyle": "bold"
 				}
+			}
+		],
+		"productIconThemes": [
+			{
+				"id": "Test Product Icons",
+				"label": "The Test Product Icon Theme",
+				"path": "./producticons/test-product-icon-theme.json",
+				"_watch": true
 			}
 		]
 	}

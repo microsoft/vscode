@@ -84,6 +84,7 @@ import 'vs/workbench/services/workingCopy/common/workingCopyService';
 import 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import 'vs/workbench/services/views/browser/viewDescriptorService';
+import 'vs/workbench/services/quickinput/browser/quickInputService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
@@ -112,8 +113,6 @@ import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSyncEnablementService';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { QuickInputService } from 'vs/platform/quickinput/browser/quickInput';
 
 registerSingleton(IUserDataSyncEnablementService, UserDataSyncEnablementService);
 registerSingleton(IGlobalExtensionEnablementService, GlobalExtensionEnablementService);
@@ -129,7 +128,6 @@ registerSingleton(ITextResourceConfigurationService, TextResourceConfigurationSe
 registerSingleton(IMenuService, MenuService, true);
 registerSingleton(IDownloadService, DownloadService, true);
 registerSingleton(IOpenerService, OpenerService, true);
-registerSingleton(IQuickInputService, QuickInputService, true);
 
 //#endregion
 
@@ -152,6 +150,9 @@ import 'vs/workbench/contrib/logs/common/logs.contribution';
 
 // Quick Open Handlers
 import 'vs/workbench/contrib/quickopen/browser/quickopen.contribution';
+
+// Quick Access Providers
+import 'vs/workbench/contrib/quickaccess/browser/quickAccess.contribution';
 
 // Explorer
 import 'vs/workbench/contrib/files/browser/explorerViewlet';

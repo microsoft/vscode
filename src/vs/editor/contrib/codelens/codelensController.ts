@@ -8,10 +8,10 @@ import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/err
 import { toDisposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { StableEditorScrollState } from 'vs/editor/browser/core/editorState';
 import { ICodeEditor, MouseTargetType, IViewZoneChangeAccessor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { registerEditorContribution, ServicesAccessor, registerEditorAction, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
-import { CodeLensProviderRegistry, CodeLens } from 'vs/editor/common/modes';
+import { CodeLensProviderRegistry, CodeLens, Command } from 'vs/editor/common/modes';
 import { CodeLensModel, getCodeLensData, CodeLensItem } from 'vs/editor/contrib/codelens/codelens';
 import { CodeLensWidget, CodeLensHelper } from 'vs/editor/contrib/codelens/codelensWidget';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -20,6 +20,9 @@ import { ICodeLensCache } from 'vs/editor/contrib/codelens/codeLensCache';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import * as dom from 'vs/base/browser/dom';
 import { hash } from 'vs/base/common/hash';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { localize } from 'vs/nls';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 export class CodeLensContribution implements IEditorContribution {
 
@@ -402,6 +405,70 @@ export class CodeLensContribution implements IEditorContribution {
 			}
 		});
 	}
+
+	getLenses(): readonly CodeLensWidget[] {
+		return this._lenses;
+	}
 }
 
 registerEditorContribution(CodeLensContribution.ID, CodeLensContribution);
+
+registerEditorAction(class ShowLensesInCurrentLine extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'codelens.showLensesInCurrentLine',
+			precondition: EditorContextKeys.hasCodeLensProvider,
+			label: localize('showLensOnLine', "Show Code Lens Command For Current Line"),
+			alias: 'Show Code Lens Commands For Current Line',
+		});
+	}
+
+	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+
+		if (!editor.hasModel()) {
+			return;
+		}
+
+		const quickInputService = accessor.get(IQuickInputService);
+		const commandService = accessor.get(ICommandService);
+		const notificationService = accessor.get(INotificationService);
+
+		const lineNumber = editor.getSelection().positionLineNumber;
+		const codelensController = editor.getContribution<CodeLensContribution>(CodeLensContribution.ID);
+		const items: { label: string, command: Command }[] = [];
+
+		for (let lens of codelensController.getLenses()) {
+			if (lens.getLineNumber() === lineNumber) {
+				for (let item of lens.getItems()) {
+					const { command } = item.symbol;
+					if (command) {
+						items.push({
+							label: command.title,
+							command: command
+						});
+					}
+				}
+			}
+		}
+
+		if (items.length === 0) {
+			// We dont want an empty picker
+			return;
+		}
+
+		const item = await quickInputService.pick(items, { canPickMany: false });
+		if (!item) {
+			// Nothing picked
+			return;
+		}
+
+		try {
+			await commandService.executeCommand(item.command.id, ...(item.command.arguments || []));
+		} catch (err) {
+			notificationService.error(err);
+		}
+	}
+});
+
+

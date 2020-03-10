@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, } from 'vs/base/common/lifecycle';
-import { IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, IUserDataSyncStore, getUserDataSyncStore, SyncSource, UserDataSyncStoreError, IUserDataSyncLogService, IUserDataManifest, ResourceKey } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, IUserDataSyncStore, getUserDataSyncStore, SyncSource, UserDataSyncStoreError, IUserDataSyncLogService, IUserDataManifest, ResourceKey, IResourceRefHandle } from 'vs/platform/userDataSync/common/userDataSync';
 import { IRequestService, asText, isSuccess, asJson } from 'vs/platform/request/common/request';
 import { joinPath, relativePath } from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -31,7 +31,7 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		this.userDataSyncStore = getUserDataSyncStore(productService, configurationService);
 	}
 
-	async getAllRefs(key: ResourceKey): Promise<string[]> {
+	async getAllRefs(key: ResourceKey): Promise<IResourceRefHandle[]> {
 		if (!this.userDataSyncStore) {
 			throw new Error('No settings sync store url configured.');
 		}
@@ -45,8 +45,8 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 			throw new UserDataSyncStoreError('Server returned ' + context.res.statusCode, UserDataSyncErrorCode.Unknown, undefined);
 		}
 
-		const resources: string[] = await asJson<string[]>(context) || [];
-		return resources.map(resource => relativePath(uri, URI.parse(resource))!);
+		const result = await asJson<{ url: string, created: number }[]>(context) || [];
+		return result.map(({ url, created }) => ({ ref: relativePath(uri, URI.parse(url))!, created: created }));
 	}
 
 	async resolveContent(key: ResourceKey, ref: string): Promise<string | null> {

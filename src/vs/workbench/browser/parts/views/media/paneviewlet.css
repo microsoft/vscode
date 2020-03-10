@@ -19,3 +19,7 @@
 	-webkit-margin-before: 0;
 	-webkit-margin-after: 0;
 }
+
+.monaco-pane-view .pane > .pane-header h3.title:first-child {
+	margin-left: 7px;
+}
