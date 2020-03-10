@@ -217,7 +217,7 @@ function isViewModel(obj: any): obj is IViewModel {
 export class VariablesDataSource implements IAsyncDataSource<IViewModel, IExpression | IScope> {
 
 	hasChildren(element: IViewModel | IExpression | IScope): boolean {
-		if (isViewModel(element) || element instanceof Scope) {
+		if (isViewModel(element)) {
 			return true;
 		}
 
@@ -270,7 +270,8 @@ class ScopesRenderer implements ITreeRenderer<IScope, FuzzyScore, IScopeTemplate
 	}
 
 	renderElement(element: ITreeNode<IScope, FuzzyScore>, index: number, templateData: IScopeTemplateData): void {
-		templateData.label.set(element.element.name, createMatches(element.filterData));
+		const name = element.element.name;
+		templateData.label.set(name, element.element.reference === -1 ? [{ start: 0, end: name.length, extraClasses: 'error' }] : createMatches(element.filterData));
 	}
 
 	disposeTemplate(templateData: IScopeTemplateData): void {
