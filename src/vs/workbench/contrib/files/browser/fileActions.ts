@@ -358,14 +358,14 @@ export function findValidPasteFileTarget(explorerService: IExplorerService, targ
 			break;
 		}
 
-		name = incrementFileName(name, !!fileToPaste.isDirectory, incrementalNaming, stripExample);
+		name = suggestFileName(name, !!fileToPaste.isDirectory, incrementalNaming, stripExample);
 		candidate = resources.joinPath(targetFolder.resource, name);
 	}
 
 	return candidate;
 }
 
-export function incrementFileName(name: string, isFolder: boolean, incrementalNaming: 'simple' | 'smart', stripExample: boolean): string {
+export function suggestFileName(name: string, isFolder: boolean, incrementalNaming: 'simple' | 'smart', stripExample: boolean): string {
 	const separators = '[\\.\\-_]';
 	const exampleFileGroup = '(sample|example)';
 
