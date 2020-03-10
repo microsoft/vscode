@@ -186,6 +186,34 @@ export function generateCellPath(cellKind: CellKind, cellHandle: number): string
 	return `/cell_${cellHandle}${cellKind === CellKind.Markdown ? '.md' : ''}`;
 }
 
+
+export namespace CellUri {
+
+	export const scheme = 'vscode-notebook';
+
+	export function generate(notebook: URI, handle: number): URI {
+		return notebook.with({
+			query: JSON.stringify({ cell: handle, notebook: notebook.toString() }),
+			scheme,
+		});
+	}
+
+	export function parse(cell: URI): { notebook: URI, handle: number } | undefined {
+		if (cell.scheme !== scheme) {
+			return undefined;
+		}
+		try {
+			const data = <{ cell: number, notebook: string }>JSON.parse(cell.query);
+			return {
+				handle: data.cell,
+				notebook: URI.parse(data.notebook)
+			};
+		} catch {
+			return undefined;
+		}
+	}
+}
+
 export function parseCellHandle(path: string): number | undefined {
 	const regex = new RegExp(/cell_(\d*)(\.)?/g);
 	let matches = regex.exec(path);
