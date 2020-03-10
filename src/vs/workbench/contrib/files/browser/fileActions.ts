@@ -349,7 +349,7 @@ function containsBothDirectoryAndFile(distinctElements: ExplorerItem[]): boolean
 }
 
 
-export function findValidPasteFileTarget(explorerService: IExplorerService, targetFolder: ExplorerItem, fileToPaste: { resource: URI, isDirectory?: boolean, allowOverwrite: boolean }, incrementalNaming: 'simple' | 'smart'): URI {
+export function findValidPasteFileTarget(explorerService: IExplorerService, targetFolder: ExplorerItem, fileToPaste: { resource: URI, isDirectory?: boolean, allowOverwrite: boolean }, incrementalNaming: 'simple' | 'smart', stripExample: boolean): URI {
 	let name = resources.basenameOrAuthority(fileToPaste.resource);
 
 	let candidate = resources.joinPath(targetFolder.resource, name);
@@ -358,14 +358,37 @@ export function findValidPasteFileTarget(explorerService: IExplorerService, targ
 			break;
 		}
 
-		name = incrementFileName(name, !!fileToPaste.isDirectory, incrementalNaming);
+		name = incrementFileName(name, !!fileToPaste.isDirectory, incrementalNaming, stripExample);
 		candidate = resources.joinPath(targetFolder.resource, name);
 	}
 
 	return candidate;
 }
 
-export function incrementFileName(name: string, isFolder: boolean, incrementalNaming: 'simple' | 'smart'): string {
+export function incrementFileName(name: string, isFolder: boolean, incrementalNaming: 'simple' | 'smart', stripExample: boolean): string {
+	const separators = '[\\.\\-_]';
+	const exampleFileGroup = '(sample|example)';
+
+	if (stripExample) {
+		// name.sample(.txt) => name(.txt)
+		// name.example(.txt) => name(.txt)
+		const preExtensionExampleFileRegex = RegExp('(.*)(' + separators + exampleFileGroup + ')(\..*)$');
+		if (!isFolder && name.match(preExtensionExampleFileRegex)) {
+			return name.replace(preExtensionExampleFileRegex, (match, g1?, g2?, g3?, g4?) => {
+				return strings.format('{0}{1}', g1, g4);
+			});
+		}
+
+		// name(.txt).sample => name(.txt)
+		// name(.txt).example => name(.txt)
+		const postExtensionExampleFileRegex = RegExp('(.*)(' + separators + exampleFileGroup + ')$');
+		if (!isFolder && name.match(postExtensionExampleFileRegex)) {
+			return name.replace(postExtensionExampleFileRegex, (match, g1?) => {
+				return strings.format('{0}', g1);
+			});
+		}
+	}
+
 	if (incrementalNaming === 'simple') {
 		let namePrefix = name;
 		let extSuffix = '';
@@ -392,7 +415,6 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 		return `${namePrefix} copy${extSuffix}`;
 	}
 
-	const separators = '[\\.\\-_]';
 	const maxNumber = Constants.MAX_SAFE_SMALL_INTEGER;
 
 	// file.1.txt=>file.2.txt
@@ -1080,8 +1102,8 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 				target = element.isDirectory ? element : element.parent!;
 			}
 
-			const incrementalNaming = configurationService.getValue<IFilesConfiguration>().explorer.incrementalNaming;
-			const targetFile = findValidPasteFileTarget(explorerService, target, { resource: fileToPaste, isDirectory: fileToPasteStat.isDirectory, allowOverwrite: pasteShouldMove }, incrementalNaming);
+			const { incrementalNaming, stripExample } = configurationService.getValue<IFilesConfiguration>().explorer;
+			const targetFile = findValidPasteFileTarget(explorerService, target, { resource: fileToPaste, isDirectory: fileToPasteStat.isDirectory, allowOverwrite: pasteShouldMove }, incrementalNaming, stripExample);
 
 			// Move/Copy File
 			if (pasteShouldMove) {

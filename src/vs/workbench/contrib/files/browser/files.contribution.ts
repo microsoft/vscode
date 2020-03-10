@@ -417,6 +417,11 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('explorer.incrementalNaming', "Controls what naming strategy to use when a giving a new name to a duplicated explorer item on paste."),
 			default: 'simple'
 		},
+		'explorer.stripExample': {
+			type: 'boolean',
+			description: nls.localize('explorer.stripExample', 'Controls whether files with "example" or "sample" before or after the extension should be pasted without "example" or "sample".'),
+			default: true,
+		},
 		'explorer.compactFolders': {
 			'type': 'boolean',
 			'description': nls.localize('compressSingleChildFolders', "Controls whether the explorer should render folders in a compact form. In such a form, single child folders will be compressed in a combined tree element. Useful for Java package structures, for example."),

@@ -116,6 +116,7 @@ export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkb
 			colors: boolean;
 			badges: boolean;
 		};
+		stripExample: boolean;
 		incrementalNaming: 'simple' | 'smart';
 	};
 	editor: IEditorOptions;
