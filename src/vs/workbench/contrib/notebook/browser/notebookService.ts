@@ -13,6 +13,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { INotebook, ICell, INotebookMimeTypeSelector, INotebookRendererInfo, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
+import { Iterable } from 'vs/base/common/iterator';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -71,8 +72,7 @@ export class NotebookProviderInfoStore {
 	}
 
 	getContributedNotebook(resource: URI): readonly NotebookProviderInfo[] {
-		return Array.from(this.contributedEditors.values()).filter(customEditor =>
-			customEditor.matches(resource));
+		return [...Iterable.filter(this.contributedEditors.values(), customEditor => customEditor.matches(resource))];
 	}
 }
 
