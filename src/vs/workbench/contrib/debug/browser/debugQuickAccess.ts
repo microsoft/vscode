@@ -50,6 +50,10 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 					ariaLabel: localize('entryAriaLabel', "{0}, debug", config.name),
 					description: this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? config.launch.name : '',
 					highlights: { label: highlights },
+					buttons: [{
+						iconClass: 'codicon-gear',
+						tooltip: localize('customizeTask', "Configure Launch Configuration")
+					}],
 					accept: async () => {
 						if (StartAction.isEnabled(this.debugService)) {
 							this.debugService.getConfigurationManager().selectConfiguration(config.launch, config.name);
@@ -59,6 +63,11 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 								this.notificationService.error(error);
 							}
 						}
+					},
+					trigger: () => {
+						config.launch.openConfigFile(false, false);
+
+						return true; // close picker
 					}
 				});
 			}
