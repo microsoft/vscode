@@ -14,7 +14,6 @@ import { LineCommentCommand, Type } from 'vs/editor/contrib/comment/lineCommentC
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 abstract class CommentLineAction extends EditorAction {
 
@@ -35,7 +34,6 @@ abstract class CommentLineAction extends EditorAction {
 		const selections = editor.getSelections();
 		const modelOptions = model.getOptions();
 		const commentsOptions = editor.getOption(EditorOption.comments);
-		const includeEmptyLines = accessor.get(IConfigurationService).getValue<boolean>('comments.includeEmptyLines');
 
 		for (const selection of selections) {
 			commands.push(new LineCommentCommand(
@@ -43,7 +41,7 @@ abstract class CommentLineAction extends EditorAction {
 				modelOptions.tabSize,
 				this._type,
 				commentsOptions.insertSpace,
-				includeEmptyLines
+				commentsOptions.includeEmptyLines
 			));
 		}
 

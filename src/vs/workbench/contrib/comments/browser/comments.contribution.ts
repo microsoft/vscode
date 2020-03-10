@@ -24,11 +24,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			enum: ['neverOpen', 'openOnSessionStart', 'openOnSessionStartWithComments'],
 			default: 'openOnSessionStartWithComments',
 			description: nls.localize('openComments', "Controls when the comments panel should open.")
-		},
-		'comments.includeEmptyLines': {
-			type: 'boolean',
-			default: false,
-			description: nls.localize('commentsIncludeEmptyLines', 'Controls if empty lines should be included when commenting lines through toggle, add or remove actions.')
 		}
 	}
 });

@@ -665,6 +665,21 @@ suite('Editor Contrib - Line Comment Command', () => {
 			new Selection(1, 1, 1, 1)
 		);
 	});
+
+	test('includeEmptyLines false', () => {
+		testLineCommentCommand(
+			[
+				'\t\n',
+				'f'
+			],
+			new Selection(1, 1, 2, 1),
+			[
+				'\t\n',
+				'!@#f'
+			],
+			new Selection(1, 1, 2, 5)
+		);
+	});
 });
 
 suite('Editor Contrib - Line Comment As Block Comment', () => {
