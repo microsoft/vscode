@@ -20,14 +20,14 @@ import { matchesFuzzy } from 'vs/base/common/filters';
 import { fuzzyContains } from 'vs/base/common/strings';
 import { withNullAsUndefined } from 'vs/base/common/types';
 
-export const VIEW_QUICK_ACCESS_PREFIX = 'view ';
-
 interface IViewQuickPickItem extends IQuickPickItem {
 	containerLabel: string;
 	run: () => Promise<unknown>;
 }
 
 export class ViewQuickAccessProvider implements IQuickAccessProvider {
+
+	static PREFIX = 'view ';
 
 	constructor(
 		@IViewletService private readonly viewletService: IViewletService,
@@ -47,7 +47,7 @@ export class ViewQuickAccessProvider implements IQuickAccessProvider {
 		picker.matchOnLabel = picker.matchOnDescription = picker.matchOnDetail = picker.sortByLabel = false;
 
 		// Add all view items & filter on type
-		const updatePickerItems = () => picker.items = this.getViewPickItems(picker.value.trim().substr(VIEW_QUICK_ACCESS_PREFIX.length));
+		const updatePickerItems = () => picker.items = this.getViewPickItems(picker.value.trim().substr(ViewQuickAccessProvider.PREFIX.length));
 		disposables.add(picker.onDidChangeValue(() => updatePickerItems()));
 		updatePickerItems();
 

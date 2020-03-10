@@ -8,7 +8,7 @@ import { IKeyMods } from 'vs/platform/quickinput/common/quickInput';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IRange } from 'vs/editor/common/core/range';
-import { AbstractGotoLineQuickAccessProvider, GOTO_LINE_PREFIX } from 'vs/editor/contrib/quickAccess/gotoLine';
+import { AbstractGotoLineQuickAccessProvider } from 'vs/editor/contrib/quickAccess/gotoLine';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IQuickAccessRegistry, Extensions } from 'vs/platform/quickinput/common/quickAccess';
 
@@ -40,7 +40,7 @@ export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProv
 
 Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessProvider({
 	ctor: GotoLineQuickAccessProvider,
-	prefix: GOTO_LINE_PREFIX,
+	prefix: AbstractGotoLineQuickAccessProvider.PREFIX,
 	placeholder: localize('gotoLineQuickAccessPlaceholder', "Type the line number and optional column to go to (e.g. 42:5 for line 42 and column 5)."),
 	helpEntries: [{ description: localize('gotoLineQuickAccess', "Go to Line"), needsEditor: true }]
 });

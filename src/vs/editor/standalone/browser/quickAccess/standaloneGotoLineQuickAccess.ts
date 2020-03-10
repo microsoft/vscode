@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AbstractGotoLineQuickAccessProvider, GOTO_LINE_PREFIX } from 'vs/editor/contrib/quickAccess/gotoLine';
+import { AbstractGotoLineQuickAccessProvider } from 'vs/editor/contrib/quickAccess/gotoLine';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IQuickAccessRegistry, Extensions } from 'vs/platform/quickinput/common/quickAccess';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -26,6 +26,6 @@ export class StandaloneGotoLineQuickAccessProvider extends AbstractGotoLineQuick
 
 Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessProvider({
 	ctor: StandaloneGotoLineQuickAccessProvider,
-	prefix: GOTO_LINE_PREFIX,
+	prefix: AbstractGotoLineQuickAccessProvider.PREFIX,
 	helpEntries: [{ description: GoToLineNLS.gotoLineActionLabel, needsEditor: true }]
 });

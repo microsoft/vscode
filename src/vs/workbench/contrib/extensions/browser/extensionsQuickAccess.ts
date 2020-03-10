@@ -181,4 +181,3 @@ async function openExtensionsViewlet(viewletService: IViewletService, search = '
 	view?.search(search);
 	view?.focus();
 }
-
