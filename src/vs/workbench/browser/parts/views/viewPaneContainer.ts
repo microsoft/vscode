@@ -345,7 +345,7 @@ export abstract class ViewPane extends Pane implements IView {
 		}
 
 		if (this.progressIndicator === undefined) {
-			this.progressIndicator = this.instantiationService.createInstance(CompositeProgressIndicator, assertIsDefined(this.progressBar), this.id, this.isVisible(), { hideWhenInactive: true });
+			this.progressIndicator = this.instantiationService.createInstance(CompositeProgressIndicator, assertIsDefined(this.progressBar), this.id, this.isVisible(), { exclusiveProgressBar: true });
 		}
 		return this.progressIndicator;
 	}
