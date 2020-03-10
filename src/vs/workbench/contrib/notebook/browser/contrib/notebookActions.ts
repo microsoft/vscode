@@ -14,6 +14,7 @@ import { NOTEBOOK_EDITOR_FOCUSED, NotebookEditor } from 'vs/workbench/contrib/no
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -29,11 +30,27 @@ registerAction2(class extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const notebookService = accessor.get(INotebookService);
+		runActiveCell(accessor);
+	}
+});
 
-		const resource = editorService.activeEditor?.resource;
-		if (!resource) {
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.executeNotebookCellSelectBelow',
+			title: 'Execute Notebook Cell and Select Below',
+			keybinding: {
+				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext),
+				primary: KeyMod.Shift | KeyCode.Enter,
+				weight: KeybindingWeight.WorkbenchContrib
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const activeCell = runActiveCell(accessor);
+		if (!activeCell) {
 			return;
 		}
 
@@ -42,29 +59,47 @@ registerAction2(class extends Action2 {
 			return;
 		}
 
-		const notebookProviders = notebookService.getContributedNotebookProviders(resource);
-		if (!notebookProviders.length) {
-			return;
-		}
-
-		const activeCell = editor.getActiveCell();
-		if (!activeCell) {
-			return;
-		}
-
 		const idx = editor.viewModel?.getViewCellIndex(activeCell);
 		if (typeof idx !== 'number') {
 			return;
 		}
 
-		const viewType = notebookProviders[0].id;
-		notebookService.executeNotebookActiveCell(viewType, resource);
+		// Try to select below, fall back on inserting
 		const nextCell = editor.viewModel?.viewCells[idx + 1];
 		if (nextCell) {
 			editor.focusNotebookCell(nextCell, false);
 		} else {
 			editor.insertEmptyNotebookCell(activeCell, CellKind.Code, 'below');
 		}
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.executeNotebookCellInsertBelow',
+			title: 'Execute Notebook Cell and Insert Below',
+			keybinding: {
+				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext),
+				primary: KeyMod.Alt | KeyCode.Enter,
+				weight: KeybindingWeight.WorkbenchContrib
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const activeCell = runActiveCell(accessor);
+		if (!activeCell) {
+			return;
+		}
+
+		const editor = getActiveNotebookEditor(editorService);
+		if (!editor) {
+			return;
+		}
+
+		editor.insertEmptyNotebookCell(activeCell, CellKind.Code, 'below');
 	}
 });
 
@@ -223,4 +258,39 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 function getActiveNotebookEditor(editorService: IEditorService): NotebookEditor | undefined {
 	const activeEditorPane = editorService.activeEditorPane as NotebookEditor | undefined;
 	return activeEditorPane?.isNotebookEditor ? activeEditorPane : undefined;
+}
+
+function runActiveCell(accessor: ServicesAccessor): CellViewModel | undefined {
+	const editorService = accessor.get(IEditorService);
+	const notebookService = accessor.get(INotebookService);
+
+	const resource = editorService.activeEditor?.resource;
+	if (!resource) {
+		return;
+	}
+
+	const editor = getActiveNotebookEditor(editorService);
+	if (!editor) {
+		return;
+	}
+
+	const notebookProviders = notebookService.getContributedNotebookProviders(resource);
+	if (!notebookProviders.length) {
+		return;
+	}
+
+	const activeCell = editor.getActiveCell();
+	if (!activeCell) {
+		return;
+	}
+
+	const idx = editor.viewModel?.getViewCellIndex(activeCell);
+	if (typeof idx !== 'number') {
+		return;
+	}
+
+	const viewType = notebookProviders[0].id;
+	notebookService.executeNotebookActiveCell(viewType, resource);
+
+	return activeCell;
 }
