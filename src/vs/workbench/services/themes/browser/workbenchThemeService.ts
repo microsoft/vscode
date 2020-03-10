@@ -180,7 +180,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		this.fileIconThemeRegistry.onDidChange(async event => {
 			updateFileIconThemeConfigurationSchemas(event.themes);
 
-			if (!await this.restoreFileIconTheme()) { // checks if theme from settings exists and is set
+			if (await this.restoreFileIconTheme()) { // checks if theme from settings exists and is set
 				// restore theme
 				if (this.currentFileIconTheme.id === DEFAULT_FILE_ICON_THEME_ID && !types.isUndefined(prevFileIconId) && await this.fileIconThemeRegistry.findThemeById(prevFileIconId)) {
 					this.setFileIconTheme(prevFileIconId, 'auto');
