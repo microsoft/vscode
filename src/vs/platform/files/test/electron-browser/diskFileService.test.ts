@@ -132,10 +132,12 @@ suite('Disk File Service', function () {
 	const disposables = new DisposableStore();
 
 	// Given issues such as https://github.com/microsoft/vscode/issues/78602
-	// we see random test failures when accessing the native file system. To
-	// diagnose further, we retry node.js file access tests up to 3 times to
-	// rule out any random disk issue.
+	// and https://github.com/microsoft/vscode/issues/92334 we see random test
+	// failures when accessing the native file system. To diagnose further, we
+	// retry node.js file access tests up to 3 times to rule out any random disk
+	// issue and increase the timeout.
 	this.retries(3);
+	this.timeout(1000 * 10);
 
 	setup(async () => {
 		const logService = new NullLogService();
