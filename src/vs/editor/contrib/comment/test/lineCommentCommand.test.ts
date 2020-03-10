@@ -669,15 +669,15 @@ suite('Editor Contrib - Line Comment Command', () => {
 	test('includeEmptyLines false', () => {
 		testLineCommentCommand(
 			[
-				'\t\n',
+				'',
 				'f'
 			],
-			new Selection(1, 1, 2, 1),
+			new Selection(1, 1, 2, 2),
 			[
-				'\t\n',
-				'!@#f'
+				'',
+				'!@# f'
 			],
-			new Selection(1, 1, 2, 5)
+			new Selection(1, 1, 2, 6)
 		);
 	});
 });
