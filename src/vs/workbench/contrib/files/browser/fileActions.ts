@@ -366,6 +366,7 @@ export function findValidPasteFileTarget(explorerService: IExplorerService, targ
 }
 
 export function suggestFileName(name: string, isFolder: boolean, incrementalNaming: 'simple' | 'smart', stripExample: boolean): string {
+	const maxNumber = Constants.MAX_SAFE_SMALL_INTEGER;
 	const separators = '[\\.\\-_]';
 	const exampleFileGroup = '(sample|example)';
 
@@ -405,7 +406,7 @@ export function suggestFileName(name: string, isFolder: boolean, incrementalNami
 				let number = (g2 ? parseInt(g2) : 1);
 				return number === 0
 					? `${g1}`
-					: (number < Constants.MAX_SAFE_SMALL_INTEGER
+					: (number < maxNumber
 						? `${g1} ${number + 1}`
 						: `${g1}${g2} copy`);
 			}) + extSuffix;
@@ -414,8 +415,6 @@ export function suggestFileName(name: string, isFolder: boolean, incrementalNami
 		// name(.txt) => name copy(.txt)
 		return `${namePrefix} copy${extSuffix}`;
 	}
-
-	const maxNumber = Constants.MAX_SAFE_SMALL_INTEGER;
 
 	// file.1.txt=>file.2.txt
 	let suffixFileRegex = RegExp(`(.*'${separators})(\\d+)(\\..*)$`);
