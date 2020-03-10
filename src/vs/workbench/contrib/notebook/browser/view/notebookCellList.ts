@@ -223,7 +223,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> {
 
 function getEditorAttachedPromise(element: CellViewModel) {
 	return new Promise((resolve, reject) => {
-		element.onDidChangeEditorAttachState(state => state ? resolve() : reject());
+		Event.once(element.onDidChangeEditorAttachState)(state => state ? resolve() : reject());
 	});
 }
 
