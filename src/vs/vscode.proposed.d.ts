@@ -1807,5 +1807,21 @@ declare module 'vscode' {
 		readonly code?: string;
 	}
 
-	////#endregion
+	//#endregion
+
+
+	//#region https://github.com/microsoft/vscode/issues/90208
+
+	export namespace Uri {
+
+		/**
+		 *
+		 * @param base
+		 * @param pathFragments
+		 * @returns A new uri
+		 */
+		export function joinPaths(base: Uri, ...pathFragments: string[]): Uri;
+	}
+
+	//#endregion
 }
