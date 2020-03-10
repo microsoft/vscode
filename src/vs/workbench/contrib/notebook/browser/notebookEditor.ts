@@ -427,27 +427,35 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 	//#region Editor Features
 
-	revealInView(cell: CellViewModel, offset?: number) {
+	revealInView(cell: CellViewModel) {
 		const index = this.notebookViewModel?.getViewCellIndex(cell);
 
 		if (index !== undefined) {
-			this.list?.revealInView(index, offset);
+			this.list?.revealInView(index);
 		}
 	}
 
-	revealInCenterIfOutsideViewport(cell: CellViewModel, offset?: number) {
+	revealInCenterIfOutsideViewport(cell: CellViewModel) {
 		const index = this.notebookViewModel?.getViewCellIndex(cell);
 
 		if (index !== undefined) {
-			this.list?.revealInCenterIfOutsideViewport(index, offset);
+			this.list?.revealInCenterIfOutsideViewport(index);
 		}
 	}
 
-	revealInCenter(cell: CellViewModel, offset?: number) {
+	revealInCenter(cell: CellViewModel) {
 		const index = this.notebookViewModel?.getViewCellIndex(cell);
 
 		if (index !== undefined) {
-			this.list?.revealInCenter(index, offset);
+			this.list?.revealInCenter(index);
+		}
+	}
+
+	revealLineInView(cell: CellViewModel, line: number): void {
+		const index = this.notebookViewModel?.getViewCellIndex(cell);
+
+		if (index !== undefined) {
+			this.list?.revealLineInView(index, line);
 		}
 	}
 

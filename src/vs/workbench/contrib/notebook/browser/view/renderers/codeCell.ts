@@ -131,6 +131,14 @@ export class CodeCell extends Disposable {
 			}
 		}));
 
+		this._register(templateData.editor!.onDidChangeCursorSelection(() => {
+			const primarySelection = templateData.editor!.getSelection();
+
+			if (primarySelection) {
+				this.notebookEditor.revealLineInView(viewCell, primarySelection!.positionLineNumber);
+			}
+		}));
+
 		this._register(viewCell.onDidChangeOutputs((splices) => {
 			if (!splices.length) {
 				return;

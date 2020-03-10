@@ -61,7 +61,7 @@ export class NotebookFindWidget extends SimpleFindWidget {
 		const matchIndex = nextIndex.remainder;
 
 		this.setCurrentFindMatchDecoration(cellIndex, matchIndex);
-		this._notebookEditor.revealLineInCenterIfOutsideViewport(this._findMatches[cellIndex].cell, this._findMatches[cellIndex].matches[matchIndex].range.startLineNumber);
+		this._notebookEditor.revealLineInView(this._findMatches[cellIndex].cell, this._findMatches[cellIndex].matches[matchIndex].range.startLineNumber);
 	}
 
 	hide() {

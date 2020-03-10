@@ -93,8 +93,10 @@ export class TestNotebookEditor implements INotebookEditor {
 	}
 
 	constructor(
-	) {
+	) { }
 
+	revealLineInView(cell: CellViewModel, line: number): void {
+		throw new Error('Method not implemented.');
 	}
 	getLayoutInfo(): NotebookLayoutInfo {
 		throw new Error('Method not implemented.');
@@ -114,13 +116,13 @@ export class TestNotebookEditor implements INotebookEditor {
 	hideFind(): void {
 		throw new Error('Method not implemented.');
 	}
-	revealInView(cell: CellViewModel, offset?: number | undefined): void {
+	revealInView(cell: CellViewModel): void {
 		throw new Error('Method not implemented.');
 	}
-	revealInCenter(cell: CellViewModel, offset?: number | undefined): void {
+	revealInCenter(cell: CellViewModel): void {
 		throw new Error('Method not implemented.');
 	}
-	revealInCenterIfOutsideViewport(cell: CellViewModel, offset?: number | undefined): void {
+	revealInCenterIfOutsideViewport(cell: CellViewModel): void {
 		throw new Error('Method not implemented.');
 	}
 	async insertEmptyNotebookCell(cell: CellViewModel, type: CellKind, direction: 'above' | 'below'): Promise<void> {

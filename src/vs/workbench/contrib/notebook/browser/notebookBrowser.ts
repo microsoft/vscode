@@ -97,21 +97,23 @@ export interface INotebookEditor {
 
 	/**
 	 * Reveal cell into viewport.
-	 * If `offset` is provided, `top(cell) + offset` will be scrolled into view.
 	 */
-	revealInView(cell: CellViewModel, offset?: number): void;
+	revealInView(cell: CellViewModel): void;
 
 	/**
 	 * Reveal cell into viewport center.
-	 * If `offset` is provided, `top(cell) + offset` will be scrolled into view.
 	 */
-	revealInCenter(cell: CellViewModel, offset?: number): void;
+	revealInCenter(cell: CellViewModel): void;
 
 	/**
 	 * Reveal cell into viewport center if cell is currently out of the viewport.
-	 * If `offset` is provided, `top(cell) + offset` will be scrolled into view.
 	 */
-	revealInCenterIfOutsideViewport(cell: CellViewModel, offset?: number): void;
+	revealInCenterIfOutsideViewport(cell: CellViewModel): void;
+
+	/**
+	 * Reveal a line in notebook cell into viewport with minimal scrolling.
+	 */
+	revealLineInView(cell: CellViewModel, line: number): void;
 
 	/**
 	 * Reveal a line in notebook cell into viewport center.
