@@ -19,7 +19,7 @@ import { RawDebugSession } from 'vs/workbench/contrib/debug/browser/rawDebugSess
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IWorkspaceFolder, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { RunOnceScheduler, Queue } from 'vs/base/common/async';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
@@ -37,7 +37,6 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 
 export class DebugSession implements IDebugSession {
 
-	private id: string;
 	private _subId: string | undefined;
 	private raw: RawDebugSession | undefined;
 	private initialized = false;
@@ -62,6 +61,7 @@ export class DebugSession implements IDebugSession {
 	private readonly _onDidChangeName = new Emitter<string>();
 
 	constructor(
+		private id: string,
 		private _configuration: { resolved: IConfig, unresolved: IConfig | undefined },
 		public root: IWorkspaceFolder | undefined,
 		private model: DebugModel,
@@ -78,7 +78,6 @@ export class DebugSession implements IDebugSession {
 		@INotificationService private readonly notificationService: INotificationService,
 		@ILifecycleService lifecycleService: ILifecycleService
 	) {
-		this.id = generateUuid();
 		this._options = options || {};
 		if (this.hasSeparateRepl()) {
 			this.repl = new ReplModel();
@@ -807,62 +806,58 @@ export class DebugSession implements IDebugSession {
 			this._onDidChangeState.fire();
 		}));
 
-		let outpuPromises: Promise<void>[] = [];
+		const outputQueue = new Queue<void>();
 		this.rawListeners.push(this.raw.onDidOutput(async event => {
-			if (!event.body || !this.raw) {
-				return;
-			}
-
-			const outputSeverity = event.body.category === 'stderr' ? severity.Error : event.body.category === 'console' ? severity.Warning : severity.Info;
-			if (event.body.category === 'telemetry') {
-				// only log telemetry events from debug adapter if the debug extension provided the telemetry key
-				// and the user opted in telemetry
-				if (this.raw.customTelemetryService && this.telemetryService.isOptedIn) {
-					// __GDPR__TODO__ We're sending events in the name of the debug extension and we can not ensure that those are declared correctly.
-					this.raw.customTelemetryService.publicLog(event.body.output, event.body.data);
-				}
-
-				return;
-			}
-
-			// Make sure to append output in the correct order by properly waiting on preivous promises #33822
-			const waitFor = outpuPromises.slice();
-			const source = event.body.source && event.body.line ? {
-				lineNumber: event.body.line,
-				column: event.body.column ? event.body.column : 1,
-				source: this.getSource(event.body.source)
-			} : undefined;
-
-			if (event.body.group === 'start' || event.body.group === 'startCollapsed') {
-				const expanded = event.body.group === 'start';
-				this.repl.startGroup(event.body.output || '', expanded, source);
-				return;
-			}
-			if (event.body.group === 'end') {
-				this.repl.endGroup();
-				if (!event.body.output) {
-					// Only return if the end event does not have additional output in it
+			outputQueue.queue(async () => {
+				if (!event.body || !this.raw) {
 					return;
 				}
-			}
 
-			if (event.body.variablesReference) {
-				const container = new ExpressionContainer(this, undefined, event.body.variablesReference, generateUuid());
-				outpuPromises.push(container.getChildren().then(async children => {
-					await Promise.all(waitFor);
-					children.forEach(child => {
-						// Since we can not display multiple trees in a row, we are displaying these variables one after the other (ignoring their names)
-						(<any>child).name = null;
-						this.appendToRepl(child, outputSeverity, source);
+				const outputSeverity = event.body.category === 'stderr' ? severity.Error : event.body.category === 'console' ? severity.Warning : severity.Info;
+				if (event.body.category === 'telemetry') {
+					// only log telemetry events from debug adapter if the debug extension provided the telemetry key
+					// and the user opted in telemetry
+					if (this.raw.customTelemetryService && this.telemetryService.isOptedIn) {
+						// __GDPR__TODO__ We're sending events in the name of the debug extension and we can not ensure that those are declared correctly.
+						this.raw.customTelemetryService.publicLog(event.body.output, event.body.data);
+					}
+
+					return;
+				}
+
+				// Make sure to append output in the correct order by properly waiting on preivous promises #33822
+				const source = event.body.source && event.body.line ? {
+					lineNumber: event.body.line,
+					column: event.body.column ? event.body.column : 1,
+					source: this.getSource(event.body.source)
+				} : undefined;
+
+				if (event.body.group === 'start' || event.body.group === 'startCollapsed') {
+					const expanded = event.body.group === 'start';
+					this.repl.startGroup(event.body.output || '', expanded, source);
+					return;
+				}
+				if (event.body.group === 'end') {
+					this.repl.endGroup();
+					if (!event.body.output) {
+						// Only return if the end event does not have additional output in it
+						return;
+					}
+				}
+
+				if (event.body.variablesReference) {
+					const container = new ExpressionContainer(this, undefined, event.body.variablesReference, generateUuid());
+					await container.getChildren().then(children => {
+						children.forEach(child => {
+							// Since we can not display multiple trees in a row, we are displaying these variables one after the other (ignoring their names)
+							(<any>child).name = null;
+							this.appendToRepl(child, outputSeverity, source);
+						});
 					});
-				}));
-			} else if (typeof event.body.output === 'string') {
-				await Promise.all(waitFor);
-				this.appendToRepl(event.body.output, outputSeverity, source);
-			}
-
-			await Promise.all(outpuPromises);
-			outpuPromises = [];
+				} else if (typeof event.body.output === 'string') {
+					this.appendToRepl(event.body.output, outputSeverity, source);
+				}
+			});
 		}));
 
 		this.rawListeners.push(this.raw.onDidBreakpoint(event => {

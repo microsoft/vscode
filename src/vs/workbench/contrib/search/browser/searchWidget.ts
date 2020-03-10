@@ -634,8 +634,15 @@ export class SearchWidget extends Widget {
 		this._onSearchSubmit.fire({ triggeredOnType, delay });
 	}
 
-	contextLines() {
+	getContextLines() {
 		return this.showContextCheckbox.checked ? +this.contextLinesInput.value : 0;
+	}
+
+	modifyContextLines(increase: boolean) {
+		const current = +this.contextLinesInput.value;
+		const modified = current + (increase ? 1 : -1);
+		this.showContextCheckbox.checked = modified !== 0;
+		this.contextLinesInput.value = '' + modified;
 	}
 
 	toggleContextLines() {

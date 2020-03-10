@@ -8,9 +8,13 @@ import { Action } from 'vs/base/common/actions';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 const inQuickOpenKey = 'inQuickOpen';
 export const InQuickOpenContextKey = new RawContextKey<boolean>(inQuickOpenKey, false);
@@ -60,14 +64,12 @@ export class BaseQuickOpenNavigateAction extends Action {
 		super(id, label);
 	}
 
-	run(event?: any): Promise<any> {
+	async run(): Promise<void> {
 		const keys = this.keybindingService.lookupKeybindings(this.id);
 		const quickNavigate = this.quickNavigate ? { keybindings: keys } : undefined;
 
 		this.quickOpenService.navigate(this.next, quickNavigate);
 		this.quickInputService.navigate(this.next, quickNavigate);
-
-		return Promise.resolve(true);
 	}
 }
 
@@ -148,3 +150,56 @@ export class QuickOpenSelectPreviousAction extends BaseQuickOpenNavigateAction {
 		super(id, label, false, false, quickOpenService, quickInputService, keybindingService);
 	}
 }
+
+// TODO@Ben delete eventually when quick open is implemented using quick input
+export class LegacyQuickInputQuickOpenController extends Disposable {
+
+	private readonly inQuickOpenWidgets: Record<string, boolean> = Object.create(null);
+	private readonly inQuickOpenContext = InQuickOpenContextKey.bindTo(this.contextKeyService);
+
+	constructor(
+		@IQuickOpenService private readonly quickOpenService: IQuickOpenService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService
+	) {
+		super();
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this._register(this.quickOpenService.onShow(() => this.inQuickOpen('quickOpen', true)));
+		this._register(this.quickOpenService.onHide(() => this.inQuickOpen('quickOpen', false)));
+
+		this._register(this.quickOpenService.onShow(() => this.quickInputService.hide(true)));
+
+		this._register(this.quickInputService.onShow(() => {
+			this.quickOpenService.close();
+			this.inQuickOpen('quickInput', true);
+		}));
+
+		this._register(this.quickInputService.onHide(() => {
+			this.inQuickOpen('quickInput', false);
+		}));
+	}
+
+	private inQuickOpen(widget: 'quickInput' | 'quickOpen', open: boolean) {
+		if (open) {
+			this.inQuickOpenWidgets[widget] = true;
+		} else {
+			delete this.inQuickOpenWidgets[widget];
+		}
+
+		if (Object.keys(this.inQuickOpenWidgets).length) {
+			if (!this.inQuickOpenContext.get()) {
+				this.inQuickOpenContext.set(true);
+			}
+		} else {
+			if (this.inQuickOpenContext.get()) {
+				this.inQuickOpenContext.reset();
+			}
+		}
+	}
+}
+
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(LegacyQuickInputQuickOpenController, LifecyclePhase.Ready);

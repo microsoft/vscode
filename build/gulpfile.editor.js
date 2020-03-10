@@ -72,13 +72,8 @@ const extractEditorSrcTask = task.define('extract-editor-src', () => {
 			apiusages,
 			extrausages
 		],
-		libs: [
-			`lib.es5.d.ts`,
-			`lib.dom.d.ts`,
-			`lib.webworker.importscripts.d.ts`
-		],
 		shakeLevel: 2, // 0-Files, 1-InnerFile, 2-ClassMembers
-		importIgnorePattern: /(^vs\/css!)|(promise-polyfill\/polyfill)/,
+		importIgnorePattern: /(^vs\/css!)/,
 		destRoot: path.join(root, 'out-editor-src'),
 		redirects: []
 	});
@@ -131,6 +126,7 @@ const createESMSourcesAndResourcesTask = task.define('extract-editor-esm', () =>
 });
 
 const compileEditorESMTask = task.define('compile-editor-esm', () => {
+	const KEEP_PREV_ANALYSIS = false;
 	console.log(`Launching the TS compiler at ${path.join(__dirname, '../out-editor-esm')}...`);
 	let result;
 	if (process.platform === 'win32') {
@@ -149,41 +145,45 @@ const compileEditorESMTask = task.define('compile-editor-esm', () => {
 	if (result.status !== 0) {
 		console.log(`The TS Compilation failed, preparing analysis folder...`);
 		const destPath = path.join(__dirname, '../../vscode-monaco-editor-esm-analysis');
-		return util.rimraf(destPath)().then(() => {
-			fs.mkdirSync(destPath);
-
-			// initialize a new repository
-			cp.spawnSync(`git`, [`init`], {
-				cwd: destPath
-			});
-
+		const keepPrevAnalysis = (KEEP_PREV_ANALYSIS && fs.existsSync(destPath));
+		const cleanDestPath = (keepPrevAnalysis ? Promise.resolve() : util.rimraf(destPath)());
+		return cleanDestPath.then(() => {
 			// build a list of files to copy
 			const files = util.rreddir(path.join(__dirname, '../out-editor-esm'));
 
-			// copy files from src
-			for (const file of files) {
-				const srcFilePath = path.join(__dirname, '../src', file);
-				const dstFilePath = path.join(destPath, file);
-				if (fs.existsSync(srcFilePath)) {
-					util.ensureDir(path.dirname(dstFilePath));
-					const contents = fs.readFileSync(srcFilePath).toString().replace(/\r\n|\r|\n/g, '\n');
-					fs.writeFileSync(dstFilePath, contents);
+			if (!keepPrevAnalysis) {
+				fs.mkdirSync(destPath);
+
+				// initialize a new repository
+				cp.spawnSync(`git`, [`init`], {
+					cwd: destPath
+				});
+
+				// copy files from src
+				for (const file of files) {
+					const srcFilePath = path.join(__dirname, '../src', file);
+					const dstFilePath = path.join(destPath, file);
+					if (fs.existsSync(srcFilePath)) {
+						util.ensureDir(path.dirname(dstFilePath));
+						const contents = fs.readFileSync(srcFilePath).toString().replace(/\r\n|\r|\n/g, '\n');
+						fs.writeFileSync(dstFilePath, contents);
+					}
 				}
+
+				// create an initial commit to diff against
+				cp.spawnSync(`git`, [`add`, `.`], {
+					cwd: destPath
+				});
+
+				// create the commit
+				cp.spawnSync(`git`, [`commit`, `-m`, `"original sources"`, `--no-gpg-sign`], {
+					cwd: destPath
+				});
 			}
 
-			// create an initial commit to diff against
-			cp.spawnSync(`git`, [`add`, `.`], {
-				cwd: destPath
-			});
-
-			// create the commit
-			cp.spawnSync(`git`, [`commit`, `-m`, `"original sources"`, `--no-gpg-sign`], {
-				cwd: destPath
-			});
-
-			// copy files from esm
+			// copy files from tree shaken src
 			for (const file of files) {
-				const srcFilePath = path.join(__dirname, '../out-editor-esm', file);
+				const srcFilePath = path.join(__dirname, '../out-editor-src', file);
 				const dstFilePath = path.join(destPath, file);
 				if (fs.existsSync(srcFilePath)) {
 					util.ensureDir(path.dirname(dstFilePath));
@@ -333,6 +333,13 @@ const finalEditorResourcesTask = task.define('final-editor-resources', () => {
 		})).pipe(gulp.dest('out-monaco-editor-core/min-maps'))
 	);
 });
+
+gulp.task('extract-editor-src',
+	task.series(
+		util.rimraf('out-editor-src'),
+		extractEditorSrcTask
+	)
+);
 
 gulp.task('editor-distro',
 	task.series(

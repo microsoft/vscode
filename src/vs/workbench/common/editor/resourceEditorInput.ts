@@ -94,7 +94,7 @@ export class ResourceEditorInput extends TextResourceEditorInput implements IMod
 			ref.dispose();
 			this.modelReference = undefined;
 
-			throw new Error(`Unexpected model for ResourceInput: ${this.resource}`);
+			throw new Error(`Unexpected model for ResourcEditorInput: ${this.resource}`);
 		}
 
 		this.cachedModel = model;

@@ -960,7 +960,7 @@ export abstract class AbstractCaseAction extends EditorAction {
 			let selection = selections[i];
 			if (selection.isEmpty()) {
 				let cursor = selection.getStartPosition();
-				let word = model.getWordAtPosition(cursor);
+				const word = editor.getConfiguredWordAtPosition(cursor);
 
 				if (!word) {
 					continue;

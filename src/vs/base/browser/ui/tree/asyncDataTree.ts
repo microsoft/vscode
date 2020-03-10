@@ -5,7 +5,7 @@
 
 import { ComposedTreeDelegate, IAbstractTreeOptions, IAbstractTreeOptionsUpdate } from 'vs/base/browser/ui/tree/abstractTree';
 import { ObjectTree, IObjectTreeOptions, CompressibleObjectTree, ICompressibleTreeRenderer, ICompressibleKeyboardNavigationLabelProvider, ICompressibleObjectTreeOptions } from 'vs/base/browser/ui/tree/objectTree';
-import { IListVirtualDelegate, IIdentityProvider, IListDragAndDrop, IListDragOverReaction } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate, IIdentityProvider, IListDragAndDrop, IListDragOverReaction, ListAriaRootRole } from 'vs/base/browser/ui/list/list';
 import { ITreeElement, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeSorter, ICollapseStateChangeEvent, IAsyncDataSource, ITreeDragAndDrop, TreeError, WeakMapper, ITreeFilter, TreeVisibility, TreeFilterResult } from 'vs/base/browser/ui/tree/tree';
 import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -267,11 +267,12 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 			},
 			getRole: options.ariaProvider!.getRole ? (el) => {
 				return options.ariaProvider!.getRole!(el.element as T);
-			} : undefined,
+			} : () => 'treeitem',
 			isChecked: options.ariaProvider!.isChecked ? (e) => {
 				return options.ariaProvider?.isChecked!(e.element as T);
 			} : undefined
 		},
+		ariaRole: ListAriaRootRole.TREE,
 		additionalScrollHeight: options.additionalScrollHeight
 	};
 }

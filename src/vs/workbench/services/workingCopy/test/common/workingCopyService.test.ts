@@ -56,10 +56,8 @@ suite('WorkingCopyService', () => {
 			return true;
 		}
 
-		async revert(options?: IRevertOptions): Promise<boolean> {
+		async revert(options?: IRevertOptions): Promise<void> {
 			this.setDirty(false);
-
-			return true;
 		}
 
 		async backup(): Promise<IWorkingCopyBackup> {
@@ -112,8 +110,8 @@ suite('WorkingCopyService', () => {
 		assert.equal(service.dirtyCount, 1);
 		assert.equal(service.dirtyWorkingCopies.length, 1);
 		assert.equal(service.dirtyWorkingCopies[0], copy1);
-		assert.equal(service.getWorkingCopies(copy1.resource).length, 1);
-		assert.equal(service.getWorkingCopies(copy1.resource)[0], copy1);
+		assert.equal(service.workingCopies.length, 1);
+		assert.equal(service.workingCopies[0], copy1);
 		assert.equal(service.isDirty(resource1), true);
 		assert.equal(service.hasDirty, true);
 		assert.equal(onDidChangeDirty.length, 1);
@@ -167,7 +165,7 @@ suite('WorkingCopyService', () => {
 		assert.equal(onDidChangeDirty[3], copy2);
 	});
 
-	test('registry - multiple copies on same resource', () => {
+	test('registry - multiple copies on same resource throws', () => {
 		const service = new TestWorkingCopyService();
 
 		const onDidChangeDirty: IWorkingCopy[] = [];
@@ -176,37 +174,10 @@ suite('WorkingCopyService', () => {
 		const resource = URI.parse('custom://some/folder/custom.txt');
 
 		const copy1 = new TestWorkingCopy(resource);
-		const unregister1 = service.registerWorkingCopy(copy1);
+		service.registerWorkingCopy(copy1);
 
 		const copy2 = new TestWorkingCopy(resource);
-		const unregister2 = service.registerWorkingCopy(copy2);
 
-		assert.equal(service.getWorkingCopies(copy1.resource).length, 2);
-		assert.equal(service.getWorkingCopies(copy1.resource)[0], copy1);
-		assert.equal(service.getWorkingCopies(copy1.resource)[1], copy2);
-
-		copy1.setDirty(true);
-
-		assert.equal(service.dirtyCount, 1);
-		assert.equal(onDidChangeDirty.length, 1);
-		assert.equal(service.isDirty(resource), true);
-
-		copy2.setDirty(true);
-
-		assert.equal(service.dirtyCount, 2);
-		assert.equal(onDidChangeDirty.length, 2);
-		assert.equal(service.isDirty(resource), true);
-
-		unregister1.dispose();
-
-		assert.equal(service.dirtyCount, 1);
-		assert.equal(onDidChangeDirty.length, 3);
-		assert.equal(service.isDirty(resource), true);
-
-		unregister2.dispose();
-
-		assert.equal(service.dirtyCount, 0);
-		assert.equal(onDidChangeDirty.length, 4);
-		assert.equal(service.isDirty(resource), false);
+		assert.throws(() => service.registerWorkingCopy(copy2));
 	});
 });

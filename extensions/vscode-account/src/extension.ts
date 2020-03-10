@@ -5,6 +5,9 @@
 
 import * as vscode from 'vscode';
 import { AzureActiveDirectoryService, onDidChangeSessions } from './AADHelper';
+import * as nls from 'vscode-nls';
+
+const localize = nls.loadMessageBundle();
 
 export const DEFAULT_SCOPES = 'https://management.core.windows.net/.default offline_access';
 
@@ -15,7 +18,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	await loginService.initialize();
 
 	context.subscriptions.push(vscode.authentication.registerAuthenticationProvider({
-		id: 'MSA',
+		id: 'microsoft',
 		displayName: 'Microsoft',
 		onDidChangeSessions: onDidChangeSessions.event,
 		getSessions: () => Promise.resolve(loginService.sessions),
@@ -45,6 +48,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		if (sessions.length === 1) {
 			await loginService.logout(loginService.sessions[0].id);
 			onDidChangeSessions.fire();
+			vscode.window.showInformationMessage(localize('signedOut', "Successfully signed out."));
 			return;
 		}
 
@@ -58,6 +62,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		if (selectedSession) {
 			await loginService.logout(selectedSession.id);
 			onDidChangeSessions.fire();
+			vscode.window.showInformationMessage(localize('signedOut', "Successfully signed out."));
 			return;
 		}
 	}));

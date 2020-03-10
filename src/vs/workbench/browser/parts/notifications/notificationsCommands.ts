@@ -75,6 +75,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 
 	// Show Notifications Cneter
 	CommandsRegistry.registerCommand(SHOW_NOTIFICATIONS_CENTER, () => {
+		toasts.hide();
 		center.show();
 	});
 
@@ -92,6 +93,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 		if (center.isVisible) {
 			center.hide();
 		} else {
+			toasts.hide();
 			center.show();
 		}
 	});
@@ -105,7 +107,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 		mac: {
 			primary: KeyMod.CtrlCmd | KeyCode.Backspace
 		},
-		handler: (accessor, args?: any) => {
+		handler: (accessor, args?) => {
 			const notification = getNotificationFromContext(accessor.get(IListService), args);
 			if (notification && !notification.hasProgress) {
 				notification.close();
@@ -119,7 +121,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: NotificationFocusedContext,
 		primary: KeyCode.RightArrow,
-		handler: (accessor, args?: any) => {
+		handler: (accessor, args?) => {
 			const notification = getNotificationFromContext(accessor.get(IListService), args);
 			if (notification) {
 				notification.expand();
@@ -133,7 +135,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: NotificationFocusedContext,
 		primary: KeyCode.LeftArrow,
-		handler: (accessor, args?: any) => {
+		handler: (accessor, args?) => {
 			const notification = getNotificationFromContext(accessor.get(IListService), args);
 			if (notification) {
 				notification.collapse();

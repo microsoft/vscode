@@ -27,10 +27,6 @@ export const BrowserFeatures = {
 			|| !!(navigator && navigator.clipboard && navigator.clipboard.readText)
 		),
 		richText: (() => {
-			if (browser.isIE) {
-				return false;
-			}
-
 			if (browser.isEdge) {
 				let index = navigator.userAgent.indexOf('Edge/');
 				let version = parseInt(navigator.userAgent.substring(index + 5, navigator.userAgent.indexOf('.', index)), 10);

@@ -5,7 +5,7 @@
 
 import { IServerChannel, IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Event } from 'vs/base/common/event';
-import { IUserDataSyncService, IUserDataSyncUtilService, ISettingsSyncService, IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, IUserDataSyncUtilService, ISettingsSyncService, IUserDataAutoSyncService, IUserDataSyncStoreService, IUserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSync';
 import { URI } from 'vs/base/common/uri';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
@@ -34,7 +34,7 @@ export class UserDataSyncChannel implements IServerChannel {
 			case 'stop': this.service.stop(); return Promise.resolve();
 			case 'reset': return this.service.reset();
 			case 'resetLocal': return this.service.resetLocal();
-			case 'getRemoteContent': return this.service.getRemoteContent(args[0], args[1]);
+			case 'resolveContent': return this.service.resolveContent(URI.revive(args[0]));
 			case 'isFirstTimeSyncWithMerge': return this.service.isFirstTimeSyncWithMerge();
 		}
 		throw new Error('Invalid call');
@@ -67,7 +67,9 @@ export class SettingsSyncChannel implements IServerChannel {
 			case 'hasPreviouslySynced': return this.service.hasPreviouslySynced();
 			case 'hasLocalData': return this.service.hasLocalData();
 			case 'resolveSettingsConflicts': return this.service.resolveSettingsConflicts(args[0]);
-			case 'getRemoteContent': return this.service.getRemoteContent(args[0]);
+			case 'getRemoteContentFromPreview': return this.service.getRemoteContentFromPreview();
+			case 'getRemoteContent': return this.service.getRemoteContent(args[0], args[1]);
+			case 'getLocalBackupContent': return this.service.getLocalBackupContent(args[0], args[1]);
 		}
 		throw new Error('Invalid call');
 	}
@@ -86,7 +88,7 @@ export class UserDataAutoSyncChannel implements IServerChannel {
 
 	call(context: any, command: string, args?: any): Promise<any> {
 		switch (command) {
-			case 'triggerAutoSync': return this.service.triggerAutoSync();
+			case 'triggerAutoSync': return this.service.triggerAutoSync(args[0]);
 		}
 		throw new Error('Invalid call');
 	}
@@ -131,3 +133,37 @@ export class UserDataSyncUtilServiceClient implements IUserDataSyncUtilService {
 
 }
 
+export class UserDataSyncStoreServiceChannel implements IServerChannel {
+
+	constructor(private readonly service: IUserDataSyncStoreService) { }
+
+	listen(_: unknown, event: string): Event<any> {
+		throw new Error(`Event not found: ${event}`);
+	}
+
+	call(context: any, command: string, args?: any): Promise<any> {
+		switch (command) {
+			case 'getAllRefs': return this.service.getAllRefs(args[0]);
+			case 'resolveContent': return this.service.resolveContent(args[0], args[1]);
+			case 'delete': return this.service.delete(args[0]);
+		}
+		throw new Error('Invalid call');
+	}
+}
+
+export class UserDataSyncBackupStoreServiceChannel implements IServerChannel {
+
+	constructor(private readonly service: IUserDataSyncBackupStoreService) { }
+
+	listen(_: unknown, event: string): Event<any> {
+		throw new Error(`Event not found: ${event}`);
+	}
+
+	call(context: any, command: string, args?: any): Promise<any> {
+		switch (command) {
+			case 'getAllRefs': return this.service.getAllRefs(args[0]);
+			case 'resolveContent': return this.service.resolveContent(args[0], args[1]);
+		}
+		throw new Error('Invalid call');
+	}
+}

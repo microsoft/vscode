@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SyncStatus, IUserDataSyncStoreService, ISyncExtension, IUserDataSyncLogService, IUserDataSynchroniser, SyncSource, ResourceKey, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { SyncStatus, IUserDataSyncStoreService, ISyncExtension, IUserDataSyncLogService, IUserDataSynchroniser, SyncSource, IUserDataSyncEnablementService, IUserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSync';
 import { Event } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IExtensionManagementService, IExtensionGalleryService, IGlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -16,7 +16,6 @@ import { merge } from 'vs/platform/userDataSync/common/extensionsMerge';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { AbstractSynchroniser, IRemoteUserData, ISyncData } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { VSBuffer } from 'vs/base/common/buffer';
 
 interface ISyncPreviewResult {
 	readonly localExtensions: ISyncExtension[];
@@ -35,13 +34,14 @@ interface ILastSyncUserData extends IRemoteUserData {
 
 export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUserDataSynchroniser {
 
-	readonly resourceKey: ResourceKey = 'extensions';
 	protected readonly version: number = 2;
+	protected isEnabled(): boolean { return super.isEnabled() && this.extensionGalleryService.isEnabled(); }
 
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IFileService fileService: IFileService,
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
+		@IUserDataSyncBackupStoreService userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IGlobalExtensionEnablementService private readonly extensionEnablementService: IGlobalExtensionEnablementService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
@@ -50,7 +50,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		@IUserDataSyncEnablementService userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(SyncSource.Extensions, fileService, environmentService, userDataSyncStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService);
+		super(SyncSource.Extensions, 'extensions', fileService, environmentService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService);
 		this._register(
 			Event.debounce(
 				Event.any<any>(
@@ -61,7 +61,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 	}
 
 	async pull(): Promise<void> {
-		if (!this.enabled) {
+		if (!this.isEnabled()) {
 			this.logService.info('Extensions: Skipped pulling extensions as it is disabled.');
 			return;
 		}
@@ -94,7 +94,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 	}
 
 	async push(): Promise<void> {
-		if (!this.enabled) {
+		if (!this.isEnabled()) {
 			this.logService.info('Extensions: Skipped pushing extensions as it is disabled.');
 			return;
 		}
@@ -118,15 +118,34 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 
 	}
 
-	async sync(ref?: string): Promise<void> {
-		if (!this.extensionGalleryService.isEnabled()) {
-			this.logService.info('Extensions: Skipping synchronizing extensions as gallery is disabled.');
-			return;
+	async stop(): Promise<void> { }
+
+	async getRemoteContent(ref?: string, fragment?: string): Promise<string | null> {
+		const content = await super.getRemoteContent(ref);
+		if (content !== null && fragment) {
+			return this.getFragment(content, fragment);
 		}
-		return super.sync(ref);
+		return content;
 	}
 
-	async stop(): Promise<void> { }
+	async getLocalBackupContent(ref?: string, fragment?: string): Promise<string | null> {
+		let content = await super.getLocalBackupContent(ref);
+		if (content !== null && fragment) {
+			return this.getFragment(content, fragment);
+		}
+		return content;
+	}
+
+	private getFragment(content: string, fragment: string): string | null {
+		const syncData = this.parseSyncData(content);
+		if (syncData) {
+			switch (fragment) {
+				case 'extensions':
+					return syncData.content;
+			}
+		}
+		return null;
+	}
 
 	accept(content: string): Promise<void> {
 		throw new Error('Extensions: Conflicts should not occur');
@@ -144,21 +163,10 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		return false;
 	}
 
-	async getRemoteContent(): Promise<string | null> {
-		return null;
-	}
-
-	protected async doSync(remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null): Promise<void> {
-		try {
-			const previewResult = await this.getPreview(remoteUserData, lastSyncUserData);
-			await this.apply(previewResult);
-		} catch (e) {
-			this.setStatus(SyncStatus.Idle);
-			throw e;
-		}
-
-		this.logService.trace('Extensions: Finished synchronizing extensions.');
-		this.setStatus(SyncStatus.Idle);
+	protected async performSync(remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null): Promise<SyncStatus> {
+		const previewResult = await this.getPreview(remoteUserData, lastSyncUserData);
+		await this.apply(previewResult);
+		return SyncStatus.Idle;
 	}
 
 	private async getPreview(remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null): Promise<ISyncPreviewResult> {
@@ -194,7 +202,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		if (added.length || removed.length || updated.length) {
 			// back up all disabled or market place extensions
 			const backUpExtensions = localExtensions.filter(e => e.disabled || !!e.identifier.uuid);
-			await this.backupLocal(VSBuffer.fromString(JSON.stringify(backUpExtensions)));
+			await this.backupLocal(JSON.stringify(backUpExtensions));
 			skippedExtensions = await this.updateLocalExtensions(added, removed, updated, skippedExtensions);
 		}
 

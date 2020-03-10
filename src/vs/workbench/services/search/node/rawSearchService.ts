@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import * as gracefulFs from 'graceful-fs';
-import { join, sep } from 'vs/base/common/path';
+import { basename, dirname, join, sep } from 'vs/base/common/path';
 import * as arrays from 'vs/base/common/arrays';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -15,9 +15,9 @@ import * as objects from 'vs/base/common/objects';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import * as strings from 'vs/base/common/strings';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { compareItemsByScore, IItemAccessor, prepareQuery, ScorerCache } from 'vs/base/parts/quickopen/common/quickOpenScorer';
+import { compareItemsByScore, IItemAccessor, prepareQuery, ScorerCache } from 'vs/base/common/fuzzyScorer';
 import { MAX_FILE_SIZE } from 'vs/base/node/pfs';
-import { ICachedSearchStats, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, IRawFileQuery, IRawQuery, IRawTextQuery, ITextQuery, IFileSearchProgressItem, IRawFileMatch, IRawSearchService, ISearchEngine, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess } from 'vs/workbench/services/search/common/search';
+import { ICachedSearchStats, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, IRawFileQuery, IRawQuery, IRawTextQuery, ITextQuery, IFileSearchProgressItem, IRawFileMatch, IRawSearchService, ISearchEngine, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess, isFilePatternMatch } from 'vs/workbench/services/search/common/search';
 import { Engine as FileSearchEngine } from 'vs/workbench/services/search/node/fileSearch';
 import { TextSearchEngineAdapter } from 'vs/workbench/services/search/node/textSearchAdapter';
 
@@ -316,7 +316,7 @@ export class SearchService implements IRawSearchService {
 			for (const entry of cachedEntries) {
 
 				// Check if this entry is a match for the search value
-				if (!strings.fuzzyContains(entry.relativePath, normalizedSearchValueLowercase)) {
+				if (!isFilePatternMatch(entry, normalizedSearchValueLowercase)) {
 					continue;
 				}
 
@@ -414,11 +414,11 @@ class Cache {
 const FileMatchItemAccessor = new class implements IItemAccessor<IRawFileMatch> {
 
 	getItemLabel(match: IRawFileMatch): string {
-		return match.basename; // e.g. myFile.txt
+		return basename(match.relativePath); // e.g. myFile.txt
 	}
 
 	getItemDescription(match: IRawFileMatch): string {
-		return match.relativePath.substr(0, match.relativePath.length - match.basename.length - 1); // e.g. some/path/to/file
+		return dirname(match.relativePath); // e.g. some/path/to/file
 	}
 
 	getItemPath(match: IRawFileMatch): string {

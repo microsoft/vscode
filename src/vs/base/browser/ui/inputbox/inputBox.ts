@@ -6,7 +6,6 @@
 import 'vs/css!./inputBox';
 
 import * as nls from 'vs/nls';
-import * as Bal from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { MarkdownRenderOptions } from 'vs/base/browser/markdownRenderer';
 import { renderFormattedText, renderText } from 'vs/base/browser/formattedTextRenderer';
@@ -212,14 +211,6 @@ export class InputBox extends Widget {
 		this.onblur(this.input, () => this.onBlur());
 		this.onfocus(this.input, () => this.onFocus());
 
-		// Add placeholder shim for IE because IE decides to hide the placeholder on focus (we dont want that!)
-		if (this.placeholder && Bal.isIE) {
-			this.onclick(this.input, (e) => {
-				dom.EventHelper.stop(e, true);
-				this.input.focus();
-			});
-		}
-
 		this.ignoreGesture(this.input);
 
 		setTimeout(() => this.updateMirror(), 0);
@@ -255,6 +246,10 @@ export class InputBox extends Widget {
 		} else {
 			this.input.removeAttribute('aria-label');
 		}
+	}
+
+	public getAriaLabel(): string {
+		return this.ariaLabel;
 	}
 
 	public get mirrorElement(): HTMLElement | undefined {

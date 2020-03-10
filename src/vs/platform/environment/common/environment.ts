@@ -111,7 +111,6 @@ export interface IEnvironmentService extends IUserHomeProvider {
 	args: ParsedArgs;
 
 	execPath: string;
-	cliPath: string;
 	appRoot: string;
 
 	userHome: string;
@@ -132,7 +131,6 @@ export interface IEnvironmentService extends IUserHomeProvider {
 	settingsSyncPreviewResource: URI;
 	keybindingsSyncPreviewResource: URI;
 
-	machineSettingsHome: URI;
 	machineSettingsResource: URI;
 
 	globalStorageHome: string;
@@ -154,10 +152,7 @@ export interface IEnvironmentService extends IUserHomeProvider {
 	debugExtensionHost: IExtensionHostDebugParams;
 
 	isBuilt: boolean;
-	wait: boolean;
-	status: boolean;
 
-	log?: string;
 	logsPath: string;
 	verbose: boolean;
 
@@ -168,7 +163,6 @@ export interface IEnvironmentService extends IUserHomeProvider {
 
 	installSourcePath: string;
 	disableUpdates: boolean;
-	disableCrashReporter: boolean;
 
 	driverHandle?: string;
 	driverVerbose: boolean;

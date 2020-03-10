@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, SyncStatus, IUserDataSyncStoreService, SyncSource, ISettingsSyncService, IUserDataSyncLogService, IUserDataSynchroniser, UserDataSyncStoreError, UserDataSyncErrorCode, UserDataSyncError } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, SyncStatus, IUserDataSyncStoreService, SyncSource, ISettingsSyncService, IUserDataSyncLogService, IUserDataSynchroniser, UserDataSyncStoreError, UserDataSyncErrorCode, UserDataSyncError, resolveSyncResource, PREVIEW_QUERY } from 'vs/platform/userDataSync/common/userDataSync';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -15,6 +15,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { equals } from 'vs/base/common/arrays';
 import { localize } from 'vs/nls';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { URI } from 'vs/base/common/uri';
 
 type SyncErrorClassification = {
 	source: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
@@ -34,7 +35,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	private _onDidChangeStatus: Emitter<SyncStatus> = this._register(new Emitter<SyncStatus>());
 	readonly onDidChangeStatus: Event<SyncStatus> = this._onDidChangeStatus.event;
 
-	readonly onDidChangeLocal: Event<void>;
+	readonly onDidChangeLocal: Event<SyncSource>;
 
 	private _conflictsSources: SyncSource[] = [];
 	get conflictsSources(): SyncSource[] { return this._conflictsSources; }
@@ -74,7 +75,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		}
 
 		this._lastSyncTime = this.storageService.getNumber(LAST_SYNC_TIME_KEY, StorageScope.GLOBAL, undefined);
-		this.onDidChangeLocal = Event.any(...this.synchronisers.map(s => s.onDidChangeLocal));
+		this.onDidChangeLocal = Event.any(...this.synchronisers.map(s => Event.map(s.onDidChangeLocal, () => s.source)));
 	}
 
 	async pull(): Promise<void> {
@@ -176,11 +177,15 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		await synchroniser.accept(content);
 	}
 
-	async getRemoteContent(source: SyncSource, preview: boolean): Promise<string | null> {
-		await this.checkEnablement();
-		for (const synchroniser of this.synchronisers) {
-			if (synchroniser.source === source) {
-				return synchroniser.getRemoteContent(preview);
+	async resolveContent(resource: URI): Promise<string | null> {
+		const result = resolveSyncResource(resource);
+		if (result) {
+			const synchronizer = this.synchronisers.filter(s => s.resourceKey === result.resourceKey)[0];
+			if (synchronizer) {
+				if (PREVIEW_QUERY === resource.query) {
+					return result.remote ? synchronizer.getRemoteContentFromPreview() : null;
+				}
+				return result.remote ? synchronizer.getRemoteContent(result.ref, resource.fragment) : synchronizer.getLocalBackupContent(result.ref, resource.fragment);
 			}
 		}
 		return null;
@@ -302,13 +307,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return this.synchronisers.filter(s => s.status === SyncStatus.HasConflicts).map(s => s.source);
 	}
 
-	private getSynchroniser(source: SyncSource): IUserDataSynchroniser {
-		switch (source) {
-			case SyncSource.Settings: return this.settingsSynchroniser;
-			case SyncSource.Keybindings: return this.keybindingsSynchroniser;
-			case SyncSource.Extensions: return this.extensionsSynchroniser;
-			case SyncSource.GlobalState: return this.globalStateSynchroniser;
-		}
+	getSynchroniser(source: SyncSource): IUserDataSynchroniser {
+		return this.synchronisers.filter(s => s.source === source)[0];
 	}
 
 	private async checkEnablement(): Promise<void> {

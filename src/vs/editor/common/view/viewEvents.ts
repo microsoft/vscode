@@ -205,7 +205,12 @@ export class ViewRevealRangeRequestEvent {
 	/**
 	 * Range to be reavealed.
 	 */
-	public readonly range: Range;
+	public readonly range: Range | null;
+
+	/**
+	 * Selections to be revealed.
+	 */
+	public readonly selections: Selection[] | null;
 
 	public readonly verticalType: VerticalRevealType;
 	/**
@@ -221,9 +226,10 @@ export class ViewRevealRangeRequestEvent {
 	 */
 	readonly source: string;
 
-	constructor(source: string, range: Range, verticalType: VerticalRevealType, revealHorizontal: boolean, scrollType: ScrollType) {
+	constructor(source: string, range: Range | null, selections: Selection[] | null, verticalType: VerticalRevealType, revealHorizontal: boolean, scrollType: ScrollType) {
 		this.source = source;
 		this.range = range;
+		this.selections = selections;
 		this.verticalType = verticalType;
 		this.revealHorizontal = revealHorizontal;
 		this.scrollType = scrollType;

@@ -13,8 +13,8 @@ import { IFileMatch, ITextSearchMatch, OneLineRange, QueryType, SearchSortOrder 
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { FileMatch, Match, searchMatchComparer, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
-import { TestContextService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { isWindows } from 'vs/base/common/platform';
+import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 
 suite('Search - Viewlet', () => {
 	let instantiation: TestInstantiationService;

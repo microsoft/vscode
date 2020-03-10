@@ -100,7 +100,7 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 		}
 	}
 
-	onSaveError(error: any, model: ITextFileEditorModel): void {
+	onSaveError(error: unknown, model: ITextFileEditorModel): void {
 		const fileOperationError = error as FileOperationError;
 		const resource = model.resource;
 
@@ -208,8 +208,8 @@ class ResolveConflictLearnMoreAction extends Action {
 		super('workbench.files.action.resolveConflictLearnMore', nls.localize('learnMore', "Learn More"));
 	}
 
-	run(): Promise<any> {
-		return this.openerService.open(URI.parse('https://go.microsoft.com/fwlink/?linkid=868264'));
+	async run(): Promise<void> {
+		await this.openerService.open(URI.parse('https://go.microsoft.com/fwlink/?linkid=868264'));
 	}
 }
 
@@ -221,7 +221,7 @@ class DoNotShowResolveConflictLearnMoreAction extends Action {
 		super('workbench.files.action.resolveConflictLearnMoreDoNotShowAgain', nls.localize('dontShowAgain', "Don't Show Again"));
 	}
 
-	async run(notification: IDisposable): Promise<any> {
+	async run(notification: IDisposable): Promise<void> {
 		this.storageService.store(LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, true, StorageScope.GLOBAL);
 
 		// Hide notification
@@ -241,7 +241,7 @@ class ResolveSaveConflictAction extends Action {
 		super('workbench.files.action.resolveConflict', nls.localize('compareChanges', "Compare"));
 	}
 
-	async run(): Promise<any> {
+	async run(): Promise<void> {
 		if (!this.model.isDisposed()) {
 			const resource = this.model.resource;
 			const name = basename(resource);
@@ -272,7 +272,7 @@ class SaveElevatedAction extends Action {
 		super('workbench.files.action.saveElevated', triedToMakeWriteable ? isWindows ? nls.localize('overwriteElevated', "Overwrite as Admin...") : nls.localize('overwriteElevatedSudo', "Overwrite as Sudo...") : isWindows ? nls.localize('saveElevated', "Retry as Admin...") : nls.localize('saveElevatedSudo', "Retry as Sudo..."));
 	}
 
-	async run(): Promise<any> {
+	async run(): Promise<void> {
 		if (!this.model.isDisposed()) {
 			this.model.save({
 				writeElevated: true,
@@ -291,7 +291,7 @@ class OverwriteReadonlyAction extends Action {
 		super('workbench.files.action.overwrite', nls.localize('overwrite', "Overwrite"));
 	}
 
-	async run(): Promise<any> {
+	async run(): Promise<void> {
 		if (!this.model.isDisposed()) {
 			this.model.save({ overwriteReadonly: true, reason: SaveReason.EXPLICIT });
 		}
@@ -306,7 +306,7 @@ class SaveIgnoreModifiedSinceAction extends Action {
 		super('workbench.files.action.saveIgnoreModifiedSince', nls.localize('overwrite', "Overwrite"));
 	}
 
-	async run(): Promise<any> {
+	async run(): Promise<void> {
 		if (!this.model.isDisposed()) {
 			this.model.save({ ignoreModifiedSince: true, reason: SaveReason.EXPLICIT });
 		}
@@ -321,7 +321,7 @@ class ConfigureSaveConflictAction extends Action {
 		super('workbench.files.action.configureSaveConflict', nls.localize('configure', "Configure"));
 	}
 
-	async run(): Promise<any> {
+	async run(): Promise<void> {
 		this.preferencesService.openSettings(undefined, 'files.saveConflictResolution');
 	}
 }
@@ -330,13 +330,13 @@ export const acceptLocalChangesCommand = async (accessor: ServicesAccessor, reso
 	const editorService = accessor.get(IEditorService);
 	const resolverService = accessor.get(ITextModelService);
 
-	const control = editorService.activeControl;
-	if (!control) {
+	const editorPane = editorService.activeEditorPane;
+	if (!editorPane) {
 		return;
 	}
 
-	const editor = control.input;
-	const group = control.group;
+	const editor = editorPane.input;
+	const group = editorPane.group;
 
 	const reference = await resolverService.createModelReference(resource);
 	const model = reference.object as IResolvedTextFileEditorModel;
@@ -359,13 +359,13 @@ export const revertLocalChangesCommand = async (accessor: ServicesAccessor, reso
 	const editorService = accessor.get(IEditorService);
 	const resolverService = accessor.get(ITextModelService);
 
-	const control = editorService.activeControl;
-	if (!control) {
+	const editorPane = editorService.activeEditorPane;
+	if (!editorPane) {
 		return;
 	}
 
-	const editor = control.input;
-	const group = control.group;
+	const editor = editorPane.input;
+	const group = editorPane.group;
 
 	const reference = await resolverService.createModelReference(resource);
 	const model = reference.object as ITextFileEditorModel;

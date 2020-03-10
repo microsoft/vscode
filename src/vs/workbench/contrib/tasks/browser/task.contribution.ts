@@ -39,6 +39,8 @@ import { AbstractTaskService, ConfigureTaskAction } from 'vs/workbench/contrib/t
 import { tasksSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
+import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
+import { TasksQuickAccessProvider } from 'vs/workbench/contrib/tasks/browser/tasksQuickAccess';
 
 let tasksCategory = nls.localize('tasksCategory', "Tasks");
 
@@ -273,6 +275,17 @@ quickOpenRegistry.registerQuickOpenHandler(
 		nls.localize('quickOpen.task', "Run Task")
 	)
 );
+
+// Register Quick Access
+const quickAccessRegistry = (Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess));
+
+quickAccessRegistry.registerQuickAccessProvider({
+	ctor: TasksQuickAccessProvider,
+	prefix: TasksQuickAccessProvider.PREFIX,
+	contextKey: tasksPickerContextKey,
+	placeholder: nls.localize('tasksQuickAccessPlaceholder', "Type the name of a task to run."),
+	helpEntries: [{ description: nls.localize('tasksQuickAccessHelp', "Run Task"), needsEditor: false }]
+});
 
 const actionBarRegistry = Registry.as<IActionBarRegistry>(ActionBarExtensions.Actionbar);
 actionBarRegistry.registerActionBarContributor(Scope.VIEWER, QuickOpenActionContributor);
