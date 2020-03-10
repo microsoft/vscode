@@ -165,7 +165,6 @@ export interface ICompositeCodeEditor {
 	readonly onDidChangeActiveEditor: Event<ICompositeCodeEditor>;
 	readonly activeCodeEditor: IEditor | undefined;
 	// readonly editors: readonly ICodeEditor[] maybe supported with uris
-	activate(input: IResourceEditorInput): IEditor | undefined;
 }
 
 export namespace ICompositeCodeEditor {
@@ -173,8 +172,7 @@ export namespace ICompositeCodeEditor {
 		if (!thing || typeof thing !== 'object') {
 			return false;
 		}
-		return typeof (<ICompositeCodeEditor>thing).activate === 'function'
-			&& typeof (<ICompositeCodeEditor>thing).onDidChangeActiveEditor === 'function';
+		return typeof (<ICompositeCodeEditor>thing).onDidChangeActiveEditor === 'function';
 	}
 }
 

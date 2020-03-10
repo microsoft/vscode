@@ -27,7 +27,7 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebook
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { BackLayerWebView } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
 import { CodeCellRenderer, MarkdownCellRenderer, NotebookCellListDelegate } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
-import { CELL_MARGIN, NotebookCellsSplice, IOutput, parseCellUri, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CELL_MARGIN, NotebookCellsSplice, IOutput, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -40,6 +40,7 @@ import { NotebookFindWidget } from 'vs/workbench/contrib/notebook/browser/contri
 import { NotebookViewModel, INotebookEditorViewState, IModelDecorationsChangeAccessor } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
+import { isEqual } from 'vs/base/common/resources';
 
 const $ = DOM.$;
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
@@ -84,40 +85,6 @@ export class NotebookCodeEditors implements ICompositeCodeEditor {
 		return focused instanceof CellViewModel
 			? this._renderedEditors.get(focused)
 			: undefined;
-	}
-
-	activate(input: IResourceEditorInput): ICodeEditor | undefined {
-		const data = parseCellUri(input.resource);
-		if (!data) {
-			return undefined;
-		}
-		// find the CellViewModel which represents the cell with the
-		// given uri, scroll it into view so that the editor is alive,
-		// and then set selection et al..
-		for (let i = 0; i < this._list.length; i++) {
-			const item = this._list.element(i);
-			if (item.cell.uri.toString() === input.resource.toString()) {
-				this._list.reveal(i, 0.2);
-				this._list.setFocus([i]);
-				const editor = this._renderedEditors.get(item);
-				if (!editor) {
-					break;
-				}
-				if (input.options?.selection) {
-					const { selection } = input.options;
-					editor.setSelection({
-						...selection,
-						endLineNumber: selection.endLineNumber || selection.startLineNumber,
-						endColumn: selection.endColumn || selection.startColumn
-					});
-				}
-				if (!input.options?.preserveFocus) {
-					editor.focus();
-				}
-				return editor;
-			}
-		}
-		return undefined;
 	}
 }
 
@@ -312,9 +279,26 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			await this.attachModel(input, model);
 		}
 
-		if (options instanceof NotebookEditorOptions) {
-			if (options.cellOptions) {
-				this.control?.activate(options.cellOptions);
+		// reveal cell if editor options tell to do so
+		if (options instanceof NotebookEditorOptions && options.cellOptions) {
+			const cellOptions = options.cellOptions;
+			const cell = this.notebookViewModel!.viewCells.find(cell => isEqual(cell.cell.uri, cellOptions.resource));
+			if (cell && this.renderedEditors.has(cell)) {
+				this.revealInCenterIfOutsideViewport(cell);
+				const editor = this.renderedEditors.get(cell)!;
+				if (editor) {
+					if (cellOptions.options?.selection) {
+						const { selection } = cellOptions.options;
+						editor.setSelection({
+							...selection,
+							endLineNumber: selection.endLineNumber || selection.startLineNumber,
+							endColumn: selection.endColumn || selection.startColumn
+						});
+					}
+					if (!cellOptions.options?.preserveFocus) {
+						editor.focus();
+					}
+				}
 			}
 		}
 	}

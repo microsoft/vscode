@@ -63,15 +63,6 @@ export class CodeEditorService extends CodeEditorServiceImpl {
 			return targetEditor;
 		}
 
-		// CompositeCodeEditor
-		const control = this.editorService.activeEditorPane?.getControl();
-		if (ICompositeCodeEditor.is(control)) {
-			const editor = control.activate(input);
-			if (isCodeEditor(editor)) {
-				return editor;
-			}
-		}
-
 		// Open using our normal editor service
 		return this.doOpenCodeEditor(input, source, sideBySide);
 	}
