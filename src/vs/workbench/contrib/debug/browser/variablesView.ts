@@ -9,7 +9,7 @@ import * as dom from 'vs/base/browser/dom';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDebugService, IExpression, IScope, CONTEXT_VARIABLES_FOCUSED, IViewModel } from 'vs/workbench/contrib/debug/common/debug';
-import { Variable, Scope } from 'vs/workbench/contrib/debug/common/debugModel';
+import { Variable, Scope, ErrorScope } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { renderViewTree, renderVariable, IInputBoxOptions, AbstractExpressionsRenderer, IExpressionTemplateData } from 'vs/workbench/contrib/debug/browser/baseDebugView';
@@ -34,6 +34,7 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { escape } from 'vs/base/common/strings';
 
 const $ = dom.$;
 let forgetScopes = true;
@@ -271,7 +272,11 @@ class ScopesRenderer implements ITreeRenderer<IScope, FuzzyScore, IScopeTemplate
 
 	renderElement(element: ITreeNode<IScope, FuzzyScore>, index: number, templateData: IScopeTemplateData): void {
 		const name = element.element.name;
-		templateData.label.set(name, element.element.reference === -1 ? [{ start: 0, end: name.length, extraClasses: 'error' }] : createMatches(element.filterData));
+		if (element.element instanceof ErrorScope) {
+			templateData.name.innerHTML = `<span class="error">${escape(name)}</span>`;
+		} else {
+			templateData.label.set(name, createMatches(element.filterData));
+		}
 	}
 
 	disposeTemplate(templateData: IScopeTemplateData): void {

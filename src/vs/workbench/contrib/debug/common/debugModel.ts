@@ -276,7 +276,7 @@ export class ErrorScope extends Scope {
 		index: number,
 		message: string,
 	) {
-		super(stackFrame, index, message, -1, false);
+		super(stackFrame, index, message, 0, false);
 	}
 
 	toString(): string {
