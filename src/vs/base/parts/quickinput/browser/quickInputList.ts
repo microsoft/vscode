@@ -25,7 +25,7 @@ import { Action } from 'vs/base/common/actions';
 import { getIconClass } from 'vs/base/parts/quickinput/browser/quickInputUtils';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IQuickInputOptions } from 'vs/base/parts/quickinput/browser/quickInput';
-import { IListOptions, List, IListStyles } from 'vs/base/browser/ui/list/listWidget';
+import { IListOptions, List, IListStyles, IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 
 const $ = dom.$;
 
@@ -153,9 +153,6 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 		// Meta
 		data.detail.set(element.saneDetail, detailHighlights);
 
-		// ARIA label
-		data.entry.setAttribute('aria-label', element.saneAriaLabel);
-
 		// Separator
 		if (element.separator && element.separator.label) {
 			data.separator.textContent = element.separator.label;
@@ -247,12 +244,14 @@ export class QuickInputList {
 		this.id = id;
 		this.container = dom.append(this.parent, $('.quick-input-list'));
 		const delegate = new ListElementDelegate();
+		const accessibilityProvider = new QuickInputAccessibilityProvider();
 		this.list = options.createList('QuickInput', this.container, delegate, [new ListElementRenderer()], {
 			identityProvider: { getId: element => element.saneLabel },
 			openController: { shouldOpen: () => false }, // Workaround #58124
 			setRowLineHeight: false,
 			multipleSelectionSupport: false,
 			horizontalScrolling: false,
+			accessibilityProvider
 		} as IListOptions<ListElement>);
 		this.list.getHTMLElement().id = id;
 		this.disposables.push(this.list);
@@ -605,4 +604,10 @@ function compareEntries(elementA: ListElement, elementB: ListElement, lookFor: s
 	}
 
 	return compareAnything(elementA.saneLabel, elementB.saneLabel, lookFor);
+}
+
+class QuickInputAccessibilityProvider implements IAccessibilityProvider<ListElement> {
+	getAriaLabel(element: ListElement): string | null {
+		return element.saneAriaLabel;
+	}
 }
