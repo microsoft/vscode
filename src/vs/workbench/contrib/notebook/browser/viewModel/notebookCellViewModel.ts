@@ -131,9 +131,6 @@ export class CellViewModel extends Disposable {
 
 	startFind(value: string): CellFindMatch | null {
 		let cellMatches: model.FindMatch[] = [];
-		if (this.cellKind === CellKind.Markdown) {
-			return null;
-		}
 
 		if (this.assertTextModelAttached()) {
 			cellMatches = this._textModel!.findMatches(value, false, false, false, null, false);
@@ -292,6 +289,10 @@ export class CellViewModel extends Disposable {
 		});
 		this._textEditor = undefined;
 		this._onDidChangeEditorAttachState.fire(false);
+	}
+
+	revealRange(range: Range) {
+		this._textEditor?.revealRange(range);
 	}
 
 	getLineScrollTopOffset(line: number): number {

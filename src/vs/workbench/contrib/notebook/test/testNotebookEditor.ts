@@ -16,6 +16,7 @@ import { INotebookEditor, NotebookLayoutInfo } from 'vs/workbench/contrib/notebo
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
+import { Range } from 'vs/editor/common/core/range';
 
 export class TestCell implements ICell {
 	uri: URI;
@@ -89,6 +90,15 @@ export class TestNotebookEditor implements INotebookEditor {
 
 	constructor(
 	) { }
+	revealRangeInView(cell: CellViewModel, range: Range): void {
+		throw new Error('Method not implemented.');
+	}
+	revealRangeInCenter(cell: CellViewModel, range: Range): void {
+		throw new Error('Method not implemented.');
+	}
+	revealRangeInCenterIfOutsideViewport(cell: CellViewModel, range: Range): void {
+		throw new Error('Method not implemented.');
+	}
 
 	revealLineInView(cell: CellViewModel, line: number): void {
 		throw new Error('Method not implemented.');

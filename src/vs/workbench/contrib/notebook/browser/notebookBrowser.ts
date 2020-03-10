@@ -12,6 +12,7 @@ import { IOutput, CellKind, IRenderOutput } from 'vs/workbench/contrib/notebook/
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { NotebookViewModel, IModelDecorationsChangeAccessor } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { FindMatch } from 'vs/editor/common/model';
+import { Range } from 'vs/editor/common/core/range';
 
 export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('notebookFindWidgetFocused', false);
 
@@ -117,15 +118,28 @@ export interface INotebookEditor {
 
 	/**
 	 * Reveal a line in notebook cell into viewport center.
-	 * If `offset` is provided, `top(cell) + offset` will be scrolled into view.
 	 */
 	revealLineInCenter(cell: CellViewModel, line: number): void;
 
 	/**
 	 * Reveal a line in notebook cell into viewport center.
-	 * If `offset` is provided, `top(cell) + offset` will be scrolled into view.
 	 */
 	revealLineInCenterIfOutsideViewport(cell: CellViewModel, line: number): void;
+
+	/**
+	 * Reveal a range in notebook cell into viewport with minimal scrolling.
+	 */
+	revealRangeInView(cell: CellViewModel, range: Range): void;
+
+	/**
+	 * Reveal a range in notebook cell into viewport center.
+	 */
+	revealRangeInCenter(cell: CellViewModel, range: Range): void;
+
+	/**
+	 * Reveal a range in notebook cell into viewport center.
+	 */
+	revealRangeInCenterIfOutsideViewport(cell: CellViewModel, range: Range): void;
 
 	/**
 	 * Change the decorations on cells.
@@ -169,3 +183,12 @@ export interface CellFindMatch {
 	matches: FindMatch[];
 }
 
+export enum CellRevealType {
+	Line,
+	Range
+}
+
+export enum CellRevealPosition {
+	Top,
+	Center
+}

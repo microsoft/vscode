@@ -40,6 +40,7 @@ import { NotebookFindWidget } from 'vs/workbench/contrib/notebook/browser/contri
 import { NotebookViewModel, INotebookEditorViewState, IModelDecorationsChangeAccessor } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
+import { Range } from 'vs/editor/common/core/range';
 
 const $ = DOM.$;
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
@@ -446,7 +447,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		const index = this.notebookViewModel?.getViewCellIndex(cell);
 
 		if (index !== undefined) {
-			this.list?.revealLineInViewCenter(index, line);
+			this.list?.revealLineInCenter(index, line);
 		}
 	}
 
@@ -455,6 +456,30 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 		if (index !== undefined) {
 			this.list?.revealLineInCenterIfOutsideViewport(index, line);
+		}
+	}
+
+	revealRangeInView(cell: CellViewModel, range: Range): void {
+		const index = this.notebookViewModel?.getViewCellIndex(cell);
+
+		if (index !== undefined) {
+			this.list?.revealRangeInView(index, range);
+		}
+	}
+
+	revealRangeInCenter(cell: CellViewModel, range: Range): void {
+		const index = this.notebookViewModel?.getViewCellIndex(cell);
+
+		if (index !== undefined) {
+			this.list?.revealRangeInCenter(index, range);
+		}
+	}
+
+	revealRangeInCenterIfOutsideViewport(cell: CellViewModel, range: Range): void {
+		const index = this.notebookViewModel?.getViewCellIndex(cell);
+
+		if (index !== undefined) {
+			this.list?.revealRangeInCenterIfOutsideViewport(index, range);
 		}
 	}
 
