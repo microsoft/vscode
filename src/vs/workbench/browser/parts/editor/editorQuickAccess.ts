@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { IQuickPickSeparator, quickPickItemScorerAccessor, IQuickPickItemWithResource } from 'vs/platform/quickinput/common/quickInput';
-import { PickerQuickAccessProvider, IPickerQuickAccessItem } from 'vs/platform/quickinput/common/quickAccess';
+import { PickerQuickAccessProvider, IPickerQuickAccessItem, TriggerAction } from 'vs/platform/quickinput/common/quickAccess';
 import { IEditorGroupsService, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorsOrder, IEditorIdentifier, toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -83,19 +83,32 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 	}
 
 	private doGetEditorPickItems(): Array<IEditorQuickPickItem> {
-		return this.doGetEditors().map(({ editor, groupId }) => {
+		return this.doGetEditors().map(({ editor, groupId }): IEditorQuickPickItem => {
 			const resource = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
+			const isDirty = editor.isDirty() && !editor.isSaving();
 
 			return {
 				editor,
 				groupId,
 				resource,
-				label: editor.isDirty() && !editor.isSaving() ? `$(circle-filled) ${editor.getName()}` : editor.getName(),
-				ariaLabel: localize('entryAriaLabel', "{0}, editor picker", editor.getName()),
+				label: editor.getName(),
+				ariaLabel: localize('entryAriaLabel', "{0}, editors picker", editor.getName()),
 				description: editor.getDescription(),
 				iconClasses: getIconClasses(this.modelService, this.modeService, resource),
 				italic: !this.editorGroupService.getGroup(groupId)?.isPinned(editor),
-				accept: () => this.editorGroupService.getGroup(groupId)?.openEditor(editor)
+				buttonsAlwaysVisible: isDirty,
+				buttons: [
+					{
+						iconClass: isDirty ? 'codicon-circle-filled' : 'codicon-close',
+						tooltip: localize('closeEditor', "Close Editor")
+					}
+				],
+				trigger: async () => {
+					await this.editorGroupService.getGroup(groupId)?.closeEditor(editor, { preserveFocus: true });
+
+					return TriggerAction.REFRESH_PICKER;
+				},
+				accept: () => this.editorGroupService.getGroup(groupId)?.openEditor(editor),
 			};
 		});
 	}

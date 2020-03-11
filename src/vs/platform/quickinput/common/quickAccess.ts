@@ -177,9 +177,10 @@ export interface IPickerQuickAccessItem extends IQuickPickItem {
 	 * @param buttonIndex index of the button of the item that
 	 * was clicked.
 	 *
-	 * @returns a value that indicates what should happen after the trigger.
+	 * @returns a value that indicates what should happen after the trigger
+	 * which can be a `Promise` for long running operations.
 	 */
-	trigger?(buttonIndex: number): TriggerAction;
+	trigger?(buttonIndex: number): TriggerAction | Promise<TriggerAction>;
 }
 
 export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem> implements IQuickAccessProvider {
@@ -210,13 +211,18 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 			} else {
 				picker.busy = true;
 				try {
-					picker.items = await res;
+					const items = await res;
+					if (token.isCancellationRequested) {
+						return;
+					}
+
+					picker.items = items;
 				} finally {
-					picker.busy = false;
+					if (!token.isCancellationRequested) {
+						picker.busy = false;
+					}
 				}
 			}
-
-			this.getPicks(picker.value.substr(this.prefix.length).trim(), picksCts.token);
 		};
 		disposables.add(picker.onDidChangeValue(() => updatePickerItems()));
 		updatePickerItems();
@@ -231,11 +237,17 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 		}));
 
 		// Trigger the pick with button index if button triggered
-		disposables.add(picker.onDidTriggerItemButton(({ button, item }) => {
+		disposables.add(picker.onDidTriggerItemButton(async ({ button, item }) => {
 			if (typeof item.trigger === 'function') {
 				const buttonIndex = item.buttons?.indexOf(button) ?? -1;
 				if (buttonIndex >= 0) {
-					const action = item.trigger(buttonIndex);
+					const result = item.trigger(buttonIndex);
+					const action = (typeof result === 'number') ? result : await result;
+
+					if (token.isCancellationRequested) {
+						return;
+					}
+
 					switch (action) {
 						case TriggerAction.NO_ACTION:
 							break;
