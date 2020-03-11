@@ -10,14 +10,13 @@ import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
-import { IWorkbenchThemeService, ThemeSettings, IWorkbenchColorTheme, IWorkbenchFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IWorkbenchThemeService, IWorkbenchColorTheme, IWorkbenchFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { VIEWLET_ID, IExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IColorRegistry, Extensions as ColorRegistryExtensions } from 'vs/platform/theme/common/colorRegistry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Color } from 'vs/base/common/color';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { LIGHT, DARK, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
 import { colorThemeSchemaId } from 'vs/workbench/services/themes/common/colorThemeSchema';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -34,8 +33,7 @@ export class SelectColorThemeAction extends Action {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
-		@IViewletService private readonly viewletService: IViewletService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IViewletService private readonly viewletService: IViewletService
 	) {
 		super(id, label);
 	}
@@ -60,13 +58,8 @@ export class SelectColorThemeAction extends Action {
 				selectThemeTimeout = window.setTimeout(() => {
 					selectThemeTimeout = undefined;
 					const themeId = theme && theme.id !== undefined ? theme.id : currentTheme.id;
-					let target: ConfigurationTarget | undefined = undefined;
-					if (applyTheme) {
-						const confValue = this.configurationService.inspect(ThemeSettings.COLOR_THEME);
-						target = typeof confValue.workspaceValue !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
-					}
 
-					this.themeService.setColorTheme(themeId, target).then(undefined,
+					this.themeService.setColorTheme(themeId, applyTheme ? 'auto' : undefined).then(undefined,
 						err => {
 							onUnexpectedError(err);
 							this.themeService.setColorTheme(currentTheme.id, undefined);
@@ -119,8 +112,7 @@ class SelectIconThemeAction extends Action {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
-		@IViewletService private readonly viewletService: IViewletService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IViewletService private readonly viewletService: IViewletService
 
 	) {
 		super(id, label);
@@ -145,12 +137,7 @@ class SelectIconThemeAction extends Action {
 				selectThemeTimeout = window.setTimeout(() => {
 					selectThemeTimeout = undefined;
 					const themeId = theme && theme.id !== undefined ? theme.id : currentTheme.id;
-					let target: ConfigurationTarget | undefined = undefined;
-					if (applyTheme) {
-						const confValue = this.configurationService.inspect(ThemeSettings.ICON_THEME);
-						target = typeof confValue.workspaceValue !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
-					}
-					this.themeService.setFileIconTheme(themeId, target).then(undefined,
+					this.themeService.setFileIconTheme(themeId, applyTheme ? 'auto' : undefined).then(undefined,
 						err => {
 							onUnexpectedError(err);
 							this.themeService.setFileIconTheme(currentTheme.id, undefined);

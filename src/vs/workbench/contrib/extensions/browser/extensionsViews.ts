@@ -106,7 +106,6 @@ export class ExtensionsListView extends ViewPane {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IExperimentService private readonly experimentService: IExperimentService,
-		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService,
 		@IExtensionManagementServerService protected readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IProductService protected readonly productService: IProductService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -232,12 +231,10 @@ export class ExtensionsListView extends ViewPane {
 	private async onContextMenu(e: IListContextMenuEvent<IExtension>): Promise<void> {
 		if (e.element) {
 			const runningExtensions = await this.extensionService.getExtensions();
-			const colorThemes = await this.workbenchThemeService.getColorThemes();
-			const fileIconThemes = await this.workbenchThemeService.getFileIconThemes();
 			const manageExtensionAction = this.instantiationService.createInstance(ManageExtensionAction);
 			manageExtensionAction.extension = e.element;
 			if (manageExtensionAction.enabled) {
-				const groups = manageExtensionAction.getActionGroups(runningExtensions, colorThemes, fileIconThemes);
+				const groups = await manageExtensionAction.getActionGroups(runningExtensions);
 				let actions: IAction[] = [];
 				for (const menuActions of groups) {
 					actions = [...actions, ...menuActions, new Separator()];
@@ -891,7 +888,7 @@ export class ServerExtensionsView extends ExtensionsListView {
 		@IThemeService themeService: IThemeService,
 	) {
 		options.server = server;
-		super(options, notificationService, keybindingService, contextMenuService, instantiationService, themeService, extensionService, extensionsWorkbenchService, editorService, tipsService, telemetryService, configurationService, contextService, experimentService, workbenchThemeService, extensionManagementServerService, productService, contextKeyService, viewDescriptorService, menuService, openerService);
+		super(options, notificationService, keybindingService, contextMenuService, instantiationService, themeService, extensionService, extensionsWorkbenchService, editorService, tipsService, telemetryService, configurationService, contextService, experimentService, extensionManagementServerService, productService, contextKeyService, viewDescriptorService, menuService, openerService);
 		this._register(onDidChangeTitle(title => this.updateTitle(title)));
 	}
 

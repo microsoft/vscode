@@ -27,7 +27,7 @@ import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, 
 import { RatingsWidget, InstallCountWidget, RemoteBadgeWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { CombinedInstallAction, UpdateAction, ExtensionEditorDropDownAction, ReloadAction, MaliciousStatusLabelAction, IgnoreExtensionRecommendationAction, UndoIgnoreExtensionRecommendationAction, EnableDropDownAction, DisableDropDownAction, StatusLabelAction, SetFileIconThemeAction, SetColorThemeAction, RemoteInstallAction, ExtensionToolTipAction, SystemDisabledWarningAction, LocalInstallAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { CombinedInstallAction, UpdateAction, ExtensionEditorDropDownAction, ReloadAction, MaliciousStatusLabelAction, IgnoreExtensionRecommendationAction, UndoIgnoreExtensionRecommendationAction, EnableDropDownAction, DisableDropDownAction, StatusLabelAction, SetFileIconThemeAction, SetColorThemeAction, RemoteInstallAction, ExtensionToolTipAction, SystemDisabledWarningAction, LocalInstallAction, SetProductIconThemeAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
@@ -47,7 +47,6 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { getDefaultValue } from 'vs/platform/configuration/common/configurationRegistry';
 import { isUndefined } from 'vs/base/common/types';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IWebviewService, Webview, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED } from 'vs/workbench/contrib/webview/browser/webview';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -192,7 +191,6 @@ export class ExtensionEditor extends BaseEditor {
 		@IExtensionTipsService private readonly extensionTipsService: IExtensionTipsService,
 		@IStorageService storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService,
 		@IWebviewService private readonly webviewService: IWebviewService,
 		@IModeService private readonly modeService: IModeService,
 	) {
@@ -317,8 +315,6 @@ export class ExtensionEditor extends BaseEditor {
 
 	private async updateTemplate(input: ExtensionsInput, template: IExtensionEditorTemplate, preserveFocus: boolean): Promise<void> {
 		const runningExtensions = await this.extensionService.getExtensions();
-		const colorThemes = await this.workbenchThemeService.getColorThemes();
-		const fileIconThemes = await this.workbenchThemeService.getFileIconThemes();
 
 		this.activeElement = null;
 		this.editorLoadComplete = false;
@@ -401,8 +397,9 @@ export class ExtensionEditor extends BaseEditor {
 			reloadAction,
 			this.instantiationService.createInstance(StatusLabelAction),
 			this.instantiationService.createInstance(UpdateAction),
-			this.instantiationService.createInstance(SetColorThemeAction, colorThemes),
-			this.instantiationService.createInstance(SetFileIconThemeAction, fileIconThemes),
+			this.instantiationService.createInstance(SetColorThemeAction),
+			this.instantiationService.createInstance(SetFileIconThemeAction),
+			this.instantiationService.createInstance(SetProductIconThemeAction),
 			this.instantiationService.createInstance(EnableDropDownAction),
 			this.instantiationService.createInstance(DisableDropDownAction, runningExtensions),
 			this.instantiationService.createInstance(RemoteInstallAction),

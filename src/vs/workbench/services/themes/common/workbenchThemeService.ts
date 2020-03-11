@@ -20,7 +20,8 @@ export const HC_THEME_ID = 'Default High Contrast';
 
 export enum ThemeSettings {
 	COLOR_THEME = 'workbench.colorTheme',
-	ICON_THEME = 'workbench.iconTheme',
+	FILE_ICON_THEME = 'workbench.iconTheme',
+	PRODUCT_ICON_THEME = 'workbench.productIconTheme',
 	COLOR_CUSTOMIZATIONS = 'workbench.colorCustomizations',
 	TOKEN_COLOR_CUSTOMIZATIONS = 'editor.tokenColorCustomizations',
 	TOKEN_COLOR_CUSTOMIZATIONS_EXPERIMENTAL = 'editor.tokenColorCustomizationsExperimental',
@@ -29,18 +30,19 @@ export enum ThemeSettings {
 	PREFERRED_LIGHT_THEME = 'workbench.preferredLightColorTheme',
 	PREFERRED_HC_THEME = 'workbench.preferredHighContrastColorTheme',
 	DETECT_COLOR_SCHEME = 'window.autoDetectColorScheme',
-	DETECT_HC = 'window.autoDetectHighContrast',
-
-	PRODUCT_ICON_THEME = 'workbench.productIconTheme'
+	DETECT_HC = 'window.autoDetectHighContrast'
 }
 
-export interface IWorkbenchColorTheme extends IColorTheme {
+export interface IWorkbenchTheme {
 	readonly id: string;
 	readonly label: string;
-	readonly settingsId: string;
 	readonly extensionData?: ExtensionData;
 	readonly description?: string;
-	readonly isLoaded: boolean;
+	readonly settingsId: string | null;
+}
+
+export interface IWorkbenchColorTheme extends IWorkbenchTheme, IColorTheme {
+	readonly settingsId: string;
 	readonly tokenColors: ITextMateThemingRule[];
 }
 
@@ -48,44 +50,28 @@ export interface IColorMap {
 	[id: string]: Color;
 }
 
-export interface IWorkbenchFileIconTheme extends IFileIconTheme {
-	readonly id: string;
-	readonly label: string;
-	readonly settingsId: string | null;
-	readonly description?: string;
-	readonly extensionData?: ExtensionData;
-
-	readonly isLoaded: boolean;
-	readonly hasFileIcons: boolean;
-	readonly hasFolderIcons: boolean;
-	readonly hidesExplorerArrows: boolean;
+export interface IWorkbenchFileIconTheme extends IWorkbenchTheme, IFileIconTheme {
 }
 
-export interface IWorkbenchProductIconTheme {
-	readonly id: string;
-	readonly label: string;
+export interface IWorkbenchProductIconTheme extends IWorkbenchTheme {
 	readonly settingsId: string;
-	readonly description?: string;
-	readonly extensionData?: ExtensionData;
-
-	readonly isLoaded: boolean;
 }
 
 
 export interface IWorkbenchThemeService extends IThemeService {
 	_serviceBrand: undefined;
-	setColorTheme(themeId: string | undefined, settingsTarget: ConfigurationTarget | undefined): Promise<IWorkbenchColorTheme | null>;
+	setColorTheme(themeId: string | undefined, settingsTarget: ConfigurationTarget | undefined | 'auto'): Promise<IWorkbenchColorTheme | null>;
 	getColorTheme(): IWorkbenchColorTheme;
 	getColorThemes(): Promise<IWorkbenchColorTheme[]>;
 	onDidColorThemeChange: Event<IWorkbenchColorTheme>;
 	restoreColorTheme(): void;
 
-	setFileIconTheme(iconThemeId: string | undefined, settingsTarget: ConfigurationTarget | undefined): Promise<IWorkbenchFileIconTheme>;
+	setFileIconTheme(iconThemeId: string | undefined, settingsTarget: ConfigurationTarget | undefined | 'auto'): Promise<IWorkbenchFileIconTheme>;
 	getFileIconTheme(): IWorkbenchFileIconTheme;
 	getFileIconThemes(): Promise<IWorkbenchFileIconTheme[]>;
 	onDidFileIconThemeChange: Event<IWorkbenchFileIconTheme>;
 
-	setProductIconTheme(iconThemeId: string | undefined, settingsTarget: ConfigurationTarget | undefined): Promise<IWorkbenchProductIconTheme>;
+	setProductIconTheme(iconThemeId: string | undefined, settingsTarget: ConfigurationTarget | undefined | 'auto'): Promise<IWorkbenchProductIconTheme>;
 	getProductIconTheme(): IWorkbenchProductIconTheme;
 	getProductIconThemes(): Promise<IWorkbenchProductIconTheme[]>;
 	onDidProductIconThemeChange: Event<IWorkbenchProductIconTheme>;
