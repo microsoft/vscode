@@ -39,6 +39,8 @@ import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
+import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminaQuickAccess';
 
 registerSingleton(ITerminalService, TerminalService, true);
 
@@ -59,6 +61,16 @@ quickOpenRegistry.registerQuickOpenHandler(
 		nls.localize('quickOpen.terminal', "Show All Opened Terminals")
 	)
 );
+
+const quickAccessRegistry = (Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess));
+
+quickAccessRegistry.registerQuickAccessProvider({
+	ctor: TerminalQuickAccessProvider,
+	prefix: TerminalQuickAccessProvider.PREFIX,
+	contextKey: inTerminalsPicker,
+	placeholder: nls.localize('tasksQuickAccessPlaceholder', "Type the name of a terminal to open."),
+	helpEntries: [{ description: nls.localize('tasksQuickAccessHelp', "Show All Opened Terminals"), needsEditor: false }]
+});
 
 const quickOpenNavigateNextInTerminalPickerId = 'workbench.action.quickOpenNavigateNextInTerminalPicker';
 CommandsRegistry.registerCommand(

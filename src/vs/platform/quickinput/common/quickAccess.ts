@@ -144,6 +144,24 @@ Registry.add(Extensions.Quickaccess, new QuickAccessRegistry());
 
 //#region Helper class for simple picker based providers
 
+export enum TriggerAction {
+
+	/**
+	 * Do nothing after the button was clicked.
+	 */
+	NO_ACTION,
+
+	/**
+	 * Close the picker.
+	 */
+	CLOSE_PICKER,
+
+	/**
+	 * Update the results of the picker.
+	 */
+	REFRESH_PICKER
+}
+
 export interface IPickerQuickAccessItem extends IQuickPickItem {
 
 	/**
@@ -154,14 +172,14 @@ export interface IPickerQuickAccessItem extends IQuickPickItem {
 
 	/**
 	 * A method that will be executed when a button of the pick item was
-	 * clicked on. The picker will only close if `true` is returned.
+	 * clicked on.
 	 *
 	 * @param buttonIndex index of the button of the item that
 	 * was clicked.
 	 *
-	 * @returns a valud indicating if the picker should close or not.
+	 * @returns a value that indicates what should happen after the trigger.
 	 */
-	trigger?(buttonIndex: number): boolean;
+	trigger?(buttonIndex: number): TriggerAction;
 }
 
 export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem> implements IQuickAccessProvider {
@@ -217,9 +235,16 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 			if (typeof item.trigger === 'function') {
 				const buttonIndex = item.buttons?.indexOf(button) ?? -1;
 				if (buttonIndex >= 0) {
-					const hide = item.trigger(buttonIndex);
-					if (hide !== false) {
-						picker.hide();
+					const action = item.trigger(buttonIndex);
+					switch (action) {
+						case TriggerAction.NO_ACTION:
+							break;
+						case TriggerAction.CLOSE_PICKER:
+							picker.hide();
+							break;
+						case TriggerAction.REFRESH_PICKER:
+							updatePickerItems();
+							break;
 					}
 				}
 			}
