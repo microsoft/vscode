@@ -44,7 +44,7 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 								tooltip: localize('renameTerminal', "Rename Terminal")
 							},
 							{
-								iconClass: 'codicon-close',
+								iconClass: 'codicon-trash',
 								tooltip: localize('killTerminal', "Kill Terminal Instance")
 							}
 						],
