@@ -210,7 +210,7 @@ export abstract class ViewPane extends Pane implements IView {
 		@IThemeService protected themeService: IThemeService,
 		@ITelemetryService protected telemetryService: ITelemetryService,
 	) {
-		super(options);
+		super({ ...options, ...{ orientation: viewDescriptorService.getViewLocation(options.id) === ViewContainerLocation.Panel ? Orientation.HORIZONTAL : Orientation.VERTICAL } });
 
 		this.id = options.id;
 		this.title = options.title;
