@@ -356,11 +356,13 @@ export function toLocalBackupSyncResource(resource: SyncResource, ref?: string):
 }
 
 export function resolveSyncResource(resource: URI): { remote: boolean, resource: SyncResource, ref?: string } | null {
-	const remote = resource.authority === 'remote';
-	const resourceKey: SyncResource = basename(dirname(resource)) as SyncResource;
-	const ref = basename(resource);
-	if (resourceKey && ref) {
-		return { remote, resource: resourceKey, ref: ref !== 'latest' ? ref : undefined };
+	if (resource.scheme === USER_DATA_SYNC_SCHEME) {
+		const remote = resource.authority === 'remote';
+		const resourceKey: SyncResource = basename(dirname(resource)) as SyncResource;
+		const ref = basename(resource);
+		if (resourceKey && ref) {
+			return { remote, resource: resourceKey, ref: ref !== 'latest' ? ref : undefined };
+		}
 	}
 	return null;
 }
