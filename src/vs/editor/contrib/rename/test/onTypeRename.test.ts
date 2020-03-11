@@ -9,10 +9,11 @@ import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Handler } from 'vs/editor/common/editorCommon';
-import { TextModel } from 'vs/editor/common/model/textModel';
 import * as modes from 'vs/editor/common/modes';
 import { OnTypeRenameContribution } from 'vs/editor/contrib/rename/onTypeRename';
 import { createTestCodeEditor, TestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 
 const mockFile = URI.parse('test:somefile.ttt');
 const mockFileSelector = { scheme: 'test' };
@@ -31,8 +32,8 @@ suite('Synced regions', () => {
 
 	function createMockEditor(text: string | string[]) {
 		const model = typeof text === 'string'
-			? TextModel.createFromString(text, undefined, undefined, mockFile)
-			: TextModel.createFromString(text.join('\n'), undefined, undefined, mockFile);
+			? createTextModel(text, undefined, undefined, mockFile)
+			: createTextModel(text.join('\n'), undefined, undefined, mockFile);
 
 		const editor = createTestCodeEditor({ model });
 		disposables.add(model);
@@ -58,7 +59,7 @@ suite('Synced regions', () => {
 			}));
 
 			const editor = createMockEditor(initialState.text);
-			const ontypeRenameContribution = editor.registerAndInstantiateContribution<OnTypeRenameContribution>(
+			const ontypeRenameContribution = editor.registerAndInstantiateContribution(
 				OnTypeRenameContribution.ID,
 				OnTypeRenameContribution
 			);
@@ -248,7 +249,7 @@ suite('Synced regions', () => {
 		editor.setPosition(pos);
 		await ontypeRenameContribution.run(pos, true);
 		editor.trigger('keyboard', Handler.Type, { text: ' ' });
-		editor.trigger('keyboard', Handler.Undo, {});
+		CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 	}, '<ooo></ooo>');
 
 	testCase('Breakout - type space in middle', state, async (editor, ontypeRenameContribution) => {
@@ -270,7 +271,7 @@ suite('Synced regions', () => {
 		editor.setPosition(pos);
 		await ontypeRenameContribution.run(pos, true);
 		editor.trigger('keyboard', Handler.Paste, { text: ' i="i"' });
-		editor.trigger('keyboard', Handler.Undo, {});
+		CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 	}, '<ooo></ooo>');
 
 	testCase('Breakout - paste content starting with space in middle', state, async (editor, ontypeRenameContribution) => {
@@ -339,7 +340,7 @@ suite('Synced regions', () => {
 		editor.setPosition(pos);
 		await ontypeRenameContribution.run(pos, true);
 		editor.trigger('keyboard', 'deleteLeft', {});
-		editor.trigger('keyboard', Handler.Undo, null);
+		CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 	}, '<ooo></ooo>');
 
 	testCase('Delete - left word', state, async (editor, ontypeRenameContribution) => {
@@ -354,7 +355,7 @@ suite('Synced regions', () => {
 		editor.setPosition(pos);
 		await ontypeRenameContribution.run(pos, true);
 		editor.trigger('keyboard', 'deleteWordLeft', {});
-		editor.trigger('keyboard', Handler.Undo, null);
+		CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 	}, '<ooo></ooo>');
 
 	/**
@@ -411,7 +412,8 @@ suite('Synced regions', () => {
 		editor.setPosition(pos);
 		await ontypeRenameContribution.run(pos, true);
 		editor.trigger('keyboard', Handler.Type, { text: 'i' });
-		editor.trigger('keyboard', Handler.Undo, null);
+		CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
+		CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 	}, '<ooo></ooo>');
 
 	testCase('Undo/redo - simple undo/redo', state, async (editor, ontypeRenameContribution) => {
@@ -419,8 +421,8 @@ suite('Synced regions', () => {
 		editor.setPosition(pos);
 		await ontypeRenameContribution.run(pos, true);
 		editor.trigger('keyboard', Handler.Type, { text: 'i' });
-		editor.trigger('keyboard', Handler.Undo, null);
-		editor.trigger('keyboard', Handler.Redo, null);
+		CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
+		CoreEditingCommands.Redo.runEditorCommand(null, editor, null);
 	}, '<iooo></iooo>');
 
 	/**
