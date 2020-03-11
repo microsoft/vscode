@@ -403,7 +403,7 @@ export class TimelinePane extends ViewPane {
 	private async handleRequest(request: TimelineRequest) {
 		let timeline: Timeline | undefined;
 		try {
-			timeline = await this.progressService.withProgress({ location: this.getProgressLocation() }, () => request.result);
+			timeline = await this.progressService.withProgress({ location: this.id }, () => request.result);
 		}
 		finally {
 			this._pendingRequests.delete(request.source);
