@@ -40,7 +40,6 @@ import { NotebookFindWidget } from 'vs/workbench/contrib/notebook/browser/contri
 import { NotebookViewModel, INotebookEditorViewState, IModelDecorationsChangeAccessor } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
-import { isEqual } from 'vs/base/common/resources';
 
 const $ = DOM.$;
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
@@ -282,7 +281,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		// reveal cell if editor options tell to do so
 		if (options instanceof NotebookEditorOptions && options.cellOptions) {
 			const cellOptions = options.cellOptions;
-			const cell = this.notebookViewModel!.viewCells.find(cell => isEqual(cell.cell.uri, cellOptions.resource));
+			const cell = this.notebookViewModel!.viewCells.find(cell => cell.cell.uri.toString() === cellOptions.resource.toString());
 			if (cell) {
 				this.revealInCenterIfOutsideViewport(cell);
 				const editor = this.renderedEditors.get(cell)!;
