@@ -580,8 +580,7 @@ export interface ITreeViewDataProvider {
 }
 
 export interface IEditableData {
-	validationMessage: (value: string) => string | null;
-	notificationMessage?: (value: string) => { content: string, severity: Severity } | null;
+	validationMessage: (value: string) => { content: string, severity: Severity } | null;
 	placeholder?: string | null;
 	startingValue?: string | null;
 	onFinish: (value: string, success: boolean) => void;

@@ -733,18 +733,24 @@ export class ShowOpenedFileInNewWindow extends Action {
 	}
 }
 
-export function validateFileName(item: ExplorerItem, name: string): string | null {
+export function validateFileName(item: ExplorerItem, name: string): { content: string, severity: Severity } | null {
 	// Produce a well formed file name
 	name = getWellFormedFileName(name);
 
 	// Name not provided
 	if (!name || name.length === 0 || /^\s+$/.test(name)) {
-		return nls.localize('emptyFileNameError', "A file or folder name must be provided.");
+		return {
+			content: nls.localize('emptyFileNameError', "A file or folder name must be provided."),
+			severity: Severity.Error
+		};
 	}
 
 	// Relative paths only
 	if (name[0] === '/' || name[0] === '\\') {
-		return nls.localize('fileNameStartsWithSlashError', "A file or folder name cannot start with a slash.");
+		return {
+			content: nls.localize('fileNameStartsWithSlashError', "A file or folder name cannot start with a slash."),
+			severity: Severity.Error
+		};
 	}
 
 	const names = coalesce(name.split(/[\\/]/));
@@ -754,23 +760,25 @@ export function validateFileName(item: ExplorerItem, name: string): string | nul
 		// Do not allow to overwrite existing file
 		const child = parent?.getChild(name);
 		if (child && child !== item) {
-			return nls.localize('fileNameExistsError', "A file or folder **{0}** already exists at this location. Please choose a different name.", name);
+			return {
+				content: nls.localize('fileNameExistsError', "A file or folder **{0}** already exists at this location. Please choose a different name.", name),
+				severity: Severity.Error
+			};
 		}
 	}
 
 	// Invalid File name
 	const windowsBasenameValidity = item.resource.scheme === Schemas.file && isWindows;
 	if (names.some((folderName) => !extpath.isValidBasename(folderName, windowsBasenameValidity))) {
-		return nls.localize('invalidFileNameError', "The name **{0}** is not valid as a file or folder name. Please choose a different name.", trimLongName(name));
+		return {
+			content: nls.localize('invalidFileNameError', "The name **{0}** is not valid as a file or folder name. Please choose a different name.", trimLongName(name)),
+			severity: Severity.Error
+		};
 	}
 
-	return null;
-}
-
-function fileNameNotificationMessage(name: string): { content: string, severity: Severity } | null {
-	if (/^\s|\s$/.test(name)) {
+	if (names.some(name => /^\s|\s$/.test(name))) {
 		return {
-			content: nls.localize('fileNameWhitespaceWarning', "Leading or trailing whitespace detected."),
+			content: nls.localize('fileNameWhitespaceWarning', "Leading or trailing whitespace detected in file or folder name."),
 			severity: Severity.Warning
 		};
 	}
@@ -794,7 +802,7 @@ export function getWellFormedFileName(filename: string): string {
 	// Trim tabs
 	filename = strings.trim(filename, '\t');
 
-	// Remove trailing dots, slashes, and spaces
+	// Remove trailing dots and slashes
 	filename = strings.rtrim(filename, '.');
 	filename = strings.rtrim(filename, '/');
 	filename = strings.rtrim(filename, '\\');
@@ -917,7 +925,6 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 
 	explorerService.setEditable(newStat, {
 		validationMessage: value => validateFileName(newStat, value),
-		notificationMessage: value => fileNameNotificationMessage(value),
 		onFinish: (value, success) => {
 			folder.removeChild(newStat);
 			explorerService.setEditable(newStat, null);
@@ -955,7 +962,6 @@ export const renameHandler = (accessor: ServicesAccessor) => {
 
 	explorerService.setEditable(stat, {
 		validationMessage: value => validateFileName(stat, value),
-		notificationMessage: value => fileNameNotificationMessage(value),
 		onFinish: async (value, success) => {
 			if (success) {
 				const parentResource = stat.parent!.resource;

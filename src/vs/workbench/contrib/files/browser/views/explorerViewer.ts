@@ -375,13 +375,13 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		const inputBox = new InputBox(label.element, this.contextViewService, {
 			validationOptions: {
 				validation: (value) => {
-					const content = editableData.validationMessage(value);
-					if (!content) {
+					const message = editableData.validationMessage(value);
+					if (!message || message.severity !== Severity.Error) {
 						return null;
 					}
 
 					return {
-						content,
+						content: message.content,
 						formatContent: true,
 						type: MessageType.ERROR
 					};
@@ -408,8 +408,8 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		});
 
 		const showInputBoxNotification = () => {
-			if (editableData.notificationMessage && inputBox.isInputValid()) {
-				const message = editableData.notificationMessage(inputBox.value);
+			if (inputBox.isInputValid()) {
+				const message = editableData.validationMessage(inputBox.value);
 				if (message) {
 					inputBox.showMessage({
 						content: message.content,

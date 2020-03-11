@@ -28,7 +28,7 @@ import { IMenuService, MenuId, IMenu, MenuRegistry, MenuItemAction } from 'vs/pl
 import { createAndFillInContextMenuActions, createAndFillInActionBarActions, ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IRemoteExplorerService, TunnelModel, MakeAddress, TunnelType, ITunnelItem, Tunnel } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { once } from 'vs/base/common/functional';
@@ -282,13 +282,13 @@ class TunnelTreeRenderer extends Disposable implements ITreeRenderer<ITunnelGrou
 			ariaLabel: nls.localize('remote.tunnelsView.input', "Press Enter to confirm or Escape to cancel."),
 			validationOptions: {
 				validation: (value) => {
-					const content = editableData.validationMessage(value);
-					if (!content) {
+					const message = editableData.validationMessage(value);
+					if (!message || message.severity !== Severity.Error) {
 						return null;
 					}
 
 					return {
-						content,
+						content: message.content,
 						formatContent: true,
 						type: MessageType.ERROR
 					};
@@ -733,7 +733,17 @@ namespace ForwardPortAction {
 						}
 						remoteExplorerService.setEditable(undefined, null);
 					},
-					validationMessage: validateInput,
+					validationMessage: (value) => {
+						const validationString = validateInput(value);
+						if (!validationString) {
+							return null;
+						}
+
+						return {
+							content: validationString,
+							severity: Severity.Error
+						};
+					},
 					placeholder: forwardPrompt
 				});
 			}
@@ -916,7 +926,17 @@ namespace ChangeLocalPortAction {
 							}
 						}
 					},
-					validationMessage: validateInput,
+					validationMessage: (value) => {
+						const validationString = validateInput(value);
+						if (!validationString) {
+							return null;
+						}
+
+						return {
+							content: validationString,
+							severity: Severity.Error
+						};
+					},
 					placeholder: nls.localize('remote.tunnelsView.changePort', "New local port")
 				});
 			}
