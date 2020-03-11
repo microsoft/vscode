@@ -373,7 +373,7 @@ export interface IAction2Options extends ICommandAction {
 	/**
 	 * One or many menu items.
 	 */
-	menu?: OneOrN<{ id: MenuId } & Omit<IMenuItem, 'command'> & { command?: Partial<Omit<ICommandAction, 'id'>> }>;
+	menu?: OneOrN<{ id: MenuId } & Omit<IMenuItem, 'command'>>;
 
 	/**
 	 * One keybinding.
@@ -396,7 +396,7 @@ export function registerAction2(ctor: { new(): Action2 }): IDisposable {
 	const disposables = new DisposableStore();
 	const action = new ctor();
 
-	const { f1, menu: menus, keybinding, description, ...command } = action.desc;
+	const { f1, menu, keybinding, description, ...command } = action.desc;
 
 	// command
 	disposables.add(CommandsRegistry.registerCommand({
@@ -406,14 +406,12 @@ export function registerAction2(ctor: { new(): Action2 }): IDisposable {
 	}));
 
 	// menu
-	if (Array.isArray(menus)) {
-		for (let item of menus) {
-			const { command: commandOverrides, ...menu } = item;
-			disposables.add(MenuRegistry.appendMenuItem(item.id, { command: { ...command, ...commandOverrides }, ...menu }));
+	if (Array.isArray(menu)) {
+		for (let item of menu) {
+			disposables.add(MenuRegistry.appendMenuItem(item.id, { command: { ...command }, ...item }));
 		}
-	} else if (menus) {
-		const { command: commandOverrides, ...menu } = menus;
-		disposables.add(MenuRegistry.appendMenuItem(menu.id, { command: { ...command, ...commandOverrides }, ...menu }));
+	} else if (menu) {
+		disposables.add(MenuRegistry.appendMenuItem(menu.id, { command: { ...command }, ...menu }));
 	}
 	if (f1) {
 		disposables.add(MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: command }));

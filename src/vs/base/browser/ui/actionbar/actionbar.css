@@ -45,6 +45,10 @@
 	display: inline-block;
 }
 
+.monaco-action-bar .action-item .codicon {
+	vertical-align: middle;
+}
+
 .monaco-action-bar .action-label {
 	font-size: 11px;
 	margin-right: 4px;

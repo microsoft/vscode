@@ -303,22 +303,25 @@ class CustomDocument extends Disposable implements vscode.CustomDocument {
 		});
 	}
 
-	/** @internal*/ _revert() {
+	/** @internal*/ async _revert() {
 		const editing = this.getEditingCapability();
 		if (this.#currentEditIndex === this.#savePoint) {
 			return true;
 		}
 
+
+		let undoneEdits: EditType[] = [];
+		let appliedEdits: EditType[] = [];
 		if (this.#currentEditIndex >= this.#savePoint) {
-			const editsToUndo = this.#edits.slice(this.#savePoint, this.#currentEditIndex);
-			editing.undoEdits(editsToUndo.reverse());
+			undoneEdits = this.#edits.slice(this.#savePoint, this.#currentEditIndex).reverse();
 		} else if (this.#currentEditIndex < this.#savePoint) {
-			const editsToRedo = this.#edits.slice(this.#currentEditIndex, this.#savePoint);
-			editing.applyEdits(editsToRedo);
+			appliedEdits = this.#edits.slice(this.#currentEditIndex, this.#savePoint);
 		}
 
 		this.#currentEditIndex = this.#savePoint;
 		this.spliceEdits();
+
+		await editing.revert({ undoneEdits, appliedEdits });
 
 		this.updateState();
 		return true;

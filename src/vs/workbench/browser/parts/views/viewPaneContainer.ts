@@ -7,7 +7,7 @@ import 'vs/css!./media/paneviewlet';
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
-import { attachStyler, IColorMapping, attachButtonStyler, attachLinkStyler } from 'vs/platform/theme/common/styler';
+import { attachStyler, IColorMapping, attachButtonStyler, attachLinkStyler, attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_FOREGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND, SIDE_BAR_SECTION_HEADER_BORDER, PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { append, $, trackFocus, toggleClass, EventType, isAncestor, Dimension, addDisposableListener, removeClass, addClass } from 'vs/base/browser/dom';
 import { IDisposable, combinedDisposable, dispose, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -43,6 +43,10 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { Link } from 'vs/platform/opener/browser/link';
 import { LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
+import { Orientation } from 'vs/base/browser/ui/sash/sash';
+import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
+import { CompositeProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
+import { IProgressIndicator } from 'vs/platform/progress/common/progress';
 
 export interface IPaneColors extends IColorMapping {
 	dropBackground?: ColorIdentifier;
@@ -53,7 +57,6 @@ export interface IPaneColors extends IColorMapping {
 
 export interface IViewPaneOptions extends IPaneOptions {
 	id: string;
-	title: string;
 	showActionsAlways?: boolean;
 	titleMenuId?: MenuId;
 }
@@ -181,6 +184,8 @@ export abstract class ViewPane extends Pane implements IView {
 	title: string;
 
 	private readonly menuActions: ViewMenuActions;
+	private progressBar!: ProgressBar;
+	private progressIndicator!: IProgressIndicator;
 
 	private toolbar?: ToolBar;
 	private readonly showActionsAlways: boolean = false;
@@ -205,12 +210,14 @@ export abstract class ViewPane extends Pane implements IView {
 		@IThemeService protected themeService: IThemeService,
 		@ITelemetryService protected telemetryService: ITelemetryService,
 	) {
-		super(options);
+		super({ ...options, ...{ orientation: viewDescriptorService.getViewLocation(options.id) === ViewContainerLocation.Panel ? Orientation.HORIZONTAL : Orientation.VERTICAL } });
 
 		this.id = options.id;
 		this.title = options.title;
 		this.showActionsAlways = !!options.showActionsAlways;
 		this.focusedViewContextKey = FocusedViewContext.bindTo(contextKeyService);
+		this._preventCollapse = this.viewDescriptorService.getViewLocation(this.id) === ViewContainerLocation.Panel;
+		this._expanded = this._preventCollapse || this._expanded;
 
 		this.menuActions = this._register(instantiationService.createInstance(ViewMenuActions, this.id, options.titleMenuId || MenuId.ViewTitle, MenuId.ViewTitleContext));
 		this._register(this.menuActions.onDidChangeTitle(() => this.updateActions()));
@@ -266,7 +273,9 @@ export abstract class ViewPane extends Pane implements IView {
 	protected renderHeader(container: HTMLElement): void {
 		this.headerContainer = container;
 
-		this.renderTwisties(container);
+		if (!this._preventCollapse) {
+			this.renderTwisties(container);
+		}
 
 		this.renderHeaderTitle(container, this.title);
 
@@ -285,6 +294,13 @@ export abstract class ViewPane extends Pane implements IView {
 		const onDidRelevantConfigurationChange = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ViewPane.AlwaysShowActionsConfig));
 		this._register(onDidRelevantConfigurationChange(this.updateActionsVisibility, this));
 		this.updateActionsVisibility();
+
+		if (this.progressBar !== undefined) {
+			// Progress bar
+			this.progressBar = this._register(new ProgressBar(this.headerContainer));
+			this._register(attachProgressBarStyler(this.progressBar, this.themeService));
+			this.progressBar.hide();
+		}
 	}
 
 	protected renderTwisties(container: HTMLElement): void {
@@ -314,6 +330,24 @@ export abstract class ViewPane extends Pane implements IView {
 
 	protected layoutBody(height: number, width: number): void {
 		// noop
+	}
+
+	getProgressIndicator() {
+		if (!this.headerContainer) {
+			return undefined;
+		}
+
+		if (this.progressBar === undefined) {
+			// Progress bar
+			this.progressBar = this._register(new ProgressBar(this.headerContainer));
+			this._register(attachProgressBarStyler(this.progressBar, this.themeService));
+			this.progressBar.hide();
+		}
+
+		if (this.progressIndicator === undefined) {
+			this.progressIndicator = this.instantiationService.createInstance(CompositeProgressIndicator, assertIsDefined(this.progressBar), this.id, this.isVisible(), { exclusiveProgressBar: true });
+		}
+		return this.progressIndicator;
 	}
 
 	protected getProgressLocation(): string {
@@ -564,6 +598,8 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	create(parent: HTMLElement): void {
+		const options = this.options as IPaneViewOptions;
+		options.orientation = this.viewDescriptorService.getViewContainerLocation(this.viewContainer) === ViewContainerLocation.Panel ? Orientation.HORIZONTAL : Orientation.VERTICAL;
 		this.paneview = this._register(new PaneView(parent, this.options));
 		this._register(this.paneview.onDidDrop(({ from, to }) => this.movePane(from as ViewPane, to as ViewPane)));
 		this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, (e: MouseEvent) => this.showContextMenu(new StandardMouseEvent(e))));
@@ -837,8 +873,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 				{
 					id: viewDescriptor.id,
 					title: viewDescriptor.name,
-					expanded: !collapsed,
-					minimumBodySize: this.viewDescriptorService.getViewContainerLocation(this.viewContainer) === ViewContainerLocation.Panel ? 0 : 120
+					expanded: !collapsed
 				});
 
 			pane.render();

@@ -43,14 +43,14 @@ declare module 'vscode' {
 	export interface AuthenticationProvider {
 		/**
 		 * Used as an identifier for extensions trying to work with a particular
-		 * provider: 'Microsoft', 'GitHub', etc. id must be unique, registering
+		 * provider: 'microsoft', 'github', etc. id must be unique, registering
 		 * another provider with the same id will fail.
 		 */
 		readonly id: string;
 		readonly displayName: string;
 
 		/**
-		 * A [event](#Event) which fires when the array of sessions has changed, or data
+		 * An [event](#Event) which fires when the array of sessions has changed, or data
 		 * within a session has changed.
 		 */
 		readonly onDidChangeSessions: Event<void>;
@@ -76,16 +76,16 @@ declare module 'vscode' {
 		export const onDidChangeAuthenticationProviders: Event<AuthenticationProvidersChangeEvent>;
 
 		/**
-		 * Returns whether a provider with providerId is currently registered.
+		 * An array of the ids of authentication providers that are currently registered.
 		 */
-		export function hasProvider(providerId: string): boolean;
+		export const providerIds: string[];
 
 		/**
 		 * Get existing authentication sessions. Rejects if a provider with providerId is not
 		 * registered, or if the user does not consent to sharing authentication information with
 		 * the extension.
 		 */
-		export function getSessions(providerId: string): Thenable<readonly AuthenticationSession[]>;
+		export function getSessions(providerId: string, scopes: string[]): Thenable<readonly AuthenticationSession[]>;
 
 		/**
 		* Prompt a user to login to create a new authenticaiton session. Rejects if a provider with
@@ -95,7 +95,7 @@ declare module 'vscode' {
 		export function login(providerId: string, scopes: string[]): Thenable<AuthenticationSession>;
 
 		/**
-		* A [event](#Event) which fires when the array of sessions has changed, or data
+		* An [event](#Event) which fires when the array of sessions has changed, or data
 		* within a session has changed for a provider. Fires with the ids of the providers
 		* that have had session data change.
 		*/
@@ -1278,13 +1278,25 @@ declare module 'vscode' {
 		/**
 		 * Undo a set of edits.
 		 *
-		 * This is triggered when a user undoes an edit or when revert is called on a file.
+		 * This is triggered when a user undoes an edit.
 		 *
 		 * @param edit Array of edits. Sorted from most recent to oldest.
 		 *
 		 * @return Thenable signaling that the change has completed.
 		 */
 		undoEdits(edits: readonly EditType[]): Thenable<void>;
+
+		/**
+		 * Revert the file to its last saved state.
+		 *
+		 * @param change Added or applied edits.
+		 *
+		 * @return Thenable signaling that the change has completed.
+		 */
+		revert(change: {
+			readonly undoneEdits: readonly EditType[];
+			readonly appliedEdits: readonly EditType[];
+		}): Thenable<void>;
 
 		/**
 		 * Back up the resource in its current state.
@@ -1308,10 +1320,10 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Represents a custom document for a custom webview editor.
+	 * Represents a custom document used by a `CustomEditorProvider`.
 	 *
 	 * Custom documents are only used within a given `CustomEditorProvider`. The lifecycle of a
-	 * `CustomDocument` is managed by VS Code. When more more references remain to a given `CustomDocument`
+	 * `CustomDocument` is managed by VS Code. When no more references remain to a given `CustomDocument`,
 	 * then it is disposed of.
 	 *
 	 * @param UserDataType Type of custom object that extensions can store on the document.
@@ -1354,6 +1366,11 @@ declare module 'vscode' {
 		/**
 		 * Resolve the model for a given resource.
 		 *
+		 * `resolveCustomDocument` is called when the first editor for a given resource is opened, and the resolve document
+		 * is passed to `resolveCustomEditor`. The resolved `CustomDocument` is re-used for subsequent editor opens.
+		 * If all editors for a given resource are closed, the `CustomDocument` is disposed of. Opening an editor at
+		 * this point will trigger another call to `resolveCustomDocument`.
+		 *
 		 * @param document Document to resolve.
 		 *
 		 * @return The capabilities of the resolved document.
@@ -1363,11 +1380,15 @@ declare module 'vscode' {
 		/**
 		 * Resolve a webview editor for a given resource.
 		 *
+		 * This is called when a user first opens a resource for a `CustomTextEditorProvider`, or if they reopen an
+		 * existing editor using this `CustomTextEditorProvider`.
+		 *
 		 * To resolve a webview editor, the provider must fill in its initial html content and hook up all
-		 * the event listeners it is interested it. The provider should also take ownership of the passed in `WebviewPanel`.
+		 * the event listeners it is interested it. The provider can also hold onto the `WebviewPanel` to use later,
+		 * for example in a command. See [`WebviewPanel`](#WebviewPanel) for additional details
 		 *
 		 * @param document Document for the resource being resolved.
-		 * @param webviewPanel Webview to resolve. The provider should take ownership of this webview.
+		 * @param webviewPanel Webview to resolve.
 		 *
 		 * @return Thenable indicating that the webview editor has been resolved.
 		 */
@@ -1386,13 +1407,17 @@ declare module 'vscode' {
 	 */
 	export interface CustomTextEditorProvider {
 		/**
-		 * Resolve a webview editor for a given resource.
+		 * Resolve a webview editor for a given text resource.
+		 *
+		 * This is called when a user first opens a resource for a `CustomTextEditorProvider`, or if they reopen an
+		 * existing editor using this `CustomTextEditorProvider`.
 		 *
 		 * To resolve a webview editor, the provider must fill in its initial html content and hook up all
-		 * the event listeners it is interested it. The provider should also take ownership of the passed in `WebviewPanel`.
+		 * the event listeners it is interested it. The provider can also hold onto the `WebviewPanel` to use later,
+		 * for example in a command. See [`WebviewPanel`](#WebviewPanel) for additional details.
 		 *
-		 * @param document Resource being resolved.
-		 * @param webviewPanel Webview to resolve. The provider should take ownership of this webview.
+		 * @param document Document for the resource to resolve.
+		 * @param webviewPanel Webview to resolve.
 		 *
 		 * @return Thenable indicating that the webview editor has been resolved.
 		 */
@@ -1777,10 +1802,46 @@ declare module 'vscode' {
 		 * A code that identifies this error.
 		 *
 		 * Possible values are names of errors, like [`FileNotFound`](#FileSystemError.FileNotFound),
-		 * or `undefined` for an unspecified error.
+		 * or `Unknown` for an unspecified error.
 		 */
-		readonly code?: string;
+		readonly code: string;
 	}
 
-	////#endregion
+	//#endregion
+
+
+	//#region https://github.com/microsoft/vscode/issues/90208
+
+	export namespace Uri {
+
+		/**
+		 *
+		 * @param base
+		 * @param pathFragments
+		 * @returns A new uri
+		 */
+		export function joinPaths(base: Uri, ...pathFragments: string[]): Uri;
+	}
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/92421
+
+	export enum ProgressLocation {
+		/**
+		 * Show progress for a view, as progress bar inside the view (when visible),
+		 * and as an overlay on the activity bar icon. Doesn't support cancellation or discrete progress.
+		 */
+		View = 25,
+	}
+
+	export interface ProgressOptions {
+		/**
+		 * The target view identifier for showing progress when using [ProgressLocation.View](#ProgressLocation.View).
+		 */
+		viewId?: string
+	}
+
+	//#endregion
+
 }
