@@ -62,7 +62,7 @@ export function isEqual(first: URI | undefined, second: URI | undefined, ignoreC
 		return false;
 	}
 
-	if (first.scheme !== second.scheme || !isEqualAuthority(first.authority, second.authority)) {
+	if (first.scheme !== second.scheme || first.query !== second.query || !isEqualAuthority(first.authority, second.authority)) {
 		return false;
 	}
 
