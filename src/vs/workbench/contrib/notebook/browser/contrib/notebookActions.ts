@@ -69,7 +69,7 @@ registerAction2(class extends Action2 {
 		if (nextCell) {
 			editor.focusNotebookCell(nextCell, false);
 		} else {
-			editor.insertEmptyNotebookCell(activeCell, CellKind.Code, 'below');
+			editor.insertNotebookCell(activeCell, CellKind.Code, 'below');
 		}
 	}
 });
@@ -99,7 +99,7 @@ registerAction2(class extends Action2 {
 			return;
 		}
 
-		editor.insertEmptyNotebookCell(activeCell, CellKind.Code, 'below');
+		editor.insertNotebookCell(activeCell, CellKind.Code, 'below');
 	}
 });
 
@@ -254,6 +254,41 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	when: NOTEBOOK_EDITOR_FOCUSED
 });
 
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.changeCellToCode',
+			title: 'Change Cell to Code',
+			keybinding: {
+				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
+				primary: KeyCode.KEY_Y,
+				weight: KeybindingWeight.WorkbenchContrib
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		return changeActiveCellToKind(CellKind.Code, accessor);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.changeCellToMarkdown',
+			title: 'Change Cell to Markdown',
+			keybinding: {
+				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
+				primary: KeyCode.KEY_M,
+				weight: KeybindingWeight.WorkbenchContrib
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		return changeActiveCellToKind(CellKind.Markdown, accessor);
+	}
+});
 
 function getActiveNotebookEditor(editorService: IEditorService): NotebookEditor | undefined {
 	const activeEditorPane = editorService.activeEditorPane as NotebookEditor | undefined;
@@ -293,4 +328,36 @@ function runActiveCell(accessor: ServicesAccessor): CellViewModel | undefined {
 	notebookService.executeNotebookActiveCell(viewType, resource);
 
 	return activeCell;
+}
+
+function changeActiveCellToKind(kind: CellKind, accessor: ServicesAccessor): void {
+	const editorService = accessor.get(IEditorService);
+	const editor = getActiveNotebookEditor(editorService);
+	if (!editor) {
+		return;
+	}
+
+	const activeCell = editor.getActiveCell();
+	if (!activeCell) {
+		return;
+	}
+
+	if (activeCell.cellKind === kind) {
+		return;
+	}
+
+	const text = activeCell.getText();
+	editor.insertNotebookCell(activeCell, kind, 'below', text);
+	const idx = editor.viewModel?.getViewCellIndex(activeCell);
+	if (typeof idx !== 'number') {
+		return;
+	}
+
+	const newCell = editor.viewModel?.viewCells[idx + 1];
+	if (!newCell) {
+		return;
+	}
+
+	editor.focusNotebookCell(newCell, false);
+	editor.deleteNotebookCell(activeCell);
 }

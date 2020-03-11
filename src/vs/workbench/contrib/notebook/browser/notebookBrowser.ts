@@ -46,7 +46,7 @@ export interface INotebookEditor {
 	/**
 	 * Insert a new cell around `cell`
 	 */
-	insertEmptyNotebookCell(cell: CellViewModel, type: CellKind, direction: 'above' | 'below'): Promise<void>;
+	insertNotebookCell(cell: CellViewModel, type: CellKind, direction: 'above' | 'below', initialText?: string): Promise<void>;
 
 	/**
 	 * Delete a cell from the notebook

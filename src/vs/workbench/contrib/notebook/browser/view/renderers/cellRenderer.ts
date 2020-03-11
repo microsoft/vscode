@@ -89,7 +89,7 @@ class AbstractCellRenderer {
 			undefined,
 			true,
 			async () => {
-				await this.notebookEditor.insertEmptyNotebookCell(element, CellKind.Code, 'above');
+				await this.notebookEditor.insertNotebookCell(element, CellKind.Code, 'above');
 			}
 		);
 		actions.push(insertAbove);
@@ -100,7 +100,7 @@ class AbstractCellRenderer {
 			undefined,
 			true,
 			async () => {
-				await this.notebookEditor.insertEmptyNotebookCell(element, CellKind.Code, 'below');
+				await this.notebookEditor.insertNotebookCell(element, CellKind.Code, 'below');
 			}
 		);
 		actions.push(insertBelow);
@@ -111,7 +111,7 @@ class AbstractCellRenderer {
 			undefined,
 			true,
 			async () => {
-				await this.notebookEditor.insertEmptyNotebookCell(element, CellKind.Markdown, 'above');
+				await this.notebookEditor.insertNotebookCell(element, CellKind.Markdown, 'above');
 			}
 		);
 		actions.push(insertMarkdownAbove);
@@ -122,7 +122,7 @@ class AbstractCellRenderer {
 			undefined,
 			true,
 			async () => {
-				await this.notebookEditor.insertEmptyNotebookCell(element, CellKind.Markdown, 'below');
+				await this.notebookEditor.insertNotebookCell(element, CellKind.Markdown, 'below');
 			}
 		);
 		actions.push(insertMarkdownBelow);
