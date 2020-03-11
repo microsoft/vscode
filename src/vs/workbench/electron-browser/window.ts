@@ -23,7 +23,7 @@ import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/nativeKeymapService';
 import { ipcRenderer as ipc, webFrame, crashReporter, CrashReporterStartOptions, Event as IpcEvent } from 'electron';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
-import { IMenuService, MenuId, IMenu, MenuItemAction, SubmenuItemAction, MenuRegistry, ICommandAction } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId, IMenu, MenuItemAction, ICommandAction, SubmenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -511,7 +511,7 @@ export class NativeWindow extends Disposable {
 
 				// Command
 				if (action instanceof MenuItemAction) {
-					if (ignoredItems.indexOf(action.id) >= 0) {
+					if (ignoredItems.indexOf(action.item.id) >= 0) {
 						continue; // ignored
 					}
 

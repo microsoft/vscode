@@ -277,14 +277,14 @@ export class MenuItemAction extends ExecuteCommandAction {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService commandService: ICommandService
 	) {
-		super(item.id, typeof item.title === 'string' ? item.title : item.title.value, commandService);
-		this.item = item;
-		this._cssClass = undefined;
-		this._enabled = !this.item.precondition || contextKeyService.contextMatchesRules(this.item.precondition);
-		this._tooltip = this.item.tooltip ? typeof this.item.tooltip === 'string' ? this.item.tooltip : this.item.tooltip.value : undefined;
+		typeof item.title === 'string' ? super(item.id, item.title, commandService) : super(item.id, item.title.value, commandService);
 
-		if (this.item.toggled) {
-			const toggled = ((this.item.toggled as { condition: ContextKeyExpression }).condition ? this.item.toggled : { condition: this.item.toggled }) as {
+		this._cssClass = undefined;
+		this._enabled = !item.precondition || contextKeyService.contextMatchesRules(item.precondition);
+		this._tooltip = item.tooltip ? typeof item.tooltip === 'string' ? item.tooltip : item.tooltip.value : undefined;
+
+		if (item.toggled) {
+			const toggled = ((item.toggled as { condition: ContextKeyExpression }).condition ? item.toggled : { condition: item.toggled }) as {
 				condition: ContextKeyExpression, icon?: Icon, tooltip?: string | ILocalizedString
 			};
 			this._checked = contextKeyService.contextMatchesRules(toggled.condition);
@@ -295,6 +295,7 @@ export class MenuItemAction extends ExecuteCommandAction {
 
 		this._options = options || {};
 
+		this.item = item;
 		this.alt = alt ? new MenuItemAction(alt, undefined, this._options, contextKeyService, commandService) : undefined;
 	}
 

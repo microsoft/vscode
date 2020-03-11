@@ -207,7 +207,7 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 					}
 					items.push({
 						type: 'item',
-						id: action.id,
+						id: action.item.id,
 						label
 					});
 				}

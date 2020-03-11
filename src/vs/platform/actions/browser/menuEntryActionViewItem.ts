@@ -12,7 +12,7 @@ import { IdGenerator } from 'vs/base/common/idGenerator';
 import { IDisposable, toDisposable, MutableDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
-import { IMenu, IMenuActionOptions, MenuItemAction, SubmenuItemAction, Icon } from 'vs/platform/actions/common/actions';
+import { ICommandAction, IMenu, IMenuActionOptions, MenuItemAction, SubmenuItemAction, Icon } from 'vs/platform/actions/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -171,7 +171,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 	render(container: HTMLElement): void {
 		super.render(container);
 
-		this._updateItemClass(this._action);
+		this._updateItemClass(this._action.item);
 
 		let mouseOver = false;
 
@@ -227,18 +227,18 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 		if (this.options.icon) {
 			if (this._commandAction !== this._action) {
 				if (this._action.alt) {
-					this._updateItemClass(this._action.alt);
+					this._updateItemClass(this._action.alt.item);
 				}
 			} else if ((<MenuItemAction>this._action).alt) {
-				this._updateItemClass(this._action);
+				this._updateItemClass(this._action.item);
 			}
 		}
 	}
 
-	_updateItemClass(item: MenuItemAction): void {
+	_updateItemClass(item: ICommandAction): void {
 		this._itemClassDispose.value = undefined;
 
-		const icon = item.checked && (item.item.toggled as { icon?: Icon })?.icon ? (item.item.toggled as { icon: Icon }).icon : item.item.icon;
+		const icon = this._commandAction.checked && (item.toggled as { icon?: Icon })?.icon ? (item.toggled as { icon: Icon }).icon : item.icon;
 
 		if (ThemeIcon.isThemeIcon(icon)) {
 			// theme icons

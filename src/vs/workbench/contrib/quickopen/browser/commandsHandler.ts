@@ -591,7 +591,7 @@ export class CommandsHandler extends QuickOpenHandler implements IDisposable {
 				const aliasHighlights = alias ? wordFilter(searchValue, alias) : null;
 
 				if (labelHighlights || aliasHighlights) {
-					entries.push(this.instantiationService.createInstance(ActionCommandEntry, action.id, this.keybindingService.lookupKeybinding(action.id), label, alias, { label: labelHighlights, alias: aliasHighlights }, action, (id: string) => this.onBeforeRunCommand(id)));
+					entries.push(this.instantiationService.createInstance(ActionCommandEntry, action.item.id, this.keybindingService.lookupKeybinding(action.id), label, alias, { label: labelHighlights, alias: aliasHighlights }, action, (id: string) => this.onBeforeRunCommand(id)));
 				}
 			}
 		}
