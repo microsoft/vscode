@@ -147,7 +147,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 	private static _readModelOptions(config: IRawConfig, isForSimpleWidget: boolean): ITextModelCreationOptions {
 		let tabSize = EDITOR_MODEL_DEFAULTS.tabSize;
 		if (config.editor && typeof config.editor.tabSize !== 'undefined') {
-			let parsedTabSize = parseInt(config.editor.tabSize, 10);
+			const parsedTabSize = parseInt(config.editor.tabSize, 10);
 			if (!isNaN(parsedTabSize)) {
 				tabSize = parsedTabSize;
 			}
@@ -158,7 +158,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 
 		let indentSize = tabSize;
 		if (config.editor && typeof config.editor.indentSize !== 'undefined' && config.editor.indentSize !== 'tabSize') {
-			let parsedIndentSize = parseInt(config.editor.indentSize, 10);
+			const parsedIndentSize = parseInt(config.editor.indentSize, 10);
 			if (!isNaN(parsedIndentSize)) {
 				indentSize = parsedIndentSize;
 			}
@@ -230,14 +230,14 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 	}
 
 	private _updateModelOptions(): void {
-		let oldOptionsByLanguageAndResource = this._modelCreationOptionsByLanguageAndResource;
+		const oldOptionsByLanguageAndResource = this._modelCreationOptionsByLanguageAndResource;
 		this._modelCreationOptionsByLanguageAndResource = Object.create(null);
 
 		// Update options on all models
-		let keys = Object.keys(this._models);
+		const keys = Object.keys(this._models);
 		for (let i = 0, len = keys.length; i < len; i++) {
-			let modelId = keys[i];
-			let modelData = this._models[modelId];
+			const modelId = keys[i];
+			const modelData = this._models[modelId];
 			const language = modelData.model.getLanguageIdentifier().language;
 			const uri = modelData.model.uri;
 			const oldOptions = oldOptionsByLanguageAndResource[language + uri];
@@ -360,7 +360,8 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 
 		const commonSuffix = this._commonSuffix(model, modelLineCount - commonPrefix, commonPrefix, textBuffer, textBufferLineCount - commonPrefix, commonPrefix);
 
-		let oldRange: Range, newRange: Range;
+		let oldRange: Range;
+		let newRange: Range;
 		if (commonSuffix > 0) {
 			oldRange = new Range(commonPrefix + 1, 1, modelLineCount - commonSuffix + 1, 1);
 			newRange = new Range(commonPrefix + 1, 1, textBufferLineCount - commonSuffix + 1, 1);
@@ -394,7 +395,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		if (!languageSelection) {
 			return;
 		}
-		let modelData = this._models[MODEL_ID(model.uri)];
+		const modelData = this._models[MODEL_ID(model.uri)];
 		if (!modelData) {
 			return;
 		}
@@ -403,7 +404,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 
 	public destroyModel(resource: URI): void {
 		// We need to support that not all models get disposed through this service (i.e. model.dispose() should work!)
-		let modelData = this._models[MODEL_ID(resource)];
+		const modelData = this._models[MODEL_ID(resource)];
 		if (!modelData) {
 			return;
 		}
@@ -411,11 +412,11 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 	}
 
 	public getModels(): ITextModel[] {
-		let ret: ITextModel[] = [];
+		const ret: ITextModel[] = [];
 
-		let keys = Object.keys(this._models);
+		const keys = Object.keys(this._models);
 		for (let i = 0, len = keys.length; i < len; i++) {
-			let modelId = keys[i];
+			const modelId = keys[i];
 			ret.push(this._models[modelId].model);
 		}
 
@@ -423,8 +424,8 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 	}
 
 	public getModel(resource: URI): ITextModel | null {
-		let modelId = MODEL_ID(resource);
-		let modelData = this._models[modelId];
+		const modelId = MODEL_ID(resource);
+		const modelData = this._models[modelId];
 		if (!modelData) {
 			return null;
 		}
@@ -434,8 +435,8 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 	// --- end IModelService
 
 	private _onWillDispose(model: ITextModel): void {
-		let modelId = MODEL_ID(model.uri);
-		let modelData = this._models[modelId];
+		const modelId = MODEL_ID(model.uri);
+		const modelData = this._models[modelId];
 
 		delete this._models[modelId];
 		modelData.dispose();
@@ -498,7 +499,7 @@ class SemanticColoringFeature extends Disposable {
 		}));
 		this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(SemanticColoringFeature.SETTING_ID)) {
-				for (let model of modelService.getModels()) {
+				for (const model of modelService.getModels()) {
 					const curr = this._watchers[model.uri.toString()];
 					if (isSemanticColoringEnabled(model)) {
 						if (!curr) {
