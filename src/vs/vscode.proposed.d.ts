@@ -1802,9 +1802,9 @@ declare module 'vscode' {
 		 * A code that identifies this error.
 		 *
 		 * Possible values are names of errors, like [`FileNotFound`](#FileSystemError.FileNotFound),
-		 * or `undefined` for an unspecified error.
+		 * or `Unknown` for an unspecified error.
 		 */
-		readonly code?: string;
+		readonly code: string;
 	}
 
 	//#endregion
