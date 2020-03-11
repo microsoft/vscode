@@ -59,14 +59,12 @@ export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQ
 				taskMap[key] = task;
 			}
 		}
-
-		recentlyUsedTasks.keys().forEach(key => {
+		for (const key of recentlyUsedTasks.keys()) {
 			const task = taskMap[key];
 			if (task) {
 				recent.push(task);
 			}
-		});
-
+		}
 		for (const task of tasks) {
 			const key = task.getRecentlyUsedKey();
 			if (!key || !recentlyUsedTasks.has(key)) {
@@ -83,13 +81,13 @@ export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQ
 
 		// Fill picks in sorted order
 
-		this.fillPicks(taskPicks, filter, recent, localize('recentlyUsed', 'recently used tasks'));
+		this.fillPicks(taskPicks, filter, recent, localize('recentlyUsed', "recently used tasks"));
 
 		configured.sort((a, b) => sorter.compare(a, b));
-		this.fillPicks(taskPicks, filter, configured, localize('configured', 'configured tasks'));
+		this.fillPicks(taskPicks, filter, configured, localize('configured', "configured tasks"));
 
 		detected.sort((a, b) => sorter.compare(a, b));
-		this.fillPicks(taskPicks, filter, detected, localize('detected', 'detected tasks'));
+		this.fillPicks(taskPicks, filter, detected, localize('detected', "detected tasks"));
 
 		return taskPicks;
 	}
@@ -107,7 +105,7 @@ export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQ
 			}
 			taskPicks.push({
 				label: task._label,
-				ariaLabel: localize('entryAriaLabel', "{0}, tasks", task._label),
+				ariaLabel: localize('entryAriaLabel', "{0}, tasks picker", task._label),
 				description: this.taskService.getTaskDescription(task),
 				highlights: { label: highlights },
 				buttons: (() => {
@@ -122,9 +120,6 @@ export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQ
 
 					return buttons;
 				})(),
-				accept: () => {
-					this.taskService.run(task, { attachProblemMatcher: true });
-				},
 				trigger: () => {
 					if (ContributedTask.is(task)) {
 						this.taskService.customize(task, undefined, true);
@@ -133,6 +128,9 @@ export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQ
 					}
 
 					return TriggerAction.CLOSE_PICKER;
+				},
+				accept: () => {
+					this.taskService.run(task, { attachProblemMatcher: true });
 				}
 			});
 		}

@@ -48,10 +48,6 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 								tooltip: localize('killTerminal', "Kill Terminal Instance")
 							}
 						],
-						accept: () => {
-							this.terminalService.setActiveInstance(terminal);
-							this.terminalService.showPanel(true);
-						},
 						trigger: buttonIndex => {
 							switch (buttonIndex) {
 								case 0:
@@ -63,6 +59,10 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 							}
 
 							return TriggerAction.NO_ACTION;
+						},
+						accept: () => {
+							this.terminalService.setActiveInstance(terminal);
+							this.terminalService.showPanel(true);
 						}
 					});
 				}
@@ -75,8 +75,8 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 
 		const createTerminalLabel = localize("workbench.action.terminal.newplus", "Create New Integrated Terminal");
 		terminalPicks.push({
-			label: '$(plus) ' + createTerminalLabel,
-			ariaLabel: localize('termCreateEntryAriaLabel', "{0}, create new terminal", createTerminalLabel),
+			label: `$(plus) ${createTerminalLabel}`,
+			ariaLabel: localize('termEntryAriaLabel', "{0}, terminal picker", createTerminalLabel),
 			accept: () => this.commandService.executeCommand('workbench.action.terminal.new')
 		});
 

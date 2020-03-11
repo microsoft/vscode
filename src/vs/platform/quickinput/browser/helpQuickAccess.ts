@@ -22,7 +22,7 @@ export class HelpQuickAccessProvider implements IQuickAccessProvider {
 
 	constructor(@IQuickInputService private readonly quickInputService: IQuickInputService) { }
 
-	provide(picker: IQuickPick<IHelpQuickAccessPickItem>, token: CancellationToken): IDisposable {
+	provide(picker: IQuickPick<IHelpQuickAccessPickItem>): IDisposable {
 		const disposables = new DisposableStore();
 
 		// Open a picker with the selected value if picked
@@ -57,7 +57,7 @@ export class HelpQuickAccessProvider implements IQuickAccessProvider {
 		const globalProviders: IHelpQuickAccessPickItem[] = [];
 		const editorProviders: IHelpQuickAccessPickItem[] = [];
 
-		for (const provider of this.registry.getQuickAccessProviders().sort((p1, p2) => p1.prefix.localeCompare(p2.prefix))) {
+		for (const provider of this.registry.getQuickAccessProviders().sort((providerA, providerB) => providerA.prefix.localeCompare(providerB.prefix))) {
 			for (const helpEntry of provider.helpEntries) {
 				const prefix = helpEntry.prefix || provider.prefix;
 				const label = prefix || '\u2026' /* ... */;
@@ -65,8 +65,8 @@ export class HelpQuickAccessProvider implements IQuickAccessProvider {
 				(helpEntry.needsEditor ? editorProviders : globalProviders).push({
 					prefix,
 					label,
-					description: helpEntry.description,
-					ariaLabel: localize('entryAriaLabel', "{0}, picker help", label)
+					ariaLabel: localize('entryAriaLabel', "{0}, quick access help picker", label),
+					description: helpEntry.description
 				});
 			}
 		}

@@ -47,13 +47,18 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 				// Launch entry
 				picks.push({
 					label: config.name,
-					ariaLabel: localize('entryAriaLabel', "{0}, debug", config.name),
+					ariaLabel: localize('entryAriaLabel', "{0}, debug picker", config.name),
 					description: this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? config.launch.name : '',
 					highlights: { label: highlights },
 					buttons: [{
 						iconClass: 'codicon-gear',
 						tooltip: localize('customizeTask', "Configure Launch Configuration")
 					}],
+					trigger: () => {
+						config.launch.openConfigFile(false, false);
+
+						return TriggerAction.CLOSE_PICKER;
+					},
 					accept: async () => {
 						if (StartAction.isEnabled(this.debugService)) {
 							this.debugService.getConfigurationManager().selectConfiguration(config.launch, config.name);
@@ -63,11 +68,6 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 								this.notificationService.error(error);
 							}
 						}
-					},
-					trigger: () => {
-						config.launch.openConfigFile(false, false);
-
-						return TriggerAction.CLOSE_PICKER;
 					}
 				});
 			}
@@ -89,7 +89,7 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 			// Add Config entry
 			picks.push({
 				label,
-				ariaLabel: localize('entryAriaLabel', "{0}, debug", label),
+				ariaLabel: localize('entryAriaLabel', "{0}, debug picker", label),
 				description: this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? launch.name : '',
 				highlights: { label: withNullAsUndefined(matchesFuzzy(filter, label, true)) },
 				accept: () => this.commandService.executeCommand('debug.addConfiguration', launch.uri.toString())
