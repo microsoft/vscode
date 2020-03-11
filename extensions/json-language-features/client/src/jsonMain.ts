@@ -188,6 +188,9 @@ export function activate(context: ExtensionContext) {
 		// handle content request
 		client.onRequest(VSCodeContentRequest.type, (uriPath: string) => {
 			const uri = Uri.parse(uriPath);
+			if (uri.scheme === 'untitled') {
+				return Promise.reject(new Error(localize('untitled.schema', 'Unable to load {0}', uri.toString())));
+			}
 			if (uri.scheme !== 'http' && uri.scheme !== 'https') {
 				return workspace.openTextDocument(uri).then(doc => {
 					schemaDocuments[uri.toString()] = true;
