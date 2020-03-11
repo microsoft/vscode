@@ -185,6 +185,12 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 		} else {
 			dom.removeClass(data.entry, 'has-actions');
 		}
+
+		if (element.item.buttonsAlwaysVisible) {
+			dom.addClass(data.entry, 'always-visible-actions');
+		} else {
+			dom.removeClass(data.entry, 'always-visible-actions');
+		}
 	}
 
 	disposeElement(element: ListElement, index: number, data: IListElementTemplateData): void {
