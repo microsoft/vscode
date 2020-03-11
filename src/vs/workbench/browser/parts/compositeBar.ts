@@ -18,7 +18,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { Widget } from 'vs/base/browser/ui/widget';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { LocalSelectionTransfer, DragAndDropObserver } from 'vs/workbench/browser/dnd';
-import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { Emitter } from 'vs/base/common/event';
 import { DraggedViewIdentifier } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -81,7 +81,7 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 				if (targetCompositeId) {
 					const destinationContainer = viewContainerRegistry.get(targetCompositeId);
 					if (destinationContainer && !destinationContainer.rejectAddedViews) {
-						if (this.targetContainerLocation === ViewContainerLocation.Sidebar) {
+						if (this.targetContainerLocation === ViewContainerLocation.Sidebar || this.targetContainerLocation === ViewContainerLocation.Panel) {
 							this.viewDescriptorService.moveViewsToContainer([viewDescriptor], destinationContainer);
 							this.openComposite(targetCompositeId, true).then(composite => {
 								if (composite) {
@@ -188,7 +188,7 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 export interface ICompositeBarOptions {
 	readonly icon: boolean;
 	readonly orientation: ActionsOrientation;
-	readonly colors: (theme: ITheme) => ICompositeBarColors;
+	readonly colors: (theme: IColorTheme) => ICompositeBarColors;
 	readonly compositeSize: number;
 	readonly overflowActionSize: number;
 	readonly dndHandler: ICompositeDragAndDrop;
@@ -477,7 +477,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 	}
 
 	private updateFromDragging(element: HTMLElement, isDragging: boolean): void {
-		const theme = this.themeService.getTheme();
+		const theme = this.themeService.getColorTheme();
 		const dragBackground = this.options.colors(theme).dragAndDropBackground;
 
 		element.style.backgroundColor = isDragging && dragBackground ? dragBackground.toString() : '';

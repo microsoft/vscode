@@ -56,6 +56,8 @@ import { IFilesConfigurationService } from 'vs/workbench/services/filesConfigura
 import { EditorAutoSave } from 'vs/workbench/browser/parts/editor/editorAutoSave';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
+import { ActiveGroupEditorsByMostRecentlyUsedQuickAccess, AllEditorsByAppearanceQuickAccess, AllEditorsByMostRecentlyUsedQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
 
 // Register String Editor
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -163,7 +165,7 @@ class UntitledTextEditorInputFactory implements IEditorInputFactory {
 			const mode = deserialized.modeId;
 			const encoding = deserialized.encoding;
 
-			return accessor.get(IEditorService).createInput({ resource, mode, encoding, forceUntitled: true }) as UntitledTextEditorInput;
+			return accessor.get(IEditorService).createEditorInput({ resource, mode, encoding, forceUntitled: true }) as UntitledTextEditorInput;
 		});
 	}
 }
@@ -358,6 +360,33 @@ Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpen
 		]
 	)
 );
+
+// Register Editor Quick Access
+const quickAccessRegistry = Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess);
+
+quickAccessRegistry.registerQuickAccessProvider({
+	ctor: ActiveGroupEditorsByMostRecentlyUsedQuickAccess,
+	prefix: ActiveGroupEditorsByMostRecentlyUsedQuickAccess.PREFIX,
+	contextKey: editorPickerContextKey,
+	placeholder: nls.localize('editorQuickAccessPlaceholder', "Type the name of an editor to open it."),
+	helpEntries: [{ description: nls.localize('activeGroupEditorsByMostRecentlyUsedQuickAccess', "Show Editors in Active Group by Most Recently Used."), needsEditor: false }]
+});
+
+quickAccessRegistry.registerQuickAccessProvider({
+	ctor: AllEditorsByAppearanceQuickAccess,
+	prefix: AllEditorsByAppearanceQuickAccess.PREFIX,
+	contextKey: editorPickerContextKey,
+	placeholder: nls.localize('editorQuickAccessPlaceholder', "Type the name of an editor to open it."),
+	helpEntries: [{ description: nls.localize('allEditorsByAppearanceQuickAccess', "Show All Opened Editors By Appearance"), needsEditor: false }]
+});
+
+quickAccessRegistry.registerQuickAccessProvider({
+	ctor: AllEditorsByMostRecentlyUsedQuickAccess,
+	prefix: AllEditorsByMostRecentlyUsedQuickAccess.PREFIX,
+	contextKey: editorPickerContextKey,
+	placeholder: nls.localize('editorQuickAccessPlaceholder', "Type the name of an editor to open it."),
+	helpEntries: [{ description: nls.localize('allEditorsByMostRecentlyUsedQuickAccess', "Show All Opened Editors By Most Recently Used"), needsEditor: false }]
+});
 
 // Register Editor Actions
 const category = nls.localize('view', "View");

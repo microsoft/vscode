@@ -22,11 +22,10 @@ const translateRangeLines =
 		(range: Range) =>
 			new Range(range.startLineNumber + n, range.startColumn, range.endLineNumber + n, range.endColumn);
 
-const matchToSearchResultFormat = (match: Match): { line: string, ranges: Range[], lineNumber: string }[] => {
+const matchToSearchResultFormat = (match: Match, longestLineNumber: number): { line: string, ranges: Range[], lineNumber: string }[] => {
 	const getLinePrefix = (i: number) => `${match.range().startLineNumber + i}`;
 
 	const fullMatchLines = match.fullPreviewLines();
-	const largestPrefixSize = fullMatchLines.reduce((largest, _, i) => Math.max(getLinePrefix(i).length, largest), 0);
 
 
 	const results: { line: string, ranges: Range[], lineNumber: string }[] = [];
@@ -34,8 +33,8 @@ const matchToSearchResultFormat = (match: Match): { line: string, ranges: Range[
 	fullMatchLines
 		.forEach((sourceLine, i) => {
 			const lineNumber = getLinePrefix(i);
-			const paddingStr = repeat(' ', largestPrefixSize - lineNumber.length);
-			const prefix = `  ${lineNumber}: ${paddingStr}`;
+			const paddingStr = repeat(' ', longestLineNumber - lineNumber.length);
+			const prefix = `  ${paddingStr}${lineNumber}: `;
 			const prefixOffset = prefix.length;
 
 			const line = (prefix + sourceLine).replace(/\r?\n?$/, '');
@@ -60,9 +59,9 @@ const matchToSearchResultFormat = (match: Match): { line: string, ranges: Range[
 type SearchResultSerialization = { text: string[], matchRanges: Range[] };
 
 function fileMatchToSearchResultFormat(fileMatch: FileMatch, labelFormatter: (x: URI) => string): SearchResultSerialization {
-	const serializedMatches = flatten(fileMatch.matches()
-		.sort(searchMatchComparer)
-		.map(match => matchToSearchResultFormat(match)));
+	const sortedMatches = fileMatch.matches().sort(searchMatchComparer);
+	const longestLineNumber = sortedMatches[sortedMatches.length - 1].range().endLineNumber.toString().length;
+	const serializedMatches = flatten(sortedMatches.map(match => matchToSearchResultFormat(match, longestLineNumber)));
 
 	const uriString = labelFormatter(fileMatch.resource);
 	let text: string[] = [`${uriString}:`];
@@ -84,7 +83,7 @@ function fileMatchToSearchResultFormat(fileMatch: FileMatch, labelFormatter: (x:
 				if (lastLine !== undefined && lineNumber !== lastLine + 1) {
 					text.push('');
 				}
-				text.push(`  ${lineNumber}  ${line}`);
+				text.push(`  ${repeat(' ', longestLineNumber - `${lineNumber}`.length)}${lineNumber}  ${line}`);
 				lastLine = lineNumber;
 			}
 

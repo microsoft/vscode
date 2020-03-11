@@ -347,7 +347,7 @@ export function registerModelCommand(id: string, handler: (model: ITextModel, ..
 
 		const model = accessor.get(IModelService).getModel(resource);
 		if (model) {
-			return handler(model, args.slice(1));
+			return handler(model, ...args.slice(1));
 		}
 
 		return accessor.get(ITextModelService).createModelReference(resource).then(reference => {

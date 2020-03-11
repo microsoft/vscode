@@ -10,6 +10,7 @@ import { IDebugService, IStackFrame } from 'vs/workbench/contrib/debug/common/de
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
+import { Event } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -91,7 +92,7 @@ export class CallStackEditorContribution implements IEditorContribution {
 		@IDebugService private readonly debugService: IDebugService,
 	) {
 		const setDecorations = () => this.decorationIds = this.editor.deltaDecorations(this.decorationIds, this.createCallStackDecorations());
-		this.toDispose.push(this.debugService.getViewModel().onDidFocusStackFrame(() => {
+		this.toDispose.push(Event.any(this.debugService.getViewModel().onDidFocusStackFrame, this.debugService.getModel().onDidChangeCallStack)(() => {
 			setDecorations();
 		}));
 		this.toDispose.push(this.editor.onDidChangeModel(e => {

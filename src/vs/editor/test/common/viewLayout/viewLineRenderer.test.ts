@@ -1861,6 +1861,92 @@ suite('viewLineRenderer.renderLine 2', () => {
 		assert.deepEqual(actual.html, expected);
 	});
 
+	test('issue #91936: Semantic token color highlighting fails on line with selected text', () => {
+		let actual = renderViewLine(new RenderLineInput(
+			false,
+			true,
+			'                    else if ($s = 08) then \'\\b\'',
+			false,
+			true,
+			false,
+			0,
+			createViewLineTokens([
+				createPart(20, 1),
+				createPart(24, 15),
+				createPart(25, 1),
+				createPart(27, 15),
+				createPart(28, 1),
+				createPart(29, 1),
+				createPart(29, 1),
+				createPart(31, 16),
+				createPart(32, 1),
+				createPart(33, 1),
+				createPart(34, 1),
+				createPart(36, 6),
+				createPart(36, 1),
+				createPart(37, 1),
+				createPart(38, 1),
+				createPart(42, 15),
+				createPart(43, 1),
+				createPart(47, 11)
+			]),
+			[],
+			4,
+			0,
+			10,
+			11,
+			11,
+			10000,
+			'selection',
+			false,
+			false,
+			[new LineRange(0, 47)]
+		));
+
+		let expected = [
+			'<span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtk15">else</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtk15">if</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtk1">(</span>',
+			'<span class="mtk16">$s</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtk1">=</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtk6">08</span>',
+			'<span class="mtk1">)</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtk15">then</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtk11">\'\\b\'</span>',
+			'</span>'
+		].join('');
+
+		assert.deepEqual(actual.html, expected);
+	});
+
+
 	function createTestGetColumnOfLinePartOffset(lineContent: string, tabSize: number, parts: ViewLineToken[], expectedPartLengths: number[]): (partIndex: number, partLength: number, offset: number, expected: number) => void {
 		let renderLineOutput = renderViewLine(new RenderLineInput(
 			false,

@@ -89,7 +89,7 @@ export interface IProductConfiguration {
 	readonly checksums?: { [path: string]: string; };
 	readonly checksumFailMoreInfoUrl?: string;
 
-	readonly hockeyApp?: {
+	readonly appCenter?: {
 		readonly 'win32-ia32': string;
 		readonly 'win32-x64': string;
 		readonly 'linux-x64': string;

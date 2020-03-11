@@ -20,6 +20,7 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { flatten, mergeSort } from 'vs/base/common/arrays';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { SetMap } from 'vs/base/common/collections';
+import { IProgressIndicator } from 'vs/platform/progress/common/progress';
 
 export const TEST_VIEW_CONTAINER_ID = 'workbench.view.extension.test';
 
@@ -262,7 +263,8 @@ function compareViewContentDescriptors(a: IViewContentDescriptor, b: IViewConten
 		return aPriority - bPriority;
 	}
 
-	return a.content < b.content ? -1 : 1;
+	// No priroity, keep views sorted in the order they got registered
+	return 0;
 }
 
 class ViewsRegistry extends Disposable implements IViewsRegistry {
@@ -401,6 +403,7 @@ export interface IView {
 
 	setExpanded(expanded: boolean): boolean;
 
+	getProgressIndicator(): IProgressIndicator | undefined;
 }
 
 export interface IViewsViewlet extends IViewlet {
@@ -425,6 +428,7 @@ export interface IViewsService {
 
 	closeView(id: string): void;
 
+	getProgressIndicator(id: string): IProgressIndicator | undefined;
 }
 
 /**
@@ -487,6 +491,8 @@ export interface ITreeView extends IDisposable {
 
 	readonly onDidChangeTitle: Event<string>;
 
+	readonly onDidChangeWelcomeState: Event<void>;
+
 	refresh(treeItems?: ITreeItem[]): Promise<void>;
 
 	setVisibility(visible: boolean): void;
@@ -505,9 +511,6 @@ export interface ITreeView extends IDisposable {
 
 	setFocus(item: ITreeItem): void;
 
-	getPrimaryActions(): IAction[];
-
-	getSecondaryActions(): IAction[];
 }
 
 export interface IRevealOptions {
@@ -573,7 +576,8 @@ export interface ITreeItem {
 }
 
 export interface ITreeViewDataProvider {
-
+	readonly isTreeEmpty?: boolean;
+	onDidChangeEmpty?: Event<void>;
 	getChildren(element?: ITreeItem): Promise<ITreeItem[]>;
 
 }
@@ -601,4 +605,3 @@ export interface IViewPaneContainer {
 	getView(viewId: string): IView | undefined;
 	saveState(): void;
 }
-

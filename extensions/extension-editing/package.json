@@ -35,8 +35,12 @@
 				"url": "vscode://schemas/language-configuration"
 			},
 			{
-				"fileMatch": "*icon-theme.json",
+				"fileMatch": ["*icon-theme.json", "!*product-icon-theme.json"],
 				"url": "vscode://schemas/icon-theme"
+			},
+			{
+				"fileMatch": "*product-icon-theme.json",
+				"url": "vscode://schemas/product-icon-theme"
 			},
 			{
 				"fileMatch": "*color-theme.json",

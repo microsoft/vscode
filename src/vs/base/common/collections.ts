@@ -95,11 +95,6 @@ export function fromMap<T>(original: Map<string, T>): IStringDictionary<T> {
 	return result;
 }
 
-export function mapValues<V>(map: Map<any, V>): V[] {
-	const result: V[] = [];
-	map.forEach(v => result.push(v));
-	return result;
-}
 
 export class SetMap<K, V> {
 

@@ -45,6 +45,10 @@ export namespace GoToLineNLS {
 	export const gotoLineActionLabel = nls.localize('gotoLineActionLabel', "Go to Line...");
 }
 
+export namespace QuickHelpNLS {
+	export const helpQuickAccessActionLabel = nls.localize('helpQuickAccess', "Show all Quick Access Providers");
+}
+
 export namespace QuickCommandNLS {
 	export const ariaLabelEntryWithKey = nls.localize('ariaLabelEntryWithKey', "{0}, {1}, commands");
 	export const ariaLabelEntry = nls.localize('ariaLabelEntry', "{0}, commands");
@@ -71,7 +75,6 @@ export namespace QuickOutlineNLS {
 
 export namespace StandaloneCodeEditorNLS {
 	export const editorViewAccessibleLabel = nls.localize('editorViewAccessibleLabel', "Editor content");
-	export const accessibilityHelpMessageIE = nls.localize('accessibilityHelpMessageIE', "Press Ctrl+F1 for Accessibility Options.");
 	export const accessibilityHelpMessage = nls.localize('accessibilityHelpMessage', "Press Alt+F1 for Accessibility Options.");
 }
 

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode } from 'vs/base/common/keyCodes';
-import * as browser from 'vs/base/browser/browser';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ICodeEditor, IEditorMouseEvent, IMouseTarget } from 'vs/editor/browser/editorBrowser';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -31,7 +30,7 @@ export class ClickLinkMouseEvent {
 		this.target = source.target;
 		this.hasTriggerModifier = hasModifier(source.event, opts.triggerModifier);
 		this.hasSideBySideModifier = hasModifier(source.event, opts.triggerSideBySideModifier);
-		this.isNoneOrSingleMouseDown = (browser.isIE || source.event.detail <= 1); // IE does not support event.detail properly
+		this.isNoneOrSingleMouseDown = (source.event.detail <= 1);
 	}
 }
 
@@ -109,8 +108,9 @@ export class ClickLinkGesture extends Disposable {
 	private readonly _editor: ICodeEditor;
 	private _opts: ClickLinkOptions;
 
-	private lastMouseMoveEvent: ClickLinkMouseEvent | null;
-	private hasTriggerKeyOnMouseDown: boolean;
+	private _lastMouseMoveEvent: ClickLinkMouseEvent | null;
+	private _hasTriggerKeyOnMouseDown: boolean;
+	private _lineNumberOnMouseDown: number;
 
 	constructor(editor: ICodeEditor) {
 		super();
@@ -118,8 +118,9 @@ export class ClickLinkGesture extends Disposable {
 		this._editor = editor;
 		this._opts = createOptions(this._editor.getOption(EditorOption.multiCursorModifier));
 
-		this.lastMouseMoveEvent = null;
-		this.hasTriggerKeyOnMouseDown = false;
+		this._lastMouseMoveEvent = null;
+		this._hasTriggerKeyOnMouseDown = false;
+		this._lineNumberOnMouseDown = 0;
 
 		this._register(this._editor.onDidChangeConfiguration((e) => {
 			if (e.hasChanged(EditorOption.multiCursorModifier)) {
@@ -128,77 +129,80 @@ export class ClickLinkGesture extends Disposable {
 					return;
 				}
 				this._opts = newOpts;
-				this.lastMouseMoveEvent = null;
-				this.hasTriggerKeyOnMouseDown = false;
+				this._lastMouseMoveEvent = null;
+				this._hasTriggerKeyOnMouseDown = false;
+				this._lineNumberOnMouseDown = 0;
 				this._onCancel.fire();
 			}
 		}));
-		this._register(this._editor.onMouseMove((e: IEditorMouseEvent) => this.onEditorMouseMove(new ClickLinkMouseEvent(e, this._opts))));
-		this._register(this._editor.onMouseDown((e: IEditorMouseEvent) => this.onEditorMouseDown(new ClickLinkMouseEvent(e, this._opts))));
-		this._register(this._editor.onMouseUp((e: IEditorMouseEvent) => this.onEditorMouseUp(new ClickLinkMouseEvent(e, this._opts))));
-		this._register(this._editor.onKeyDown((e: IKeyboardEvent) => this.onEditorKeyDown(new ClickLinkKeyboardEvent(e, this._opts))));
-		this._register(this._editor.onKeyUp((e: IKeyboardEvent) => this.onEditorKeyUp(new ClickLinkKeyboardEvent(e, this._opts))));
-		this._register(this._editor.onMouseDrag(() => this.resetHandler()));
+		this._register(this._editor.onMouseMove((e: IEditorMouseEvent) => this._onEditorMouseMove(new ClickLinkMouseEvent(e, this._opts))));
+		this._register(this._editor.onMouseDown((e: IEditorMouseEvent) => this._onEditorMouseDown(new ClickLinkMouseEvent(e, this._opts))));
+		this._register(this._editor.onMouseUp((e: IEditorMouseEvent) => this._onEditorMouseUp(new ClickLinkMouseEvent(e, this._opts))));
+		this._register(this._editor.onKeyDown((e: IKeyboardEvent) => this._onEditorKeyDown(new ClickLinkKeyboardEvent(e, this._opts))));
+		this._register(this._editor.onKeyUp((e: IKeyboardEvent) => this._onEditorKeyUp(new ClickLinkKeyboardEvent(e, this._opts))));
+		this._register(this._editor.onMouseDrag(() => this._resetHandler()));
 
-		this._register(this._editor.onDidChangeCursorSelection((e) => this.onDidChangeCursorSelection(e)));
-		this._register(this._editor.onDidChangeModel((e) => this.resetHandler()));
-		this._register(this._editor.onDidChangeModelContent(() => this.resetHandler()));
+		this._register(this._editor.onDidChangeCursorSelection((e) => this._onDidChangeCursorSelection(e)));
+		this._register(this._editor.onDidChangeModel((e) => this._resetHandler()));
+		this._register(this._editor.onDidChangeModelContent(() => this._resetHandler()));
 		this._register(this._editor.onDidScrollChange((e) => {
 			if (e.scrollTopChanged || e.scrollLeftChanged) {
-				this.resetHandler();
+				this._resetHandler();
 			}
 		}));
 	}
 
-	private onDidChangeCursorSelection(e: ICursorSelectionChangedEvent): void {
+	private _onDidChangeCursorSelection(e: ICursorSelectionChangedEvent): void {
 		if (e.selection && e.selection.startColumn !== e.selection.endColumn) {
-			this.resetHandler(); // immediately stop this feature if the user starts to select (https://github.com/Microsoft/vscode/issues/7827)
+			this._resetHandler(); // immediately stop this feature if the user starts to select (https://github.com/Microsoft/vscode/issues/7827)
 		}
 	}
 
-	private onEditorMouseMove(mouseEvent: ClickLinkMouseEvent): void {
-		this.lastMouseMoveEvent = mouseEvent;
+	private _onEditorMouseMove(mouseEvent: ClickLinkMouseEvent): void {
+		this._lastMouseMoveEvent = mouseEvent;
 
 		this._onMouseMoveOrRelevantKeyDown.fire([mouseEvent, null]);
 	}
 
-	private onEditorMouseDown(mouseEvent: ClickLinkMouseEvent): void {
+	private _onEditorMouseDown(mouseEvent: ClickLinkMouseEvent): void {
 		// We need to record if we had the trigger key on mouse down because someone might select something in the editor
 		// holding the mouse down and then while mouse is down start to press Ctrl/Cmd to start a copy operation and then
 		// release the mouse button without wanting to do the navigation.
 		// With this flag we prevent goto definition if the mouse was down before the trigger key was pressed.
-		this.hasTriggerKeyOnMouseDown = mouseEvent.hasTriggerModifier;
+		this._hasTriggerKeyOnMouseDown = mouseEvent.hasTriggerModifier;
+		this._lineNumberOnMouseDown = mouseEvent.target.position ? mouseEvent.target.position.lineNumber : 0;
 	}
 
-	private onEditorMouseUp(mouseEvent: ClickLinkMouseEvent): void {
-		if (this.hasTriggerKeyOnMouseDown) {
+	private _onEditorMouseUp(mouseEvent: ClickLinkMouseEvent): void {
+		const currentLineNumber = mouseEvent.target.position ? mouseEvent.target.position.lineNumber : 0;
+		if (this._hasTriggerKeyOnMouseDown && this._lineNumberOnMouseDown && this._lineNumberOnMouseDown === currentLineNumber) {
 			this._onExecute.fire(mouseEvent);
 		}
 	}
 
-	private onEditorKeyDown(e: ClickLinkKeyboardEvent): void {
+	private _onEditorKeyDown(e: ClickLinkKeyboardEvent): void {
 		if (
-			this.lastMouseMoveEvent
+			this._lastMouseMoveEvent
 			&& (
 				e.keyCodeIsTriggerKey // User just pressed Ctrl/Cmd (normal goto definition)
 				|| (e.keyCodeIsSideBySideKey && e.hasTriggerModifier) // User pressed Ctrl/Cmd+Alt (goto definition to the side)
 			)
 		) {
-			this._onMouseMoveOrRelevantKeyDown.fire([this.lastMouseMoveEvent, e]);
+			this._onMouseMoveOrRelevantKeyDown.fire([this._lastMouseMoveEvent, e]);
 		} else if (e.hasTriggerModifier) {
 			this._onCancel.fire(); // remove decorations if user holds another key with ctrl/cmd to prevent accident goto declaration
 		}
 	}
 
-	private onEditorKeyUp(e: ClickLinkKeyboardEvent): void {
+	private _onEditorKeyUp(e: ClickLinkKeyboardEvent): void {
 		if (e.keyCodeIsTriggerKey) {
 			this._onCancel.fire();
 		}
 	}
 
-	private resetHandler(): void {
-		this.lastMouseMoveEvent = null;
-		this.hasTriggerKeyOnMouseDown = false;
+	private _resetHandler(): void {
+		this._lastMouseMoveEvent = null;
+		this._hasTriggerKeyOnMouseDown = false;
 		this._onCancel.fire();
 	}
 }

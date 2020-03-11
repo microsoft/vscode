@@ -13,7 +13,7 @@ import { Action } from 'vs/base/common/actions';
 import { Mode, IEntryRunContext, IAutoFocus, IModel, IQuickNavigateConfiguration } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenEntry, QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { EditorOptions, EditorInput, IEditorInput } from 'vs/workbench/common/editor';
-import { IResourceInput, IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IResourceEditorInput, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IConstructorSignature0, IInstantiationService, BrandedService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
@@ -233,7 +233,7 @@ export interface IEditorQuickOpenEntry {
 	/**
 	 * The editor input used for this entry when opening.
 	 */
-	getInput(): IResourceInput | IEditorInput | undefined;
+	getInput(): IResourceEditorInput | IEditorInput | undefined;
 
 	/**
 	 * The editor options used for this entry when opening.
@@ -254,7 +254,7 @@ export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuick
 		return this._editorService;
 	}
 
-	getInput(): IResourceInput | IEditorInput | undefined {
+	getInput(): IResourceEditorInput | IEditorInput | undefined {
 		return undefined;
 	}
 
@@ -286,13 +286,13 @@ export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuick
 
 				this.editorService.openEditor(input, withNullAsUndefined(opts), sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 			} else {
-				const resourceInput = <IResourceInput>input;
+				const resourceEditorInput = <IResourceEditorInput>input;
 
 				if (openOptions) {
-					resourceInput.options = assign(resourceInput.options || Object.create(null), openOptions);
+					resourceEditorInput.options = assign(resourceEditorInput.options || Object.create(null), openOptions);
 				}
 
-				this.editorService.openEditor(resourceInput, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+				this.editorService.openEditor(resourceEditorInput, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 			}
 		}
 
@@ -305,7 +305,7 @@ export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuick
  */
 export class EditorQuickOpenEntryGroup extends QuickOpenEntryGroup implements IEditorQuickOpenEntry {
 
-	getInput(): IEditorInput | IResourceInput | undefined {
+	getInput(): IEditorInput | IResourceEditorInput | undefined {
 		return undefined;
 	}
 
