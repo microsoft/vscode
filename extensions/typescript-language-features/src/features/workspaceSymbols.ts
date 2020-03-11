@@ -54,7 +54,7 @@ class TypeScriptWorkspaceSymbolProvider implements vscode.WorkspaceSymbolProvide
 		}
 
 		return response.body
-			.filter(item => item.containerName && item.kind !== 'alias')
+			.filter(item => item.containerName || item.kind !== 'alias')
 			.map(item => this.toSymbolInformation(item));
 	}
 

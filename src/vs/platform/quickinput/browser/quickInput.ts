@@ -16,6 +16,8 @@ import { QuickInputController, IQuickInputStyles, IQuickInputOptions } from 'vs/
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { List, IListOptions } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
+import { IQuickAccessController } from 'vs/platform/quickinput/common/quickAccess';
+import { QuickAccessController } from 'vs/platform/quickinput/browser/quickAccess';
 
 export interface IQuickInputControllerHost extends ILayoutService { }
 
@@ -35,6 +37,15 @@ export class QuickInputService extends Themable implements IQuickInputService {
 		}
 
 		return this._controller;
+	}
+
+	private _quickAccess: IQuickAccessController | undefined;
+	get quickAccess(): IQuickAccessController {
+		if (!this._quickAccess) {
+			this._quickAccess = this._register(this.instantiationService.createInstance(QuickAccessController));
+		}
+
+		return this._quickAccess;
 	}
 
 	private readonly contexts = new Map<string, IContextKey<boolean>>();

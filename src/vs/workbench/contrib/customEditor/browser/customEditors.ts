@@ -326,6 +326,9 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 				this.editorService.replaceEditors([{
 					editor: editor,
 					replacement: replacement,
+					options: {
+						preserveFocus: true
+					}
 				}], group);
 			}
 		}

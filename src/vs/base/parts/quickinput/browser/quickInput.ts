@@ -142,6 +142,7 @@ class QuickInput extends Disposable implements IQuickInput {
 	private buttonsUpdated = false;
 	private readonly onDidTriggerButtonEmitter = this._register(new Emitter<IQuickInputButton>());
 	private readonly onDidHideEmitter = this._register(new Emitter<void>());
+	private readonly onDisposeEmitter = this._register(new Emitter<void>());
 
 	protected readonly visibleDisposables = this._register(new DisposableStore());
 
@@ -235,7 +236,7 @@ class QuickInput extends Disposable implements IQuickInput {
 		this.update();
 	}
 
-	onDidTriggerButton = this.onDidTriggerButtonEmitter.event;
+	readonly onDidTriggerButton = this.onDidTriggerButtonEmitter.event;
 
 	show(): void {
 		if (this.visible) {
@@ -266,7 +267,7 @@ class QuickInput extends Disposable implements IQuickInput {
 		this.onDidHideEmitter.fire();
 	}
 
-	onDidHide = this.onDidHideEmitter.event;
+	readonly onDidHide = this.onDidHideEmitter.event;
 
 	protected update() {
 		if (!this.visible) {
@@ -298,9 +299,8 @@ class QuickInput extends Disposable implements IQuickInput {
 			this.ui.leftActionBar.clear();
 			const leftButtons = this.buttons.filter(button => button === backButton);
 			this.ui.leftActionBar.push(leftButtons.map((button, index) => {
-				const action = new Action(`id-${index}`, '', button.iconClass || getIconClass(button.iconPath), true, () => {
+				const action = new Action(`id-${index}`, '', button.iconClass || getIconClass(button.iconPath), true, async () => {
 					this.onDidTriggerButtonEmitter.fire(button);
-					return Promise.resolve(null);
 				});
 				action.tooltip = button.tooltip || '';
 				return action;
@@ -308,9 +308,8 @@ class QuickInput extends Disposable implements IQuickInput {
 			this.ui.rightActionBar.clear();
 			const rightButtons = this.buttons.filter(button => button !== backButton);
 			this.ui.rightActionBar.push(rightButtons.map((button, index) => {
-				const action = new Action(`id-${index}`, '', button.iconClass || getIconClass(button.iconPath), true, () => {
+				const action = new Action(`id-${index}`, '', button.iconClass || getIconClass(button.iconPath), true, async () => {
 					this.onDidTriggerButtonEmitter.fire(button);
-					return Promise.resolve(null);
 				});
 				action.tooltip = button.tooltip || '';
 				return action;
@@ -362,17 +361,22 @@ class QuickInput extends Disposable implements IQuickInput {
 		}
 	}
 
+	readonly onDispose = this.onDisposeEmitter.event;
+
 	public dispose(): void {
 		this.hide();
+		this.onDisposeEmitter.fire();
+
 		super.dispose();
 	}
 }
 
 class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPick<T> {
 
-	private static readonly INPUT_BOX_ARIA_LABEL = localize('quickInputBox.ariaLabel', "Type to narrow down results.");
+	private static readonly DEFAULT_ARIA_LABEL = localize('quickInputBox.ariaLabel', "Type to narrow down results.");
 
 	private _value = '';
+	private _ariaLabel = QuickPick.DEFAULT_ARIA_LABEL;
 	private _placeholder: string | undefined;
 	private readonly onDidChangeValueEmitter = this._register(new Emitter<string>());
 	private readonly onDidAcceptEmitter = this._register(new Emitter<void>());
@@ -404,7 +408,6 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 
 	quickNavigate: IQuickNavigateConfiguration | undefined;
 
-
 	get value() {
 		return this._value;
 	}
@@ -412,6 +415,17 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	set value(value: string) {
 		this._value = value || '';
 		this.update();
+	}
+
+	filterValue = (value: string) => value;
+
+	set ariaLabel(ariaLabel: string) {
+		this._ariaLabel = ariaLabel || QuickPick.DEFAULT_ARIA_LABEL;
+		this.update();
+	}
+
+	get ariaLabel() {
+		return this._ariaLabel;
 	}
 
 	get placeholder() {
@@ -599,7 +613,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 						return;
 					}
 					this._value = value;
-					this.ui.list.filter(this.ui.inputBox.value);
+					this.ui.list.filter(this.filterValue(this.ui.inputBox.value));
 					this.trySelectFirst();
 					this.onDidChangeValueEmitter.fire(value);
 				}));
@@ -770,10 +784,17 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		if (this.ui.inputBox.placeholder !== (this.placeholder || '')) {
 			this.ui.inputBox.placeholder = (this.placeholder || '');
 		}
+		if (this.ui.inputBox.ariaLabel !== this.ariaLabel) {
+			this.ui.inputBox.ariaLabel = this.ariaLabel;
+		}
+		this.ui.list.matchOnDescription = this.matchOnDescription;
+		this.ui.list.matchOnDetail = this.matchOnDetail;
+		this.ui.list.matchOnLabel = this.matchOnLabel;
+		this.ui.list.sortByLabel = this.sortByLabel;
 		if (this.itemsUpdated) {
 			this.itemsUpdated = false;
 			this.ui.list.setElements(this.items);
-			this.ui.list.filter(this.ui.inputBox.value);
+			this.ui.list.filter(this.filterValue(this.ui.inputBox.value));
 			this.ui.checkAll.checked = this.ui.list.getAllVisibleChecked();
 			this.ui.visibleCount.setCount(this.ui.list.getVisibleCount());
 			this.ui.count.setCount(this.ui.list.getCheckedCount());
@@ -815,12 +836,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		}
 		this.ui.customButton.label = this.customLabel || '';
 		this.ui.customButton.element.title = this.customHover || '';
-		this.ui.list.matchOnDescription = this.matchOnDescription;
-		this.ui.list.matchOnDetail = this.matchOnDetail;
-		this.ui.list.matchOnLabel = this.matchOnLabel;
-		this.ui.list.sortByLabel = this.sortByLabel;
 		this.ui.setComboboxAccessibility(true);
-		this.ui.inputBox.setAttribute('aria-label', QuickPick.INPUT_BOX_ARIA_LABEL);
 	}
 }
 
@@ -1378,7 +1394,7 @@ export class QuickInputController extends Disposable {
 		ui.list.sortByLabel = true;
 		ui.ignoreFocusOut = false;
 		this.setComboboxAccessibility(false);
-		ui.inputBox.removeAttribute('aria-label');
+		ui.inputBox.ariaLabel = '';
 
 		const backKeybindingLabel = this.options.backKeybindingLabel();
 		backButton.tooltip = backKeybindingLabel ? localize('quickInput.backWithKeybinding', "Back ({0})", backKeybindingLabel) : localize('quickInput.back', "Back");
@@ -1472,19 +1488,16 @@ export class QuickInputController extends Disposable {
 		}
 	}
 
-	accept() {
+	async accept() {
 		this.onDidAcceptEmitter.fire();
-		return Promise.resolve(undefined);
 	}
 
-	back() {
+	async back() {
 		this.onDidTriggerButtonEmitter.fire(this.backButton);
-		return Promise.resolve(undefined);
 	}
 
-	cancel() {
+	async cancel() {
 		this.hide();
-		return Promise.resolve(undefined);
 	}
 
 	layout(dimension: dom.IDimension, titleBarOffset: number): void {

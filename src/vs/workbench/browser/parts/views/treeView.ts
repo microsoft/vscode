@@ -60,7 +60,7 @@ export class TreeViewPane extends ViewPane {
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: options.title, titleMenuId: MenuId.ViewTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super({ ...(options as IViewPaneOptions), titleMenuId: MenuId.ViewTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		const { treeView } = (<ITreeViewDescriptor>Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).getView(options.id));
 		this.treeView = treeView;
 		this._register(this.treeView.onDidChangeActions(() => this.updateActions(), this));
@@ -85,7 +85,7 @@ export class TreeViewPane extends ViewPane {
 	}
 
 	shouldShowWelcome(): boolean {
-		return (this.treeView.dataProvider === undefined) && (this.treeView.message === undefined);
+		return ((this.treeView.dataProvider === undefined) || !!this.treeView.dataProvider.isTreeEmpty) && (this.treeView.message === undefined);
 	}
 
 	layoutBody(height: number, width: number): void {
@@ -217,15 +217,35 @@ export class TreeView extends Disposable implements ITreeView {
 
 		if (dataProvider) {
 			this._dataProvider = new class implements ITreeViewDataProvider {
+				private _isEmpty: boolean = true;
+				private _onDidChangeEmpty: Emitter<void> = new Emitter();
+				public onDidChangeEmpty: Event<void> = this._onDidChangeEmpty.event;
+
+				get isTreeEmpty(): boolean {
+					return this._isEmpty;
+				}
+
 				async getChildren(node: ITreeItem): Promise<ITreeItem[]> {
+					let children: ITreeItem[];
 					if (node && node.children) {
-						return Promise.resolve(node.children);
+						children = node.children;
+					} else {
+						children = await (node instanceof Root ? dataProvider.getChildren() : dataProvider.getChildren(node));
+						node.children = children;
 					}
-					const children = await (node instanceof Root ? dataProvider.getChildren() : dataProvider.getChildren(node));
-					node.children = children;
+					if (node instanceof Root) {
+						const oldEmpty = this._isEmpty;
+						this._isEmpty = children.length === 0;
+						if (oldEmpty !== this._isEmpty) {
+							this._onDidChangeEmpty.fire();
+						}
+					}
 					return children;
 				}
 			};
+			if (this._dataProvider.onDidChangeEmpty) {
+				this._register(this._dataProvider.onDidChangeEmpty(() => this._onDidChangeWelcomeState.fire()));
+			}
 			this.updateMessage();
 			this.refresh();
 		} else {
@@ -294,7 +314,7 @@ export class TreeView extends Disposable implements ITreeView {
 
 	private registerActions() {
 		const that = this;
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: `workbench.actions.treeView.${that.id}.refresh`,
@@ -311,8 +331,8 @@ export class TreeView extends Disposable implements ITreeView {
 			async run(): Promise<void> {
 				return that.refresh();
 			}
-		});
-		registerAction2(class extends Action2 {
+		}));
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: `workbench.actions.treeView.${that.id}.collapseAll`,
@@ -331,7 +351,7 @@ export class TreeView extends Disposable implements ITreeView {
 					return new CollapseAllAction<ITreeItem, ITreeItem, FuzzyScore>(that.tree, true).run();
 				}
 			}
-		});
+		}));
 	}
 
 	setVisibility(isVisible: boolean): void {

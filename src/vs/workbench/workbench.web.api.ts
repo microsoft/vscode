@@ -230,7 +230,16 @@ interface IWorkbenchConstructionOptions {
  * @param domElement the container to create the workbench in
  * @param options for setting up the workbench
  */
+let created = false;
 async function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions): Promise<void> {
+
+	// Assert that the workbench is not created more than once. We currently
+	// do not support this and require a full context switch to clean-up.
+	if (created) {
+		throw new Error('Unable to create the VSCode workbench more than once.');
+	} else {
+		created = true;
+	}
 
 	// Startup workbench
 	await main(domElement, options);
