@@ -129,7 +129,7 @@ suite('Progress Indicator', () => {
 		let viewletService = new TestViewletService();
 		let panelService = new TestPanelService();
 		let viewsService = new TestViewsService();
-		let service = new CompositeProgressIndicator((<any>testProgressBar), 'test.scopeId', true, undefined, viewletService, panelService, viewsService);
+		let service = new CompositeProgressIndicator((<any>testProgressBar), 'test.scopeId', true, viewletService, panelService, viewsService);
 
 		// Active: Show (Infinite)
 		let fn = service.show(true);
