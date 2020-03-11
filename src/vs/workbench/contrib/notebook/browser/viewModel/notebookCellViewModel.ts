@@ -291,8 +291,8 @@ export class CellViewModel extends Disposable {
 		this._onDidChangeEditorAttachState.fire(false);
 	}
 
-	revealRange(range: Range) {
-		this._textEditor?.revealRange(range);
+	revealRangeInCenter(range: Range) {
+		this._textEditor?.revealRangeInCenter(range);
 	}
 
 	getLineScrollTopOffset(line: number): number {

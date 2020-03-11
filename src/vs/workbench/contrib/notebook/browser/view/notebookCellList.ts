@@ -106,7 +106,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> {
 		}
 
 		if (revealType === CellRevealType.Range) {
-			element.revealRange(range);
+			element.revealRangeInCenter(range);
 		}
 	}
 
@@ -162,7 +162,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> {
 			this.view.setScrollTop(lineOffsetInView - this.view.renderHeight / 2);
 
 			if (revealType === CellRevealType.Range) {
-				element.revealRange(range);
+				element.revealRangeInCenter(range);
 			}
 		};
 
@@ -194,7 +194,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> {
 			this.view.setScrollTop(lineOffsetInView - this.view.renderHeight / 2);
 
 			if (revealType === CellRevealType.Range) {
-				element.revealRange(range);
+				element.revealRangeInCenter(range);
 			}
 		};
 
@@ -202,15 +202,17 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> {
 		const wrapperBottom = scrollTop + this.view.renderHeight;
 		const elementTop = this.view.elementTop(index);
 		const viewItemOffset = elementTop;
+		const element = this.view.element(index);
 
 		if (viewItemOffset < scrollTop || viewItemOffset > wrapperBottom) {
 			this.view.setScrollTop(viewItemOffset - this.view.renderHeight / 2);
-			const element = this.view.element(index);
 			if (!element.editorAttached) {
 				getEditorAttachedPromise(element).then(() => reveal(index, range, revealType));
 			} else {
 				// should not happen
 			}
+		} else {
+			element.revealRangeInCenter(range);
 		}
 	}
 

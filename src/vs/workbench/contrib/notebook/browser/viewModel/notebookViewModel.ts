@@ -190,7 +190,9 @@ export class NotebookViewModel extends Disposable {
 
 			if (!mapping.has(ownerId)) {
 				const cell = this.viewCells.find(cell => cell.handle === ownerId);
-				mapping.set(ownerId, { cell: cell!, oldDecorations: [], newDecorations: [] });
+				if (cell) {
+					mapping.set(ownerId, { cell: cell, oldDecorations: [], newDecorations: [] });
+				}
 			}
 
 			const data = mapping.get(ownerId)!;
@@ -202,7 +204,10 @@ export class NotebookViewModel extends Disposable {
 
 			if (!mapping.has(ownerId)) {
 				const cell = this.viewCells.find(cell => cell.handle === ownerId);
-				mapping.set(ownerId, { cell: cell!, oldDecorations: [], newDecorations: [] });
+
+				if (cell) {
+					mapping.set(ownerId, { cell: cell, oldDecorations: [], newDecorations: [] });
+				}
 			}
 
 			const data = mapping.get(ownerId)!;
