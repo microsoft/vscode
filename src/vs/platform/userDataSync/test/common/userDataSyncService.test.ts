@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IUserDataSyncService, UserDataSyncError, UserDataSyncErrorCode, SyncStatus, SyncSource } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, UserDataSyncError, UserDataSyncErrorCode, SyncStatus, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -480,7 +480,7 @@ suite('UserDataSyncService', () => {
 		await testObject.sync();
 
 		assert.deepEqual(testObject.status, SyncStatus.HasConflicts);
-		assert.deepEqual(testObject.conflictsSources, [SyncSource.Settings]);
+		assert.deepEqual(testObject.conflictsSources, [SyncResource.Settings]);
 	});
 
 	test('test sync will sync other non conflicted areas', async () => {

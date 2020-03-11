@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SyncStatus, SyncSource, IUserDataSyncService, UserDataSyncError } from 'vs/platform/userDataSync/common/userDataSync';
+import { SyncStatus, SyncResource, IUserDataSyncService, UserDataSyncError } from 'vs/platform/userDataSync/common/userDataSync';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -23,20 +23,20 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	private _onDidChangeStatus: Emitter<SyncStatus> = this._register(new Emitter<SyncStatus>());
 	readonly onDidChangeStatus: Event<SyncStatus> = this._onDidChangeStatus.event;
 
-	get onDidChangeLocal(): Event<SyncSource> { return this.channel.listen<SyncSource>('onDidChangeLocal'); }
+	get onDidChangeLocal(): Event<SyncResource> { return this.channel.listen<SyncResource>('onDidChangeLocal'); }
 
-	private _conflictsSources: SyncSource[] = [];
-	get conflictsSources(): SyncSource[] { return this._conflictsSources; }
-	private _onDidChangeConflicts: Emitter<SyncSource[]> = this._register(new Emitter<SyncSource[]>());
-	readonly onDidChangeConflicts: Event<SyncSource[]> = this._onDidChangeConflicts.event;
+	private _conflictsSources: SyncResource[] = [];
+	get conflictsSources(): SyncResource[] { return this._conflictsSources; }
+	private _onDidChangeConflicts: Emitter<SyncResource[]> = this._register(new Emitter<SyncResource[]>());
+	readonly onDidChangeConflicts: Event<SyncResource[]> = this._onDidChangeConflicts.event;
 
 	private _lastSyncTime: number | undefined = undefined;
 	get lastSyncTime(): number | undefined { return this._lastSyncTime; }
 	private _onDidChangeLastSyncTime: Emitter<number> = this._register(new Emitter<number>());
 	readonly onDidChangeLastSyncTime: Event<number> = this._onDidChangeLastSyncTime.event;
 
-	private _onSyncErrors: Emitter<[SyncSource, UserDataSyncError][]> = this._register(new Emitter<[SyncSource, UserDataSyncError][]>());
-	readonly onSyncErrors: Event<[SyncSource, UserDataSyncError][]> = this._onSyncErrors.event;
+	private _onSyncErrors: Emitter<[SyncResource, UserDataSyncError][]> = this._register(new Emitter<[SyncResource, UserDataSyncError][]>());
+	readonly onSyncErrors: Event<[SyncResource, UserDataSyncError][]> = this._onSyncErrors.event;
 
 	constructor(
 		@ISharedProcessService sharedProcessService: ISharedProcessService
@@ -52,7 +52,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				return userDataSyncChannel.listen(event, arg);
 			}
 		};
-		this.channel.call<[SyncStatus, SyncSource[], number | undefined]>('_getInitialData').then(([status, conflicts, lastSyncTime]) => {
+		this.channel.call<[SyncStatus, SyncResource[], number | undefined]>('_getInitialData').then(([status, conflicts, lastSyncTime]) => {
 			this.updateStatus(status);
 			this.updateConflicts(conflicts);
 			if (lastSyncTime) {
@@ -61,8 +61,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			this._register(this.channel.listen<SyncStatus>('onDidChangeStatus')(status => this.updateStatus(status)));
 			this._register(this.channel.listen<number>('onDidChangeLastSyncTime')(lastSyncTime => this.updateLastSyncTime(lastSyncTime)));
 		});
-		this._register(this.channel.listen<SyncSource[]>('onDidChangeConflicts')(conflicts => this.updateConflicts(conflicts)));
-		this._register(this.channel.listen<[SyncSource, Error][]>('onSyncErrors')(errors => this._onSyncErrors.fire(errors.map(([source, error]) => ([source, UserDataSyncError.toUserDataSyncError(error)])))));
+		this._register(this.channel.listen<SyncResource[]>('onDidChangeConflicts')(conflicts => this.updateConflicts(conflicts)));
+		this._register(this.channel.listen<[SyncResource, Error][]>('onSyncErrors')(errors => this._onSyncErrors.fire(errors.map(([source, error]) => ([source, UserDataSyncError.toUserDataSyncError(error)])))));
 	}
 
 	pull(): Promise<void> {
@@ -73,7 +73,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return this.channel.call('sync');
 	}
 
-	accept(source: SyncSource, content: string): Promise<void> {
+	accept(source: SyncResource, content: string): Promise<void> {
 		return this.channel.call('accept', [source, content]);
 	}
 
@@ -102,7 +102,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		this._onDidChangeStatus.fire(status);
 	}
 
-	private async updateConflicts(conflicts: SyncSource[]): Promise<void> {
+	private async updateConflicts(conflicts: SyncResource[]): Promise<void> {
 		this._conflictsSources = conflicts;
 		this._onDidChangeConflicts.fire(conflicts);
 	}
