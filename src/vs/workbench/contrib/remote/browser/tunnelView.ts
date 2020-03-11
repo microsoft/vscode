@@ -657,6 +657,17 @@ export class TunnelPanelDescriptor implements IViewDescriptor {
 	}
 }
 
+function validationMessage(validationString: string | null): { content: string, severity: Severity } | null {
+	if (!validationString) {
+		return null;
+	}
+
+	return {
+		content: validationString,
+		severity: Severity.Error
+	};
+}
+
 namespace LabelTunnelAction {
 	export const ID = 'remote.tunnel.label';
 	export const LABEL = nls.localize('remote.tunnel.label', "Set Label");
@@ -733,17 +744,7 @@ namespace ForwardPortAction {
 						}
 						remoteExplorerService.setEditable(undefined, null);
 					},
-					validationMessage: (value) => {
-						const validationString = validateInput(value);
-						if (!validationString) {
-							return null;
-						}
-
-						return {
-							content: validationString,
-							severity: Severity.Error
-						};
-					},
+					validationMessage: (value) => validationMessage(validateInput(value)),
 					placeholder: forwardPrompt
 				});
 			}
@@ -926,17 +927,7 @@ namespace ChangeLocalPortAction {
 							}
 						}
 					},
-					validationMessage: (value) => {
-						const validationString = validateInput(value);
-						if (!validationString) {
-							return null;
-						}
-
-						return {
-							content: validationString,
-							severity: Severity.Error
-						};
-					},
+					validationMessage: (value) => validationMessage(validateInput(value)),
 					placeholder: nls.localize('remote.tunnelsView.changePort', "New local port")
 				});
 			}
