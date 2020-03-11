@@ -8,7 +8,7 @@ import { MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, SaveDial
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWindowOpenable, IOpenEmptyWindowOptions, IOpenedWindow } from 'vs/platform/windows/common/windows';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/node/dialogs';
-import { ISerializableMenuItemAction } from 'vs/platform/actions/common/actions';
+import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { INativeOpenWindowOptions } from 'vs/platform/windows/node/window';
 
 export const IElectronService = createDecorator<IElectronService>('electronService');
@@ -60,7 +60,7 @@ export interface IElectronService {
 	setRepresentedFilename(path: string): Promise<void>;
 	setDocumentEdited(edited: boolean): Promise<void>;
 	openExternal(url: string): Promise<boolean>;
-	updateTouchBar(items: ISerializableMenuItemAction[][]): Promise<void>;
+	updateTouchBar(items: ISerializableCommandAction[][]): Promise<void>;
 
 	// macOS Touchbar
 	newWindowTab(): Promise<void>;

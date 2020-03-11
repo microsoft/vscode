@@ -22,7 +22,7 @@ import { INativeWindowConfiguration } from 'vs/platform/windows/node/window';
 import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
-import { ISerializableMenuItemAction } from 'vs/platform/actions/common/actions';
+import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import * as perf from 'vs/base/common/performance';
 import { resolveMarketplaceHeaders } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
@@ -1094,7 +1094,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 	}
 
-	updateTouchBar(groups: ISerializableMenuItemAction[][]): void {
+	updateTouchBar(groups: ISerializableCommandAction[][]): void {
 		if (!isMacintosh) {
 			return; // only supported on macOS
 		}
@@ -1123,10 +1123,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this._win.setTouchBar(new TouchBar({ items: this.touchBarGroups }));
 	}
 
-	private createTouchBarGroup(): TouchBarSegmentedControl {
+	private createTouchBarGroup(items: ISerializableCommandAction[] = []): TouchBarSegmentedControl {
 
 		// Group Segments
-		const segments = this.createTouchBarGroupSegments();
+		const segments = this.createTouchBarGroupSegments(items);
 
 		// Group Control
 		const control = new TouchBar.TouchBarSegmentedControl({
@@ -1141,7 +1141,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		return control;
 	}
 
-	private createTouchBarGroupSegments(items: ISerializableMenuItemAction[] = []): ITouchBarSegment[] {
+	private createTouchBarGroupSegments(items: ISerializableCommandAction[] = []): ITouchBarSegment[] {
 		const segments: ITouchBarSegment[] = items.map(item => {
 			let icon: NativeImage | undefined;
 			if (item.icon && !ThemeIcon.isThemeIcon(item.icon) && item.icon?.dark?.scheme === 'file') {

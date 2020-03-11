@@ -12,7 +12,7 @@ import { IdGenerator } from 'vs/base/common/idGenerator';
 import { IDisposable, toDisposable, MutableDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
-import { IMenu, IMenuActionOptions, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { IMenu, IMenuActionOptions, MenuItemAction, SubmenuItemAction, Icon } from 'vs/platform/actions/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -148,7 +148,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 		@INotificationService protected _notificationService: INotificationService,
 		@IContextMenuService _contextMenuService: IContextMenuService
 	) {
-		super(undefined, _action, { icon: !!(_action.class || _action.icon), label: !_action.class && !_action.icon });
+		super(undefined, _action, { icon: !!(_action.class || _action.item.icon), label: !_action.class && !_action.item.icon });
 		this._altKey = AlternativeKeyEmitter.getInstance(_contextMenuService);
 	}
 
@@ -216,9 +216,10 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 			const keybinding = this._keybindingService.lookupKeybinding(this._commandAction.id);
 			const keybindingLabel = keybinding && keybinding.getLabel();
 
+			const tooltip = this._commandAction.tooltip || this._commandAction.label;
 			this.label.title = keybindingLabel
-				? localize('titleAndKb', "{0} ({1})", this._commandAction.label, keybindingLabel)
-				: this._commandAction.label;
+				? localize('titleAndKb', "{0} ({1})", tooltip, keybindingLabel)
+				: tooltip;
 		}
 	}
 
@@ -237,9 +238,11 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 	_updateItemClass(item: MenuItemAction): void {
 		this._itemClassDispose.value = undefined;
 
-		if (ThemeIcon.isThemeIcon(item.icon)) {
+		const icon = item.checked && (item.item.toggled as { icon?: Icon })?.icon ? (item.item.toggled as { icon: Icon }).icon : item.item.icon;
+
+		if (ThemeIcon.isThemeIcon(icon)) {
 			// theme icons
-			const iconClass = ThemeIcon.asClassName(item.icon);
+			const iconClass = ThemeIcon.asClassName(icon);
 			if (this.label && iconClass) {
 				addClasses(this.label, iconClass);
 				this._itemClassDispose.value = toDisposable(() => {
@@ -249,20 +252,20 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 				});
 			}
 
-		} else if (item.icon) {
+		} else if (icon) {
 			// icon path
 			let iconClass: string;
 
-			if (item.icon?.dark?.scheme) {
+			if (icon?.dark?.scheme) {
 
-				const iconPathMapKey = item.icon.dark.toString();
+				const iconPathMapKey = icon.dark.toString();
 
 				if (MenuEntryActionViewItem.ICON_PATH_TO_CSS_RULES.has(iconPathMapKey)) {
 					iconClass = MenuEntryActionViewItem.ICON_PATH_TO_CSS_RULES.get(iconPathMapKey)!;
 				} else {
 					iconClass = ids.nextId();
-					createCSSRule(`.icon.${iconClass}`, `background-image: ${asCSSUrl(item.icon.light || item.icon.dark)}`);
-					createCSSRule(`.vs-dark .icon.${iconClass}, .hc-black .icon.${iconClass}`, `background-image: ${asCSSUrl(item.icon.dark)}`);
+					createCSSRule(`.icon.${iconClass}`, `background-image: ${asCSSUrl(icon.light || icon.dark)}`);
+					createCSSRule(`.vs-dark .icon.${iconClass}, .hc-black .icon.${iconClass}`, `background-image: ${asCSSUrl(icon.dark)}`);
 					MenuEntryActionViewItem.ICON_PATH_TO_CSS_RULES.set(iconPathMapKey, iconClass);
 				}
 

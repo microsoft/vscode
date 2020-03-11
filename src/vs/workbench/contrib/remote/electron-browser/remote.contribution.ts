@@ -200,9 +200,9 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 			}
 			for (let action of actionGroup[1]) {
 				if (action instanceof MenuItemAction) {
-					let label = typeof action.title === 'string' ? action.title : action.title.value;
-					if (action.category) {
-						const category = typeof action.category === 'string' ? action.category : action.category.value;
+					let label = typeof action.item.title === 'string' ? action.item.title : action.item.title.value;
+					if (action.item.category) {
+						const category = typeof action.item.category === 'string' ? action.item.category : action.item.category.value;
 						label = nls.localize('cat.title', "{0}: {1}", category, label);
 					}
 					items.push({
