@@ -16,6 +16,8 @@ interface IHelpQuickAccessPickItem extends IQuickPickItem {
 
 export class HelpQuickAccessProvider implements IQuickAccessProvider {
 
+	static PREFIX = '?';
+
 	private readonly registry = Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess);
 
 	constructor(@IQuickInputService private readonly quickInputService: IQuickInputService) { }

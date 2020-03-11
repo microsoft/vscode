@@ -169,7 +169,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 						// restore theme
 						this.setColorTheme(prevColorId, 'auto');
 						prevColorId = undefined;
-					} else {
+					} else if (event.added.some(t => t.settingsId === this.currentColorTheme.settingsId)) {
 						this.reloadCurrentColorTheme();
 					}
 				}
@@ -179,13 +179,12 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		let prevFileIconId: string | undefined = undefined;
 		this.fileIconThemeRegistry.onDidChange(async event => {
 			updateFileIconThemeConfigurationSchemas(event.themes);
-
-			if (!await this.restoreFileIconTheme()) { // checks if theme from settings exists and is set
+			if (await this.restoreFileIconTheme()) { // checks if theme from settings exists and is set
 				// restore theme
 				if (this.currentFileIconTheme.id === DEFAULT_FILE_ICON_THEME_ID && !types.isUndefined(prevFileIconId) && await this.fileIconThemeRegistry.findThemeById(prevFileIconId)) {
 					this.setFileIconTheme(prevFileIconId, 'auto');
 					prevFileIconId = undefined;
-				} else {
+				} else if (event.added.some(t => t.settingsId === this.currentFileIconTheme.settingsId)) {
 					this.reloadCurrentFileIconTheme();
 				}
 			} else {
@@ -193,18 +192,18 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 				prevFileIconId = this.currentFileIconTheme.id;
 				this.setFileIconTheme(DEFAULT_FILE_ICON_THEME_ID, 'auto');
 			}
+
 		});
 
 		let prevProductIconId: string | undefined = undefined;
 		this.productIconThemeRegistry.onDidChange(async event => {
 			updateProductIconThemeConfigurationSchemas(event.themes);
-
 			if (await this.restoreProductIconTheme()) { // checks if theme from settings exists and is set
 				// restore theme
 				if (this.currentProductIconTheme.id === DEFAULT_PRODUCT_ICON_THEME_ID && !types.isUndefined(prevProductIconId) && await this.productIconThemeRegistry.findThemeById(prevProductIconId)) {
 					this.setProductIconTheme(prevProductIconId, 'auto');
 					prevProductIconId = undefined;
-				} else {
+				} else if (event.added.some(t => t.settingsId === this.currentProductIconTheme.settingsId)) {
 					this.reloadCurrentProductIconTheme();
 				}
 			} else {

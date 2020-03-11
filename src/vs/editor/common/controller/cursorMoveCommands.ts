@@ -411,7 +411,7 @@ export class CursorMoveCommands {
 
 			let newViewState = MoveOperations.moveLeft(context.config, context.viewModel, cursor.viewState, inSelectionMode, noOfColumns);
 
-			if (noOfColumns === 1 && newViewState.position.lineNumber !== cursor.viewState.position.lineNumber) {
+			if (!cursor.viewState.hasSelection() && noOfColumns === 1 && newViewState.position.lineNumber !== cursor.viewState.position.lineNumber) {
 				// moved over to the previous view line
 				const newViewModelPosition = context.viewModel.coordinatesConverter.convertViewPositionToModelPosition(newViewState.position);
 				if (newViewModelPosition.lineNumber === cursor.modelState.position.lineNumber) {
@@ -442,7 +442,7 @@ export class CursorMoveCommands {
 			const cursor = cursors[i];
 			let newViewState = MoveOperations.moveRight(context.config, context.viewModel, cursor.viewState, inSelectionMode, noOfColumns);
 
-			if (noOfColumns === 1 && newViewState.position.lineNumber !== cursor.viewState.position.lineNumber) {
+			if (!cursor.viewState.hasSelection() && noOfColumns === 1 && newViewState.position.lineNumber !== cursor.viewState.position.lineNumber) {
 				// moved over to the next view line
 				const newViewModelPosition = context.viewModel.coordinatesConverter.convertViewPositionToModelPosition(newViewState.position);
 				if (newViewModelPosition.lineNumber === cursor.modelState.position.lineNumber) {

@@ -697,7 +697,7 @@ class UserLaunch extends AbstractLaunch implements ILaunch {
 	}
 
 	async openConfigFile(_: boolean, preserveFocus: boolean): Promise<{ editor: IEditorPane | null, created: boolean }> {
-		const editor = await this.preferencesService.openGlobalSettings(false, { preserveFocus });
+		const editor = await this.preferencesService.openGlobalSettings(true, { preserveFocus });
 		return ({
 			editor: withUndefinedAsNull(editor),
 			created: false

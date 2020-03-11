@@ -20,6 +20,7 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { flatten, mergeSort } from 'vs/base/common/arrays';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { SetMap } from 'vs/base/common/collections';
+import { IProgressIndicator } from 'vs/platform/progress/common/progress';
 
 export const TEST_VIEW_CONTAINER_ID = 'workbench.view.extension.test';
 
@@ -402,6 +403,7 @@ export interface IView {
 
 	setExpanded(expanded: boolean): boolean;
 
+	getProgressIndicator(): IProgressIndicator | undefined;
 }
 
 export interface IViewsViewlet extends IViewlet {
@@ -426,6 +428,7 @@ export interface IViewsService {
 
 	closeView(id: string): void;
 
+	getProgressIndicator(id: string): IProgressIndicator | undefined;
 }
 
 /**

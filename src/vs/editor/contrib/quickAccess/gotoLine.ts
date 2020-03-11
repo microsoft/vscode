@@ -16,11 +16,11 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { AbstractEditorQuickAccessProvider } from 'vs/editor/contrib/quickAccess/quickAccess';
 import { IPosition } from 'vs/editor/common/core/position';
 
-export const GOTO_LINE_PREFIX = ':';
-
 interface IGotoLineQuickPickItem extends IQuickPickItem, Partial<IPosition> { }
 
 export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditorQuickAccessProvider {
+
+	static PREFIX = ':';
 
 	provide(picker: IQuickPick<IGotoLineQuickPickItem>, token: CancellationToken): IDisposable {
 		const disposables = new DisposableStore();
@@ -88,7 +88,7 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 
 		// React to picker changes
 		const updatePickerAndEditor = () => {
-			const position = this.parsePosition(editor, picker.value.trim().substr(GOTO_LINE_PREFIX.length));
+			const position = this.parsePosition(editor, picker.value.trim().substr(AbstractGotoLineQuickAccessProvider.PREFIX.length));
 			const label = this.getPickLabel(editor, position.lineNumber, position.column);
 
 			// Picker

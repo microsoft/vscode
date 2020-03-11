@@ -201,7 +201,7 @@ export class XLF {
 		for (let file in this.files) {
 			this.appendNewLine(`<file original="${file}" source-language="en" datatype="plaintext"><body>`, 2);
 			for (let item of this.files[file]) {
-				this.addStringItem(item);
+				this.addStringItem(file, item);
 			}
 			this.appendNewLine('</body></file>', 2);
 		}
@@ -243,9 +243,12 @@ export class XLF {
 		}
 	}
 
-	private addStringItem(item: Item): void {
-		if (!item.id || !item.message) {
-			throw new Error(`No item ID or value specified: ${JSON.stringify(item)}`);
+	private addStringItem(file: string, item: Item): void {
+		if (!item.id || item.message === undefined || item.message === null) {
+			throw new Error(`No item ID or value specified: ${JSON.stringify(item)}. File: ${file}`);
+		}
+		if (item.message.length === 0) {
+			log(`Item with id ${item.id} in file ${file} has an empty message.`);
 		}
 
 		this.appendNewLine(`<trans-unit id="${item.id}">`, 4);

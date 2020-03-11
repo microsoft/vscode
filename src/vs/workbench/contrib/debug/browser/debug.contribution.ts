@@ -52,6 +52,8 @@ import { CallStackEditorContribution } from 'vs/workbench/contrib/debug/browser/
 import { BreakpointEditorContribution } from 'vs/workbench/contrib/debug/browser/breakpointEditorContribution';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
+import { StartDebugQuickAccessProvider } from 'vs/workbench/contrib/debug/browser/debugQuickAccess';
 
 class OpenDebugViewletAction extends ShowViewletAction {
 	public static readonly ID = VIEWLET_ID;
@@ -172,6 +174,14 @@ registerDebugCommandPaletteItem(TOGGLE_INLINE_BREAKPOINT_ID, nls.localize('inlin
 		nls.localize('debugCommands', "Debug Configuration")
 	)
 );
+
+// Register Quick Access
+Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess).registerQuickAccessProvider({
+	ctor: StartDebugQuickAccessProvider,
+	prefix: StartDebugQuickAccessProvider.PREFIX,
+	placeholder: nls.localize('startDebugPlaceholder', "Type the name of a launch configuration to run."),
+	helpEntries: [{ description: nls.localize('startDebugHelp', "Start Debug Configurations"), needsEditor: false }]
+});
 
 // register service
 registerSingleton(IDebugService, service.DebugService);
