@@ -433,6 +433,7 @@ function registerDefaultClassifications(): void {
 
 
 	registerTokenStyleDefault('variable.readonly', [['variable.other.constant']]);
+	registerTokenStyleDefault('property.readonly', [['variable.other.constant.property']]);
 }
 
 export function getTokenClassificationRegistry(): ITokenClassificationRegistry {

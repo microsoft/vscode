@@ -28,6 +28,11 @@ export interface IQuickPickItem {
 	italic?: boolean;
 	highlights?: IQuickPickItemHighlights;
 	buttons?: IQuickInputButton[];
+	/**
+	 * Wether to always show the buttons. By default buttons
+	 * are only visible when hovering over them with the mouse
+	 */
+	buttonsAlwaysVisible?: boolean;
 	picked?: boolean;
 	alwaysShow?: boolean;
 }
@@ -262,6 +267,7 @@ export interface IQuickInputButton {
 	/** iconPath or iconClass required */
 	iconClass?: string;
 	tooltip?: string;
+	alwaysShow?: boolean;
 }
 
 export interface IQuickPickItemButtonEvent<T extends IQuickPickItem> {

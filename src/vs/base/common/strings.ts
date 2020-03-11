@@ -428,27 +428,25 @@ export function commonSuffixLength(a: string, b: string): number {
 	return len;
 }
 
-// --- unicode
-// http://en.wikipedia.org/wiki/Surrogate_pair
-// Returns the code point starting at a specified index in a string
-// Code points U+0000 to U+D7FF and U+E000 to U+FFFF are represented on a single character
-// Code points U+10000 to U+10FFFF are represented on two consecutive characters
-//export function getUnicodePoint(str:string, index:number, len:number):number {
-//	const chrCode = str.charCodeAt(index);
-//	if (0xD800 <= chrCode && chrCode <= 0xDBFF && index + 1 < len) {
-//		const nextChrCode = str.charCodeAt(index + 1);
-//		if (0xDC00 <= nextChrCode && nextChrCode <= 0xDFFF) {
-//			return (chrCode - 0xD800) << 10 + (nextChrCode - 0xDC00) + 0x10000;
-//		}
-//	}
-//	return chrCode;
-//}
+/**
+ * See http://en.wikipedia.org/wiki/Surrogate_pair
+ */
 export function isHighSurrogate(charCode: number): boolean {
 	return (0xD800 <= charCode && charCode <= 0xDBFF);
 }
 
+/**
+ * See http://en.wikipedia.org/wiki/Surrogate_pair
+ */
 export function isLowSurrogate(charCode: number): boolean {
 	return (0xDC00 <= charCode && charCode <= 0xDFFF);
+}
+
+/**
+ * See http://en.wikipedia.org/wiki/Surrogate_pair
+ */
+export function computeCodePoint(highSurrogate: number, lowSurrogate: number): number {
+	return ((highSurrogate - 0xD800) << 10) + (lowSurrogate - 0xDC00) + 0x10000;
 }
 
 /**
@@ -459,7 +457,7 @@ export function getNextCodePoint(str: string, len: number, offset: number): numb
 	if (isHighSurrogate(charCode) && offset + 1 < len) {
 		const nextCharCode = str.charCodeAt(offset + 1);
 		if (isLowSurrogate(nextCharCode)) {
-			return ((charCode - 0xD800) << 10) + (nextCharCode - 0xDC00) + 0x10000;
+			return computeCodePoint(charCode, nextCharCode);
 		}
 	}
 	return charCode;
@@ -473,7 +471,7 @@ function getPrevCodePoint(str: string, offset: number): number {
 	if (isLowSurrogate(charCode) && offset > 1) {
 		const prevCharCode = str.charCodeAt(offset - 2);
 		if (isHighSurrogate(prevCharCode)) {
-			return ((prevCharCode - 0xD800) << 10) + (charCode - 0xDC00) + 0x10000;
+			return computeCodePoint(prevCharCode, charCode);
 		}
 	}
 	return charCode;

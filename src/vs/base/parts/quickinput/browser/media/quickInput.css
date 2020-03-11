@@ -239,6 +239,7 @@
 	margin-right: 8px;
 }
 
+.quick-input-list .quick-input-list-entry.always-visible-actions .quick-input-list-entry-action-bar,
 .quick-input-list .quick-input-list-entry:hover .quick-input-list-entry-action-bar,
 .quick-input-list .monaco-list-row.focused .quick-input-list-entry-action-bar {
 	display: flex;

@@ -24,8 +24,13 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadAuthentication);
 	}
 
-	hasProvider(providerId: string): boolean {
-		return !!this._authenticationProviders.get(providerId);
+	get providerIds(): string[] {
+		const ids: string[] = [];
+		this._authenticationProviders.forEach(provider => {
+			ids.push(provider.id);
+		});
+
+		return ids;
 	}
 
 	async getSessions(requestingExtension: IExtensionDescription, providerId: string, scopes: string[]): Promise<readonly vscode.AuthenticationSession[]> {
