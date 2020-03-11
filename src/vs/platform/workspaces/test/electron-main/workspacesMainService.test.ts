@@ -306,7 +306,7 @@ suite('WorkspacesMainService', () => {
 		let newContent = rewriteWorkspaceFileForNewLocation(origContent, origConfigPath, workspaceConfigPath);
 		let ws = (JSON.parse(newContent) as IStoredWorkspace);
 		assert.equal(ws.folders.length, 3);
-		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[0]).path, folder1); // absolute path because outside of tmpdir
+		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[0]).path, path.join('..', '..', folder1)); // absolute path because outside of tmpdir
 		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[1]).path, '.');
 		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[2]).path, 'somefolder');
 
@@ -315,7 +315,7 @@ suite('WorkspacesMainService', () => {
 		newContent = rewriteWorkspaceFileForNewLocation(newContent, origConfigPath, workspaceConfigPath);
 		ws = (JSON.parse(newContent) as IStoredWorkspace);
 		assert.equal(ws.folders.length, 3);
-		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[0]).path, folder1);
+		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[0]).path, path.join('..', folder1));
 		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[1]).path, 'inside');
 		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[2]).path, isWindows ? 'inside\\somefolder' : 'inside/somefolder');
 
@@ -324,7 +324,7 @@ suite('WorkspacesMainService', () => {
 		newContent = rewriteWorkspaceFileForNewLocation(newContent, origConfigPath, workspaceConfigPath);
 		ws = (JSON.parse(newContent) as IStoredWorkspace);
 		assert.equal(ws.folders.length, 3);
-		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[0]).path, folder1);
+		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[0]).path, path.join('..', '..', folder1));
 		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[1]).path, path.join('..', 'inside'));
 		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[2]).path, path.join('..', 'inside', 'somefolder'));
 

@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
-import { extname } from 'vs/base/common/path';
+import { extname, isAbsolute } from 'vs/base/common/path';
 import { dirname, resolvePath, isEqualAuthority, isEqualOrParent, relativePath, extname as resourceExtname } from 'vs/base/common/resources';
 import * as jsonEdit from 'vs/base/common/jsonEdit';
 import * as json from 'vs/base/common/json';
@@ -205,23 +205,30 @@ const SLASH = '/';
  * @param folderURI a workspace folder
  * @param folderName a workspace name
  * @param targetConfigFolderURI the folder where the workspace is living in
- * @param baseFolderURI an optional folder to test whether to use a relative path
+ * @param useRelativePath if set, use a relative path if it's possible
  * @param useSlashForPath if set, use forward slashes for file paths on windows
  */
-export function getStoredWorkspaceFolder(folderURI: URI, folderName: string | undefined, targetConfigFolderURI: URI, baseFolderURI?: URI, useSlashForPath = !isWindows): IStoredWorkspaceFolder {
+export function getStoredWorkspaceFolder(folderURI: URI, folderName: string | undefined, targetConfigFolderURI: URI, useRelativePath = false, useSlashForPath = !isWindows): IStoredWorkspaceFolder {
 
 	if (folderURI.scheme !== targetConfigFolderURI.scheme) {
 		return { name: folderName, uri: folderURI.toString(true) };
 	}
 
 	let folderPath: string | undefined;
-	if (isEqualOrParent(folderURI, targetConfigFolderURI) || (baseFolderURI && isEqualOrParent(folderURI, baseFolderURI))) {
+	if (useRelativePath && isEqualAuthority(folderURI.authority, targetConfigFolderURI.authority)) {
 		// use relative path
 		folderPath = relativePath(targetConfigFolderURI, folderURI) || '.'; // always uses forward slashes
-		if (isWindows && folderURI.scheme === Schemas.file && !useSlashForPath) {
+		if (isWindows && folderURI.scheme === Schemas.file) {
 			// Windows gets special treatment:
 			// - use backslahes unless slash is used by other existing folders
-			folderPath = folderPath.replace(/\//g, '\\');
+			if (isAbsolute(folderPath)) {
+				folderPath = normalizeDriveLetter(folderPath);
+				if (useSlashForPath) {
+					folderPath = toSlashes(folderPath);
+				}
+			} else if (!useSlashForPath) {
+				folderPath = folderPath.replace(/\//g, '\\');
+			}
 		}
 	} else {
 		// use absolute path
@@ -258,18 +265,11 @@ export function rewriteWorkspaceFileForNewLocation(rawWorkspaceContents: string,
 
 	const slashForPath = useSlashForPath(storedWorkspace.folders);
 
-	const folderURIs = storedWorkspace.folders.map(folder => isRawFileWorkspaceFolder(folder) ? resolvePath(sourceConfigFolder, folder.path) : URI.parse(folder.uri));
-	const baseFolderURI = folderURIs.map(dirname).filter(folderURI => isEqualOrParent(targetConfigFolder, folderURI))
-		.reduce((result: URI | undefined, folderURI) => {
-			if (!result) {
-				return folderURI;
-			}
-			return folderURI.path.length < result.path.length ? folderURI : result;
-		}, undefined);
-
-	// Rewrite absolute paths to relative paths if the target workspace config folder
-	// is equal or a child of a workspace parent folder. Otherwise keep using absolute paths.
-	const rewrittenFolders = storedWorkspace.folders.map((folder, idx) => getStoredWorkspaceFolder(folderURIs[idx], folder.name, targetConfigFolder, baseFolderURI, slashForPath));
+	// Rewrite absolute paths to relative paths whenever is possible. Otherwise keep using absolute paths.
+	const rewrittenFolders = storedWorkspace.folders.map(folder => {
+		const folderURI = isRawFileWorkspaceFolder(folder) ? resolvePath(sourceConfigFolder, folder.path) : URI.parse(folder.uri);
+		return getStoredWorkspaceFolder(folderURI, folder.name, targetConfigFolder, true, slashForPath);
+	});
 
 	// Preserve as much of the existing workspace as possible by using jsonEdit
 	// and only changing the folders portion.

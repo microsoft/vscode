@@ -17,17 +17,18 @@ import { Configuration } from 'vs/workbench/services/configuration/common/config
 import { FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId, IConfigurationCache, machineSettingsSchemaId, LOCAL_MACHINE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions, allSettings, windowSettings, resourceSettings, applicationSettings, machineSettings, machineOverridableSettings } from 'vs/platform/configuration/common/configurationRegistry';
-import { IWorkspaceIdentifier, isWorkspaceIdentifier, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, isSingleFolderWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, IEmptyWorkspaceInitializationPayload, useSlashForPath, getStoredWorkspaceFolder, isUntitledWorkspace } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, isWorkspaceIdentifier, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, isSingleFolderWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, IEmptyWorkspaceInitializationPayload, useSlashForPath, getStoredWorkspaceFolder, isUntitledWorkspace, isRawFileWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ConfigurationEditingService, EditableConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditingService';
 import { WorkspaceConfiguration, FolderConfiguration, RemoteUserConfiguration, UserConfiguration } from 'vs/workbench/services/configuration/browser/configuration';
 import { JSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditingService';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { isEqual, dirname, isEqualOrParent } from 'vs/base/common/resources';
+import { isEqual, dirname } from 'vs/base/common/resources';
 import { mark } from 'vs/base/common/performance';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { isAbsolute } from 'vs/base/common/path';
 
 export class WorkspaceService extends Disposable implements IConfigurationService, IWorkspaceContextService {
 
@@ -181,34 +182,23 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 
 		// Add afterwards (if any)
 		if (foldersToAdd.length) {
-
 			// Recompute current workspace folders if we have folders to add
 			const workspaceConfigPath = this.getWorkspace().configuration!;
 			const workspaceConfigFolder = dirname(workspaceConfigPath);
-			currentWorkspaceFolders = toWorkspaceFolders(newStoredFolders, workspaceConfigPath);
-			const currentWorkspaceFolderUris = currentWorkspaceFolders.map(folder => folder.uri);
+			const newStoredFoldersURIs = toWorkspaceFolders(newStoredFolders, workspaceConfigPath).map(folder => folder.uri);
 
-			foldersToAdd = foldersToAdd.filter(folder => !this.contains(currentWorkspaceFolderUris, folder.uri));
-
-			let baseFolderURI: URI | undefined;
-			if (!isUntitledWorkspace(workspaceConfigPath, this.environmentService)) {
-				baseFolderURI = currentWorkspaceFolderUris.concat(foldersToAdd.map(folder => folder.uri))
-					.map(dirname)
-					.filter(folderURI => isEqualOrParent(workspaceConfigFolder, folderURI))
-					.reduce((result: URI | undefined, folderURI) => {
-						if (!result) {
-							return folderURI;
-						}
-						return folderURI.path.length < result.path.length ? folderURI : result;
-					}, undefined);
-				if (baseFolderURI) {
-					// Rewrite absolute paths to relative paths if the workspace config folder
-					// is equal or a child of a workspace parent folder. Otherwise keep using absolute paths.
-					newStoredFolders = currentWorkspaceFolders.map(wsFolder => getStoredWorkspaceFolder(wsFolder.uri, wsFolder.name, workspaceConfigFolder, baseFolderURI, slashForPath));
+			// Remember if a workspace folder has an absolute path
+			const resourceAbsolutePathMap = new ResourceMap<boolean>();
+			for (const folderToAdd of foldersToAdd) {
+				const found = currentWorkspaceFolders.find(folder => isEqual(folder.uri, folderToAdd.uri));
+				if (found && isRawFileWorkspaceFolder(found.raw)) {
+					resourceAbsolutePathMap.set(folderToAdd.uri, isAbsolute(found.raw.path));
 				}
 			}
+			const isUntitledWS = isUntitledWorkspace(workspaceConfigPath, this.environmentService);
 
-			const storedFoldersToAdd = foldersToAdd.map(folderToAdd => getStoredWorkspaceFolder(folderToAdd.uri, folderToAdd.name, workspaceConfigFolder, baseFolderURI, slashForPath));
+			const storedFoldersToAdd = foldersToAdd.filter(folderToAdd => !this.contains(newStoredFoldersURIs, folderToAdd.uri))
+				.map(folderToAdd => getStoredWorkspaceFolder(folderToAdd.uri, folderToAdd.name, workspaceConfigFolder, !isUntitledWS && !resourceAbsolutePathMap.get(folderToAdd.uri), slashForPath));
 
 			// Apply to array of newStoredFolders
 			if (storedFoldersToAdd.length > 0) {
@@ -547,8 +537,10 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 			const change = this._configuration.compareAndUpdateWorkspaceConfiguration(this.workspaceConfiguration.getConfiguration());
 			let configuredFolders = toWorkspaceFolders(this.workspaceConfiguration.getFolders(), this.workspace.configuration);
 			const changes = this.compareFolders(this.workspace.folders, configuredFolders);
+			// Always overwrite the workspace folders, the user could have changed
+			// a relative path to an absolute path or viceversa (WorkspaceFolder.raw)
+			this.workspace.folders = configuredFolders;
 			if (changes.added.length || changes.removed.length || changes.changed.length) {
-				this.workspace.folders = configuredFolders;
 				return this.onFoldersChanged()
 					.then(change => {
 						this.triggerConfigurationChange(change, previous, ConfigurationTarget.WORKSPACE_FOLDER);
