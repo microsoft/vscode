@@ -171,22 +171,6 @@ export type NotebookCellOutputsSplice = [
 	IOutput[]
 ];
 
-export function parseCellUri(resource: URI): { viewType: string, notebook: URI } | undefined {
-	//vscode-notebook://<viewType>/cell_<cellHandle>.ext
-	if (resource.scheme !== 'vscode-notebook') {
-		return undefined;
-	}
-	// @todo Jo,Peng: `authority` will be transformed to lower case in `URI.toString()`, so we won't retrive the same viewType later on.
-	const viewType = resource.authority;
-	const notebook = URI.parse(resource.query);
-	return { viewType, notebook };
-}
-
-export function generateCellPath(cellKind: CellKind, cellHandle: number): string {
-	return `/cell_${cellHandle}${cellKind === CellKind.Markdown ? '.md' : ''}`;
-}
-
-
 export namespace CellUri {
 
 	export const scheme = 'vscode-notebook';
@@ -212,17 +196,6 @@ export namespace CellUri {
 			return undefined;
 		}
 	}
-}
-
-export function parseCellHandle(path: string): number | undefined {
-	const regex = new RegExp(/cell_(\d*)(\.)?/g);
-	let matches = regex.exec(path);
-
-	if (matches && matches.length > 1) {
-		return Number(matches[1]);
-	}
-
-	return;
 }
 
 export function mimeTypeSupportedByCore(mimeType: string) {

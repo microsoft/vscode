@@ -12,7 +12,7 @@ import { DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { readonly } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { INotebookDisplayOrder, parseCellUri, parseCellHandle, ITransformedDisplayOutputDto, IOrderedMimeType, IStreamOutput, IErrorOutput, mimeTypeSupportedByCore, IOutput, sortMimeTypes, diff, generateCellPath } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookDisplayOrder, ITransformedDisplayOutputDto, IOrderedMimeType, IStreamOutput, IErrorOutput, mimeTypeSupportedByCore, IOutput, sortMimeTypes, diff, CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ISplice } from 'vs/base/common/sequence';
 
 export class ExtHostCell implements vscode.NotebookCell {
@@ -312,17 +312,15 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 		return this.cells.find(cell => cell.handle === cellHandle);
 	}
 
-	attachCellTextDocument(cellHandle: number, textDocument: vscode.TextDocument) {
-		let cell = this.cells.find(cell => cell.handle === cellHandle);
-
+	attachCellTextDocument(textDocument: vscode.TextDocument) {
+		let cell = this.cells.find(cell => cell.uri.toString() === textDocument.uri.toString());
 		if (cell) {
 			cell.attachTextDocument(textDocument);
 		}
 	}
 
-	detachCellTextDocument(cellHandle: number, textDocument: vscode.TextDocument) {
-		let cell = this.cells.find(cell => cell.handle === cellHandle);
-
+	detachCellTextDocument(textDocument: vscode.TextDocument) {
+		let cell = this.cells.find(cell => cell.uri.toString() === textDocument.uri.toString());
 		if (cell) {
 			cell.detachTextDocument(textDocument);
 		}
@@ -342,44 +340,22 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 	) {
 		super();
 		this._register(this._documentsAndEditors.onDidAddDocuments(documents => {
-			for (const data of documents) {
-				let textDocument = data.document;
-				let parsedCellUri = parseCellUri(textDocument.uri);
-
-				if (!parsedCellUri) {
-					continue;
-				}
-
-				let notebookUri = parsedCellUri.notebook;
-				let cellFsPath = textDocument.uri.fsPath;
-
-				const cellHandle = parseCellHandle(cellFsPath);
-
-				if (cellHandle !== undefined) {
-					if (this.document.uri.fsPath === notebookUri.fsPath) {
-						document.attachCellTextDocument(cellHandle, textDocument);
+			for (const { document: textDocument } of documents) {
+				let data = CellUri.parse(textDocument.uri);
+				if (data) {
+					if (this.document.uri.toString() === data.notebook.toString()) {
+						document.attachCellTextDocument(textDocument);
 					}
 				}
 			}
 		}));
 
 		this._register(this._documentsAndEditors.onDidRemoveDocuments(documents => {
-			for (const data of documents) {
-				let textDocument = data.document;
-				let parsedCellUri = parseCellUri(textDocument.uri);
-
-				if (!parsedCellUri) {
-					continue;
-				}
-
-				let notebookUri = parsedCellUri.notebook;
-				let cellFsPath = textDocument.uri.fsPath;
-
-				const cellHandle = parseCellHandle(cellFsPath);
-
-				if (cellHandle !== undefined) {
-					if (this.document.uri.fsPath === notebookUri.fsPath) {
-						document.detachCellTextDocument(cellHandle, textDocument);
+			for (const { document: textDocument } of documents) {
+				let data = CellUri.parse(textDocument.uri);
+				if (data) {
+					if (this.document.uri.toString() === data.notebook.toString()) {
+						document.detachCellTextDocument(textDocument);
 					}
 				}
 			}
@@ -388,12 +364,7 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 
 	createCell(content: string, language: string, type: CellKind, outputs: vscode.CellOutput[]): vscode.NotebookCell {
 		const handle = ExtHostNotebookEditor._cellhandlePool++;
-		const uri = URI.from({
-			scheme: 'vscode-notebook',
-			authority: this.document.viewType,
-			path: generateCellPath(type, handle),
-			query: this.document.uri.toString()
-		});
+		const uri = CellUri.generate(this.document.uri, handle);
 		const cell = new ExtHostCell(handle, uri, content, type, language, outputs);
 		return cell;
 	}
@@ -568,27 +539,14 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 			document?.insertCell(index, rawCell!);
 
 			let allDocuments = this._documentsAndEditors.allDocuments();
-			for (let i = 0; i < allDocuments.length; i++) {
-				let textDocument = allDocuments[i].document;
-				let parsedCellUri = parseCellUri(textDocument.uri);
-
-				if (!parsedCellUri) {
-					continue;
-				}
-
-				let notebookUri = parsedCellUri.notebook;
-				let cellFsPath = textDocument.uri.fsPath;
-				const cellHandle = parseCellHandle(cellFsPath);
-
-				if (cellHandle !== undefined) {
-					if (uri.fsPath === notebookUri.fsPath && Number(cellHandle) === rawCell.handle) {
+			for (let { document: textDocument } of allDocuments) {
+				let data = CellUri.parse(textDocument.uri);
+				if (data) {
+					if (uri.toString() === data.notebook.toString() && textDocument.uri.toString() === rawCell.uri.toString()) {
 						rawCell.attachTextDocument(textDocument);
 					}
-
 				}
 			}
-
-
 			return {
 				uri: rawCell.uri,
 				handle: rawCell.handle,

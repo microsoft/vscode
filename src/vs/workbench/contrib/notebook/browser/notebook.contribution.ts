@@ -27,9 +27,8 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { assertType } from 'vs/base/common/types';
 import { parse } from 'vs/base/common/marshalling';
-import { parseCellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ResourceMap } from 'vs/base/common/map';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 
 // Output renderers registration
 
@@ -40,6 +39,7 @@ import 'vs/workbench/contrib/notebook/browser/view/output/transforms/richTransfo
 // Actions
 import 'vs/workbench/contrib/notebook/browser/contrib/notebookActions';
 import { basename } from 'vs/base/common/resources';
+import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	EditorDescriptor.create(
@@ -86,6 +86,10 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 	}
 );
 
+function getFirstNotebookInfo(notebookService: INotebookService, uri: URI): NotebookProviderInfo | undefined {
+	return notebookService.getContributedNotebookProviders(uri)[0];
+}
+
 export class NotebookContribution implements IWorkbenchContribution {
 	private _resourceMapping = new ResourceMap<NotebookEditorInput>();
 
@@ -111,18 +115,18 @@ export class NotebookContribution implements IWorkbenchContribution {
 			return undefined;
 		}
 
-		const data = parseCellUri(resource);
-		if (data) {
+		let info: NotebookProviderInfo | undefined;
+		const data = CellUri.parse(resource);
+		if (data && (info = getFirstNotebookInfo(this.notebookService, data.notebook))) {
 			// cell-uri -> open (container) notebook
 			const name = basename(data.notebook);
-			const input = this.instantiationService.createInstance(NotebookEditorInput, data.notebook, name, data.viewType);
+			const input = this.instantiationService.createInstance(NotebookEditorInput, data.notebook, name, info.id);
 			this._resourceMapping.set(resource, input);
 			return { override: this.editorService.openEditor(input, new NotebookEditorOptions({ ...options, forceReload: true, cellOptions: { resource, options } }), group) };
 		}
 
-		const notebookProviders = this.notebookService.getContributedNotebookProviders(resource);
-		const viewType = !isFalsyOrEmpty(notebookProviders) ? notebookProviders[0].id : undefined;
-		if (viewType === undefined) {
+		info = getFirstNotebookInfo(this.notebookService, resource);
+		if (!info) {
 			return undefined;
 		}
 
@@ -134,7 +138,7 @@ export class NotebookContribution implements IWorkbenchContribution {
 			}
 		}
 
-		const input = this.instantiationService.createInstance(NotebookEditorInput, resource, originalInput.getName(), viewType);
+		const input = this.instantiationService.createInstance(NotebookEditorInput, resource, originalInput.getName(), info.id);
 		this._resourceMapping.set(resource, input);
 
 		return { override: this.editorService.openEditor(input, options, group) };
@@ -163,11 +167,16 @@ class CellContentProvider implements ITextModelContentProvider {
 		if (existing) {
 			return existing;
 		}
-		const data = parseCellUri(resource);
+		const data = CellUri.parse(resource);
+		// const data = parseCellUri(resource);
 		if (!data) {
 			return null;
 		}
-		const notebook = await this._notebookService.resolveNotebook(data.viewType, data.notebook);
+		const info = getFirstNotebookInfo(this._notebookService, data.notebook);
+		if (!info) {
+			return null;
+		}
+		const notebook = await this._notebookService.resolveNotebook(info.id, data.notebook);
 		if (!notebook) {
 			return null;
 		}

@@ -7,7 +7,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { PieceTreeTextBufferFactory } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
-import { CellKind, generateCellPath, ICell, INotebook, IOutput, NotebookCellOutputsSplice, NotebookCellsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, ICell, INotebook, IOutput, NotebookCellOutputsSplice, NotebookCellsSplice, CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookViewModel, IModelDecorationsChangeAccessor } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
@@ -45,12 +45,7 @@ export class TestCell implements ICell {
 		outputs: IOutput[]
 	) {
 		this._outputs = outputs;
-		this.uri = URI.from({
-			scheme: 'vscode-notebook',
-			authority: viewType,
-			path: generateCellPath(cellKind, handle),
-			query: ''
-		});
+		this.uri = CellUri.generate(URI.parse('test:///fake/notebook'), handle);
 	}
 
 	resolveTextBufferFactory(): PieceTreeTextBufferFactory {
