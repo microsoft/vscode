@@ -534,12 +534,13 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		});
 	}
 
-	async insertEmptyNotebookCell(cell: CellViewModel, type: CellKind, direction: 'above' | 'below'): Promise<void> {
+	async insertNotebookCell(cell: CellViewModel, type: CellKind, direction: 'above' | 'below', initialText: string = ''): Promise<void> {
 		const newLanguages = this.notebookViewModel!.languages;
 		const language = newLanguages && newLanguages.length ? newLanguages[0] : 'markdown';
 		const index = this.notebookViewModel!.getViewCellIndex(cell);
 		const insertIndex = direction === 'above' ? index : index + 1;
 		const newModeCell = await this.notebookService.createNotebookCell(this.notebookViewModel!.viewType, this.notebookViewModel!.uri, insertIndex, language, type);
+		newModeCell!.source = initialText.split(/\r?\n/g);
 		const newCell = this.notebookViewModel!.insertCell(insertIndex, newModeCell!);
 
 		this.list?.splice(insertIndex, 0, [newCell]);

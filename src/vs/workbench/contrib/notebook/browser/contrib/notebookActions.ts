@@ -13,30 +13,93 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { NOTEBOOK_EDITOR_FOCUSED, NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
 
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.executeNotebookCell',
-			title: 'Execute Notebook Cell'
+			title: 'Execute Notebook Cell',
+			keybinding: {
+				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext),
+				primary: KeyMod.WinCtrl | KeyCode.Enter,
+				weight: KeybindingWeight.WorkbenchContrib
+			}
 		});
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		let editorService = accessor.get(IEditorService);
-		let notebookService = accessor.get(INotebookService);
+		runActiveCell(accessor);
+	}
+});
 
-		let resource = editorService.activeEditor?.resource;
-		if (!resource) {
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.executeNotebookCellSelectBelow',
+			title: 'Execute Notebook Cell and Select Below',
+			keybinding: {
+				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext),
+				primary: KeyMod.Shift | KeyCode.Enter,
+				weight: KeybindingWeight.WorkbenchContrib
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const activeCell = runActiveCell(accessor);
+		if (!activeCell) {
 			return;
 		}
 
-		let notebookProviders = notebookService.getContributedNotebookProviders(resource!);
-
-		if (notebookProviders.length > 0) {
-			let viewType = notebookProviders[0].id;
-			notebookService.executeNotebookActiveCell(viewType, resource);
+		const editor = getActiveNotebookEditor(editorService);
+		if (!editor) {
+			return;
 		}
+
+		const idx = editor.viewModel?.getViewCellIndex(activeCell);
+		if (typeof idx !== 'number') {
+			return;
+		}
+
+		// Try to select below, fall back on inserting
+		const nextCell = editor.viewModel?.viewCells[idx + 1];
+		if (nextCell) {
+			editor.focusNotebookCell(nextCell, false);
+		} else {
+			editor.insertNotebookCell(activeCell, CellKind.Code, 'below');
+		}
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.executeNotebookCellInsertBelow',
+			title: 'Execute Notebook Cell and Insert Below',
+			keybinding: {
+				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext),
+				primary: KeyMod.Alt | KeyCode.Enter,
+				weight: KeybindingWeight.WorkbenchContrib
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const activeCell = runActiveCell(accessor);
+		if (!activeCell) {
+			return;
+		}
+
+		const editor = getActiveNotebookEditor(editorService);
+		if (!editor) {
+			return;
+		}
+
+		editor.insertNotebookCell(activeCell, CellKind.Code, 'below');
 	}
 });
 
@@ -191,8 +254,110 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	when: NOTEBOOK_EDITOR_FOCUSED
 });
 
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.changeCellToCode',
+			title: 'Change Cell to Code',
+			keybinding: {
+				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
+				primary: KeyCode.KEY_Y,
+				weight: KeybindingWeight.WorkbenchContrib
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		return changeActiveCellToKind(CellKind.Code, accessor);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.changeCellToMarkdown',
+			title: 'Change Cell to Markdown',
+			keybinding: {
+				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
+				primary: KeyCode.KEY_M,
+				weight: KeybindingWeight.WorkbenchContrib
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		return changeActiveCellToKind(CellKind.Markdown, accessor);
+	}
+});
 
 function getActiveNotebookEditor(editorService: IEditorService): NotebookEditor | undefined {
 	const activeEditorPane = editorService.activeEditorPane as NotebookEditor | undefined;
 	return activeEditorPane?.isNotebookEditor ? activeEditorPane : undefined;
+}
+
+function runActiveCell(accessor: ServicesAccessor): CellViewModel | undefined {
+	const editorService = accessor.get(IEditorService);
+	const notebookService = accessor.get(INotebookService);
+
+	const resource = editorService.activeEditor?.resource;
+	if (!resource) {
+		return;
+	}
+
+	const editor = getActiveNotebookEditor(editorService);
+	if (!editor) {
+		return;
+	}
+
+	const notebookProviders = notebookService.getContributedNotebookProviders(resource);
+	if (!notebookProviders.length) {
+		return;
+	}
+
+	const activeCell = editor.getActiveCell();
+	if (!activeCell) {
+		return;
+	}
+
+	const idx = editor.viewModel?.getViewCellIndex(activeCell);
+	if (typeof idx !== 'number') {
+		return;
+	}
+
+	const viewType = notebookProviders[0].id;
+	notebookService.executeNotebookActiveCell(viewType, resource);
+
+	return activeCell;
+}
+
+function changeActiveCellToKind(kind: CellKind, accessor: ServicesAccessor): void {
+	const editorService = accessor.get(IEditorService);
+	const editor = getActiveNotebookEditor(editorService);
+	if (!editor) {
+		return;
+	}
+
+	const activeCell = editor.getActiveCell();
+	if (!activeCell) {
+		return;
+	}
+
+	if (activeCell.cellKind === kind) {
+		return;
+	}
+
+	const text = activeCell.getText();
+	editor.insertNotebookCell(activeCell, kind, 'below', text);
+	const idx = editor.viewModel?.getViewCellIndex(activeCell);
+	if (typeof idx !== 'number') {
+		return;
+	}
+
+	const newCell = editor.viewModel?.viewCells[idx + 1];
+	if (!newCell) {
+		return;
+	}
+
+	editor.focusNotebookCell(newCell, false);
+	editor.deleteNotebookCell(activeCell);
 }
