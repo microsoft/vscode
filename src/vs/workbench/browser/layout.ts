@@ -892,7 +892,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		);
 
 		this.container.prepend(workbenchGrid.element);
-		this.container.setAttribute('role', 'application');
 		this.workbenchGrid = workbenchGrid;
 
 		[titleBar, editorPart, activityBar, panelPart, sideBar, statusBar].forEach((part: Part) => {
