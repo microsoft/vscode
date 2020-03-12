@@ -34,7 +34,6 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { escape } from 'vs/base/common/strings';
 
 const $ = dom.$;
 let forgetScopes = true;
@@ -98,7 +97,7 @@ export class VariablesView extends ViewPane {
 		const treeContainer = renderViewTree(container);
 
 		this.tree = <WorkbenchAsyncDataTree<IViewModel | IExpression | IScope, IExpression | IScope, FuzzyScore>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'VariablesView', treeContainer, new VariablesDelegate(),
-			[this.instantiationService.createInstance(VariablesRenderer), new ScopesRenderer()],
+			[this.instantiationService.createInstance(VariablesRenderer), new ScopesRenderer(), new ScopeErrorRenderer()],
 			new VariablesDataSource(), {
 			ariaLabel: nls.localize('variablesAriaTreeLabel', "Debug Variables"),
 			accessibilityProvider: new VariablesAccessibilityProvider(),
@@ -247,6 +246,10 @@ class VariablesDelegate implements IListVirtualDelegate<IExpression | IScope> {
 	}
 
 	getTemplateId(element: IExpression | IScope): string {
+		if (element instanceof ErrorScope) {
+			return ScopeErrorRenderer.ID;
+		}
+
 		if (element instanceof Scope) {
 			return ScopesRenderer.ID;
 		}
@@ -271,15 +274,37 @@ class ScopesRenderer implements ITreeRenderer<IScope, FuzzyScore, IScopeTemplate
 	}
 
 	renderElement(element: ITreeNode<IScope, FuzzyScore>, index: number, templateData: IScopeTemplateData): void {
-		const name = element.element.name;
-		if (element.element instanceof ErrorScope) {
-			templateData.name.innerHTML = `<span class="error">${escape(name)}</span>`;
-		} else {
-			templateData.label.set(name, createMatches(element.filterData));
-		}
+		templateData.label.set(element.element.name, createMatches(element.filterData));
 	}
 
 	disposeTemplate(templateData: IScopeTemplateData): void {
+		// noop
+	}
+}
+
+interface IScopeErrorTemplateData {
+	error: HTMLElement;
+}
+
+class ScopeErrorRenderer implements ITreeRenderer<IScope, FuzzyScore, IScopeErrorTemplateData> {
+
+	static readonly ID = 'scopeError';
+
+	get templateId(): string {
+		return ScopeErrorRenderer.ID;
+	}
+
+	renderTemplate(container: HTMLElement): IScopeErrorTemplateData {
+		const wrapper = dom.append(container, $('.scope'));
+		const error = dom.append(wrapper, $('.error'));
+		return { error };
+	}
+
+	renderElement(element: ITreeNode<IScope, FuzzyScore>, index: number, templateData: IScopeErrorTemplateData): void {
+		templateData.error.innerText = element.element.name;
+	}
+
+	disposeTemplate(): void {
 		// noop
 	}
 }
