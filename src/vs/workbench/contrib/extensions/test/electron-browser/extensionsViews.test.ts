@@ -47,6 +47,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { IMenuService } from 'vs/platform/actions/common/actions';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
+import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 
 
 suite('ExtensionsListView Tests', () => {
@@ -137,6 +138,12 @@ suite('ExtensionsListView Tests', () => {
 		instantiationService.stubPromise(IExtensionManagementService, 'getExtensionsReport', []);
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage());
 		instantiationService.stubPromise(IExperimentService, 'getExperimentsByType', []);
+
+		instantiationService.stub(IViewDescriptorService, {
+			getViewLocation(): ViewContainerLocation {
+				return ViewContainerLocation.Sidebar;
+			}
+		});
 
 		instantiationService.stub(IExtensionService, {
 			getExtensions: (): Promise<IExtensionDescription[]> => {

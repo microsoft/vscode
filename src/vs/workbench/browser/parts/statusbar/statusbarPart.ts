@@ -34,6 +34,7 @@ import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { values } from 'vs/base/common/map';
 import { assertIsDefined } from 'vs/base/common/types';
 import { Emitter, Event } from 'vs/base/common/event';
+import { Command } from 'vs/editor/common/modes';
 
 interface IPendingStatusbarEntry {
 	id: string;
@@ -702,7 +703,7 @@ class StatusbarEntryItem extends Disposable {
 
 			const command = entry.command;
 			if (command) {
-				this.commandListener.value = addDisposableListener(this.labelContainer, EventType.CLICK, () => this.executeCommand(command, entry.arguments));
+				this.commandListener.value = addDisposableListener(this.labelContainer, EventType.CLICK, () => this.executeCommand(command));
 
 				removeClass(this.labelContainer, 'disabled');
 			} else {
@@ -738,8 +739,9 @@ class StatusbarEntryItem extends Disposable {
 		this.entry = entry;
 	}
 
-	private async executeCommand(id: string, args?: unknown[]): Promise<void> {
-		args = args || [];
+	private async executeCommand(command: string | Command): Promise<void> {
+		const id = typeof command === 'string' ? command : command.id;
+		const args = typeof command === 'string' ? [] : command.arguments ?? [];
 
 		// Maintain old behaviour of always focusing the editor here
 		const activeTextEditorControl = this.editorService.activeTextEditorControl;

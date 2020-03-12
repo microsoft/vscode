@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, } from 'vs/base/common/lifecycle';
-import { IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, IUserDataSyncStore, getUserDataSyncStore, SyncSource, UserDataSyncStoreError, IUserDataSyncLogService, IUserDataManifest, ResourceKey, IResourceRefHandle } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, IUserDataSyncStore, getUserDataSyncStore, SyncResource, UserDataSyncStoreError, IUserDataSyncLogService, IUserDataManifest, IResourceRefHandle } from 'vs/platform/userDataSync/common/userDataSync';
 import { IRequestService, asText, isSuccess, asJson } from 'vs/platform/request/common/request';
 import { joinPath, relativePath } from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -31,12 +31,12 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		this.userDataSyncStore = getUserDataSyncStore(productService, configurationService);
 	}
 
-	async getAllRefs(key: ResourceKey): Promise<IResourceRefHandle[]> {
+	async getAllRefs(resource: SyncResource): Promise<IResourceRefHandle[]> {
 		if (!this.userDataSyncStore) {
 			throw new Error('No settings sync store url configured.');
 		}
 
-		const uri = joinPath(this.userDataSyncStore.url, 'resource', key);
+		const uri = joinPath(this.userDataSyncStore.url, 'resource', resource);
 		const headers: IHeaders = {};
 
 		const context = await this.request({ type: 'GET', url: uri.toString(), headers }, undefined, CancellationToken.None);
@@ -49,12 +49,12 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		return result.map(({ url, created }) => ({ ref: relativePath(uri, URI.parse(url))!, created: created }));
 	}
 
-	async resolveContent(key: ResourceKey, ref: string): Promise<string | null> {
+	async resolveContent(resource: SyncResource, ref: string): Promise<string | null> {
 		if (!this.userDataSyncStore) {
 			throw new Error('No settings sync store url configured.');
 		}
 
-		const url = joinPath(this.userDataSyncStore.url, 'resource', key, ref).toString();
+		const url = joinPath(this.userDataSyncStore.url, 'resource', resource, ref).toString();
 		const headers: IHeaders = {};
 
 		const context = await this.request({ type: 'GET', url, headers }, undefined, CancellationToken.None);
@@ -67,12 +67,12 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		return content;
 	}
 
-	async delete(key: ResourceKey): Promise<void> {
+	async delete(resource: SyncResource): Promise<void> {
 		if (!this.userDataSyncStore) {
 			throw new Error('No settings sync store url configured.');
 		}
 
-		const url = joinPath(this.userDataSyncStore.url, 'resource', key).toString();
+		const url = joinPath(this.userDataSyncStore.url, 'resource', resource).toString();
 		const headers: IHeaders = {};
 
 		const context = await this.request({ type: 'DELETE', url, headers }, undefined, CancellationToken.None);
@@ -82,12 +82,12 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		}
 	}
 
-	async read(key: ResourceKey, oldValue: IUserData | null, source?: SyncSource): Promise<IUserData> {
+	async read(resource: SyncResource, oldValue: IUserData | null): Promise<IUserData> {
 		if (!this.userDataSyncStore) {
 			throw new Error('No settings sync store url configured.');
 		}
 
-		const url = joinPath(this.userDataSyncStore.url, 'resource', key, 'latest').toString();
+		const url = joinPath(this.userDataSyncStore.url, 'resource', resource, 'latest').toString();
 		const headers: IHeaders = {};
 		// Disable caching as they are cached by synchronisers
 		headers['Cache-Control'] = 'no-cache';
@@ -95,7 +95,7 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 			headers['If-None-Match'] = oldValue.ref;
 		}
 
-		const context = await this.request({ type: 'GET', url, headers }, source, CancellationToken.None);
+		const context = await this.request({ type: 'GET', url, headers }, resource, CancellationToken.None);
 
 		if (context.res.statusCode === 304) {
 			// There is no new value. Hence return the old value.
@@ -103,37 +103,37 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		}
 
 		if (!isSuccess(context)) {
-			throw new UserDataSyncStoreError('Server returned ' + context.res.statusCode, UserDataSyncErrorCode.Unknown, source);
+			throw new UserDataSyncStoreError('Server returned ' + context.res.statusCode, UserDataSyncErrorCode.Unknown, resource);
 		}
 
 		const ref = context.res.headers['etag'];
 		if (!ref) {
-			throw new UserDataSyncStoreError('Server did not return the ref', UserDataSyncErrorCode.NoRef, source);
+			throw new UserDataSyncStoreError('Server did not return the ref', UserDataSyncErrorCode.NoRef, resource);
 		}
 		const content = await asText(context);
 		return { ref, content };
 	}
 
-	async write(key: ResourceKey, data: string, ref: string | null, source?: SyncSource): Promise<string> {
+	async write(resource: SyncResource, data: string, ref: string | null): Promise<string> {
 		if (!this.userDataSyncStore) {
 			throw new Error('No settings sync store url configured.');
 		}
 
-		const url = joinPath(this.userDataSyncStore.url, 'resource', key).toString();
+		const url = joinPath(this.userDataSyncStore.url, 'resource', resource).toString();
 		const headers: IHeaders = { 'Content-Type': 'text/plain' };
 		if (ref) {
 			headers['If-Match'] = ref;
 		}
 
-		const context = await this.request({ type: 'POST', url, data, headers }, source, CancellationToken.None);
+		const context = await this.request({ type: 'POST', url, data, headers }, resource, CancellationToken.None);
 
 		if (!isSuccess(context)) {
-			throw new UserDataSyncStoreError('Server returned ' + context.res.statusCode, UserDataSyncErrorCode.Unknown, source);
+			throw new UserDataSyncStoreError('Server returned ' + context.res.statusCode, UserDataSyncErrorCode.Unknown, resource);
 		}
 
 		const newRef = context.res.headers['etag'];
 		if (!newRef) {
-			throw new UserDataSyncStoreError('Server did not return the ref', UserDataSyncErrorCode.NoRef, source);
+			throw new UserDataSyncStoreError('Server did not return the ref', UserDataSyncErrorCode.NoRef, resource);
 		}
 		return newRef;
 	}
@@ -169,7 +169,7 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		}
 	}
 
-	private async request(options: IRequestOptions, source: SyncSource | undefined, token: CancellationToken): Promise<IRequestContext> {
+	private async request(options: IRequestOptions, source: SyncResource | undefined, token: CancellationToken): Promise<IRequestContext> {
 		const authToken = await this.authTokenService.getToken();
 		if (!authToken) {
 			throw new UserDataSyncStoreError('No Auth Token Available', UserDataSyncErrorCode.Unauthorized, source);

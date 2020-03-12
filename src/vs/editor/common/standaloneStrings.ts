@@ -54,6 +54,7 @@ export namespace QuickCommandNLS {
 	export const ariaLabelEntry = nls.localize('ariaLabelEntry', "{0}, commands");
 	export const quickCommandActionInput = nls.localize('quickCommandActionInput', "Type the name of an action you want to execute");
 	export const quickCommandActionLabel = nls.localize('quickCommandActionLabel', "Command Palette");
+	export const quickCommandHelp = nls.localize('quickCommandActionHelp', "Show And Run Commands");
 }
 
 export namespace QuickOutlineNLS {
