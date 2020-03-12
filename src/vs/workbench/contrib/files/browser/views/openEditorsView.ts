@@ -46,6 +46,7 @@ import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities } from 'vs/w
 import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { escapeCodicons } from 'vs/base/common/codicons';
 
 const $ = dom.$;
 
@@ -582,7 +583,7 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 		const key = this.keybindingService.lookupKeybinding(closeEditorAction.id);
 		editorTemplate.actionBar.push(closeEditorAction, { icon: true, label: false, keybinding: key ? key.getLabel() : undefined });
 
-		editorTemplate.root = this.labels.create(container);
+		editorTemplate.root = this.labels.create(container, { supportCodicons: true });
 
 		return editorTemplate;
 	}
@@ -591,9 +592,10 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 		const editor = openedEditor.editor;
 		templateData.actionRunner.editor = openedEditor;
 		editor.isDirty() && !editor.isSaving() ? dom.addClass(templateData.container, 'dirty') : dom.removeClass(templateData.container, 'dirty');
+		const displayName = editor.iconPath ? `$(${editor.iconPath.id}) ${escapeCodicons(editor.getName())}` : escapeCodicons(editor.getName());
 		templateData.root.setResource({
 			resource: toResource(editor, { supportSideBySide: SideBySideEditor.MASTER }),
-			name: editor.getName(),
+			name: displayName,
 			description: editor.getDescription(Verbosity.MEDIUM)
 		}, {
 			italic: openedEditor.isPreview(),

@@ -45,6 +45,7 @@ import { basenameOrAuthority } from 'vs/base/common/resources';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
 import { IPath, win32, posix } from 'vs/base/common/path';
+import { escapeCodicons } from 'vs/base/common/codicons';
 
 interface IEditorInputLabel {
 	name?: string;
@@ -493,7 +494,9 @@ export class TabsTitleControl extends TitleControl {
 		tabContainer.appendChild(tabBorderTopContainer);
 
 		// Tab Editor Label
-		const editorLabel = this.tabResourceLabels.create(tabContainer);
+		const editorLabel = this.tabResourceLabels.create(tabContainer, {
+			supportCodicons: true,
+		});
 
 		// Tab Close Button
 		const tabCloseContainer = document.createElement('div');
@@ -954,7 +957,7 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private redrawLabel(editor: IEditorInput, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel): void {
-		const name = tabLabel.name;
+		const name = tabLabel.name || '';
 		const description = tabLabel.description || '';
 		const title = tabLabel.title || '';
 
@@ -963,8 +966,9 @@ export class TabsTitleControl extends TitleControl {
 		tabContainer.title = title;
 
 		// Label
+		const displayName = editor.iconPath ? `$(${editor.iconPath.id}) ${escapeCodicons(name)}` : escapeCodicons(name);
 		const resource = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
-		tabLabelWidget.setResource({ name, description, resource }, { title, extraClasses: ['tab-label'], italic: !this.group.isPinned(editor) });
+		tabLabelWidget.setResource({ name: displayName, description, resource }, { title, extraClasses: ['tab-label'], italic: !this.group.isPinned(editor) });
 
 		// Tests helper
 		if (resource) {

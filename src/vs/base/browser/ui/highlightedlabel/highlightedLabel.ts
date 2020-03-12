@@ -21,7 +21,7 @@ export class HighlightedLabel {
 	private highlights: IHighlight[] = [];
 	private didEverRender: boolean = false;
 
-	constructor(container: HTMLElement, private supportCodicons: boolean) {
+	constructor(container: HTMLElement, private readonly supportCodicons: boolean) {
 		this.domNode = document.createElement('span');
 		this.domNode.className = 'monaco-highlighted-label';
 

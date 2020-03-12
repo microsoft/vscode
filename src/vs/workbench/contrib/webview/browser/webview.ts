@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Dimension } from 'vs/base/browser/dom';
+import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -12,7 +13,7 @@ import * as nls from 'vs/nls';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 /**
  * Set when the find widget in a webview is visible.
@@ -25,10 +26,10 @@ export const webviewHasOwnEditFunctionsContext = new RawContextKey<boolean>(webv
 
 export const IWebviewService = createDecorator<IWebviewService>('webviewService');
 
-export interface WebviewIcons {
+export type WebviewIcons = ThemeIcon | {
 	readonly light: URI;
 	readonly dark: URI;
-}
+};
 
 /**
  * Handles the creation of webview elements.

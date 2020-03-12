@@ -10,11 +10,13 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IEditorInputFactory } from 'vs/workbench/common/editor';
 import { WebviewInput } from './webviewEditorInput';
 import { IWebviewWorkbenchService, WebviewInputOptions } from './webviewWorkbenchService';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { WebviewIcons } from 'vs/workbench/contrib/webview/browser/webview';
 
-interface SerializedIconPath {
-	light: string | UriComponents;
-	dark: string | UriComponents;
-}
+type SerializedIconPath = ThemeIcon | {
+	readonly light: string | UriComponents;
+	readonly dark: string | UriComponents;
+};
 
 interface SerializedWebview {
 	readonly id?: string;
@@ -84,15 +86,21 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 			extensionLocation: input.extension ? input.extension.location : undefined,
 			extensionId: input.extension && input.extension.id ? input.extension.id.value : undefined,
 			state: input.webview.state,
-			iconPath: input.iconPath ? { light: input.iconPath.light, dark: input.iconPath.dark, } : undefined,
+			iconPath: input.webviewIconPath
+				? ThemeIcon.isThemeIcon(input.webviewIconPath) ? input.webviewIconPath : { light: input.webviewIconPath.light, dark: input.webviewIconPath.dark, }
+				: undefined,
 			group: input.group
 		};
 	}
 }
 
-function reviveIconPath(data: SerializedIconPath | undefined) {
+function reviveIconPath(data: SerializedIconPath | undefined): WebviewIcons | undefined {
 	if (!data) {
 		return undefined;
+	}
+
+	if (ThemeIcon.isThemeIcon(data)) {
+		return data;
 	}
 
 	const light = reviveUri(data.light);

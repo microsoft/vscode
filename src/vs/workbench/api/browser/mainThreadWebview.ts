@@ -6,7 +6,7 @@
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable, IReference, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { basename } from 'vs/base/common/path';
 import { isWeb } from 'vs/base/common/platform';
@@ -21,6 +21,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { editorGroupToViewColumn, EditorViewColumn, viewColumnToEditorGroup } from 'vs/workbench/api/common/shared/editor';
 import { IEditorInput, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
@@ -196,9 +197,9 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		webview.setName(value);
 	}
 
-	public $setIconPath(handle: extHostProtocol.WebviewPanelHandle, value: { light: UriComponents, dark: UriComponents; } | undefined): void {
+	public $setIconPath(handle: extHostProtocol.WebviewPanelHandle, value: { light: UriComponents, dark: UriComponents; } | extHostProtocol.ThemeIconDto | undefined): void {
 		const webview = this.getWebviewInput(handle);
-		webview.iconPath = reviveWebviewIcon(value);
+		webview.webviewIconPath = reviveWebviewIcon(value);
 	}
 
 	public $setHtml(handle: extHostProtocol.WebviewPanelHandle, value: string): void {
@@ -505,11 +506,19 @@ function reviveWebviewOptions(options: modes.IWebviewOptions): WebviewInputOptio
 }
 
 function reviveWebviewIcon(
-	value: { light: UriComponents, dark: UriComponents; } | undefined
+	value: extHostProtocol.WebviewUriIconDto | extHostProtocol.ThemeIconDto | undefined
 ): WebviewIcons | undefined {
-	return value
-		? { light: URI.revive(value.light), dark: URI.revive(value.dark) }
-		: undefined;
+	if (!value) {
+		return undefined;
+	}
+	if ((value as extHostProtocol.ThemeIconDto).id) {
+		return value as ThemeIcon;
+	}
+
+	return {
+		light: URI.revive((value as extHostProtocol.WebviewUriIconDto).light),
+		dark: URI.revive((value as extHostProtocol.WebviewUriIconDto).dark),
+	};
 }
 
 namespace HotExitState {

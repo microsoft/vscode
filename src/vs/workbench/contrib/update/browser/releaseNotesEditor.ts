@@ -89,7 +89,7 @@ export class ReleaseNotesManager {
 			this._currentReleaseNotes.onDispose(() => { this._currentReleaseNotes = undefined; });
 
 			const iconPath = URI.parse(require.toUrl('./media/code-icon.svg'));
-			this._currentReleaseNotes.iconPath = {
+			this._currentReleaseNotes.webviewIconPath = {
 				light: iconPath,
 				dark: iconPath
 			};

@@ -209,7 +209,7 @@ export class WebviewEditorService implements IWebviewWorkbenchService {
 		});
 
 		const webviewInput = this._instantiationService.createInstance(LazilyResolvedWebviewEditorInput, id, viewType, title, webview);
-		webviewInput.iconPath = iconPath;
+		webviewInput.webviewIconPath = iconPath;
 
 		if (typeof group === 'number') {
 			webviewInput.updateGroup(group);

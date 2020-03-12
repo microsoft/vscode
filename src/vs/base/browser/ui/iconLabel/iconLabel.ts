@@ -10,6 +10,8 @@ import { IMatch } from 'vs/base/common/filters';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/base/common/range';
 import { equals } from 'vs/base/common/objects';
+import { renderCodicons } from 'vs/base/common/codicons';
+import { escape } from 'vs/base/common/strings';
 
 export interface IIconLabelCreationOptions {
 	supportHighlights?: boolean;
@@ -112,7 +114,7 @@ export class IconLabel extends Disposable {
 		if (options?.supportHighlights) {
 			this.nameNode = new LabelWithHighlights(nameContainer, !!options.supportCodicons);
 		} else {
-			this.nameNode = new Label(nameContainer);
+			this.nameNode = new Label(nameContainer, options?.supportCodicons);
 		}
 
 		if (options?.supportDescriptionHighlights) {
@@ -170,7 +172,7 @@ class Label {
 	private singleLabel: HTMLElement | undefined = undefined;
 	private options: IIconLabelValueOptions | undefined;
 
-	constructor(private container: HTMLElement) { }
+	constructor(private readonly container: HTMLElement, private readonly supportCodicons = false) { }
 
 	setLabel(label: string | string[], options?: IIconLabelValueOptions): void {
 		if (this.label === label && equals(this.options, options)) {
@@ -186,8 +188,7 @@ class Label {
 				dom.removeClass(this.container, 'multiple');
 				this.singleLabel = dom.append(this.container, dom.$('a.label-name', { id: options?.domId }));
 			}
-
-			this.singleLabel.textContent = label;
+			this.singleLabel.innerHTML = this.supportCodicons ? renderCodicons(escape(label)) : escape(label);
 		} else {
 			this.container.innerHTML = '';
 			dom.addClass(this.container, 'multiple');
@@ -233,7 +234,7 @@ class LabelWithHighlights {
 	private singleLabel: HighlightedLabel | undefined = undefined;
 	private options: IIconLabelValueOptions | undefined;
 
-	constructor(private container: HTMLElement, private supportCodicons: boolean) { }
+	constructor(private readonly container: HTMLElement, private readonly supportCodicons: boolean) { }
 
 	setLabel(label: string | string[], options?: IIconLabelValueOptions): void {
 		if (this.label === label && equals(this.options, options)) {

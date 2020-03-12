@@ -8,6 +8,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { WebviewIcons } from 'vs/workbench/contrib/webview/browser/webview';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 export class WebviewIconManager {
 
@@ -50,17 +51,26 @@ export class WebviewIconManager {
 		const cssRules: string[] = [];
 		if (this._configService.getValue('workbench.iconTheme') !== null) {
 			for (const [key, value] of this._icons) {
-				const webviewSelector = `.show-file-icons .webview-${key}-name-file-icon::before`;
-				try {
+				const webviewSelector = `.show-file-icons .webview-${key}-name-file-icon`;
+				if (ThemeIcon.isThemeIcon(value)) {
+					// Theme icons are handled by EditorInput so hide the standard file icons.
 					cssRules.push(
-						`.vs ${webviewSelector} { content: ""; background-image: ${dom.asCSSUrl(value.light)}; }`,
-						`.vs-dark ${webviewSelector} { content: ""; background-image: ${dom.asCSSUrl(value.dark)}; }`
+						`.vs ${webviewSelector}::before { display: none; }`,
+						`.vs-dark ${webviewSelector}::before { display: none; }`,
 					);
-				} catch {
-					// noop
+				} else {
+					try {
+						cssRules.push(
+							`.vs ${webviewSelector}::before { content: ""; background-image: ${dom.asCSSUrl(value.light)}; }`,
+							`.vs-dark ${webviewSelector}::before { content: ""; background-image: ${dom.asCSSUrl(value.dark)}; }`
+						);
+					} catch {
+						// noop
+					}
 				}
 			}
 		}
 		this._styleElement.innerHTML = cssRules.join('\n');
 	}
 }
+
