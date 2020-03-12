@@ -345,6 +345,9 @@ function getSchemaAssociations(_context: ExtensionContext): ISchemaAssociation[]
 						fileMatch = [fileMatch];
 					}
 					if (Array.isArray(fileMatch) && url) {
+						if (url[0] === '.' && url[1] === '/') {
+							url = Uri.file(path.join(extension.extensionPath, url)).toString();
+						}
 						fileMatch = fileMatch.map(fm => {
 							if (fm[0] === '%') {
 								fm = fm.replace(/%APP_SETTINGS_HOME%/, '/User');
