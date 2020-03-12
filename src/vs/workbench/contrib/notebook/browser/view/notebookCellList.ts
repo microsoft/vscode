@@ -247,7 +247,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const wrapperBottom = scrollTop + this.view.renderHeight;
 		const elementTop = this.view.elementTop(index);
 
-		if (ignoreIfInsideViewport && elementTop >= scrollTop && elementTop <= wrapperBottom) {
+		if (ignoreIfInsideViewport && elementTop >= scrollTop && elementTop < wrapperBottom) {
 			// inside the viewport
 			return;
 		}

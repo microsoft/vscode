@@ -129,6 +129,21 @@ export class NotebookViewModel extends Disposable {
 		viewCell.dispose();
 	}
 
+	moveCellToIdx(index: number, newIdx: number): boolean {
+		const viewCell = this.viewCells[index];
+		if (!viewCell) {
+			return false;
+		}
+
+		this.viewCells.splice(index, 1);
+		this._model.deleteCell(viewCell.cell);
+
+		this.viewCells!.splice(newIdx, 0, viewCell);
+		this._model.insertCell(viewCell.cell, newIdx);
+
+		return true;
+	}
+
 	saveEditorViewState(): INotebookEditorViewState {
 		const state: { [key: number]: boolean } = {};
 		this.viewCells.filter(cell => cell.isEditing).forEach(cell => state[cell.cell.handle] = true);

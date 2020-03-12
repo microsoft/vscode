@@ -571,6 +571,31 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		this.list?.splice(index, 1);
 	}
 
+	moveCellDown(cell: CellViewModel): void {
+		const index = this.notebookViewModel!.getViewCellIndex(cell);
+		const newIdx = index + 1;
+		this.moveCellToIndex(cell, index, newIdx);
+	}
+
+	moveCellUp(cell: CellViewModel): void {
+		const index = this.notebookViewModel!.getViewCellIndex(cell);
+		const newIdx = index - 1;
+		this.moveCellToIndex(cell, index, newIdx);
+	}
+
+	private moveCellToIndex(cell: CellViewModel, index: number, newIdx: number): void {
+		if (!this.notebookViewModel!.moveCellToIdx(index, newIdx)) {
+			return;
+		}
+
+		this.list?.splice(index, 1);
+		this.list!.splice(newIdx, 0, [cell]);
+
+		DOM.scheduleAtNextAnimationFrame(() => {
+			this.list?.revealInCenterIfOutsideViewport(index + 1);
+		});
+	}
+
 	editNotebookCell(cell: CellViewModel): void {
 		cell.state = CellState.Editing;
 
