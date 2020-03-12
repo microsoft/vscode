@@ -301,6 +301,7 @@ export interface IScope extends IExpressionContainer {
 	readonly name: string;
 	readonly expensive: boolean;
 	readonly range?: IRange;
+	readonly hasChildren: boolean;
 }
 
 export interface IStackFrame extends ITreeElement {
