@@ -35,6 +35,11 @@ export interface INotebookEditor {
 	focus(): void;
 
 	/**
+	 * Select & focus cell
+	 */
+	selectElement(cell: CellViewModel): void;
+
+	/**
 	 * Layout info for the notebook editor
 	 */
 	getLayoutInfo(): NotebookLayoutInfo;
@@ -141,7 +146,7 @@ export interface INotebookEditor {
 	 */
 	revealRangeInCenterIfOutsideViewport(cell: CellViewModel, range: Range): void;
 
-	setSelection(cell: CellViewModel, selection: Range): void;
+	setCellSelection(cell: CellViewModel, selection: Range): void;
 
 	/**
 	 * Change the decorations on cells.
@@ -193,4 +198,25 @@ export enum CellRevealType {
 export enum CellRevealPosition {
 	Top,
 	Center
+}
+
+export enum CellState {
+	/**
+	 * Default state.
+	 * For markdown cell, it's Markdown preview.
+	 * For code cell, the browser focus should be on the container instead of the editor
+	 */
+	Read,
+
+	/**
+	 * Content preview mode.
+	 * For markdown cell, the source is now rendered in the editor. When the cell is not longer focsued/selected, it will fall back to Read mode.
+	 * For code cell, this state is the same as Editing
+	 */
+	PreviewContent,
+
+	/**
+	 * Eding mode. Source for markdown or code is rendered in editors and the state will be persistent.
+	 */
+	Editing
 }

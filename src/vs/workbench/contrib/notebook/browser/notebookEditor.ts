@@ -21,7 +21,7 @@ import { contrastBorder, editorBackground, focusBorder, foreground, textBlockQuo
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions, IEditorMemento, ICompositeCodeEditor, IEditorCloseEvent } from 'vs/workbench/common/editor';
-import { INotebookEditor, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor, NotebookLayoutInfo, CellState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorInput, NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
@@ -411,6 +411,15 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 	//#region Editor Features
 
+	selectElement(cell: CellViewModel) {
+		const index = this.notebookViewModel?.getViewCellIndex(cell);
+
+		if (index !== undefined) {
+			this.list?.setSelection([index]);
+			this.list?.setFocus([index]);
+		}
+	}
+
 	revealInView(cell: CellViewModel) {
 		const index = this.notebookViewModel?.getViewCellIndex(cell);
 
@@ -483,7 +492,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		}
 	}
 
-	setSelection(cell: CellViewModel, range: Range): void {
+	setCellSelection(cell: CellViewModel, range: Range): void {
 		const index = this.notebookViewModel?.getViewCellIndex(cell);
 
 		if (index !== undefined) {
@@ -547,7 +556,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		this.list?.setFocus([insertIndex]);
 
 		if (type === CellKind.Markdown) {
-			newCell.isEditing = true;
+			newCell.state = CellState.Editing;
 		}
 
 		DOM.scheduleAtNextAnimationFrame(() => {
@@ -563,13 +572,13 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	}
 
 	editNotebookCell(cell: CellViewModel): void {
-		cell.isEditing = true;
+		cell.state = CellState.Editing;
 
 		this.renderedEditors.get(cell)?.focus();
 	}
 
 	saveNotebookCell(cell: CellViewModel): void {
-		cell.isEditing = false;
+		cell.state = CellState.Read;
 	}
 
 	getActiveCell() {
@@ -593,7 +602,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 				(document.activeElement as HTMLElement).blur();
 			}
 
-			cell.isEditing = false;
+			cell.state = CellState.Read;
 		}
 
 		this.list?.setFocus([index]);

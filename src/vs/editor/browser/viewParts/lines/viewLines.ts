@@ -484,7 +484,8 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 	 * Returns false if some lines need to be reevaluated (in a slow fashion).
 	 */
 	private _updateLineWidthsFast(): boolean {
-		return this._updateLineWidths(true);
+		// TODO@rebornix triggering `updateLineWidthsFast` flushes scroll left.
+		return this._updateLineWidths(false);
 	}
 
 	private _updateLineWidthsSlow(): void {

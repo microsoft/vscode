@@ -16,7 +16,7 @@ import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer'
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MarkdownRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/mdRenderer';
 import { CellKind, EDITOR_BOTTOM_PADDING, EDITOR_TOP_PADDING, ICell, IOutput, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { CellFindMatch } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellFindMatch, CellState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 export class CellViewModel extends Disposable {
 
@@ -50,8 +50,27 @@ export class CellViewModel extends Disposable {
 	get isEditing(): boolean {
 		return this._isEditing;
 	}
-	set isEditing(newState: boolean) {
-		this._isEditing = newState;
+
+	private _state: CellState = CellState.Read;
+
+	get state(): CellState {
+		return this._state;
+	}
+
+	set state(newState: CellState) {
+		// no downgrade from Editing to PreviewContent
+		if (this._state === CellState.Editing && newState === CellState.PreviewContent) {
+			return;
+		}
+
+		this._state = newState;
+
+		if (newState !== CellState.Read) {
+			this._isEditing = true;
+		} else {
+			this._isEditing = false;
+		}
+
 		this._onDidChangeEditingState.fire();
 	}
 
@@ -300,7 +319,7 @@ export class CellViewModel extends Disposable {
 	}
 
 	revealRangeInCenter(range: Range) {
-		this._textEditor?.revealRangeInCenter(range);
+		this._textEditor?.revealRangeInCenter(range, editorCommon.ScrollType.Immediate);
 	}
 
 	setSelection(range: Range) {
@@ -351,6 +370,12 @@ export class CellViewModel extends Disposable {
 		});
 
 		return ret;
+	}
+
+	onDeselect() {
+		if (this.state === CellState.PreviewContent) {
+			this.state = CellState.Read;
+		}
 	}
 
 	getMarkdownRenderer() {

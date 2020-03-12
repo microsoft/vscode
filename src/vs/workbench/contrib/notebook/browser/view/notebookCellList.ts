@@ -18,13 +18,17 @@ import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/n
 import { EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { CellRevealType, CellRevealPosition } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { TestHistoryService } from 'vs/workbench/test/browser/workbenchTestServices';
 
-export class NotebookCellList extends WorkbenchList<CellViewModel> {
+export class NotebookCellList extends WorkbenchList<CellViewModel> implements IDisposable {
 	get onWillScroll(): Event<ScrollEvent> { return this.view.onWillScroll; }
 
 	get rowsContainer(): HTMLElement {
 		return this.view.containerDomNode;
 	}
+	private _previousSelectedElements: CellViewModel[] = [];
+	private _localDisposableStore = new DisposableStore();
 
 	constructor(
 		private listUser: string,
@@ -40,6 +44,16 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> {
 
 	) {
 		super(listUser, container, delegate, renderers, options, contextKeyService, listService, themeService, configurationService, keybindingService);
+
+		this._previousSelectedElements = this.getSelectedElements();
+		this._localDisposableStore.add(this.onDidChangeSelection((e) => {
+			this._previousSelectedElements.forEach(element => {
+				if (e.elements.indexOf(element) < 0) {
+					element.onDeselect();
+				}
+			});
+			this._previousSelectedElements = e.elements;
+		}));
 	}
 
 	domElementAtIndex(index: number): HTMLElement | null {
@@ -264,9 +278,17 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> {
 
 	setCellSelection(index: number, range: Range) {
 		const element = this.view.element(index);
-		element.setSelection(range);
+		if (element.editorAttached) {
+			element.setSelection(range);
+		} else {
+			getEditorAttachedPromise(element).then(() => { element.setSelection(range); });
+		}
 	}
 
+	dispose() {
+		this._localDisposableStore.dispose();
+		super.dispose();
+	}
 }
 
 function getEditorAttachedPromise(element: CellViewModel) {

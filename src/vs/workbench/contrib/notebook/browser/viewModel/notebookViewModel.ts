@@ -12,7 +12,7 @@ import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/n
 import { NotebookCellsSplice, ICell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { CellFindMatch } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellFindMatch, CellState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 export interface INotebookEditorViewState {
 	editingCells: { [key: number]: boolean };
@@ -89,7 +89,7 @@ export class NotebookViewModel extends Disposable {
 	hide() {
 		this.viewCells.forEach(cell => {
 			if (cell.getText() !== '') {
-				cell.isEditing = false;
+				cell.state = CellState.Read;
 			}
 		});
 	}
@@ -154,7 +154,7 @@ export class NotebookViewModel extends Disposable {
 			const isEditing = viewState.editingCells && viewState.editingCells[cell.handle];
 			const editorViewState = viewState.editorViewStates && viewState.editorViewStates[cell.handle];
 
-			cell.isEditing = isEditing;
+			cell.state = isEditing ? CellState.Editing : CellState.Read;
 			cell.restoreEditorViewState(editorViewState);
 		});
 	}
@@ -196,7 +196,9 @@ export class NotebookViewModel extends Disposable {
 			}
 
 			const data = mapping.get(ownerId)!;
-			data.oldDecorations = oldDecoration.decorations;
+			if (data) {
+				data.oldDecorations = oldDecoration.decorations;
+			}
 		});
 
 		newDecorations.forEach(newDecoration => {
@@ -211,7 +213,9 @@ export class NotebookViewModel extends Disposable {
 			}
 
 			const data = mapping.get(ownerId)!;
-			data.newDecorations = newDecoration.decorations;
+			if (data) {
+				data.newDecorations = newDecoration.decorations;
+			}
 		});
 
 		const ret: ICellModelDecorations[] = [];

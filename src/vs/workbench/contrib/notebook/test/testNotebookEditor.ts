@@ -90,8 +90,11 @@ export class TestNotebookEditor implements INotebookEditor {
 
 	constructor(
 	) { }
+	selectElement(cell: CellViewModel): void {
+		throw new Error('Method not implemented.');
+	}
 
-	setSelection(cell: CellViewModel, selection: Range): void {
+	setCellSelection(cell: CellViewModel, selection: Range): void {
 		throw new Error('Method not implemented.');
 	}
 	revealRangeInView(cell: CellViewModel, range: Range): void {

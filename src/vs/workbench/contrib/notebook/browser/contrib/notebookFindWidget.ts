@@ -6,7 +6,7 @@
 import { SimpleFindWidget } from 'vs/workbench/contrib/codeEditor/browser/find/simpleFindWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, INotebookEditor, CellFindMatch } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, INotebookEditor, CellFindMatch, CellState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { FindDecorations } from 'vs/editor/contrib/find/findDecorations';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
@@ -40,12 +40,7 @@ export class NotebookFindWidget extends SimpleFindWidget {
 
 				if (this._currentMatch !== -1) {
 					const nextIndex = this._findMatchesStarts!.getIndexOf(this._currentMatch);
-					const cellIndex = nextIndex.index;
-					const matchIndex = nextIndex.remainder;
-
-					this._findMatches[cellIndex].cell.isEditing = true;
-					this._notebookEditor.setSelection(this._findMatches[cellIndex].cell, this._findMatches[cellIndex].matches[matchIndex].range);
-					this._notebookEditor.revealRangeInCenterIfOutsideViewport(this._findMatches[cellIndex].cell, this._findMatches[cellIndex].matches[matchIndex].range);
+					this.revealCellRange(nextIndex.index, nextIndex.remainder);
 				}
 			} else {
 				this.set(null);
@@ -79,12 +74,14 @@ export class NotebookFindWidget extends SimpleFindWidget {
 		this._currentMatch = nextVal;
 
 		const nextIndex = this._findMatchesStarts!.getIndexOf(nextVal);
-		const cellIndex = nextIndex.index;
-		const matchIndex = nextIndex.remainder;
+		this.setCurrentFindMatchDecoration(nextIndex.index, nextIndex.remainder);
+		this.revealCellRange(nextIndex.index, nextIndex.remainder);
+	}
 
-		this.setCurrentFindMatchDecoration(cellIndex, matchIndex);
-		this._findMatches[cellIndex].cell.isEditing = true;
-		this._notebookEditor.setSelection(this._findMatches[cellIndex].cell, this._findMatches[cellIndex].matches[matchIndex].range);
+	private revealCellRange(cellIndex: number, matchIndex: number) {
+		this._findMatches[cellIndex].cell.state = CellState.PreviewContent;
+		this._notebookEditor.selectElement(this._findMatches[cellIndex].cell);
+		this._notebookEditor.setCellSelection(this._findMatches[cellIndex].cell, this._findMatches[cellIndex].matches[matchIndex].range);
 		this._notebookEditor.revealRangeInCenterIfOutsideViewport(this._findMatches[cellIndex].cell, this._findMatches[cellIndex].matches[matchIndex].range);
 	}
 
