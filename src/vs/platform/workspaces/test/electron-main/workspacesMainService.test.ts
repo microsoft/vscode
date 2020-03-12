@@ -303,28 +303,31 @@ suite('WorkspacesMainService', () => {
 
 		let origConfigPath = workspace.configPath;
 		let workspaceConfigPath = URI.file(path.join(tmpDir, 'inside', 'myworkspace1.code-workspace'));
+		let workspaceConfigFolder = dirname(workspaceConfigPath);
 		let newContent = rewriteWorkspaceFileForNewLocation(origContent, origConfigPath, workspaceConfigPath);
 		let ws = (JSON.parse(newContent) as IStoredWorkspace);
 		assert.equal(ws.folders.length, 3);
-		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[0]).path, path.join('..', '..', folder1)); // absolute path because outside of tmpdir
+		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[0]).path, path.relative(workspaceConfigFolder.fsPath, folder1));
 		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[1]).path, '.');
 		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[2]).path, 'somefolder');
 
 		origConfigPath = workspaceConfigPath;
 		workspaceConfigPath = URI.file(path.join(tmpDir, 'myworkspace2.code-workspace'));
+		workspaceConfigFolder = dirname(workspaceConfigPath);
 		newContent = rewriteWorkspaceFileForNewLocation(newContent, origConfigPath, workspaceConfigPath);
 		ws = (JSON.parse(newContent) as IStoredWorkspace);
 		assert.equal(ws.folders.length, 3);
-		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[0]).path, path.join('..', folder1));
+		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[0]).path, path.relative(workspaceConfigFolder.fsPath, folder1));
 		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[1]).path, 'inside');
 		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[2]).path, isWindows ? 'inside\\somefolder' : 'inside/somefolder');
 
 		origConfigPath = workspaceConfigPath;
 		workspaceConfigPath = URI.file(path.join(tmpDir, 'other', 'myworkspace2.code-workspace'));
+		workspaceConfigFolder = dirname(workspaceConfigPath);
 		newContent = rewriteWorkspaceFileForNewLocation(newContent, origConfigPath, workspaceConfigPath);
 		ws = (JSON.parse(newContent) as IStoredWorkspace);
 		assert.equal(ws.folders.length, 3);
-		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[0]).path, path.join('..', '..', folder1));
+		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[0]).path, path.relative(workspaceConfigFolder.fsPath, folder1));
 		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[1]).path, path.join('..', 'inside'));
 		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[2]).path, path.join('..', 'inside', 'somefolder'));
 

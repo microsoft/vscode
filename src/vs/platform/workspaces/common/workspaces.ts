@@ -223,10 +223,8 @@ export function getStoredWorkspaceFolder(folderURI: URI, folderName: string | un
 			// - use backslahes unless slash is used by other existing folders
 			if (isAbsolute(folderPath)) {
 				folderPath = normalizeDriveLetter(folderPath);
-				if (useSlashForPath) {
-					folderPath = toSlashes(folderPath);
-				}
-			} else if (!useSlashForPath) {
+			}
+			if (!useSlashForPath) {
 				folderPath = folderPath.replace(/\//g, '\\');
 			}
 		}
