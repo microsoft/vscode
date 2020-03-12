@@ -209,10 +209,15 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> {
 			if (!element.editorAttached) {
 				getEditorAttachedPromise(element).then(() => reveal(index, range, revealType));
 			} else {
-				// should not happen
+				// for example markdown
 			}
 		} else {
-			element.revealRangeInCenter(range);
+			if (element.editorAttached) {
+				element.revealRangeInCenter(range);
+			} else {
+				// for example, markdown cell in preview mode
+				getEditorAttachedPromise(element).then(() => reveal(index, range, revealType));
+			}
 		}
 	}
 
@@ -255,6 +260,11 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> {
 
 	revealInCenterIfOutsideViewport(index: number) {
 		this._revealInternal(index, true, CellRevealPosition.Center);
+	}
+
+	setCellSelection(index: number, range: Range) {
+		const element = this.view.element(index);
+		element.setSelection(range);
 	}
 
 }

@@ -12,6 +12,8 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { ICellModelDeltaDecorations, ICellModelDecorations } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 export class NotebookFindWidget extends SimpleFindWidget {
 	protected _findWidgetFocused: IContextKey<boolean>;
@@ -28,22 +30,42 @@ export class NotebookFindWidget extends SimpleFindWidget {
 	) {
 		super(contextViewService, contextKeyService);
 		this._findWidgetFocused = KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED.bindTo(contextKeyService);
+		this._register(this._findInput.onKeyDown((e) => this._onFindInputKeyDown(e)));
+	}
+
+	private _onFindInputKeyDown(e: IKeyboardEvent): void {
+		if (e.equals(KeyCode.Enter)) {
+			if (this._findMatches.length) {
+				this.set(this._findMatches);
+
+				if (this._currentMatch !== -1) {
+					const nextIndex = this._findMatchesStarts!.getIndexOf(this._currentMatch);
+					const cellIndex = nextIndex.index;
+					const matchIndex = nextIndex.remainder;
+
+					this._findMatches[cellIndex].cell.isEditing = true;
+					this._notebookEditor.setSelection(this._findMatches[cellIndex].cell, this._findMatches[cellIndex].matches[matchIndex].range);
+					this._notebookEditor.revealRangeInCenterIfOutsideViewport(this._findMatches[cellIndex].cell, this._findMatches[cellIndex].matches[matchIndex].range);
+				}
+			} else {
+				this.set(null);
+			}
+			e.preventDefault();
+			return;
+		}
 	}
 
 	protected onInputChanged(): boolean {
 		const val = this.inputValue;
 		if (val) {
-			const newMatches = this._notebookEditor.viewModel!.find(val).filter(match => match.matches.length > 0);
-			if (newMatches.length) {
-				this.set(newMatches);
+			this._findMatches = this._notebookEditor.viewModel!.find(val).filter(match => match.matches.length > 0);
+			if (this._findMatches.length) {
 				return true;
 			} else {
-				this.set(null);
 				return false;
 			}
-		} else {
-			this.set([]);
 		}
+
 		return false;
 	}
 
@@ -62,6 +84,7 @@ export class NotebookFindWidget extends SimpleFindWidget {
 
 		this.setCurrentFindMatchDecoration(cellIndex, matchIndex);
 		this._findMatches[cellIndex].cell.isEditing = true;
+		this._notebookEditor.setSelection(this._findMatches[cellIndex].cell, this._findMatches[cellIndex].matches[matchIndex].range);
 		this._notebookEditor.revealRangeInCenterIfOutsideViewport(this._findMatches[cellIndex].cell, this._findMatches[cellIndex].matches[matchIndex].range);
 	}
 

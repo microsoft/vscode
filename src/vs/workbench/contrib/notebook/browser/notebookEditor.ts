@@ -483,6 +483,14 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		}
 	}
 
+	setSelection(cell: CellViewModel, range: Range): void {
+		const index = this.notebookViewModel?.getViewCellIndex(cell);
+
+		if (index !== undefined) {
+			this.list?.setCellSelection(index, range);
+		}
+	}
+
 	changeDecorations(callback: (changeAccessor: IModelDecorationsChangeAccessor) => any): any {
 		return this.notebookViewModel?.changeDecorations(callback);
 	}

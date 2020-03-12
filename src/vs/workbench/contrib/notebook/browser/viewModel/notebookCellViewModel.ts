@@ -255,6 +255,10 @@ export class CellViewModel extends Disposable {
 	}
 
 	attachTextEditor(editor: ICodeEditor) {
+		if (this._textEditor === editor) {
+			return;
+		}
+
 		this._textEditor = editor;
 
 		if (this._editorViewStates) {
@@ -293,6 +297,10 @@ export class CellViewModel extends Disposable {
 
 	revealRangeInCenter(range: Range) {
 		this._textEditor?.revealRangeInCenter(range);
+	}
+
+	setSelection(range: Range) {
+		this._textEditor?.setSelection(range);
 	}
 
 	getLineScrollTopOffset(line: number): number {

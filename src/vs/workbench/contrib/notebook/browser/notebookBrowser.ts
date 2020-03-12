@@ -141,6 +141,8 @@ export interface INotebookEditor {
 	 */
 	revealRangeInCenterIfOutsideViewport(cell: CellViewModel, range: Range): void;
 
+	setSelection(cell: CellViewModel, selection: Range): void;
+
 	/**
 	 * Change the decorations on cells.
 	 * The notebook is virtualized and this method should be called to create/delete editor decorations safely.
