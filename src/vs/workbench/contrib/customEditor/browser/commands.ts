@@ -40,7 +40,7 @@ CommandsRegistry.registerCommand('_workbench.openWith', (accessor: ServicesAcces
 // #region Reopen With
 
 const REOPEN_WITH_COMMAND_ID = 'reOpenWith';
-const REOPEN_WITH_TITLE = { value: nls.localize('reopenWith.title', 'Reopen With...'), original: 'Reopen With' };
+const REOPEN_WITH_TITLE = { value: nls.localize('reopenWith.title', 'Reopen With...'), original: 'Reopen With...' };
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: REOPEN_WITH_COMMAND_ID,

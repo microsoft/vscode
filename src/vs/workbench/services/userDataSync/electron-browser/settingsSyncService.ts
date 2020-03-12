@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SyncStatus, ISettingsSyncService, IConflictSetting, SyncSource } from 'vs/platform/userDataSync/common/userDataSync';
+import { SyncStatus, ISettingsSyncService, IConflictSetting, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -17,7 +17,7 @@ export class SettingsSyncService extends Disposable implements ISettingsSyncServ
 	private readonly channel: IChannel;
 
 	readonly resourceKey = 'settings';
-	readonly source = SyncSource.Settings;
+	readonly resource = SyncResource.Settings;
 
 	private _status: SyncStatus = SyncStatus.Uninitialized;
 	get status(): SyncStatus { return this._status; }

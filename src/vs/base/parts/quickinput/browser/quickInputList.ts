@@ -26,6 +26,7 @@ import { getIconClass } from 'vs/base/parts/quickinput/browser/quickInputUtils';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IQuickInputOptions } from 'vs/base/parts/quickinput/browser/quickInput';
 import { IListOptions, List, IListStyles, IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 
 const $ = dom.$;
 
@@ -79,6 +80,7 @@ interface IListElementTemplateData {
 	entry: HTMLDivElement;
 	checkbox: HTMLInputElement;
 	label: IconLabel;
+	keybinding: KeybindingLabel;
 	detail: HighlightedLabel;
 	separator: HTMLDivElement;
 	actionBar: ActionBar;
@@ -118,6 +120,10 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 		// Label
 		data.label = new IconLabel(row1, { supportHighlights: true, supportDescriptionHighlights: true, supportCodicons: true });
 
+		// Keybinding
+		const keybindingContainer = dom.append(row1, $('.quick-input-list-entry-keybinding'));
+		data.keybinding = new KeybindingLabel(keybindingContainer, platform.OS);
+
 		// Detail
 		const detailContainer = dom.append(row2, $('.quick-input-list-label-meta'));
 		data.detail = new HighlightedLabel(detailContainer, true);
@@ -149,6 +155,9 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 		options.extraClasses = element.item.iconClasses;
 		options.italic = element.item.italic;
 		data.label.setLabel(element.saneLabel, element.saneDescription, options);
+
+		// Keybinding
+		data.keybinding.set(element.item.keybinding);
 
 		// Meta
 		data.detail.set(element.saneDetail, detailHighlights);
@@ -184,6 +193,12 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 			dom.addClass(data.entry, 'has-actions');
 		} else {
 			dom.removeClass(data.entry, 'has-actions');
+		}
+
+		if (element.item.buttonsAlwaysVisible) {
+			dom.addClass(data.entry, 'always-visible-actions');
+		} else {
+			dom.removeClass(data.entry, 'always-visible-actions');
 		}
 	}
 

@@ -20,13 +20,16 @@ export interface ILocalizedString {
 	original: string;
 }
 
+export type Icon = { dark?: URI; light?: URI; } | ThemeIcon;
+
 export interface ICommandAction {
 	id: string;
 	title: string | ILocalizedString;
 	category?: string | ILocalizedString;
-	icon?: { dark?: URI; light?: URI; } | ThemeIcon;
+	tooltip?: string | ILocalizedString;
+	icon?: Icon;
 	precondition?: ContextKeyExpression;
-	toggled?: ContextKeyExpression;
+	toggled?: ContextKeyExpression | { condition: ContextKeyExpression, icon?: Icon, tooltip?: string | ILocalizedString };
 }
 
 export type ISerializableCommandAction = UriDto<ICommandAction>;
@@ -275,9 +278,20 @@ export class MenuItemAction extends ExecuteCommandAction {
 		@ICommandService commandService: ICommandService
 	) {
 		typeof item.title === 'string' ? super(item.id, item.title, commandService) : super(item.id, item.title.value, commandService);
+
 		this._cssClass = undefined;
 		this._enabled = !item.precondition || contextKeyService.contextMatchesRules(item.precondition);
-		this._checked = Boolean(item.toggled && contextKeyService.contextMatchesRules(item.toggled));
+		this._tooltip = item.tooltip ? typeof item.tooltip === 'string' ? item.tooltip : item.tooltip.value : undefined;
+
+		if (item.toggled) {
+			const toggled = ((item.toggled as { condition: ContextKeyExpression }).condition ? item.toggled : { condition: item.toggled }) as {
+				condition: ContextKeyExpression, icon?: Icon, tooltip?: string | ILocalizedString
+			};
+			this._checked = contextKeyService.contextMatchesRules(toggled.condition);
+			if (this._checked && toggled.tooltip) {
+				this._tooltip = typeof toggled.tooltip === 'string' ? toggled.tooltip : toggled.tooltip.value;
+			}
+		}
 
 		this._options = options || {};
 
@@ -373,7 +387,7 @@ export interface IAction2Options extends ICommandAction {
 	/**
 	 * One or many menu items.
 	 */
-	menu?: OneOrN<{ id: MenuId } & Omit<IMenuItem, 'command'> & { command?: Partial<Omit<ICommandAction, 'id'>> }>;
+	menu?: OneOrN<{ id: MenuId } & Omit<IMenuItem, 'command'>>;
 
 	/**
 	 * One keybinding.
@@ -396,7 +410,7 @@ export function registerAction2(ctor: { new(): Action2 }): IDisposable {
 	const disposables = new DisposableStore();
 	const action = new ctor();
 
-	const { f1, menu: menus, keybinding, description, ...command } = action.desc;
+	const { f1, menu, keybinding, description, ...command } = action.desc;
 
 	// command
 	disposables.add(CommandsRegistry.registerCommand({
@@ -406,14 +420,12 @@ export function registerAction2(ctor: { new(): Action2 }): IDisposable {
 	}));
 
 	// menu
-	if (Array.isArray(menus)) {
-		for (let item of menus) {
-			const { command: commandOverrides, ...menu } = item;
-			disposables.add(MenuRegistry.appendMenuItem(item.id, { command: { ...command, ...commandOverrides }, ...menu }));
+	if (Array.isArray(menu)) {
+		for (let item of menu) {
+			disposables.add(MenuRegistry.appendMenuItem(item.id, { command: { ...command }, ...item }));
 		}
-	} else if (menus) {
-		const { command: commandOverrides, ...menu } = menus;
-		disposables.add(MenuRegistry.appendMenuItem(menu.id, { command: { ...command, ...commandOverrides }, ...menu }));
+	} else if (menu) {
+		disposables.add(MenuRegistry.appendMenuItem(menu.id, { command: { ...command }, ...menu }));
 	}
 	if (f1) {
 		disposables.add(MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: command }));

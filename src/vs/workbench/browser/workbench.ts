@@ -333,6 +333,7 @@ export class Workbench extends Layout {
 
 		addClasses(this.container, ...workbenchClasses);
 		addClass(document.body, platformClass); // used by our fonts
+		this.container.setAttribute('role', 'application');
 
 		if (isWeb) {
 			addClass(document.body, 'web');

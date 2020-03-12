@@ -490,6 +490,30 @@ suite('ExtensionEnablementService Test', () => {
 		assert.equal(testObject.canChangeEnablement(localWorkspaceExtension), true);
 	});
 
+	test('test web extension on local server is not disabled by kind', async () => {
+		instantiationService.stub(IExtensionManagementServerService, aMultiExtensionManagementServerService(instantiationService));
+		const localWorkspaceExtension = aLocalExtension2('pub.a', { extensionKind: ['web'] }, { location: URI.file(`pub.a`) });
+		testObject = new TestExtensionEnablementService(instantiationService);
+		assert.ok(testObject.isEnabled(localWorkspaceExtension));
+		assert.deepEqual(testObject.getEnablementState(localWorkspaceExtension), EnablementState.EnabledGlobally);
+	});
+
+	test('test web extension on remote server is not disabled by kind', async () => {
+		instantiationService.stub(IExtensionManagementServerService, aMultiExtensionManagementServerService(instantiationService));
+		const localWorkspaceExtension = aLocalExtension2('pub.a', { extensionKind: ['web'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
+		testObject = new TestExtensionEnablementService(instantiationService);
+		assert.ok(testObject.isEnabled(localWorkspaceExtension));
+		assert.deepEqual(testObject.getEnablementState(localWorkspaceExtension), EnablementState.EnabledGlobally);
+	});
+
+	test('test web extension with no server is not disabled by kind', async () => {
+		instantiationService.stub(IExtensionManagementServerService, aMultiExtensionManagementServerService(instantiationService));
+		const localWorkspaceExtension = aLocalExtension2('pub.a', { extensionKind: ['web'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.https }) });
+		testObject = new TestExtensionEnablementService(instantiationService);
+		assert.ok(testObject.isEnabled(localWorkspaceExtension));
+		assert.deepEqual(testObject.getEnablementState(localWorkspaceExtension), EnablementState.EnabledGlobally);
+	});
+
 });
 
 function anExtensionManagementServer(authority: string, instantiationService: TestInstantiationService): IExtensionManagementServer {
