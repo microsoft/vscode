@@ -255,6 +255,10 @@ export class CellViewModel extends Disposable {
 	}
 
 	attachTextEditor(editor: ICodeEditor) {
+		if (!editor.hasModel()) {
+			throw new Error('Invalid editor: model is missing');
+		}
+
 		if (this._textEditor === editor) {
 			return;
 		}
