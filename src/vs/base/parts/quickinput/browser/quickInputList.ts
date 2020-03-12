@@ -174,11 +174,6 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 		} else {
 			dom.removeClass(data.entry, 'quick-input-list-separator-border');
 		}
-		if (element.separator?.label) {
-			dom.addClass(data.entry, 'quick-input-list-separator-label');
-		} else {
-			dom.removeClass(data.entry, 'quick-input-list-separator-label');
-		}
 
 		// Actions
 		data.actionBar.clear();
