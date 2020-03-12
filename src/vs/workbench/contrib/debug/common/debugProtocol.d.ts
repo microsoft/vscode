@@ -1164,6 +1164,7 @@ declare module DebugProtocol {
 			'watch': evaluate is run in a watch.
 			'repl': evaluate is run from REPL console.
 			'hover': evaluate is run from a data hover.
+			'clipboard': evaluate is run to generate the value that will be stored in the clipboard.
 			etc.
 		*/
 		context?: string;
@@ -1473,6 +1474,8 @@ declare module DebugProtocol {
 		supportsCancelRequest?: boolean;
 		/** The debug adapter supports the 'breakpointLocations' request. */
 		supportsBreakpointLocationsRequest?: boolean;
+		/** The debug adapter supports the 'clipboard' context value in the 'evaluate' request. */
+		supportsClipboardContext?: boolean;
 	}
 
 	/** An ExceptionBreakpointsFilter is shown in the UI as an option for configuring how exceptions are dealt with. */
