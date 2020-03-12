@@ -175,7 +175,7 @@ export enum EditorOption {
 	autoClosingQuotes = 7,
 	autoIndent = 8,
 	automaticLayout = 9,
-	autoRename = 10,
+	renameOnType = 10,
 	autoSurround = 11,
 	codeLens = 12,
 	colorDecorators = 13,

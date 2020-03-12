@@ -2778,7 +2778,7 @@ declare namespace monaco.editor {
 		 * Rename matching regions on type.
 		 * Defaults to false.
 		 */
-		autoRename?: boolean;
+		renameOnType?: boolean;
 		/**
 		 * Control the wrapping of the editor.
 		 * When `wordWrap` = "off", the lines will never wrap.
@@ -3822,7 +3822,7 @@ declare namespace monaco.editor {
 		autoClosingQuotes = 7,
 		autoIndent = 8,
 		automaticLayout = 9,
-		autoRename = 10,
+		renameOnType = 10,
 		autoSurround = 11,
 		codeLens = 12,
 		colorDecorators = 13,
@@ -3939,7 +3939,7 @@ declare namespace monaco.editor {
 		autoClosingQuotes: IEditorOption<EditorOption.autoClosingQuotes, EditorAutoClosingStrategy>;
 		autoIndent: IEditorOption<EditorOption.autoIndent, EditorAutoIndentStrategy>;
 		automaticLayout: IEditorOption<EditorOption.automaticLayout, boolean>;
-		autoRename: IEditorOption<EditorOption.autoRename, boolean>;
+		renameOnType: IEditorOption<EditorOption.renameOnType, boolean>;
 		autoSurround: IEditorOption<EditorOption.autoSurround, EditorAutoSurroundStrategy>;
 		codeLens: IEditorOption<EditorOption.codeLens, boolean>;
 		colorDecorators: IEditorOption<EditorOption.colorDecorators, boolean>;

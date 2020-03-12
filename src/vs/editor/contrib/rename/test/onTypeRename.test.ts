@@ -19,7 +19,7 @@ const mockFile = URI.parse('test:somefile.ttt');
 const mockFileSelector = { scheme: 'test' };
 const timeout = 30;
 
-suite('Synced regions', () => {
+suite('On type rename', () => {
 	const disposables = new DisposableStore();
 
 	setup(() => {

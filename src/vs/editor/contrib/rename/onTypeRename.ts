@@ -26,7 +26,6 @@ import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
-import { EditOperationType } from 'vs/editor/common/controller/cursorCommon';
 
 export const CONTEXT_ONTYPE_RENAME_INPUT_VISIBLE = new RawContextKey<boolean>('onTypeRenameInputVisible', false);
 
@@ -63,7 +62,7 @@ export class OnTypeRenameContribution extends Disposable implements IEditorContr
 	) {
 		super();
 		this._editor = editor;
-		this._enabled = this._editor.getOption(EditorOption.autoRename);
+		this._enabled = this._editor.getOption(EditorOption.renameOnType);
 		this._visibleContextKey = CONTEXT_ONTYPE_RENAME_INPUT_VISIBLE.bindTo(contextKeyService);
 		this._currentRequest = null;
 		this._currentDecorations = [];
@@ -77,8 +76,8 @@ export class OnTypeRenameContribution extends Disposable implements IEditorContr
 		}));
 
 		this._register(this._editor.onDidChangeConfiguration((e) => {
-			if (e.hasChanged(EditorOption.autoRename)) {
-				this._enabled = this._editor.getOption(EditorOption.autoRename);
+			if (e.hasChanged(EditorOption.renameOnType)) {
+				this._enabled = this._editor.getOption(EditorOption.renameOnType);
 				this.stopAll();
 				this.run();
 			}
