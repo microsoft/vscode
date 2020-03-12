@@ -25,7 +25,11 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { SparseEncodedTokens, MultilineTokens2 } from 'vs/editor/common/model/tokensStore';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
+import { IUndoRedoService, IUndoRedoElement, IPastFutureElements } from 'vs/platform/undoRedo/common/undoRedo';
+import { StringSHA1 } from 'vs/base/common/hash';
+import { SingleModelEditStackElement, MultiModelEditStackElement, EditStackElement } from 'vs/editor/common/model/editStack';
+
+export const MAINTAIN_UNDO_REDO_STACK = true;
 
 export interface IEditorSemanticHighlightingOptions {
 	enabled?: boolean;
@@ -34,6 +38,18 @@ export interface IEditorSemanticHighlightingOptions {
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
 }
+
+function computeModelSha1(model: ITextModel): string {
+	// compute the sha1
+	const shaComputer = new StringSHA1();
+	const snapshot = model.createSnapshot();
+	let text: string | null;
+	while ((text = snapshot.read())) {
+		shaComputer.update(text);
+	}
+	return shaComputer.digest();
+}
+
 
 class ModelData implements IDisposable {
 	public readonly model: ITextModel;
@@ -98,6 +114,36 @@ interface IRawConfig {
 
 const DEFAULT_EOL = (platform.isLinux || platform.isMacintosh) ? DefaultEndOfLine.LF : DefaultEndOfLine.CRLF;
 
+interface EditStackPastFutureElements {
+	past: EditStackElement[];
+	future: EditStackElement[];
+}
+
+function isEditStackPastFutureElements(undoElements: IPastFutureElements): undoElements is EditStackPastFutureElements {
+	return (isEditStackElements(undoElements.past) && isEditStackElements(undoElements.future));
+}
+
+function isEditStackElements(elements: IUndoRedoElement[]): elements is EditStackElement[] {
+	for (const element of elements) {
+		if (element instanceof SingleModelEditStackElement) {
+			continue;
+		}
+		if (element instanceof MultiModelEditStackElement) {
+			continue;
+		}
+		return false;
+	}
+	return true;
+}
+
+class DisposedModelInfo {
+	constructor(
+		public readonly uri: URI,
+		public readonly sha1: string,
+		public readonly alternativeVersionId: number,
+	) { }
+}
+
 export class ModelServiceImpl extends Disposable implements IModelService {
 	public _serviceBrand: undefined;
 
@@ -115,14 +161,13 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 	private readonly _onModelModeChanged: Emitter<{ model: ITextModel; oldModeId: string; }> = this._register(new Emitter<{ model: ITextModel; oldModeId: string; }>());
 	public readonly onModelModeChanged: Event<{ model: ITextModel; oldModeId: string; }> = this._onModelModeChanged.event;
 
-	private _modelCreationOptionsByLanguageAndResource: {
-		[languageAndResource: string]: ITextModelCreationOptions;
-	};
+	private _modelCreationOptionsByLanguageAndResource: { [languageAndResource: string]: ITextModelCreationOptions; };
 
 	/**
 	 * All the models known in the system.
 	 */
 	private readonly _models: { [modelId: string]: ModelData; };
+	private readonly _disposedModels: Map<string, DisposedModelInfo>;
 
 	constructor(
 		@IConfigurationService configurationService: IConfigurationService,
@@ -135,8 +180,9 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		this._configurationService = configurationService;
 		this._resourcePropertiesService = resourcePropertiesService;
 		this._undoRedoService = undoRedoService;
-		this._models = {};
 		this._modelCreationOptionsByLanguageAndResource = Object.create(null);
+		this._models = {};
+		this._disposedModels = new Map<string, DisposedModelInfo>();
 
 		this._configurationServiceSubscription = this._configurationService.onDidChangeConfiguration(e => this._updateModelOptions());
 		this._updateModelOptions();
@@ -288,6 +334,23 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		// create & save the model
 		const options = this.getCreationOptions(languageIdentifier.language, resource, isForSimpleWidget);
 		const model: TextModel = new TextModel(value, options, languageIdentifier, resource, this._undoRedoService);
+		if (resource && this._disposedModels.has(MODEL_ID(resource))) {
+			const disposedModelData = this._disposedModels.get(MODEL_ID(resource))!;
+			this._disposedModels.delete(MODEL_ID(resource));
+			const elements = this._undoRedoService.getElements(resource);
+			if (computeModelSha1(model) === disposedModelData.sha1 && isEditStackPastFutureElements(elements)) {
+				for (const element of elements.past) {
+					element.setModel(model);
+				}
+				for (const element of elements.future) {
+					element.setModel(model);
+				}
+				this._undoRedoService.setElementsIsValid(resource, true);
+				model._overwriteAlternativeVersionId(disposedModelData.alternativeVersionId);
+			} else {
+				this._undoRedoService.removeElements(resource);
+			}
+		}
 		const modelId = MODEL_ID(model.uri);
 
 		if (this._models[modelId]) {
@@ -408,6 +471,21 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		if (!modelData) {
 			return;
 		}
+		const model = modelData.model;
+		let maintainUndoRedoStack = false;
+		if (MAINTAIN_UNDO_REDO_STACK) {
+			const elements = this._undoRedoService.getElements(resource);
+			maintainUndoRedoStack = ((elements.past.length > 0 || elements.future.length > 0) && isEditStackPastFutureElements(elements));
+		}
+
+		if (maintainUndoRedoStack) {
+			// We only invalidate the elements, but they remain in the undo-redo service.
+			this._undoRedoService.setElementsIsValid(resource, false);
+			this._disposedModels.set(MODEL_ID(resource), new DisposedModelInfo(resource, computeModelSha1(model), model.getAlternativeVersionId()));
+		} else {
+			this._undoRedoService.removeElements(resource);
+		}
+
 		modelData.model.dispose();
 	}
 

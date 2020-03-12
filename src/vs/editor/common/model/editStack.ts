@@ -12,12 +12,12 @@ import { IUndoRedoService, IResourceUndoRedoElement, UndoRedoElementType, IWorks
 import { URI } from 'vs/base/common/uri';
 import { getComparisonKey as uriGetComparisonKey } from 'vs/base/common/resources';
 
-export class EditStackElement implements IResourceUndoRedoElement {
+export class SingleModelEditStackElement implements IResourceUndoRedoElement {
 
 	public readonly type = UndoRedoElementType.Resource;
 	public readonly label: string;
 	private _isOpen: boolean;
-	public readonly model: ITextModel;
+	public model: ITextModel;
 	private readonly _beforeVersionId: number;
 	private readonly _beforeEOL: EndOfLineSequence;
 	private readonly _beforeCursorState: Selection[] | null;
@@ -41,6 +41,10 @@ export class EditStackElement implements IResourceUndoRedoElement {
 		this._afterEOL = this._beforeEOL;
 		this._afterCursorState = this._beforeCursorState;
 		this._edits = [];
+	}
+
+	public setModel(model: ITextModel): void {
+		this.model = model;
 	}
 
 	public canAppend(model: ITextModel): boolean {
@@ -78,8 +82,8 @@ export class MultiModelEditStackElement implements IWorkspaceUndoRedoElement {
 	public readonly label: string;
 	private _isOpen: boolean;
 
-	private readonly _editStackElementsArr: EditStackElement[];
-	private readonly _editStackElementsMap: Map<string, EditStackElement>;
+	private readonly _editStackElementsArr: SingleModelEditStackElement[];
+	private readonly _editStackElementsMap: Map<string, SingleModelEditStackElement>;
 
 	public get resources(): readonly URI[] {
 		return this._editStackElementsArr.map(editStackElement => editStackElement.model.uri);
@@ -87,15 +91,22 @@ export class MultiModelEditStackElement implements IWorkspaceUndoRedoElement {
 
 	constructor(
 		label: string,
-		editStackElements: EditStackElement[]
+		editStackElements: SingleModelEditStackElement[]
 	) {
 		this.label = label;
 		this._isOpen = true;
 		this._editStackElementsArr = editStackElements.slice(0);
-		this._editStackElementsMap = new Map<string, EditStackElement>();
+		this._editStackElementsMap = new Map<string, SingleModelEditStackElement>();
 		for (const editStackElement of this._editStackElementsArr) {
 			const key = uriGetComparisonKey(editStackElement.model.uri);
 			this._editStackElementsMap.set(key, editStackElement);
+		}
+	}
+
+	public setModel(model: ITextModel): void {
+		const key = uriGetComparisonKey(model.uri);
+		if (this._editStackElementsMap.has(key)) {
+			this._editStackElementsMap.get(key)!.setModel(model);
 		}
 	}
 
@@ -140,6 +151,8 @@ export class MultiModelEditStackElement implements IWorkspaceUndoRedoElement {
 	}
 }
 
+export type EditStackElement = SingleModelEditStackElement | MultiModelEditStackElement;
+
 function getModelEOL(model: ITextModel): EndOfLineSequence {
 	const eol = model.getEOL();
 	if (eol === '\n') {
@@ -149,11 +162,11 @@ function getModelEOL(model: ITextModel): EndOfLineSequence {
 	}
 }
 
-function isKnownStackElement(element: IResourceUndoRedoElement | IWorkspaceUndoRedoElement | null): element is EditStackElement | MultiModelEditStackElement {
+function isKnownStackElement(element: IResourceUndoRedoElement | IWorkspaceUndoRedoElement | null): element is EditStackElement {
 	if (!element) {
 		return false;
 	}
-	return ((element instanceof EditStackElement) || (element instanceof MultiModelEditStackElement));
+	return ((element instanceof SingleModelEditStackElement) || (element instanceof MultiModelEditStackElement));
 }
 
 export class EditStack {
@@ -177,12 +190,12 @@ export class EditStack {
 		this._undoRedoService.removeElements(this._model.uri);
 	}
 
-	private _getOrCreateEditStackElement(beforeCursorState: Selection[] | null): EditStackElement | MultiModelEditStackElement {
+	private _getOrCreateEditStackElement(beforeCursorState: Selection[] | null): EditStackElement {
 		const lastElement = this._undoRedoService.getLastElement(this._model.uri);
 		if (isKnownStackElement(lastElement) && lastElement.canAppend(this._model)) {
 			return lastElement;
 		}
-		const newElement = new EditStackElement(this._model, beforeCursorState);
+		const newElement = new SingleModelEditStackElement(this._model, beforeCursorState);
 		this._undoRedoService.pushElement(newElement);
 		return newElement;
 	}

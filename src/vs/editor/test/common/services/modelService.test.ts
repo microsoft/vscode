@@ -9,10 +9,11 @@ import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { DefaultEndOfLine } from 'vs/editor/common/model';
 import { createTextBuffer } from 'vs/editor/common/model/textModel';
-import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
+import { ModelServiceImpl, MAINTAIN_UNDO_REDO_STACK } from 'vs/editor/common/services/modelServiceImpl';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -307,6 +308,26 @@ suite('ModelService', () => {
 		];
 		assertComputeEdits(file1, file2);
 	});
+
+	if (MAINTAIN_UNDO_REDO_STACK) {
+		test('maintains undo for same resource and same content', () => {
+			const resource = URI.parse('file://test.txt');
+
+			// create a model
+			const model1 = modelService.createModel('text', null, resource);
+			// make an edit
+			model1.pushEditOperations(null, [{ range: new Range(1, 5, 1, 5), text: '1' }], () => [new Selection(1, 5, 1, 5)]);
+			assert.equal(model1.getValue(), 'text1');
+			// dispose it
+			modelService.destroyModel(resource);
+
+			// create a new model with the same content
+			const model2 = modelService.createModel('text1', null, resource);
+			// undo
+			model2.undo();
+			assert.equal(model2.getValue(), 'text');
+		});
+	}
 });
 
 function assertComputeEdits(lines1: string[], lines2: string[]): void {

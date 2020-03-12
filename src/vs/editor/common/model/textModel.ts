@@ -367,7 +367,6 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this._onWillDispose.fire();
 		this._languageRegistryListener.dispose();
 		this._tokenization.dispose();
-		this._undoRedoService.removeElements(this.uri);
 		this._isDisposed = true;
 		super.dispose();
 		this._isDisposing = false;
@@ -706,7 +705,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this._alternativeVersionId = this._versionId;
 	}
 
-	private _overwriteAlternativeVersionId(newAlternativeVersionId: number): void {
+	public _overwriteAlternativeVersionId(newAlternativeVersionId: number): void {
 		this._alternativeVersionId = newAlternativeVersionId;
 	}
 
