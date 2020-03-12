@@ -592,7 +592,7 @@ export interface MainThreadWebviewsShape extends IDisposable {
 	$registerCustomEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: modes.IWebviewPanelOptions): void;
 	$unregisterEditorProvider(viewType: string): void;
 
-	$onDidEdit(resource: UriComponents, viewType: string, editId: number): void;
+	$onDidEdit(resource: UriComponents, viewType: string, editId: number, label: string | undefined): void;
 }
 
 export interface WebviewPanelViewStateData {

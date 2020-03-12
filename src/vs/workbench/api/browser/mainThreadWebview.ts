@@ -366,14 +366,14 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		return this._customEditorService.models.add(resource, viewType, model);
 	}
 
-	public async $onDidEdit(resourceComponents: UriComponents, viewType: string, editId: number): Promise<void> {
+	public async $onDidEdit(resourceComponents: UriComponents, viewType: string, editId: number, label: string | undefined): Promise<void> {
 		const resource = URI.revive(resourceComponents);
 		const model = await this._customEditorService.models.get(resource, viewType);
 		if (!model || !(model instanceof MainThreadCustomEditorModel)) {
 			throw new Error('Could not find model for webview editor');
 		}
 
-		model.pushEdit(editId);
+		model.pushEdit(editId, label);
 	}
 
 	private hookupWebviewEventDelegate(handle: extHostProtocol.WebviewPanelHandle, input: WebviewInput) {
@@ -604,7 +604,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 		return this._viewType;
 	}
 
-	public pushEdit(editId: number) {
+	public pushEdit(editId: number, label: string | undefined) {
 		if (!this._editable) {
 			throw new Error('Document is not editable');
 		}
@@ -617,7 +617,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 		this._undoService.pushElement({
 			type: UndoRedoElementType.Resource,
 			resource: this.resource,
-			label: 'Edit', // TODO: get this from extensions?
+			label: label ?? 'Edit',
 			undo: async () => {
 				if (!this._editable) {
 					return;
