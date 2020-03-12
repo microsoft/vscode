@@ -12,6 +12,7 @@ import { ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
 import { CustomTask, ContributedTask } from 'vs/workbench/contrib/tasks/common/tasks';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IStringDictionary } from 'vs/base/common/collections';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
 
@@ -28,7 +29,7 @@ export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQ
 		this.activationPromise = extensionService.activateByEvent('onCommand:workbench.action.tasks.runTask');
 	}
 
-	protected async getPicks(filter: string, token: CancellationToken): Promise<Array<IPickerQuickAccessItem | IQuickPickSeparator>> {
+	protected async getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Promise<Array<IPickerQuickAccessItem | IQuickPickSeparator>> {
 
 		// always await extensions
 		await this.activationPromise;

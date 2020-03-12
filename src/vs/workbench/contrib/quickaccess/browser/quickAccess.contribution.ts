@@ -10,6 +10,7 @@ import { HelpQuickAccessProvider } from 'vs/platform/quickinput/browser/helpQuic
 import { ViewQuickAccessProvider } from 'vs/workbench/contrib/quickaccess/browser/viewQuickAccess';
 import { QUICK_ACCESS_COMMAND_ID } from 'vs/workbench/contrib/quickaccess/browser/quickAccessCommands';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { CommandsQuickAccessProvider } from 'vs/workbench/contrib/quickaccess/browser/commandsQuickAccess';
 
 const registry = Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess);
 
@@ -32,6 +33,13 @@ registry.registerQuickAccessProvider({
 	prefix: ViewQuickAccessProvider.PREFIX,
 	placeholder: localize('viewQuickAccessPlaceholder', "Type the name of a view, output channel or terminal to open."),
 	helpEntries: [{ description: localize('viewQuickAccess', "Open View"), needsEditor: false }]
+});
+
+registry.registerQuickAccessProvider({
+	ctor: CommandsQuickAccessProvider,
+	prefix: CommandsQuickAccessProvider.PREFIX,
+	placeholder: localize('commandsQuickAccessPlaceholder', "Type the name of a command to run."),
+	helpEntries: [{ description: localize('commandsQuickAccess', "Show and Run Commands"), needsEditor: false }]
 });
 
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
