@@ -28,10 +28,14 @@
 	margin-left: 7px;
 }
 
-.monaco-pane-view .pane > .pane-header .monaco-progress-container {
+.monaco-pane-view .pane .monaco-progress-container {
 	position: absolute;
 	left: 0;
-	bottom: 0;
+	top: -2px;
 	z-index: 5;
 	height: 2px;
+}
+
+.monaco-pane-view .pane:not(.merged-header) .monaco-progress-container {
+	top: 20px;
 }

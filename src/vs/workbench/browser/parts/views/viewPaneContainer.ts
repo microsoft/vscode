@@ -225,6 +225,15 @@ export abstract class ViewPane extends Pane implements IView {
 		this.viewWelcomeController = new ViewWelcomeController(this.id, contextKeyService);
 	}
 
+	get headerVisible(): boolean {
+		return super.headerVisible;
+	}
+
+	set headerVisible(visible: boolean) {
+		super.headerVisible = visible;
+		toggleClass(this.element, 'merged-header', !visible);
+	}
+
 	setVisible(visible: boolean): void {
 		if (this._isVisible !== visible) {
 			this._isVisible = visible;
@@ -294,13 +303,6 @@ export abstract class ViewPane extends Pane implements IView {
 		const onDidRelevantConfigurationChange = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ViewPane.AlwaysShowActionsConfig));
 		this._register(onDidRelevantConfigurationChange(this.updateActionsVisibility, this));
 		this.updateActionsVisibility();
-
-		if (this.progressBar !== undefined) {
-			// Progress bar
-			this.progressBar = this._register(new ProgressBar(this.headerContainer));
-			this._register(attachProgressBarStyler(this.progressBar, this.themeService));
-			this.progressBar.hide();
-		}
 	}
 
 	protected renderTwisties(container: HTMLElement): void {
@@ -333,13 +335,9 @@ export abstract class ViewPane extends Pane implements IView {
 	}
 
 	getProgressIndicator() {
-		if (!this.headerContainer) {
-			return undefined;
-		}
-
 		if (this.progressBar === undefined) {
 			// Progress bar
-			this.progressBar = this._register(new ProgressBar(this.headerContainer));
+			this.progressBar = this._register(new ProgressBar(this.element));
 			this._register(attachProgressBarStyler(this.progressBar, this.themeService));
 			this.progressBar.hide();
 		}
