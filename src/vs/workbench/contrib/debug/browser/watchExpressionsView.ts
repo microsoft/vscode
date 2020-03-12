@@ -190,9 +190,7 @@ export class WatchExpressionsView extends ViewPane {
 				this.debugService.getViewModel().setSelectedExpression(expression);
 				return Promise.resolve();
 			}));
-			if (!expression.hasChildren) {
-				actions.push(this.instantiationService.createInstance(CopyValueAction, CopyValueAction.ID, CopyValueAction.LABEL, expression.value, 'watch'));
-			}
+			actions.push(this.instantiationService.createInstance(CopyValueAction, CopyValueAction.ID, CopyValueAction.LABEL, expression.value, 'watch'));
 			actions.push(new Separator());
 
 			actions.push(new Action('debug.removeWatchExpression', nls.localize('removeWatchExpression', "Remove Expression"), undefined, true, () => {
@@ -204,9 +202,7 @@ export class WatchExpressionsView extends ViewPane {
 			actions.push(new AddWatchExpressionAction(AddWatchExpressionAction.ID, AddWatchExpressionAction.LABEL, this.debugService, this.keybindingService));
 			if (element instanceof Variable) {
 				const variable = element as Variable;
-				if (!variable.hasChildren) {
-					actions.push(this.instantiationService.createInstance(CopyValueAction, CopyValueAction.ID, CopyValueAction.LABEL, variable, 'watch'));
-				}
+				actions.push(this.instantiationService.createInstance(CopyValueAction, CopyValueAction.ID, CopyValueAction.LABEL, variable, 'watch'));
 				actions.push(new Separator());
 			}
 			actions.push(new RemoveAllWatchExpressionsAction(RemoveAllWatchExpressionsAction.ID, RemoveAllWatchExpressionsAction.LABEL, this.debugService, this.keybindingService));

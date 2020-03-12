@@ -76,9 +76,9 @@ declare module 'vscode' {
 		export const onDidChangeAuthenticationProviders: Event<AuthenticationProvidersChangeEvent>;
 
 		/**
-		 * Returns whether a provider with providerId is currently registered.
+		 * An array of the ids of authentication providers that are currently registered.
 		 */
-		export function hasProvider(providerId: string): boolean;
+		export const providerIds: string[];
 
 		/**
 		 * Get existing authentication sessions. Rejects if a provider with providerId is not
@@ -1839,9 +1839,9 @@ declare module 'vscode' {
 		 * A code that identifies this error.
 		 *
 		 * Possible values are names of errors, like [`FileNotFound`](#FileSystemError.FileNotFound),
-		 * or `undefined` for an unspecified error.
+		 * or `Unknown` for an unspecified error.
 		 */
-		readonly code?: string;
+		readonly code: string;
 	}
 
 	//#endregion
@@ -1861,4 +1861,24 @@ declare module 'vscode' {
 	}
 
 	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/92421
+
+	export enum ProgressLocation {
+		/**
+		 * Show progress for a view, as progress bar inside the view (when visible),
+		 * and as an overlay on the activity bar icon. Doesn't support cancellation or discrete progress.
+		 */
+		View = 25,
+	}
+
+	export interface ProgressOptions {
+		/**
+		 * The target view identifier for showing progress when using [ProgressLocation.View](#ProgressLocation.View).
+		 */
+		viewId?: string
+	}
+
+	//#endregion
+
 }

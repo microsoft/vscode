@@ -10,7 +10,7 @@ import { localize } from 'vs/nls';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { TreeViewPane, TreeView } from 'vs/workbench/browser/parts/views/treeView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ALL_RESOURCE_KEYS, CONTEXT_SYNC_ENABLEMENT, IUserDataSyncStoreService, toRemoteSyncResource, resolveSyncResource, IUserDataSyncBackupStoreService, IResourceRefHandle, ResourceKey, toLocalBackupSyncResource } from 'vs/platform/userDataSync/common/userDataSync';
+import { ALL_SYNC_RESOURCES, CONTEXT_SYNC_ENABLEMENT, IUserDataSyncStoreService, toRemoteSyncResource, resolveSyncResource, IUserDataSyncBackupStoreService, IResourceRefHandle, toLocalBackupSyncResource, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService, RawContextKey, ContextKeyExpr, ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
@@ -61,8 +61,8 @@ export class UserDataSyncViewContribution implements IWorkbenchContribution {
 			if (visible && !treeView.dataProvider) {
 				disposable.dispose();
 				treeView.dataProvider = this.instantiationService.createInstance(UserDataSyncHistoryViewDataProvider, id,
-					(resourceKey: ResourceKey) => remote ? this.userDataSyncStoreService.getAllRefs(resourceKey) : this.userDataSyncBackupStoreService.getAllRefs(resourceKey),
-					(resourceKey: ResourceKey, ref: string) => remote ? toRemoteSyncResource(resourceKey, ref) : toLocalBackupSyncResource(resourceKey, ref));
+					(resource: SyncResource) => remote ? this.userDataSyncStoreService.getAllRefs(resource) : this.userDataSyncBackupStoreService.getAllRefs(resource),
+					(resource: SyncResource, ref: string) => remote ? toRemoteSyncResource(resource, ref) : toLocalBackupSyncResource(resource, ref));
 			}
 		});
 		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
@@ -114,7 +114,7 @@ export class UserDataSyncViewContribution implements IWorkbenchContribution {
 				let resource = URI.parse(handle.$treeItemHandle);
 				const result = resolveSyncResource(resource);
 				if (result) {
-					resource = resource.with({ fragment: result.resourceKey });
+					resource = resource.with({ fragment: result.resource });
 					await editorService.openEditor({ resource });
 				}
 			}
@@ -152,8 +152,8 @@ export class UserDataSyncViewContribution implements IWorkbenchContribution {
 				const resource = URI.parse(handle.$treeItemHandle);
 				const result = resolveSyncResource(resource);
 				if (result) {
-					const leftResource: URI = resource.with({ fragment: result.resourceKey });
-					const rightResource: URI = result.resourceKey === 'settings' ? environmentService.settingsResource : environmentService.keybindingsResource;
+					const leftResource: URI = resource.with({ fragment: result.resource });
+					const rightResource: URI = result.resource === 'settings' ? environmentService.settingsResource : environmentService.keybindingsResource;
 					await editorService.openEditor({
 						leftResource,
 						rightResource,
@@ -174,8 +174,8 @@ class UserDataSyncHistoryViewDataProvider implements ITreeViewDataProvider {
 
 	constructor(
 		private readonly viewId: string,
-		private getAllRefs: (resourceKey: ResourceKey) => Promise<IResourceRefHandle[]>,
-		private toResource: (resourceKey: ResourceKey, ref: string) => URI
+		private getAllRefs: (resource: SyncResource) => Promise<IResourceRefHandle[]>,
+		private toResource: (resource: SyncResource, ref: string) => URI
 	) {
 	}
 
@@ -183,7 +183,7 @@ class UserDataSyncHistoryViewDataProvider implements ITreeViewDataProvider {
 		if (element) {
 			return this.getResources(element.handle);
 		}
-		return ALL_RESOURCE_KEYS.map(resourceKey => ({
+		return ALL_SYNC_RESOURCES.map(resourceKey => ({
 			handle: resourceKey,
 			collapsibleState: TreeItemCollapsibleState.Collapsed,
 			label: { label: resourceKey },
@@ -193,7 +193,7 @@ class UserDataSyncHistoryViewDataProvider implements ITreeViewDataProvider {
 	}
 
 	private async getResources(handle: string): Promise<ITreeItem[]> {
-		const resourceKey = ALL_RESOURCE_KEYS.filter(key => key === handle)[0];
+		const resourceKey = ALL_SYNC_RESOURCES.filter(key => key === handle)[0];
 		if (resourceKey) {
 			const refHandles = await this.getAllRefs(resourceKey);
 			return refHandles.map(({ ref, created }) => {

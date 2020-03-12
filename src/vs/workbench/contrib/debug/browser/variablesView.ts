@@ -9,7 +9,7 @@ import * as dom from 'vs/base/browser/dom';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDebugService, IExpression, IScope, CONTEXT_VARIABLES_FOCUSED, IViewModel } from 'vs/workbench/contrib/debug/common/debug';
-import { Variable, Scope } from 'vs/workbench/contrib/debug/common/debugModel';
+import { Variable, Scope, ErrorScope } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { renderViewTree, renderVariable, IInputBoxOptions, AbstractExpressionsRenderer, IExpressionTemplateData } from 'vs/workbench/contrib/debug/browser/baseDebugView';
@@ -97,7 +97,7 @@ export class VariablesView extends ViewPane {
 		const treeContainer = renderViewTree(container);
 
 		this.tree = <WorkbenchAsyncDataTree<IViewModel | IExpression | IScope, IExpression | IScope, FuzzyScore>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'VariablesView', treeContainer, new VariablesDelegate(),
-			[this.instantiationService.createInstance(VariablesRenderer), new ScopesRenderer()],
+			[this.instantiationService.createInstance(VariablesRenderer), new ScopesRenderer(), new ScopeErrorRenderer()],
 			new VariablesDataSource(), {
 			ariaLabel: nls.localize('variablesAriaTreeLabel', "Debug Variables"),
 			accessibilityProvider: new VariablesAccessibilityProvider(),
@@ -217,7 +217,7 @@ function isViewModel(obj: any): obj is IViewModel {
 export class VariablesDataSource implements IAsyncDataSource<IViewModel, IExpression | IScope> {
 
 	hasChildren(element: IViewModel | IExpression | IScope): boolean {
-		if (isViewModel(element) || element instanceof Scope) {
+		if (isViewModel(element)) {
 			return true;
 		}
 
@@ -246,6 +246,10 @@ class VariablesDelegate implements IListVirtualDelegate<IExpression | IScope> {
 	}
 
 	getTemplateId(element: IExpression | IScope): string {
+		if (element instanceof ErrorScope) {
+			return ScopeErrorRenderer.ID;
+		}
+
 		if (element instanceof Scope) {
 			return ScopesRenderer.ID;
 		}
@@ -274,6 +278,33 @@ class ScopesRenderer implements ITreeRenderer<IScope, FuzzyScore, IScopeTemplate
 	}
 
 	disposeTemplate(templateData: IScopeTemplateData): void {
+		// noop
+	}
+}
+
+interface IScopeErrorTemplateData {
+	error: HTMLElement;
+}
+
+class ScopeErrorRenderer implements ITreeRenderer<IScope, FuzzyScore, IScopeErrorTemplateData> {
+
+	static readonly ID = 'scopeError';
+
+	get templateId(): string {
+		return ScopeErrorRenderer.ID;
+	}
+
+	renderTemplate(container: HTMLElement): IScopeErrorTemplateData {
+		const wrapper = dom.append(container, $('.scope'));
+		const error = dom.append(wrapper, $('.error'));
+		return { error };
+	}
+
+	renderElement(element: ITreeNode<IScope, FuzzyScore>, index: number, templateData: IScopeErrorTemplateData): void {
+		templateData.error.innerText = element.element.name;
+	}
+
+	disposeTemplate(): void {
 		// noop
 	}
 }

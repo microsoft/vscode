@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SyncSource, IUserDataSyncStoreService, IUserDataSyncStore, getUserDataSyncStore, ResourceKey, IUserData, IUserDataManifest, IResourceRefHandle } from 'vs/platform/userDataSync/common/userDataSync';
+import { SyncResource, IUserDataSyncStoreService, IUserDataSyncStore, getUserDataSyncStore, IUserData, IUserDataManifest, IResourceRefHandle } from 'vs/platform/userDataSync/common/userDataSync';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -25,11 +25,11 @@ export class UserDataSyncStoreService implements IUserDataSyncStoreService {
 		this.userDataSyncStore = getUserDataSyncStore(productService, configurationService);
 	}
 
-	read(key: ResourceKey, oldValue: IUserData | null, source?: SyncSource): Promise<IUserData> {
+	read(key: SyncResource, oldValue: IUserData | null, source?: SyncResource): Promise<IUserData> {
 		throw new Error('Not Supported');
 	}
 
-	write(key: ResourceKey, content: string, ref: string | null, source?: SyncSource): Promise<string> {
+	write(key: SyncResource, content: string, ref: string | null, source?: SyncResource): Promise<string> {
 		throw new Error('Not Supported');
 	}
 
@@ -41,15 +41,15 @@ export class UserDataSyncStoreService implements IUserDataSyncStoreService {
 		throw new Error('Not Supported');
 	}
 
-	getAllRefs(key: ResourceKey): Promise<IResourceRefHandle[]> {
+	getAllRefs(key: SyncResource): Promise<IResourceRefHandle[]> {
 		return this.channel.call('getAllRefs', [key]);
 	}
 
-	resolveContent(key: ResourceKey, ref: string): Promise<string | null> {
+	resolveContent(key: SyncResource, ref: string): Promise<string | null> {
 		return this.channel.call('resolveContent', [key, ref]);
 	}
 
-	delete(key: ResourceKey): Promise<void> {
+	delete(key: SyncResource): Promise<void> {
 		return this.channel.call('delete', [key]);
 	}
 

@@ -95,6 +95,7 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 				if (this.contextKeyService.contextMatchesRules(view.when)) {
 					result.push({
 						label: view.name,
+						ariaLabel: localize('viewPickAriaLabel', "{0}, view picker", view.name),
 						containerLabel: viewlet.name,
 						accept: () => this.viewsService.openView(view.id, true)
 					});
@@ -110,6 +111,7 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 			if (this.includeViewlet(viewlet)) {
 				viewEntries.push({
 					label: viewlet.name,
+					ariaLabel: localize('viewPickAriaLabel', "{0}, view picker", viewlet.name),
 					containerLabel: localize('views', "Side Bar"),
 					accept: () => this.viewletService.openViewlet(viewlet.id, true)
 				});
@@ -121,6 +123,7 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 		for (const panel of panels) {
 			viewEntries.push({
 				label: panel.name,
+				ariaLabel: localize('viewPickAriaLabel', "{0}, view picker", panel.name),
 				containerLabel: localize('panels', "Panel"),
 				accept: () => this.panelService.openPanel(panel.id, true)
 			});
@@ -137,8 +140,10 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 		// Terminals
 		this.terminalService.terminalTabs.forEach((tab, tabIndex) => {
 			tab.terminalInstances.forEach((terminal, terminalIndex) => {
+				const label = localize('terminalTitle', "{0}: {1}", `${tabIndex + 1}.${terminalIndex + 1}`, terminal.title);
 				viewEntries.push({
-					label: localize('terminalTitle', "{0}: {1}", `${tabIndex + 1}.${terminalIndex + 1}`, terminal.title),
+					label,
+					ariaLabel: localize('viewPickAriaLabel', "{0}, view picker", label),
 					containerLabel: localize('terminals', "Terminal"),
 					accept: async () => {
 						await this.terminalService.showPanel(true);
@@ -152,8 +157,10 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 		// Output Channels
 		const channels = this.outputService.getChannelDescriptors();
 		for (const channel of channels) {
+			const label = channel.log ? localize('logChannel', "Log ({0})", channel.label) : channel.label;
 			viewEntries.push({
-				label: channel.log ? localize('logChannel', "Log ({0})", channel.label) : channel.label,
+				label,
+				ariaLabel: localize('viewPickAriaLabel', "{0}, view picker", label),
 				containerLabel: localize('channels', "Output"),
 				accept: () => this.outputService.showChannel(channel.id)
 			});

@@ -80,7 +80,6 @@ export const OPTIONS: OptionDescriptions<Required<ParsedArgs>> = {
 	'locate-extension': { type: 'string[]' },
 	'extensionDevelopmentPath': { type: 'string[]' },
 	'extensionTestsPath': { type: 'string' },
-	'extension-development-confirm-save': { type: 'boolean' },
 	'debugId': { type: 'string' },
 	'inspect-search': { type: 'string', deprecates: 'debugSearch' },
 	'inspect-brk-search': { type: 'string', deprecates: 'debugBrkSearch' },

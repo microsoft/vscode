@@ -316,6 +316,14 @@
 	animation-name: debugViewletValueChanged;
 }
 
+.debug-pane .debug-variables .scope .error {
+	font-style: italic;
+	text-overflow: ellipsis;
+	overflow: hidden;
+	font-family: var(--monaco-monospace-font);
+	font-weight: normal;
+}
+
 /* Breakpoints */
 
 .debug-pane .monaco-list-row {

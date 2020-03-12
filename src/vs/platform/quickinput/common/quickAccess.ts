@@ -144,6 +144,24 @@ Registry.add(Extensions.Quickaccess, new QuickAccessRegistry());
 
 //#region Helper class for simple picker based providers
 
+export enum TriggerAction {
+
+	/**
+	 * Do nothing after the button was clicked.
+	 */
+	NO_ACTION,
+
+	/**
+	 * Close the picker.
+	 */
+	CLOSE_PICKER,
+
+	/**
+	 * Update the results of the picker.
+	 */
+	REFRESH_PICKER
+}
+
 export interface IPickerQuickAccessItem extends IQuickPickItem {
 
 	/**
@@ -154,14 +172,15 @@ export interface IPickerQuickAccessItem extends IQuickPickItem {
 
 	/**
 	 * A method that will be executed when a button of the pick item was
-	 * clicked on. The picker will only close if `true` is returned.
+	 * clicked on.
 	 *
 	 * @param buttonIndex index of the button of the item that
 	 * was clicked.
 	 *
-	 * @returns a valud indicating if the picker should close or not.
+	 * @returns a value that indicates what should happen after the trigger
+	 * which can be a `Promise` for long running operations.
 	 */
-	trigger?(buttonIndex: number): boolean;
+	trigger?(buttonIndex: number): TriggerAction | Promise<TriggerAction>;
 }
 
 export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem> implements IQuickAccessProvider {
@@ -186,19 +205,24 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 			picksCts = new CancellationTokenSource(token);
 
 			// Collect picks and support both long running and short
-			const res = this.getPicks(picker.value.substr(this.prefix.length).trim(), picksCts.token);
+			const res = this.getPicks(picker.value.substr(this.prefix.length).trim(), disposables.add(new DisposableStore()), picksCts.token);
 			if (Array.isArray(res)) {
 				picker.items = res;
 			} else {
 				picker.busy = true;
 				try {
-					picker.items = await res;
+					const items = await res;
+					if (token.isCancellationRequested) {
+						return;
+					}
+
+					picker.items = items;
 				} finally {
-					picker.busy = false;
+					if (!token.isCancellationRequested) {
+						picker.busy = false;
+					}
 				}
 			}
-
-			this.getPicks(picker.value.substr(this.prefix.length).trim(), picksCts.token);
 		};
 		disposables.add(picker.onDidChangeValue(() => updatePickerItems()));
 		updatePickerItems();
@@ -213,13 +237,26 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 		}));
 
 		// Trigger the pick with button index if button triggered
-		disposables.add(picker.onDidTriggerItemButton(({ button, item }) => {
+		disposables.add(picker.onDidTriggerItemButton(async ({ button, item }) => {
 			if (typeof item.trigger === 'function') {
 				const buttonIndex = item.buttons?.indexOf(button) ?? -1;
 				if (buttonIndex >= 0) {
-					const hide = item.trigger(buttonIndex);
-					if (hide !== false) {
-						picker.hide();
+					const result = item.trigger(buttonIndex);
+					const action = (typeof result === 'number') ? result : await result;
+
+					if (token.isCancellationRequested) {
+						return;
+					}
+
+					switch (action) {
+						case TriggerAction.NO_ACTION:
+							break;
+						case TriggerAction.CLOSE_PICKER:
+							picker.hide();
+							break;
+						case TriggerAction.REFRESH_PICKER:
+							updatePickerItems();
+							break;
 					}
 				}
 			}
@@ -235,8 +272,14 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 	 *
 	 * The implementor is responsible for filtering and sorting the picks given the
 	 * provided `filter`.
+	 *
+	 * @param filter a filter to apply to the picks.
+	 * @param disposables can be used to register disposables that should be cleaned
+	 * up when the picker closes.
+	 * @param token for long running tasks, implementors need to check on cancellation
+	 * through this token.
 	 */
-	protected abstract getPicks(filter: string, token: CancellationToken): Array<T | IQuickPickSeparator> | Promise<Array<T | IQuickPickSeparator>>;
+	protected abstract getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Array<T | IQuickPickSeparator> | Promise<Array<T | IQuickPickSeparator>>;
 }
 
 //#endregion

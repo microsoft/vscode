@@ -7,6 +7,10 @@
 	border-top: none !important; /* less clutter: do not show any border for first views in a pane */
 }
 
+.monaco-pane-view .pane > .pane-header {
+	position: relative;
+}
+
 .monaco-pane-view .pane > .pane-header > .actions.show {
 	display: initial;
 }
@@ -22,4 +26,12 @@
 
 .monaco-pane-view .pane > .pane-header h3.title:first-child {
 	margin-left: 7px;
+}
+
+.monaco-pane-view .pane > .pane-header .monaco-progress-container {
+	position: absolute;
+	left: 0;
+	bottom: 0;
+	z-index: 5;
+	height: 2px;
 }

@@ -1,0 +1,20 @@
+name: CopyCat
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Actions
+        uses: actions/checkout@v2
+        with:
+          repository: 'JacksonKearl/vscode-triage-github-actions'
+          ref: master
+      - name: Run CopyCat
+        uses: ./copycat
+        with:
+          token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
+          owner: JacksonKearl
+          repo: testissues
