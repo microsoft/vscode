@@ -564,17 +564,22 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 		@IUndoRedoService private readonly _undoService: IUndoRedoService,
 	) {
 		super();
-		this._register(workingCopyService.registerWorkingCopy(this));
+		if (_editable) {
+			this._register(workingCopyService.registerWorkingCopy(this));
+		}
 	}
 
 	dispose() {
+		if (this._editable) {
+			this._undoService.removeElements(this.resource);
+		}
 		this._proxy.$disposeWebviewCustomEditorDocument(this.resource, this._viewType);
 		super.dispose();
 	}
 
 	//#region IWorkingCopy
 
-	public get resource() { return this._resource; }
+	public get resource() { return this._resource; } // custom://viewType/path/file
 
 	public get name() {
 		return basename(this._labelService.getUriLabel(this._resource));
