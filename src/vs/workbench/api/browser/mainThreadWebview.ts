@@ -617,7 +617,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 		this._undoService.pushElement({
 			type: UndoRedoElementType.Resource,
 			resource: this.resource,
-			label: 'Undo',
+			label: 'Edit', // TODO: get this from extensions?
 			undo: async () => {
 				if (!this._editable) {
 					return;
