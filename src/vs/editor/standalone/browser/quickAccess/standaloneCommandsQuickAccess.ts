@@ -11,15 +11,25 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { AbstractEditorCommandsQuickAccessProvider } from 'vs/editor/contrib/quickAccess/commandsQuickAccess';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class StandaloneCommandsQuickAccessProvider extends AbstractEditorCommandsQuickAccessProvider {
 
 	get activeTextEditorControl(): IEditor | undefined { return withNullAsUndefined(this.codeEditorService.getFocusedCodeEditor()); }
 
 	constructor(
-		@ICodeEditorService private readonly codeEditorService: ICodeEditorService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@ICommandService commandService: ICommandService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@INotificationService notificationService: INotificationService
 	) {
-		super();
+		super(instantiationService, keybindingService, commandService, telemetryService, notificationService);
 	}
 
 	protected async getCommandPicks(): Promise<Array<ICommandQuickPick>> {

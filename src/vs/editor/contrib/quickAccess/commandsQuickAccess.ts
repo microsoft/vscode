@@ -5,6 +5,11 @@
 
 import { AbstractCommandsQuickAccessProvider, ICommandQuickPick } from 'vs/platform/quickinput/browser/commandsQuickAccess';
 import { IEditor } from 'vs/editor/common/editorCommon';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export interface IEditorCommandsQuickAccessOptions {
 	alias: {
@@ -15,8 +20,15 @@ export interface IEditorCommandsQuickAccessOptions {
 
 export abstract class AbstractEditorCommandsQuickAccessProvider extends AbstractCommandsQuickAccessProvider {
 
-	constructor(private options?: IEditorCommandsQuickAccessOptions) {
-		super();
+	constructor(
+		instantiationService: IInstantiationService,
+		keybindingService: IKeybindingService,
+		commandService: ICommandService,
+		telemetryService: ITelemetryService,
+		notificationService: INotificationService,
+		private options?: IEditorCommandsQuickAccessOptions
+	) {
+		super(instantiationService, keybindingService, commandService, telemetryService, notificationService);
 	}
 
 	/**
@@ -36,8 +48,8 @@ export abstract class AbstractEditorCommandsQuickAccessProvider extends Abstract
 			const alias: string | undefined = this.verifyAlias(editorAction.alias, label, editorAction.id);
 
 			editorCommandPicks.push({
-				label,
 				commandId: editorAction.id,
+				label,
 				detail: alias
 			});
 		}

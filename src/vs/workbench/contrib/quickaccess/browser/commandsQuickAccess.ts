@@ -16,6 +16,11 @@ import { DisposableStore, toDisposable, dispose } from 'vs/base/common/lifecycle
 import { AbstractEditorCommandsQuickAccessProvider } from 'vs/editor/contrib/quickAccess/commandsQuickAccess';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { Language } from 'vs/base/common/platform';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAccessProvider {
 
@@ -34,9 +39,14 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		@IEditorService private readonly editorService: IEditorService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IEnvironmentService readonly environmentService: IEnvironmentService
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@ICommandService commandService: ICommandService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@INotificationService notificationService: INotificationService
 	) {
-		super({
+		super(instantiationService, keybindingService, commandService, telemetryService, notificationService, {
 			alias: {
 
 				// Show alias only when not running in english
@@ -93,8 +103,8 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 				aliasTitle, label, action.item.id);
 
 			globalCommandPicks.push({
-				label,
 				commandId: action.item.id,
+				label,
 				detail: alias
 			});
 		}
