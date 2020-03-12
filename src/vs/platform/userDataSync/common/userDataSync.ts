@@ -135,11 +135,16 @@ export function getUserDataSyncStore(productService: IProductService, configurat
 	return undefined;
 }
 
-export const ALL_RESOURCE_KEYS: ResourceKey[] = ['settings', 'keybindings', 'extensions', 'globalState'];
-export type ResourceKey = 'settings' | 'keybindings' | 'extensions' | 'globalState';
+export const enum SyncResource {
+	Settings = 'settings',
+	Keybindings = 'keybindings',
+	Extensions = 'extensions',
+	GlobalState = 'globalState'
+}
+export const ALL_SYNC_RESOURCES: SyncResource[] = [SyncResource.Settings, SyncResource.Keybindings, SyncResource.Extensions, SyncResource.GlobalState];
 
 export interface IUserDataManifest {
-	latest?: Record<ResourceKey, string>
+	latest?: Record<SyncResource, string>
 	session: string;
 }
 
@@ -152,21 +157,21 @@ export const IUserDataSyncStoreService = createDecorator<IUserDataSyncStoreServi
 export interface IUserDataSyncStoreService {
 	_serviceBrand: undefined;
 	readonly userDataSyncStore: IUserDataSyncStore | undefined;
-	read(key: ResourceKey, oldValue: IUserData | null, source?: SyncSource): Promise<IUserData>;
-	write(key: ResourceKey, content: string, ref: string | null, source?: SyncSource): Promise<string>;
+	read(resource: SyncResource, oldValue: IUserData | null): Promise<IUserData>;
+	write(resource: SyncResource, content: string, ref: string | null): Promise<string>;
 	manifest(): Promise<IUserDataManifest | null>;
 	clear(): Promise<void>;
-	getAllRefs(key: ResourceKey): Promise<IResourceRefHandle[]>;
-	resolveContent(key: ResourceKey, ref: string): Promise<string | null>;
-	delete(key: ResourceKey): Promise<void>;
+	getAllRefs(resource: SyncResource): Promise<IResourceRefHandle[]>;
+	resolveContent(resource: SyncResource, ref: string): Promise<string | null>;
+	delete(resource: SyncResource): Promise<void>;
 }
 
 export const IUserDataSyncBackupStoreService = createDecorator<IUserDataSyncBackupStoreService>('IUserDataSyncBackupStoreService');
 export interface IUserDataSyncBackupStoreService {
 	_serviceBrand: undefined;
-	backup(resourceKey: ResourceKey, content: string): Promise<void>;
-	getAllRefs(key: ResourceKey): Promise<IResourceRefHandle[]>;
-	resolveContent(key: ResourceKey, ref?: string): Promise<string | null>;
+	backup(resource: SyncResource, content: string): Promise<void>;
+	getAllRefs(resource: SyncResource): Promise<IResourceRefHandle[]>;
+	resolveContent(resource: SyncResource, ref?: string): Promise<string | null>;
 }
 
 //#endregion
@@ -195,9 +200,9 @@ export enum UserDataSyncErrorCode {
 
 export class UserDataSyncError extends Error {
 
-	constructor(message: string, public readonly code: UserDataSyncErrorCode, public readonly source?: SyncSource) {
+	constructor(message: string, public readonly code: UserDataSyncErrorCode, public readonly resource?: SyncResource) {
 		super(message);
-		this.name = `${this.code} (UserDataSyncError) ${this.source}`;
+		this.name = `${this.code} (UserDataSyncError) ${this.resource}`;
 	}
 
 	static toUserDataSyncError(error: Error): UserDataSyncError {
@@ -206,7 +211,7 @@ export class UserDataSyncError extends Error {
 		}
 		const match = /^(.+) \(UserDataSyncError\) (.+)?$/.exec(error.name);
 		if (match && match[1]) {
-			return new UserDataSyncError(error.message, <UserDataSyncErrorCode>match[1], <SyncSource>match[2]);
+			return new UserDataSyncError(error.message, <UserDataSyncErrorCode>match[1], <SyncResource>match[2]);
 		}
 		return new UserDataSyncError(error.message, UserDataSyncErrorCode.Unknown);
 	}
@@ -230,13 +235,6 @@ export interface IGlobalState {
 	storage: IStringDictionary<any>;
 }
 
-export const enum SyncSource {
-	Settings = 'Settings',
-	Keybindings = 'Keybindings',
-	Extensions = 'Extensions',
-	GlobalState = 'GlobalState'
-}
-
 export const enum SyncStatus {
 	Uninitialized = 'uninitialized',
 	Idle = 'idle',
@@ -246,8 +244,7 @@ export const enum SyncStatus {
 
 export interface IUserDataSynchroniser {
 
-	readonly resourceKey: ResourceKey;
-	readonly source: SyncSource;
+	readonly resource: SyncResource;
 	readonly status: SyncStatus;
 	readonly onDidChangeStatus: Event<SyncStatus>;
 	readonly onDidChangeLocal: Event<void>;
@@ -276,13 +273,13 @@ export interface IUserDataSyncEnablementService {
 	_serviceBrand: any;
 
 	readonly onDidChangeEnablement: Event<boolean>;
-	readonly onDidChangeResourceEnablement: Event<[ResourceKey, boolean]>;
+	readonly onDidChangeResourceEnablement: Event<[SyncResource, boolean]>;
 
 	isEnabled(): boolean;
 	setEnablement(enabled: boolean): void;
 
-	isResourceEnabled(key: ResourceKey): boolean;
-	setResourceEnablement(key: ResourceKey, enabled: boolean): void;
+	isResourceEnabled(resource: SyncResource): boolean;
+	setResourceEnablement(resource: SyncResource, enabled: boolean): void;
 }
 
 export const IUserDataSyncService = createDecorator<IUserDataSyncService>('IUserDataSyncService');
@@ -292,11 +289,11 @@ export interface IUserDataSyncService {
 	readonly status: SyncStatus;
 	readonly onDidChangeStatus: Event<SyncStatus>;
 
-	readonly conflictsSources: SyncSource[];
-	readonly onDidChangeConflicts: Event<SyncSource[]>;
+	readonly conflictsSources: SyncResource[];
+	readonly onDidChangeConflicts: Event<SyncResource[]>;
 
-	readonly onDidChangeLocal: Event<SyncSource>;
-	readonly onSyncErrors: Event<[SyncSource, UserDataSyncError][]>;
+	readonly onDidChangeLocal: Event<SyncResource>;
+	readonly onSyncErrors: Event<[SyncResource, UserDataSyncError][]>;
 
 	readonly lastSyncTime: number | undefined;
 	readonly onDidChangeLastSyncTime: Event<number>;
@@ -309,7 +306,7 @@ export interface IUserDataSyncService {
 
 	isFirstTimeSyncWithMerge(): Promise<boolean>;
 	resolveContent(resource: URI): Promise<string | null>;
-	accept(source: SyncSource, content: string): Promise<void>;
+	accept(source: SyncResource, content: string): Promise<void>;
 }
 
 export const IUserDataAutoSyncService = createDecorator<IUserDataAutoSyncService>('IUserDataAutoSyncService');
@@ -351,50 +348,31 @@ export const CONTEXT_SYNC_ENABLEMENT = new RawContextKey<boolean>('syncEnabled',
 
 export const USER_DATA_SYNC_SCHEME = 'vscode-userdata-sync';
 export const PREVIEW_QUERY = 'preview=true';
-export function toRemoteSyncResourceFromSource(source: SyncSource, ref?: string): URI {
-	return toRemoteSyncResource(getResourceKeyFromSyncSource(source), ref);
+export function toRemoteSyncResource(resource: SyncResource, ref?: string): URI {
+	return URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote', path: `/${resource}/${ref ? ref : 'latest'}` });
 }
-export function toRemoteSyncResource(resourceKey: ResourceKey, ref?: string): URI {
-	return URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote', path: `/${resourceKey}/${ref ? ref : 'latest'}` });
-}
-export function toLocalBackupSyncResource(resourceKey: ResourceKey, ref?: string): URI {
-	return URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local-backup', path: `/${resourceKey}/${ref ? ref : 'latest'}` });
+export function toLocalBackupSyncResource(resource: SyncResource, ref?: string): URI {
+	return URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local-backup', path: `/${resource}/${ref ? ref : 'latest'}` });
 }
 
-export function resolveSyncResource(resource: URI): { remote: boolean, resourceKey: ResourceKey, ref?: string } | null {
-	const remote = resource.authority === 'remote';
-	const resourceKey: ResourceKey = basename(dirname(resource)) as ResourceKey;
-	const ref = basename(resource);
-	if (resourceKey && ref) {
-		return { remote, resourceKey, ref: ref !== 'latest' ? ref : undefined };
+export function resolveSyncResource(resource: URI): { remote: boolean, resource: SyncResource, ref?: string } | null {
+	if (resource.scheme === USER_DATA_SYNC_SCHEME) {
+		const remote = resource.authority === 'remote';
+		const resourceKey: SyncResource = basename(dirname(resource)) as SyncResource;
+		const ref = basename(resource);
+		if (resourceKey && ref) {
+			return { remote, resource: resourceKey, ref: ref !== 'latest' ? ref : undefined };
+		}
 	}
 	return null;
 }
 
-export function getSyncSourceFromPreviewResource(uri: URI, environmentService: IEnvironmentService): SyncSource | undefined {
+export function getSyncSourceFromPreviewResource(uri: URI, environmentService: IEnvironmentService): SyncResource | undefined {
 	if (isEqual(uri, environmentService.settingsSyncPreviewResource)) {
-		return SyncSource.Settings;
+		return SyncResource.Settings;
 	}
 	if (isEqual(uri, environmentService.keybindingsSyncPreviewResource)) {
-		return SyncSource.Keybindings;
+		return SyncResource.Keybindings;
 	}
 	return undefined;
-}
-
-export function getResourceKeyFromSyncSource(source: SyncSource): ResourceKey {
-	switch (source) {
-		case SyncSource.Settings: return 'settings';
-		case SyncSource.Keybindings: return 'keybindings';
-		case SyncSource.Extensions: return 'extensions';
-		case SyncSource.GlobalState: return 'globalState';
-	}
-}
-
-export function getSyncSourceFromResourceKey(resourceKey: ResourceKey): SyncSource {
-	switch (resourceKey) {
-		case 'settings': return SyncSource.Settings;
-		case 'keybindings': return SyncSource.Keybindings;
-		case 'extensions': return SyncSource.Extensions;
-		case 'globalState': return SyncSource.GlobalState;
-	}
 }

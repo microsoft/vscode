@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IFileService, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { UserDataSyncError, UserDataSyncErrorCode, SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IUserDataSyncUtilService, IConflictSetting, ISettingsSyncService, CONFIGURATION_SYNC_STORE_KEY, SyncSource, IUserDataSyncEnablementService, IUserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSync';
+import { UserDataSyncError, UserDataSyncErrorCode, SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IUserDataSyncUtilService, IConflictSetting, ISettingsSyncService, CONFIGURATION_SYNC_STORE_KEY, SyncResource, IUserDataSyncEnablementService, IUserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSync';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { parse } from 'vs/base/common/json';
 import { localize } from 'vs/nls';
@@ -57,7 +57,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 	) {
-		super(environmentService.settingsResource, SyncSource.Settings, 'settings', fileService, environmentService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, userDataSyncUtilService, configurationService);
+		super(environmentService.settingsResource, SyncResource.Settings, fileService, environmentService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, userDataSyncUtilService, configurationService);
 	}
 
 	protected setStatus(status: SyncStatus): void {
@@ -78,14 +78,14 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 
 	async pull(): Promise<void> {
 		if (!this.isEnabled()) {
-			this.logService.info('Settings: Skipped pulling settings as it is disabled.');
+			this.logService.info(`${this.syncResourceLogLabel}: Skipped pulling settings as it is disabled.`);
 			return;
 		}
 
 		this.stop();
 
 		try {
-			this.logService.info('Settings: Started pulling settings...');
+			this.logService.info(`${this.syncResourceLogLabel}: Started pulling settings...`);
 			this.setStatus(SyncStatus.Syncing);
 
 			const lastSyncUserData = await this.getLastSyncUserData();
@@ -113,10 +113,10 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 
 			// No remote exists to pull
 			else {
-				this.logService.info('Settings: Remote settings does not exist.');
+				this.logService.info(`${this.syncResourceLogLabel}: Remote settings does not exist.`);
 			}
 
-			this.logService.info('Settings: Finished pulling settings.');
+			this.logService.info(`${this.syncResourceLogLabel}: Finished pulling settings.`);
 		} finally {
 			this.setStatus(SyncStatus.Idle);
 		}
@@ -124,14 +124,14 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 
 	async push(): Promise<void> {
 		if (!this.isEnabled()) {
-			this.logService.info('Settings: Skipped pushing settings as it is disabled.');
+			this.logService.info(`${this.syncResourceLogLabel}: Skipped pushing settings as it is disabled.`);
 			return;
 		}
 
 		this.stop();
 
 		try {
-			this.logService.info('Settings: Started pushing settings...');
+			this.logService.info(`${this.syncResourceLogLabel}: Started pushing settings...`);
 			this.setStatus(SyncStatus.Syncing);
 
 			const fileContent = await this.getLocalFileContent();
@@ -159,10 +159,10 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 
 			// No local exists to push
 			else {
-				this.logService.info('Settings: Local settings does not exist.');
+				this.logService.info(`${this.syncResourceLogLabel}: Local settings does not exist.`);
 			}
 
-			this.logService.info('Settings: Finished pushing settings.');
+			this.logService.info(`${this.syncResourceLogLabel}: Finished pushing settings.`);
 		} finally {
 			this.setStatus(SyncStatus.Idle);
 		}
@@ -268,7 +268,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 				switch (e.code) {
 					case UserDataSyncErrorCode.LocalPreconditionFailed:
 						// Rejected as there is a new local version. Syncing again.
-						this.logService.info('Settings: Failed to synchronize settings as there is a new local version available. Synchronizing again...');
+						this.logService.info(`${this.syncResourceLogLabel}: Failed to synchronize settings as there is a new local version available. Synchronizing again...`);
 						return this.performSync(remoteUserData, lastSyncUserData, resolvedConflicts);
 				}
 			}
@@ -288,10 +288,10 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 			this.validateContent(content);
 
 			if (hasLocalChanged) {
-				this.logService.trace('Settings: Updating local settings...');
+				this.logService.trace(`${this.syncResourceLogLabel}: Updating local settings...`);
 				await this.backupLocal(JSON.stringify(this.toSettingsSyncContent(content)));
 				await this.updateLocalFileContent(content, fileContent);
-				this.logService.info('Settings: Updated local settings');
+				this.logService.info(`${this.syncResourceLogLabel}: Updated local settings`);
 			}
 			if (hasRemoteChanged) {
 				const formatUtils = await this.getFormattingOptions();
@@ -299,9 +299,9 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 				const remoteSettingsSyncContent = this.getSettingsSyncContent(remoteUserData);
 				const ignoredSettings = await this.getIgnoredSettings(content);
 				content = updateIgnoredSettings(content, remoteSettingsSyncContent ? remoteSettingsSyncContent.settings : '{}', ignoredSettings, formatUtils);
-				this.logService.trace('Settings: Updating remote settings...');
+				this.logService.trace(`${this.syncResourceLogLabel}: Updating remote settings...`);
 				remoteUserData = await this.updateRemoteUserData(JSON.stringify(this.toSettingsSyncContent(content)), forcePush ? null : remoteUserData.ref);
-				this.logService.info('Settings: Updated remote settings');
+				this.logService.info(`${this.syncResourceLogLabel}: Updated remote settings`);
 			}
 
 			// Delete the preview
@@ -309,13 +309,13 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 				await this.fileService.del(this.conflictsPreviewResource);
 			} catch (e) { /* ignore */ }
 		} else {
-			this.logService.info('Settings: No changes found during synchronizing settings.');
+			this.logService.info(`${this.syncResourceLogLabel}: No changes found during synchronizing settings.`);
 		}
 
 		if (lastSyncUserData?.ref !== remoteUserData.ref) {
-			this.logService.trace('Settings: Updating last synchronized settings...');
+			this.logService.trace(`${this.syncResourceLogLabel}: Updating last synchronized settings...`);
 			await this.updateLastSyncUserData(remoteUserData);
-			this.logService.info('Settings: Updated last synchronized settings');
+			this.logService.info(`${this.syncResourceLogLabel}: Updated last synchronized settings`);
 		}
 
 		this.syncPreviewResultPromise = null;
@@ -343,7 +343,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 		if (remoteSettingsSyncContent) {
 			const localContent: string = fileContent ? fileContent.value.toString() : '{}';
 			this.validateContent(localContent);
-			this.logService.trace('Settings: Merging remote settings with local settings...');
+			this.logService.trace(`${this.syncResourceLogLabel}: Merging remote settings with local settings...`);
 			const ignoredSettings = await this.getIgnoredSettings();
 			const result = merge(localContent, remoteSettingsSyncContent.settings, lastSettingsSyncContent ? lastSettingsSyncContent.settings : null, ignoredSettings, resolvedConflicts, formattingOptions);
 			content = result.localContent || result.remoteContent;
@@ -355,7 +355,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 
 		// First time syncing to remote
 		else if (fileContent) {
-			this.logService.trace('Settings: Remote settings does not exist. Synchronizing settings for the first time.');
+			this.logService.trace(`${this.syncResourceLogLabel}: Remote settings does not exist. Synchronizing settings for the first time.`);
 			content = fileContent.value.toString();
 			hasRemoteChanged = true;
 		}
@@ -406,7 +406,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 
 	private validateContent(content: string): void {
 		if (this.hasErrors(content)) {
-			throw new UserDataSyncError(localize('errorInvalidSettings', "Unable to sync settings as there are errors/warning in settings file."), UserDataSyncErrorCode.LocalInvalidContent, this.source);
+			throw new UserDataSyncError(localize('errorInvalidSettings', "Unable to sync settings as there are errors/warning in settings file."), UserDataSyncErrorCode.LocalInvalidContent, this.resource);
 		}
 	}
 }

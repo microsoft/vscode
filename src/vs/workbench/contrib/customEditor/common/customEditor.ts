@@ -52,8 +52,6 @@ export interface ICustomEditorModel extends IDisposable {
 	isDirty(): boolean;
 	readonly onDidChangeDirty: Event<void>;
 
-	undo(): void;
-	redo(): void;
 	revert(options?: IRevertOptions): Promise<void>;
 
 	save(options?: ISaveOptions): Promise<boolean>;

@@ -24,6 +24,7 @@ export interface IQuickPickItem {
 	ariaLabel?: string;
 	description?: string;
 	detail?: string;
+	keybinding?: ResolvedKeybinding;
 	iconClasses?: string[];
 	italic?: boolean;
 	highlights?: IQuickPickItemHighlights;

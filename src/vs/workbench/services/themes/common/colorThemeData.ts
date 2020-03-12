@@ -293,9 +293,11 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 						const settings = tokenColors[i].settings;
 						if (score >= foregroundScore && settings.foreground) {
 							foreground = settings.foreground;
+							foregroundScore = score;
 						}
 						if (score >= fontStyleScore && types.isString(settings.fontStyle)) {
 							fontStyle = settings.fontStyle;
+							fontStyleScore = score;
 						}
 					}
 				}
@@ -657,7 +659,7 @@ function nameMatcher(identifers: string[], scope: ProbeScope): number {
 	let lastScopeIndex = scope.length - 1;
 	let lastIdentifierIndex = findInIdents(scope[lastScopeIndex--], identifers.length);
 	if (lastIdentifierIndex >= 0) {
-		const score = (lastIdentifierIndex + 1) * 0x10000 + scope.length;
+		const score = (lastIdentifierIndex + 1) * 0x10000 + identifers[lastIdentifierIndex].length;
 		while (lastScopeIndex >= 0) {
 			lastIdentifierIndex = findInIdents(scope[lastScopeIndex--], lastIdentifierIndex);
 			if (lastIdentifierIndex === -1) {

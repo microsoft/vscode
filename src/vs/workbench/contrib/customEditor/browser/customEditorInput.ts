@@ -15,6 +15,7 @@ import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, Verbosity } from 'vs/workbench/common/editor';
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { IWebviewService, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
@@ -44,6 +45,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IUndoRedoService private readonly undoRedoService: IUndoRedoService,
 	) {
 		super(id, viewType, '', webview, webviewService, webviewWorkbenchService);
 		this._editorResource = resource;
@@ -175,10 +177,12 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	}
 
 	public undo(): void {
-		assertIsDefined(this._modelRef).object.undo();
+		assertIsDefined(this._modelRef);
+		this.undoRedoService.undo(this.resource);
 	}
 
 	public redo(): void {
-		assertIsDefined(this._modelRef).object.redo();
+		assertIsDefined(this._modelRef);
+		this.undoRedoService.redo(this.resource);
 	}
 }

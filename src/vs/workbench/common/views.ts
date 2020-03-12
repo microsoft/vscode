@@ -21,6 +21,7 @@ import { flatten, mergeSort } from 'vs/base/common/arrays';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { SetMap } from 'vs/base/common/collections';
 import { IProgressIndicator } from 'vs/platform/progress/common/progress';
+import Severity from 'vs/base/common/severity';
 
 export const TEST_VIEW_CONTAINER_ID = 'workbench.view.extension.test';
 
@@ -583,7 +584,7 @@ export interface ITreeViewDataProvider {
 }
 
 export interface IEditableData {
-	validationMessage: (value: string) => string | null;
+	validationMessage: (value: string) => { content: string, severity: Severity } | null;
 	placeholder?: string | null;
 	startingValue?: string | null;
 	onFinish: (value: string, success: boolean) => void;

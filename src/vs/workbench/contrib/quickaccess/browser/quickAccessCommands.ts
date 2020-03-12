@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { ICommand } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 export const QUICK_ACCESS_COMMAND_ID = 'workbench.action.openQuickAccess';
 
-CommandsRegistry.registerCommand({
+export const quickAccessCommand: ICommand = {
 	id: QUICK_ACCESS_COMMAND_ID,
 	handler: async function (accessor: ServicesAccessor, prefix: string | null = null) {
 		const quickInputService = accessor.get(IQuickInputService);
@@ -25,4 +25,4 @@ CommandsRegistry.registerCommand({
 			}
 		}]
 	}
-});
+};

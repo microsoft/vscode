@@ -373,18 +373,6 @@ export class InputBox extends Widget {
 		const styles = this.stylesForType(this.message.type);
 		this.element.style.border = styles.border ? `1px solid ${styles.border}` : '';
 
-		// ARIA Support
-		let alertText: string;
-		if (message.type === MessageType.ERROR) {
-			alertText = nls.localize('alertErrorMessage', "Error: {0}", message.content);
-		} else if (message.type === MessageType.WARNING) {
-			alertText = nls.localize('alertWarningMessage', "Warning: {0}", message.content);
-		} else {
-			alertText = nls.localize('alertInfoMessage', "Info: {0}", message.content);
-		}
-
-		aria.alert(alertText);
-
 		if (this.hasFocus() || force) {
 			this._showMessage();
 		}
@@ -484,6 +472,18 @@ export class InputBox extends Widget {
 			},
 			layout: layout
 		});
+
+		// ARIA Support
+		let alertText: string;
+		if (this.message.type === MessageType.ERROR) {
+			alertText = nls.localize('alertErrorMessage', "Error: {0}", this.message.content);
+		} else if (this.message.type === MessageType.WARNING) {
+			alertText = nls.localize('alertWarningMessage', "Warning: {0}", this.message.content);
+		} else {
+			alertText = nls.localize('alertInfoMessage', "Info: {0}", this.message.content);
+		}
+
+		aria.alert(alertText);
 
 		this.state = 'open';
 	}

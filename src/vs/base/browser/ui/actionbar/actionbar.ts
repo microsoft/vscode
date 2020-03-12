@@ -510,7 +510,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 			} else if (event.equals(nextKey)) {
 				this.focusNext();
 			} else if (event.equals(KeyCode.Escape)) {
-				this.cancel();
+				this._onDidCancel.fire();
 			} else if (this.isTriggerKeyEvent(event)) {
 				// Staying out of the else branch even if not triggered
 				if (this.options.triggerKeys && this.options.triggerKeys.keyDown) {
@@ -811,14 +811,6 @@ export class ActionBar extends Disposable implements IActionRunner {
 			const context = (actionViewItem._context === null || actionViewItem._context === undefined) ? event : actionViewItem._context;
 			this.run(actionViewItem._action, context);
 		}
-	}
-
-	private cancel(): void {
-		if (document.activeElement instanceof HTMLElement) {
-			document.activeElement.blur(); // remove focus from focused action
-		}
-
-		this._onDidCancel.fire();
 	}
 
 	run(action: IAction, context?: unknown): Promise<void> {
