@@ -46,16 +46,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotificationService notificationService: INotificationService
 	) {
-		super(instantiationService, keybindingService, commandService, telemetryService, notificationService, {
-			alias: {
-
-				// Show alias only when not running in english
-				enable: !Language.isDefaultVariant(),
-
-				// Print a warning if the alias does not match the english label
-				verify: !environmentService.isBuilt && Language.isDefaultVariant(),
-			}
-		});
+		super({ showAlias: !Language.isDefaultVariant() }, instantiationService, keybindingService, commandService, telemetryService, notificationService);
 	}
 
 	protected async getCommandPicks(disposables: DisposableStore, token: CancellationToken): Promise<Array<ICommandQuickPick>> {
@@ -96,16 +87,16 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 			}
 
 			// Alias
-			const aliasTitle = typeof action.item.title !== 'string' ? action.item.title.original : undefined;
+			const aliasLabel = typeof action.item.title !== 'string' ? action.item.title.original : undefined;
 			const aliasCategory = (category && action.item.category && typeof action.item.category !== 'string') ? action.item.category.original : undefined;
-			let alias = this.verifyAlias((aliasTitle && category) ?
-				aliasCategory ? `${aliasCategory}: ${aliasTitle}` : `${category}: ${aliasTitle}` :
-				aliasTitle, label, action.item.id);
+			const commandAlias = (aliasLabel && category) ?
+				aliasCategory ? `${aliasCategory}: ${aliasLabel}` : `${category}: ${aliasLabel}` :
+				aliasLabel;
 
 			globalCommandPicks.push({
 				commandId: action.item.id,
-				label,
-				detail: alias
+				commandAlias,
+				label
 			});
 		}
 

@@ -27,6 +27,11 @@ import { timeout } from 'vs/base/common/async';
 
 export interface ICommandQuickPick extends IPickerQuickAccessItem {
 	commandId: string;
+	commandAlias: string | undefined;
+}
+
+export interface ICommandsQuickAccessOptions {
+	showAlias: boolean;
 }
 
 export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAccessProvider<ICommandQuickPick> implements IDisposable {
@@ -40,6 +45,7 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 	private readonly commandsHistory = this.disposables.add(this.instantiationService.createInstance(CommandsHistory));
 
 	constructor(
+		private options: ICommandsQuickAccessOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@ICommandService private readonly commandService: ICommandService,
@@ -58,10 +64,14 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 		const filteredCommandPicks: ICommandQuickPick[] = [];
 		for (const commandPick of allCommandPicks) {
 			const labelHighlights = withNullAsUndefined(AbstractCommandsQuickAccessProvider.WORD_FILTER(filter, commandPick.label));
-			const detailHighlights = commandPick.detail ? withNullAsUndefined(AbstractCommandsQuickAccessProvider.WORD_FILTER(filter, commandPick.detail)) : undefined;
+			const aliasHighlights = commandPick.commandAlias ? withNullAsUndefined(AbstractCommandsQuickAccessProvider.WORD_FILTER(filter, commandPick.commandAlias)) : undefined;
 
-			if (labelHighlights || detailHighlights) {
-				commandPick.highlights = { label: labelHighlights, detail: detailHighlights };
+			if (labelHighlights || aliasHighlights) {
+				commandPick.highlights = {
+					label: labelHighlights,
+					detail: this.options.showAlias ? aliasHighlights : undefined
+				};
+
 				filteredCommandPicks.push(commandPick);
 			}
 		}
@@ -128,6 +138,7 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 			commandPicks.push({
 				...commandPick,
 				ariaLabel,
+				detail: this.options.showAlias ? commandPick.commandAlias : undefined,
 				keybinding,
 				accept: async () => {
 

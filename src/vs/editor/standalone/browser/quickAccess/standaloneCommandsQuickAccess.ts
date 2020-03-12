@@ -29,7 +29,7 @@ export class StandaloneCommandsQuickAccessProvider extends AbstractEditorCommand
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotificationService notificationService: INotificationService
 	) {
-		super(instantiationService, keybindingService, commandService, telemetryService, notificationService);
+		super({ showAlias: false }, instantiationService, keybindingService, commandService, telemetryService, notificationService);
 	}
 
 	protected async getCommandPicks(): Promise<Array<ICommandQuickPick>> {
