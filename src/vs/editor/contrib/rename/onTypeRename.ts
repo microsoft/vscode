@@ -26,6 +26,7 @@ import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
+import { EditOperationType } from 'vs/editor/common/controller/cursorCommon';
 
 export const CONTEXT_ONTYPE_RENAME_INPUT_VISIBLE = new RawContextKey<boolean>('onTypeRenameInputVisible', false);
 
@@ -147,14 +148,12 @@ export class OnTypeRenameContribution extends Disposable implements IEditorContr
 		const currentRanges = this._currentDecorations.map(decId => model.getDecorationRange(decId)!);
 
 		const referenceRange = currentRanges[0];
-		// if (referenceRange.isEmpty() || referenceRange.startLineNumber !== referenceRange.endLineNumber) {
 		if (referenceRange.startLineNumber !== referenceRange.endLineNumber) {
 			return this.stopAll();
 		}
 
 		const referenceValue = model.getValueInRange(referenceRange);
-		if (/\s/.test(referenceValue)) {
-			// TODO: we need a better stop condition here
+		if (this._stopPattern.test(referenceValue)) {
 			return this.stopAll();
 		}
 
