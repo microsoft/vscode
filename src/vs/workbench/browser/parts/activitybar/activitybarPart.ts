@@ -17,7 +17,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IDisposable, toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { ToggleActivityBarVisibilityAction, ToggleMenuBarAction } from 'vs/workbench/browser/actions/layoutActions';
 import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
-import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
+import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_ACTIVE_BACKGROUND, EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { CompositeBar, ICompositeBarItem, CompositeDragAndDrop, CompositeDragAndDropObserver } from 'vs/workbench/browser/parts/compositeBar';
 import { Dimension, addClass, removeNode } from 'vs/base/browser/dom';
@@ -298,6 +298,10 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
 
+		const overlay = document.createElement('div');
+		addClass(overlay, 'drag-overlay');
+		parent.appendChild(overlay);
+
 		this.content = document.createElement('div');
 		addClass(this.content, 'content');
 		parent.appendChild(this.content);
@@ -317,12 +321,23 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		this.createGlobalActivityActionBar(globalActivities);
 
-		CompositeDragAndDropObserver.INSTANCE.registerParticipant(this.element, {
+		CompositeDragAndDropObserver.INSTANCE.registerTarget(this.element, {
 			onDragStart: e => {
-				this.element.style.border = `2px solid blue`;
+				// this.element.style.outline = `1px solid`;
+				// this.element.style.outlineOffset = '-1px';
+				overlay.style.backgroundColor = this.theme.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND, true)?.toString() || '';
+				overlay.style.opacity = '.8';
 			},
 			onDragEnd: e => {
-				this.element.style.border = '';
+				// this.element.style.outline = '';
+				overlay.style.opacity = '';
+			},
+			onDragEnter: e => {
+				overlay.style.opacity = '';
+			},
+			onDragLeave: e => {
+				overlay.style.backgroundColor = this.theme.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND, true)?.toString() || '';
+				overlay.style.opacity = '.8';
 			}
 		});
 
@@ -346,6 +361,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		container.style.borderLeftWidth = borderColor && !isPositionLeft ? '1px' : '';
 		container.style.borderLeftStyle = borderColor && !isPositionLeft ? 'solid' : '';
 		container.style.borderLeftColor = !isPositionLeft ? borderColor : '';
+		// container.style.outlineColor = this.getColor(ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND) ?? '';
 	}
 
 	private getActivitybarItemColors(theme: IColorTheme): ICompositeBarColors {

@@ -48,6 +48,7 @@ import { CompositeDragAndDropObserver } from 'vs/workbench/browser/parts/composi
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { CompositeProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
 import { IProgressIndicator } from 'vs/platform/progress/common/progress';
+import { DraggedViewIdentifier } from 'vs/base/parts/composite/browser/compositeDnd';
 
 export interface IPaneColors extends IColorMapping {
 	dropBackground?: ColorIdentifier;
@@ -60,14 +61,6 @@ export interface IViewPaneOptions extends IPaneOptions {
 	id: string;
 	showActionsAlways?: boolean;
 	titleMenuId?: MenuId;
-}
-
-export class DraggedViewIdentifier {
-	constructor(private _viewId: string) { }
-
-	get id(): string {
-		return this._viewId;
-	}
 }
 
 type WelcomeActionClassification = {
@@ -968,7 +961,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			}
 		}));
 
-		CompositeDragAndDropObserver.INSTANCE.registerParticipant(pane.draggableElement, {});
+		CompositeDragAndDropObserver.INSTANCE.registerDraggable(pane.draggableElement, 'view', pane.id, {});
 	}
 
 	removePanes(panes: ViewPane[]): void {

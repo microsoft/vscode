@@ -5,6 +5,27 @@
 
 import { IDragAndDropData } from 'vs/base/browser/dnd';
 
+export class DraggedCompositeIdentifier {
+	constructor(private _compositeId: string) { }
+
+	get id(): string {
+		return this._compositeId;
+	}
+}
+
+export class DraggedViewIdentifier {
+	constructor(private _viewId: string) { }
+
+	get id(): string {
+		return this._viewId;
+	}
+}
+
+export interface IDraggedCompositeData {
+	eventData: DragEvent;
+	dragAndDropData: CompositeDragAndDropData;
+}
+
 export class CompositeDragAndDropData implements IDragAndDropData {
 	constructor(private type: 'view' | 'composite', private id: string) { }
 	update(dataTransfer: DataTransfer): void {
@@ -25,10 +46,10 @@ export interface ICompositeDragAndDrop {
 }
 
 export interface ICompositeDragAndDropObserverCallbacks {
-	onDragEnter?: (e: DragEvent) => void;
-	onDragLeave?: (e: DragEvent) => void;
-	onDrop?: (e: DragEvent) => void;
-	onDragOver?: (e: DragEvent) => void;
-	onDragStart?: (e: DragEvent) => void;
-	onDragEnd?: (e: DragEvent) => void;
+	onDragEnter?: (e: IDraggedCompositeData) => void;
+	onDragLeave?: (e: IDraggedCompositeData) => void;
+	onDrop?: (e: IDraggedCompositeData) => void;
+	onDragOver?: (e: IDraggedCompositeData) => void;
+	onDragStart?: (e: IDraggedCompositeData) => void;
+	onDragEnd?: (e: IDraggedCompositeData) => void;
 }

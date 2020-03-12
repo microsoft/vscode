@@ -99,3 +99,29 @@
 .monaco-pane-view.animated.horizontal .split-view-view {
 	transition-property: width;
 }
+
+#monaco-workbench-pane-drop-overlay {
+	position: absolute;
+	z-index: 10000;
+	width: 100%;
+	height: 100%;
+	left: 0;
+	opacity: .4;
+}
+
+#monaco-workbench-pane-drop-overlay > .pane-overlay-indicator {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+
+	pointer-events: none; /* very important to not take events away from the parent */
+
+	opacity: 0; /* hidden initially */
+	transition: opacity 150ms ease-out;
+}
+
+#monaco-workbench-pane-drop-overlay > .pane-overlay-indicator.overlay-move-transition {
+	transition: top 70ms ease-out, left 70ms ease-out, width 70ms ease-out, height 70ms ease-out, opacity 150ms ease-out;
+}
