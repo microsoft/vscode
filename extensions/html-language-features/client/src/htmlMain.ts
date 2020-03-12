@@ -293,7 +293,6 @@ export function activate(context: ExtensionContext) {
 		}
 	});
 
-	// TODO
 	languages.registerOnTypeRenameProvider(documentSelector, {
 		async provideOnTypeRenameRanges(document, position) {
 			const param = client.code2ProtocolConverter.asTextDocumentPositionParams(document, position);
