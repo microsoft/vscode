@@ -116,22 +116,6 @@ export class OutputViewPane extends ViewPane {
 		this.editor.layout({ height, width });
 	}
 
-	getActions(): IAction[] {
-		if (!this.actions) {
-			this.actions = [
-				// this._register(this.instantiationService.createInstance(SwitchOutputAction)),
-				// this._register(this.instantiationService.createInstance(ClearOutputAction, ClearOutputAction.ID, ClearOutputAction.LABEL)),
-				// this._register(this.instantiationService.createInstance(ToggleOrSetOutputScrollLockAction, ToggleOrSetOutputScrollLockAction.ID, ToggleOrSetOutputScrollLockAction.LABEL)),
-				// this._register(this.instantiationService.createInstance(OpenLogOutputFile))
-			];
-		}
-		return [...super.getActions(), ...this.actions];
-	}
-
-	getSecondaryActions(): IAction[] {
-		return [...super.getSecondaryActions(), ...this.editor.getSecondaryActions()];
-	}
-
 	getActionViewItem(action: IAction): IActionViewItem | undefined {
 		if (action.id === 'workbench.output.action.switchBetweenOutputs') {
 			return this.instantiationService.createInstance(SwitchOutputActionViewItem, action);
