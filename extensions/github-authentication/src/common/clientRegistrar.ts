@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Uri } from 'vscode';
+import { Uri, env } from 'vscode';
+import * as fs from 'fs';
+import * as path from 'path';
 
 export interface ClientDetails {
 	id?: string;
@@ -26,7 +28,8 @@ export class Registrar {
 
 	constructor() {
 		try {
-			this._config = require('./config.json') as ClientConfig;
+			const fileContents = fs.readFileSync(path.join(env.appRoot, 'extensions/github-authentication/src/common/config.json')).toString();
+			this._config = JSON.parse(fileContents);
 		} catch (e) {
 			this._config = {
 				OSS: {},
