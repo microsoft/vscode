@@ -608,6 +608,9 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 				(document.activeElement as HTMLElement).blur();
 			}
 
+			cell.state = CellState.Preview;
+			cell.focusMode = CellFocusMode.Editor;
+
 			this.list?.setFocus([index]);
 			this.list?.setSelection([index]);
 			this.list?.focusView();
