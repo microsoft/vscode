@@ -64,8 +64,9 @@ export class TerminalWidgetManager implements IDisposable {
 
 	public closeMessage(): void {
 		this._messageListeners.clear();
+		const currentWidget = this._messageWidget;
 		setTimeout(() => {
-			if (this._messageWidget && !this._messageWidget.mouseOver) {
+			if (this._messageWidget && !this._messageWidget.mouseOver && this._messageWidget === currentWidget) {
 				this._messageListeners.add(MessageWidget.fadeOut(this._messageWidget));
 			}
 		}, 50);
