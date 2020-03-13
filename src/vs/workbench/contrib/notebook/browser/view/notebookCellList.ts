@@ -19,7 +19,6 @@ import { EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/common/noteboo
 import { Range } from 'vs/editor/common/core/range';
 import { CellRevealType, CellRevealPosition } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { TestHistoryService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 export class NotebookCellList extends WorkbenchList<CellViewModel> implements IDisposable {
 	get onWillScroll(): Event<ScrollEvent> { return this.view.onWillScroll; }
