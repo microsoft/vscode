@@ -68,8 +68,7 @@ interface IPath {
 	normalize(path: string): string;
 }
 
-export class TerminalLinkHandler {
-	private readonly _hoverDisposables = new DisposableStore();
+export class TerminalLinkHandler extends DisposableStore {
 	private _widgetManager: TerminalWidgetManager | undefined;
 	private _processCwd: string | undefined;
 	private _gitDiffPreImagePattern: RegExp;
@@ -78,10 +77,10 @@ export class TerminalLinkHandler {
 	private readonly _leaveCallback: () => void;
 	private _hasBeforeHandleLinkListeners = false;
 
-	private readonly _onBeforeHandleLink = new Emitter<ITerminalBeforeHandleLinkEvent>({
+	private readonly _onBeforeHandleLink = this.add(new Emitter<ITerminalBeforeHandleLinkEvent>({
 		onFirstListenerAdd: () => this._hasBeforeHandleLinkListeners = true,
 		onLastListenerRemove: () => this._hasBeforeHandleLinkListeners = false
-	});
+	}));
 	/**
 	 * Allows intercepting links and handling them outside of the default link handler. When fired
 	 * the listener has a set amount of time to handle the link or the default handler will fire.
@@ -100,6 +99,8 @@ export class TerminalLinkHandler {
 		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService
 	) {
+		super();
+
 		// Matches '--- a/src/file1', capturing 'src/file1' in group 1
 		this._gitDiffPreImagePattern = /^--- a\/(\S*)/;
 		// Matches '+++ b/src/file1', capturing 'src/file1' in group 1
@@ -224,11 +225,6 @@ export class TerminalLinkHandler {
 		};
 		this._xterm.registerLinkMatcher(this._gitDiffPreImagePattern, wrappedHandler, options);
 		this._xterm.registerLinkMatcher(this._gitDiffPostImagePattern, wrappedHandler, options);
-	}
-
-	public dispose(): void {
-		this._hoverDisposables.dispose();
-		this._onBeforeHandleLink.dispose();
 	}
 
 	private _wrapLinkHandler(handler: (uri: string) => boolean | void): XtermLinkMatcherHandler {
