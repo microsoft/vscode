@@ -579,7 +579,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	}
 
 	saveNotebookCell(cell: CellViewModel): void {
-		cell.state = CellState.Read;
+		cell.state = CellState.Preview;
 	}
 
 	getActiveCell() {
@@ -600,7 +600,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			this.list?.setSelection([index]);
 			this.list?.focusView();
 
-			cell.state = CellState.PreviewContent;
+			cell.state = CellState.Editing;
 			cell.focusMode = CellFocusMode.Editor;
 		} else {
 			let itemDOM = this.list?.domElementAtIndex(index);

@@ -89,7 +89,7 @@ export class NotebookViewModel extends Disposable {
 	hide() {
 		this.viewCells.forEach(cell => {
 			if (cell.getText() !== '') {
-				cell.state = CellState.Read;
+				cell.state = CellState.Preview;
 			}
 		});
 	}
@@ -131,7 +131,7 @@ export class NotebookViewModel extends Disposable {
 
 	saveEditorViewState(): INotebookEditorViewState {
 		const state: { [key: number]: boolean } = {};
-		this.viewCells.filter(cell => cell.isEditing).forEach(cell => state[cell.cell.handle] = true);
+		this.viewCells.filter(cell => cell.state === CellState.Editing).forEach(cell => state[cell.cell.handle] = true);
 		const editorViewStates: { [key: number]: editorCommon.ICodeEditorViewState } = {};
 		this.viewCells.map(cell => ({ handle: cell.cell.handle, state: cell.saveEditorViewState() })).forEach(viewState => {
 			if (viewState.state) {
@@ -154,7 +154,7 @@ export class NotebookViewModel extends Disposable {
 			const isEditing = viewState.editingCells && viewState.editingCells[cell.handle];
 			const editorViewState = viewState.editorViewStates && viewState.editorViewStates[cell.handle];
 
-			cell.state = isEditing ? CellState.Editing : CellState.Read;
+			cell.state = isEditing ? CellState.Editing : CellState.Preview;
 			cell.restoreEditorViewState(editorViewState);
 		});
 	}

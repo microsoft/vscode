@@ -154,7 +154,7 @@ registerAction2(class extends Action2 {
 		let activeCell = editor.getActiveCell();
 		if (activeCell) {
 			if (activeCell.cellKind === CellKind.Markdown) {
-				activeCell.state = CellState.Read;
+				activeCell.state = CellState.Preview;
 			}
 
 			editor.focusNotebookCell(activeCell, false);

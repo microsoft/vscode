@@ -206,14 +206,7 @@ export enum CellState {
 	 * For markdown cell, it's Markdown preview.
 	 * For code cell, the browser focus should be on the container instead of the editor
 	 */
-	Read,
-
-	/**
-	 * Content preview mode.
-	 * For markdown cell, the source is now rendered in the editor. When the cell is not longer focsued/selected, it will fall back to Read mode.
-	 * For code cell, this state is the same as Editing
-	 */
-	PreviewContent,
+	Preview,
 
 	/**
 	 * Eding mode. Source for markdown or code is rendered in editors and the state will be persistent.

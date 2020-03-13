@@ -24,8 +24,8 @@ export class CellViewModel extends Disposable {
 	private _html: HTMLElement | null = null;
 	protected readonly _onDidDispose = new Emitter<void>();
 	readonly onDidDispose = this._onDidDispose.event;
-	protected readonly _onDidChangeEditingState = new Emitter<void>();
-	readonly onDidChangeEditingState = this._onDidChangeEditingState.event;
+	protected readonly _onDidChangeCellState = new Emitter<void>();
+	readonly onDidChangeCellState = this._onDidChangeCellState.event;
 	protected readonly _onDidChangeFocusMode = new Emitter<void>();
 	readonly onDidChangeFocusMode = this._onDidChangeFocusMode.event;
 	protected readonly _onDidChangeOutputs = new Emitter<NotebookCellOutputsSplice[]>();
@@ -47,33 +47,19 @@ export class CellViewModel extends Disposable {
 		return this.cell.outputs;
 	}
 
-	private _isEditing: boolean;
-
-	get isEditing(): boolean {
-		return this._isEditing;
-	}
-
-	private _state: CellState = CellState.Read;
+	private _state: CellState = CellState.Preview;
 
 	get state(): CellState {
 		return this._state;
 	}
 
 	set state(newState: CellState) {
-		// no downgrade from Editing to PreviewContent
-		if (this._state === CellState.Editing && newState === CellState.PreviewContent) {
+		if (newState === this._state) {
 			return;
 		}
 
 		this._state = newState;
-
-		if (newState !== CellState.Read) {
-			this._isEditing = true;
-		} else {
-			this._isEditing = false;
-		}
-
-		this._onDidChangeEditingState.fire();
+		this._onDidChangeCellState.fire();
 	}
 
 	private _focusMode: CellFocusMode = CellFocusMode.Container;
@@ -145,7 +131,6 @@ export class CellViewModel extends Disposable {
 		this._outputCollection = new Array(this.cell.outputs.length);
 		this._buffer = null;
 		this._editorViewStates = null;
-		this._isEditing = false;
 	}
 
 	restoreEditorViewState(editorViewStates: editorCommon.ICodeEditorViewState | null) {
@@ -252,7 +237,7 @@ export class CellViewModel extends Disposable {
 		this._html = null;
 	}
 	save() {
-		if (this._textModel && !this._textModel.isDisposed() && (this.cell.isDirty || this.isEditing)) {
+		if (this._textModel && !this._textModel.isDisposed() && (this.cell.isDirty || this.state === CellState.Editing)) {
 			let cnt = this._textModel.getLineCount();
 			this.cell.source = this._textModel.getLinesContent().map((str, index) => str + (index !== cnt - 1 ? '\n' : ''));
 		}
@@ -393,11 +378,7 @@ export class CellViewModel extends Disposable {
 	}
 
 	onDeselect() {
-		if (this.cellKind === CellKind.Code) {
-			this.state = CellState.Read;
-		} else if (this.state === CellState.PreviewContent) {
-			this.state = CellState.Read;
-		}
+		this.state = CellState.Preview;
 	}
 
 	cursorAtBoundary(): CursorAtBoundary {

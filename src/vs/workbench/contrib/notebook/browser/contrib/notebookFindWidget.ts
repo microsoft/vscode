@@ -79,7 +79,7 @@ export class NotebookFindWidget extends SimpleFindWidget {
 	}
 
 	private revealCellRange(cellIndex: number, matchIndex: number) {
-		this._findMatches[cellIndex].cell.state = CellState.PreviewContent;
+		this._findMatches[cellIndex].cell.state = CellState.Editing;
 		this._notebookEditor.selectElement(this._findMatches[cellIndex].cell);
 		this._notebookEditor.setCellSelection(this._findMatches[cellIndex].cell, this._findMatches[cellIndex].matches[matchIndex].range);
 		this._notebookEditor.revealRangeInCenterIfOutsideViewport(this._findMatches[cellIndex].cell, this._findMatches[cellIndex].matches[matchIndex].range);
