@@ -205,7 +205,7 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 			picksCts = new CancellationTokenSource(token);
 
 			// Collect picks and support both long running and short
-			const res = this.getPicks(picker.value.substr(this.prefix.length).trim(), picksCts.token);
+			const res = this.getPicks(picker.value.substr(this.prefix.length).trim(), disposables.add(new DisposableStore()), picksCts.token);
 			if (Array.isArray(res)) {
 				picker.items = res;
 			} else {
@@ -272,8 +272,14 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 	 *
 	 * The implementor is responsible for filtering and sorting the picks given the
 	 * provided `filter`.
+	 *
+	 * @param filter a filter to apply to the picks.
+	 * @param disposables can be used to register disposables that should be cleaned
+	 * up when the picker closes.
+	 * @param token for long running tasks, implementors need to check on cancellation
+	 * through this token.
 	 */
-	protected abstract getPicks(filter: string, token: CancellationToken): Array<T | IQuickPickSeparator> | Promise<Array<T | IQuickPickSeparator>>;
+	protected abstract getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Array<T | IQuickPickSeparator> | Promise<Array<T | IQuickPickSeparator>>;
 }
 
 //#endregion

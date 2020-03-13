@@ -46,7 +46,8 @@
 }
 
 .monaco-action-bar .action-item .codicon {
-	vertical-align: middle;
+	display: flex;
+	align-items: center;
 }
 
 .monaco-action-bar .action-label {

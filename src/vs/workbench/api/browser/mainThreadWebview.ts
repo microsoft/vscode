@@ -6,7 +6,7 @@
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable, IReference, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { basename } from 'vs/base/common/path';
 import { isWeb } from 'vs/base/common/platform';
@@ -21,6 +21,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IUndoRedoService, UndoRedoElementType } from 'vs/platform/undoRedo/common/undoRedo';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { editorGroupToViewColumn, EditorViewColumn, viewColumnToEditorGroup } from 'vs/workbench/api/common/shared/editor';
 import { IEditorInput, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
@@ -365,12 +366,14 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		return this._customEditorService.models.add(resource, viewType, model);
 	}
 
-	public async $onDidChangeCustomDocumentState(resource: UriComponents, viewType: string, state: { dirty: boolean }) {
-		const model = await this._customEditorService.models.get(URI.revive(resource), viewType);
+	public async $onDidEdit(resourceComponents: UriComponents, viewType: string, editId: number, label: string | undefined): Promise<void> {
+		const resource = URI.revive(resourceComponents);
+		const model = await this._customEditorService.models.get(resource, viewType);
 		if (!model || !(model instanceof MainThreadCustomEditorModel)) {
 			throw new Error('Could not find model for webview editor');
 		}
-		model.setDirty(state.dirty);
+
+		model.pushEdit(editId, label);
 	}
 
 	private hookupWebviewEventDelegate(handle: extHostProtocol.WebviewPanelHandle, input: WebviewInput) {
@@ -533,10 +536,14 @@ namespace HotExitState {
 	export type State = typeof Allowed | typeof NotAllowed | Pending;
 }
 
+const customDocumentFileScheme = 'custom';
+
 class MainThreadCustomEditorModel extends Disposable implements ICustomEditorModel, IWorkingCopy {
 
 	private _hotExitState: HotExitState.State = HotExitState.Allowed;
-	private _dirty = false;
+	private _currentEditIndex: number = -1;
+	private _savePoint: number = -1;
+	private readonly _edits: Array<number> = [];
 
 	public static async create(
 		instantiationService: IInstantiationService,
@@ -551,27 +558,42 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 	constructor(
 		private readonly _proxy: extHostProtocol.ExtHostWebviewsShape,
 		private readonly _viewType: string,
-		private readonly _resource: URI,
+		private readonly _realResource: URI,
 		private readonly _editable: boolean,
 		@IWorkingCopyService workingCopyService: IWorkingCopyService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IFileService private readonly _fileService: IFileService,
+		@IUndoRedoService private readonly _undoService: IUndoRedoService,
 	) {
 		super();
-		this._register(workingCopyService.registerWorkingCopy(this));
+
+		if (_editable) {
+			this._register(workingCopyService.registerWorkingCopy(this));
+		}
 	}
 
 	dispose() {
-		this._proxy.$disposeWebviewCustomEditorDocument(this.resource, this._viewType);
+		if (this._editable) {
+			this._undoService.removeElements(this._realResource);
+		}
+		this._proxy.$disposeWebviewCustomEditorDocument(this._realResource, this._viewType);
 		super.dispose();
 	}
 
 	//#region IWorkingCopy
 
-	public get resource() { return this._resource; }
+	public get resource() {
+		// Make sure each custom editor has a unique resource for backup and edits
+		return URI.from({
+			scheme: customDocumentFileScheme,
+			authority: this._viewType,
+			path: this._realResource.path,
+			query: JSON.stringify(this._realResource.toJSON())
+		});
+	}
 
 	public get name() {
-		return basename(this._labelService.getUriLabel(this._resource));
+		return basename(this._labelService.getUriLabel(this._realResource));
 	}
 
 	public get capabilities(): WorkingCopyCapabilities {
@@ -579,7 +601,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 	}
 
 	public isDirty(): boolean {
-		return this._dirty;
+		return this._edits.length > 0 && this._savePoint !== this._currentEditIndex;
 	}
 
 	private readonly _onDidChangeDirty: Emitter<void> = this._register(new Emitter<void>());
@@ -594,46 +616,125 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 		return this._viewType;
 	}
 
-	public setDirty(dirty: boolean): void {
+	public pushEdit(editId: number, label: string | undefined) {
+		if (!this._editable) {
+			throw new Error('Document is not editable');
+		}
+
+		this.change(() => {
+			this.spliceEdits(editId);
+			this._currentEditIndex = this._edits.length - 1;
+		});
+
+		this._undoService.pushElement({
+			type: UndoRedoElementType.Resource,
+			resource: this._realResource,
+			label: label ?? localize('defaultEditLabel', "Edit"),
+			undo: () => this.undo(),
+			redo: () => this.redo(),
+		});
+	}
+
+	private async undo(): Promise<void> {
+		if (!this._editable) {
+			return;
+		}
+
+		if (this._currentEditIndex < 0) {
+			// nothing to undo
+			return;
+		}
+
+		const undoneEdit = this._edits[this._currentEditIndex];
+		await this._proxy.$undo(this._realResource, this.viewType, undoneEdit);
+
+		this.change(() => {
+			--this._currentEditIndex;
+		});
+	}
+
+	private async redo(): Promise<void> {
+		if (!this._editable) {
+			return;
+		}
+
+		if (this._currentEditIndex >= this._edits.length - 1) {
+			// nothing to redo
+			return;
+		}
+
+		const redoneEdit = this._edits[this._currentEditIndex + 1];
+		await this._proxy.$redo(this._realResource, this.viewType, redoneEdit);
+		this.change(() => {
+			++this._currentEditIndex;
+		});
+	}
+
+	private spliceEdits(editToInsert?: number) {
+		const start = this._currentEditIndex + 1;
+		const toRemove = this._edits.length - this._currentEditIndex;
+
+		const removedEdits = typeof editToInsert === 'number'
+			? this._edits.splice(start, toRemove, editToInsert)
+			: this._edits.splice(start, toRemove);
+
+		if (removedEdits.length) {
+			this._proxy.$disposeEdits(this._realResource, this._viewType, removedEdits);
+		}
+	}
+
+	private change(makeEdit: () => void): void {
+		const wasDirty = this.isDirty();
+		makeEdit();
 		this._onDidChangeContent.fire();
 
-		if (this._dirty !== dirty) {
-			this._dirty = dirty;
+		if (this.isDirty() !== wasDirty) {
 			this._onDidChangeDirty.fire();
 		}
 	}
 
 	public async revert(_options?: IRevertOptions) {
-		if (this._editable) {
-			this._proxy.$revert(this.resource, this.viewType);
+		if (!this._editable) {
+			return;
 		}
-	}
 
-	public undo() {
-		if (this._editable) {
-			this._proxy.$undo(this.resource, this.viewType);
+		if (this._currentEditIndex === this._savePoint) {
+			return;
 		}
-	}
 
-	public redo() {
-		if (this._editable) {
-			this._proxy.$redo(this.resource, this.viewType);
+		let editsToUndo: number[] = [];
+		let editsToRedo: number[] = [];
+
+		if (this._currentEditIndex >= this._savePoint) {
+			editsToUndo = this._edits.slice(this._savePoint, this._currentEditIndex).reverse();
+		} else if (this._currentEditIndex < this._savePoint) {
+			editsToRedo = this._edits.slice(this._currentEditIndex, this._savePoint);
 		}
+
+		this._proxy.$revert(this._realResource, this.viewType, { undoneEdits: editsToUndo, redoneEdits: editsToRedo });
+		this.change(() => {
+			this._currentEditIndex = this._savePoint;
+			this.spliceEdits();
+		});
 	}
 
 	public async save(_options?: ISaveOptions): Promise<boolean> {
 		if (!this._editable) {
 			return false;
 		}
-		await createCancelablePromise(token => this._proxy.$onSave(this.resource, this.viewType, token));
-		this.setDirty(false);
+		await createCancelablePromise(token => this._proxy.$onSave(this._realResource, this.viewType, token));
+		this.change(() => {
+			this._savePoint = this._currentEditIndex;
+		});
 		return true;
 	}
 
 	public async saveAs(resource: URI, targetResource: URI, _options?: ISaveOptions): Promise<boolean> {
 		if (this._editable) {
-			await this._proxy.$onSaveAs(this.resource, this.viewType, targetResource);
-			this.setDirty(false);
+			await this._proxy.$onSaveAs(this._realResource, this.viewType, targetResource);
+			this.change(() => {
+				this._savePoint = this._currentEditIndex;
+			});
 			return true;
 		} else {
 			// Since the editor is readonly, just copy the file over
@@ -659,7 +760,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 
 		const pendingState = new HotExitState.Pending(
 			createCancelablePromise(token =>
-				this._proxy.$backup(this.resource.toJSON(), this.viewType, token)));
+				this._proxy.$backup(this._realResource.toJSON(), this.viewType, token)));
 		this._hotExitState = pendingState;
 
 		try {

@@ -148,8 +148,8 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 		this.registerDynamicPreview(preview);
 	}
 
-	public async resolveCustomDocument(_document: vscode.CustomDocument): Promise<vscode.CustomEditorCapabilities> {
-		return {};
+	public async resolveCustomDocument(_document: vscode.CustomDocument): Promise<void> {
+		// noop
 	}
 
 	public async resolveCustomTextEditor(

@@ -592,7 +592,7 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 		templateData.actionRunner.editor = openedEditor;
 		editor.isDirty() && !editor.isSaving() ? dom.addClass(templateData.container, 'dirty') : dom.removeClass(templateData.container, 'dirty');
 		templateData.root.setResource({
-			resource: toResource(editor, { supportSideBySide: SideBySideEditor.MASTER }),
+			resource: toResource(editor, { supportSideBySide: SideBySideEditor.BOTH }),
 			name: editor.getName(),
 			description: editor.getDescription(Verbosity.MEDIUM)
 		}, {

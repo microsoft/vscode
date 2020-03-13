@@ -153,6 +153,10 @@
 	background-repeat: no-repeat;
 }
 
+.scm-viewlet .monaco-list-row .resource > .name > .monaco-icon-label > .actions .action-label.codicon {
+	height: 22px;
+}
+
 .scm-viewlet .scm-editor {
 	box-sizing: border-box;
 	padding: 5px 12px 5px 16px;

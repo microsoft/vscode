@@ -146,6 +146,10 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 						return false;
 					}
 				}
+				if (extensionKind === 'web') {
+					// Web extensions are not yet supported to be disabled by kind
+					return false;
+				}
 			}
 			return true;
 		}

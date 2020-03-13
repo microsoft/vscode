@@ -289,6 +289,41 @@ suite('Themes - TokenStyleResolving', () => {
 
 	});
 
+
+	test('resolveScopes - match most specific', async () => {
+		const themeData = ColorThemeData.createLoadedEmptyTheme('test', 'test');
+
+		const customTokenColors: ITokenColorCustomizations = {
+			textMateRules: [
+				{
+					scope: 'entity.name.type',
+					settings: {
+						fontStyle: 'underline',
+						foreground: '#A6E22E'
+					}
+				},
+				{
+					scope: 'entity.name.type.class',
+					settings: {
+						foreground: '#FF00FF'
+					}
+				},
+				{
+					scope: 'entity.name',
+					settings: {
+						foreground: '#FFFFFF'
+					}
+				},
+			]
+		};
+
+		themeData.setCustomTokenColors(customTokenColors);
+
+		const tokenStyle = themeData.resolveScopes([['entity.name.type.class']]);
+		assertTokenStyle(tokenStyle, ts('#FF00FF', { underline: true }), 'entity.name.type.class');
+
+	});
+
 	test('rule matching', async () => {
 		const themeData = ColorThemeData.createLoadedEmptyTheme('test', 'test');
 		themeData.setCustomColors({ 'editor.foreground': '#000000' });
