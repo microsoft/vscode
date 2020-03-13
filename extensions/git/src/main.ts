@@ -7,7 +7,7 @@ import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
 import { ExtensionContext, workspace, window, Disposable, commands, Uri, OutputChannel, WorkspaceFolder } from 'vscode';
-import { findGit, Git, IGit } from './git';
+import { findGit, Git, IGit, UserInputProvider } from './git';
 import { Model } from './model';
 import { CommandCenter } from './commands';
 import { GitContentProvider } from './contentProvider';
@@ -24,7 +24,7 @@ import * as fs from 'fs';
 import { createIPCServer, IIPCServer } from './ipc/ipcServer';
 import { GitTimelineProvider } from './timelineProvider';
 
-const deactivateTasks: { (): Promise<any>; }[] = [];
+const deactivateTasks: { (): Promise<any> }[] = [];
 
 export async function deactivate(): Promise<any> {
 	for (const task of deactivateTasks) {
@@ -32,9 +32,27 @@ export async function deactivate(): Promise<any> {
 	}
 }
 
-async function createModel(context: ExtensionContext, outputChannel: OutputChannel, telemetryReporter: TelemetryReporter, disposables: Disposable[]): Promise<Model> {
+async function createModel(
+	context: ExtensionContext,
+	outputChannel: OutputChannel,
+	telemetryReporter: TelemetryReporter,
+	disposables: Disposable[]
+): Promise<Model> {
 	const pathHint = workspace.getConfiguration('git').get<string>('path');
-	const info = await findGit(pathHint, path => outputChannel.appendLine(localize('looking', "Looking for git in: {0}", path)));
+	const info = await findGit(pathHint, path =>
+		outputChannel.appendLine(localize('looking', 'Looking for git in: {0}', path))
+	);
+	const userInputProvider: UserInputProvider = {
+		askFingerprintConfirmation: async (host, fingerprint) => {
+			return (
+				(await window.showWarningMessage(
+					`The authenticity of host '${host}' can't be established. \nFingerprint is ${fingerprint}. \nAre you sure you want to continue connecting?`,
+					{ modal: true },
+					'Yes',
+				)) === 'Yes'
+			);
+		}
+	};
 
 	let env: any = {};
 	let ipc: IIPCServer | undefined;
@@ -56,18 +74,19 @@ async function createModel(context: ExtensionContext, outputChannel: OutputChann
 	}
 
 	const git = new Git({ gitPath: info.path, version: info.version, env });
-	const model = new Model(git, context.globalState, outputChannel);
+	const model = new Model(git, context.globalState, outputChannel, userInputProvider);
 	disposables.push(model);
 
-	const onRepository = () => commands.executeCommand('setContext', 'gitOpenRepositoryCount', `${model.repositories.length}`);
+	const onRepository = () =>
+		commands.executeCommand('setContext', 'gitOpenRepositoryCount', `${model.repositories.length}`);
 	model.onDidOpenRepository(onRepository, null, disposables);
 	model.onDidCloseRepository(onRepository, null, disposables);
 	onRepository();
 
-	outputChannel.appendLine(localize('using git', "Using git {0} from {1}", info.version, info.path));
+	outputChannel.appendLine(localize('using git', 'Using git {0} from {1}', info.version, info.path));
 
 	const onOutput = (str: string) => {
-		const lines = str.split(/\r?\n/mg);
+		const lines = str.split(/\r?\n/gm);
 
 		while (/^\s*$/.test(lines[lines.length - 1])) {
 			lines.pop();
@@ -100,7 +119,7 @@ async function isGitRepository(folder: WorkspaceFolder): Promise<boolean> {
 	const dotGit = path.join(folder.uri.fsPath, '.git');
 
 	try {
-		const dotGitStat = await new Promise<fs.Stats>((c, e) => fs.stat(dotGit, (err, stat) => err ? e(err) : c(stat)));
+		const dotGitStat = await new Promise<fs.Stats>((c, e) => fs.stat(dotGit, (err, stat) => (err ? e(err) : c(stat))));
 		return dotGitStat.isDirectory();
 	} catch (err) {
 		return false;
@@ -125,7 +144,7 @@ async function warnAboutMissingGit(): Promise<void> {
 		return;
 	}
 
-	const download = localize('downloadgit', "Download Git");
+	const download = localize('downloadgit', 'Download Git');
 	const neverShowAgain = localize('neverShowAgain', "Don't Show Again");
 	const choice = await window.showWarningMessage(
 		localize('notfound', "Git not found. Install it or configure it using the 'git.path' setting."),
@@ -148,7 +167,7 @@ export async function activate(context: ExtensionContext): Promise<GitExtension>
 	commands.registerCommand('git.showOutput', () => outputChannel.show());
 	disposables.push(outputChannel);
 
-	const { name, version, aiKey } = require('../package.json') as { name: string, version: string, aiKey: string };
+	const { name, version, aiKey } = require('../package.json') as { name: string; version: string; aiKey: string };
 	const telemetryReporter = new TelemetryReporter(name, version, aiKey);
 	deactivateTasks.push(() => telemetryReporter.dispose());
 
@@ -157,10 +176,15 @@ export async function activate(context: ExtensionContext): Promise<GitExtension>
 
 	if (!enabled) {
 		const onConfigChange = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git'));
-		const onEnabled = filterEvent(onConfigChange, () => workspace.getConfiguration('git', null).get<boolean>('enabled') === true);
+		const onEnabled = filterEvent(
+			onConfigChange,
+			() => workspace.getConfiguration('git', null).get<boolean>('enabled') === true
+		);
 		const result = new GitExtensionImpl();
 
-		eventToPromise(onEnabled).then(async () => result.model = await createModel(context, outputChannel, telemetryReporter, disposables));
+		eventToPromise(onEnabled).then(
+			async () => (result.model = await createModel(context, outputChannel, telemetryReporter, disposables))
+		);
 		return result;
 	}
 
@@ -193,11 +217,11 @@ async function checkGitVersion(info: IGit): Promise<void> {
 		return;
 	}
 
-	const update = localize('updateGit', "Update Git");
+	const update = localize('updateGit', 'Update Git');
 	const neverShowAgain = localize('neverShowAgain', "Don't Show Again");
 
 	const choice = await window.showWarningMessage(
-		localize('git20', "You seem to have git {0} installed. Code works best with git >= 2", info.version),
+		localize('git20', 'You seem to have git {0} installed. Code works best with git >= 2', info.version),
 		update,
 		neverShowAgain
 	);

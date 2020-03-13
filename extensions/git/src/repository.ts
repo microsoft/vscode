@@ -10,7 +10,7 @@ import * as nls from 'vscode-nls';
 import { Branch, Change, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status } from './api/git';
 import { AutoFetcher } from './autofetch';
 import { debounce, memoize, throttle } from './decorators';
-import { Commit, CommitOptions, ForcePushMode, GitError, Repository as BaseRepository, Stash, Submodule, LogFileOptions } from './git';
+import { Commit, CommitOptions, ForcePushMode, GitError, Repository as BaseRepository, Stash, Submodule, LogFileOptions, UserInputProvider } from './git';
 import { StatusBarCommands } from './statusbar';
 import { toGitUri } from './uri';
 import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, IDisposable, isDescendant, onceEvent } from './util';
@@ -667,6 +667,7 @@ export class Repository implements Disposable {
 
 	constructor(
 		private readonly repository: BaseRepository,
+		private userInputProvider: UserInputProvider,
 		globalState: Memento,
 		outputChannel: OutputChannel
 	) {
@@ -1079,21 +1080,21 @@ export class Repository implements Disposable {
 
 	@throttle
 	async fetchDefault(options: { silent?: boolean } = {}): Promise<void> {
-		await this.run(Operation.Fetch, () => this.repository.fetch(options));
+		await this.run(Operation.Fetch, () => this.repository.fetch(options, this.userInputProvider));
 	}
 
 	@throttle
 	async fetchPrune(): Promise<void> {
-		await this.run(Operation.Fetch, () => this.repository.fetch({ prune: true }));
+		await this.run(Operation.Fetch, () => this.repository.fetch({ prune: true }, this.userInputProvider));
 	}
 
 	@throttle
 	async fetchAll(): Promise<void> {
-		await this.run(Operation.Fetch, () => this.repository.fetch({ all: true }));
+		await this.run(Operation.Fetch, () => this.repository.fetch({ all: true }, this.userInputProvider));
 	}
 
 	async fetch(remote?: string, ref?: string, depth?: number): Promise<void> {
-		await this.run(Operation.Fetch, () => this.repository.fetch({ remote, ref, depth }));
+		await this.run(Operation.Fetch, () => this.repository.fetch({ remote, ref, depth }, this.userInputProvider));
 	}
 
 	@throttle
@@ -1130,9 +1131,9 @@ export class Repository implements Disposable {
 				const tags = config.get<boolean>('pullTags');
 
 				if (fetchOnPull) {
-					await this.repository.pull(rebase, undefined, undefined, { unshallow, tags });
+					await this.repository.pull(this.userInputProvider, rebase, undefined, undefined, { unshallow, tags });
 				} else {
-					await this.repository.pull(rebase, remote, branch, { unshallow, tags });
+					await this.repository.pull(this.userInputProvider, rebase, remote, branch, { unshallow, tags });
 				}
 			});
 		});
@@ -1148,15 +1149,15 @@ export class Repository implements Disposable {
 			branch = `${head.name}:${head.upstream.name}`;
 		}
 
-		await this.run(Operation.Push, () => this.repository.push(remote, branch, undefined, undefined, forcePushMode));
+		await this.run(Operation.Push, () => this.repository.push(this.userInputProvider, remote, branch, undefined, undefined, forcePushMode));
 	}
 
 	async pushTo(remote?: string, name?: string, setUpstream: boolean = false, forcePushMode?: ForcePushMode): Promise<void> {
-		await this.run(Operation.Push, () => this.repository.push(remote, name, setUpstream, undefined, forcePushMode));
+		await this.run(Operation.Push, () => this.repository.push(this.userInputProvider, remote, name, setUpstream, undefined, forcePushMode));
 	}
 
 	async pushFollowTags(remote?: string, forcePushMode?: ForcePushMode): Promise<void> {
-		await this.run(Operation.Push, () => this.repository.push(remote, undefined, false, true, forcePushMode));
+		await this.run(Operation.Push, () => this.repository.push(this.userInputProvider, remote, undefined, false, true, forcePushMode));
 	}
 
 	async blame(path: string): Promise<string> {
@@ -1192,8 +1193,8 @@ export class Repository implements Disposable {
 				const supportCancellation = config.get<boolean>('supportCancellation');
 
 				const fn = fetchOnPull
-					? async (cancellationToken?: CancellationToken) => await this.repository.pull(rebase, undefined, undefined, { tags, cancellationToken })
-					: async (cancellationToken?: CancellationToken) => await this.repository.pull(rebase, remoteName, pullBranch, { tags, cancellationToken });
+					? async (cancellationToken?: CancellationToken) => await this.repository.pull(this.userInputProvider, rebase, undefined, undefined, { tags, cancellationToken })
+					: async (cancellationToken?: CancellationToken) => await this.repository.pull(this.userInputProvider, rebase, remoteName, pullBranch, { tags, cancellationToken });
 
 				if (supportCancellation) {
 					const opts: ProgressOptions = {
@@ -1216,7 +1217,7 @@ export class Repository implements Disposable {
 				const shouldPush = this.HEAD && (typeof this.HEAD.ahead === 'number' ? this.HEAD.ahead > 0 : true);
 
 				if (shouldPush) {
-					await this.repository.push(remoteName, pushBranch);
+					await this.repository.push(this.userInputProvider, remoteName, pushBranch);
 				}
 			});
 		});
