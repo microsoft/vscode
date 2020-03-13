@@ -590,7 +590,9 @@ class TerminalLinkProvider implements ILinkProvider {
 						this._activateCallback(event, text);
 					},
 					hover: (event: MouseEvent, text: string) => {
-						this._tooltipCallback(event, text, this._convertBufferRangeToViewport(range));
+						setTimeout(() => {
+							this._tooltipCallback(event, text, this._convertBufferRangeToViewport(range));
+						}, 200);
 					},
 					leave: () => {
 						this._leaveCallback();

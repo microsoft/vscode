@@ -54,7 +54,7 @@ export class TerminalWidgetManager implements IDisposable {
 	}
 
 	public showMessage(left: number, y: number, text: IMarkdownString, verticalAlignment: WidgetVerticalAlignment = WidgetVerticalAlignment.Bottom): void {
-		if (!this._container) {
+		if (!this._container || this._messageWidget?.mouseOver) {
 			return;
 		}
 		dispose(this._messageWidget);
