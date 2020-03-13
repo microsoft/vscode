@@ -526,7 +526,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 			this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, xterm, this._processManager, this._configHelper);
 			this._linkHandler.onBeforeHandleLink(e => {
-				console.log('terminalinstance fire');
 				e.terminal = this;
 				this._onBeforeHandleLink.fire(e);
 			});

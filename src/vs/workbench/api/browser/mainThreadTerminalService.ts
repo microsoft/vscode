@@ -148,13 +148,11 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	public $startHandlingLinks(): void {
-		console.log('start');
 		this._linkHandler?.dispose();
 		this._linkHandler = this._terminalService.addLinkHandler(this._remoteAuthority || '', e => this._handleLink(e));
 	}
 
 	public $stopHandlingLinks(): void {
-		console.log('stop');
 		this._linkHandler?.dispose();
 	}
 
