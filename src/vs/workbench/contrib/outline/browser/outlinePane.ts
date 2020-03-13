@@ -27,7 +27,7 @@ import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IResourceInput, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
+import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { WorkbenchDataTree } from 'vs/platform/list/browser/listService';
@@ -37,7 +37,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
-import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { OutlineConfigKeys, OutlineViewFocused, OutlineViewFiltered } from 'vs/editor/contrib/documentSymbols/outline';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { OutlineDataSource, OutlineItemComparator, OutlineSortOrder, OutlineVirtualDelegate, OutlineGroupRenderer, OutlineElementRenderer, OutlineItem, OutlineIdentityProvider, OutlineNavigationLabelProvider, OutlineFilter } from 'vs/editor/contrib/documentSymbols/outlineTree';
@@ -49,6 +49,8 @@ import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDeco
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 class RequestState {
 
@@ -93,12 +95,12 @@ class RequestOracle {
 
 	private _update(): void {
 
-		let widget = this._editorService.activeTextEditorWidget;
+		let control = this._editorService.activeTextEditorControl;
 		let codeEditor: ICodeEditor | undefined = undefined;
-		if (isCodeEditor(widget)) {
-			codeEditor = widget;
-		} else if (isDiffEditor(widget)) {
-			codeEditor = widget.getModifiedEditor();
+		if (isCodeEditor(control)) {
+			codeEditor = control;
+		} else if (isDiffEditor(control)) {
+			codeEditor = control.getModifiedEditor();
 		}
 
 		if (!codeEditor || !codeEditor.hasModel()) {
@@ -261,7 +263,7 @@ export class OutlinePane extends ViewPane {
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@IEditorService private readonly _editorService: IEditorService,
+		@ICodeEditorService private readonly _editorService: ICodeEditorService,
 		@IMarkerDecorationsService private readonly _markerDecorationService: IMarkerDecorationsService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -269,8 +271,9 @@ export class OutlinePane extends ViewPane {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(options, keybindingService, contextMenuService, _configurationService, contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService);
+		super(options, keybindingService, contextMenuService, _configurationService, contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, telemetryService);
 		this._outlineViewState.restore(this._storageService);
 		this._contextKeyFocused = OutlineViewFocused.bindTo(contextKeyService);
 		this._contextKeyFiltered = OutlineViewFiltered.bindTo(contextKeyService);
@@ -347,7 +350,7 @@ export class OutlinePane extends ViewPane {
 
 		this._disposables.push(this._tree);
 		this._disposables.push(this._outlineViewState.onDidChange(this._onDidChangeUserState, this));
-		this._disposables.push(this.viewDescriptorService.onDidChangeLocation(({ views, from, to }) => {
+		this._disposables.push(this.viewDescriptorService.onDidChangeLocation(({ views }) => {
 			if (views.some(v => v.id === this.id)) {
 				this._tree.updateOptions({ overrideStyles: { listBackground: this.getBackgroundColor() } });
 			}
@@ -629,15 +632,18 @@ export class OutlinePane extends ViewPane {
 	}
 
 	private async _revealTreeSelection(model: OutlineModel, element: OutlineElement, focus: boolean, aside: boolean): Promise<void> {
-
-		await this._editorService.openEditor({
-			resource: model.textModel.uri,
-			options: {
-				preserveFocus: !focus,
-				selection: Range.collapseToStart(element.symbol.selectionRange),
-				selectionRevealType: TextEditorSelectionRevealType.NearTop,
-			}
-		} as IResourceInput, aside ? SIDE_GROUP : ACTIVE_GROUP);
+		await this._editorService.openCodeEditor(
+			{
+				resource: model.textModel.uri,
+				options: {
+					preserveFocus: !focus,
+					selection: Range.collapseToStart(element.symbol.selectionRange),
+					selectionRevealType: TextEditorSelectionRevealType.NearTopIfOutsideViewport,
+				}
+			},
+			this._editorService.getActiveCodeEditor(),
+			aside
+		);
 	}
 
 	private _revealEditorSelection(model: OutlineModel, selection: Selection): void {

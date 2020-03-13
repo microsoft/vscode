@@ -21,6 +21,7 @@ import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 suite('Editor - Range decorations', () => {
 
@@ -40,8 +41,8 @@ suite('Editor - Range decorations', () => {
 		model = aModel(URI.file('some_file'));
 		codeEditor = createTestCodeEditor({ model: model });
 
-		instantiationService.stub(IEditorService, 'activeEditor', { getResource: () => { return codeEditor.getModel()!.uri; } });
-		instantiationService.stub(IEditorService, 'activeTextEditorWidget', codeEditor);
+		instantiationService.stub(IEditorService, 'activeEditor', { get resource() { return codeEditor.getModel()!.uri; } });
+		instantiationService.stub(IEditorService, 'activeTextEditorControl', codeEditor);
 
 		testObject = instantiationService.createInstance(RangeHighlightDecorations);
 	});
@@ -136,7 +137,7 @@ suite('Editor - Range decorations', () => {
 	}
 
 	function aModel(resource: URI, content: string = text): TextModel {
-		let model = TextModel.createFromString(content, TextModel.DEFAULT_CREATION_OPTIONS, null, resource);
+		let model = createTextModel(content, TextModel.DEFAULT_CREATION_OPTIONS, null, resource);
 		modelsToDispose.push(model);
 		return model;
 	}

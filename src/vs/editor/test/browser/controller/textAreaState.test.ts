@@ -8,7 +8,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ITextAreaWrapper, PagedScreenReaderStrategy, TextAreaState } from 'vs/editor/browser/controller/textAreaState';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
-import { TextModel } from 'vs/editor/common/model/textModel';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 export class MockTextAreaWrapper extends Disposable implements ITextAreaWrapper {
 
@@ -506,7 +506,7 @@ suite('TextAreaState', () => {
 	suite('PagedScreenReaderStrategy', () => {
 
 		function testPagedScreenReaderStrategy(lines: string[], selection: Selection, expected: TextAreaState): void {
-			const model = TextModel.createFromString(lines.join('\n'));
+			const model = createTextModel(lines.join('\n'));
 			const actual = PagedScreenReaderStrategy.fromEditorSelection(TextAreaState.EMPTY, model, selection, 10, true);
 			assert.ok(equalsTextAreaState(actual, expected));
 			model.dispose();

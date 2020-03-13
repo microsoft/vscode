@@ -85,6 +85,7 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 			return Promise.resolve(null);
 		}
 		return this.tasks.then((tasks) => {
+			this.taskService.migrateRecentTasks(tasks);
 			let entries: Model.QuickOpenEntry[] = [];
 			if (tasks.length === 0 || token.isCancellationRequested) {
 				return new Model.QuickOpenModel(entries);

@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { LRUMemory, NoMemory, PrefixMemory, Memory } from 'vs/editor/contrib/suggest/suggestMemory';
 import { ITextModel } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { createSuggestItem } from 'vs/editor/contrib/suggest/test/completionModel.test';
 import { IPosition } from 'vs/editor/common/core/position';
 import { CompletionItem } from 'vs/editor/contrib/suggest/suggest';
@@ -19,7 +19,7 @@ suite('SuggestMemories', function () {
 
 	setup(function () {
 		pos = { lineNumber: 1, column: 1 };
-		buffer = TextModel.createFromString('This is some text.\nthis.\nfoo: ,');
+		buffer = createTextModel('This is some text.\nthis.\nfoo: ,');
 		items = [
 			createSuggestItem('foo', 0),
 			createSuggestItem('bar', 0)
@@ -29,6 +29,9 @@ suite('SuggestMemories', function () {
 	test('AbstractMemory, select', function () {
 
 		const mem = new class extends Memory {
+			constructor() {
+				super('first');
+			}
 			memorize(model: ITextModel, pos: IPosition, item: CompletionItem): void {
 				throw new Error('Method not implemented.');
 			} toJSON(): object {

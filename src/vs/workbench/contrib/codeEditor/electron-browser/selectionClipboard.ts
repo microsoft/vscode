@@ -20,10 +20,7 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export class SelectionClipboard extends Disposable implements IEditorContribution {
 	private static readonly SELECTION_LENGTH_LIMIT = 65536;
@@ -119,15 +116,7 @@ class PasteSelectionClipboardAction extends EditorAction {
 			id: 'editor.action.selectionClipboardPaste',
 			label: nls.localize('actions.pasteSelectionClipboard', "Paste Selection Clipboard"),
 			alias: 'Paste Selection Clipboard',
-			precondition: EditorContextKeys.writable,
-			kbOpts: {
-				kbExpr: ContextKeyExpr.and(
-					EditorContextKeys.editorTextFocus,
-					ContextKeyExpr.has('config.editor.selectionClipboard')
-				),
-				primary: KeyMod.Shift | KeyCode.Insert,
-				weight: KeybindingWeight.EditorContrib
-			}
+			precondition: EditorContextKeys.writable
 		});
 	}
 

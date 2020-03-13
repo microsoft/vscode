@@ -59,6 +59,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	protected readonly onDidCompositeClose = this._register(new Emitter<IComposite>());
 
 	protected toolBar: ToolBar | undefined;
+	protected titleLabelElement: HTMLElement | undefined;
 
 	private mapCompositeToCompositeContainer = new Map<string, HTMLElement>();
 	private mapActionsBindingToComposite = new Map<string, () => void>();
@@ -168,7 +169,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		// Instantiate composite from registry otherwise
 		const compositeDescriptor = this.registry.getComposite(id);
 		if (compositeDescriptor) {
-			const compositeProgressIndicator = this.instantiationService.createInstance(CompositeProgressIndicator, assertIsDefined(this.progressBar), compositeDescriptor.id, !!isActive);
+			const compositeProgressIndicator = this.instantiationService.createInstance(CompositeProgressIndicator, assertIsDefined(this.progressBar), compositeDescriptor.id, !!isActive, undefined);
 			const compositeInstantiationService = this.instantiationService.createChild(new ServiceCollection(
 				[IEditorProgressService, compositeProgressIndicator] // provide the editor progress service for any editors instantiated within the composite
 			));
@@ -402,6 +403,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	protected createTitleLabel(parent: HTMLElement): ICompositeTitleLabel {
 		const titleContainer = append(parent, $('.title-label'));
 		const titleLabel = append(titleContainer, $('h2'));
+		this.titleLabelElement = titleLabel;
 
 		const $this = this;
 		return {

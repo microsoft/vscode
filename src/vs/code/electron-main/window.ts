@@ -14,10 +14,11 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/product/common/product';
-import { IWindowSettings, MenuBarVisibility, IWindowConfiguration, ReadyState, getTitleBarStyle, getMenuBarVisibility } from 'vs/platform/windows/common/windows';
+import { IWindowSettings, MenuBarVisibility, ReadyState, getTitleBarStyle, getMenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ICodeWindow, IWindowState, WindowMode } from 'vs/platform/windows/electron-main/windows';
+import { INativeWindowConfiguration } from 'vs/platform/windows/node/window';
 import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
@@ -32,6 +33,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 
 const RUN_TEXTMATE_IN_WORKER = false;
 
@@ -84,7 +86,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private readonly whenReadyCallbacks: { (window: ICodeWindow): void }[];
 
-	private pendingLoadConfig?: IWindowConfiguration;
+	private pendingLoadConfig?: INativeWindowConfiguration;
 
 	private marketplaceHeadersPromise: Promise<object>;
 
@@ -100,7 +102,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		@IWorkspacesMainService private readonly workspacesMainService: IWorkspacesMainService,
 		@IBackupMainService private readonly backupMainService: IBackupMainService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IDialogMainService private readonly dialogMainService: IDialogMainService
+		@IDialogMainService private readonly dialogMainService: IDialogMainService,
+		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService
 	) {
 		super();
 
@@ -229,8 +232,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this.registerListeners();
 	}
 
-	private currentConfig: IWindowConfiguration | undefined;
-	get config(): IWindowConfiguration | undefined { return this.currentConfig; }
+	private currentConfig: INativeWindowConfiguration | undefined;
+	get config(): INativeWindowConfiguration | undefined { return this.currentConfig; }
 
 	private _id: number;
 	get id(): number { return this._id; }
@@ -243,6 +246,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	get isExtensionDevelopmentHost(): boolean { return !!(this.config && this.config.extensionDevelopmentPath); }
 
 	get isExtensionTestHost(): boolean { return !!(this.config && this.config.extensionTestsPath); }
+
+	get isExtensionDevelopmentTestFromCli(): boolean { return this.isExtensionDevelopmentHost && this.isExtensionTestHost && !this.config?.debugId; }
 
 	setRepresentedFilename(filename: string): void {
 		if (isMacintosh) {
@@ -387,6 +392,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					this.setFullScreen(false);
 					this.setFullScreen(true);
 				}
+
+				this.sendWhenReady('vscode:displayChanged');
 			}, 100));
 
 			const displayChangedListener = () => simpleFullScreenScheduler.schedule();
@@ -447,6 +454,15 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private onWindowError(error: WindowError): void {
 		this.logService.error(error === WindowError.CRASHED ? '[VS Code]: render process crashed!' : '[VS Code]: detected unresponsive');
 
+		// If we run extension tests from CLI, showing a dialog is not
+		// very helpful in this case. Rather, we bring down the test run
+		// to signal back a failing run.
+		if (this.isExtensionDevelopmentTestFromCli) {
+			this.lifecycleMainService.kill(1);
+			return;
+		}
+
+		// Telemetry
 		type WindowErrorClassification = {
 			type: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
 		};
@@ -539,7 +555,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 	}
 
-	load(config: IWindowConfiguration, isReload?: boolean, disableExtensions?: boolean): void {
+	load(config: INativeWindowConfiguration, isReload?: boolean, disableExtensions?: boolean): void {
 
 		// If this is the first time the window is loaded, we associate the paths
 		// directly with the window because we assume the loading will just work
@@ -599,7 +615,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this._onLoad.fire();
 	}
 
-	reload(configurationIn?: IWindowConfiguration, cli?: ParsedArgs): void {
+	reload(configurationIn?: INativeWindowConfiguration, cli?: ParsedArgs): void {
 
 		// If config is not provided, copy our current one
 		const configuration = configurationIn ? configurationIn : objects.mixin({}, this.currentConfig);
@@ -626,7 +642,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this.load(configuration, true, disableExtensions);
 	}
 
-	private getUrl(windowConfiguration: IWindowConfiguration): string {
+	private getUrl(windowConfiguration: INativeWindowConfiguration): string {
 
 		// Set window ID
 		windowConfiguration.windowId = this._win.id;

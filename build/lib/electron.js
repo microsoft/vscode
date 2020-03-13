@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.config = exports.getElectronVersion = void 0;
 const fs = require("fs");
 const path = require("path");
 const vfs = require("vinyl-fs");

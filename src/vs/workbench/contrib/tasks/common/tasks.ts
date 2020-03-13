@@ -15,6 +15,7 @@ import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/works
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 
 export const TASK_RUNNING_STATE = new RawContextKey<boolean>('taskRunning', false);
 
@@ -377,6 +378,14 @@ export namespace TaskSourceKind {
 	export const InMemory: 'inMemory' = 'inMemory';
 	export const WorkspaceFile: 'workspaceFile' = 'workspaceFile';
 	export const User: 'user' = 'user';
+
+	export function toConfigurationTarget(kind: string): ConfigurationTarget {
+		switch (kind) {
+			case TaskSourceKind.User: return ConfigurationTarget.USER;
+			case TaskSourceKind.WorkspaceFile: return ConfigurationTarget.WORKSPACE;
+			default: return ConfigurationTarget.WORKSPACE_FOLDER;
+		}
+	}
 }
 
 export interface TaskSourceConfigElement {
@@ -438,7 +447,7 @@ export interface KeyedTaskIdentifier extends TaskIdentifier {
 }
 
 export interface TaskDependency {
-	uri: URI;
+	uri: URI | string;
 	task: string | KeyedTaskIdentifier | undefined;
 }
 

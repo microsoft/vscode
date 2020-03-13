@@ -160,7 +160,7 @@ export class StartAction extends AbstractDebugAction {
 
 export class RunAction extends StartAction {
 	static readonly ID = 'workbench.action.debug.run';
-	static LABEL = nls.localize('startWithoutDebugging', "Run (Start Without Debugging)");
+	static LABEL = nls.localize('startWithoutDebugging', "Start Without Debugging");
 
 	protected isNoDebug(): boolean {
 		return true;
@@ -400,7 +400,8 @@ export class CopyValueAction extends Action {
 
 		if (stackFrame && session && this.value.evaluateName) {
 			try {
-				const evaluation = await session.evaluate(this.value.evaluateName, stackFrame.frameId, this.context);
+				const context = session.capabilities.supportsClipboardContext ? 'clipboard' : this.context;
+				const evaluation = await session.evaluate(this.value.evaluateName, stackFrame.frameId, context);
 				this.clipboardService.writeText(evaluation.body.result);
 			} catch (e) {
 				this.clipboardService.writeText(this.value.value);

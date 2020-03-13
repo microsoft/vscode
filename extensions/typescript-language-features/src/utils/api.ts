@@ -33,6 +33,7 @@ export default class API {
 	public static readonly v350 = API.fromSimpleString('3.5.0');
 	public static readonly v380 = API.fromSimpleString('3.8.0');
 	public static readonly v381 = API.fromSimpleString('3.8.1');
+	public static readonly v390 = API.fromSimpleString('3.9.0');
 
 	public static fromVersionString(versionString: string): API {
 		let version = semver.valid(versionString);
@@ -64,6 +65,10 @@ export default class API {
 		 */
 		public readonly fullVersionString: string,
 	) { }
+
+	public eq(other: API): boolean {
+		return semver.eq(this.version, other.version);
+	}
 
 	public gte(other: API): boolean {
 		return semver.gte(this.version, other.version);

@@ -231,7 +231,7 @@ export class BreadcrumbsControl {
 			input = input.master;
 		}
 
-		if (!input || !input.getResource() || !this._fileService.canHandleResource(input.getResource()!)) {
+		if (!input || !input.resource || !this._fileService.canHandleResource(input.resource!)) {
 			// cleanup and return when there is no input or when
 			// we cannot handle this input
 			this._ckBreadcrumbsPossible.set(false);
@@ -247,7 +247,7 @@ export class BreadcrumbsControl {
 		this._ckBreadcrumbsVisible.set(true);
 		this._ckBreadcrumbsPossible.set(true);
 
-		const uri = input.getResource()!;
+		const uri = input.resource;
 		const editor = this._getActiveCodeEditor();
 		const model = new EditorBreadcrumbsModel(
 			uri, editor,
@@ -290,10 +290,10 @@ export class BreadcrumbsControl {
 	}
 
 	private _getActiveCodeEditor(): ICodeEditor | undefined {
-		if (!this._editorGroup.activeControl) {
+		if (!this._editorGroup.activeEditorPane) {
 			return undefined;
 		}
-		let control = this._editorGroup.activeControl.getControl();
+		let control = this._editorGroup.activeEditorPane.getControl();
 		let editor: ICodeEditor | undefined;
 		if (isCodeEditor(control)) {
 			editor = control as ICodeEditor;
@@ -470,7 +470,7 @@ export class BreadcrumbsControl {
 		this._ckBreadcrumbsActive.set(value);
 	}
 
-	private _revealInEditor(event: IBreadcrumbsItemEvent, element: any, group: SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | undefined, pinned: boolean = false): void {
+	private _revealInEditor(event: IBreadcrumbsItemEvent, element: BreadcrumbElement, group: SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | undefined, pinned: boolean = false): void {
 		if (element instanceof FileElement) {
 			if (element.kind === FileKind.FILE) {
 				// open file in any editor
@@ -713,8 +713,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		}
 		widget.setFocused(undefined);
 		widget.setSelection(undefined);
-		if (groups.activeGroup.activeControl) {
-			groups.activeGroup.activeControl.focus();
+		if (groups.activeGroup.activeEditorPane) {
+			groups.activeGroup.activeEditorPane.focus();
 		}
 	}
 });

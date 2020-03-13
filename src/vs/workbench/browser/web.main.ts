@@ -33,7 +33,6 @@ import { WorkspaceService } from 'vs/workbench/services/configuration/browser/co
 import { ConfigurationCache } from 'vs/workbench/services/configuration/browser/configurationCache';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/browser/signService';
-import { hash } from 'vs/base/common/hash';
 import { IWorkbenchConstructionOptions, IWorkspace } from 'vs/workbench/workbench.web.api';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { BACKUPS } from 'vs/platform/environment/common/environment';
@@ -41,7 +40,6 @@ import { joinPath } from 'vs/base/common/resources';
 import { BrowserStorageService } from 'vs/platform/storage/browser/storageService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { getThemeTypeSelector, DARK, HIGH_CONTRAST, LIGHT } from 'vs/platform/theme/common/themeService';
-import { InMemoryFileSystemProvider } from 'vs/workbench/services/userData/common/inMemoryUserDataProvider';
 import { registerWindowDriver } from 'vs/platform/driver/browser/driver';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 import { FileLogService } from 'vs/platform/log/common/fileLogService';
@@ -51,6 +49,8 @@ import { InMemoryLogProvider } from 'vs/workbench/services/log/common/inMemoryLo
 import { isWorkspaceToOpen, isFolderToOpen } from 'vs/platform/windows/common/windows';
 import { getWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
 import { coalesce } from 'vs/base/common/arrays';
+import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
+import { WebResourceIdentityService, IResourceIdentityService } from 'vs/platform/resource/common/resourceIdentityService';
 
 class BrowserMain extends Disposable {
 
@@ -93,20 +93,16 @@ class BrowserMain extends Disposable {
 
 		// Layout
 		const viewport = platform.isIOS && (<any>window).visualViewport ? (<any>window).visualViewport /** Visual viewport */ : window /** Layout viewport */;
-		this._register(addDisposableListener(viewport, EventType.RESIZE, () => {
-			workbench.layout();
-		}));
+		this._register(addDisposableListener(viewport, EventType.RESIZE, () => workbench.layout()));
 
 		// Prevent the back/forward gestures in macOS
-		this._register(addDisposableListener(this.domElement, EventType.WHEEL, (e) => {
-			e.preventDefault();
-		}, { passive: false }));
+		this._register(addDisposableListener(this.domElement, EventType.WHEEL, e => e.preventDefault(), { passive: false }));
 
 		// Prevent native context menus in web
-		this._register(addDisposableListener(this.domElement, EventType.CONTEXT_MENU, (e) => EventHelper.stop(e, true)));
+		this._register(addDisposableListener(this.domElement, EventType.CONTEXT_MENU, e => EventHelper.stop(e, true)));
 
 		// Prevent default navigation on drop
-		this._register(addDisposableListener(this.domElement, EventType.DROP, (e) => EventHelper.stop(e, true)));
+		this._register(addDisposableListener(this.domElement, EventType.DROP, e => EventHelper.stop(e, true)));
 
 		// Workbench Lifecycle
 		this._register(workbench.onBeforeShutdown(event => {
@@ -161,7 +157,11 @@ class BrowserMain extends Disposable {
 		const logService = new BufferLogService(this.configuration.logLevel);
 		serviceCollection.set(ILogService, logService);
 
-		const payload = this.resolveWorkspaceInitializationPayload();
+		// Resource Identity
+		const resourceIdentityService = this._register(new WebResourceIdentityService());
+		serviceCollection.set(IResourceIdentityService, resourceIdentityService);
+
+		const payload = await this.resolveWorkspaceInitializationPayload(resourceIdentityService);
 
 		// Environment
 		const environmentService = new BrowserWorkbenchEnvironmentService({ workspaceId: payload.id, logsPath, ...this.configuration });
@@ -296,7 +296,7 @@ class BrowserMain extends Disposable {
 		}
 	}
 
-	private resolveWorkspaceInitializationPayload(): IWorkspaceInitializationPayload {
+	private async resolveWorkspaceInitializationPayload(resourceIdentityService: IResourceIdentityService): Promise<IWorkspaceInitializationPayload> {
 		let workspace: IWorkspace | undefined = undefined;
 		if (this.configuration.workspaceProvider) {
 			workspace = this.configuration.workspaceProvider.workspace;
@@ -309,7 +309,8 @@ class BrowserMain extends Disposable {
 
 		// Single-folder workspace
 		if (workspace && isFolderToOpen(workspace)) {
-			return { id: hash(workspace.folderUri.toString()).toString(16), folder: workspace.folderUri };
+			const id = await resourceIdentityService.resolveResourceIdentity(workspace.folderUri);
+			return { id, folder: workspace.folderUri };
 		}
 
 		return { id: 'empty-window' };

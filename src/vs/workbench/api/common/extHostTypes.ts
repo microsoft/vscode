@@ -7,7 +7,6 @@ import { coalesce, equals } from 'vs/base/common/arrays';
 import { illegalArgument } from 'vs/base/common/errors';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { isMarkdownString } from 'vs/base/common/htmlContent';
-import { values } from 'vs/base/common/map';
 import { startsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -44,16 +43,16 @@ export class Disposable {
 		});
 	}
 
-	private _callOnDispose?: () => any;
+	#callOnDispose?: () => any;
 
 	constructor(callOnDispose: () => any) {
-		this._callOnDispose = callOnDispose;
+		this.#callOnDispose = callOnDispose;
 	}
 
 	dispose(): any {
-		if (typeof this._callOnDispose === 'function') {
-			this._callOnDispose();
-			this._callOnDispose = undefined;
+		if (typeof this.#callOnDispose === 'function') {
+			this.#callOnDispose();
+			this.#callOnDispose = undefined;
 		}
 	}
 }
@@ -576,14 +575,14 @@ export interface IFileOperation {
 	from?: URI;
 	to?: URI;
 	options?: IFileOperationOptions;
-	metadata?: vscode.WorkspaceEditMetadata;
+	metadata?: vscode.WorkspaceEditEntryMetadata;
 }
 
 export interface IFileTextEdit {
 	_type: 2;
 	uri: URI;
 	edit: TextEdit;
-	metadata?: vscode.WorkspaceEditMetadata;
+	metadata?: vscode.WorkspaceEditEntryMetadata;
 }
 
 @es5ClassCompat
@@ -591,27 +590,27 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 
 	private _edits = new Array<IFileOperation | IFileTextEdit>();
 
-	renameFile(from: vscode.Uri, to: vscode.Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean; }, metadata?: vscode.WorkspaceEditMetadata): void {
+	renameFile(from: vscode.Uri, to: vscode.Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean; }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._edits.push({ _type: 1, from, to, options, metadata });
 	}
 
-	createFile(uri: vscode.Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean; }, metadata?: vscode.WorkspaceEditMetadata): void {
+	createFile(uri: vscode.Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean; }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._edits.push({ _type: 1, from: undefined, to: uri, options, metadata });
 	}
 
-	deleteFile(uri: vscode.Uri, options?: { recursive?: boolean, ignoreIfNotExists?: boolean; }, metadata?: vscode.WorkspaceEditMetadata): void {
+	deleteFile(uri: vscode.Uri, options?: { recursive?: boolean, ignoreIfNotExists?: boolean; }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._edits.push({ _type: 1, from: uri, to: undefined, options, metadata });
 	}
 
-	replace(uri: URI, range: Range, newText: string, metadata?: vscode.WorkspaceEditMetadata): void {
+	replace(uri: URI, range: Range, newText: string, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._edits.push({ _type: 2, uri, edit: new TextEdit(range, newText), metadata });
 	}
 
-	insert(resource: URI, position: Position, newText: string, metadata?: vscode.WorkspaceEditMetadata): void {
+	insert(resource: URI, position: Position, newText: string, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this.replace(resource, new Range(position, position), newText, metadata);
 	}
 
-	delete(resource: URI, range: Range, metadata?: vscode.WorkspaceEditMetadata): void {
+	delete(resource: URI, range: Range, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this.replace(resource, range, '', metadata);
 	}
 
@@ -661,7 +660,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 				textEdit[1].push(candidate.edit);
 			}
 		}
-		return values(textEdits);
+		return [...textEdits.values()];
 	}
 
 	allEntries(): ReadonlyArray<IFileTextEdit | IFileOperation> {
@@ -2083,7 +2082,8 @@ export class Task implements vscode.Task2 {
 export enum ProgressLocation {
 	SourceControl = 1,
 	Window = 10,
-	Notification = 15
+	Notification = 15,
+	View = 25
 }
 
 @es5ClassCompat
@@ -2283,6 +2283,17 @@ export class DebugAdapterInlineImplementation implements vscode.DebugAdapterInli
 	}
 }
 
+@es5ClassCompat
+export class EvaluatableExpression implements vscode.EvaluatableExpression {
+	readonly range: vscode.Range;
+	readonly expression?: string;
+
+	constructor(range: vscode.Range, expression?: string) {
+		this.range = range;
+		this.expression = expression;
+	}
+}
+
 export enum LogLevel {
 	Trace = 1,
 	Debug = 2,
@@ -2323,8 +2334,12 @@ export class FileSystemError extends Error {
 		return new FileSystemError(messageOrUri, FileSystemProviderErrorCode.Unavailable, FileSystemError.Unavailable);
 	}
 
+	readonly code: string;
+
 	constructor(uriOrMessage?: string | URI, code: FileSystemProviderErrorCode = FileSystemProviderErrorCode.Unknown, terminator?: Function) {
 		super(URI.isUri(uriOrMessage) ? uriOrMessage.toString(true) : uriOrMessage);
+
+		this.code = terminator?.name ?? 'Unknown';
 
 		// mark the error as file system provider error so that
 		// we can extract the error code on the receiving side

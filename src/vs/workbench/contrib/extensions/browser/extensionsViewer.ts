@@ -169,7 +169,7 @@ class OpenExtensionAction extends Action {
 
 	run(sideByside: boolean): Promise<any> {
 		if (this._extensionData) {
-			return this.extensionsWorkdbenchService.open(this._extensionData.extension, sideByside);
+			return this.extensionsWorkdbenchService.open(this._extensionData.extension, { sideByside });
 		}
 		return Promise.resolve();
 	}
@@ -218,7 +218,7 @@ export class ExtensionsTree extends WorkbenchAsyncDataTree<IExtensionData, IExte
 
 		this.disposables.add(this.onDidChangeSelection(event => {
 			if (event.browserEvent && event.browserEvent instanceof KeyboardEvent) {
-				extensionsWorkdbenchService.open(event.elements[0].extension, false);
+				extensionsWorkdbenchService.open(event.elements[0].extension, { sideByside: false });
 			}
 		}));
 	}

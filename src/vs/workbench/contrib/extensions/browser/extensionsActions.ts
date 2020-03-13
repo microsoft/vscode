@@ -13,9 +13,9 @@ import * as json from 'vs/base/common/json';
 import { ActionViewItem, Separator, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { dispose, Disposable } from 'vs/base/common/lifecycle';
-import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewPaneContainer, AutoUpdateConfigurationKey, IExtensionContainer, EXTENSIONS_CONFIG } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewPaneContainer, AutoUpdateConfigurationKey, IExtensionContainer, EXTENSIONS_CONFIG, TOGGLE_IGNORE_EXTENSION_ACTION_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/contrib/extensions/common/extensionsFileTemplate';
-import { ExtensionsLabel, IGalleryExtension, IExtensionGalleryService, INSTALL_ERROR_MALICIOUS, INSTALL_ERROR_INCOMPATIBLE, IGalleryExtensionVersion, ILocalExtension, INSTALL_ERROR_NOT_SUPPORTED } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IGalleryExtension, IExtensionGalleryService, INSTALL_ERROR_MALICIOUS, INSTALL_ERROR_INCOMPATIBLE, IGalleryExtensionVersion, ILocalExtension, INSTALL_ERROR_NOT_SUPPORTED } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionTipsService, IExtensionRecommendation, IExtensionsConfigContent, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionType, ExtensionIdentifier, IExtensionDescription, IExtensionManifest, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
@@ -30,7 +30,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { URI } from 'vs/base/common/uri';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, registerColor, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { Color } from 'vs/base/common/color';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
@@ -52,7 +52,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { coalesce } from 'vs/base/common/arrays';
-import { IWorkbenchThemeService, COLOR_THEME_SETTING, ICON_THEME_SETTING, IFileIconTheme, IColorTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IWorkbenchThemeService, ThemeSettings, IWorkbenchFileIconTheme, IWorkbenchColorTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { prefersExecuteOnUI, prefersExecuteOnWorkspace } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -660,7 +660,7 @@ export class DropDownMenuActionViewItem extends ExtensionActionViewItem {
 	}
 }
 
-export function getContextMenuActions(menuService: IMenuService, contextKeyService: IContextKeyService, extension: IExtension | undefined | null): ExtensionAction[][] {
+export function getContextMenuActions(menuService: IMenuService, contextKeyService: IContextKeyService, instantiationService: IInstantiationService, extension: IExtension | undefined | null): ExtensionAction[][] {
 	const scopedContextKeyService = contextKeyService.createScoped();
 	if (extension) {
 		scopedContextKeyService.createKey<boolean>('isBuiltinExtension', extension.type === ExtensionType.System);
@@ -672,7 +672,7 @@ export function getContextMenuActions(menuService: IMenuService, contextKeyServi
 
 	const groups: ExtensionAction[][] = [];
 	const menu = menuService.createMenu(MenuId.ExtensionContext, scopedContextKeyService);
-	menu.getActions({ shouldForwardArgs: true }).forEach(([, actions]) => groups.push(actions.map(action => new MenuItemExtensionAction(action))));
+	menu.getActions({ shouldForwardArgs: true }).forEach(([, actions]) => groups.push(actions.map(action => instantiationService.createInstance(MenuItemExtensionAction, action))));
 	menu.dispose();
 
 	return groups;
@@ -699,7 +699,7 @@ export class ManageExtensionAction extends ExtensionDropDownAction {
 		this.update();
 	}
 
-	getActionGroups(runningExtensions: IExtensionDescription[], colorThemes: IColorTheme[], fileIconThemes: IFileIconTheme[]): IAction[][] {
+	getActionGroups(runningExtensions: IExtensionDescription[], colorThemes: IWorkbenchColorTheme[], fileIconThemes: IWorkbenchFileIconTheme[]): IAction[][] {
 		const groups: ExtensionAction[][] = [];
 		if (this.extension) {
 			const extensionColorThemes = SetColorThemeAction.getColorThemes(colorThemes, this.extension);
@@ -726,7 +726,7 @@ export class ManageExtensionAction extends ExtensionDropDownAction {
 		groups.push([this.instantiationService.createInstance(UninstallAction)]);
 		groups.push([this.instantiationService.createInstance(InstallAnotherVersionAction)]);
 
-		getContextMenuActions(this.menuService, this.contextKeyService, this.extension).forEach(actions => groups.push(actions));
+		getContextMenuActions(this.menuService, this.contextKeyService, this.instantiationService, this.extension).forEach(actions => groups.push(actions));
 
 		groups.forEach(group => group.forEach(extensionAction => extensionAction.extension = this.extension));
 
@@ -754,11 +754,21 @@ export class ManageExtensionAction extends ExtensionDropDownAction {
 
 export class MenuItemExtensionAction extends ExtensionAction {
 
-	constructor(private readonly action: IAction) {
+	constructor(
+		private readonly action: IAction,
+		@IConfigurationService private readonly configurationService: IConfigurationService
+	) {
 		super(action.id, action.label);
 	}
 
-	update() { }
+	update() {
+		if (!this.extension) {
+			return;
+		}
+		if (this.action.id === TOGGLE_IGNORE_EXTENSION_ACTION_ID) {
+			this.checked = !this.configurationService.getValue<string[]>('sync.ignoredExtensions').some(id => areSameExtensions({ id }, this.extension!.identifier));
+		}
+	}
 
 	async run(): Promise<void> {
 		if (this.extension) {
@@ -1288,7 +1298,7 @@ export class ReloadAction extends ExtensionAction {
 
 export class SetColorThemeAction extends ExtensionAction {
 
-	static getColorThemes(colorThemes: IColorTheme[], extension: IExtension): IColorTheme[] {
+	static getColorThemes(colorThemes: IWorkbenchColorTheme[], extension: IExtension): IWorkbenchColorTheme[] {
 		return colorThemes.filter(c => c.extensionData && ExtensionIdentifier.equals(c.extensionData.extensionId, extension.identifier.id));
 	}
 
@@ -1297,7 +1307,7 @@ export class SetColorThemeAction extends ExtensionAction {
 
 
 	constructor(
-		private readonly colorThemes: IColorTheme[],
+		private readonly colorThemes: IWorkbenchColorTheme[],
 		@IExtensionService extensionService: IExtensionService,
 		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -1326,7 +1336,7 @@ export class SetColorThemeAction extends ExtensionAction {
 			return;
 		}
 		let extensionThemes = SetColorThemeAction.getColorThemes(this.colorThemes, this.extension!);
-		const currentTheme = this.colorThemes.filter(t => t.settingsId === this.configurationService.getValue(COLOR_THEME_SETTING))[0] || this.workbenchThemeService.getColorTheme();
+		const currentTheme = this.colorThemes.filter(t => t.settingsId === this.configurationService.getValue(ThemeSettings.COLOR_THEME))[0] || this.workbenchThemeService.getColorTheme();
 		showCurrentTheme = showCurrentTheme || extensionThemes.some(t => t.id === currentTheme.id);
 		if (showCurrentTheme) {
 			extensionThemes = extensionThemes.filter(t => t.id !== currentTheme.id);
@@ -1346,7 +1356,7 @@ export class SetColorThemeAction extends ExtensionAction {
 				onDidFocus: item => delayer.trigger(() => this.workbenchThemeService.setColorTheme(item.id, undefined)),
 				ignoreFocusLost
 			});
-		let confValue = this.configurationService.inspect(COLOR_THEME_SETTING);
+		let confValue = this.configurationService.inspect(ThemeSettings.COLOR_THEME);
 		const target = typeof confValue.workspaceValue !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
 		return this.workbenchThemeService.setColorTheme(pickedTheme ? pickedTheme.id : currentTheme.id, target);
 	}
@@ -1358,12 +1368,12 @@ export class SetFileIconThemeAction extends ExtensionAction {
 	private static readonly DisabledClass = `${SetFileIconThemeAction.EnabledClass} disabled`;
 
 
-	static getFileIconThemes(fileIconThemes: IFileIconTheme[], extension: IExtension): IFileIconTheme[] {
+	static getFileIconThemes(fileIconThemes: IWorkbenchFileIconTheme[], extension: IExtension): IWorkbenchFileIconTheme[] {
 		return fileIconThemes.filter(c => c.extensionData && ExtensionIdentifier.equals(c.extensionData.extensionId, extension.identifier.id));
 	}
 
 	constructor(
-		private readonly fileIconThemes: IFileIconTheme[],
+		private readonly fileIconThemes: IWorkbenchFileIconTheme[],
 		@IExtensionService extensionService: IExtensionService,
 		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -1392,7 +1402,7 @@ export class SetFileIconThemeAction extends ExtensionAction {
 			return;
 		}
 		let extensionThemes = SetFileIconThemeAction.getFileIconThemes(this.fileIconThemes, this.extension!);
-		const currentTheme = this.fileIconThemes.filter(t => t.settingsId === this.configurationService.getValue(ICON_THEME_SETTING))[0] || this.workbenchThemeService.getFileIconTheme();
+		const currentTheme = this.fileIconThemes.filter(t => t.settingsId === this.configurationService.getValue(ThemeSettings.ICON_THEME))[0] || this.workbenchThemeService.getFileIconTheme();
 		showCurrentTheme = showCurrentTheme || extensionThemes.some(t => t.id === currentTheme.id);
 		if (showCurrentTheme) {
 			extensionThemes = extensionThemes.filter(t => t.id !== currentTheme.id);
@@ -1412,7 +1422,7 @@ export class SetFileIconThemeAction extends ExtensionAction {
 				onDidFocus: item => delayer.trigger(() => this.workbenchThemeService.setFileIconTheme(item.id, undefined)),
 				ignoreFocusLost
 			});
-		let confValue = this.configurationService.inspect(ICON_THEME_SETTING);
+		let confValue = this.configurationService.inspect(ThemeSettings.ICON_THEME);
 		const target = typeof confValue.workspaceValue !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
 		return this.workbenchThemeService.setFileIconTheme(pickedTheme ? pickedTheme.id : currentTheme.id, target);
 	}
@@ -1929,7 +1939,7 @@ export class ConfigureRecommendedExtensionsCommandsContributor extends Disposabl
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			command: {
 				id: ConfigureWorkspaceRecommendedExtensionsAction.ID,
-				title: { value: `${ExtensionsLabel}: ${ConfigureWorkspaceRecommendedExtensionsAction.LABEL}`, original: 'Configure Recommended Extensions (Workspace)' },
+				title: { value: ConfigureWorkspaceRecommendedExtensionsAction.LABEL, original: 'Configure Recommended Extensions (Workspace)' },
 				category: localize('extensions', "Extensions")
 			},
 			when: this.workspaceContextKey
@@ -1941,7 +1951,7 @@ export class ConfigureRecommendedExtensionsCommandsContributor extends Disposabl
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			command: {
 				id: ConfigureWorkspaceFolderRecommendedExtensionsAction.ID,
-				title: { value: `${ExtensionsLabel}: ${ConfigureWorkspaceFolderRecommendedExtensionsAction.LABEL}`, original: 'Configure Recommended Extensions (Workspace Folder)' },
+				title: { value: ConfigureWorkspaceFolderRecommendedExtensionsAction.LABEL, original: 'Configure Recommended Extensions (Workspace Folder)' },
 				category: localize('extensions', "Extensions")
 			},
 			when: this.workspaceFolderContextKey
@@ -1955,7 +1965,7 @@ export class ConfigureRecommendedExtensionsCommandsContributor extends Disposabl
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			command: {
 				id: AddToWorkspaceRecommendationsAction.ADD_ID,
-				title: { value: `${ExtensionsLabel}: ${AddToWorkspaceRecommendationsAction.ADD_LABEL}`, original: 'Add to Recommended Extensions (Workspace)' },
+				title: { value: AddToWorkspaceRecommendationsAction.ADD_LABEL, original: 'Add to Recommended Extensions (Workspace)' },
 				category: localize('extensions', "Extensions")
 			},
 			when: this.addToWorkspaceRecommendationsContextKey
@@ -1969,7 +1979,7 @@ export class ConfigureRecommendedExtensionsCommandsContributor extends Disposabl
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			command: {
 				id: AddToWorkspaceFolderRecommendationsAction.ADD_ID,
-				title: { value: `${ExtensionsLabel}: ${AddToWorkspaceFolderRecommendationsAction.ADD_LABEL}`, original: 'Extensions: Add to Recommended Extensions (Workspace Folder)' },
+				title: { value: AddToWorkspaceFolderRecommendationsAction.ADD_LABEL, original: 'Extensions: Add to Recommended Extensions (Workspace Folder)' },
 				category: localize('extensions', "Extensions")
 			},
 			when: this.addToWorkspaceFolderRecommendationsContextKey
@@ -1983,7 +1993,7 @@ export class ConfigureRecommendedExtensionsCommandsContributor extends Disposabl
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			command: {
 				id: AddToWorkspaceRecommendationsAction.IGNORE_ID,
-				title: { value: `${ExtensionsLabel}: ${AddToWorkspaceRecommendationsAction.IGNORE_LABEL}`, original: 'Extensions: Ignore Recommended Extension (Workspace)' },
+				title: { value: AddToWorkspaceRecommendationsAction.IGNORE_LABEL, original: 'Extensions: Ignore Recommended Extension (Workspace)' },
 				category: localize('extensions', "Extensions")
 			},
 			when: this.addToWorkspaceRecommendationsContextKey
@@ -1997,7 +2007,7 @@ export class ConfigureRecommendedExtensionsCommandsContributor extends Disposabl
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			command: {
 				id: AddToWorkspaceFolderRecommendationsAction.IGNORE_ID,
-				title: { value: `${ExtensionsLabel}: ${AddToWorkspaceFolderRecommendationsAction.IGNORE_LABEL}`, original: 'Extensions: Ignore Recommended Extension (Workspace Folder)' },
+				title: { value: AddToWorkspaceFolderRecommendationsAction.IGNORE_LABEL, original: 'Extensions: Ignore Recommended Extension (Workspace Folder)' },
 				category: localize('extensions', "Extensions")
 			},
 			when: this.addToWorkspaceFolderRecommendationsContextKey
@@ -2659,7 +2669,7 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 				if (server) {
 					this.tooltip = localize('Install in other server to enable', "Install the extension on '{0}' to enable.", server.label);
 				} else {
-					this.tooltip = localize('disabled because of extension kind', "This extension cannot be enabled in the remote server.");
+					this.tooltip = localize('disabled because of extension kind', "This extension has defined that it cannot run on the remote server");
 				}
 				return;
 			}
@@ -3173,7 +3183,7 @@ export const extensionButtonProminentHoverBackground = registerColor('extensionB
 	hc: null
 }, localize('extensionButtonProminentHoverBackground', "Button background hover color for actions extension that stand out (e.g. install button)."));
 
-registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 	const foregroundColor = theme.getColor(foreground);
 	if (foregroundColor) {
 		collector.addRule(`.extension .monaco-action-bar .action-item .action-label.extension-action.built-in-status { border-color: ${foregroundColor}; }`);

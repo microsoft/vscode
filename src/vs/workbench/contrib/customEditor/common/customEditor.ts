@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { distinct, find, mergeSort } from 'vs/base/common/arrays';
-import { CancelablePromise } from 'vs/base/common/async';
+import { distinct, mergeSort } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
 import { basename } from 'vs/base/common/resources';
@@ -12,26 +11,19 @@ import { URI } from 'vs/base/common/uri';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IEditor, IRevertOptions, ISaveOptions, IEditorInput } from 'vs/workbench/common/editor';
+import { IEditorPane, IEditorInput, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IDisposable, IReference } from 'vs/base/common/lifecycle';
 
 export const ICustomEditorService = createDecorator<ICustomEditorService>('customEditorService');
 
-export const CONTEXT_HAS_CUSTOM_EDITORS = new RawContextKey<boolean>('hasCustomEditors', false);
+export const CONTEXT_CUSTOM_EDITORS = new RawContextKey<string>('customEditors', '');
 export const CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE = new RawContextKey<boolean>('focusedCustomEditorIsEditable', false);
-
-export interface ICustomEditor {
-	readonly resource: URI;
-	readonly viewType: string;
-}
 
 export interface ICustomEditorService {
 	_serviceBrand: any;
 
 	readonly models: ICustomEditorModelManager;
-
-	readonly activeCustomEditor: ICustomEditor | undefined;
 
 	getCustomEditor(viewType: string): CustomEditorInfo | undefined;
 	getContributedCustomEditors(resource: URI): CustomEditorInfoCollection;
@@ -39,53 +31,31 @@ export interface ICustomEditorService {
 
 	createInput(resource: URI, viewType: string, group: IEditorGroup | undefined, options?: { readonly customClasses: string }): IEditorInput;
 
-	openWith(resource: URI, customEditorViewType: string, options?: ITextEditorOptions, group?: IEditorGroup): Promise<IEditor | undefined>;
-	promptOpenWith(resource: URI, options?: ITextEditorOptions, group?: IEditorGroup): Promise<IEditor | undefined>;
+	openWith(resource: URI, customEditorViewType: string, options?: ITextEditorOptions, group?: IEditorGroup): Promise<IEditorPane | undefined>;
+	promptOpenWith(resource: URI, options?: ITextEditorOptions, group?: IEditorGroup): Promise<IEditorPane | undefined>;
 }
 
-export type CustomEditorEdit = number;
-
 export interface ICustomEditorModelManager {
-	get(resource: URI, viewType: string): ICustomEditorModel | undefined;
+	get(resource: URI, viewType: string): Promise<ICustomEditorModel | undefined>;
 
-	resolve(resource: URI, viewType: string): Promise<ICustomEditorModel>;
+	tryRetain(resource: URI, viewType: string): Promise<IReference<ICustomEditorModel>> | undefined;
 
-	disposeModel(model: ICustomEditorModel): void;
+	add(resource: URI, viewType: string, model: Promise<ICustomEditorModel>): Promise<IReference<ICustomEditorModel>>;
 
 	disposeAllModelsForView(viewType: string): void;
 }
 
-export interface CustomEditorSaveEvent {
-	readonly resource: URI;
-	readonly waitUntil: (until: Promise<any>) => void;
-}
-
-export interface CustomEditorSaveAsEvent {
-	readonly resource: URI;
-	readonly targetResource: URI;
-	readonly waitUntil: (until: Promise<any>) => void;
-}
-
-export interface ICustomEditorModel extends IWorkingCopy {
+export interface ICustomEditorModel extends IDisposable {
 	readonly viewType: string;
+	readonly resource: URI;
 
-	readonly onUndo: Event<{ edits: readonly CustomEditorEdit[], trigger: any | undefined }>;
-	readonly onApplyEdit: Event<{ edits: readonly CustomEditorEdit[], trigger: any | undefined }>;
-	readonly onDisposeEdits: Event<{ edits: readonly CustomEditorEdit[] }>;
+	isDirty(): boolean;
+	readonly onDidChangeDirty: Event<void>;
 
-	readonly onWillSave: Event<CustomEditorSaveEvent>;
-	readonly onWillSaveAs: Event<CustomEditorSaveAsEvent>;
-
-	onBackup(f: () => CancelablePromise<boolean>): void;
-
-	undo(): void;
-	redo(): void;
-	revert(options?: IRevertOptions): Promise<boolean>;
+	revert(options?: IRevertOptions): Promise<void>;
 
 	save(options?: ISaveOptions): Promise<boolean>;
 	saveAs(resource: URI, targetResource: URI, currentOptions?: ISaveOptions): Promise<boolean>;
-
-	pushEdit(edit: CustomEditorEdit, trigger: any): void;
 }
 
 export const enum CustomEditorPriority {
@@ -148,7 +118,7 @@ export class CustomEditorInfoCollection {
 	 * other contributed editors.
 	 */
 	public get defaultEditor(): CustomEditorInfo | undefined {
-		return find(this.allEditors, editor => {
+		return this.allEditors.find(editor => {
 			switch (editor.priority) {
 				case CustomEditorPriority.default:
 				case CustomEditorPriority.builtin:

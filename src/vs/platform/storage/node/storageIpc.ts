@@ -12,7 +12,7 @@ import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ILogService } from 'vs/platform/log/common/log';
 import { generateUuid } from 'vs/base/common/uuid';
-import { instanceStorageKey, firstSessionDateStorageKey, lastSessionDateStorageKey, currentSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
+import { instanceStorageKey, firstSessionDateStorageKey, lastSessionDateStorageKey, currentSessionDateStorageKey, crashReporterIdStorageKey } from 'vs/platform/telemetry/common/telemetry';
 
 type Key = string;
 type Value = string;
@@ -24,15 +24,16 @@ interface ISerializableUpdateRequest {
 }
 
 interface ISerializableItemsChangeEvent {
-	items: Item[];
+	changed?: Item[];
+	deleted?: Key[];
 }
 
 export class GlobalStorageDatabaseChannel extends Disposable implements IServerChannel {
 
 	private static readonly STORAGE_CHANGE_DEBOUNCE_TIME = 100;
 
-	private readonly _onDidChangeItems: Emitter<ISerializableItemsChangeEvent> = this._register(new Emitter<ISerializableItemsChangeEvent>());
-	readonly onDidChangeItems: Event<ISerializableItemsChangeEvent> = this._onDidChangeItems.event;
+	private readonly _onDidChangeItems = this._register(new Emitter<ISerializableItemsChangeEvent>());
+	readonly onDidChangeItems = this._onDidChangeItems.event;
 
 	private whenReady: Promise<void>;
 
@@ -51,6 +52,16 @@ export class GlobalStorageDatabaseChannel extends Disposable implements IServerC
 		} catch (error) {
 			onUnexpectedError(error);
 			this.logService.error(error);
+		}
+
+		// This is unique to the application instance and thereby
+		// should be written from the main process once.
+		//
+		// THIS SHOULD NEVER BE SENT TO TELEMETRY.
+		//
+		const crashReporterId = this.storageMainService.get(crashReporterIdStorageKey, undefined);
+		if (crashReporterId === undefined) {
+			this.storageMainService.store(crashReporterIdStorageKey, generateUuid());
 		}
 
 		// Apply global telemetry values as part of the initialization
@@ -99,15 +110,18 @@ export class GlobalStorageDatabaseChannel extends Disposable implements IServerC
 	}
 
 	private serializeEvents(events: IStorageChangeEvent[]): ISerializableItemsChangeEvent {
-		const items = new Map<Key, Value>();
+		const changed = new Map<Key, Value>();
+		const deleted = new Set<Key>();
 		events.forEach(event => {
 			const existing = this.storageMainService.get(event.key);
 			if (typeof existing === 'string') {
-				items.set(event.key, existing);
+				changed.set(event.key, existing);
+			} else {
+				deleted.add(event.key);
 			}
 		});
 
-		return { items: mapToSerializable(items) };
+		return { changed: mapToSerializable(changed), deleted: values(deleted) };
 	}
 
 	listen(_: unknown, event: string): Event<any> {
@@ -170,8 +184,11 @@ export class GlobalStorageDatabaseChannelClient extends Disposable implements IS
 	}
 
 	private onDidChangeItemsOnMain(e: ISerializableItemsChangeEvent): void {
-		if (Array.isArray(e.items)) {
-			this._onDidChangeItemsExternal.fire({ items: serializableToMap(e.items) });
+		if (Array.isArray(e.changed) || Array.isArray(e.deleted)) {
+			this._onDidChangeItemsExternal.fire({
+				changed: e.changed ? serializableToMap(e.changed) : undefined,
+				deleted: e.deleted ? new Set<string>(e.deleted) : undefined
+			});
 		}
 	}
 

@@ -52,10 +52,9 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ExplorerViewPaneContainer } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { assertType, assertIsDefined } from 'vs/base/common/types';
-import { SearchViewPaneContainer } from 'vs/workbench/contrib/search/browser/searchViewlet';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import product from 'vs/platform/product/common/product';
 import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditor';
+import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService, true);
 registerSingleton(ISearchHistoryService, SearchHistoryService, true);
@@ -73,10 +72,23 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: accessor => {
 		const contextService = accessor.get(IContextKeyService).getContext(document.activeElement);
 		if (contextService.getValue(SearchEditorConstants.InSearchEditor.serialize())) {
-			(accessor.get(IEditorService).activeControl as SearchEditor).toggleQueryDetails();
+			(accessor.get(IEditorService).activeEditorPane as SearchEditor).toggleQueryDetails();
 		} else if (contextService.getValue(Constants.SearchViewFocusedKey.serialize())) {
 			const searchView = getSearchView(accessor.get(IViewsService));
 			assertIsDefined(searchView).toggleQueryDetails();
+		}
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.action.searchEditor.deleteResultBlock',
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: SearchEditorConstants.InSearchEditor,
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Backspace,
+	handler: accessor => {
+		const contextService = accessor.get(IContextKeyService).getContext(document.activeElement);
+		if (contextService.getValue(SearchEditorConstants.InSearchEditor.serialize())) {
+			(accessor.get(IEditorService).activeEditorPane as SearchEditor).deleteResultBlock();
 		}
 	}
 });
@@ -487,7 +499,7 @@ class ShowAllSymbolsAction extends Action {
 const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 	id: VIEWLET_ID,
 	name: nls.localize('name', "Search"),
-	ctorDescriptor: new SyncDescriptor(SearchViewPaneContainer),
+	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [VIEWLET_ID, `${VIEWLET_ID}.state`, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
 	hideIfEmpty: true,
 	icon: 'codicon-search',
 	order: 1
@@ -557,8 +569,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarEditMenu, {
 	order: 1
 });
 
-registry.registerWorkbenchAction(SyncActionDescriptor.create(FocusNextSearchResultAction, FocusNextSearchResultAction.ID, FocusNextSearchResultAction.LABEL, { primary: KeyCode.F4 }, ContextKeyExpr.and(Constants.HasSearchResults)), 'Focus Next Search Result', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.create(FocusPreviousSearchResultAction, FocusPreviousSearchResultAction.ID, FocusPreviousSearchResultAction.LABEL, { primary: KeyMod.Shift | KeyCode.F4 }, ContextKeyExpr.and(Constants.HasSearchResults)), 'Focus Previous Search Result', category);
+registry.registerWorkbenchAction(SyncActionDescriptor.create(FocusNextSearchResultAction, FocusNextSearchResultAction.ID, FocusNextSearchResultAction.LABEL, { primary: KeyCode.F4 }, ContextKeyExpr.or(Constants.HasSearchResults, SearchEditorConstants.InSearchEditor)), 'Focus Next Search Result', category);
+registry.registerWorkbenchAction(SyncActionDescriptor.create(FocusPreviousSearchResultAction, FocusPreviousSearchResultAction.ID, FocusPreviousSearchResultAction.LABEL, { primary: KeyMod.Shift | KeyCode.F4 }, ContextKeyExpr.or(Constants.HasSearchResults, SearchEditorConstants.InSearchEditor)), 'Focus Previous Search Result', category);
 
 registry.registerWorkbenchAction(SyncActionDescriptor.create(ReplaceInFilesAction, ReplaceInFilesAction.ID, ReplaceInFilesAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_H }), 'Replace in Files', category);
 MenuRegistry.appendMenuItem(MenuId.MenubarEditMenu, {
@@ -775,21 +787,16 @@ configurationRegistry.registerConfiguration({
 			default: 300,
 			markdownDescription: nls.localize('search.searchOnTypeDebouncePeriod', "When `#search.searchOnType#` is enabled, controls the timeout in milliseconds between a character being typed and the search starting. Has no effect when `search.searchOnType` is disabled.")
 		},
-		'search.enableSearchEditorPreview': {
-			type: 'boolean',
-			default: product.quality !== 'stable',
-			description: nls.localize('search.enableSearchEditorPreview', "Experimental: When enabled, allows opening workspace search results in an editor.")
-		},
-		'search.searchEditorPreview.doubleClickBehaviour': {
+		'search.searchEditor.doubleClickBehaviour': {
 			type: 'string',
 			enum: ['selectWord', 'goToLocation', 'openLocationToSide'],
 			default: 'goToLocation',
 			enumDescriptions: [
-				nls.localize('search.searchEditorPreview.doubleClickBehaviour.selectWord', "Double clicking selects the word under the cursor."),
-				nls.localize('search.searchEditorPreview.doubleClickBehaviour.goToLocation', "Double clicking opens the result in the active editor group."),
-				nls.localize('search.searchEditorPreview.doubleClickBehaviour.openLocationToSide', "Double clicking opens the result in the editor group to the side, creating one if it does not yet exist."),
+				nls.localize('search.searchEditor.doubleClickBehaviour.selectWord', "Double clicking selects the word under the cursor."),
+				nls.localize('search.searchEditor.doubleClickBehaviour.goToLocation', "Double clicking opens the result in the active editor group."),
+				nls.localize('search.searchEditor.doubleClickBehaviour.openLocationToSide', "Double clicking opens the result in the editor group to the side, creating one if it does not yet exist."),
 			],
-			markdownDescription: nls.localize('search.searchEditorPreview.doubleClickBehaviour', "Configure effect of double clicking a result in a Search Editor.\n\n `#search.enableSearchEditorPreview#` must be enabled for this setting to have an effect.")
+			markdownDescription: nls.localize('search.searchEditor.doubleClickBehaviour', "Configure effect of double clicking a result in a search editor.")
 		},
 		'search.sortOrder': {
 			'type': 'string',

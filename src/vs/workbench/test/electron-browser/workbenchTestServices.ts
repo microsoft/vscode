@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workbenchInstantiationService as browserWorkbenchInstantiationService, ITestInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService as browserWorkbenchInstantiationService, ITestInstantiationService, TestLifecycleService, TestFilesConfigurationService, TestFileService, TestFileDialogService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { Event } from 'vs/base/common/event';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
-import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
-import { NativeTextFileService } from 'vs/workbench/services/textfile/electron-browser/nativeTextFileService';
+import { NativeWorkbenchEnvironmentService, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
+import { NativeTextFileService, EncodingOracle, IEncodingOverride } from 'vs/workbench/services/textfile/electron-browser/nativeTextFileService';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/node/dialogs';
 import { FileOperationError, IFileService } from 'vs/platform/files/common/files';
@@ -22,20 +22,31 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { URI } from 'vs/base/common/uri';
 import { IReadTextFileOptions, ITextFileStreamContent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
-import { IOpenedWindow, IOpenEmptyWindowOptions, IWindowOpenable, IOpenWindowOptions, IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { IOpenedWindow, IOpenEmptyWindowOptions, IWindowOpenable, IOpenWindowOptions } from 'vs/platform/windows/common/windows';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
+import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
+import { UTF16le, UTF16be, UTF8_with_bom } from 'vs/base/node/encoding';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
+import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { NodeTestBackupFileService } from 'vs/workbench/services/backup/test/electron-browser/backupFileService.test';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { INativeWindowConfiguration } from 'vs/platform/windows/node/window';
+import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 
-export const TestWindowConfiguration: IWindowConfiguration = {
+export const TestWindowConfiguration: INativeWindowConfiguration = {
 	windowId: 0,
+	machineId: 'testMachineId',
 	sessionId: 'testSessionId',
 	logLevel: LogLevel.Error,
 	mainPid: 0,
+	partsSplashPath: '',
 	appRoot: '',
 	userEnv: {},
 	execPath: process.execPath,
@@ -43,7 +54,7 @@ export const TestWindowConfiguration: IWindowConfiguration = {
 	...parseArgs(process.argv, OPTIONS)
 };
 
-export const TestEnvironmentService = new NativeWorkbenchEnvironmentService(TestWindowConfiguration, process.execPath, 0);
+export const TestEnvironmentService = new NativeWorkbenchEnvironmentService(TestWindowConfiguration, process.execPath);
 
 export class TestTextFileService extends NativeTextFileService {
 	private resolveTextContentError!: FileOperationError | null;
@@ -54,7 +65,7 @@ export class TestTextFileService extends NativeTextFileService {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModelService modelService: IModelService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
 		@IDialogService dialogService: IDialogService,
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
@@ -62,8 +73,8 @@ export class TestTextFileService extends NativeTextFileService {
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
 		@ITextModelService textModelService: ITextModelService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@INotificationService notificationService: INotificationService,
-		@IRemotePathService remotePathService: IRemotePathService
+		@IRemotePathService remotePathService: IRemotePathService,
+		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService
 	) {
 		super(
 			fileService,
@@ -79,8 +90,8 @@ export class TestTextFileService extends NativeTextFileService {
 			filesConfigurationService,
 			textModelService,
 			codeEditorService,
-			notificationService,
-			remotePathService
+			remotePathService,
+			workingCopyFileService
 		);
 	}
 
@@ -108,6 +119,31 @@ export class TestTextFileService extends NativeTextFileService {
 			size: 10
 		};
 	}
+}
+
+export class TestNativeTextFileServiceWithEncodingOverrides extends NativeTextFileService {
+
+	private _testEncoding: TestEncodingOracle | undefined;
+	get encoding(): TestEncodingOracle {
+		if (!this._testEncoding) {
+			this._testEncoding = this._register(this.instantiationService.createInstance(TestEncodingOracle));
+		}
+
+		return this._testEncoding;
+	}
+}
+
+class TestEncodingOracle extends EncodingOracle {
+
+	protected get encodingOverrides(): IEncodingOverride[] {
+		return [
+			{ extension: 'utf16le', encoding: UTF16le },
+			{ extension: 'utf16be', encoding: UTF16be },
+			{ extension: 'utf8bom', encoding: UTF8_with_bom }
+		];
+	}
+
+	protected set encodingOverrides(overrides: IEncodingOverride[]) { }
 }
 
 export class TestSharedProcessService implements ISharedProcessService {
@@ -186,4 +222,21 @@ export function workbenchInstantiationService(): ITestInstantiationService {
 	instantiationService.stub(IElectronService, new TestElectronService());
 
 	return instantiationService;
+}
+
+export class TestServiceAccessor {
+	constructor(
+		@ILifecycleService public lifecycleService: TestLifecycleService,
+		@ITextFileService public textFileService: TestTextFileService,
+		@IFilesConfigurationService public filesConfigurationService: TestFilesConfigurationService,
+		@IWorkspaceContextService public contextService: TestContextService,
+		@IModelService public modelService: ModelServiceImpl,
+		@IFileService public fileService: TestFileService,
+		@IElectronService public electronService: TestElectronService,
+		@IFileDialogService public fileDialogService: TestFileDialogService,
+		@IBackupFileService public backupFileService: NodeTestBackupFileService,
+		@IWorkingCopyService public workingCopyService: IWorkingCopyService,
+		@IEditorService public editorService: IEditorService
+	) {
+	}
 }

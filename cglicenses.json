@@ -81,5 +81,13 @@
 		"prependLicenseText": [
 			"Copyright (c) Microsoft Corporation. All rights reserved."
 		]
+	},
+	{
+		// Reason: The license at https://github.com/rbuckton/reflect-metadata/blob/master/LICENSE
+		// does not include a clear Copyright statement (it's in https://github.com/rbuckton/reflect-metadata/blob/master/CopyrightNotice.txt).
+		"name": "reflect-metadata",
+		"prependLicenseText": [
+			"Copyright (c) Microsoft Corporation. All rights reserved."
+		]
 	}
 ]

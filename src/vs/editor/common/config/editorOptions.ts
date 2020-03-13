@@ -325,6 +325,11 @@ export interface IEditorOptions {
 	 */
 	scrollPredominantAxis?: boolean;
 	/**
+	 * Enable that the selection with the mouse and keys is doing column selection.
+	 * Defaults to false.
+	 */
+	columnSelection?: boolean;
+	/**
 	 * The modifier to be used to add multiple cursors with the mouse.
 	 * Defaults to 'alt'
 	 */
@@ -502,6 +507,11 @@ export interface IEditorOptions {
 	 */
 	showFoldingControls?: 'always' | 'mouseover';
 	/**
+	 * Controls whether clicking on the empty content after a folded line will unfold the line.
+	 * Defaults to false.
+	 */
+	unfoldOnClickAfterEndOfLine?: boolean;
+	/**
 	 * Enable highlighting of matching brackets.
 	 * Defaults to 'always'.
 	 */
@@ -672,6 +682,7 @@ export interface IEnvironmentalOptions {
 	readonly fontInfo: FontInfo;
 	readonly extraEditorClassName: string;
 	readonly isDominatedByLongLines: boolean;
+	readonly viewLineCount: number;
 	readonly lineNumbersDigitCount: number;
 	readonly emptySelectionClipboard: boolean;
 	readonly pixelRatio: number;
@@ -1321,7 +1332,7 @@ export class EditorFontLigatures extends BaseEditorOption<EditorOption.fontLigat
 						description: nls.localize('fontFeatureSettings', "Explicit font-feature-settings.")
 					}
 				],
-				description: nls.localize('fontLigaturesGeneral', "Configures font ligatures."),
+				description: nls.localize('fontLigaturesGeneral', "Configures font ligatures or font features."),
 				default: false
 			}
 		);
@@ -1685,6 +1696,14 @@ export interface EditorLayoutInfo {
 	 * The width of the minimap
 	 */
 	readonly minimapWidth: number;
+	readonly minimapHeightIsEditorHeight: boolean;
+	readonly minimapIsSampling: boolean;
+	readonly minimapScale: number;
+	readonly minimapLineHeight: number;
+	readonly minimapCanvasInnerWidth: number;
+	readonly minimapCanvasInnerHeight: number;
+	readonly minimapCanvasOuterWidth: number;
+	readonly minimapCanvasOuterHeight: number;
 
 	/**
 	 * Minimap render type
@@ -1718,6 +1737,7 @@ export interface EditorLayoutInfoComputerEnv {
 	outerWidth: number;
 	outerHeight: number;
 	lineHeight: number;
+	viewLineCount: number;
 	lineNumbersDigitCount: number;
 	typicalHalfwidthCharacterWidth: number;
 	maxDigitWidth: number;
@@ -1741,11 +1761,26 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 			outerWidth: env.outerWidth,
 			outerHeight: env.outerHeight,
 			lineHeight: env.fontInfo.lineHeight,
+			viewLineCount: env.viewLineCount,
 			lineNumbersDigitCount: env.lineNumbersDigitCount,
 			typicalHalfwidthCharacterWidth: env.fontInfo.typicalHalfwidthCharacterWidth,
 			maxDigitWidth: env.fontInfo.maxDigitWidth,
 			pixelRatio: env.pixelRatio
 		});
+	}
+
+	public static computeContainedMinimapLineCount(input: {
+		viewLineCount: number;
+		scrollBeyondLastLine: boolean;
+		height: number;
+		lineHeight: number;
+		pixelRatio: number;
+	}): { typicalViewportLineCount: number; extraLinesBeyondLastLine: number; desiredRatio: number; minimapLineCount: number; } {
+		const typicalViewportLineCount = input.height / input.lineHeight;
+		const extraLinesBeyondLastLine = input.scrollBeyondLastLine ? (typicalViewportLineCount - 1) : 0;
+		const desiredRatio = (input.viewLineCount + extraLinesBeyondLastLine) / (input.pixelRatio * input.height);
+		const minimapLineCount = Math.floor(input.viewLineCount / desiredRatio);
+		return { typicalViewportLineCount, extraLinesBeyondLastLine, desiredRatio, minimapLineCount };
 	}
 
 	public static computeLayout(options: IComputedEditorOptions, env: EditorLayoutInfoComputerEnv): EditorLayoutInfo {
@@ -1760,12 +1795,14 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		const showGlyphMargin = options.get(EditorOption.glyphMargin);
 		const showLineNumbers = (options.get(EditorOption.lineNumbers).renderType !== RenderLineNumbersType.Off);
 		const lineNumbersMinChars = options.get(EditorOption.lineNumbersMinChars) | 0;
+		const scrollBeyondLastLine = options.get(EditorOption.scrollBeyondLastLine);
 		const minimap = options.get(EditorOption.minimap);
 		const minimapEnabled = minimap.enabled;
 		const minimapSide = minimap.side;
 		const minimapRenderCharacters = minimap.renderCharacters;
-		const minimapScale = (pixelRatio >= 2 ? Math.round(minimap.scale * 2) : minimap.scale);
+		let minimapScale = (pixelRatio >= 2 ? Math.round(minimap.scale * 2) : minimap.scale);
 		const minimapMaxColumn = minimap.maxColumn | 0;
+		const minimapSize = minimap.size;
 
 		const scrollbar = options.get(EditorOption.scrollbar);
 		const verticalScrollbarWidth = scrollbar.verticalScrollbarSize | 0;
@@ -1805,19 +1842,65 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 
 		const remainingWidth = outerWidth - glyphMarginWidth - lineNumbersWidth - lineDecorationsWidth;
 
+		const baseCharHeight = minimapRenderCharacters ? 2 : 3;
 		let renderMinimap: RenderMinimap;
 		let minimapLeft: number;
 		let minimapWidth: number;
+		let minimapCanvasInnerWidth: number;
+		let minimapCanvasInnerHeight = Math.floor(pixelRatio * outerHeight);
+		let minimapCanvasOuterWidth: number;
+		const minimapCanvasOuterHeight = minimapCanvasInnerHeight / pixelRatio;
+		let minimapHeightIsEditorHeight = false;
+		let minimapIsSampling = false;
+		let minimapLineHeight = baseCharHeight * minimapScale;
 		let contentWidth: number;
 		if (!minimapEnabled) {
 			minimapLeft = 0;
 			minimapWidth = 0;
+			minimapCanvasInnerWidth = 0;
+			minimapCanvasOuterWidth = 0;
+			minimapLineHeight = 1;
 			renderMinimap = RenderMinimap.None;
 			contentWidth = remainingWidth;
 		} else {
-			// The minimapScale is also the pixel width of each character. Adjust
-			// for the pixel ratio of the screen.
-			const minimapCharWidth = minimapScale / pixelRatio;
+			let minimapCharWidth = minimapScale / pixelRatio;
+			let minimapWidthMultiplier: number = 1;
+
+			if (minimapSize === 'fill' || minimapSize === 'fit') {
+				const viewLineCount = env.viewLineCount;
+				const { typicalViewportLineCount, extraLinesBeyondLastLine, desiredRatio, minimapLineCount } = EditorLayoutInfoComputer.computeContainedMinimapLineCount({
+					viewLineCount: viewLineCount,
+					scrollBeyondLastLine: scrollBeyondLastLine,
+					height: outerHeight,
+					lineHeight: lineHeight,
+					pixelRatio: pixelRatio
+				});
+				// ratio is intentionally not part of the layout to avoid the layout changing all the time
+				// when doing sampling
+				const ratio = viewLineCount / minimapLineCount;
+
+				if (ratio > 1) {
+					minimapHeightIsEditorHeight = true;
+					minimapIsSampling = true;
+					minimapScale = 1;
+					minimapLineHeight = 1;
+					minimapCharWidth = minimapScale / pixelRatio;
+				} else {
+					const effectiveMinimapHeight = Math.ceil((viewLineCount + extraLinesBeyondLastLine) * minimapLineHeight);
+					if (minimapSize === 'fill' || effectiveMinimapHeight > minimapCanvasInnerHeight) {
+						minimapHeightIsEditorHeight = true;
+						const configuredFontScale = minimapScale;
+						minimapLineHeight = Math.min(lineHeight * pixelRatio, Math.max(1, Math.floor(1 / desiredRatio)));
+						minimapScale = Math.min(configuredFontScale + 1, Math.max(1, Math.floor(minimapLineHeight / baseCharHeight)));
+						if (minimapScale > configuredFontScale) {
+							minimapWidthMultiplier = Math.min(2, minimapScale / configuredFontScale);
+						}
+						minimapCharWidth = minimapScale / pixelRatio / minimapWidthMultiplier;
+						minimapCanvasInnerHeight = Math.ceil((Math.max(typicalViewportLineCount, viewLineCount + extraLinesBeyondLastLine)) * minimapLineHeight);
+					}
+				}
+			}
+
 			renderMinimap = minimapRenderCharacters ? RenderMinimap.Text : RenderMinimap.Blocks;
 
 			// Given:
@@ -1849,6 +1932,10 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 			} else {
 				minimapLeft = outerWidth - minimapWidth - verticalScrollbarWidth;
 			}
+
+			minimapCanvasInnerWidth = Math.floor(pixelRatio * minimapWidth);
+			minimapCanvasOuterWidth = minimapCanvasInnerWidth / pixelRatio;
+			minimapCanvasInnerWidth = Math.floor(minimapCanvasInnerWidth * minimapWidthMultiplier);
 		}
 
 		// (leaving 2px for the cursor to have space after the last character)
@@ -1875,6 +1962,14 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 			renderMinimap: renderMinimap,
 			minimapLeft: minimapLeft,
 			minimapWidth: minimapWidth,
+			minimapHeightIsEditorHeight: minimapHeightIsEditorHeight,
+			minimapIsSampling: minimapIsSampling,
+			minimapScale: minimapScale,
+			minimapLineHeight: minimapLineHeight,
+			minimapCanvasInnerWidth: minimapCanvasInnerWidth,
+			minimapCanvasInnerHeight: minimapCanvasInnerHeight,
+			minimapCanvasOuterWidth: minimapCanvasOuterWidth,
+			minimapCanvasOuterHeight: minimapCanvasOuterHeight,
 
 			viewportColumn: viewportColumn,
 
@@ -1976,6 +2071,11 @@ export interface IEditorMinimapOptions {
 	 */
 	side?: 'right' | 'left';
 	/**
+	 * Control the minimap rendering mode.
+	 * Defaults to 'actual'.
+	 */
+	size?: 'proportional' | 'fill' | 'fit';
+	/**
 	 * Control the rendering of the minimap slider.
 	 * Defaults to 'mouseover'.
 	 */
@@ -1990,7 +2090,6 @@ export interface IEditorMinimapOptions {
 	 * Defaults to 120.
 	 */
 	maxColumn?: number;
-
 	/**
 	 * Relative size of the font in the minimap. Defaults to 1.
 	 */
@@ -2004,6 +2103,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, EditorMinimap
 	constructor() {
 		const defaults: EditorMinimapOptions = {
 			enabled: true,
+			size: 'proportional',
 			side: 'right',
 			showSlider: 'mouseover',
 			renderCharacters: true,
@@ -2017,6 +2117,17 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, EditorMinimap
 					type: 'boolean',
 					default: defaults.enabled,
 					description: nls.localize('minimap.enabled', "Controls whether the minimap is shown.")
+				},
+				'editor.minimap.size': {
+					type: 'string',
+					enum: ['proportional', 'fill', 'fit'],
+					enumDescriptions: [
+						nls.localize('minimap.size.proportional', "The minimap has the same size as the editor contents (and might scroll)."),
+						nls.localize('minimap.size.fill', "The minimap will stretch or shrink as necessary to fill the height of the editor (no scrolling)."),
+						nls.localize('minimap.size.fit', "The minimap will shrink as necessary to never be larger than the editor (no scrolling)."),
+					],
+					default: defaults.size,
+					description: nls.localize('minimap.size', "Controls the size of the minimap.")
 				},
 				'editor.minimap.side': {
 					type: 'string',
@@ -2035,7 +2146,8 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, EditorMinimap
 					default: defaults.scale,
 					minimum: 1,
 					maximum: 3,
-					description: nls.localize('minimap.scale', "Scale of content drawn in the minimap.")
+					enum: [1, 2, 3],
+					description: nls.localize('minimap.scale', "Scale of content drawn in the minimap: 1, 2 or 3.")
 				},
 				'editor.minimap.renderCharacters': {
 					type: 'boolean',
@@ -2046,7 +2158,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, EditorMinimap
 					type: 'number',
 					default: defaults.maxColumn,
 					description: nls.localize('minimap.maxColumn', "Limit the width of the minimap to render at most a certain number of columns.")
-				},
+				}
 			}
 		);
 	}
@@ -2058,6 +2170,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, EditorMinimap
 		const input = _input as IEditorMinimapOptions;
 		return {
 			enabled: EditorBooleanOption.boolean(input.enabled, this.defaultValue.enabled),
+			size: EditorStringEnumOption.stringSet<'proportional' | 'fill' | 'fit'>(input.size, this.defaultValue.size, ['proportional', 'fill', 'fit']),
 			side: EditorStringEnumOption.stringSet<'right' | 'left'>(input.side, this.defaultValue.side, ['right', 'left']),
 			showSlider: EditorStringEnumOption.stringSet<'always' | 'mouseover'>(input.showSlider, this.defaultValue.showSlider, ['always', 'mouseover']),
 			renderCharacters: EditorBooleanOption.boolean(input.renderCharacters, this.defaultValue.renderCharacters),
@@ -2722,9 +2835,14 @@ export interface ISuggestOptions {
 	 */
 	showSnippets?: boolean;
 	/**
-	 * Controls the visibility of the status bar at the bottom of the suggest widget.
+	 * Status bar related settings.
 	 */
-	hideStatusBar?: boolean;
+	statusBar?: {
+		/**
+		 * Controls the visibility of the status bar at the bottom of the suggest widget.
+		 */
+		visible?: boolean;
+	}
 }
 
 export type InternalSuggestOptions = Readonly<Required<ISuggestOptions>>;
@@ -2766,7 +2884,9 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			showFolders: true,
 			showTypeParameters: true,
 			showSnippets: true,
-			hideStatusBar: true
+			statusBar: {
+				visible: false
+			}
 		};
 		super(
 			EditorOption.suggest, 'suggest', defaults,
@@ -2952,10 +3072,10 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 					default: true,
 					markdownDescription: nls.localize('editor.suggest.showSnippets', "When enabled IntelliSense shows `snippet`-suggestions.")
 				},
-				'editor.suggest.hideStatusBar': {
+				'editor.suggest.statusBar.visible': {
 					type: 'boolean',
-					default: true,
-					markdownDescription: nls.localize('editor.suggest.hideStatusBar', "Controls the visibility of the status bar at the bottom of the suggest widget.")
+					default: false,
+					markdownDescription: nls.localize('editor.suggest.statusBar.visible', "Controls the visibility of the status bar at the bottom of the suggest widget.")
 				}
 			}
 		);
@@ -3000,7 +3120,9 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			showFolders: EditorBooleanOption.boolean(input.showFolders, this.defaultValue.showFolders),
 			showTypeParameters: EditorBooleanOption.boolean(input.showTypeParameters, this.defaultValue.showTypeParameters),
 			showSnippets: EditorBooleanOption.boolean(input.showSnippets, this.defaultValue.showSnippets),
-			hideStatusBar: EditorBooleanOption.boolean(input.hideStatusBar, this.defaultValue.hideStatusBar),
+			statusBar: {
+				visible: EditorBooleanOption.boolean(input.statusBar?.visible, !!this.defaultValue.statusBar.visible)
+			}
 		};
 	}
 }
@@ -3192,6 +3314,7 @@ export const enum EditorOption {
 	autoSurround,
 	codeLens,
 	colorDecorators,
+	columnSelection,
 	comments,
 	contextmenu,
 	copyWithSyntaxHighlighting,
@@ -3212,6 +3335,7 @@ export const enum EditorOption {
 	folding,
 	foldingStrategy,
 	foldingHighlight,
+	unfoldOnClickAfterEndOfLine,
 	fontFamily,
 	fontInfo,
 	fontLigatures,
@@ -3416,6 +3540,10 @@ export const EditorOptions = {
 		EditorOption.colorDecorators, 'colorDecorators', true,
 		{ description: nls.localize('colorDecorators', "Controls whether the editor should render the inline color decorators and color picker.") }
 	)),
+	columnSelection: register(new EditorBooleanOption(
+		EditorOption.columnSelection, 'columnSelection', false,
+		{ description: nls.localize('columnSelection', "Enable that the selection with the mouse and keys is doing column selection.") }
+	)),
 	comments: register(new EditorComments()),
 	contextmenu: register(new EditorBooleanOption(
 		EditorOption.contextmenu, 'contextmenu', true,
@@ -3506,6 +3634,10 @@ export const EditorOptions = {
 	foldingHighlight: register(new EditorBooleanOption(
 		EditorOption.foldingHighlight, 'foldingHighlight', true,
 		{ description: nls.localize('foldingHighlight', "Controls whether the editor should highlight folded ranges.") }
+	)),
+	unfoldOnClickAfterEndOfLine: register(new EditorBooleanOption(
+		EditorOption.unfoldOnClickAfterEndOfLine, 'unfoldOnClickAfterEndOfLine', false,
+		{ description: nls.localize('unfoldOnClickAfterEndOfLine', "Controls whether clicking on the empty content after a folded line will unfold the line.") }
 	)),
 	fontFamily: register(new EditorStringOption(
 		EditorOption.fontFamily, 'fontFamily', EDITOR_FONT_DEFAULTS.fontFamily,
@@ -3647,7 +3779,7 @@ export const EditorOptions = {
 	)),
 	definitionLinkOpensInPeek: register(new EditorBooleanOption(
 		EditorOption.definitionLinkOpensInPeek, 'definitionLinkOpensInPeek', false,
-		{ description: nls.localize('definitionLinkOpensInPeek', "Controls whether the definition link opens element in the peek widget.") }
+		{ description: nls.localize('definitionLinkOpensInPeek', "Controls whether the Go to Definition mouse gesture always opens the peek widget.") }
 	)),
 	quickSuggestions: register(new EditorQuickSuggestions()),
 	quickSuggestionsDelay: register(new EditorIntOption(

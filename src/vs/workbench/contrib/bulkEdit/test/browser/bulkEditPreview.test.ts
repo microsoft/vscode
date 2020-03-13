@@ -24,7 +24,7 @@ suite('BulkEditPreview', function () {
 	setup(function () {
 
 		const fileService: IFileService = new class extends mock<IFileService>() {
-			onFileChanges = Event.None;
+			onDidFilesChange = Event.None;
 			async exists() {
 				return true;
 			}

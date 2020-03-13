@@ -35,7 +35,8 @@
             "external",
             "status",
             "origin",
-            "orientation"
+            "orientation",
+            "context"
         ], // non-complete list of globals that are easy to access unintentionally
         "no-var": "warn",
         "jsdoc/no-types": "warn",
@@ -183,6 +184,7 @@
                     "sinon",
                     "vs/nls",
                     "**/vs/base/common/**",
+                    "**/vs/base/parts/*/common/**",
                     "**/vs/platform/*/common/**",
                     "**/vs/platform/*/test/common/**"
                 ]
@@ -668,6 +670,7 @@
                             "create",
                             "delete",
                             "dispose",
+                            "edit",
                             "end",
                             "expand",
                             "hide",

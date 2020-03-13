@@ -9,10 +9,10 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import * as nls from 'vs/nls';
 import { Action2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { WebviewEditorOverlay, webviewHasOwnEditFunctionsContextKey } from 'vs/workbench/contrib/webview/browser/webview';
+import { WebviewOverlay, webviewHasOwnEditFunctionsContextKey } from 'vs/workbench/contrib/webview/browser/webview';
 import { getActiveWebviewEditor } from 'vs/workbench/contrib/webview/browser/webviewCommands';
 import { ElectronWebviewBasedWebview } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
 
@@ -25,7 +25,7 @@ export class OpenWebviewDeveloperToolsAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise<any> {
+	public async run(): Promise<any> {
 		const elements = document.querySelectorAll('webview.ready');
 		for (let i = 0; i < elements.length; i++) {
 			try {
@@ -34,29 +34,7 @@ export class OpenWebviewDeveloperToolsAction extends Action {
 				console.error(e);
 			}
 		}
-		return Promise.resolve(true);
-	}
-}
-
-export class SelectAllWebviewEditorCommand extends Action2 {
-	public static readonly ID = 'editor.action.webvieweditor.selectAll';
-	public static readonly LABEL = nls.localize('editor.action.webvieweditor.selectAll', 'Select all');
-
-	constructor(contextKeyExpr: ContextKeyExpr) {
-		const precondition = ContextKeyExpr.and(contextKeyExpr, ContextKeyExpr.not(InputFocusedContextKey));
-		super({
-			id: SelectAllWebviewEditorCommand.ID,
-			title: SelectAllWebviewEditorCommand.LABEL,
-			keybinding: {
-				when: precondition,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_A,
-				weight: KeybindingWeight.EditorContrib
-			}
-		});
-	}
-
-	public run(accessor: ServicesAccessor, args: any): void {
-		withActiveWebviewBasedWebview(accessor, webview => webview.selectAll());
+		return true;
 	}
 }
 
@@ -64,7 +42,7 @@ export class CopyWebviewEditorCommand extends Action2 {
 	public static readonly ID = 'editor.action.webvieweditor.copy';
 	public static readonly LABEL = nls.localize('editor.action.webvieweditor.copy', "Copy2");
 
-	constructor(contextKeyExpr: ContextKeyExpr) {
+	constructor(contextKeyExpr: ContextKeyExpression) {
 		super({
 			id: CopyWebviewEditorCommand.ID,
 			title: CopyWebviewEditorCommand.LABEL,
@@ -77,7 +55,7 @@ export class CopyWebviewEditorCommand extends Action2 {
 	}
 
 	public run(accessor: ServicesAccessor): void {
-		withActiveWebviewBasedWebview(accessor, webview => webview.copy());
+		getActiveElectronBasedWebview(accessor)?.copy();
 	}
 }
 
@@ -85,7 +63,7 @@ export class PasteWebviewEditorCommand extends Action2 {
 	public static readonly ID = 'editor.action.webvieweditor.paste';
 	public static readonly LABEL = nls.localize('editor.action.webvieweditor.paste', 'Paste');
 
-	constructor(contextKeyExpr: ContextKeyExpr) {
+	constructor(contextKeyExpr: ContextKeyExpression) {
 		super({
 			id: PasteWebviewEditorCommand.ID,
 			title: PasteWebviewEditorCommand.LABEL,
@@ -98,7 +76,7 @@ export class PasteWebviewEditorCommand extends Action2 {
 	}
 
 	public run(accessor: ServicesAccessor): void {
-		withActiveWebviewBasedWebview(accessor, webview => webview.paste());
+		getActiveElectronBasedWebview(accessor)?.paste();
 	}
 }
 
@@ -106,7 +84,7 @@ export class CutWebviewEditorCommand extends Action2 {
 	public static readonly ID = 'editor.action.webvieweditor.cut';
 	public static readonly LABEL = nls.localize('editor.action.webvieweditor.cut', 'Cut');
 
-	constructor(contextKeyExpr: ContextKeyExpr) {
+	constructor(contextKeyExpr: ContextKeyExpression) {
 		super({
 			id: CutWebviewEditorCommand.ID,
 			title: CutWebviewEditorCommand.LABEL,
@@ -119,7 +97,7 @@ export class CutWebviewEditorCommand extends Action2 {
 	}
 
 	public run(accessor: ServicesAccessor): void {
-		withActiveWebviewBasedWebview(accessor, webview => webview.cut());
+		getActiveElectronBasedWebview(accessor)?.cut();
 	}
 }
 
@@ -127,7 +105,7 @@ export class UndoWebviewEditorCommand extends Action2 {
 	public static readonly ID = 'editor.action.webvieweditor.undo';
 	public static readonly LABEL = nls.localize('editor.action.webvieweditor.undo', "Undo");
 
-	constructor(contextKeyExpr: ContextKeyExpr) {
+	constructor(contextKeyExpr: ContextKeyExpression) {
 		super({
 			id: UndoWebviewEditorCommand.ID,
 			title: UndoWebviewEditorCommand.LABEL,
@@ -139,8 +117,8 @@ export class UndoWebviewEditorCommand extends Action2 {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, args: any): void {
-		withActiveWebviewBasedWebview(accessor, webview => webview.undo());
+	public run(accessor: ServicesAccessor): void {
+		getActiveElectronBasedWebview(accessor)?.undo();
 	}
 }
 
@@ -148,7 +126,7 @@ export class RedoWebviewEditorCommand extends Action2 {
 	public static readonly ID = 'editor.action.webvieweditor.redo';
 	public static readonly LABEL = nls.localize('editor.action.webvieweditor.redo', "Redo");
 
-	constructor(contextKeyExpr: ContextKeyExpr) {
+	constructor(contextKeyExpr: ContextKeyExpression) {
 		super({
 			id: RedoWebviewEditorCommand.ID,
 			title: RedoWebviewEditorCommand.LABEL,
@@ -162,23 +140,25 @@ export class RedoWebviewEditorCommand extends Action2 {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, args: any): void {
-		withActiveWebviewBasedWebview(accessor, webview => webview.redo());
+	public run(accessor: ServicesAccessor): void {
+		getActiveElectronBasedWebview(accessor)?.redo();
 	}
 }
 
-function withActiveWebviewBasedWebview(accessor: ServicesAccessor, f: (webview: ElectronWebviewBasedWebview) => void): void {
-	const webViewEditor = getActiveWebviewEditor(accessor);
-	if (webViewEditor) {
-		webViewEditor.withWebview(webview => {
-			if (webview instanceof ElectronWebviewBasedWebview) {
-				f(webview);
-			} else if ((webview as WebviewEditorOverlay).getInnerWebview) {
-				const innerWebview = (webview as WebviewEditorOverlay).getInnerWebview();
-				if (innerWebview instanceof ElectronWebviewBasedWebview) {
-					f(innerWebview);
-				}
-			}
-		});
+function getActiveElectronBasedWebview(accessor: ServicesAccessor): ElectronWebviewBasedWebview | undefined {
+	const webview = getActiveWebviewEditor(accessor);
+	if (!webview) {
+		return undefined;
 	}
+
+	if (webview instanceof ElectronWebviewBasedWebview) {
+		return webview;
+	} else if ((webview as WebviewOverlay).getInnerWebview) {
+		const innerWebview = (webview as WebviewOverlay).getInnerWebview();
+		if (innerWebview instanceof ElectronWebviewBasedWebview) {
+			return innerWebview;
+		}
+	}
+
+	return undefined;
 }

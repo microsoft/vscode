@@ -9,6 +9,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { MetadataConsts, TokenMetadata } from 'vs/editor/common/modes';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 suite('TokensStore', () => {
 
@@ -96,7 +97,7 @@ suite('TokensStore', () => {
 
 	function testTokensAdjustment(rawInitialState: string[], edits: IIdentifiedSingleEditOperation[], rawFinalState: string[]) {
 		const initialState = parseTokensState(rawInitialState);
-		const model = TextModel.createFromString(initialState.text);
+		const model = createTextModel(initialState.text);
 		model.setSemanticTokens([initialState.tokens]);
 
 		model.applyEdits(edits);
@@ -166,6 +167,49 @@ suite('TokensStore', () => {
 				`import { |URI| } from 'vs/base/common/uri';const foo = |URI|.parse('hey');`
 			]
 		);
+	});
+
+	test('issue #91936: Semantic token color highlighting fails on line with selected text', () => {
+		const model = createTextModel('                    else if ($s = 08) then \'\\b\'');
+		model.setSemanticTokens([
+			new MultilineTokens2(1, new SparseEncodedTokens(new Uint32Array([
+				0, 20, 24, 245768,
+				0, 25, 27, 245768,
+				0, 28, 29, 16392,
+				0, 29, 31, 262152,
+				0, 32, 33, 16392,
+				0, 34, 36, 98312,
+				0, 36, 37, 16392,
+				0, 38, 42, 245768,
+				0, 43, 47, 180232,
+			])))
+		]);
+		const lineTokens = model.getLineTokens(1);
+		let decodedTokens: number[] = [];
+		for (let i = 0, len = lineTokens.getCount(); i < len; i++) {
+			decodedTokens.push(lineTokens.getEndOffset(i), lineTokens.getMetadata(i));
+		}
+
+		assert.deepEqual(decodedTokens, [
+			20, 16793600,
+			24, 17022976,
+			25, 16793600,
+			27, 17022976,
+			28, 16793600,
+			29, 16793600,
+			31, 17039360,
+			32, 16793600,
+			33, 16793600,
+			34, 16793600,
+			36, 16875520,
+			37, 16793600,
+			38, 16793600,
+			42, 17022976,
+			43, 16793600,
+			47, 16957440
+		]);
+
+		model.dispose();
 	});
 
 });

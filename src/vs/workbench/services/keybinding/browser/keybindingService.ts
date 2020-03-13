@@ -11,11 +11,11 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Keybinding, ResolvedKeybinding, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
-import { OS, OperatingSystem } from 'vs/base/common/platform';
+import { OS, OperatingSystem, isMacintosh } from 'vs/base/common/platform';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Extensions as ConfigExtensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
@@ -160,6 +160,18 @@ const NUMPAD_PRINTABLE_SCANCODES = [
 	ScanCode.Numpad0,
 	ScanCode.NumpadDecimal
 ];
+
+const otherMacNumpadMapping = new Map<ScanCode, KeyCode>();
+otherMacNumpadMapping.set(ScanCode.Numpad1, KeyCode.KEY_1);
+otherMacNumpadMapping.set(ScanCode.Numpad2, KeyCode.KEY_2);
+otherMacNumpadMapping.set(ScanCode.Numpad3, KeyCode.KEY_3);
+otherMacNumpadMapping.set(ScanCode.Numpad4, KeyCode.KEY_4);
+otherMacNumpadMapping.set(ScanCode.Numpad5, KeyCode.KEY_5);
+otherMacNumpadMapping.set(ScanCode.Numpad6, KeyCode.KEY_6);
+otherMacNumpadMapping.set(ScanCode.Numpad7, KeyCode.KEY_7);
+otherMacNumpadMapping.set(ScanCode.Numpad8, KeyCode.KEY_8);
+otherMacNumpadMapping.set(ScanCode.Numpad9, KeyCode.KEY_9);
+otherMacNumpadMapping.set(ScanCode.Numpad0, KeyCode.KEY_0);
 
 export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
@@ -510,7 +522,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 		let commandAction = MenuRegistry.getCommand(command);
 		let precondition = commandAction && commandAction.precondition;
-		let fullWhen: ContextKeyExpr | undefined;
+		let fullWhen: ContextKeyExpression | undefined;
 		if (when && precondition) {
 			fullWhen = ContextKeyExpr.and(precondition, ContextKeyExpr.deserialize(when));
 		} else if (when) {
@@ -589,6 +601,10 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 				// NumLock is on or this is /, *, -, + on the numpad
 				return true;
 			}
+			if (isMacintosh && event.keyCode === otherMacNumpadMapping.get(code)) {
+				// on macOS, the numpad keys can also map to keys 1 - 0.
+				return true;
+			}
 			return false;
 		}
 
@@ -635,7 +651,7 @@ class UserKeybindings extends Disposable {
 				this._onDidChange.fire();
 			}
 		}), 50));
-		this._register(Event.filter(this.fileService.onFileChanges, e => e.contains(this.keybindingsResource))(() => this.reloadConfigurationScheduler.schedule()));
+		this._register(Event.filter(this.fileService.onDidFilesChange, e => e.contains(this.keybindingsResource))(() => this.reloadConfigurationScheduler.schedule()));
 	}
 
 	async initialize(): Promise<void> {

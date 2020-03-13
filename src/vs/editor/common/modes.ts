@@ -265,6 +265,34 @@ export interface HoverProvider {
 	provideHover(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<Hover>;
 }
 
+/**
+ * An evaluatable expression represents additional information for an expression in a document. Evaluatable expression are
+ * evaluated by a debugger or runtime and their result is rendered in a tooltip-like widget.
+ */
+export interface EvaluatableExpression {
+	/**
+	 * The range to which this expression applies.
+	 */
+	range: IRange;
+	/*
+	 * This expression overrides the expression extracted from the range.
+	 */
+	expression?: string;
+}
+
+/**
+ * The hover provider interface defines the contract between extensions and
+ * the [hover](https://code.visualstudio.com/docs/editor/intellisense)-feature.
+ */
+export interface EvaluatableExpressionProvider {
+	/**
+	 * Provide a hover for the given position and document. Multiple hovers at the same
+	 * position will be merged by the editor. A hover can have a range which defaults
+	 * to the word range at the position when omitted.
+	 */
+	provideEvaluatableExpression(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<EvaluatableExpression>;
+}
+
 export const enum CompletionItemKind {
 	Method,
 	Function,
@@ -466,7 +494,7 @@ export interface CompletionItem {
 	preselect?: boolean;
 	/**
 	 * A string or snippet that should be inserted in a document when selecting
-	 * this completion. When `falsy` the [label](#CompletionItem.label)
+	 * this completion.
 	 * is used.
 	 */
 	insertText: string;
@@ -607,6 +635,9 @@ export interface CodeActionList extends IDisposable {
  * @internal
  */
 export interface CodeActionProvider {
+
+	displayName?: string
+
 	/**
 	 * Provide commands for the given document and range.
 	 */
@@ -1215,11 +1246,11 @@ export interface SelectionRangeProvider {
 export interface FoldingContext {
 }
 /**
- * A provider of colors for editor models.
+ * A provider of folding ranges for editor models.
  */
 export interface FoldingRangeProvider {
 	/**
-	 * Provides the color ranges for a specific model.
+	 * Provides the folding ranges for a specific model.
 	 */
 	provideFoldingRanges(model: model.ITextModel, context: FoldingContext, token: CancellationToken): ProviderResult<FoldingRange[]>;
 }
@@ -1296,7 +1327,7 @@ export interface WorkspaceEditMetadata {
 	needsConfirmation: boolean;
 	label: string;
 	description?: string;
-	iconPath?: { id: string } | { light: URI, dark: URI };
+	iconPath?: { id: string } | URI | { light: URI, dark: URI };
 }
 
 export interface WorkspaceFileEditOptions {
@@ -1342,7 +1373,7 @@ export interface RenameProvider {
  */
 export interface AuthenticationSession {
 	id: string;
-	accessToken(): Promise<string>;
+	getAccessToken(): Thenable<string>;
 	accountName: string;
 }
 
@@ -1558,6 +1589,7 @@ export interface SemanticTokensEdits {
 }
 
 export interface DocumentSemanticTokensProvider {
+	onDidChange?: Event<void>;
 	getLegend(): SemanticTokensLegend;
 	provideDocumentSemanticTokens(model: model.ITextModel, lastResultId: string | null, token: CancellationToken): ProviderResult<SemanticTokens | SemanticTokensEdits>;
 	releaseDocumentSemanticTokens(resultId: string | undefined): void;
@@ -1594,6 +1626,11 @@ export const SignatureHelpProviderRegistry = new LanguageFeatureRegistry<Signatu
  * @internal
  */
 export const HoverProviderRegistry = new LanguageFeatureRegistry<HoverProvider>();
+
+/**
+ * @internal
+ */
+export const EvaluatableExpressionProviderRegistry = new LanguageFeatureRegistry<EvaluatableExpressionProvider>();
 
 /**
  * @internal

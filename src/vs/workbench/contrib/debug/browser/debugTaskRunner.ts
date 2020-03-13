@@ -72,7 +72,7 @@ export class DebugTaskRunner {
 				await this.viewsService.openView(Constants.MARKERS_VIEW_ID);
 				return Promise.resolve(TaskRunResult.Failure);
 			}
-			if (onTaskErrors === 'cancel') {
+			if (onTaskErrors === 'abort') {
 				return Promise.resolve(TaskRunResult.Failure);
 			}
 
@@ -85,7 +85,7 @@ export class DebugTaskRunner {
 						? nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", taskLabel, taskSummary.exitCode)
 						: nls.localize('preLaunchTaskTerminated', "The preLaunchTask '{0}' terminated.", taskLabel);
 
-			const result = await this.dialogService.show(severity.Warning, message, [nls.localize('debugAnyway', "Debug Anyway"), nls.localize('showErrors', "Show Errors"), nls.localize('cancel', "Cancel")], {
+			const result = await this.dialogService.show(severity.Warning, message, [nls.localize('debugAnyway', "Debug Anyway"), nls.localize('showErrors', "Show Errors"), nls.localize('abort', "Abort")], {
 				checkbox: {
 					label: nls.localize('remember', "Remember my choice in user settings"),
 				},
@@ -94,12 +94,12 @@ export class DebugTaskRunner {
 
 
 			const debugAnyway = result.choice === 0;
-			const cancel = result.choice = 2;
+			const abort = result.choice === 2;
 			if (result.checkboxChecked) {
-				this.configurationService.updateValue('debug.onTaskErrors', result.choice === 0 ? 'debugAnyway' : cancel ? 'cancel' : 'showErrors');
+				this.configurationService.updateValue('debug.onTaskErrors', result.choice === 0 ? 'debugAnyway' : abort ? 'abort' : 'showErrors');
 			}
 
-			if (cancel) {
+			if (abort) {
 				return Promise.resolve(TaskRunResult.Failure);
 			}
 			if (debugAnyway) {

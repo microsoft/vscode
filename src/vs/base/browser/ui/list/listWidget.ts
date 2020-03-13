@@ -180,10 +180,10 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 	}
 }
 
-class FocusTrait<T> extends Trait<T> {
+class SelectionTrait<T> extends Trait<T> {
 
 	constructor() {
-		super('focused');
+		super('selected');
 	}
 
 	renderIndex(index: number, container: HTMLElement): void {
@@ -192,7 +192,7 @@ class FocusTrait<T> extends Trait<T> {
 		if (this.contains(index)) {
 			container.setAttribute('aria-selected', 'true');
 		} else {
-			container.removeAttribute('aria-selected');
+			container.setAttribute('aria-selected', 'false');
 		}
 	}
 }
@@ -847,6 +847,7 @@ export interface IListOptions<T> {
 	readonly useShadows?: boolean;
 	readonly verticalScrollMode?: ScrollbarVisibility;
 	readonly setRowLineHeight?: boolean;
+	readonly setRowHeight?: boolean;
 	readonly supportDynamicHeights?: boolean;
 	readonly mouseSupport?: boolean;
 	readonly horizontalScrolling?: boolean;
@@ -900,7 +901,7 @@ const DefaultOptions = {
 		onDragOver() { return false; },
 		drop() { }
 	},
-	ariaRootRole: ListAriaRootRole.TREE
+	ariaRootRole: ListAriaRootRole.LIST
 };
 
 // TODO@Joao: move these utils into a SortedArray class
@@ -1114,7 +1115,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	private focus: Trait<T>;
 	private selection: Trait<T>;
 	private eventBufferer = new EventBufferer();
-	private view: ListView<T>;
+	protected view: ListView<T>;
 	private spliceable: ISpliceable<T>;
 	private styleController: IStyleController;
 	private typeLabelController?: TypeLabelController<T>;
@@ -1122,11 +1123,11 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	protected readonly disposables = new DisposableStore();
 
-	@memoize get onFocusChange(): Event<IListEvent<T>> {
+	@memoize get onDidChangeFocus(): Event<IListEvent<T>> {
 		return Event.map(this.eventBufferer.wrapEvent(this.focus.onChange), e => this.toListEvent(e));
 	}
 
-	@memoize get onSelectionChange(): Event<IListEvent<T>> {
+	@memoize get onDidChangeSelection(): Event<IListEvent<T>> {
 		return Event.map(this.eventBufferer.wrapEvent(this.selection.onChange), e => this.toListEvent(e));
 	}
 
@@ -1197,8 +1198,8 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		renderers: IListRenderer<any /* TODO@joao */, any>[],
 		private _options: IListOptions<T> = DefaultOptions
 	) {
-		this.focus = new FocusTrait();
-		this.selection = new Trait('selected');
+		this.selection = new SelectionTrait();
+		this.focus = new Trait('focused');
 
 		mixin(_options, defaultStyles, false);
 
@@ -1224,7 +1225,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this.view = new ListView(container, virtualDelegate, renderers, viewOptions);
 
 		if (typeof _options.ariaRole !== 'string') {
-			this.view.domNode.setAttribute('role', ListAriaRootRole.TREE);
+			this.view.domNode.setAttribute('role', ListAriaRootRole.LIST);
 		} else {
 			this.view.domNode.setAttribute('role', _options.ariaRole);
 		}
@@ -1265,11 +1266,14 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		this.disposables.add(this.createMouseController(_options));
 
-		this.onFocusChange(this._onFocusChange, this, this.disposables);
-		this.onSelectionChange(this._onSelectionChange, this, this.disposables);
+		this.onDidChangeFocus(this._onFocusChange, this, this.disposables);
+		this.onDidChangeSelection(this._onSelectionChange, this, this.disposables);
 
 		if (_options.ariaLabel) {
 			this.view.domNode.setAttribute('aria-label', localize('aria list', "{0}. Use the navigation keys to navigate.", _options.ariaLabel));
+		}
+		if (_options.multipleSelectionSupport) {
+			this.view.domNode.setAttribute('aria-multiselectable', 'true');
 		}
 	}
 
@@ -1307,6 +1311,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	updateWidth(index: number): void {
 		this.view.updateWidth(index);
+	}
+
+	updateElementHeight(index: number, size: number): void {
+		this.view.updateElementHeight(index, size);
 	}
 
 	rerender(): void {

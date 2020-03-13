@@ -42,7 +42,7 @@ import * as editorCommands from 'vs/workbench/browser/parts/editor/editorCommand
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { getQuickNavigateHandler, inQuickOpenContext } from 'vs/workbench/browser/parts/quickopen/quickopen';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { isMacintosh } from 'vs/base/common/platform';
 import { AllEditorsByAppearancePicker, ActiveGroupEditorsByMostRecentlyUsedPicker, AllEditorsByMostRecentlyUsedPicker } from 'vs/workbench/browser/parts/editor/editorPicker';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
@@ -55,6 +55,9 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { EditorAutoSave } from 'vs/workbench/browser/parts/editor/editorAutoSave';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
+import { ActiveGroupEditorsByMostRecentlyUsedQuickAccess, AllEditorsByAppearanceQuickAccess, AllEditorsByMostRecentlyUsedQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
 
 // Register String Editor
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -129,14 +132,26 @@ class UntitledTextEditorInputFactory implements IEditorInputFactory {
 
 		const untitledTextEditorInput = <UntitledTextEditorInput>editorInput;
 
-		let resource = untitledTextEditorInput.getResource();
+		let resource = untitledTextEditorInput.resource;
 		if (untitledTextEditorInput.model.hasAssociatedFilePath) {
 			resource = toLocalResource(resource, this.environmentService.configuration.remoteAuthority); // untitled with associated file path use the local schema
 		}
 
+		// Mode: only remember mode if it is either specific (not text)
+		// or if the mode was explicitly set by the user. We want to preserve
+		// this information across restarts and not set the mode unless
+		// this is the case.
+		let modeId: string | undefined;
+		const modeIdCandidate = untitledTextEditorInput.getMode();
+		if (modeIdCandidate !== PLAINTEXT_MODE_ID) {
+			modeId = modeIdCandidate;
+		} else if (untitledTextEditorInput.model.hasModeSetExplicitly) {
+			modeId = modeIdCandidate;
+		}
+
 		const serialized: ISerializedUntitledTextEditorInput = {
 			resourceJSON: resource.toJSON(),
-			modeId: untitledTextEditorInput.getMode(),
+			modeId,
 			encoding: untitledTextEditorInput.getEncoding()
 		};
 
@@ -150,7 +165,7 @@ class UntitledTextEditorInputFactory implements IEditorInputFactory {
 			const mode = deserialized.modeId;
 			const encoding = deserialized.encoding;
 
-			return accessor.get(IEditorService).createInput({ resource, mode, encoding, forceUntitled: true }) as UntitledTextEditorInput;
+			return accessor.get(IEditorService).createEditorInput({ resource, mode, encoding, forceUntitled: true }) as UntitledTextEditorInput;
 		});
 	}
 }
@@ -260,13 +275,13 @@ export class QuickOpenActionContributor extends ActionBarContributor {
 		super();
 	}
 
-	hasActions(context: any): boolean {
+	hasActions(context: unknown): boolean {
 		const entry = this.getEntry(context);
 
 		return !!entry;
 	}
 
-	getActions(context: any): ReadonlyArray<IAction> {
+	getActions(context: unknown): ReadonlyArray<IAction> {
 		const actions: Action[] = [];
 
 		const entry = this.getEntry(context);
@@ -345,6 +360,33 @@ Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpen
 		]
 	)
 );
+
+// Register Editor Quick Access
+const quickAccessRegistry = Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess);
+
+quickAccessRegistry.registerQuickAccessProvider({
+	ctor: ActiveGroupEditorsByMostRecentlyUsedQuickAccess,
+	prefix: ActiveGroupEditorsByMostRecentlyUsedQuickAccess.PREFIX,
+	contextKey: editorPickerContextKey,
+	placeholder: nls.localize('editorQuickAccessPlaceholder', "Type the name of an editor to open it."),
+	helpEntries: [{ description: nls.localize('activeGroupEditorsByMostRecentlyUsedQuickAccess', "Show Editors in Active Group by Most Recently Used."), needsEditor: false }]
+});
+
+quickAccessRegistry.registerQuickAccessProvider({
+	ctor: AllEditorsByAppearanceQuickAccess,
+	prefix: AllEditorsByAppearanceQuickAccess.PREFIX,
+	contextKey: editorPickerContextKey,
+	placeholder: nls.localize('editorQuickAccessPlaceholder', "Type the name of an editor to open it."),
+	helpEntries: [{ description: nls.localize('allEditorsByAppearanceQuickAccess', "Show All Opened Editors By Appearance"), needsEditor: false }]
+});
+
+quickAccessRegistry.registerQuickAccessProvider({
+	ctor: AllEditorsByMostRecentlyUsedQuickAccess,
+	prefix: AllEditorsByMostRecentlyUsedQuickAccess.PREFIX,
+	contextKey: editorPickerContextKey,
+	placeholder: nls.localize('editorQuickAccessPlaceholder', "Type the name of an editor to open it."),
+	helpEntries: [{ description: nls.localize('allEditorsByMostRecentlyUsedQuickAccess', "Show All Opened Editors By Most Recently Used"), needsEditor: false }]
+});
 
 // Register Editor Actions
 const category = nls.localize('view', "View");
@@ -498,7 +540,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.
 
 interface IEditorToolItem { id: string; title: string; icon?: { dark?: URI; light?: URI; } | ThemeIcon; }
 
-function appendEditorToolItem(primary: IEditorToolItem, when: ContextKeyExpr | undefined, order: number, alternative?: IEditorToolItem, precondition?: ContextKeyExpr | undefined): void {
+function appendEditorToolItem(primary: IEditorToolItem, when: ContextKeyExpression | undefined, order: number, alternative?: IEditorToolItem, precondition?: ContextKeyExpression | undefined): void {
 	const item: IMenuItem = {
 		command: {
 			id: primary.id,

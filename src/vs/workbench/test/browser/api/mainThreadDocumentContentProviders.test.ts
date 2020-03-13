@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { MainThreadDocumentContentProviders } from 'vs/workbench/api/browser/mainThreadDocumentContentProviders';
-import { TextModel } from 'vs/editor/common/model/textModel';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { mock } from 'vs/workbench/test/browser/api/mock';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
@@ -18,7 +18,7 @@ suite('MainThreadDocumentContentProviders', function () {
 	test('events are processed properly', function () {
 
 		let uri = URI.parse('test:uri');
-		let model = TextModel.createFromString('1', undefined, undefined, uri);
+		let model = createTextModel('1', undefined, undefined, uri);
 
 		let providers = new MainThreadDocumentContentProviders(new TestRPCProtocol(), null!, null!,
 			new class extends mock<IModelService>() {

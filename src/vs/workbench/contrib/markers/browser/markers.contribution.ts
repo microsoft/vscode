@@ -28,7 +28,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from 'vs/workbench/services/statusbar/common/statusbar';
 import { IMarkerService, MarkerStatistics } from 'vs/platform/markers/common/markers';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry, IViewsService, getVisbileViewContextKey } from 'vs/workbench/common/views';
+import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry, IViewsService, getVisbileViewContextKey, FocusedViewContext } from 'vs/workbench/common/views';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -211,7 +211,7 @@ registerAction2(class extends Action2 {
 			id: Constants.MARKERS_VIEW_FOCUS_FILTER,
 			title: localize('focusProblemsFilter', "Focus problems filter"),
 			keybinding: {
-				when: Constants.MarkerViewFocusContextKey,
+				when: FocusedViewContext.isEqualTo(Constants.MARKERS_VIEW_ID),
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_F
 			}
@@ -256,6 +256,25 @@ registerAction2(class extends Action2 {
 		const markersView = accessor.get(IViewsService).getActiveViewWithId<MarkersView>(Constants.MARKERS_VIEW_ID);
 		if (markersView) {
 			markersView.markersViewModel.multiline = false;
+		}
+	}
+});
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: Constants.MARKERS_VIEW_CLEAR_FILTER_TEXT,
+			title: localize('clearFiltersText', "Clear filters text"),
+			category: localize('problems', "Problems"),
+			keybinding: {
+				when: Constants.MarkerViewFilterFocusContextKey,
+				weight: KeybindingWeight.WorkbenchContrib,
+			}
+		});
+	}
+	run(accessor: ServicesAccessor) {
+		const markersView = accessor.get(IViewsService).getActiveViewWithId<MarkersView>(Constants.MARKERS_VIEW_ID);
+		if (markersView) {
+			markersView.clearFilterText();
 		}
 	}
 });

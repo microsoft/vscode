@@ -11,7 +11,7 @@ import { Schemas } from 'vs/base/common/network';
 import { toResource } from 'vs/workbench/common/editor';
 import { IStringDictionary, forEach, fromMap } from 'vs/base/common/collections';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceFolder, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -62,10 +62,10 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 				return path.normalize(fileResource.fsPath);
 			},
 			getSelectedText: (): string | undefined => {
-				const activeTextEditorWidget = editorService.activeTextEditorWidget;
-				if (isCodeEditor(activeTextEditorWidget)) {
-					const editorModel = activeTextEditorWidget.getModel();
-					const editorSelection = activeTextEditorWidget.getSelection();
+				const activeTextEditorControl = editorService.activeTextEditorControl;
+				if (isCodeEditor(activeTextEditorControl)) {
+					const editorModel = activeTextEditorControl.getModel();
+					const editorSelection = activeTextEditorControl.getSelection();
 					if (editorModel && editorSelection) {
 						return editorModel.getValueInRange(editorSelection);
 					}
@@ -73,9 +73,9 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 				return undefined;
 			},
 			getLineNumber: (): string | undefined => {
-				const activeTextEditorWidget = editorService.activeTextEditorWidget;
-				if (isCodeEditor(activeTextEditorWidget)) {
-					const selection = activeTextEditorWidget.getSelection();
+				const activeTextEditorControl = editorService.activeTextEditorControl;
+				if (isCodeEditor(activeTextEditorControl)) {
+					const selection = activeTextEditorControl.getSelection();
 					if (selection) {
 						const lineNumber = selection.positionLineNumber;
 						return String(lineNumber);
@@ -86,12 +86,12 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 		}, envVariables);
 	}
 
-	public async resolveWithInteractionReplace(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>): Promise<any> {
+	public async resolveWithInteractionReplace(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>, target?: ConfigurationTarget): Promise<any> {
 		// resolve any non-interactive variables and any contributed variables
 		config = this.resolveAny(folder, config);
 
 		// resolve input variables in the order in which they are encountered
-		return this.resolveWithInteraction(folder, config, section, variables).then(mapping => {
+		return this.resolveWithInteraction(folder, config, section, variables, target).then(mapping => {
 			// finally substitute evaluated command variables (if there are any)
 			if (!mapping) {
 				return null;
@@ -103,14 +103,14 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 		});
 	}
 
-	public async resolveWithInteraction(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>): Promise<Map<string, string> | undefined> {
+	public async resolveWithInteraction(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>, target?: ConfigurationTarget): Promise<Map<string, string> | undefined> {
 		// resolve any non-interactive variables and any contributed variables
 		const resolved = await this.resolveAnyMap(folder, config);
 		config = resolved.newConfig;
 		const allVariableMapping: Map<string, string> = resolved.resolvedVariables;
 
 		// resolve input and command variables in the order in which they are encountered
-		return this.resolveWithInputAndCommands(folder, config, variables, section).then(inputOrCommandMapping => {
+		return this.resolveWithInputAndCommands(folder, config, variables, section, target).then(inputOrCommandMapping => {
 			if (this.updateMapping(inputOrCommandMapping, allVariableMapping)) {
 				return allVariableMapping;
 			}
@@ -139,7 +139,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 	 *
 	 * @param variableToCommandMap Aliases for commands
 	 */
-	private async resolveWithInputAndCommands(folder: IWorkspaceFolder | undefined, configuration: any, variableToCommandMap?: IStringDictionary<string>, section?: string): Promise<IStringDictionary<string> | undefined> {
+	private async resolveWithInputAndCommands(folder: IWorkspaceFolder | undefined, configuration: any, variableToCommandMap?: IStringDictionary<string>, section?: string, target?: ConfigurationTarget): Promise<IStringDictionary<string> | undefined> {
 
 		if (!configuration) {
 			return Promise.resolve(undefined);
@@ -148,9 +148,18 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 		// get all "inputs"
 		let inputs: ConfiguredInput[] = [];
 		if (folder && this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY && section) {
-			let result = this.configurationService.getValue<any>(section, { resource: folder.uri });
-			if (result) {
-				inputs = result.inputs;
+			let result = this.configurationService.inspect(section, { resource: folder.uri });
+			if (result && (result.userValue || result.workspaceValue || result.workspaceFolderValue)) {
+				switch (target) {
+					case ConfigurationTarget.USER: inputs = (<any>result.userValue)?.inputs; break;
+					case ConfigurationTarget.WORKSPACE: inputs = (<any>result.workspaceValue)?.inputs; break;
+					default: inputs = (<any>result.workspaceFolderValue)?.inputs;
+				}
+			} else {
+				const valueResult = this.configurationService.getValue<any>(section, { resource: folder.uri });
+				if (valueResult) {
+					inputs = valueResult.inputs;
+				}
 			}
 		}
 
@@ -259,6 +268,9 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 					if (info.default) {
 						inputOptions.value = info.default;
 					}
+					if (info.password) {
+						inputOptions.password = info.password;
+					}
 					return this.quickInputService.input(inputOptions).then(resolvedInput => {
 						return resolvedInput;
 					});
@@ -337,7 +349,7 @@ export class ConfigurationResolverService extends BaseConfigurationResolverServi
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IQuickInputService quickInputService: IQuickInputService
 	) {
-		super(environmentService.configuration.userEnv, editorService, environmentService, configurationService, commandService, workspaceContextService, quickInputService);
+		super(Object.create(null), editorService, environmentService, configurationService, commandService, workspaceContextService, quickInputService);
 	}
 }
 

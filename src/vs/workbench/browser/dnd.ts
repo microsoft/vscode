@@ -20,7 +20,7 @@ import { isWindows, isWeb } from 'vs/base/common/platform';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorIdentifier, GroupIdentifier } from 'vs/workbench/common/editor';
-import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { addDisposableListener, EventType, asDomUri } from 'vs/base/browser/dom';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -28,7 +28,6 @@ import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/commo
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { isStandalone } from 'vs/base/browser/browser';
-import { IModelService } from 'vs/editor/common/services/modelService';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 
 export interface IDraggedResource {
@@ -197,7 +196,7 @@ export class ResourcesDropHandler {
 			this.workspacesService.addRecentlyOpened(recentFiles);
 		}
 
-		const editors: IResourceEditor[] = untitledOrFileResources.map(untitledOrFileResource => ({
+		const editors: IResourceEditorInputType[] = untitledOrFileResources.map(untitledOrFileResource => ({
 			resource: untitledOrFileResource.resource,
 			encoding: (untitledOrFileResource as IDraggedEditor).encoding,
 			mode: (untitledOrFileResource as IDraggedEditor).mode,
@@ -240,14 +239,14 @@ export class ResourcesDropHandler {
 
 		// Untitled: always ensure that we open a new untitled editor for each file we drop
 		if (droppedDirtyEditor.resource.scheme === Schemas.untitled) {
-			const untitledEditorResource = this.editorService.createInput({ mode: droppedDirtyEditor.mode, encoding: droppedDirtyEditor.encoding, forceUntitled: true }).getResource();
+			const untitledEditorResource = this.editorService.createEditorInput({ mode: droppedDirtyEditor.mode, encoding: droppedDirtyEditor.encoding, forceUntitled: true }).resource;
 			if (untitledEditorResource) {
 				droppedDirtyEditor.resource = untitledEditorResource;
 			}
 		}
 
 		// File: ensure the file is not dirty or opened already
-		else if (this.textFileService.isDirty(droppedDirtyEditor.resource) || this.editorService.isOpen(this.editorService.createInput({ resource: droppedDirtyEditor.resource, forceFile: true }))) {
+		else if (this.textFileService.isDirty(droppedDirtyEditor.resource) || this.editorService.isOpen({ resource: droppedDirtyEditor.resource })) {
 			return false;
 		}
 
@@ -299,7 +298,7 @@ export class ResourcesDropHandler {
 
 		// Open in separate windows if we drop workspaces or just one folder
 		if (toOpen.length > folderURIs.length || folderURIs.length === 1) {
-			await this.hostService.openWindow(toOpen, { forceReuseWindow: true });
+			await this.hostService.openWindow(toOpen);
 		}
 
 		// folders.length > 1: Multiple folders: Create new workspace with folders and open
@@ -343,19 +342,18 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 	// Editors: enables cross window DND of tabs into the editor area
 	const textFileService = accessor.get(ITextFileService);
 	const editorService = accessor.get(IEditorService);
-	const modelService = accessor.get(IModelService);
 
 	const draggedEditors: ISerializedDraggedEditor[] = [];
 	files.forEach(file => {
 
 		// Try to find editor view state from the visible editors that match given resource
 		let viewState: IEditorViewState | undefined = undefined;
-		const textEditorWidgets = editorService.visibleTextEditorWidgets;
-		for (const textEditorWidget of textEditorWidgets) {
-			if (isCodeEditor(textEditorWidget)) {
-				const model = textEditorWidget.getModel();
+		const textEditorControls = editorService.visibleTextEditorControls;
+		for (const textEditorControl of textEditorControls) {
+			if (isCodeEditor(textEditorControl)) {
+				const model = textEditorControl.getModel();
 				if (model?.uri?.toString() === file.resource.toString()) {
-					viewState = withNullAsUndefined(textEditorWidget.saveViewState());
+					viewState = withNullAsUndefined(textEditorControl.saveViewState());
 					break;
 				}
 			}
@@ -374,11 +372,8 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 		// If the resource is dirty or untitled, send over its content
 		// to restore dirty state. Get that from the text model directly
 		let content: string | undefined = undefined;
-		if (textFileService.isDirty(file.resource)) {
-			const textModel = modelService.getModel(file.resource);
-			if (textModel) {
-				content = textModel.getValue();
-			}
+		if (model?.isDirty()) {
+			content = model.textEditorModel.getValue();
 		}
 
 		// Add as dragged editor

@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import * as errors from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
-import { DefaultEndOfLine, EndOfLinePreference, EndOfLineSequence, IIdentifiedSingleEditOperation, ITextBuffer, ITextBufferFactory, ITextModel, ITextModelCreationOptions } from 'vs/editor/common/model';
+import { DefaultEndOfLine, EndOfLinePreference, EndOfLineSequence, IIdentifiedSingleEditOperation, ITextBuffer, ITextBufferFactory, ITextModel, ITextModelCreationOptions, IValidEditOperation } from 'vs/editor/common/model';
 import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
 import { IModelLanguageChangedEvent, IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { LanguageIdentifier, DocumentSemanticTokensProviderRegistry, DocumentSemanticTokensProvider, SemanticTokensLegend, SemanticTokens, SemanticTokensEdits, TokenMetadata, FontStyle, MetadataConsts } from 'vs/editor/common/modes';
@@ -25,6 +25,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { SparseEncodedTokens, MultilineTokens2 } from 'vs/editor/common/model/tokensStore';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
+import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 
 export interface IEditorSemanticHighlightingOptions {
 	enabled?: boolean;
@@ -103,6 +104,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 	private readonly _configurationService: IConfigurationService;
 	private readonly _configurationServiceSubscription: IDisposable;
 	private readonly _resourcePropertiesService: ITextResourcePropertiesService;
+	private readonly _undoRedoService: IUndoRedoService;
 
 	private readonly _onModelAdded: Emitter<ITextModel> = this._register(new Emitter<ITextModel>());
 	public readonly onModelAdded: Event<ITextModel> = this._onModelAdded.event;
@@ -126,11 +128,13 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITextResourcePropertiesService resourcePropertiesService: ITextResourcePropertiesService,
 		@IThemeService themeService: IThemeService,
-		@ILogService logService: ILogService
+		@ILogService logService: ILogService,
+		@IUndoRedoService undoRedoService: IUndoRedoService
 	) {
 		super();
 		this._configurationService = configurationService;
 		this._resourcePropertiesService = resourcePropertiesService;
+		this._undoRedoService = undoRedoService;
 		this._models = {};
 		this._modelCreationOptionsByLanguageAndResource = Object.create(null);
 
@@ -203,11 +207,22 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		};
 	}
 
+	private _getEOL(resource: URI | undefined, language: string): string {
+		if (resource) {
+			return this._resourcePropertiesService.getEOL(resource, language);
+		}
+		const eol = this._configurationService.getValue<string>('files.eol', { overrideIdentifier: language });
+		if (eol && eol !== 'auto') {
+			return eol;
+		}
+		return platform.OS === platform.OperatingSystem.Linux || platform.OS === platform.OperatingSystem.Macintosh ? '\n' : '\r\n';
+	}
+
 	public getCreationOptions(language: string, resource: URI | undefined, isForSimpleWidget: boolean): ITextModelCreationOptions {
 		let creationOptions = this._modelCreationOptionsByLanguageAndResource[language + resource];
 		if (!creationOptions) {
 			const editor = this._configurationService.getValue<IRawEditorConfig>('editor', { overrideIdentifier: language, resource });
-			const eol = this._resourcePropertiesService.getEOL(resource, language);
+			const eol = this._getEOL(resource, language);
 			creationOptions = ModelServiceImpl._readModelOptions({ editor, eol }, isForSimpleWidget);
 			this._modelCreationOptionsByLanguageAndResource[language + resource] = creationOptions;
 		}
@@ -272,7 +287,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 	private _createModelData(value: string | ITextBufferFactory, languageIdentifier: LanguageIdentifier, resource: URI | undefined, isForSimpleWidget: boolean): ModelData {
 		// create & save the model
 		const options = this.getCreationOptions(languageIdentifier.language, resource, isForSimpleWidget);
-		const model: TextModel = new TextModel(value, options, languageIdentifier, resource);
+		const model: TextModel = new TextModel(value, options, languageIdentifier, resource, this._undoRedoService);
 		const modelId = MODEL_ID(model.uri);
 
 		if (this._models[modelId]) {
@@ -305,7 +320,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		model.pushEditOperations(
 			[],
 			ModelServiceImpl._computeEdits(model, textBuffer),
-			(inverseEditOperations: IIdentifiedSingleEditOperation[]) => []
+			(inverseEditOperations: IValidEditOperation[]) => []
 		);
 		model.pushStackElement();
 	}
@@ -512,7 +527,7 @@ class SemanticStyling extends Disposable {
 		this._caches = new WeakMap<DocumentSemanticTokensProvider, SemanticColoringProviderStyling>();
 		if (this._themeService) {
 			// workaround for tests which use undefined... :/
-			this._register(this._themeService.onThemeChange(() => {
+			this._register(this._themeService.onDidColorThemeChange(() => {
 				this._caches = new WeakMap<DocumentSemanticTokensProvider, SemanticColoringProviderStyling>();
 			}));
 		}
@@ -647,7 +662,7 @@ class SemanticColoringProviderStyling {
 				modifierSet = modifierSet >> 1;
 			}
 
-			const tokenStyle = this._themeService.getTheme().getTokenStyleMetadata(tokenType, tokenModifiers);
+			const tokenStyle = this._themeService.getColorTheme().getTokenStyleMetadata(tokenType, tokenModifiers);
 			if (typeof tokenStyle === 'undefined') {
 				metadata = Constants.NO_STYLING;
 			} else {
@@ -720,6 +735,7 @@ class ModelSemanticColoring extends Disposable {
 	private readonly _fetchSemanticTokens: RunOnceScheduler;
 	private _currentResponse: SemanticTokensResponse | null;
 	private _currentRequestCancellationTokenSource: CancellationTokenSource | null;
+	private _providersChangeListeners: IDisposable[];
 
 	constructor(model: ITextModel, themeService: IThemeService, stylingProvider: SemanticStyling) {
 		super();
@@ -730,16 +746,31 @@ class ModelSemanticColoring extends Disposable {
 		this._fetchSemanticTokens = this._register(new RunOnceScheduler(() => this._fetchSemanticTokensNow(), 300));
 		this._currentResponse = null;
 		this._currentRequestCancellationTokenSource = null;
+		this._providersChangeListeners = [];
 
 		this._register(this._model.onDidChangeContent(e => {
 			if (!this._fetchSemanticTokens.isScheduled()) {
 				this._fetchSemanticTokens.schedule();
 			}
 		}));
-		this._register(DocumentSemanticTokensProviderRegistry.onDidChange(e => this._fetchSemanticTokens.schedule()));
+		const bindChangeListeners = () => {
+			dispose(this._providersChangeListeners);
+			this._providersChangeListeners = [];
+			for (const provider of DocumentSemanticTokensProviderRegistry.all(model)) {
+				if (typeof provider.onDidChange === 'function') {
+					this._providersChangeListeners.push(provider.onDidChange(() => this._fetchSemanticTokens.schedule(0)));
+				}
+			}
+		};
+		bindChangeListeners();
+		this._register(DocumentSemanticTokensProviderRegistry.onDidChange(e => {
+			bindChangeListeners();
+			this._fetchSemanticTokens.schedule();
+		}));
+
 		if (themeService) {
 			// workaround for tests which use undefined... :/
-			this._register(themeService.onThemeChange(_ => {
+			this._register(themeService.onDidColorThemeChange(_ => {
 				// clear out existing tokens
 				this._setSemanticTokens(null, null, null, []);
 				this._fetchSemanticTokens.schedule();

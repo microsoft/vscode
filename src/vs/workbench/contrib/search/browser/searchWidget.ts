@@ -121,12 +121,11 @@ export class SearchWidget extends Widget {
 	private replaceActive: IContextKey<boolean>;
 	private replaceActionBar!: ActionBar;
 	private _replaceHistoryDelayer: Delayer<void>;
-	private _searchDelayer: Delayer<void>;
 	private ignoreGlobalFindBufferOnNextFocus = false;
 	private previousGlobalFindBufferValue: string | null = null;
 
-	private _onSearchSubmit = this._register(new Emitter<boolean>());
-	readonly onSearchSubmit: Event<boolean /* triggeredOnType */> = this._onSearchSubmit.event;
+	private _onSearchSubmit = this._register(new Emitter<{ triggeredOnType: boolean, delay: number }>());
+	readonly onSearchSubmit: Event<{ triggeredOnType: boolean, delay: number }> = this._onSearchSubmit.event;
 
 	private _onSearchCancel = this._register(new Emitter<{ focus: boolean }>());
 	readonly onSearchCancel: Event<{ focus: boolean }> = this._onSearchCancel.event;
@@ -155,7 +154,6 @@ export class SearchWidget extends Widget {
 	private readonly _onDidToggleContext = new Emitter<void>();
 	readonly onDidToggleContext: Event<void> = this._onDidToggleContext.event;
 
-	private temporarilySkipSearchOnChange = false;
 	private showContextCheckbox!: Checkbox;
 	private contextLinesInput!: InputBox;
 
@@ -177,7 +175,6 @@ export class SearchWidget extends Widget {
 
 		this._replaceHistoryDelayer = new Delayer<void>(500);
 
-		this._searchDelayer = this._register(new Delayer<void>(this.searchConfiguration.searchOnTypeDebouncePeriod));
 		this.render(container, options);
 
 		this.configurationService.onDidChangeConfiguration(e => {
@@ -447,10 +444,8 @@ export class SearchWidget extends Widget {
 		this._onReplaceToggled.fire();
 	}
 
-	setValue(value: string, skipSearchOnChange: boolean) {
-		this.temporarilySkipSearchOnChange = skipSearchOnChange;
+	setValue(value: string) {
 		this.searchInput.setValue(value);
-		this.temporarilySkipSearchOnChange = false;
 	}
 
 	setReplaceAllActionState(enabled: boolean): void {
@@ -492,12 +487,10 @@ export class SearchWidget extends Widget {
 		this.setReplaceAllActionState(false);
 
 		if (this.searchConfiguration.searchOnType) {
-			if (!this.temporarilySkipSearchOnChange) {
-				this._onSearchCancel.fire({ focus: false });
-				if (this.searchInput.getRegex()) {
-					try {
-						const regex = new RegExp(this.searchInput.getValue(), 'ug');
-						const matchienessHeuristic = `
+			if (this.searchInput.getRegex()) {
+				try {
+					const regex = new RegExp(this.searchInput.getValue(), 'ug');
+					const matchienessHeuristic = `
 								~!@#$%^&*()_+
 								\`1234567890-=
 								qwertyuiop[]\\
@@ -507,18 +500,17 @@ export class SearchWidget extends Widget {
 								zxcvbnm,./
 								ZXCVBNM<>? `.match(regex)?.length ?? 0;
 
-						const delayMultiplier =
-							matchienessHeuristic < 50 ? 1 :
-								matchienessHeuristic < 100 ? 5 : // expressions like `.` or `\w`
-									10; // only things matching empty string
+					const delayMultiplier =
+						matchienessHeuristic < 50 ? 1 :
+							matchienessHeuristic < 100 ? 5 : // expressions like `.` or `\w`
+								10; // only things matching empty string
 
-						this._searchDelayer.trigger((() => this.submitSearch(true)), this.searchConfiguration.searchOnTypeDebouncePeriod * delayMultiplier);
-					} catch {
-						// pass
-					}
-				} else {
-					this._searchDelayer.trigger((() => this.submitSearch(true)), this.searchConfiguration.searchOnTypeDebouncePeriod);
+					this.submitSearch(true, this.searchConfiguration.searchOnTypeDebouncePeriod * delayMultiplier);
+				} catch {
+					// pass
 				}
+			} else {
+				this.submitSearch(true, this.searchConfiguration.searchOnTypeDebouncePeriod);
 			}
 		}
 	}
@@ -628,7 +620,7 @@ export class SearchWidget extends Widget {
 		}
 	}
 
-	private submitSearch(triggeredOnType = false): void {
+	private submitSearch(triggeredOnType = false, delay: number = 0): void {
 		this.searchInput.validate();
 		if (!this.searchInput.inputBox.isInputValid()) {
 			return;
@@ -639,11 +631,18 @@ export class SearchWidget extends Widget {
 		if (value && useGlobalFindBuffer) {
 			this.clipboardServce.writeFindText(value);
 		}
-		this._onSearchSubmit.fire(triggeredOnType);
+		this._onSearchSubmit.fire({ triggeredOnType, delay });
 	}
 
-	contextLines() {
+	getContextLines() {
 		return this.showContextCheckbox.checked ? +this.contextLinesInput.value : 0;
+	}
+
+	modifyContextLines(increase: boolean) {
+		const current = +this.contextLinesInput.value;
+		const modified = current + (increase ? 1 : -1);
+		this.showContextCheckbox.checked = modified !== 0;
+		this.contextLinesInput.value = '' + modified;
 	}
 
 	toggleContextLines() {

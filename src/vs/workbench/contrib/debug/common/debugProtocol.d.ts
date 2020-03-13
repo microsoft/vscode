@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+
 /** Declaration module describing the VS Code debug protocol.
 	Auto-generated from json schema. Do not edit manually.
 */
@@ -69,7 +70,9 @@ declare module DebugProtocol {
 	}
 
 	/** Cancel request; value of command field is 'cancel'.
-		The 'cancel' request is used by the frontend to indicate that it is no longer interested in the result produced by a specific request issued earlier.
+		The 'cancel' request is used by the frontend in two situations:
+		- to indicate that it is no longer interested in the result produced by a specific request issued earlier
+		- to cancel a progress indicator.
 		This request has a hint characteristic: a debug adapter can only be expected to make a 'best effort' in honouring this request but there are no guarantees.
 		The 'cancel' request may return an error if it could not cancel an operation but a frontend should refrain from presenting this error to end users.
 		A frontend client should only call this request if the capability 'supportsCancelRequest' is true.
@@ -84,8 +87,10 @@ declare module DebugProtocol {
 
 	/** Arguments for 'cancel' request. */
 	export interface CancelArguments {
-		/** The ID (attribute 'seq') of the request to cancel. */
+		/** The ID (attribute 'seq') of the request to cancel. If missing no request is cancelled. Both a 'requestId' and a 'progressId' can be specified in one request. */
 		requestId?: number;
+		/** The ID (attribute 'progressId') of the progress to cancel. If missing no progress is cancelled. Both a 'requestId' and a 'progressId' can be specified in one request. */
+		progressId?: string;
 	}
 
 	/** Response to 'cancel' request. This is just an acknowledgement, so no body field is required. */
@@ -98,7 +103,7 @@ declare module DebugProtocol {
 		The sequence of events/requests is as follows:
 		- adapters sends 'initialized' event (after the 'initialize' request has returned)
 		- frontend sends zero or more 'setBreakpoints' requests
-		- frontend sends one 'setFunctionBreakpoints' request
+		- frontend sends one 'setFunctionBreakpoints' request (if capability 'supportsFunctionBreakpoints' is true)
 		- frontend sends a 'setExceptionBreakpoints' request if one or more 'exceptionBreakpointFilters' have been defined (or if 'supportsConfigurationDoneRequest' is not defined or false)
 		- frontend sends other future configuration requests
 		- frontend sends one 'configurationDone' request to indicate the end of the configuration.
@@ -201,6 +206,15 @@ declare module DebugProtocol {
 			category?: string;
 			/** The output to report. */
 			output: string;
+			/** Support for keeping an output log organized by grouping related messages.
+				'start': Start a new group in expanded mode. Subsequent output events are members of the group and should be shown indented.
+				The 'output' attribute becomes the name of the group and is not indented.
+				'startCollapsed': Start a new group in collapsed mode. Subsequent output events are members of the group and should be shown indented (as soon as the group is expanded).
+				The 'output' attribute becomes the name of the group and is not indented.
+				'end': End the current group and decreases the indentation of subsequent output events.
+				A non empty 'output' attribute is shown as the unindented end of the group.
+			*/
+			group?: 'start' | 'startCollapsed' | 'end';
 			/** If an attribute 'variablesReference' exists and its value is > 0, the output contains objects which can be retrieved by passing 'variablesReference' to the 'variables' request. The value should be less than or equal to 2147483647 (2^31 - 1). */
 			variablesReference?: number;
 			/** An optional source location where the output was produced. */
@@ -292,6 +306,64 @@ declare module DebugProtocol {
 		};
 	}
 
+	/** Event message for 'progressStart' event type.
+		The event signals that a long running operation is about to start and
+		provides additional information for the client to set up a corresponding progress and cancellation UI.
+		The client is free to delay the showing of the UI in order to reduce flicker.
+	*/
+	export interface ProgressStartEvent extends Event {
+		// event: 'progressStart';
+		body: {
+			/** An ID that must be used in subsequent 'progressUpdate' and 'progressEnd' events to make them refer to the same progress reporting. IDs must be unique within a debug session. */
+			progressId: string;
+			/** Mandatory (short) title of the progress reporting. Shown in the UI to describe the long running operation. */
+			title: string;
+			/** The request ID that this progress report is related to. If specified a debug adapter is expected to emit
+				progress events for the long running request until the request has been either completed or cancelled.
+				If the request ID is omitted, the progress report is assumed to be related to some general activity of the debug adapter.
+			*/
+			requestId?: number;
+			/** If true, the request that reports progress may be canceled with a 'cancel' request.
+				So this property basically controls whether the client should use UX that supports cancellation.
+				Clients that don't support cancellation are allowed to ignore the setting.
+			*/
+			cancellable?: boolean;
+			/** Optional, more detailed progress message. */
+			message?: string;
+			/** Optional progress percentage to display (value range: 0 to 100). If omitted no percentage will be shown. */
+			percentage?: number;
+		};
+	}
+
+	/** Event message for 'progressUpdate' event type.
+		The event signals that the progress reporting needs to updated with a new message and/or percentage.
+		The client does not have to update the UI immediately, but the clients needs to keep track of the message and/or percentage values.
+	*/
+	export interface ProgressUpdateEvent extends Event {
+		// event: 'progressUpdate';
+		body: {
+			/** The ID that was introduced in the initial 'progressStart' event. */
+			progressId: string;
+			/** Optional, more detailed progress message. If omitted, the previous message (if any) is used. */
+			message?: string;
+			/** Optional progress percentage to display (value range: 0 to 100). If omitted no percentage will be shown. */
+			percentage?: number;
+		};
+	}
+
+	/** Event message for 'progressEnd' event type.
+		The event signals the end of the progress reporting with an optional final message.
+	*/
+	export interface ProgressEndEvent extends Event {
+		// event: 'progressEnd';
+		body: {
+			/** The ID that was introduced in the initial 'ProgressStartEvent'. */
+			progressId: string;
+			/** Optional, more detailed progress message. If omitted, the previous message (if any) is used. */
+			message?: string;
+		};
+	}
+
 	/** RunInTerminal request; value of command field is 'runInTerminal'.
 		This request is sent from the debug adapter to the client to run a command in a terminal. This is typically used to launch the debuggee in a terminal provided by the client.
 	*/
@@ -360,6 +432,8 @@ declare module DebugProtocol {
 		supportsRunInTerminalRequest?: boolean;
 		/** Client supports memory references. */
 		supportsMemoryReferences?: boolean;
+		/** Client supports progress reporting. */
+		supportsProgressReporting?: boolean;
 	}
 
 	/** Response to 'initialize' request. */
@@ -1090,6 +1164,7 @@ declare module DebugProtocol {
 			'watch': evaluate is run in a watch.
 			'repl': evaluate is run from REPL console.
 			'hover': evaluate is run from a data hover.
+			'clipboard': evaluate is run to generate the value that will be stored in the clipboard.
 			etc.
 		*/
 		context?: string;
@@ -1399,6 +1474,8 @@ declare module DebugProtocol {
 		supportsCancelRequest?: boolean;
 		/** The debug adapter supports the 'breakpointLocations' request. */
 		supportsBreakpointLocationsRequest?: boolean;
+		/** The debug adapter supports the 'clipboard' context value in the 'evaluate' request. */
+		supportsClipboardContext?: boolean;
 	}
 
 	/** An ExceptionBreakpointsFilter is shown in the UI as an option for configuring how exceptions are dealt with. */
@@ -1763,6 +1840,16 @@ declare module DebugProtocol {
 			If missing the value 0 is assumed which results in the completion text being inserted.
 		*/
 		length?: number;
+		/** Determines the start of the new selection after the text has been inserted (or replaced).
+			The start position must in the range 0 and length of the completion text.
+			If omitted the selection starts at the end of the completion text.
+		*/
+		selectionStart?: number;
+		/** Determines the length of the new selection after the text has been inserted (or replaced).
+			The selection can not extend beyond the bounds of the completion text.
+			If omitted the length is assumed to be 0.
+		*/
+		selectionLength?: number;
 	}
 
 	/** Some predefined types for the CompletionItem. Please note that not all clients have specific icons for all of them. */

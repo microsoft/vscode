@@ -15,6 +15,7 @@ import { CharacterPair } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
 import { ViewLineToken } from 'vs/editor/test/common/core/viewLineToken';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 suite('TextModelWithTokens', () => {
 
@@ -72,7 +73,7 @@ suite('TextModelWithTokens', () => {
 			brackets: brackets
 		});
 
-		let model = new TextModel(
+		let model = createTextModel(
 			contents.join('\n'),
 			TextModel.DEFAULT_CREATION_OPTIONS,
 			languageIdentifier
@@ -178,7 +179,7 @@ suite('TextModelWithTokens - bracket matching', () => {
 		let text =
 			')]}{[(' + '\n' +
 			')]}{[(';
-		let model = TextModel.createFromString(text, undefined, languageIdentifier);
+		let model = createTextModel(text, undefined, languageIdentifier);
 
 		assertIsNotBracket(model, 1, 1);
 		assertIsNotBracket(model, 1, 2);
@@ -206,7 +207,7 @@ suite('TextModelWithTokens - bracket matching', () => {
 			'}, bar: {hallo: [{' + '\n' +
 			'}, {' + '\n' +
 			'}]}}';
-		let model = TextModel.createFromString(text, undefined, languageIdentifier);
+		let model = createTextModel(text, undefined, languageIdentifier);
 
 		let brackets: [Position, Range, Range][] = [
 			[new Position(1, 11), new Range(1, 11, 1, 12), new Range(5, 4, 5, 5)],
@@ -284,7 +285,7 @@ suite('TextModelWithTokens', () => {
 			'end;',
 		].join('\n');
 
-		const model = TextModel.createFromString(text, undefined, languageIdentifier);
+		const model = createTextModel(text, undefined, languageIdentifier);
 
 		// <if> ... <end ifa> is not matched
 		assertIsNotBracket(model, 10, 9);
@@ -322,7 +323,7 @@ suite('TextModelWithTokens', () => {
 			'endrecord',
 		].join('\n');
 
-		const model = TextModel.createFromString(text, undefined, languageIdentifier);
+		const model = createTextModel(text, undefined, languageIdentifier);
 
 		// <recordbegin> ... <endrecord> is matched
 		assertIsBracket(model, new Position(1, 1), [new Range(1, 1, 1, 12), new Range(4, 1, 4, 10)]);
@@ -388,7 +389,7 @@ suite('TextModelWithTokens', () => {
 			],
 		});
 
-		const model = TextModel.createFromString([
+		const model = createTextModel([
 			'function hello() {',
 			'    console.log(`${100}`);',
 			'}'
@@ -459,7 +460,7 @@ suite('TextModelWithTokens regression tests', () => {
 		let registration1 = TokenizationRegistry.register(LANG_ID1, tokenizationSupport);
 		let registration2 = TokenizationRegistry.register(LANG_ID2, tokenizationSupport);
 
-		let model = TextModel.createFromString('A model with\ntwo lines');
+		let model = createTextModel('A model with\ntwo lines');
 
 		assertViewLineTokens(model, 1, true, [createViewLineToken(12, 1)]);
 		assertViewLineTokens(model, 2, true, [createViewLineToken(9, 1)]);
@@ -498,7 +499,7 @@ suite('TextModelWithTokens regression tests', () => {
 			]
 		});
 
-		let model = TextModel.createFromString([
+		let model = createTextModel([
 			'Imports System',
 			'Imports System.Collections.Generic',
 			'',
@@ -528,7 +529,7 @@ suite('TextModelWithTokens regression tests', () => {
 			]
 		});
 
-		let model = TextModel.createFromString([
+		let model = createTextModel([
 			'sequence "outer"',
 			'     sequence "inner"',
 			'     endsequence',
@@ -561,7 +562,7 @@ suite('TextModelWithTokens regression tests', () => {
 
 		let registration = TokenizationRegistry.register(outerMode.language, tokenizationSupport);
 
-		let model = TextModel.createFromString('A model with one line', undefined, outerMode);
+		let model = createTextModel('A model with one line', undefined, outerMode);
 
 		model.forceTokenization(1);
 		assert.equal(model.getLanguageIdAtPosition(1, 1), innerMode.id);
@@ -574,7 +575,7 @@ suite('TextModelWithTokens regression tests', () => {
 suite('TextModel.getLineIndentGuide', () => {
 	function assertIndentGuides(lines: [number, number, number, number, string][], tabSize: number): void {
 		let text = lines.map(l => l[4]).join('\n');
-		let model = TextModel.createFromString(text);
+		let model = createTextModel(text);
 		model.updateOptions({ tabSize: tabSize });
 
 		let actualIndents = model.getLinesIndentGuides(1, model.getLineCount());
@@ -747,7 +748,7 @@ suite('TextModel.getLineIndentGuide', () => {
 	});
 
 	test('issue #49173', () => {
-		let model = TextModel.createFromString([
+		let model = createTextModel([
 			'class A {',
 			'	public m1(): void {',
 			'	}',

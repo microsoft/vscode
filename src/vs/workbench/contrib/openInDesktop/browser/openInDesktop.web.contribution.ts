@@ -29,13 +29,13 @@ export class OpenInDesktopIndicator extends Disposable implements IWorkbenchCont
 	) {
 		super();
 
-		const links = environmentService.options?.applicationLinkProvider?.();
+		const links = environmentService.options?.applicationLinks;
 		if (Array.isArray(links) && links?.length > 0) {
 			this.installOpenInDesktopIndicator(links);
 		}
 	}
 
-	private installOpenInDesktopIndicator(links: IApplicationLink[]): void {
+	private installOpenInDesktopIndicator(links: readonly IApplicationLink[]): void {
 
 		// Register action to trigger "Open In Desktop"
 		const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
@@ -71,7 +71,7 @@ export class OpenInDesktopAction extends Action {
 	}
 
 	async run(): Promise<boolean> {
-		const links = this.environmentService.options?.applicationLinkProvider?.();
+		const links = this.environmentService.options?.applicationLinks;
 		if (Array.isArray(links)) {
 			if (links.length === 1) {
 				return this.openApplicationLink(links[0]);
@@ -83,7 +83,7 @@ export class OpenInDesktopAction extends Action {
 		return true;
 	}
 
-	private async runWithPicker(links: IApplicationLink[]): Promise<boolean> {
+	private async runWithPicker(links: readonly IApplicationLink[]): Promise<boolean> {
 
 		// Show a picker with choices
 		const quickPick = this.quickInputService.createQuickPick<IApplicationLink>();

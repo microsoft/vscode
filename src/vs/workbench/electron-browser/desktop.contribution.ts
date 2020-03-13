@@ -17,11 +17,12 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IsMacContext, HasMacNativeTabsContext, IsDevelopmentContext } from 'vs/workbench/browser/contextkeys';
+import { IsDevelopmentContext, IsMacContext } from 'vs/platform/contextkey/common/contextkeys';
 import { NoEditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/common/editor';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import product from 'vs/platform/product/common/product';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 // Actions
 (function registerActions(): void {
@@ -81,7 +82,7 @@ import product from 'vs/platform/product/common/product';
 
 				MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 					command,
-					when: HasMacNativeTabsContext
+					when: ContextKeyExpr.equals('config.window.nativeTabs', 'true')
 				});
 			});
 		}
@@ -321,8 +322,7 @@ import product from 'vs/platform/product/common/product';
 (function registerJSONSchemas(): void {
 	const argvDefinitionFileSchemaId = 'vscode://schemas/argv';
 	const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
-
-	jsonRegistry.registerSchema(argvDefinitionFileSchemaId, {
+	const schema: IJSONSchema = {
 		id: argvDefinitionFileSchemaId,
 		allowComments: true,
 		allowTrailingCommas: true,
@@ -341,7 +341,19 @@ import product from 'vs/platform/product/common/product';
 			'disable-color-correct-rendering': {
 				type: 'boolean',
 				description: nls.localize('argv.disableColorCorrectRendering', 'Resolves issues around color profile selection. ONLY change this option if you encounter graphic issues.')
+			},
+			'force-color-profile': {
+				type: 'string',
+				markdownDescription: nls.localize('argv.forceColorProfile', 'Allows to override the color profile to use. If you experience colors appear badly, try to set this to `srgb` and restart.')
 			}
 		}
-	});
+	};
+	if (isLinux) {
+		schema.properties!['force-renderer-accessibility'] = {
+			type: 'boolean',
+			description: nls.localize('argv.force-renderer-accessibility', 'Forces the renderer to be accessible. ONLY change this if you are using a screen reader on Linux. On other platforms the renderer will automatically be accessible. This flag is automatically set if you have editor.accessibilitySupport: on.'),
+		};
+	}
+
+	jsonRegistry.registerSchema(argvDefinitionFileSchemaId, schema);
 })();

@@ -26,7 +26,11 @@ export interface ILabelService {
 	getHostLabel(scheme: string, authority?: string): string;
 	getSeparator(scheme: string, authority?: string): '/' | '\\';
 	registerFormatter(formatter: ResourceLabelFormatter): IDisposable;
-	onDidChangeFormatters: Event<void>;
+	onDidChangeFormatters: Event<IFormatterChangeEvent>;
+}
+
+export interface IFormatterChangeEvent {
+	scheme: string;
 }
 
 export interface ResourceLabelFormatter {

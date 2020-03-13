@@ -101,7 +101,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 
 	private restoreTextResourceEditorViewState(editor: EditorInput, control: IEditor) {
 		if (editor instanceof UntitledTextEditorInput || editor instanceof ResourceEditorInput) {
-			const viewState = this.loadTextEditorViewState(editor.getResource());
+			const viewState = this.loadTextEditorViewState(editor.resource);
 			if (viewState) {
 				control.restoreViewState(viewState);
 			}
@@ -111,7 +111,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 	protected getAriaLabel(): string {
 		let ariaLabel: string;
 
-		const inputName = this.input instanceof UntitledTextEditorInput ? basenameOrAuthority(this.input.getResource()) : this.input?.getName();
+		const inputName = this.input instanceof UntitledTextEditorInput ? basenameOrAuthority(this.input.resource) : this.input?.getName();
 		if (this.input?.isReadonly()) {
 			ariaLabel = inputName ? nls.localize('readonlyEditorWithInputAriaLabel', "{0} readonly editor", inputName) : nls.localize('readonlyEditorAriaLabel', "Readonly editor");
 		} else {
@@ -163,7 +163,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 			return; // only enabled for untitled and resource inputs
 		}
 
-		const resource = input.getResource();
+		const resource = input.resource;
 
 		// Clear view state if input is disposed
 		if (input.isDisposed()) {
@@ -214,6 +214,10 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 	}
 
 	private onDidEditorPaste(e: IPasteEvent, codeEditor: ICodeEditor): void {
+		if (this.input instanceof UntitledTextEditorInput && this.input.model.hasModeSetExplicitly) {
+			return; // do not override mode if it was set explicitly
+		}
+
 		if (e.range.startLineNumber !== 1 || e.range.startColumn !== 1) {
 			return; // only when pasting into first line, first column (= empty document)
 		}

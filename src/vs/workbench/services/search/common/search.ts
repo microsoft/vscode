@@ -9,7 +9,7 @@ import * as glob from 'vs/base/common/glob';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as extpath from 'vs/base/common/extpath';
-import { getNLines } from 'vs/base/common/strings';
+import { fuzzyContains, getNLines } from 'vs/base/common/strings';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -50,6 +50,7 @@ export interface ISearchResultProvider {
 
 export interface IFolderQuery<U extends UriComponents = URI> {
 	folder: U;
+	folderName?: string;
 	excludePattern?: glob.IExpression;
 	includePattern?: glob.IExpression;
 	fileEncoding?: string;
@@ -198,6 +199,12 @@ export interface ISearchCompleteStats {
 
 export interface ISearchComplete extends ISearchCompleteStats {
 	results: IFileMatch[];
+	exit?: SearchCompletionExitCode
+}
+
+export const enum SearchCompletionExitCode {
+	Normal,
+	NewSearchStarted
 }
 
 export interface ITextSearchStats {
@@ -334,9 +341,7 @@ export interface ISearchConfigurationProperties {
 	collapseResults: 'auto' | 'alwaysCollapse' | 'alwaysExpand';
 	searchOnType: boolean;
 	searchOnTypeDebouncePeriod: number;
-	enableSearchEditorPreview: boolean;
-	searchEditorPreview: { doubleClickBehaviour: 'selectWord' | 'goToLocation' | 'openLocationToSide' };
-	searchEditorPreviewForceAbsolutePaths: boolean;
+	searchEditor: { doubleClickBehaviour: 'selectWord' | 'goToLocation' | 'openLocationToSide' };
 	sortOrder: SearchSortOrder;
 }
 
@@ -433,9 +438,19 @@ export interface IRawSearchService {
 
 export interface IRawFileMatch {
 	base?: string;
+	/**
+	 * The path of the file relative to the containing `base` folder.
+	 * This path is exactly as it appears on the filesystem.
+	 */
 	relativePath: string;
-	basename: string;
-	size?: number;
+	/**
+	 * This path is transformed for search purposes. For example, this could be
+	 * the `relativePath` with the workspace folder name prepended. This way the
+	 * search algorithm would also match against the name of the containing folder.
+	 *
+	 * If not given, the search algorithm should use `relativePath`.
+	 */
+	searchPath?: string;
 }
 
 export interface ISearchEngine<T> {
@@ -480,6 +495,11 @@ export function isSerializedSearchSuccess(arg: ISerializedSearchComplete): arg i
 
 export function isSerializedFileMatch(arg: ISerializedSearchProgressItem): arg is ISerializedFileMatch {
 	return !!(<ISerializedFileMatch>arg).path;
+}
+
+export function isFilePatternMatch(candidate: IRawFileMatch, normalizedFilePatternLowercase: string): boolean {
+	const pathToMatch = candidate.searchPath ? candidate.searchPath : candidate.relativePath;
+	return fuzzyContains(pathToMatch, normalizedFilePatternLowercase);
 }
 
 export interface ISerializedFileMatch {

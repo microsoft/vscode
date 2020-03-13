@@ -38,7 +38,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { RemoteConnectionState, Deprecated_RemoteAuthorityContext, RemoteFileDialogContext } from 'vs/workbench/browser/contextkeys';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { OpenLocalFileFolderCommand, OpenLocalFileCommand, OpenLocalFolderCommand, SaveLocalFileCommand } from 'vs/workbench/services/dialogs/browser/simpleFileDialog';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 
 const WINDOW_ACTIONS_COMMAND_ID = 'workbench.action.remote.showMenu';
 const CLOSE_REMOTE_COMMAND_ID = 'workbench.action.remote.close';
@@ -332,7 +332,7 @@ class RemoteTelemetryEnablementUpdater extends Disposable implements IWorkbenchC
 
 class RemoteEmptyWorkbenchPresentation extends Disposable implements IWorkbenchContribution {
 	constructor(
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
 		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ICommandService commandService: ICommandService,
@@ -370,37 +370,12 @@ workbenchContributionsRegistry.registerWorkbenchContribution(RemoteWindowActiveI
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteTelemetryEnablementUpdater, LifecyclePhase.Ready);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteEmptyWorkbenchPresentation, LifecyclePhase.Starting);
 
-const extensionKindSchema: IJSONSchema = {
-	type: 'string',
-	enum: [
-		'ui',
-		'workspace'
-	],
-	enumDescriptions: [
-		nls.localize('ui', "UI extension kind. In a remote window, such extensions are enabled only when available on the local machine."),
-		nls.localize('workspace', "Workspace extension kind. In a remote window, such extensions are enabled only when available on the remote.")
-	],
-};
-
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({
 		id: 'remote',
 		title: nls.localize('remote', "Remote"),
 		type: 'object',
 		properties: {
-			'remote.extensionKind': {
-				type: 'object',
-				markdownDescription: nls.localize('remote.extensionKind', "Override the kind of an extension. `ui` extensions are installed and run on the local machine while `workspace` extensions are run on the remote. By overriding an extension's default kind using this setting, you specify if that extension should be installed and enabled locally or remotely."),
-				patternProperties: {
-					'([a-z0-9A-Z][a-z0-9\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\-A-Z]*)$': {
-						oneOf: [{ type: 'array', items: extensionKindSchema }, extensionKindSchema],
-						default: ['ui'],
-					},
-				},
-				default: {
-					'pub.name': ['ui']
-				}
-			},
 			'remote.downloadExtensionsLocally': {
 				type: 'boolean',
 				markdownDescription: nls.localize('remote.downloadExtensionsLocally', "When enabled extensions are downloaded locally and installed on remote."),

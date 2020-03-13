@@ -14,7 +14,7 @@ import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/wor
 import { Extensions as EditorInputExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { webviewDeveloperCategory } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewEditorInputFactory } from 'vs/workbench/contrib/webview/browser/webviewEditorInputFactory';
-import { HideWebViewEditorFindCommand, ReloadWebviewAction, ShowWebViewEditorFindWidgetAction, WebViewEditorFindNextCommand, WebViewEditorFindPreviousCommand } from '../browser/webviewCommands';
+import { HideWebViewEditorFindCommand, ReloadWebviewAction, ShowWebViewEditorFindWidgetAction, WebViewEditorFindNextCommand, WebViewEditorFindPreviousCommand, SelectAllWebviewEditorCommand } from '../browser/webviewCommands';
 import { WebviewEditor } from './webviewEditor';
 import { WebviewInput } from './webviewEditorInput';
 import { IWebviewWorkbenchService, WebviewEditorService } from './webviewWorkbenchService';
@@ -49,6 +49,11 @@ registerAction2(class extends WebViewEditorFindNextCommand {
 registerAction2(class extends WebViewEditorFindPreviousCommand {
 	constructor() { super(webviewActiveContextKeyExpr); }
 });
+
+registerAction2(class extends SelectAllWebviewEditorCommand {
+	constructor() { super(webviewActiveContextKeyExpr); }
+});
+
 
 const actionRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 actionRegistry.registerWorkbenchAction(
