@@ -117,18 +117,6 @@
 	},
 	{
 		"type": "comment",
-		"name": "findDuplicates",
-		"allowUsers": [
-			"cleidigh",
-			"usernamehw",
-			"gjsjohnmurray",
-			"IllusionMH"
-		],
-		"action": "comment",
-		"comment": "Potential duplicates:\n${potentialDuplicates}"
-	},
-	{
-		"type": "comment",
 		"name": "needsMoreInfo",
 		"allowUsers": [
 			"cleidigh",
