@@ -5,11 +5,12 @@
 
 import * as assert from 'assert';
 import { OperatingSystem } from 'vs/base/common/platform';
-import { TerminalLinkHandler, LineColumnInfo } from 'vs/workbench/contrib/terminal/browser/terminalLinkHandler';
+import { TerminalLinkHandler, LineColumnInfo, XtermLinkMatcherHandler } from 'vs/workbench/contrib/terminal/browser/terminalLinkHandler';
 import * as strings from 'vs/base/common/strings';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { Event } from 'vs/base/common/event';
 import { ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
 class TestTerminalLinkHandler extends TerminalLinkHandler {
 	public get localLinkRegex(): RegExp {
@@ -23,6 +24,13 @@ class TestTerminalLinkHandler extends TerminalLinkHandler {
 	}
 	public preprocessPath(link: string): string | null {
 		return this._preprocessPath(link);
+	}
+	protected _isLinkActivationModifierDown(event: MouseEvent): boolean {
+		return true;
+	}
+	public wrapLinkHandler(handler: (link: string) => void): XtermLinkMatcherHandler {
+		TerminalLinkHandler._LINK_INTERCEPT_THRESHOLD = 0;
+		return this._wrapLinkHandler(handler);
 	}
 }
 
@@ -301,5 +309,36 @@ suite('Workbench - TerminalLinkHandler', () => {
 		assert.equal(linkHandler.gitDiffLinkPreImageRegex.test('--- /dev/null           '), false);
 		assert.equal(linkHandler.gitDiffLinkPostImageRegex.test('+++ /dev/null'), false);
 		assert.equal(linkHandler.gitDiffLinkPostImageRegex.test('+++ /dev/null          '), false);
+	});
+
+	suite.only('wrapLinkHandler', () => {
+		const nullMouseEvent: any = Object.freeze({ preventDefault: () => { } });
+
+		test('should allow intercepting of links with onBeforeHandleLink', async () => {
+			const linkHandler = new TestTerminalLinkHandler(new TestXterm() as any, {
+				os: OperatingSystem.Linux,
+				userHome: ''
+			} as any, testConfigHelper, null!, null!, new TestConfigurationService(), new MockTerminalInstanceService(), null!, null!);
+			linkHandler.onBeforeHandleLink(e => {
+				if (e.link === 'https://www.microsoft.com') {
+					intercepted = true;
+					e.resolve(true);
+				}
+				e.resolve(false);
+			});
+			const wrappedHandler = linkHandler.wrapLinkHandler(() => defaultHandled = true);
+
+			let defaultHandled = false;
+			let intercepted = false;
+			await wrappedHandler(nullMouseEvent, 'https://www.visualstudio.com');
+			assert.equal(intercepted, false);
+			assert.equal(defaultHandled, true);
+
+			defaultHandled = false;
+			intercepted = false;
+			await wrappedHandler(nullMouseEvent, 'https://www.microsoft.com');
+			assert.equal(intercepted, true);
+			assert.equal(defaultHandled, false);
+		});
 	});
 });

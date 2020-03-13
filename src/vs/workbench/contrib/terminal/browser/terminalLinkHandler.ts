@@ -60,7 +60,7 @@ const CUSTOM_LINK_PRIORITY = -1;
 /** Lowest */
 const LOCAL_LINK_PRIORITY = -2;
 
-export type XtermLinkMatcherHandler = (event: MouseEvent, link: string) => boolean | void;
+export type XtermLinkMatcherHandler = (event: MouseEvent, link: string) => Promise<void>;
 export type XtermLinkMatcherValidationCallback = (uri: string, callback: (isValid: boolean) => void) => void;
 
 interface IPath {
@@ -76,6 +76,9 @@ export class TerminalLinkHandler extends DisposableStore {
 	private readonly _tooltipCallback: (event: MouseEvent, uri: string, location: IViewportRange) => boolean | void;
 	private readonly _leaveCallback: () => void;
 	private _hasBeforeHandleLinkListeners = false;
+
+	protected static _LINK_INTERCEPT_THRESHOLD = LINK_INTERCEPT_THRESHOLD;
+	public static readonly LINK_INTERCEPT_THRESHOLD = TerminalLinkHandler._LINK_INTERCEPT_THRESHOLD;
 
 	private readonly _onBeforeHandleLink = this.add(new Emitter<ITerminalBeforeHandleLinkEvent>({
 		onFirstListenerAdd: () => this._hasBeforeHandleLinkListeners = true,
@@ -227,8 +230,8 @@ export class TerminalLinkHandler extends DisposableStore {
 		this._xterm.registerLinkMatcher(this._gitDiffPostImagePattern, wrappedHandler, options);
 	}
 
-	private _wrapLinkHandler(handler: (link: string) => void): XtermLinkMatcherHandler {
-		return (event: MouseEvent, link: string) => {
+	protected _wrapLinkHandler(handler: (link: string) => void): XtermLinkMatcherHandler {
+		return async (event: MouseEvent, link: string) => {
 			// Prevent default electron link handling so Alt+Click mode works normally
 			event.preventDefault();
 			// Require correct modifier on click
@@ -238,12 +241,12 @@ export class TerminalLinkHandler extends DisposableStore {
 
 			// Allow the link to be intercepted if there are listeners
 			if (this._hasBeforeHandleLinkListeners) {
-				new Promise<boolean>(r => {
+				const wasHandled = await new Promise<boolean>(r => {
 					const timeoutId = setTimeout(() => {
 						canceled = true;
 						this._logService.error('An extension intecepted a terminal link but did not return');
 						r(false);
-					}, LINK_INTERCEPT_THRESHOLD);
+					}, TerminalLinkHandler.LINK_INTERCEPT_THRESHOLD);
 					let canceled = false;
 					const resolve = (handled: boolean) => {
 						if (!canceled) {
@@ -252,11 +255,10 @@ export class TerminalLinkHandler extends DisposableStore {
 						}
 					};
 					this._onBeforeHandleLink.fire({ link, resolve });
-				}).then(wasHandled => {
-					if (!wasHandled) {
-						handler(link);
-					}
 				});
+				if (!wasHandled) {
+					handler(link);
+				}
 				return;
 			}
 
@@ -307,7 +309,7 @@ export class TerminalLinkHandler extends DisposableStore {
 		this._openerService.open(url, { allowTunneling: !!(this._processManager && this._processManager.remoteAuthority) });
 	}
 
-	private _isLinkActivationModifierDown(event: MouseEvent): boolean {
+	protected _isLinkActivationModifierDown(event: MouseEvent): boolean {
 		const editorConf = this._configurationService.getValue<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
 		if (editorConf.multiCursorModifier === 'ctrlCmd') {
 			return !!event.altKey;
