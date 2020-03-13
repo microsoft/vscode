@@ -25,7 +25,8 @@ import { Action } from 'vs/base/common/actions';
 import { getIconClass } from 'vs/base/parts/quickinput/browser/quickInputUtils';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IQuickInputOptions } from 'vs/base/parts/quickinput/browser/quickInput';
-import { IListOptions, List, IListStyles } from 'vs/base/browser/ui/list/listWidget';
+import { IListOptions, List, IListStyles, IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 
 const $ = dom.$;
 
@@ -33,8 +34,12 @@ interface IListElement {
 	readonly index: number;
 	readonly item: IQuickPickItem;
 	readonly saneLabel: string;
+	readonly saneAriaLabel: string;
 	readonly saneDescription?: string;
 	readonly saneDetail?: string;
+	readonly labelHighlights?: IMatch[];
+	readonly descriptionHighlights?: IMatch[];
+	readonly detailHighlights?: IMatch[];
 	readonly checked: boolean;
 	readonly separator?: IQuickPickSeparator;
 	readonly fireButtonTriggered: (event: IQuickPickItemButtonEvent<IQuickPickItem>) => void;
@@ -44,6 +49,7 @@ class ListElement implements IListElement {
 	index!: number;
 	item!: IQuickPickItem;
 	saneLabel!: string;
+	saneAriaLabel!: string;
 	saneDescription?: string;
 	saneDetail?: string;
 	hidden = false;
@@ -74,6 +80,7 @@ interface IListElementTemplateData {
 	entry: HTMLDivElement;
 	checkbox: HTMLInputElement;
 	label: IconLabel;
+	keybinding: KeybindingLabel;
 	detail: HighlightedLabel;
 	separator: HTMLDivElement;
 	actionBar: ActionBar;
@@ -113,6 +120,10 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 		// Label
 		data.label = new IconLabel(row1, { supportHighlights: true, supportDescriptionHighlights: true, supportCodicons: true });
 
+		// Keybinding
+		const keybindingContainer = dom.append(row1, $('.quick-input-list-entry-keybinding'));
+		data.keybinding = new KeybindingLabel(keybindingContainer, platform.OS);
+
 		// Detail
 		const detailContainer = dom.append(row2, $('.quick-input-list-label-meta'));
 		data.detail = new HighlightedLabel(detailContainer, true);
@@ -142,16 +153,14 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 		options.descriptionTitle = element.saneDescription;
 		options.descriptionMatches = descriptionHighlights || [];
 		options.extraClasses = element.item.iconClasses;
+		options.italic = element.item.italic;
 		data.label.setLabel(element.saneLabel, element.saneDescription, options);
+
+		// Keybinding
+		data.keybinding.set(element.item.keybinding);
 
 		// Meta
 		data.detail.set(element.saneDetail, detailHighlights);
-
-		// ARIA label
-		data.entry.setAttribute('aria-label', [element.saneLabel, element.saneDescription, element.saneDetail]
-			.map(s => s && parseCodicons(s).text)
-			.filter(s => !!s)
-			.join(', '));
 
 		// Separator
 		if (element.separator && element.separator.label) {
@@ -184,6 +193,12 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 			dom.addClass(data.entry, 'has-actions');
 		} else {
 			dom.removeClass(data.entry, 'has-actions');
+		}
+
+		if (element.item.buttonsAlwaysVisible) {
+			dom.addClass(data.entry, 'always-visible-actions');
+		} else {
+			dom.removeClass(data.entry, 'always-visible-actions');
 		}
 	}
 
@@ -244,12 +259,14 @@ export class QuickInputList {
 		this.id = id;
 		this.container = dom.append(this.parent, $('.quick-input-list'));
 		const delegate = new ListElementDelegate();
+		const accessibilityProvider = new QuickInputAccessibilityProvider();
 		this.list = options.createList('QuickInput', this.container, delegate, [new ListElementRenderer()], {
 			identityProvider: { getId: element => element.saneLabel },
 			openController: { shouldOpen: () => false }, // Workaround #58124
 			setRowLineHeight: false,
 			multipleSelectionSupport: false,
 			horizontalScrolling: false,
+			accessibilityProvider
 		} as IListOptions<ListElement>);
 		this.list.getHTMLElement().id = id;
 		this.disposables.push(this.list);
@@ -295,12 +312,12 @@ export class QuickInputList {
 
 	@memoize
 	get onDidChangeFocus() {
-		return Event.map(this.list.onFocusChange, e => e.elements.map(e => e.item));
+		return Event.map(this.list.onDidChangeFocus, e => e.elements.map(e => e.item));
 	}
 
 	@memoize
 	get onDidChangeSelection() {
-		return Event.map(this.list.onSelectionChange, e => e.elements.map(e => e.item));
+		return Event.map(this.list.onDidChangeSelection, e => e.elements.map(e => e.item));
 	}
 
 	getAllVisibleChecked() {
@@ -364,12 +381,24 @@ export class QuickInputList {
 		this.elements = inputElements.reduce((result, item, index) => {
 			if (item.type !== 'separator') {
 				const previous = index && inputElements[index - 1];
+				const saneLabel = item.label && item.label.replace(/\r?\n/g, ' ');
+				const saneDescription = item.description && item.description.replace(/\r?\n/g, ' ');
+				const saneDetail = item.detail && item.detail.replace(/\r?\n/g, ' ');
+				const saneAriaLabel = item.ariaLabel || [saneLabel, saneDescription, saneDetail]
+					.map(s => s && parseCodicons(s).text)
+					.filter(s => !!s)
+					.join(', ');
+
 				result.push(new ListElement({
 					index,
 					item,
-					saneLabel: item.label && item.label.replace(/\r?\n/g, ' '),
-					saneDescription: item.description && item.description.replace(/\r?\n/g, ' '),
-					saneDetail: item.detail && item.detail.replace(/\r?\n/g, ' '),
+					saneLabel,
+					saneAriaLabel,
+					saneDescription,
+					saneDetail,
+					labelHighlights: item.highlights?.label,
+					descriptionHighlights: item.highlights?.description,
+					detailHighlights: item.highlights?.detail,
 					checked: false,
 					separator: previous && previous.type === 'separator' ? previous : undefined,
 					fireButtonTriggered
@@ -472,6 +501,7 @@ export class QuickInputList {
 
 	filter(query: string) {
 		if (!(this.sortByLabel || this.matchOnLabel || this.matchOnDescription || this.matchOnDetail)) {
+			this.list.layout();
 			return;
 		}
 		query = query.trim();
@@ -589,4 +619,10 @@ function compareEntries(elementA: ListElement, elementB: ListElement, lookFor: s
 	}
 
 	return compareAnything(elementA.saneLabel, elementB.saneLabel, lookFor);
+}
+
+class QuickInputAccessibilityProvider implements IAccessibilityProvider<ListElement> {
+	getAriaLabel(element: ListElement): string | null {
+		return element.saneAriaLabel;
+	}
 }

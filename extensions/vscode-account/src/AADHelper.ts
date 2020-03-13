@@ -184,7 +184,7 @@ export class AzureActiveDirectoryService {
 	private convertToSession(token: IToken): vscode.AuthenticationSession {
 		return {
 			id: token.sessionId,
-			accessToken: () => this.resolveAccessToken(token),
+			getAccessToken: () => this.resolveAccessToken(token),
 			accountName: token.accountName,
 			scopes: token.scope.split(' ')
 		};
@@ -192,7 +192,9 @@ export class AzureActiveDirectoryService {
 
 	private async resolveAccessToken(token: IToken): Promise<string> {
 		if (token.accessToken && (!token.expiresAt || token.expiresAt > Date.now())) {
-			Logger.info('Token available from cache');
+			token.expiresAt
+				? Logger.info(`Token available from cache, expires in ${token.expiresAt - Date.now()} milliseconds`)
+				: Logger.info('Token available from cache');
 			return Promise.resolve(token.accessToken);
 		}
 

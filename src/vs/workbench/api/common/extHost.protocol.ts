@@ -49,7 +49,7 @@ import { SaveReason } from 'vs/workbench/common/editor';
 import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import { TunnelOptions } from 'vs/platform/remote/common/tunnel';
-import { Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor } from 'vs/workbench/contrib/timeline/common/timeline';
+import { Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor, InternalTimelineOptions } from 'vs/workbench/contrib/timeline/common/timeline';
 import { revive } from 'vs/base/common/marshalling';
 import { CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { Dto } from 'vs/base/common/types';
@@ -67,6 +67,7 @@ export interface IEnvironment {
 	userHome: URI;
 	webviewResourceRoot: string;
 	webviewCspSource: string;
+	useHostProxy?: boolean;
 }
 
 export interface IStaticWorkspaceData {
@@ -367,7 +368,8 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerOnTypeFormattingSupport(handle: number, selector: IDocumentFilterDto[], autoFormatTriggerCharacters: string[], extensionId: ExtensionIdentifier): void;
 	$registerNavigateTypeSupport(handle: number): void;
 	$registerRenameSupport(handle: number, selector: IDocumentFilterDto[], supportsResolveInitialValues: boolean): void;
-	$registerDocumentSemanticTokensProvider(handle: number, selector: IDocumentFilterDto[], legend: modes.SemanticTokensLegend): void;
+	$registerDocumentSemanticTokensProvider(handle: number, selector: IDocumentFilterDto[], legend: modes.SemanticTokensLegend, eventHandle: number | undefined): void;
+	$emitDocumentSemanticTokensEvent(eventHandle: number): void;
 	$registerDocumentRangeSemanticTokensProvider(handle: number, selector: IDocumentFilterDto[], legend: modes.SemanticTokensLegend): void;
 	$registerSuggestSupport(handle: number, selector: IDocumentFilterDto[], triggerCharacters: string[], supportsResolveDetails: boolean, extensionId: ExtensionIdentifier): void;
 	$registerSignatureHelpProvider(handle: number, selector: IDocumentFilterDto[], metadata: ISignatureHelpProviderMetadataDto): void;
@@ -430,6 +432,8 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	$show(terminalId: number, preserveFocus: boolean): void;
 	$startSendingDataEvents(): void;
 	$stopSendingDataEvents(): void;
+	$startHandlingLinks(): void;
+	$stopHandlingLinks(): void;
 
 	// Process
 	$sendProcessTitle(terminalId: number, title: string): void;
@@ -532,7 +536,7 @@ export interface MainThreadQuickOpenShape extends IDisposable {
 }
 
 export interface MainThreadStatusBarShape extends IDisposable {
-	$setEntry(id: number, statusId: string, statusName: string, text: string, tooltip: string | undefined, command: string | undefined, color: string | ThemeColor | undefined, alignment: statusbar.StatusbarAlignment, priority: number | undefined): void;
+	$setEntry(id: number, statusId: string, statusName: string, text: string, tooltip: string | undefined, command: ICommandDto | undefined, color: string | ThemeColor | undefined, alignment: statusbar.StatusbarAlignment, priority: number | undefined): void;
 	$dispose(id: number): void;
 }
 
@@ -591,7 +595,7 @@ export interface MainThreadWebviewsShape extends IDisposable {
 	$registerCustomEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: modes.IWebviewPanelOptions): void;
 	$unregisterEditorProvider(viewType: string): void;
 
-	$onDidChangeCustomDocumentState(resource: UriComponents, viewType: string, state: { dirty: boolean }): void;
+	$onDidEdit(resource: UriComponents, viewType: string, editId: number, label: string | undefined): void;
 }
 
 export interface WebviewPanelViewStateData {
@@ -614,13 +618,15 @@ export interface ExtHostWebviewsShape {
 	$createWebviewCustomEditorDocument(resource: UriComponents, viewType: string): Promise<{ editable: boolean }>;
 	$disposeWebviewCustomEditorDocument(resource: UriComponents, viewType: string): Promise<void>;
 
-	$undo(resource: UriComponents, viewType: string): void;
-	$redo(resource: UriComponents, viewType: string): void;
-	$revert(resource: UriComponents, viewType: string): void;
-	$onSave(resource: UriComponents, viewType: string): Promise<void>;
+	$undo(resource: UriComponents, viewType: string, editId: number): Promise<void>;
+	$redo(resource: UriComponents, viewType: string, editId: number): Promise<void>;
+	$revert(resource: UriComponents, viewType: string, changes: { undoneEdits: number[], redoneEdits: number[] }): Promise<void>;
+	$disposeEdits(resourceComponents: UriComponents, viewType: string, editIds: number[]): void;
+
+	$onSave(resource: UriComponents, viewType: string, cancellation: CancellationToken): Promise<void>;
 	$onSaveAs(resource: UriComponents, viewType: string, targetResource: UriComponents): Promise<void>;
 
-	$backup(resource: UriComponents, viewType: string, cancellation: CancellationToken): Promise<boolean>;
+	$backup(resource: UriComponents, viewType: string, cancellation: CancellationToken): Promise<void>;
 }
 
 export interface MainThreadUrlsShape extends IDisposable {
@@ -800,6 +806,7 @@ export interface MainThreadTunnelServiceShape extends IDisposable {
 	$registerCandidateFinder(): Promise<void>;
 	$setTunnelProvider(): Promise<void>;
 	$setCandidateFilter(): Promise<void>;
+	$tunnelServiceReady(): Promise<void>;
 }
 
 export interface MainThreadTimelineShape extends IDisposable {
@@ -1306,6 +1313,7 @@ export interface ExtHostTerminalServiceShape {
 	$acceptWorkspacePermissionsChanged(isAllowed: boolean): void;
 	$getAvailableShells(): Promise<IShellDefinitionDto[]>;
 	$getDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto>;
+	$handleLink(id: number, link: string): Promise<boolean>;
 }
 
 export interface ExtHostSCMShape {
@@ -1468,7 +1476,7 @@ export interface ExtHostTunnelServiceShape {
 }
 
 export interface ExtHostTimelineShape {
-	$getTimeline(source: string, uri: UriComponents, options: TimelineOptions, token: CancellationToken, internalOptions?: { cacheResults?: boolean }): Promise<Timeline | undefined>;
+	$getTimeline(source: string, uri: UriComponents, options: TimelineOptions, token: CancellationToken, internalOptions?: InternalTimelineOptions): Promise<Timeline | undefined>;
 }
 
 // --- proxy identifiers

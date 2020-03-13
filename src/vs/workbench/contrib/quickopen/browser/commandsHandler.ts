@@ -213,7 +213,7 @@ class CommandPaletteEditorAction extends EditorAction {
 		super({
 			id: ShowAllCommandsAction.ID,
 			label: localize('showCommands.label', "Command Palette..."),
-			alias: 'Command Palette',
+			alias: 'Command Palette...',
 			precondition: EditorContextKeys.editorSimpleInput.toNegated(),
 			contextMenuOpts: {
 				group: 'z_commands',
@@ -461,10 +461,10 @@ export class CommandsHandler extends QuickOpenHandler implements IDisposable {
 		lastCommandPaletteInput = searchValue;
 
 		// Editor Actions
-		const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
+		const activeTextEditorControl = this.editorService.activeTextEditorControl;
 		let editorActions: IEditorAction[] = [];
-		if (activeTextEditorWidget && isFunction(activeTextEditorWidget.getSupportedActions)) {
-			editorActions = activeTextEditorWidget.getSupportedActions();
+		if (activeTextEditorControl && isFunction(activeTextEditorControl.getSupportedActions)) {
+			editorActions = activeTextEditorControl.getSupportedActions();
 		}
 
 		const editorEntries = this.editorActionsToEntries(editorActions, searchValue);

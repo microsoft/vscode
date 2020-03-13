@@ -20,8 +20,9 @@ import { dirExists } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { ITelemetryData, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
 
-export interface IElectronMainService extends AddFirstParameterToFunctions<IElectronService, Promise<any> /* only methods, not events */, number | undefined /* window ID */> { }
+export interface IElectronMainService extends AddFirstParameterToFunctions<IElectronService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
 export const IElectronMainService = createDecorator<IElectronService>('electronMainService');
 
@@ -34,7 +35,8 @@ export class ElectronMainService implements IElectronMainService {
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ILogService private readonly logService: ILogService
 	) {
 	}
 
@@ -392,6 +394,7 @@ export class ElectronMainService implements IElectronMainService {
 
 	async startCrashReporter(windowId: number | undefined, options: CrashReporterStartOptions): Promise<void> {
 		crashReporter.start(options);
+		this.logService.trace('ElectronMainService#crashReporter', JSON.stringify(options));
 	}
 
 	//#endregion

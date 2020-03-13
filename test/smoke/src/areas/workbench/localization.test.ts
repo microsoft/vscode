@@ -37,10 +37,10 @@ export function setup() {
 			await app.workbench.scm.waitForTitle(title => /quellcodeverwaltung/i.test(title));
 
 			await app.workbench.debug.openDebugViewlet();
-			await app.workbench.debug.waitForTitle(title => /debug/i.test(title));
+			await app.workbench.debug.waitForTitle(title => /starten/i.test(title));
 
-			// await app.workbench.extensions.openExtensionsViewlet();
-			// await app.workbench.extensions.waitForTitle(title => /erweiterungen/i.test(title));
+			await app.workbench.extensions.openExtensionsViewlet();
+			await app.workbench.extensions.waitForTitle(title => /extensions/i.test(title));
 		});
 	});
 }

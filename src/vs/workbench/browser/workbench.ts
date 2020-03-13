@@ -33,7 +33,7 @@ import { NotificationsAlerts } from 'vs/workbench/browser/parts/notifications/no
 import { NotificationsStatus } from 'vs/workbench/browser/parts/notifications/notificationsStatus';
 import { registerNotificationCommands } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { NotificationsToasts } from 'vs/workbench/browser/parts/notifications/notificationsToasts';
-import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { setARIAContainer } from 'vs/base/browser/ui/aria/aria';
 import { readFontInfo, restoreFontInfo, serializeFontInfo } from 'vs/editor/browser/config/configuration';
@@ -333,6 +333,7 @@ export class Workbench extends Layout {
 
 		addClasses(this.container, ...workbenchClasses);
 		addClass(document.body, platformClass); // used by our fonts
+		this.container.setAttribute('role', 'application');
 
 		if (isWeb) {
 			addClass(document.body, 'web');
@@ -414,7 +415,7 @@ export class Workbench extends Layout {
 			await editorGroupService.whenRestored;
 
 			// then see for editors to open as instructed
-			let editors: IResourceEditor[];
+			let editors: IResourceEditorInputType[];
 			if (Array.isArray(this.state.editor.editorsToOpen)) {
 				editors = this.state.editor.editorsToOpen;
 			} else {

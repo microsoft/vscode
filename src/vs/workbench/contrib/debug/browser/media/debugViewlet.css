@@ -83,6 +83,7 @@
 
 .debug-pane .disabled {
 	opacity: 0.65;
+	cursor: initial;
 }
 
 /* Call stack */
@@ -153,6 +154,7 @@
 
 .debug-pane .debug-call-stack .monaco-list-row .monaco-action-bar {
 	display: none;
+	flex-shrink: 0;
 }
 
 .debug-pane .debug-call-stack .monaco-list-row:hover .monaco-action-bar {
@@ -313,6 +315,14 @@
 
 .vs-dark .debug-pane .monaco-list-row .expression .value.changed {
 	animation-name: debugViewletValueChanged;
+}
+
+.debug-pane .debug-variables .scope .error {
+	font-style: italic;
+	text-overflow: ellipsis;
+	overflow: hidden;
+	font-family: var(--monaco-monospace-font);
+	font-weight: normal;
 }
 
 /* Breakpoints */

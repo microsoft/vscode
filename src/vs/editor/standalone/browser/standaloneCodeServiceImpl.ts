@@ -11,7 +11,7 @@ import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServ
 import { IRange } from 'vs/editor/common/core/range';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { IResourceInput } from 'vs/platform/editor/common/editor';
+import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 
 export class StandaloneCodeEditorServiceImpl extends CodeEditorServiceImpl {
 
@@ -19,7 +19,7 @@ export class StandaloneCodeEditorServiceImpl extends CodeEditorServiceImpl {
 		return null; // not supported in the standalone case
 	}
 
-	public openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
+	public openCodeEditor(input: IResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
 		if (!source) {
 			return Promise.resolve(null);
 		}
@@ -27,7 +27,7 @@ export class StandaloneCodeEditorServiceImpl extends CodeEditorServiceImpl {
 		return Promise.resolve(this.doOpenEditor(source, input));
 	}
 
-	private doOpenEditor(editor: ICodeEditor, input: IResourceInput): ICodeEditor | null {
+	private doOpenEditor(editor: ICodeEditor, input: IResourceEditorInput): ICodeEditor | null {
 		const model = this.findModel(editor, input.resource);
 		if (!model) {
 			if (input.resource) {

@@ -230,7 +230,16 @@ interface IWorkbenchConstructionOptions {
  * @param domElement the container to create the workbench in
  * @param options for setting up the workbench
  */
+let created = false;
 async function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions): Promise<void> {
+
+	// Assert that the workbench is not created more than once. We currently
+	// do not support this and require a full context switch to clean-up.
+	if (created) {
+		throw new Error('Unable to create the VSCode workbench more than once.');
+	} else {
+		created = true;
+	}
 
 	// Startup workbench
 	await main(domElement, options);
@@ -238,7 +247,7 @@ async function create(domElement: HTMLElement, options: IWorkbenchConstructionOp
 	// Register commands if any
 	if (Array.isArray(options.commands)) {
 		for (const command of options.commands) {
-			CommandsRegistry.registerCommand(command.id, (accessor, ...args: any[]) => {
+			CommandsRegistry.registerCommand(command.id, (accessor, ...args) => {
 				// we currently only pass on the arguments but not the accessor
 				// to the command to reduce our exposure of internal API.
 				command.handler(...args);

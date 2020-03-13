@@ -10,7 +10,7 @@ import { BaseActionViewItem, IBaseActionViewItemOptions, Separator } from 'vs/ba
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { dispose, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
+import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
 import { TextBadge, NumberBadge, IBadge, IconBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -124,7 +124,7 @@ export interface ICompositeBarColors {
 
 export interface IActivityActionViewItemOptions extends IBaseActionViewItemOptions {
 	icon?: boolean;
-	colors: (theme: ITheme) => ICompositeBarColors;
+	colors: (theme: IColorTheme) => ICompositeBarColors;
 }
 
 export class ActivityActionViewItem extends BaseActionViewItem {
@@ -144,7 +144,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 	) {
 		super(null, action, options);
 
-		this._register(this.themeService.onThemeChange(this.onThemeChange, this));
+		this._register(this.themeService.onDidColorThemeChange(this.onThemeChange, this));
 		this._register(action.onDidChangeActivity(this.updateActivity, this));
 		this._register(action.onDidChangeBadge(this.updateBadge, this));
 	}
@@ -154,7 +154,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 	}
 
 	protected updateStyles(): void {
-		const theme = this.themeService.getTheme();
+		const theme = this.themeService.getColorTheme();
 		const colors = this.options.colors(theme);
 
 		if (this.label) {
@@ -233,7 +233,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		this.updateStyles();
 	}
 
-	private onThemeChange(theme: ITheme): void {
+	private onThemeChange(theme: IColorTheme): void {
 		this.updateStyles();
 	}
 
@@ -364,10 +364,8 @@ export class CompositeOverflowActivityAction extends ActivityAction {
 		});
 	}
 
-	run(event: any): Promise<any> {
+	async run(): Promise<void> {
 		this.showMenu();
-
-		return Promise.resolve(true);
 	}
 }
 
@@ -380,7 +378,7 @@ export class CompositeOverflowActivityActionViewItem extends ActivityActionViewI
 		private getActiveCompositeId: () => string | undefined,
 		private getBadge: (compositeId: string) => IBadge,
 		private getCompositeOpenAction: (compositeId: string) => Action,
-		colors: (theme: ITheme) => ICompositeBarColors,
+		colors: (theme: IColorTheme) => ICompositeBarColors,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IThemeService themeService: IThemeService
 	) {
@@ -442,7 +440,7 @@ class ManageExtensionAction extends Action {
 		super('activitybar.manage.extension', nls.localize('manageExtension', "Manage Extension"));
 	}
 
-	run(id: string): Promise<any> {
+	run(id: string): Promise<void> {
 		return this.commandService.executeCommand('_extensions.manage', id);
 	}
 }
@@ -467,7 +465,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 		private toggleCompositePinnedAction: Action,
 		private compositeContextMenuActionsProvider: (compositeId: string) => ReadonlyArray<Action>,
 		private contextMenuActionsProvider: () => ReadonlyArray<Action>,
-		colors: (theme: ITheme) => ICompositeBarColors,
+		colors: (theme: IColorTheme) => ICompositeBarColors,
 		icon: boolean,
 		private dndHandler: ICompositeDragAndDrop,
 		private compositeBar: ICompositeBar,
@@ -544,14 +542,16 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 				if (this.compositeTransfer.hasData(DraggedCompositeIdentifier.prototype)) {
 					const data = this.compositeTransfer.getData(DraggedCompositeIdentifier.prototype);
 					if (Array.isArray(data) && data[0].id !== this.activity.id) {
-						this.updateFromDragging(container, true);
+						const validDropTarget = this.dndHandler.onDragEnter(new CompositeDragAndDropData('composite', data[0].id), this.activity.id, e);
+						this.updateFromDragging(container, validDropTarget);
 					}
 				}
 
 				if (this.compositeTransfer.hasData(DraggedViewIdentifier.prototype)) {
 					const data = this.compositeTransfer.getData(DraggedViewIdentifier.prototype);
 					if (Array.isArray(data) && data[0].id !== this.activity.id) {
-						this.updateFromDragging(container, true);
+						const validDropTarget = this.dndHandler.onDragEnter(new CompositeDragAndDropData('view', data[0].id), this.activity.id, e);
+						this.updateFromDragging(container, validDropTarget);
 					}
 				}
 			},
@@ -616,6 +616,8 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 					const data = this.compositeTransfer.getData(DraggedViewIdentifier.prototype);
 					if (Array.isArray(data)) {
 						const draggedViewId = data[0].id;
+						this.updateFromDragging(container, false);
+						this.compositeTransfer.clearData(DraggedViewIdentifier.prototype);
 
 						this.dndHandler.drop(new CompositeDragAndDropData('view', draggedViewId), this.activity.id, e);
 					}
@@ -636,7 +638,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 	}
 
 	private updateFromDragging(element: HTMLElement, isDragging: boolean): void {
-		const theme = this.themeService.getTheme();
+		const theme = this.themeService.getColorTheme();
 		const dragBackground = this.options.colors(theme).dragAndDropBackground;
 
 		element.style.backgroundColor = isDragging && dragBackground ? dragBackground.toString() : '';
@@ -729,7 +731,7 @@ export class ToggleCompositePinnedAction extends Action {
 		this.checked = !!this.activity && this.compositeBar.isPinned(this.activity.id);
 	}
 
-	run(context: string): Promise<any> {
+	async run(context: string): Promise<void> {
 		const id = this.activity ? this.activity.id : context;
 
 		if (this.compositeBar.isPinned(id)) {
@@ -737,7 +739,5 @@ export class ToggleCompositePinnedAction extends Action {
 		} else {
 			this.compositeBar.pin(id);
 		}
-
-		return Promise.resolve(true);
 	}
 }

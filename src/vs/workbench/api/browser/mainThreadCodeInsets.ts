@@ -89,7 +89,7 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 
 		const disposables = new DisposableStore();
 
-		const webview = this._webviewService.createWebview('' + handle, {
+		const webview = this._webviewService.createWebviewElement('' + handle, {
 			enableFindWidget: false,
 		}, {
 			allowScripts: options.enableScripts,

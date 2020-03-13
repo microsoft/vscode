@@ -24,7 +24,7 @@ interface IWebviewEditorsExtensionPoint {
 }
 
 const webviewEditorsContribution: IJSONSchema = {
-	description: nls.localize('contributes.webviewEditors', 'Contributes webview editors.'),
+	description: nls.localize('contributes.customEditors', 'Contributed custom editors.'),
 	type: 'array',
 	defaultSnippets: [{ body: [{ viewType: '', displayName: '' }] }],
 	items: {
@@ -76,7 +76,7 @@ const webviewEditorsContribution: IJSONSchema = {
 };
 
 export const webviewEditorsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<IWebviewEditorsExtensionPoint[]>({
-	extensionPoint: 'webviewEditors',
+	extensionPoint: 'customEditors',
 	deps: [languagesExtPoint],
 	jsonSchema: webviewEditorsContribution
 });

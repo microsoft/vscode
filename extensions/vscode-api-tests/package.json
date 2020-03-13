@@ -10,7 +10,7 @@
 		"onFileSystem:memfs",
 		"onDebug"
 	],
-	"main": "./out/extension",
+	"main": "./out/web-playground/extension",
 	"engines": {
 		"vscode": "^1.25.0"
 	},

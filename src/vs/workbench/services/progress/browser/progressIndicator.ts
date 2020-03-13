@@ -10,6 +10,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IProgressRunner, IProgressIndicator, emptyProgressRunner } from 'vs/platform/progress/common/progress';
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
+import { IViewsService } from 'vs/workbench/common/views';
 
 export class ProgressBarIndicator extends Disposable implements IProgressIndicator {
 
@@ -45,7 +46,7 @@ export class ProgressBarIndicator extends Disposable implements IProgressIndicat
 		};
 	}
 
-	async showWhile(promise: Promise<any>, delay?: number): Promise<void> {
+	async showWhile(promise: Promise<unknown>, delay?: number): Promise<void> {
 		try {
 			this.progressbar.infinite().show(delay);
 
@@ -92,7 +93,7 @@ export class EditorProgressIndicator extends ProgressBarIndicator {
 		return super.show(infiniteOrTotal, delay);
 	}
 
-	async showWhile(promise: Promise<any>, delay?: number): Promise<void> {
+	async showWhile(promise: Promise<unknown>, delay?: number): Promise<void> {
 
 		// No editor open: ignore any progress reporting
 		if (this.group.isEmpty) {
@@ -125,7 +126,7 @@ namespace ProgressIndicatorState {
 		readonly type = Type.While;
 
 		constructor(
-			readonly whilePromise: Promise<any>,
+			readonly whilePromise: Promise<unknown>,
 			readonly whileStart: number,
 			readonly whileDelay: number,
 		) { }
@@ -153,6 +154,7 @@ export abstract class CompositeScope extends Disposable {
 	constructor(
 		private viewletService: IViewletService,
 		private panelService: IPanelService,
+		private viewsService: IViewsService,
 		private scopeId: string
 	) {
 		super();
@@ -161,6 +163,8 @@ export abstract class CompositeScope extends Disposable {
 	}
 
 	registerListeners(): void {
+		this._register(this.viewsService.onDidChangeViewVisibility(e => e.visible ? this.onScopeOpened(e.id) : this.onScopeClosed(e.id)));
+
 		this._register(this.viewletService.onDidViewletOpen(viewlet => this.onScopeOpened(viewlet.getId())));
 		this._register(this.panelService.onDidPanelOpen(({ panel }) => this.onScopeOpened(panel.getId())));
 
@@ -194,10 +198,12 @@ export class CompositeProgressIndicator extends CompositeScope implements IProgr
 		progressbar: ProgressBar,
 		scopeId: string,
 		isActive: boolean,
+		private readonly options: { exclusiveProgressBar?: boolean } | undefined,
 		@IViewletService viewletService: IViewletService,
-		@IPanelService panelService: IPanelService
+		@IPanelService panelService: IPanelService,
+		@IViewsService viewsService: IViewsService
 	) {
-		super(viewletService, panelService, scopeId);
+		super(viewletService, panelService, viewsService, scopeId);
 
 		this.progressbar = progressbar;
 		this.isActive = isActive || isUndefinedOrNull(scopeId); // If service is unscoped, enable by default
@@ -205,6 +211,10 @@ export class CompositeProgressIndicator extends CompositeScope implements IProgr
 
 	onScopeDeactivated(): void {
 		this.isActive = false;
+
+		if (this.options?.exclusiveProgressBar) {
+			this.progressbar.stop().hide();
+		}
 	}
 
 	onScopeActivated(): void {
@@ -304,14 +314,14 @@ export class CompositeProgressIndicator extends CompositeScope implements IProgr
 			done: () => {
 				this.progressState = ProgressIndicatorState.Done;
 
-				if (this.isActive) {
+				if (this.isActive || this.options?.exclusiveProgressBar) {
 					this.progressbar.stop().hide();
 				}
 			}
 		};
 	}
 
-	async showWhile(promise: Promise<any>, delay?: number): Promise<void> {
+	async showWhile(promise: Promise<unknown>, delay?: number): Promise<void> {
 
 		// Join with existing running promise to ensure progress is accurate
 		if (this.progressState.type === ProgressIndicatorState.Type.While) {
@@ -335,7 +345,7 @@ export class CompositeProgressIndicator extends CompositeScope implements IProgr
 				// The while promise is either null or equal the promise we last hooked on
 				this.progressState = ProgressIndicatorState.None;
 
-				if (this.isActive) {
+				if (this.isActive || this.options?.exclusiveProgressBar) {
 					this.progressbar.stop().hide();
 				}
 			}

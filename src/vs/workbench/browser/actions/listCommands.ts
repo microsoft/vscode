@@ -625,18 +625,18 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	},
 	handler: (accessor) => {
 		const focused = accessor.get(IListService).lastFocusedList;
+		const fakeKeyboardEvent = getSelectionKeyboardEvent('keydown', false);
 
 		// List
 		if (focused instanceof List || focused instanceof PagedList) {
 			const list = focused;
-			list.setSelection(list.getFocus());
-			list.open(list.getFocus());
+			list.setSelection(list.getFocus(), fakeKeyboardEvent);
+			list.open(list.getFocus(), fakeKeyboardEvent);
 		}
 
 		// ObjectTree
 		else if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
 			const list = focused;
-			const fakeKeyboardEvent = getSelectionKeyboardEvent('keydown', false);
 			const focus = list.getFocus();
 
 			if (focus.length > 0) {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncEnablementService, ResourceKey, ALL_RESOURCE_KEYS } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncEnablementService, ALL_SYNC_RESOURCES, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IStorageService, IWorkspaceStorageChangeEvent, StorageScope } from 'vs/platform/storage/common/storage';
@@ -14,7 +14,7 @@ type SyncEnablementClassification = {
 };
 
 const enablementKey = 'sync.enable';
-function getEnablementKey(resourceKey: ResourceKey) { return `${enablementKey}.${resourceKey}`; }
+function getEnablementKey(resource: SyncResource) { return `${enablementKey}.${resource}`; }
 
 export class UserDataSyncEnablementService extends Disposable implements IUserDataSyncEnablementService {
 
@@ -23,8 +23,8 @@ export class UserDataSyncEnablementService extends Disposable implements IUserDa
 	private _onDidChangeEnablement = new Emitter<boolean>();
 	readonly onDidChangeEnablement: Event<boolean> = this._onDidChangeEnablement.event;
 
-	private _onDidChangeResourceEnablement = new Emitter<[ResourceKey, boolean]>();
-	readonly onDidChangeResourceEnablement: Event<[ResourceKey, boolean]> = this._onDidChangeResourceEnablement.event;
+	private _onDidChangeResourceEnablement = new Emitter<[SyncResource, boolean]>();
+	readonly onDidChangeResourceEnablement: Event<[SyncResource, boolean]> = this._onDidChangeResourceEnablement.event;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -45,13 +45,13 @@ export class UserDataSyncEnablementService extends Disposable implements IUserDa
 		}
 	}
 
-	isResourceEnabled(resourceKey: ResourceKey): boolean {
-		return this.storageService.getBoolean(getEnablementKey(resourceKey), StorageScope.GLOBAL, true);
+	isResourceEnabled(resource: SyncResource): boolean {
+		return this.storageService.getBoolean(getEnablementKey(resource), StorageScope.GLOBAL, true);
 	}
 
-	setResourceEnablement(resourceKey: ResourceKey, enabled: boolean): void {
-		if (this.isResourceEnabled(resourceKey) !== enabled) {
-			const resourceEnablementKey = getEnablementKey(resourceKey);
+	setResourceEnablement(resource: SyncResource, enabled: boolean): void {
+		if (this.isResourceEnabled(resource) !== enabled) {
+			const resourceEnablementKey = getEnablementKey(resource);
 			this.telemetryService.publicLog2<{ enabled: boolean }, SyncEnablementClassification>(resourceEnablementKey, { enabled });
 			this.storageService.store(resourceEnablementKey, enabled, StorageScope.GLOBAL);
 		}
@@ -63,7 +63,7 @@ export class UserDataSyncEnablementService extends Disposable implements IUserDa
 				this._onDidChangeEnablement.fire(this.isEnabled());
 				return;
 			}
-			const resourceKey = ALL_RESOURCE_KEYS.filter(resourceKey => getEnablementKey(resourceKey) === workspaceStorageChangeEvent.key)[0];
+			const resourceKey = ALL_SYNC_RESOURCES.filter(resourceKey => getEnablementKey(resourceKey) === workspaceStorageChangeEvent.key)[0];
 			if (resourceKey) {
 				this._onDidChangeResourceEnablement.fire([resourceKey, this.isEnabled()]);
 				return;

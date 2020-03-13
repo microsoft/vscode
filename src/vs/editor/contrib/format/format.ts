@@ -28,6 +28,7 @@ import { LinkedList } from 'vs/base/common/linkedList';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { assertType } from 'vs/base/common/types';
 import { IProgress } from 'vs/platform/progress/common/progress';
+import { Iterable } from 'vs/base/common/iterator';
 
 export function alertFormattingEdits(edits: ISingleEditOperation[]): void {
 
@@ -111,7 +112,7 @@ export abstract class FormattingConflicts {
 		if (formatter.length === 0) {
 			return undefined;
 		}
-		const { value: selector } = FormattingConflicts._selectors.iterator().next();
+		const selector = Iterable.first(FormattingConflicts._selectors);
 		if (selector) {
 			return await selector(formatter, document, mode);
 		}

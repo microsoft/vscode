@@ -6,7 +6,7 @@
 import { IRequestService } from 'vs/platform/request/common/request';
 import { IRequestOptions, IRequestContext, IHeaders } from 'vs/base/parts/request/common/request';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IUserData, ResourceKey, IUserDataManifest, ALL_RESOURCE_KEYS, IUserDataSyncLogService, IUserDataSyncStoreService, IUserDataSyncUtilService, IUserDataSyncEnablementService, ISettingsSyncService, IUserDataSyncService, getDefaultIgnoredSettings } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData, IUserDataManifest, ALL_SYNC_RESOURCES, IUserDataSyncLogService, IUserDataSyncStoreService, IUserDataSyncUtilService, IUserDataSyncEnablementService, ISettingsSyncService, IUserDataSyncService, getDefaultIgnoredSettings, IUserDataSyncBackupStoreService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
 import { generateUuid } from 'vs/base/common/uuid';
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
@@ -36,6 +36,7 @@ import { Emitter } from 'vs/base/common/event';
 import { IAuthenticationTokenService } from 'vs/platform/authentication/common/authentication';
 import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { UserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSyncBackupStoreService';
 
 export class UserDataSyncClient extends Disposable {
 
@@ -61,20 +62,20 @@ export class UserDataSyncClient extends Disposable {
 		const logService = new NullLogService();
 		this.instantiationService.stub(ILogService, logService);
 
-		this.instantiationService.stub(IProductService, { _serviceBrand: undefined, ...product });
+		this.instantiationService.stub(IProductService, {
+			_serviceBrand: undefined, ...product, ...{
+				'configurationSync.store': {
+					url: this.testServer.url,
+					authenticationProviderId: 'test'
+				}
+			}
+		});
 
 		const fileService = this._register(new FileService(logService));
 		fileService.registerProvider(Schemas.inMemory, new InMemoryFileSystemProvider());
 		this.instantiationService.stub(IFileService, fileService);
 
 		this.instantiationService.stub(IStorageService, new InMemoryStorageService());
-
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString(JSON.stringify({
-			'configurationSync.store': {
-				url: this.testServer.url,
-				authenticationProviderId: 'test'
-			}
-		})));
 
 		const configurationService = new ConfigurationService(environmentService.settingsResource, fileService);
 		await configurationService.initialize();
@@ -89,6 +90,7 @@ export class UserDataSyncClient extends Disposable {
 		this.instantiationService.stub(IUserDataSyncLogService, logService);
 		this.instantiationService.stub(ITelemetryService, NullTelemetryService);
 		this.instantiationService.stub(IUserDataSyncStoreService, this.instantiationService.createInstance(UserDataSyncStoreService));
+		this.instantiationService.stub(IUserDataSyncBackupStoreService, this.instantiationService.createInstance(UserDataSyncBackupStoreService));
 		this.instantiationService.stub(IUserDataSyncUtilService, new TestUserDataSyncUtilService());
 		this.instantiationService.stub(IUserDataSyncEnablementService, this.instantiationService.createInstance(UserDataSyncEnablementService));
 
@@ -106,13 +108,20 @@ export class UserDataSyncClient extends Disposable {
 		this.instantiationService.stub(ISettingsSyncService, this.instantiationService.createInstance(SettingsSynchroniser));
 		this.instantiationService.stub(IUserDataSyncService, this.instantiationService.createInstance(UserDataSyncService));
 
-		if (empty) {
-			await fileService.del(environmentService.settingsResource);
-		} else {
+		if (!empty) {
+			await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString(JSON.stringify({})));
 			await fileService.writeFile(environmentService.keybindingsResource, VSBuffer.fromString(JSON.stringify([])));
 			await fileService.writeFile(environmentService.argvResource, VSBuffer.fromString(JSON.stringify({ 'locale': 'en' })));
 		}
 		await configurationService.reloadConfiguration();
+	}
+
+	sync(): Promise<void> {
+		return this.instantiationService.get(IUserDataSyncService).sync();
+	}
+
+	read(resource: SyncResource): Promise<IUserData> {
+		return this.instantiationService.get(IUserDataSyncStoreService).read(resource, null);
 	}
 
 }
@@ -123,7 +132,7 @@ export class UserDataSyncTestServer implements IRequestService {
 
 	readonly url: string = 'http://host:3000';
 	private session: string | null = null;
-	private readonly data: Map<ResourceKey, IUserData> = new Map<ResourceKey, IUserData>();
+	private readonly data: Map<SyncResource, IUserData> = new Map<SyncResource, IUserData>();
 
 	private _requests: { url: string, type: string, headers?: IHeaders }[] = [];
 	get requests(): { url: string, type: string, headers?: IHeaders }[] { return this._requests; }
@@ -171,7 +180,7 @@ export class UserDataSyncTestServer implements IRequestService {
 
 	private async getManifest(headers?: IHeaders): Promise<IRequestContext> {
 		if (this.session) {
-			const latest: Record<ResourceKey, string> = Object.create({});
+			const latest: Record<SyncResource, string> = Object.create({});
 			const manifest: IUserDataManifest = { session: this.session, latest };
 			this.data.forEach((value, key) => latest[key] = value.ref);
 			return this.toResponse(200, { 'Content-Type': 'application/json' }, JSON.stringify(manifest));
@@ -180,7 +189,7 @@ export class UserDataSyncTestServer implements IRequestService {
 	}
 
 	private async getLatestData(resource: string, headers: IHeaders = {}): Promise<IRequestContext> {
-		const resourceKey = ALL_RESOURCE_KEYS.find(key => key === resource);
+		const resourceKey = ALL_SYNC_RESOURCES.find(key => key === resource);
 		if (resourceKey) {
 			const data = this.data.get(resourceKey);
 			if (!data) {
@@ -201,7 +210,7 @@ export class UserDataSyncTestServer implements IRequestService {
 		if (!this.session) {
 			this.session = generateUuid();
 		}
-		const resourceKey = ALL_RESOURCE_KEYS.find(key => key === resource);
+		const resourceKey = ALL_SYNC_RESOURCES.find(key => key === resource);
 		if (resourceKey) {
 			const data = this.data.get(resourceKey);
 			if (headers['If-Match'] !== (data ? data.ref : '0')) {

@@ -18,7 +18,8 @@ import { ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IElectronService } from 'vs/platform/electron/node/electron';
-import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export class CloseCurrentWindowAction extends Action {
 
@@ -167,7 +168,7 @@ export abstract class BaseSwitchWindow extends Action {
 	constructor(
 		id: string,
 		label: string,
-		private electronEnvironmentService: IElectronEnvironmentService,
+		private environmentService: INativeWorkbenchEnvironmentService,
 		private quickInputService: IQuickInputService,
 		private keybindingService: IKeybindingService,
 		private modelService: IModelService,
@@ -180,7 +181,7 @@ export abstract class BaseSwitchWindow extends Action {
 	protected abstract isQuickNavigate(): boolean;
 
 	async run(): Promise<void> {
-		const currentWindowId = this.electronEnvironmentService.windowId;
+		const currentWindowId = this.environmentService.configuration.windowId;
 
 		const windows = await this.electronService.getWindows();
 		const placeHolder = nls.localize('switchWindowPlaceHolder', "Select a window to switch to");
@@ -222,14 +223,14 @@ export class SwitchWindow extends BaseSwitchWindow {
 	constructor(
 		id: string,
 		label: string,
-		@IElectronEnvironmentService electronEnvironmentService: IElectronEnvironmentService,
+		@IWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
 		@IQuickInputService quickInputService: IQuickInputService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
 		@IElectronService electronService: IElectronService
 	) {
-		super(id, label, electronEnvironmentService, quickInputService, keybindingService, modelService, modeService, electronService);
+		super(id, label, environmentService, quickInputService, keybindingService, modelService, modeService, electronService);
 	}
 
 	protected isQuickNavigate(): boolean {
@@ -245,14 +246,14 @@ export class QuickSwitchWindow extends BaseSwitchWindow {
 	constructor(
 		id: string,
 		label: string,
-		@IElectronEnvironmentService electronEnvironmentService: IElectronEnvironmentService,
+		@IWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
 		@IQuickInputService quickInputService: IQuickInputService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
 		@IElectronService electronService: IElectronService
 	) {
-		super(id, label, electronEnvironmentService, quickInputService, keybindingService, modelService, modeService, electronService);
+		super(id, label, environmentService, quickInputService, keybindingService, modelService, modeService, electronService);
 	}
 
 	protected isQuickNavigate(): boolean {

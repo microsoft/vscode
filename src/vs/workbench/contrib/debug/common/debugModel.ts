@@ -21,7 +21,7 @@ import { commonSuffixLength } from 'vs/base/common/strings';
 import { posix } from 'vs/base/common/path';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { ITextEditor } from 'vs/workbench/common/editor';
+import { ITextEditorPane } from 'vs/workbench/common/editor';
 import { mixin } from 'vs/base/common/objects';
 
 export class ExpressionContainer implements IExpressionContainer {
@@ -269,6 +269,21 @@ export class Scope extends ExpressionContainer implements IScope {
 	}
 }
 
+export class ErrorScope extends Scope {
+
+	constructor(
+		stackFrame: IStackFrame,
+		index: number,
+		message: string,
+	) {
+		super(stackFrame, index, message, 0, false);
+	}
+
+	toString(): string {
+		return this.name;
+	}
+}
+
 export class StackFrame implements IStackFrame {
 
 	private scopes: Promise<Scope[]> | undefined;
@@ -293,7 +308,7 @@ export class StackFrame implements IStackFrame {
 				return response && response.body && response.body.scopes ?
 					response.body.scopes.map((rs, index) => new Scope(this, index, rs.name, rs.variablesReference, rs.expensive, rs.namedVariables, rs.indexedVariables,
 						rs.line && rs.column && rs.endLine && rs.endColumn ? new Range(rs.line, rs.column, rs.endLine, rs.endColumn) : undefined)) : [];
-			}, err => []);
+			}, err => [new ErrorScope(this, 0, err.message)]);
 		}
 
 		return this.scopes;
@@ -347,7 +362,7 @@ export class StackFrame implements IStackFrame {
 		return sourceToString === UNKNOWN_SOURCE_LABEL ? this.name : `${this.name} (${sourceToString})`;
 	}
 
-	async openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<ITextEditor | undefined> {
+	async openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<ITextEditorPane | undefined> {
 		if (this.source.available) {
 			return this.source.openInEditor(editorService, this.range, preserveFocus, sideBySide, pinned);
 		}

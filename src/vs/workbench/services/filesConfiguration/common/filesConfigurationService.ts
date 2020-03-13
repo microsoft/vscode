@@ -11,7 +11,6 @@ import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/cont
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IFilesConfiguration, AutoSaveConfiguration, HotExitConfiguration } from 'vs/platform/files/common/files';
 import { isUndefinedOrNull } from 'vs/base/common/types';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { equals } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { isWeb } from 'vs/base/common/platform';
@@ -83,8 +82,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
@@ -203,7 +201,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 	}
 
 	get isHotExitEnabled(): boolean {
-		return !this.environmentService.isExtensionDevelopment && this.currentHotExitConfig !== HotExitConfiguration.OFF;
+		return this.currentHotExitConfig !== HotExitConfiguration.OFF;
 	}
 
 	get hotExitConfiguration(): string {

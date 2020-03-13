@@ -18,7 +18,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { ConflictDetector } from 'vs/workbench/services/bulkEdit/browser/conflicts';
-import { values, ResourceMap } from 'vs/base/common/map';
+import { ResourceMap } from 'vs/base/common/map';
 import { localize } from 'vs/nls';
 
 export class CheckedStates<T extends object> {
@@ -89,7 +89,7 @@ export class BulkFileOperation {
 		readonly parent: BulkFileOperations
 	) { }
 
-	addEdit(index: number, type: BulkFileOperationType, edit: WorkspaceTextEdit | WorkspaceFileEdit, ) {
+	addEdit(index: number, type: BulkFileOperationType, edit: WorkspaceTextEdit | WorkspaceFileEdit) {
 		this.type |= type;
 		this.originalEdits.set(index, edit);
 		if (WorkspaceTextEdit.is(edit)) {
@@ -126,8 +126,8 @@ export class BulkCategory {
 
 	constructor(readonly metadata: WorkspaceEditMetadata = BulkCategory._defaultMetadata) { }
 
-	get fileOperations(): BulkFileOperation[] {
-		return values(this.operationByResource);
+	get fileOperations(): IterableIterator<BulkFileOperation> {
+		return this.operationByResource.values();
 	}
 }
 
@@ -259,6 +259,17 @@ export class BulkFileOperations {
 				}
 			}
 		}
+
+		// sort (once) categories atop which have unconfirmed edits
+		this.categories.sort((a, b) => {
+			if (a.metadata.needsConfirmation === b.metadata.needsConfirmation) {
+				return a.metadata.label.localeCompare(b.metadata.label);
+			} else if (a.metadata.needsConfirmation) {
+				return -1;
+			} else {
+				return 1;
+			}
+		});
 
 		return this;
 	}

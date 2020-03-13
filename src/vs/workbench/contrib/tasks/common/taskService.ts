@@ -76,6 +76,7 @@ export interface ITaskService {
 	getTask(workspaceFolder: IWorkspace | IWorkspaceFolder | string, alias: string | TaskIdentifier, compareId?: boolean): Promise<Task | undefined>;
 	getTasksForGroup(group: string): Promise<Task[]>;
 	getRecentlyUsedTasks(): LinkedMap<string, string>;
+	migrateRecentTasks(tasks: Task[]): void;
 	createSorter(): TaskSorter;
 
 	getTaskDescription(task: Task): string | undefined;

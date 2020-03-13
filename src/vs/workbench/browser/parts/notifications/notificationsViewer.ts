@@ -17,7 +17,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { dispose, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdown';
-import { INotificationViewItem, NotificationViewItem, NotificationViewItemLabelKind, INotificationMessage, ChoiceAction } from 'vs/workbench/common/notifications';
+import { INotificationViewItem, NotificationViewItem, NotificationViewItemContentChangeKind, INotificationMessage, ChoiceAction } from 'vs/workbench/common/notifications';
 import { ClearNotificationAction, ExpandNotificationAction, CollapseNotificationAction, ConfigureNotificationAction } from 'vs/workbench/browser/parts/notifications/notificationsActions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
@@ -46,13 +46,12 @@ export class NotificationsListDelegate implements IListVirtualDelegate<INotifica
 	}
 
 	getHeight(notification: INotificationViewItem): number {
+		if (!notification.expanded) {
+			return NotificationsListDelegate.ROW_HEIGHT; // return early if there are no more rows to show
+		}
 
 		// First row: message and actions
 		let expandedHeight = NotificationsListDelegate.ROW_HEIGHT;
-
-		if (!notification.expanded) {
-			return expandedHeight; // return early if there are no more rows to show
-		}
 
 		// Dynamic height: if message overflows
 		const preferredMessageHeight = this.computePreferredHeight(notification);
@@ -152,7 +151,10 @@ class NotificationMessageRenderer {
 				const anchor = $('a', { href: node.href, title: title, }, node.label);
 
 				if (actionHandler) {
-					actionHandler.toDispose.add(addDisposableListener(anchor, EventType.CLICK, () => actionHandler.callback(node.href)));
+					actionHandler.toDispose.add(addDisposableListener(anchor, EventType.CLICK, e => {
+						EventHelper.stop(e, true);
+						actionHandler.callback(node.href);
+					}));
 				}
 
 				messageContainer.appendChild(anchor);
@@ -331,16 +333,19 @@ export class NotificationTemplateRenderer extends Disposable {
 		// Progress
 		this.renderProgress(notification);
 
-		// Label Change Events
-		this.inputDisposables.add(notification.onDidChangeLabel(event => {
+		// Label Change Events that we can handle directly
+		// (changes to actions require an entire redraw of
+		// the notification because it has an impact on
+		// epxansion state)
+		this.inputDisposables.add(notification.onDidChangeContent(event => {
 			switch (event.kind) {
-				case NotificationViewItemLabelKind.SEVERITY:
+				case NotificationViewItemContentChangeKind.SEVERITY:
 					this.renderSeverity(notification);
 					break;
-				case NotificationViewItemLabelKind.PROGRESS:
+				case NotificationViewItemContentChangeKind.PROGRESS:
 					this.renderProgress(notification);
 					break;
-				case NotificationViewItemLabelKind.MESSAGE:
+				case NotificationViewItemContentChangeKind.MESSAGE:
 					this.renderMessage(notification);
 					break;
 			}

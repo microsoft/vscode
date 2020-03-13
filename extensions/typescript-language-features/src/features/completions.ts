@@ -216,7 +216,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 			case PConst.Kind.function:
 			case PConst.Kind.localFunction:
 				return vscode.CompletionItemKind.Function;
-			case PConst.Kind.memberFunction:
+			case PConst.Kind.method:
 			case PConst.Kind.constructSignature:
 			case PConst.Kind.callSignature:
 			case PConst.Kind.indexSignature:
@@ -272,7 +272,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 			case PConst.Kind.memberVariable:
 			case PConst.Kind.class:
 			case PConst.Kind.function:
-			case PConst.Kind.memberFunction:
+			case PConst.Kind.method:
 			case PConst.Kind.keyword:
 			case PConst.Kind.parameter:
 				commitCharacters.push('.', ',', ';');

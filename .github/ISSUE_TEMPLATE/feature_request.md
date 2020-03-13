@@ -8,3 +8,4 @@ about: Suggest an idea for this project
 <!-- Please search existing issues to avoid creating duplicates. -->
 
 <!-- Describe the feature you'd like. -->
+<!-- Please include the latest version of VS Code you've confirmed to not have this feature -->

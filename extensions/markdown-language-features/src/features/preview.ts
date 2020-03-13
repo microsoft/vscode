@@ -457,7 +457,10 @@ export class DynamicMarkdownPreview extends Disposable {
 
 		const folder = vscode.workspace.getWorkspaceFolder(base);
 		if (folder) {
-			baseRoots.push(folder.uri);
+			const workspaceRoots = vscode.workspace.workspaceFolders?.map(folder => folder.uri);
+			if (workspaceRoots) {
+				baseRoots.push(...workspaceRoots);
+			}
 		} else if (!base.scheme || base.scheme === 'file') {
 			baseRoots.push(vscode.Uri.file(path.dirname(base.fsPath)));
 		}

@@ -5,7 +5,7 @@
 
 import * as platform from 'vs/platform/registry/common/platform';
 import { Color } from 'vs/base/common/color';
-import { ITheme } from 'vs/platform/theme/common/themeService';
+import { IColorTheme } from 'vs/platform/theme/common/themeService';
 import * as nls from 'vs/nls';
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -85,7 +85,7 @@ export namespace TokenStyle {
 export type ProbeScope = string[];
 
 export interface TokenStyleFunction {
-	(theme: ITheme): TokenStyle | undefined;
+	(theme: IColorTheme): TokenStyle | undefined;
 }
 
 export interface TokenStyleDefaults {
@@ -433,6 +433,7 @@ function registerDefaultClassifications(): void {
 
 
 	registerTokenStyleDefault('variable.readonly', [['variable.other.constant']]);
+	registerTokenStyleDefault('property.readonly', [['variable.other.constant.property']]);
 }
 
 export function getTokenClassificationRegistry(): ITokenClassificationRegistry {

@@ -9220,10 +9220,10 @@ typescript-formatter@7.1.0:
     commandpost "^1.0.0"
     editorconfig "^0.15.0"
 
-typescript@3.8.2:
-  version "3.8.2"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.8.2.tgz#91d6868aaead7da74f493c553aeff76c0c0b1d5a"
-  integrity sha512-EgOVgL/4xfVrCMbhYKUQTdF37SQn4Iw73H5BgCrF1Abdun7Kwy/QZsE/ssAy0y4LxBbvua3PIbFsbRczWWnDdQ==
+typescript@3.9.0-dev.20200304:
+  version "3.9.0-dev.20200304"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.9.0-dev.20200304.tgz#3cc35357eff29dc5604b4fa56d6597e13daf86ed"
+  integrity sha512-eUip/GgJmjp4qtHiJDxVhE5SDDiPzBUg7KBAFUgb7HgL/tv10JAHej7fnS1i+7xrq1eDtbkJyPaYOVnhL9db7Q==
 
 typescript@^2.6.2:
   version "2.6.2"
@@ -9638,10 +9638,10 @@ vsce@1.48.0:
     yauzl "^2.3.1"
     yazl "^2.2.2"
 
-vscode-debugprotocol@1.39.0-pre.0:
-  version "1.39.0-pre.0"
-  resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.39.0-pre.0.tgz#67843631a3c53f2d5282f75ab5996e1408c3958c"
-  integrity sha512-VpoD8m0gOo2Ag5dEpNT9sAI6BBxIyCxEk2dhGIBegxnlOuiB1SVxMgo1tmsvNYcRCpf9eng27kZ6d6FGoPpIAg==
+vscode-debugprotocol@1.39.0:
+  version "1.39.0"
+  resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.39.0.tgz#0c639178d0d5ea7de7903b6478b53d2bc0d77461"
+  integrity sha512-Wkvgtuz90vjtQBcvw9Z+BYa4dA6W+sHwHMpqvJVNmwWSuT3JZdl0XDhZNLqtMXkVF4okxtAe0MmbupPSt+gnAQ==
 
 vscode-minimist@^1.2.2:
   version "1.2.2"

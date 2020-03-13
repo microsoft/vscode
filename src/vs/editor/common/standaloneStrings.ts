@@ -45,17 +45,23 @@ export namespace GoToLineNLS {
 	export const gotoLineActionLabel = nls.localize('gotoLineActionLabel', "Go to Line...");
 }
 
+export namespace QuickHelpNLS {
+	export const helpQuickAccessActionLabel = nls.localize('helpQuickAccess', "Show all Quick Access Providers");
+}
+
 export namespace QuickCommandNLS {
 	export const ariaLabelEntryWithKey = nls.localize('ariaLabelEntryWithKey', "{0}, {1}, commands");
 	export const ariaLabelEntry = nls.localize('ariaLabelEntry', "{0}, commands");
 	export const quickCommandActionInput = nls.localize('quickCommandActionInput', "Type the name of an action you want to execute");
 	export const quickCommandActionLabel = nls.localize('quickCommandActionLabel', "Command Palette");
+	export const quickCommandHelp = nls.localize('quickCommandActionHelp', "Show And Run Commands");
 }
 
 export namespace QuickOutlineNLS {
 	export const entryAriaLabel = nls.localize('entryAriaLabel', "{0}, symbols");
 	export const quickOutlineActionInput = nls.localize('quickOutlineActionInput', "Type the name of an identifier you wish to navigate to");
 	export const quickOutlineActionLabel = nls.localize('quickOutlineActionLabel', "Go to Symbol...");
+	export const quickOutlineByCategoryActionLabel = nls.localize('quickOutlineByCategoryActionLabel', "Go to Symbol by Category...");
 	export const _symbols_ = nls.localize('symbols', "symbols ({0})");
 	export const _modules_ = nls.localize('modules', "modules ({0})");
 	export const _class_ = nls.localize('class', "classes ({0})");
@@ -71,7 +77,6 @@ export namespace QuickOutlineNLS {
 
 export namespace StandaloneCodeEditorNLS {
 	export const editorViewAccessibleLabel = nls.localize('editorViewAccessibleLabel', "Editor content");
-	export const accessibilityHelpMessageIE = nls.localize('accessibilityHelpMessageIE', "Press Ctrl+F1 for Accessibility Options.");
 	export const accessibilityHelpMessage = nls.localize('accessibilityHelpMessage', "Press Alt+F1 for Accessibility Options.");
 }
 
