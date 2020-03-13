@@ -14,6 +14,7 @@ import { timeout } from 'vs/base/common/async';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { TerminalDataBufferer } from 'vs/workbench/contrib/terminal/common/terminalDataBuffering';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable as VSCodeDisposable } from './extHostTypes';
 
 export interface IExtHostTerminalService extends ExtHostTerminalServiceShape {
 
@@ -34,6 +35,7 @@ export interface IExtHostTerminalService extends ExtHostTerminalServiceShape {
 	attachPtyToTerminal(id: number, pty: vscode.Pseudoterminal): void;
 	getDefaultShell(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string;
 	getDefaultShellArgs(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string[] | string;
+	registerLinkHandler(handler: vscode.TerminalLinkHandler): vscode.Disposable
 }
 
 export const IExtHostTerminalService = createDecorator<IExtHostTerminalService>('IExtHostTerminalService');
@@ -533,6 +535,39 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 
 	public $acceptProcessRequestLatency(id: number): number {
 		return id;
+	}
+
+	private _linkHandlers: Set<vscode.TerminalLinkHandler> = new Set();
+	public registerLinkHandler(handler: vscode.TerminalLinkHandler): vscode.Disposable {
+		this._linkHandlers.add(handler);
+		if (this._linkHandlers.size === 1) {
+			this._proxy.$startHandlingLinks();
+		}
+		return new VSCodeDisposable(() => {
+			this._linkHandlers.delete(handler);
+			if (this._linkHandlers.size === 0) {
+				this._proxy.$stopHandlingLinks();
+			}
+		});
+	}
+
+	public async $handleLink(id: number, link: string): Promise<boolean> {
+		const terminal = this._getTerminalById(id);
+		if (!terminal) {
+			return false;
+		}
+
+		// Call each handler synchronously so multiple handlers aren't triggered at once
+		const it = this._linkHandlers.values();
+		let next = it.next();
+		while (!next.done) {
+			const handled = await next.value.handleLink(terminal, link);
+			if (handled) {
+				return true;
+			}
+			next = it.next();
+		}
+		return false;
 	}
 
 	private _onProcessExit(id: number, exitCode: number | undefined): void {

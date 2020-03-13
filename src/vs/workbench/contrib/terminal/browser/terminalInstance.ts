@@ -30,7 +30,7 @@ import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGR
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalLinkHandler } from 'vs/workbench/contrib/terminal/browser/terminalLinkHandler';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { ITerminalInstanceService, ITerminalInstance, TerminalShellType } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstanceService, ITerminalInstance, TerminalShellType, ITerminalBeforeHandleLinkEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
 import { Terminal as XTermTerminal, IBuffer, ITerminalAddon } from 'xterm';
 import { SearchAddon, ISearchOptions } from 'xterm-addon-search';
@@ -250,28 +250,30 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	public get commandTracker(): CommandTrackerAddon | undefined { return this._commandTrackerAddon; }
 	public get navigationMode(): INavigationMode | undefined { return this._navigationModeAddon; }
 
-	private readonly _onExit = new Emitter<number | undefined>();
+	private readonly _onExit = this._register(new Emitter<number | undefined>());
 	public get onExit(): Event<number | undefined> { return this._onExit.event; }
-	private readonly _onDisposed = new Emitter<ITerminalInstance>();
+	private readonly _onDisposed = this._register(new Emitter<ITerminalInstance>());
 	public get onDisposed(): Event<ITerminalInstance> { return this._onDisposed.event; }
-	private readonly _onFocused = new Emitter<ITerminalInstance>();
+	private readonly _onFocused = this._register(new Emitter<ITerminalInstance>());
 	public get onFocused(): Event<ITerminalInstance> { return this._onFocused.event; }
-	private readonly _onProcessIdReady = new Emitter<ITerminalInstance>();
+	private readonly _onProcessIdReady = this._register(new Emitter<ITerminalInstance>());
 	public get onProcessIdReady(): Event<ITerminalInstance> { return this._onProcessIdReady.event; }
-	private readonly _onTitleChanged = new Emitter<ITerminalInstance>();
+	private readonly _onTitleChanged = this._register(new Emitter<ITerminalInstance>());
 	public get onTitleChanged(): Event<ITerminalInstance> { return this._onTitleChanged.event; }
-	private readonly _onData = new Emitter<string>();
+	private readonly _onData = this._register(new Emitter<string>());
 	public get onData(): Event<string> { return this._onData.event; }
-	private readonly _onLineData = new Emitter<string>();
+	private readonly _onLineData = this._register(new Emitter<string>());
 	public get onLineData(): Event<string> { return this._onLineData.event; }
-	private readonly _onRequestExtHostProcess = new Emitter<ITerminalInstance>();
+	private readonly _onRequestExtHostProcess = this._register(new Emitter<ITerminalInstance>());
 	public get onRequestExtHostProcess(): Event<ITerminalInstance> { return this._onRequestExtHostProcess.event; }
-	private readonly _onDimensionsChanged = new Emitter<void>();
+	private readonly _onDimensionsChanged = this._register(new Emitter<void>());
 	public get onDimensionsChanged(): Event<void> { return this._onDimensionsChanged.event; }
-	private readonly _onMaximumDimensionsChanged = new Emitter<void>();
+	private readonly _onMaximumDimensionsChanged = this._register(new Emitter<void>());
 	public get onMaximumDimensionsChanged(): Event<void> { return this._onMaximumDimensionsChanged.event; }
-	private readonly _onFocus = new Emitter<ITerminalInstance>();
+	private readonly _onFocus = this._register(new Emitter<ITerminalInstance>());
 	public get onFocus(): Event<ITerminalInstance> { return this._onFocus.event; }
+	private readonly _onBeforeHandleLink = this._register(new Emitter<ITerminalBeforeHandleLinkEvent>());
+	public get onBeforeHandleLink(): Event<ITerminalBeforeHandleLinkEvent> { return this._onBeforeHandleLink.event; }
 
 	public constructor(
 		private readonly _terminalFocusContextKey: IContextKey<boolean>,
@@ -523,6 +525,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				});
 			}
 			this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, xterm, this._processManager, this._configHelper);
+			this._linkHandler.onBeforeHandleLink(e => {
+				console.log('terminalinstance fire');
+				e.terminal = this;
+				this._onBeforeHandleLink.fire(e);
+			});
 		});
 
 		this._commandTrackerAddon = new CommandTrackerAddon();
