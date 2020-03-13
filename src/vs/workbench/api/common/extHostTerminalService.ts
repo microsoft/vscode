@@ -297,6 +297,9 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	protected _extensionTerminalAwaitingStart: { [id: number]: { initialDimensions: ITerminalDimensionsDto | undefined } | undefined } = {};
 	protected _getTerminalPromises: { [id: number]: Promise<ExtHostTerminal> } = {};
 
+	private readonly _bufferer: TerminalDataBufferer;
+	private readonly _linkHandlers: Set<vscode.TerminalLinkHandler> = new Set();
+
 	public get activeTerminal(): ExtHostTerminal | undefined { return this._activeTerminal; }
 	public get terminals(): ExtHostTerminal[] { return this._terminals; }
 
@@ -310,8 +313,6 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	public get onDidChangeTerminalDimensions(): Event<vscode.TerminalDimensionsChangeEvent> { return this._onDidChangeTerminalDimensions && this._onDidChangeTerminalDimensions.event; }
 	protected readonly _onDidWriteTerminalData: Emitter<vscode.TerminalDataWriteEvent>;
 	public get onDidWriteTerminalData(): Event<vscode.TerminalDataWriteEvent> { return this._onDidWriteTerminalData && this._onDidWriteTerminalData.event; }
-
-	private readonly _bufferer: TerminalDataBufferer;
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService
@@ -537,7 +538,6 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 		return id;
 	}
 
-	private _linkHandlers: Set<vscode.TerminalLinkHandler> = new Set();
 	public registerLinkHandler(handler: vscode.TerminalLinkHandler): vscode.Disposable {
 		this._linkHandlers.add(handler);
 		if (this._linkHandlers.size === 1) {
