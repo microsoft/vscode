@@ -11,10 +11,16 @@ jobs:
         uses: actions/checkout@v2
         with:
           repository: 'JacksonKearl/vscode-triage-github-actions'
-          ref: master
-      - name: Run CopyCat
+          ref: v2
+      - name: Run CopyCat (JacksonKearl/testissues)
         uses: ./copycat
         with:
           token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
           owner: JacksonKearl
+          repo: testissues
+      - name: Run CopyCat (chrmarti/testissues)
+        uses: ./copycat
+        with:
+          token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
+          owner: chrmarti
           repo: testissues

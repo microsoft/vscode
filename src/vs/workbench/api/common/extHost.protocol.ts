@@ -67,6 +67,7 @@ export interface IEnvironment {
 	userHome: URI;
 	webviewResourceRoot: string;
 	webviewCspSource: string;
+	useHostProxy?: boolean;
 }
 
 export interface IStaticWorkspaceData {
@@ -431,6 +432,8 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	$show(terminalId: number, preserveFocus: boolean): void;
 	$startSendingDataEvents(): void;
 	$stopSendingDataEvents(): void;
+	$startHandlingLinks(): void;
+	$stopHandlingLinks(): void;
 
 	// Process
 	$sendProcessTitle(terminalId: number, title: string): void;
@@ -592,7 +595,7 @@ export interface MainThreadWebviewsShape extends IDisposable {
 	$registerCustomEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: modes.IWebviewPanelOptions): void;
 	$unregisterEditorProvider(viewType: string): void;
 
-	$onDidEdit(resource: UriComponents, viewType: string, editId: number): void;
+	$onDidEdit(resource: UriComponents, viewType: string, editId: number, label: string | undefined): void;
 }
 
 export interface WebviewPanelViewStateData {
@@ -1310,6 +1313,7 @@ export interface ExtHostTerminalServiceShape {
 	$acceptWorkspacePermissionsChanged(isAllowed: boolean): void;
 	$getAvailableShells(): Promise<IShellDefinitionDto[]>;
 	$getDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto>;
+	$handleLink(id: number, link: string): Promise<boolean>;
 }
 
 export interface ExtHostSCMShape {

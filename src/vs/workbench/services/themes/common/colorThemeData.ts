@@ -44,6 +44,8 @@ const tokenGroupToScopesMap = {
 export type TokenStyleDefinition = TokenStylingRule | ProbeScope[] | TokenStyleValue;
 export type TokenStyleDefinitions = { [P in keyof TokenStyleData]?: TokenStyleDefinition | undefined };
 
+export type TextMateThemingRuleDefinitions = { [P in keyof TokenStyleData]?: ITextMateThemingRule | undefined; } & { scope?: ProbeScope; };
+
 const PERSISTED_THEME_STORAGE_KEY = 'colorThemeData';
 
 export class ColorThemeData implements IWorkbenchColorTheme {
@@ -271,7 +273,8 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		return colorRegistry.resolveDefaultColor(colorId, this);
 	}
 
-	public resolveScopes(scopes: ProbeScope[]): TokenStyle | undefined {
+
+	public resolveScopes(scopes: ProbeScope[], definitions?: TextMateThemingRuleDefinitions): TokenStyle | undefined {
 
 		if (!this.themeTokenScopeMatchers) {
 			this.themeTokenScopeMatchers = this.themeTokenColors.map(getScopeMatcher);
@@ -285,17 +288,24 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 			let fontStyle: string | undefined = undefined;
 			let foregroundScore = -1;
 			let fontStyleScore = -1;
+			let fontStyleThemingRule: ITextMateThemingRule | undefined = undefined;
+			let foregroundThemingRule: ITextMateThemingRule | undefined = undefined;
 
-			function findTokenStyleForScopeInScopes(scopeMatchers: Matcher<ProbeScope>[], tokenColors: ITextMateThemingRule[]) {
+			function findTokenStyleForScopeInScopes(scopeMatchers: Matcher<ProbeScope>[], themingRules: ITextMateThemingRule[]) {
 				for (let i = 0; i < scopeMatchers.length; i++) {
 					const score = scopeMatchers[i](scope);
 					if (score >= 0) {
-						const settings = tokenColors[i].settings;
+						const themingRule = themingRules[i];
+						const settings = themingRules[i].settings;
 						if (score >= foregroundScore && settings.foreground) {
 							foreground = settings.foreground;
+							foregroundScore = score;
+							foregroundThemingRule = themingRule;
 						}
 						if (score >= fontStyleScore && types.isString(settings.fontStyle)) {
 							fontStyle = settings.fontStyle;
+							fontStyleScore = score;
+							fontStyleThemingRule = themingRule;
 						}
 					}
 				}
@@ -303,6 +313,12 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 			findTokenStyleForScopeInScopes(this.themeTokenScopeMatchers, this.themeTokenColors);
 			findTokenStyleForScopeInScopes(this.customTokenScopeMatchers, this.customTokenColors);
 			if (foreground !== undefined || fontStyle !== undefined) {
+				if (definitions) {
+					definitions.foreground = foregroundThemingRule;
+					definitions.bold = definitions.italic = definitions.underline = fontStyleThemingRule;
+					definitions.scope = scope;
+				}
+
 				return TokenStyle.fromSettings(foreground, fontStyle);
 			}
 		}
@@ -657,7 +673,7 @@ function nameMatcher(identifers: string[], scope: ProbeScope): number {
 	let lastScopeIndex = scope.length - 1;
 	let lastIdentifierIndex = findInIdents(scope[lastScopeIndex--], identifers.length);
 	if (lastIdentifierIndex >= 0) {
-		const score = (lastIdentifierIndex + 1) * 0x10000 + scope.length;
+		const score = (lastIdentifierIndex + 1) * 0x10000 + identifers[lastIdentifierIndex].length;
 		while (lastScopeIndex >= 0) {
 			lastIdentifierIndex = findInIdents(scope[lastScopeIndex--], lastIdentifierIndex);
 			if (lastIdentifierIndex === -1) {

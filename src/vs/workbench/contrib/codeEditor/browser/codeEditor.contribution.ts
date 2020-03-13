@@ -10,6 +10,7 @@ import './inspectKeybindings';
 import './largeFileOptimizations';
 import './inspectEditorTokens/inspectEditorTokens';
 import './quickaccess/gotoLineQuickAccess';
+import './quickaccess/gotoSymbolAccess';
 import './saveParticipants';
 import './toggleColumnSelection';
 import './toggleMinimap';

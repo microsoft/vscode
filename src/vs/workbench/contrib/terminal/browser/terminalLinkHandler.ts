@@ -16,9 +16,11 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { Terminal, ILinkMatcherOptions, IViewportRange } from 'xterm';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { posix, win32 } from 'vs/base/common/path';
-import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstanceService, ITerminalBeforeHandleLinkEvent, LINK_INTERCEPT_THRESHOLD } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { OperatingSystem, isMacintosh } from 'vs/base/common/platform';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
+import { Emitter, Event } from 'vs/base/common/event';
+import { ILogService } from 'vs/platform/log/common/log';
 
 const pathPrefix = '(\\.\\.?|\\~)';
 const pathSeparatorClause = '\\/';
@@ -58,7 +60,7 @@ const CUSTOM_LINK_PRIORITY = -1;
 /** Lowest */
 const LOCAL_LINK_PRIORITY = -2;
 
-export type XtermLinkMatcherHandler = (event: MouseEvent, uri: string) => boolean | void;
+export type XtermLinkMatcherHandler = (event: MouseEvent, link: string) => Promise<void>;
 export type XtermLinkMatcherValidationCallback = (uri: string, callback: (isValid: boolean) => void) => void;
 
 interface IPath {
@@ -66,14 +68,28 @@ interface IPath {
 	normalize(path: string): string;
 }
 
-export class TerminalLinkHandler {
-	private readonly _hoverDisposables = new DisposableStore();
+export class TerminalLinkHandler extends DisposableStore {
 	private _widgetManager: TerminalWidgetManager | undefined;
 	private _processCwd: string | undefined;
 	private _gitDiffPreImagePattern: RegExp;
 	private _gitDiffPostImagePattern: RegExp;
 	private readonly _tooltipCallback: (event: MouseEvent, uri: string, location: IViewportRange) => boolean | void;
 	private readonly _leaveCallback: () => void;
+	private _hasBeforeHandleLinkListeners = false;
+
+	protected static _LINK_INTERCEPT_THRESHOLD = LINK_INTERCEPT_THRESHOLD;
+	public static readonly LINK_INTERCEPT_THRESHOLD = TerminalLinkHandler._LINK_INTERCEPT_THRESHOLD;
+
+	private readonly _onBeforeHandleLink = this.add(new Emitter<ITerminalBeforeHandleLinkEvent>({
+		onFirstListenerAdd: () => this._hasBeforeHandleLinkListeners = true,
+		onLastListenerRemove: () => this._hasBeforeHandleLinkListeners = false
+	}));
+	/**
+	 * Allows intercepting links and handling them outside of the default link handler. When fired
+	 * the listener has a set amount of time to handle the link or the default handler will fire.
+	 * This was designed to only be handled by a single listener.
+	 */
+	public get onBeforeHandleLink(): Event<ITerminalBeforeHandleLinkEvent> { return this._onBeforeHandleLink.event; }
 
 	constructor(
 		private _xterm: Terminal,
@@ -83,8 +99,11 @@ export class TerminalLinkHandler {
 		@IEditorService private readonly _editorService: IEditorService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
-		@IFileService private readonly _fileService: IFileService
+		@IFileService private readonly _fileService: IFileService,
+		@ILogService private readonly _logService: ILogService
 	) {
+		super();
+
 		// Matches '--- a/src/file1', capturing 'src/file1' in group 1
 		this._gitDiffPreImagePattern = /^--- a\/(\S*)/;
 		// Matches '+++ b/src/file1', capturing 'src/file1' in group 1
@@ -211,19 +230,40 @@ export class TerminalLinkHandler {
 		this._xterm.registerLinkMatcher(this._gitDiffPostImagePattern, wrappedHandler, options);
 	}
 
-	public dispose(): void {
-		this._hoverDisposables.dispose();
-	}
-
-	private _wrapLinkHandler(handler: (uri: string) => boolean | void): XtermLinkMatcherHandler {
-		return (event: MouseEvent, uri: string) => {
+	protected _wrapLinkHandler(handler: (link: string) => void): XtermLinkMatcherHandler {
+		return async (event: MouseEvent, link: string) => {
 			// Prevent default electron link handling so Alt+Click mode works normally
 			event.preventDefault();
 			// Require correct modifier on click
 			if (!this._isLinkActivationModifierDown(event)) {
-				return false;
+				return;
 			}
-			return handler(uri);
+
+			// Allow the link to be intercepted if there are listeners
+			if (this._hasBeforeHandleLinkListeners) {
+				const wasHandled = await new Promise<boolean>(r => {
+					const timeoutId = setTimeout(() => {
+						canceled = true;
+						this._logService.error('An extension intecepted a terminal link but did not return');
+						r(false);
+					}, TerminalLinkHandler.LINK_INTERCEPT_THRESHOLD);
+					let canceled = false;
+					const resolve = (handled: boolean) => {
+						if (!canceled) {
+							clearTimeout(timeoutId);
+							r(handled);
+						}
+					};
+					this._onBeforeHandleLink.fire({ link, resolve });
+				});
+				if (!wasHandled) {
+					handler(link);
+				}
+				return;
+			}
+
+			// Just call the handler if there is no before listener
+			handler(link);
 		};
 	}
 
@@ -244,18 +284,17 @@ export class TerminalLinkHandler {
 		return this._gitDiffPostImagePattern;
 	}
 
-	private _handleLocalLink(link: string): PromiseLike<any> {
-		return this._resolvePath(link).then(resolvedLink => {
-			if (!resolvedLink) {
-				return Promise.resolve(null);
-			}
-			const lineColumnInfo: LineColumnInfo = this.extractLineColumnInfo(link);
-			const selection: ITextEditorSelection = {
-				startLineNumber: lineColumnInfo.lineNumber,
-				startColumn: lineColumnInfo.columnNumber
-			};
-			return this._editorService.openEditor({ resource: resolvedLink, options: { pinned: true, selection } });
-		});
+	private async _handleLocalLink(link: string): Promise<void> {
+		const resolvedLink = await this._resolvePath(link);
+		if (!resolvedLink) {
+			return;
+		}
+		const lineColumnInfo: LineColumnInfo = this.extractLineColumnInfo(link);
+		const selection: ITextEditorSelection = {
+			startLineNumber: lineColumnInfo.lineNumber,
+			startColumn: lineColumnInfo.columnNumber
+		};
+		await this._editorService.openEditor({ resource: resolvedLink, options: { pinned: true, selection } });
 	}
 
 	private _validateLocalLink(link: string, callback: (isValid: boolean) => void): void {
@@ -270,7 +309,7 @@ export class TerminalLinkHandler {
 		this._openerService.open(url, { allowTunneling: !!(this._processManager && this._processManager.remoteAuthority) });
 	}
 
-	private _isLinkActivationModifierDown(event: MouseEvent): boolean {
+	protected _isLinkActivationModifierDown(event: MouseEvent): boolean {
 		const editorConf = this._configurationService.getValue<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
 		if (editorConf.multiCursorModifier === 'ctrlCmd') {
 			return !!event.altKey;
@@ -346,19 +385,19 @@ export class TerminalLinkHandler {
 		return link;
 	}
 
-	private _resolvePath(link: string): PromiseLike<URI | null> {
+	private async _resolvePath(link: string): Promise<URI | undefined> {
 		if (!this._processManager) {
 			throw new Error('Process manager is required');
 		}
 
 		const preprocessedLink = this._preprocessPath(link);
 		if (!preprocessedLink) {
-			return Promise.resolve(null);
+			return undefined;
 		}
 
 		const linkUrl = this.extractLinkUrl(preprocessedLink);
 		if (!linkUrl) {
-			return Promise.resolve(null);
+			return undefined;
 		}
 
 		try {
@@ -373,18 +412,20 @@ export class TerminalLinkHandler {
 				uri = URI.file(linkUrl);
 			}
 
-			return this._fileService.resolve(uri).then(stat => {
+			try {
+				const stat = await this._fileService.resolve(uri);
 				if (stat.isDirectory) {
-					return null;
+					return undefined;
 				}
 				return uri;
-			}).catch(() => {
+			}
+			catch (e) {
 				// Does not exist
-				return null;
-			});
+				return undefined;
+			}
 		} catch {
 			// Errors in parsing the path
-			return Promise.resolve(null);
+			return undefined;
 		}
 	}
 
