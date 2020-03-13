@@ -19,6 +19,7 @@ import { Ref, RefType, Branch, Remote, GitErrorCodes, LogOptions, Change, Status
 import * as byline from 'byline';
 import { StringDecoder } from 'string_decoder';
 import * as pty from 'node-pty';
+import stripAnsi from 'strip-ansi';
 
 // https://github.com/microsoft/vscode/issues/65693
 const MAX_CLI_LENGTH = 30000;
@@ -1523,26 +1524,7 @@ export class Repository {
 		}
 	}
 
-	async pull(rebase?: boolean, remote?: string, branch?: string, options: PullOptions = {}): Promise<void> {
-		const args = ['pull'];
-
-		if (options.tags) {
-			args.push('--tags');
-		}
-
-		if (options.unshallow) {
-			args.push('--unshallow');
-		}
-
-		if (rebase) {
-			args.push('-r');
-		}
-
-		if (remote && branch) {
-			args.push(remote);
-			args.push(branch);
-		}
-
+	async pull_pty(args: string[], options: PullOptions = {}): Promise<void> {
 		return new Promise<void>((c, e) => {
 			if (options.cancellationToken && options.cancellationToken.isCancellationRequested) {
 				throw new GitError({ message: 'Cancelled' });
@@ -1578,8 +1560,7 @@ export class Repository {
 			};
 
 			const onData = (raw: string) => {
-				// TODO: Clear control chars.
-				outputData += raw;
+				outputData += stripAnsi(raw);
 
 				if (/Are you sure you want to continue connecting/i.test(outputData)) {
 					// TODO: Ask user confirmation.
@@ -1604,6 +1585,52 @@ export class Repository {
 			child.on('data', onData);
 			child.on('exit', onExit);
 		});
+	}
+
+	async pull(rebase?: boolean, remote?: string, branch?: string, options: PullOptions = {}): Promise<void> {
+		const args = ['pull'];
+
+		if (options.tags) {
+			args.push('--tags');
+		}
+
+		if (options.unshallow) {
+			args.push('--unshallow');
+		}
+
+		if (rebase) {
+			args.push('-r');
+		}
+
+		if (remote && branch) {
+			args.push(remote);
+			args.push(branch);
+		}
+
+		try {
+			await this.run(args, options);
+		} catch (err) {
+			if (/^CONFLICT \([^)]+\): \b/m.test(err.stdout || '')) {
+				err.gitErrorCode = GitErrorCodes.Conflict;
+			} else if (/Please tell me who you are\./.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.NoUserNameConfigured;
+			} else if (/Host key verification failed/i.test(err.stderr || '')) {
+				return this.pull_pty(args);
+			} else if (/Could not read from remote repository/.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.RemoteConnectionError;
+			} else if (/Pull is not possible because you have unmerged files|Cannot pull with rebase: You have unstaged changes|Your local changes to the following files would be overwritten|Please, commit your changes before you can merge/i.test(err.stderr)) {
+				err.stderr = err.stderr.replace(/Cannot pull with rebase: You have unstaged changes/i, 'Cannot pull with rebase, you have unstaged changes');
+				err.gitErrorCode = GitErrorCodes.DirtyWorkTree;
+			} else if (/cannot lock ref|unable to update local ref/i.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.CantLockRef;
+			} else if (/cannot rebase onto multiple branches/i.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.CantRebaseMultipleBranches;
+			}
+
+			console.log(err);
+
+			throw err;
+		}
 	}
 
 	async push(remote?: string, name?: string, setUpstream: boolean = false, tags = false, forcePushMode?: ForcePushMode): Promise<void> {
