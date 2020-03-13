@@ -1615,15 +1615,21 @@ export class Repository {
 			const onData = (raw: string) => {
 				outputData += stripAnsi(raw);
 
+				if (/Are you sure you want to continue connecting \(yes\/no\)\? (yes|no)/i.test(outputData)) {
+					outputData = '';
+				}
+
 				if (/Are you sure you want to continue connecting/i.test(outputData)) {
 					let host = /host '(.*)' can't/.exec(outputData)![1];
 					let fingerprint = /ECDSA key fingerprint is (.*)./.exec(outputData)![1];
 
+					outputData = '';
 					userInputProvider.askFingerprintConfirmation(host, fingerprint).then(confirmation => {
 						if (confirmation) {
 							child.write('yes\r');
 						} else {
-							child.write('no\r');
+							child.kill();
+							e(new GitError({ message: 'Cancelled' }));
 						}
 					});
 				}
@@ -1736,15 +1742,21 @@ export class Repository {
 			const onData = (raw: string) => {
 				outputData += stripAnsi(raw);
 
+				if (/Are you sure you want to continue connecting \(yes\/no\)\? (yes|no)/i.test(outputData)) {
+					outputData = '';
+				}
+
 				if (/Are you sure you want to continue connecting/i.test(outputData)) {
 					let host = /host '(.*)' can't/.exec(outputData)![1];
 					let fingerprint = /ECDSA key fingerprint is (.*)./.exec(outputData)![1];
 
+					outputData = '';
 					userInputProvider.askFingerprintConfirmation(host, fingerprint).then(confirmation => {
 						if (confirmation) {
 							child.write('yes\r');
 						} else {
-							child.write('no\r');
+							child.kill();
+							e(new GitError({ message: 'Cancelled' }));
 						}
 					});
 				}
@@ -1843,15 +1855,21 @@ export class Repository {
 			const onData = (raw: string) => {
 				outputData += stripAnsi(raw);
 
+				if (/Are you sure you want to continue connecting \(yes\/no\)\? (yes|no)/i.test(outputData)) {
+					outputData = '';
+				}
+
 				if (/Are you sure you want to continue connecting/i.test(outputData)) {
 					let host = /host '(.*)' can't/.exec(outputData)![1];
 					let fingerprint = /ECDSA key fingerprint is (.*)./.exec(outputData)![1];
 
+					outputData = '';
 					userInputProvider.askFingerprintConfirmation(host, fingerprint).then(confirmation => {
 						if (confirmation) {
 							child.write('yes\r');
 						} else {
-							child.write('no\r');
+							child.kill();
+							e(new GitError({ message: 'Cancelled' }));
 						}
 					});
 				}
