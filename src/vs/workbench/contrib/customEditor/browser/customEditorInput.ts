@@ -10,7 +10,6 @@ import { basename } from 'vs/base/common/path';
 import { isEqual } from 'vs/base/common/resources';
 import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -139,7 +138,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			return undefined;
 		}
 
-		return this.handleMove(groupId, target) || this.editorService.createEditorInput({ resource: target, forceFile: true });
+		return this.tryMoveWebview(groupId, target) || this.editorService.createEditorInput({ resource: target, forceFile: true });
 	}
 
 	public async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
@@ -161,20 +160,29 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		return null;
 	}
 
-	public handleMove(groupId: GroupIdentifier, uri: URI, options?: ITextEditorOptions): IEditorInput | undefined {
+	move(group: GroupIdentifier, newResource: URI): { editor: IEditorInput } | undefined {
+		const newEditor = this.tryMoveWebview(group, newResource);
+		if (!newEditor) {
+			return;
+		}
+		return { editor: newEditor };
+	}
+
+	private tryMoveWebview(groupId: GroupIdentifier, uri: URI, options?: ITextEditorOptions): IEditorInput | undefined {
 		const editorInfo = this.customEditorService.getCustomEditor(this.viewType);
 		if (editorInfo?.matches(uri)) {
 			const webview = assertIsDefined(this.takeOwnershipOfWebview());
 			const newInput = this.instantiationService.createInstance(CustomEditorInput,
 				uri,
 				this.viewType,
-				generateUuid(),
+				this.id,
 				new Lazy(() => webview));
 			newInput.updateGroup(groupId);
 			return newInput;
 		}
 		return undefined;
 	}
+
 
 	public undo(): void {
 		assertIsDefined(this._modelRef);

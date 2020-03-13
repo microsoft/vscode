@@ -317,12 +317,18 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 					continue;
 				}
 
+				if (!isEqual(editor.resource, oldResource)) {
+					continue;
+				}
+
 				const editorInfo = this._editorInfoStore.get(editor.viewType);
 				if (!editorInfo?.matches(newResource)) {
 					continue;
 				}
 
-				const replacement = this.createInput(newResource, editor.viewType, group);
+				const moveResult = editor.move(group.id, newResource);
+				const replacement = moveResult ? moveResult.editor : this.createInput(newResource, editor.viewType, group);
+
 				this.editorService.replaceEditors([{
 					editor: editor,
 					replacement: replacement,
