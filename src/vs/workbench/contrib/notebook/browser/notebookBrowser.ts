@@ -3,20 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
-import { IOutput, CellKind, IRenderOutput, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IOutput, CellKind, IRenderOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { NotebookViewModel, IModelDecorationsChangeAccessor } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { FindMatch, ITextModel } from 'vs/editor/common/model';
+import { FindMatch } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
 import { URI } from 'vs/base/common/uri';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { MarkdownRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/mdRenderer';
 
 export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('notebookFindWidgetFocused', false);
 
@@ -31,36 +28,9 @@ export interface ICellViewModel {
 	handle: number;
 	uri: URI;
 	cellKind: CellKind;
-	lineCount: number;
-	outputs: IOutput[]
-	onDidChangeOutputs: Event<NotebookCellOutputsSplice[]>;
 	state: CellState;
-	onDidChangeCellState: Event<void>;
 	focusMode: CellFocusMode;
-	onDidChangeFocusMode: Event<void>;
-	selfSizeMonitoring: boolean;
-	editorHeight: number;
-	editorAttached: boolean;
-	onDidChangeEditorAttachState: Event<boolean>;
-	getHTML(): HTMLElement | null;
-	resolveTextModel(): Promise<ITextModel>;
-	attachTextEditor(editor: ICodeEditor): void;
-	detachTextEditor(): void;
-	setText(strs: string[]): void;
 	getText(): string;
-	updateOutputHeight(index: number, height: number): void;
-	getOutputOffset(index: number): number;
-	getOutputTotalHeight(): number;
-	getLineScrollTopOffset(line: number): number;
-	getHeight(lineHeight: number): number;
-	hasDynamicHeight(): boolean;
-	getMarkdownRenderer(): MarkdownRenderer;
-	revealRangeInCenter(range: Range): void;
-	setSelection(range: Range): void;
-	onDidChangeCursorSelection: Event<void>;
-	cursorAtBoundary(): CursorAtBoundary;
-	onDeselect(): void;
-	spliceOutputHeights(start: number, deleteCnt: number, heights: number[]): void;
 }
 
 export interface INotebookEditor {

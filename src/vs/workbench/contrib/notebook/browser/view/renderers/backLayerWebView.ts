@@ -9,11 +9,12 @@ import * as path from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { INotebookEditor, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
 import { CELL_MARGIN, IOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IWebviewService, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewResourceScheme } from 'vs/workbench/contrib/webview/common/resourceLoader';
+import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
 
 export interface IDimentionMessage {
 	type: 'dimension';
@@ -71,7 +72,7 @@ let version = 0;
 export class BackLayerWebView extends Disposable {
 	element: HTMLElement;
 	webview: WebviewElement;
-	insetMapping: Map<IOutput, { outputId: string, cell: ICellViewModel, cacheOffset: number | undefined }> = new Map();
+	insetMapping: Map<IOutput, { outputId: string, cell: CellViewModel, cacheOffset: number | undefined }> = new Map();
 	reversedInsetMapping: Map<string, IOutput> = new Map();
 	preloadsCache: Map<string, boolean> = new Map();
 	localResourceRootsCache: URI[] | undefined = undefined;
@@ -291,7 +292,7 @@ export class BackLayerWebView extends Disposable {
 		return webview;
 	}
 
-	shouldUpdateInset(cell: ICellViewModel, output: IOutput, cellTop: number) {
+	shouldUpdateInset(cell: CellViewModel, output: IOutput, cellTop: number) {
 		let outputCache = this.insetMapping.get(output)!;
 		let outputIndex = cell.outputs.indexOf(output);
 
@@ -305,7 +306,7 @@ export class BackLayerWebView extends Disposable {
 		return true;
 	}
 
-	updateViewScrollTop(top: number, items: { cell: ICellViewModel, output: IOutput, cellTop: number }[]) {
+	updateViewScrollTop(top: number, items: { cell: CellViewModel, output: IOutput, cellTop: number }[]) {
 		let widgets: IContentWidgetTopRequest[] = items.map(item => {
 			let outputCache = this.insetMapping.get(item.output)!;
 			let id = outputCache.outputId;
@@ -333,7 +334,7 @@ export class BackLayerWebView extends Disposable {
 		this.webview.sendMessage(message);
 	}
 
-	createInset(cell: ICellViewModel, output: IOutput, cellTop: number, offset: number, shadowContent: string, preloads: Set<number>) {
+	createInset(cell: CellViewModel, output: IOutput, cellTop: number, offset: number, shadowContent: string, preloads: Set<number>) {
 		this.updateRendererPreloads(preloads);
 		let initialTop = cellTop + offset;
 		let outputId = UUID.generateUuid();

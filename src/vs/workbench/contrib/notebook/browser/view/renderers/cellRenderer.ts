@@ -21,6 +21,7 @@ import { CodeCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/c
 import { StatefullMarkdownCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/markdownCell';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EDITOR_TOP_PADDING, EDITOR_BOTTOM_PADDING, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
 
 export class NotebookCellListDelegate implements IListVirtualDelegate<ICellViewModel> {
 	private _lineHeight: number;
@@ -31,15 +32,15 @@ export class NotebookCellListDelegate implements IListVirtualDelegate<ICellViewM
 		this._lineHeight = BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel()).lineHeight;
 	}
 
-	getHeight(element: ICellViewModel): number {
+	getHeight(element: CellViewModel): number {
 		return element.getHeight(this._lineHeight);
 	}
 
-	hasDynamicHeight(element: ICellViewModel): boolean {
+	hasDynamicHeight(element: CellViewModel): boolean {
 		return element.hasDynamicHeight();
 	}
 
-	getTemplateId(element: ICellViewModel): string {
+	getTemplateId(element: CellViewModel): string {
 		if (element.cellKind === CellKind.Markdown) {
 			return MarkdownCellRenderer.TEMPLATE_ID;
 		} else {
@@ -221,7 +222,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		return template;
 	}
 
-	renderElement(element: ICellViewModel, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
+	renderElement(element: CellViewModel, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
 		templateData.editingContainer!.style.display = 'none';
 		templateData.cellContainer.innerHTML = '';
 		let renderedHTML = element.getHTML();
@@ -317,7 +318,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		return tempalte;
 	}
 
-	renderElement(element: ICellViewModel, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
+	renderElement(element: CellViewModel, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
 		if (height === undefined) {
 			return;
 		}

@@ -344,7 +344,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			const scrollTop = this.list?.scrollTop || 0;
 			const scrollHeight = this.list?.scrollHeight || 0;
 			this.webview!.element.style.height = `${scrollHeight}px`;
-			let updateItems: { cell: ICellViewModel, output: IOutput, cellTop: number }[] = [];
+			let updateItems: { cell: CellViewModel, output: IOutput, cellTop: number }[] = [];
 
 			if (this.webview?.insetMapping) {
 				this.webview?.insetMapping.forEach((value, key) => {
@@ -373,7 +373,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		}));
 
 		this.list?.splice(0, this.list?.length || 0);
-		this.list?.splice(0, 0, this.notebookViewModel!.viewCells);
+		this.list?.splice(0, 0, this.notebookViewModel!.viewCells as CellViewModel[]);
 		this.list?.layout();
 	}
 
@@ -640,7 +640,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		this.list?.triggerScrollFromMouseWheelEvent(event);
 	}
 
-	createInset(cell: ICellViewModel, output: IOutput, shadowContent: string, offset: number) {
+	createInset(cell: CellViewModel, output: IOutput, shadowContent: string, offset: number) {
 		if (!this.webview) {
 			return;
 		}
