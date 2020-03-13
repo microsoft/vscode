@@ -83,6 +83,7 @@
 
 .debug-pane .disabled {
 	opacity: 0.65;
+	cursor: initial;
 }
 
 /* Call stack */

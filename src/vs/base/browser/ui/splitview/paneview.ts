@@ -209,6 +209,10 @@ export abstract class Pane extends Disposable implements IView {
 
 		this.body = append(this.element, $('.pane-body'));
 		this.renderBody(this.body);
+
+		if (!this.isExpanded()) {
+			this.body.remove();
+		}
 	}
 
 	layout(size: number): void {

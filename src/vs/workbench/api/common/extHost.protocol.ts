@@ -432,6 +432,8 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	$show(terminalId: number, preserveFocus: boolean): void;
 	$startSendingDataEvents(): void;
 	$stopSendingDataEvents(): void;
+	$startHandlingLinks(): void;
+	$stopHandlingLinks(): void;
 
 	// Process
 	$sendProcessTitle(terminalId: number, title: string): void;
@@ -1311,6 +1313,7 @@ export interface ExtHostTerminalServiceShape {
 	$acceptWorkspacePermissionsChanged(isAllowed: boolean): void;
 	$getAvailableShells(): Promise<IShellDefinitionDto[]>;
 	$getDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto>;
+	$handleLink(id: number, link: string): Promise<boolean>;
 }
 
 export interface ExtHostSCMShape {
