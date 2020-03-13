@@ -617,7 +617,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 		this._undoService.pushElement({
 			type: UndoRedoElementType.Resource,
 			resource: this.resource,
-			label: label ?? 'Edit',
+			label: label ?? localize('defaultEditLabel', "Edit"),
 			undo: async () => {
 				if (!this._editable) {
 					return;
