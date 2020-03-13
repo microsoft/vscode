@@ -11,7 +11,7 @@ import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/commo
 import { InputFocusedContext, InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { DELETE_CELL_COMMAND_ID, EDIT_CELL_COMMAND_ID, INSERT_CODE_CELL_ABOVE_COMMAND_ID, INSERT_CODE_CELL_BELOW_COMMAND_ID, INSERT_MARKDOWN_CELL_ABOVE_COMMAND_ID, INSERT_MARKDOWN_CELL_BELOW_COMMAND_ID, MOVE_CELL_DOWN_COMMAND_ID, MOVE_CELL_UP_COMMAND_ID, SAVE_CELL_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/constants';
+import { DELETE_CELL_COMMAND_ID, EDIT_CELL_COMMAND_ID, INSERT_CODE_CELL_ABOVE_COMMAND_ID, INSERT_CODE_CELL_BELOW_COMMAND_ID, INSERT_MARKDOWN_CELL_ABOVE_COMMAND_ID, INSERT_MARKDOWN_CELL_BELOW_COMMAND_ID, MOVE_CELL_DOWN_COMMAND_ID, MOVE_CELL_UP_COMMAND_ID, SAVE_CELL_COMMAND_ID, COPY_CELL_UP_COMMAND_ID, COPY_CELL_DOWN_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/constants';
 import { INotebookEditor, KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
@@ -438,14 +438,13 @@ export class InsertCodeCellAboveAction extends MenuItemAction {
 		super(
 			{
 				id: INSERT_CODE_CELL_ABOVE_COMMAND_ID,
-				title: localize('notebookActions.insertCodeCellAbove', "Insert Code Cell Above")
+				title: localize('notebookActions.insertCodeCellAbove', "Insert Code Cell Above"),
+				icon: { id: 'codicon/add' }
 			},
 			undefined,
 			{ shouldForwardArgs: true },
 			contextKeyService,
 			commandService);
-
-		this.class = 'codicon-add';
 	}
 }
 
@@ -457,14 +456,17 @@ export class InsertCodeCellBelowAction extends MenuItemAction {
 		super(
 			{
 				id: INSERT_CODE_CELL_BELOW_COMMAND_ID,
-				title: localize('notebookActions.insertCodeCellBelow', "Insert Code Cell Below")
+				title: localize('notebookActions.insertCodeCellBelow', "Insert Code Cell Below"),
+				icon: { id: 'codicon/add' }
 			},
-			undefined,
+			{
+				id: INSERT_MARKDOWN_CELL_BELOW_COMMAND_ID,
+				title: localize('notebookActions.insertMarkdownCellBelow', "Insert Markdown Cell Below"),
+				icon: { id: 'codicon/add' }
+			},
 			{ shouldForwardArgs: true },
 			contextKeyService,
 			commandService);
-
-		this.class = 'codicon-add';
 	}
 }
 
@@ -476,14 +478,13 @@ export class InsertMarkdownCellAboveAction extends MenuItemAction {
 		super(
 			{
 				id: INSERT_MARKDOWN_CELL_ABOVE_COMMAND_ID,
-				title: localize('notebookActions.insertMarkdownCellAbove', "Insert Markdown Cell Above")
+				title: localize('notebookActions.insertMarkdownCellAbove', "Insert Markdown Cell Above"),
+				icon: { id: 'codicon/add' }
 			},
 			undefined,
 			{ shouldForwardArgs: true },
 			contextKeyService,
 			commandService);
-
-		this.class = 'codicon-add';
 	}
 }
 
@@ -495,14 +496,13 @@ export class InsertMarkdownCellBelowAction extends MenuItemAction {
 		super(
 			{
 				id: INSERT_MARKDOWN_CELL_BELOW_COMMAND_ID,
-				title: localize('notebookActions.insertMarkdownCellBelow', "Insert Markdown Cell Below")
+				title: localize('notebookActions.insertMarkdownCellBelow', "Insert Markdown Cell Below"),
+				icon: { id: 'codicon/add' }
 			},
 			undefined,
 			{ shouldForwardArgs: true },
 			contextKeyService,
 			commandService);
-
-		this.class = 'codicon-add';
 	}
 }
 
@@ -540,14 +540,13 @@ export class EditCellAction extends MenuItemAction {
 		super(
 			{
 				id: EDIT_CELL_COMMAND_ID,
-				title: localize('notebookActions.editCell', "Edit Cell")
+				title: localize('notebookActions.editCell', "Edit Cell"),
+				icon: { id: 'codicon/pencil' }
 			},
 			undefined,
 			{ shouldForwardArgs: true },
 			contextKeyService,
 			commandService);
-
-		this.class = 'codicon-pencil';
 	}
 }
 
@@ -580,14 +579,13 @@ export class SaveCellAction extends MenuItemAction {
 		super(
 			{
 				id: SAVE_CELL_COMMAND_ID,
-				title: localize('notebookActions.saveCell', "Save Cell")
+				title: localize('notebookActions.saveCell', "Save Cell"),
+				icon: { id: 'codicon/save' }
 			},
 			undefined,
 			{ shouldForwardArgs: true },
 			contextKeyService,
 			commandService);
-
-		this.class = 'codicon-save';
 	}
 }
 
@@ -620,14 +618,15 @@ export class DeleteCellAction extends MenuItemAction {
 		super(
 			{
 				id: DELETE_CELL_COMMAND_ID,
-				title: localize('notebookActions.deleteCell', "Delete Cell")
+				title: localize('notebookActions.deleteCell', "Delete Cell"),
+				icon: { id: 'codicon/x' }
 			},
 			undefined,
 			{ shouldForwardArgs: true },
 			contextKeyService,
 			commandService);
 
-		this.class = 'codicon-trash';
+		this.class = 'codicon-x';
 	}
 }
 
@@ -635,6 +634,12 @@ async function moveCell(context: INotebookCellActionContext, direction: 'up' | '
 	direction === 'up' ?
 		context.notebookEditor.moveCellUp(context.cell) :
 		context.notebookEditor.moveCellDown(context.cell);
+}
+
+async function copyCell(context: INotebookCellActionContext, direction: 'up' | 'down'): Promise<void> {
+	const text = context.cell.getText();
+	const newCellDirection = direction === 'up' ? 'above' : 'below';
+	return context.notebookEditor.insertNotebookCell(context.cell, context.cell.cellKind, newCellDirection, text);
 }
 
 registerAction2(class extends Action2 {
@@ -666,14 +671,17 @@ export class MoveCellUpAction extends MenuItemAction {
 		super(
 			{
 				id: MOVE_CELL_UP_COMMAND_ID,
-				title: localize('notebookActions.moveCellUp', "Move Cell Up")
+				title: localize('notebookActions.moveCellUp', "Move Cell Up"),
+				icon: { id: 'codicon/arrow-up' }
 			},
-			undefined,
+			{
+				id: COPY_CELL_UP_COMMAND_ID,
+				title: localize('notebookActions.copyCellUp', "Copy Cell Up"),
+				icon: { id: 'codicon/arrow-up' }
+			},
 			{ shouldForwardArgs: true },
 			contextKeyService,
 			commandService);
-
-		this.class = 'codicon-arrow-up';
 	}
 }
 
@@ -706,9 +714,14 @@ export class MoveCellDownAction extends MenuItemAction {
 		super(
 			{
 				id: MOVE_CELL_DOWN_COMMAND_ID,
-				title: localize('notebookActions.moveCellDown', "Move Cell Down")
+				title: localize('notebookActions.moveCellDown', "Move Cell Down"),
+				icon: { id: 'codicon/arrow-down' }
 			},
-			undefined,
+			{
+				id: COPY_CELL_DOWN_COMMAND_ID,
+				title: localize('notebookActions.copyCellDown', "Copy Cell Down"),
+				icon: { id: 'codicon/arrow-down' }
+			},
 			{ shouldForwardArgs: true },
 			contextKeyService,
 			commandService);
@@ -716,3 +729,45 @@ export class MoveCellDownAction extends MenuItemAction {
 		this.class = 'codicon-arrow-down';
 	}
 }
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super(
+			{
+				id: COPY_CELL_UP_COMMAND_ID,
+				title: localize('notebookActions.copyCellUp', "Copy Cell Up")
+			});
+	}
+
+	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext) {
+		if (!context) {
+			context = getActiveCellContext(accessor);
+			if (!context) {
+				return;
+			}
+		}
+
+		return copyCell(context, 'up');
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super(
+			{
+				id: COPY_CELL_DOWN_COMMAND_ID,
+				title: localize('notebookActions.copyCellDown', "Copy Cell Down")
+			});
+	}
+
+	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext) {
+		if (!context) {
+			context = getActiveCellContext(accessor);
+			if (!context) {
+				return;
+			}
+		}
+
+		return copyCell(context, 'down');
+	}
+});

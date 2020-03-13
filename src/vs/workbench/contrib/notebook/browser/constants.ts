@@ -14,5 +14,7 @@ export const DELETE_CELL_COMMAND_ID = 'workbench.notebook.cell.delete';
 
 export const MOVE_CELL_UP_COMMAND_ID = 'workbench.notebook.cell.moveUp';
 export const MOVE_CELL_DOWN_COMMAND_ID = 'workbench.notebook.cell.moveDown';
+export const COPY_CELL_UP_COMMAND_ID = 'workbench.notebook.cell.copyUp';
+export const COPY_CELL_DOWN_COMMAND_ID = 'workbench.notebook.cell.copyDown';
 
 export const EXECUTE_CELL_COMMAND_ID = 'workbench.notebook.cell.execute';

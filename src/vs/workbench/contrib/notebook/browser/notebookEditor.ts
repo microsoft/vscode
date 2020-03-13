@@ -703,12 +703,12 @@ registerThemingParticipant((theme, collector) => {
 	}
 	const link = theme.getColor(textLinkForeground);
 	if (link) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor a { color: ${link}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell a { color: ${link}; }`);
 	}
 	const activeLink = theme.getColor(textLinkActiveForeground);
 	if (activeLink) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor a:hover,
-			.monaco-workbench .part.editor > .content .notebook-editor a:active { color: ${activeLink}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell a:hover,
+			.monaco-workbench .part.editor > .content .notebook-editor .cell a:active { color: ${activeLink}; }`);
 	}
 	const shortcut = theme.getColor(textPreformatForeground);
 	if (shortcut) {
