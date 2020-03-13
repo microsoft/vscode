@@ -260,6 +260,9 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 	}
 
 	private _isSemanticColoringEnabled() {
+		if (!this._themeService.getColorTheme().semanticHighlighting) {
+			return false;
+		}
 		const options = this._configurationService.getValue<IEditorSemanticHighlightingOptions>('editor.semanticHighlighting', { overrideIdentifier: this._model.getLanguageIdentifier().language, resource: this._model.uri });
 		return options && options.enabled;
 	}
