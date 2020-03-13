@@ -400,7 +400,8 @@ export class CopyValueAction extends Action {
 
 		if (stackFrame && session && this.value.evaluateName) {
 			try {
-				const evaluation = await session.evaluate(this.value.evaluateName, stackFrame.frameId, this.context);
+				const context = session.capabilities.supportsClipboardContext ? 'clipboard' : this.context;
+				const evaluation = await session.evaluate(this.value.evaluateName, stackFrame.frameId, context);
 				this.clipboardService.writeText(evaluation.body.result);
 			} catch (e) {
 				this.clipboardService.writeText(this.value.value);

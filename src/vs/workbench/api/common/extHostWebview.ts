@@ -5,7 +5,7 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import * as modes from 'vs/editor/common/modes';
@@ -248,25 +248,31 @@ export class ExtHostWebviewEditor extends Disposable implements vscode.WebviewPa
 
 class CustomDocument extends Disposable implements vscode.CustomDocument {
 
-	public static create(proxy: MainThreadWebviewsShape, viewType: string, uri: vscode.Uri) {
-		return Object.seal(new CustomDocument(proxy, viewType, uri));
+	public static create(
+		viewType: string,
+		uri: vscode.Uri,
+		editingDelegate: vscode.CustomEditorEditingDelegate | undefined
+	) {
+		return Object.seal(new CustomDocument(viewType, uri, editingDelegate));
 	}
 
 	// Explicitly initialize all properties as we seal the object after creation!
 
 	readonly #_edits = new Cache<unknown>('edits');
 
-	readonly #proxy: MainThreadWebviewsShape;
 	readonly #viewType: string;
 	readonly #uri: vscode.Uri;
+	readonly #editingDelegate: vscode.CustomEditorEditingDelegate | undefined;
 
-	#capabilities: vscode.CustomEditorCapabilities | undefined = undefined;
-
-	private constructor(proxy: MainThreadWebviewsShape, viewType: string, uri: vscode.Uri) {
+	private constructor(
+		viewType: string,
+		uri: vscode.Uri,
+		editingDelegate: vscode.CustomEditorEditingDelegate | undefined,
+	) {
 		super();
-		this.#proxy = proxy;
 		this.#viewType = viewType;
 		this.#uri = uri;
+		this.#editingDelegate = editingDelegate;
 	}
 
 	dispose() {
@@ -289,47 +295,35 @@ class CustomDocument extends Disposable implements vscode.CustomDocument {
 
 	//#region Internal
 
-	/** @internal*/ _setCapabilities(capabilities: vscode.CustomEditorCapabilities) {
-		if (this.#capabilities) {
-			throw new Error('Capabilities already provided');
-		}
-
-		this.#capabilities = capabilities;
-		capabilities.editing?.onDidEdit(edit => {
-			const id = this.#_edits.add([edit]);
-			this.#proxy.$onDidEdit(this.uri, this.viewType, id);
-		});
-	}
-
 	/** @internal*/ async _revert(changes: { undoneEdits: number[], redoneEdits: number[] }) {
-		const editing = this.getEditingCapability();
+		const editing = this.getEditingDelegate();
 		const undoneEdits = changes.undoneEdits.map(id => this.#_edits.get(id, 0));
 		const appliedEdits = changes.redoneEdits.map(id => this.#_edits.get(id, 0));
-		return editing.revert({ undoneEdits, appliedEdits });
+		return editing.revert(this, { undoneEdits, appliedEdits });
 	}
 
 	/** @internal*/ _undo(editId: number) {
-		const editing = this.getEditingCapability();
+		const editing = this.getEditingDelegate();
 		const edit = this.#_edits.get(editId, 0);
-		return editing.undoEdits([edit]);
+		return editing.undoEdits(this, [edit]);
 	}
 
 	/** @internal*/ _redo(editId: number) {
-		const editing = this.getEditingCapability();
+		const editing = this.getEditingDelegate();
 		const edit = this.#_edits.get(editId, 0);
-		return editing.applyEdits([edit]);
+		return editing.applyEdits(this, [edit]);
 	}
 
 	/** @internal*/ _save(cancellation: CancellationToken) {
-		return this.getEditingCapability().save(cancellation);
+		return this.getEditingDelegate().save(this, cancellation);
 	}
 
 	/** @internal*/ _saveAs(target: vscode.Uri) {
-		return this.getEditingCapability().saveAs(target);
+		return this.getEditingDelegate().saveAs(this, target);
 	}
 
 	/** @internal*/ _backup(cancellation: CancellationToken) {
-		return this.getEditingCapability().backup(cancellation);
+		return this.getEditingDelegate().backup(this, cancellation);
 	}
 
 	/** @internal*/ _disposeEdits(editIds: number[]) {
@@ -338,13 +332,17 @@ class CustomDocument extends Disposable implements vscode.CustomDocument {
 		}
 	}
 
+	/** @internal*/ _pushEdit(edit: unknown): number {
+		return this.#_edits.add([edit]);
+	}
+
 	//#endregion
 
-	private getEditingCapability(): vscode.CustomEditorEditingCapability {
-		if (!this.#capabilities?.editing) {
+	private getEditingDelegate(): vscode.CustomEditorEditingDelegate {
+		if (!this.#editingDelegate) {
 			throw new Error('Document is not editable');
 		}
-		return this.#capabilities.editing;
+		return this.#editingDelegate;
 	}
 }
 
@@ -487,17 +485,24 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		provider: vscode.CustomEditorProvider | vscode.CustomTextEditorProvider,
 		options: vscode.WebviewPanelOptions | undefined = {}
 	): vscode.Disposable {
-		let disposable: vscode.Disposable;
+		const disposables = new DisposableStore();
 		if ('resolveCustomTextEditor' in provider) {
-			disposable = this._editorProviders.addTextProvider(viewType, extension, provider);
+			disposables.add(this._editorProviders.addTextProvider(viewType, extension, provider));
 			this._proxy.$registerTextEditorProvider(toExtensionData(extension), viewType, options);
 		} else {
-			disposable = this._editorProviders.addCustomProvider(viewType, extension, provider);
+			disposables.add(this._editorProviders.addCustomProvider(viewType, extension, provider));
 			this._proxy.$registerCustomEditorProvider(toExtensionData(extension), viewType, options);
+			if (provider.editingDelegate) {
+				disposables.add(provider.editingDelegate.onDidEdit(e => {
+					const document = e.document;
+					const editId = (document as CustomDocument)._pushEdit(e.edit);
+					this._proxy.$onDidEdit(document.uri, document.viewType, editId, e.label);
+				}));
+			}
 		}
 
 		return VSCodeDisposable.from(
-			disposable,
+			disposables,
 			new VSCodeDisposable(() => {
 				this._proxy.$unregisterEditorProvider(viewType);
 			}));
@@ -592,12 +597,11 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		}
 
 		const revivedResource = URI.revive(resource);
-		const document = CustomDocument.create(this._proxy, viewType, revivedResource);
-		const capabilities = await entry.provider.resolveCustomDocument(document);
-		document._setCapabilities(capabilities);
+		const document = CustomDocument.create(viewType, revivedResource, entry.provider.editingDelegate);
+		await entry.provider.resolveCustomDocument(document);
 		this._documents.add(document);
 		return {
-			editable: !!capabilities.editing
+			editable: !!entry.provider.editingDelegate,
 		};
 	}
 

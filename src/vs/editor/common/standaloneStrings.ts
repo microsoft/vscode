@@ -61,6 +61,7 @@ export namespace QuickOutlineNLS {
 	export const entryAriaLabel = nls.localize('entryAriaLabel', "{0}, symbols");
 	export const quickOutlineActionInput = nls.localize('quickOutlineActionInput', "Type the name of an identifier you wish to navigate to");
 	export const quickOutlineActionLabel = nls.localize('quickOutlineActionLabel', "Go to Symbol...");
+	export const quickOutlineByCategoryActionLabel = nls.localize('quickOutlineByCategoryActionLabel', "Go to Symbol by Category...");
 	export const _symbols_ = nls.localize('symbols', "symbols ({0})");
 	export const _modules_ = nls.localize('modules', "modules ({0})");
 	export const _class_ = nls.localize('class', "classes ({0})");
