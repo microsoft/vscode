@@ -67,6 +67,7 @@ export interface IEnvironment {
 	userHome: URI;
 	webviewResourceRoot: string;
 	webviewCspSource: string;
+	useHostProxy?: boolean;
 }
 
 export interface IStaticWorkspaceData {
