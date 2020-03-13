@@ -60,7 +60,7 @@ const CUSTOM_LINK_PRIORITY = -1;
 /** Lowest */
 const LOCAL_LINK_PRIORITY = -2;
 
-export type XtermLinkMatcherHandler = (event: MouseEvent, uri: string) => boolean | void;
+export type XtermLinkMatcherHandler = (event: MouseEvent, link: string) => boolean | void;
 export type XtermLinkMatcherValidationCallback = (uri: string, callback: (isValid: boolean) => void) => void;
 
 interface IPath {
@@ -227,15 +227,41 @@ export class TerminalLinkHandler extends DisposableStore {
 		this._xterm.registerLinkMatcher(this._gitDiffPostImagePattern, wrappedHandler, options);
 	}
 
-	private _wrapLinkHandler(handler: (uri: string) => boolean | void): XtermLinkMatcherHandler {
-		return (event: MouseEvent, uri: string) => {
+	private _wrapLinkHandler(handler: (link: string) => void): XtermLinkMatcherHandler {
+		return (event: MouseEvent, link: string) => {
 			// Prevent default electron link handling so Alt+Click mode works normally
 			event.preventDefault();
 			// Require correct modifier on click
 			if (!this._isLinkActivationModifierDown(event)) {
-				return false;
+				return;
 			}
-			return handler(uri);
+
+			// Allow the link to be intercepted if there are listeners
+			if (this._hasBeforeHandleLinkListeners) {
+				new Promise<boolean>(r => {
+					const timeoutId = setTimeout(() => {
+						canceled = true;
+						this._logService.error('An extension intecepted a terminal link but did not return');
+						r(false);
+					}, LINK_INTERCEPT_THRESHOLD);
+					let canceled = false;
+					const resolve = (handled: boolean) => {
+						if (!canceled) {
+							clearTimeout(timeoutId);
+							r(handled);
+						}
+					};
+					this._onBeforeHandleLink.fire({ link, resolve });
+				}).then(wasHandled => {
+					if (!wasHandled) {
+						handler(link);
+					}
+				});
+				return;
+			}
+
+			// Just call the handler if there is no before listener
+			handler(link);
 		};
 	}
 
@@ -256,41 +282,17 @@ export class TerminalLinkHandler extends DisposableStore {
 		return this._gitDiffPostImagePattern;
 	}
 
-	private _handleLocalLink(link: string): PromiseLike<any> {
-		return this._resolvePath(link).then(async resolvedLink => {
-			if (!resolvedLink) {
-				return Promise.resolve(null);
-			}
-
-			// Allow the link to be intercepted if there are listeners
-			if (this._hasBeforeHandleLinkListeners) {
-				const wasHandled = await new Promise<boolean>(r => {
-					const timeoutId = setTimeout(() => {
-						canceled = true;
-						this._logService.error('An extension intecepted a terminal link but did not return');
-						r(false);
-					}, LINK_INTERCEPT_THRESHOLD);
-					let canceled = false;
-					const resolve = (handled: boolean) => {
-						if (!canceled) {
-							clearTimeout(timeoutId);
-							r(handled);
-						}
-					};
-					this._onBeforeHandleLink.fire({ link, resolve });
-				});
-				if (wasHandled) {
-					return;
-				}
-			}
-
-			const lineColumnInfo: LineColumnInfo = this.extractLineColumnInfo(link);
-			const selection: ITextEditorSelection = {
-				startLineNumber: lineColumnInfo.lineNumber,
-				startColumn: lineColumnInfo.columnNumber
-			};
-			return this._editorService.openEditor({ resource: resolvedLink, options: { pinned: true, selection } });
-		});
+	private async _handleLocalLink(link: string): Promise<void> {
+		const resolvedLink = await this._resolvePath(link);
+		if (!resolvedLink) {
+			return;
+		}
+		const lineColumnInfo: LineColumnInfo = this.extractLineColumnInfo(link);
+		const selection: ITextEditorSelection = {
+			startLineNumber: lineColumnInfo.lineNumber,
+			startColumn: lineColumnInfo.columnNumber
+		};
+		await this._editorService.openEditor({ resource: resolvedLink, options: { pinned: true, selection } });
 	}
 
 	private _validateLocalLink(link: string, callback: (isValid: boolean) => void): void {
@@ -381,19 +383,19 @@ export class TerminalLinkHandler extends DisposableStore {
 		return link;
 	}
 
-	private _resolvePath(link: string): PromiseLike<URI | null> {
+	private async _resolvePath(link: string): Promise<URI | undefined> {
 		if (!this._processManager) {
 			throw new Error('Process manager is required');
 		}
 
 		const preprocessedLink = this._preprocessPath(link);
 		if (!preprocessedLink) {
-			return Promise.resolve(null);
+			return undefined;
 		}
 
 		const linkUrl = this.extractLinkUrl(preprocessedLink);
 		if (!linkUrl) {
-			return Promise.resolve(null);
+			return undefined;
 		}
 
 		try {
@@ -408,18 +410,20 @@ export class TerminalLinkHandler extends DisposableStore {
 				uri = URI.file(linkUrl);
 			}
 
-			return this._fileService.resolve(uri).then(stat => {
+			try {
+				const stat = await this._fileService.resolve(uri);
 				if (stat.isDirectory) {
-					return null;
+					return undefined;
 				}
 				return uri;
-			}).catch(() => {
+			}
+			catch (e) {
 				// Does not exist
-				return null;
-			});
+				return undefined;
+			}
 		} catch {
 			// Errors in parsing the path
-			return Promise.resolve(null);
+			return undefined;
 		}
 	}
 
