@@ -12,7 +12,7 @@ import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/n
 import { NotebookCellsSplice, ICell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { CellFindMatch, CellState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellFindMatch, CellState, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 export interface INotebookEditorViewState {
 	editingCells: { [key: number]: boolean };
@@ -40,7 +40,7 @@ export class NotebookViewModel extends Disposable {
 	private _localStore: DisposableStore = this._register(new DisposableStore());
 	private _viewCells: CellViewModel[] = [];
 
-	get viewCells() {
+	get viewCells(): ICellViewModel[] {
 		return this._viewCells;
 	}
 
@@ -87,15 +87,15 @@ export class NotebookViewModel extends Disposable {
 	}
 
 	hide() {
-		this.viewCells.forEach(cell => {
+		this._viewCells.forEach(cell => {
 			if (cell.getText() !== '') {
 				cell.state = CellState.Preview;
 			}
 		});
 	}
 
-	getViewCellIndex(cell: CellViewModel) {
-		return this.viewCells.indexOf(cell);
+	getViewCellIndex(cell: ICellViewModel) {
+		return this._viewCells.indexOf(cell as CellViewModel);
 	}
 
 	/**
@@ -104,7 +104,7 @@ export class NotebookViewModel extends Disposable {
 	 */
 	find(value: string): CellFindMatch[] {
 		const matches: CellFindMatch[] = [];
-		this.viewCells.forEach(cell => {
+		this._viewCells.forEach(cell => {
 			const cellMatches = cell.startFind(value);
 			if (cellMatches) {
 				matches.push(cellMatches);
@@ -116,24 +116,24 @@ export class NotebookViewModel extends Disposable {
 
 	insertCell(index: number, cell: ICell): CellViewModel {
 		const newCell = this.instantiationService.createInstance(CellViewModel, this.viewType, this.handle, cell);
-		this.viewCells!.splice(index, 0, newCell);
+		this._viewCells!.splice(index, 0, newCell);
 		this._model.insertCell(newCell.cell, index);
 		this._localStore.add(newCell);
 		return newCell;
 	}
 
 	deleteCell(index: number) {
-		let viewCell = this.viewCells[index];
-		this.viewCells.splice(index, 1);
+		let viewCell = this._viewCells[index];
+		this._viewCells.splice(index, 1);
 		this._model.deleteCell(viewCell.cell);
 		viewCell.dispose();
 	}
 
 	saveEditorViewState(): INotebookEditorViewState {
 		const state: { [key: number]: boolean } = {};
-		this.viewCells.filter(cell => cell.state === CellState.Editing).forEach(cell => state[cell.cell.handle] = true);
+		this._viewCells.filter(cell => cell.state === CellState.Editing).forEach(cell => state[cell.cell.handle] = true);
 		const editorViewStates: { [key: number]: editorCommon.ICodeEditorViewState } = {};
-		this.viewCells.map(cell => ({ handle: cell.cell.handle, state: cell.saveEditorViewState() })).forEach(viewState => {
+		this._viewCells.map(cell => ({ handle: cell.cell.handle, state: cell.saveEditorViewState() })).forEach(viewState => {
 			if (viewState.state) {
 				editorViewStates[viewState.handle] = viewState.state;
 			}
@@ -189,7 +189,7 @@ export class NotebookViewModel extends Disposable {
 			const ownerId = oldDecoration.ownerId;
 
 			if (!mapping.has(ownerId)) {
-				const cell = this.viewCells.find(cell => cell.handle === ownerId);
+				const cell = this._viewCells.find(cell => cell.handle === ownerId);
 				if (cell) {
 					mapping.set(ownerId, { cell: cell, oldDecorations: [], newDecorations: [] });
 				}
@@ -205,7 +205,7 @@ export class NotebookViewModel extends Disposable {
 			const ownerId = newDecoration.ownerId;
 
 			if (!mapping.has(ownerId)) {
-				const cell = this.viewCells.find(cell => cell.handle === ownerId);
+				const cell = this._viewCells.find(cell => cell.handle === ownerId);
 
 				if (cell) {
 					mapping.set(ownerId, { cell: cell, oldDecorations: [], newDecorations: [] });

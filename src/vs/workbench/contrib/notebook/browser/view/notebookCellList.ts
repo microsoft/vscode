@@ -14,29 +14,27 @@ import { IListService, IWorkbenchListOptions, WorkbenchList } from 'vs/platform/
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { isMacintosh } from 'vs/base/common/platform';
-import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
 import { EDITOR_TOP_PADDING, NOTEBOOK_EDITOR_CURSOR_BOUNDARY } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Range } from 'vs/editor/common/core/range';
-import { CellRevealType, CellRevealPosition, CursorAtBoundary } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellRevealType, CellRevealPosition, CursorAtBoundary, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 
-
-export class NotebookCellList extends WorkbenchList<CellViewModel> implements IDisposable {
+export class NotebookCellList extends WorkbenchList<ICellViewModel> implements IDisposable {
 	get onWillScroll(): Event<ScrollEvent> { return this.view.onWillScroll; }
 
 	get rowsContainer(): HTMLElement {
 		return this.view.containerDomNode;
 	}
-	private _previousSelectedElements: CellViewModel[] = [];
+	private _previousSelectedElements: ICellViewModel[] = [];
 	private _localDisposableStore = new DisposableStore();
 
 	constructor(
 		private listUser: string,
 		container: HTMLElement,
-		delegate: IListVirtualDelegate<CellViewModel>,
-		renderers: IListRenderer<CellViewModel, any>[],
+		delegate: IListVirtualDelegate<ICellViewModel>,
+		renderers: IListRenderer<ICellViewModel, any>[],
 		contextKeyService: IContextKeyService,
-		options: IWorkbenchListOptions<CellViewModel>,
+		options: IWorkbenchListOptions<ICellViewModel>,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -60,7 +58,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 		let cursorSelectionLisener: IDisposable | null = null;
 
-		const recomputeContext = (element: CellViewModel) => {
+		const recomputeContext = (element: ICellViewModel) => {
 			switch (element.cursorAtBoundary()) {
 				case CursorAtBoundary.Both:
 					notebookEditorCursorAtBoundaryContext.set('both');
@@ -333,7 +331,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 }
 
-function getEditorAttachedPromise(element: CellViewModel) {
+function getEditorAttachedPromise(element: ICellViewModel) {
 	return new Promise((resolve, reject) => {
 		Event.once(element.onDidChangeEditorAttachState)(state => state ? resolve() : reject());
 	});

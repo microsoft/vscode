@@ -3,16 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from 'vs/base/common/event';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
-import { IOutput, CellKind, IRenderOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IOutput, CellKind, IRenderOutput, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { NotebookViewModel, IModelDecorationsChangeAccessor } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { FindMatch } from 'vs/editor/common/model';
+import { FindMatch, ITextModel } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
+import { URI } from 'vs/base/common/uri';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { MarkdownRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/mdRenderer';
 
 export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('notebookFindWidgetFocused', false);
 
@@ -20,6 +24,43 @@ export interface NotebookLayoutInfo {
 	width: number;
 	height: number;
 	fontInfo: BareFontInfo;
+}
+
+export interface ICellViewModel {
+	readonly id: string;
+	handle: number;
+	uri: URI;
+	cellKind: CellKind;
+	lineCount: number;
+	outputs: IOutput[]
+	onDidChangeOutputs: Event<NotebookCellOutputsSplice[]>;
+	state: CellState;
+	onDidChangeCellState: Event<void>;
+	focusMode: CellFocusMode;
+	onDidChangeFocusMode: Event<void>;
+	selfSizeMonitoring: boolean;
+	editorHeight: number;
+	editorAttached: boolean;
+	onDidChangeEditorAttachState: Event<boolean>;
+	getHTML(): HTMLElement | null;
+	resolveTextModel(): Promise<ITextModel>;
+	attachTextEditor(editor: ICodeEditor): void;
+	detachTextEditor(): void;
+	setText(strs: string[]): void;
+	getText(): string;
+	updateOutputHeight(index: number, height: number): void;
+	getOutputOffset(index: number): number;
+	getOutputTotalHeight(): number;
+	getLineScrollTopOffset(line: number): number;
+	getHeight(lineHeight: number): number;
+	hasDynamicHeight(): boolean;
+	getMarkdownRenderer(): MarkdownRenderer;
+	revealRangeInCenter(range: Range): void;
+	setSelection(range: Range): void;
+	onDidChangeCursorSelection: Event<void>;
+	cursorAtBoundary(): CursorAtBoundary;
+	onDeselect(): void;
+	spliceOutputHeights(start: number, deleteCnt: number, heights: number[]): void;
 }
 
 export interface INotebookEditor {
@@ -37,7 +78,7 @@ export interface INotebookEditor {
 	/**
 	 * Select & focus cell
 	 */
-	selectElement(cell: CellViewModel): void;
+	selectElement(cell: ICellViewModel): void;
 
 	/**
 	 * Layout info for the notebook editor
@@ -51,12 +92,12 @@ export interface INotebookEditor {
 	/**
 	 * Insert a new cell around `cell`
 	 */
-	insertNotebookCell(cell: CellViewModel, type: CellKind, direction: 'above' | 'below', initialText?: string): Promise<void>;
+	insertNotebookCell(cell: ICellViewModel, type: CellKind, direction: 'above' | 'below', initialText?: string): Promise<void>;
 
 	/**
 	 * Delete a cell from the notebook
 	 */
-	deleteNotebookCell(cell: CellViewModel): void;
+	deleteNotebookCell(cell: ICellViewModel): void;
 
 	/**
 	 * Switch the cell into editing mode.
@@ -64,32 +105,32 @@ export interface INotebookEditor {
 	 * For code cell, the monaco editor will be focused.
 	 * For markdown cell, it will switch from preview mode to editing mode, which focuses the monaco editor.
 	 */
-	editNotebookCell(cell: CellViewModel): void;
+	editNotebookCell(cell: ICellViewModel): void;
 
 	/**
 	 * Quit cell editing mode.
 	 */
-	saveNotebookCell(cell: CellViewModel): void;
+	saveNotebookCell(cell: ICellViewModel): void;
 
 	/**
 	 * Focus the container of a cell (the monaco editor inside is not focused).
 	 */
-	focusNotebookCell(cell: CellViewModel, focusEditor: boolean): void;
+	focusNotebookCell(cell: ICellViewModel, focusEditor: boolean): void;
 
 	/**
 	 * Get current active cell
 	 */
-	getActiveCell(): CellViewModel | undefined;
+	getActiveCell(): ICellViewModel | undefined;
 
 	/**
 	 * Layout the cell with a new height
 	 */
-	layoutNotebookCell(cell: CellViewModel, height: number): void;
+	layoutNotebookCell(cell: ICellViewModel, height: number): void;
 
 	/**
 	 * Render the output in webview layer
 	 */
-	createInset(cell: CellViewModel, output: IOutput, shadowContent: string, offset: number): void;
+	createInset(cell: ICellViewModel, output: IOutput, shadowContent: string, offset: number): void;
 
 	/**
 	 * Remove the output from the webview layer
@@ -104,49 +145,49 @@ export interface INotebookEditor {
 	/**
 	 * Reveal cell into viewport.
 	 */
-	revealInView(cell: CellViewModel): void;
+	revealInView(cell: ICellViewModel): void;
 
 	/**
 	 * Reveal cell into viewport center.
 	 */
-	revealInCenter(cell: CellViewModel): void;
+	revealInCenter(cell: ICellViewModel): void;
 
 	/**
 	 * Reveal cell into viewport center if cell is currently out of the viewport.
 	 */
-	revealInCenterIfOutsideViewport(cell: CellViewModel): void;
+	revealInCenterIfOutsideViewport(cell: ICellViewModel): void;
 
 	/**
 	 * Reveal a line in notebook cell into viewport with minimal scrolling.
 	 */
-	revealLineInView(cell: CellViewModel, line: number): void;
+	revealLineInView(cell: ICellViewModel, line: number): void;
 
 	/**
 	 * Reveal a line in notebook cell into viewport center.
 	 */
-	revealLineInCenter(cell: CellViewModel, line: number): void;
+	revealLineInCenter(cell: ICellViewModel, line: number): void;
 
 	/**
 	 * Reveal a line in notebook cell into viewport center.
 	 */
-	revealLineInCenterIfOutsideViewport(cell: CellViewModel, line: number): void;
+	revealLineInCenterIfOutsideViewport(cell: ICellViewModel, line: number): void;
 
 	/**
 	 * Reveal a range in notebook cell into viewport with minimal scrolling.
 	 */
-	revealRangeInView(cell: CellViewModel, range: Range): void;
+	revealRangeInView(cell: ICellViewModel, range: Range): void;
 
 	/**
 	 * Reveal a range in notebook cell into viewport center.
 	 */
-	revealRangeInCenter(cell: CellViewModel, range: Range): void;
+	revealRangeInCenter(cell: ICellViewModel, range: Range): void;
 
 	/**
 	 * Reveal a range in notebook cell into viewport center.
 	 */
-	revealRangeInCenterIfOutsideViewport(cell: CellViewModel, range: Range): void;
+	revealRangeInCenterIfOutsideViewport(cell: ICellViewModel, range: Range): void;
 
-	setCellSelection(cell: CellViewModel, selection: Range): void;
+	setCellSelection(cell: ICellViewModel, selection: Range): void;
 
 	/**
 	 * Change the decorations on cells.
@@ -207,6 +248,7 @@ export enum CellState {
 	 * For code cell, the browser focus should be on the container instead of the editor
 	 */
 	Preview,
+
 
 	/**
 	 * Eding mode. Source for markdown or code is rendered in editors and the state will be persistent.

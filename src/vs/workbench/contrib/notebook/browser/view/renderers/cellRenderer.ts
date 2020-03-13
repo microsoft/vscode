@@ -16,14 +16,13 @@ import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CellRenderTemplate, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellRenderTemplate, INotebookEditor, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodeCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/codeCell';
 import { StatefullMarkdownCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/markdownCell';
-import { CellViewModel } from '../../viewModel/notebookCellViewModel';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EDITOR_TOP_PADDING, EDITOR_BOTTOM_PADDING, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
-export class NotebookCellListDelegate implements IListVirtualDelegate<CellViewModel> {
+export class NotebookCellListDelegate implements IListVirtualDelegate<ICellViewModel> {
 	private _lineHeight: number;
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService
@@ -32,15 +31,15 @@ export class NotebookCellListDelegate implements IListVirtualDelegate<CellViewMo
 		this._lineHeight = BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel()).lineHeight;
 	}
 
-	getHeight(element: CellViewModel): number {
+	getHeight(element: ICellViewModel): number {
 		return element.getHeight(this._lineHeight);
 	}
 
-	hasDynamicHeight(element: CellViewModel): boolean {
+	hasDynamicHeight(element: ICellViewModel): boolean {
 		return element.hasDynamicHeight();
 	}
 
-	getTemplateId(element: CellViewModel): string {
+	getTemplateId(element: ICellViewModel): string {
 		if (element.cellKind === CellKind.Markdown) {
 			return MarkdownCellRenderer.TEMPLATE_ID;
 		} else {
@@ -81,7 +80,7 @@ class AbstractCellRenderer {
 		};
 	}
 
-	showContextMenu(listIndex: number | undefined, element: CellViewModel, x: number, y: number) {
+	showContextMenu(listIndex: number | undefined, element: ICellViewModel, x: number, y: number) {
 		const actions: Action[] = [];
 		const insertAbove = new Action(
 			'workbench.notebook.code.insertCellAbove',
@@ -180,9 +179,9 @@ class AbstractCellRenderer {
 	}
 }
 
-export class MarkdownCellRenderer extends AbstractCellRenderer implements IListRenderer<CellViewModel, CellRenderTemplate> {
+export class MarkdownCellRenderer extends AbstractCellRenderer implements IListRenderer<ICellViewModel, CellRenderTemplate> {
 	static readonly TEMPLATE_ID = 'markdown_cell';
-	private disposables: Map<CellViewModel, DisposableStore> = new Map();
+	private disposables: Map<ICellViewModel, DisposableStore> = new Map();
 
 	constructor(
 		notehookEditor: INotebookEditor,
@@ -222,7 +221,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		return template;
 	}
 
-	renderElement(element: CellViewModel, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
+	renderElement(element: ICellViewModel, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
 		templateData.editingContainer!.style.display = 'none';
 		templateData.cellContainer.innerHTML = '';
 		let renderedHTML = element.getHTML();
@@ -263,20 +262,20 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 
 	}
 
-	disposeElement(element: CellViewModel, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
+	disposeElement(element: ICellViewModel, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
 		if (height) {
 			this.disposables.get(element)?.clear();
 		}
 	}
 }
 
-export class CodeCellRenderer extends AbstractCellRenderer implements IListRenderer<CellViewModel, CellRenderTemplate> {
+export class CodeCellRenderer extends AbstractCellRenderer implements IListRenderer<ICellViewModel, CellRenderTemplate> {
 	static readonly TEMPLATE_ID = 'code_cell';
-	private disposables: Map<CellViewModel, DisposableStore> = new Map();
+	private disposables: Map<ICellViewModel, DisposableStore> = new Map();
 
 	constructor(
 		protected notebookEditor: INotebookEditor,
-		private renderedEditors: Map<CellViewModel, ICodeEditor | undefined>,
+		private renderedEditors: Map<ICellViewModel, ICodeEditor | undefined>,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -318,7 +317,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		return tempalte;
 	}
 
-	renderElement(element: CellViewModel, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
+	renderElement(element: ICellViewModel, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
 		if (height === undefined) {
 			return;
 		}
@@ -359,7 +358,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	disposeTemplate(templateData: CellRenderTemplate): void {
 	}
 
-	disposeElement(element: CellViewModel, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
+	disposeElement(element: ICellViewModel, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
 		this.disposables.get(element)?.clear();
 		this.renderedEditors.delete(element);
 	}

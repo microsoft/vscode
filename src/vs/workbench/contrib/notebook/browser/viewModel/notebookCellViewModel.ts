@@ -16,9 +16,9 @@ import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer'
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MarkdownRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/mdRenderer';
 import { CellKind, EDITOR_BOTTOM_PADDING, EDITOR_TOP_PADDING, ICell, IOutput, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { CellFindMatch, CellState, CursorAtBoundary, CellFocusMode } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellFindMatch, CellState, CursorAtBoundary, CellFocusMode, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
-export class CellViewModel extends Disposable {
+export class CellViewModel extends Disposable implements ICellViewModel {
 
 	private _mdRenderer: MarkdownRenderer | null = null;
 	private _html: HTMLElement | null = null;
@@ -35,6 +35,10 @@ export class CellViewModel extends Disposable {
 
 	get handle() {
 		return this.cell.handle;
+	}
+
+	get uri() {
+		return this.cell.uri;
 	}
 
 	get cellKind() {

@@ -12,9 +12,8 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebook
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { NOTEBOOK_EDITOR_FOCUSED, NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, CellState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, CellState, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind, NOTEBOOK_EDITOR_CURSOR_BOUNDARY } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -299,7 +298,7 @@ function getActiveNotebookEditor(editorService: IEditorService): NotebookEditor 
 	return activeEditorPane?.isNotebookEditor ? activeEditorPane : undefined;
 }
 
-function runActiveCell(accessor: ServicesAccessor): CellViewModel | undefined {
+function runActiveCell(accessor: ServicesAccessor): ICellViewModel | undefined {
 	const editorService = accessor.get(IEditorService);
 	const notebookService = accessor.get(INotebookService);
 
@@ -366,7 +365,7 @@ function changeActiveCellToKind(kind: CellKind, accessor: ServicesAccessor): voi
 	editor.deleteNotebookCell(activeCell);
 }
 
-function getActiveCell(accessor: ServicesAccessor): [NotebookEditor, CellViewModel] | undefined {
+function getActiveCell(accessor: ServicesAccessor): [NotebookEditor, ICellViewModel] | undefined {
 	const editorService = accessor.get(IEditorService);
 	const notebookService = accessor.get(INotebookService);
 
