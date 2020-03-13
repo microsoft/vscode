@@ -151,7 +151,10 @@ class NotificationMessageRenderer {
 				const anchor = $('a', { href: node.href, title: title, }, node.label);
 
 				if (actionHandler) {
-					actionHandler.toDispose.add(addDisposableListener(anchor, EventType.CLICK, () => actionHandler.callback(node.href)));
+					actionHandler.toDispose.add(addDisposableListener(anchor, EventType.CLICK, e => {
+						EventHelper.stop(e, true);
+						actionHandler.callback(node.href);
+					}));
 				}
 
 				messageContainer.appendChild(anchor);
