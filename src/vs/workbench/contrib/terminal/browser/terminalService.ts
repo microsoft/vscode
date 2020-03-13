@@ -51,6 +51,7 @@ export class TerminalService implements ITerminalService {
 	private _findState: FindReplaceState;
 	private _extHostsReady: { [authority: string]: IExtHostReadyEntry | undefined } = {};
 	private _activeTabIndex: number;
+	private _linkHandlers: { [key: string]: TerminalLinkHandlerCallback } = {};
 
 	public get activeTabIndex(): number { return this._activeTabIndex; }
 	public get terminalInstances(): ITerminalInstance[] { return this._terminalInstances; }
@@ -447,7 +448,6 @@ export class TerminalService implements ITerminalService {
 		}));
 	}
 
-	private _linkHandlers: { [key: string]: TerminalLinkHandlerCallback } = {};
 	public addLinkHandler(key: string, callback: TerminalLinkHandlerCallback): IDisposable {
 		this._linkHandlers[key] = callback;
 		return {
