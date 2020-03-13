@@ -600,6 +600,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 
 	//#endregion
+
 	public get viewType() {
 		return this._viewType;
 	}
@@ -618,39 +619,43 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 			type: UndoRedoElementType.Resource,
 			resource: this.resource,
 			label: label ?? localize('defaultEditLabel', "Edit"),
-			undo: async () => {
-				if (!this._editable) {
-					return;
-				}
+			undo: () => this.undo(),
+			redo: () => this.redo(),
+		});
+	}
 
-				if (this._currentEditIndex < 0) {
-					// nothing to undo
-					return;
-				}
+	private async undo(): Promise<void> {
+		if (!this._editable) {
+			return;
+		}
 
-				const undoneEdit = this._edits[this._currentEditIndex];
-				await this._proxy.$undo(this.resource, this.viewType, undoneEdit);
+		if (this._currentEditIndex < 0) {
+			// nothing to undo
+			return;
+		}
 
-				this.change(() => {
-					--this._currentEditIndex;
-				});
-			},
-			redo: async () => {
-				if (!this._editable) {
-					return;
-				}
+		const undoneEdit = this._edits[this._currentEditIndex];
+		await this._proxy.$undo(this.resource, this.viewType, undoneEdit);
 
-				if (this._currentEditIndex >= this._edits.length - 1) {
-					// nothing to redo
-					return;
-				}
+		this.change(() => {
+			--this._currentEditIndex;
+		});
+	}
 
-				const redoneEdit = this._edits[this._currentEditIndex + 1];
-				await this._proxy.$redo(this.resource, this.viewType, redoneEdit);
-				this.change(() => {
-					++this._currentEditIndex;
-				});
-			}
+	private async redo(): Promise<void> {
+		if (!this._editable) {
+			return;
+		}
+
+		if (this._currentEditIndex >= this._edits.length - 1) {
+			// nothing to redo
+			return;
+		}
+
+		const redoneEdit = this._edits[this._currentEditIndex + 1];
+		await this._proxy.$redo(this.resource, this.viewType, redoneEdit);
+		this.change(() => {
+			++this._currentEditIndex;
 		});
 	}
 
