@@ -251,10 +251,10 @@ export class NativeWindow extends Disposable {
 				const file = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER, filterByScheme: Schemas.file });
 
 				// Represented Filename
-				this.updateRepresentedFilename(file ? file.fsPath : undefined);
+				this.updateRepresentedFilename(file?.fsPath);
 
 				// Custom title menu
-				this.provideCustomTitleContextMenu(file ? file.fsPath : undefined);
+				this.provideCustomTitleContextMenu(file?.fsPath);
 			}));
 		}
 
