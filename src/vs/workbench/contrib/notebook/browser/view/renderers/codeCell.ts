@@ -9,7 +9,7 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/sizeObserver';
 import { CELL_MARGIN, IOutput, EDITOR_TOP_PADDING, EDITOR_BOTTOM_PADDING, ITransformedDisplayOutputDto, IRenderOutput, CellOutputKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { CellRenderTemplate, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellRenderTemplate, INotebookEditor, CellFocusMode } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
@@ -85,6 +85,12 @@ export class CodeCell extends Disposable {
 				}
 			}
 		});
+
+		this._register(viewCell.onDidChangeFocusMode(() => {
+			if (viewCell.focusMode === CellFocusMode.Editor) {
+				templateData.editor?.focus();
+			}
+		}));
 
 		let cellWidthResizeObserver = getResizesObserver(templateData.cellContainer, {
 			width: width,

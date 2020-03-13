@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import * as UUID from 'vs/base/common/uuid';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
@@ -16,7 +16,7 @@ import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer'
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MarkdownRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/mdRenderer';
 import { CellKind, EDITOR_BOTTOM_PADDING, EDITOR_TOP_PADDING, ICell, IOutput, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { CellFindMatch, CellState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellFindMatch, CellState, CursorAtBoundary, CellFocusMode } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 export class CellViewModel extends Disposable {
 
@@ -26,6 +26,8 @@ export class CellViewModel extends Disposable {
 	readonly onDidDispose = this._onDidDispose.event;
 	protected readonly _onDidChangeEditingState = new Emitter<void>();
 	readonly onDidChangeEditingState = this._onDidChangeEditingState.event;
+	protected readonly _onDidChangeFocusMode = new Emitter<void>();
+	readonly onDidChangeFocusMode = this._onDidChangeFocusMode.event;
 	protected readonly _onDidChangeOutputs = new Emitter<NotebookCellOutputsSplice[]>();
 	readonly onDidChangeOutputs = this._onDidChangeOutputs.event;
 	private _outputCollection: number[] = [];
@@ -74,6 +76,17 @@ export class CellViewModel extends Disposable {
 		this._onDidChangeEditingState.fire();
 	}
 
+	private _focusMode: CellFocusMode = CellFocusMode.Container;
+
+	get focusMode() {
+		return this._focusMode;
+	}
+
+	set focusMode(newMode: CellFocusMode) {
+		this._focusMode = newMode;
+		this._onDidChangeFocusMode.fire();
+	}
+
 	private _selfSizeMonitoring: boolean = false;
 
 	set selfSizeMonitoring(newVal: boolean) {
@@ -106,6 +119,10 @@ export class CellViewModel extends Disposable {
 	private _editorViewStates: editorCommon.ICodeEditorViewState | null;
 	private _lastDecorationId: number = 0;
 	private _resolvedDecorations = new Map<string, { id?: string, options: model.IModelDeltaDecoration }>();
+	private readonly _onDidChangeCursorSelection: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onDidChangeCursorSelection: Event<void> = this._onDidChangeCursorSelection.event;
+
+	private _cursorChangeListener: IDisposable | null = null;
 
 	readonly id: string = UUID.generateUuid();
 
@@ -300,6 +317,8 @@ export class CellViewModel extends Disposable {
 			}
 		});
 
+		this._cursorChangeListener = this._textEditor.onDidChangeCursorSelection(() => this._onDidChangeCursorSelection.fire());
+		this._onDidChangeCursorSelection.fire();
 		this._onDidChangeEditorAttachState.fire(true);
 	}
 
@@ -315,6 +334,7 @@ export class CellViewModel extends Disposable {
 			}
 		});
 		this._textEditor = undefined;
+		this._cursorChangeListener?.dispose();
 		this._onDidChangeEditorAttachState.fire(false);
 	}
 
@@ -373,9 +393,44 @@ export class CellViewModel extends Disposable {
 	}
 
 	onDeselect() {
-		if (this.state === CellState.PreviewContent) {
+		if (this.cellKind === CellKind.Code) {
+			this.state = CellState.Read;
+		} else if (this.state === CellState.PreviewContent) {
 			this.state = CellState.Read;
 		}
+	}
+
+	cursorAtBoundary(): CursorAtBoundary {
+		if (!this._textEditor) {
+			return CursorAtBoundary.None;
+		}
+
+		// only validate primary cursor
+		const selection = this._textEditor.getSelection();
+
+		// only validate empty cursor
+		if (!selection || !selection.isEmpty()) {
+			return CursorAtBoundary.None;
+		}
+
+		// we don't allow attaching text editor without a model
+		const lineCnt = this._textEditor.getModel()!.getLineCount();
+
+		if (selection.startLineNumber === lineCnt) {
+			// bottom
+
+			if (selection.startLineNumber === 1) {
+				return CursorAtBoundary.Both;
+			} else {
+				return CursorAtBoundary.Bottom;
+			}
+		}
+
+		if (selection.startLineNumber === 1) {
+			return CursorAtBoundary.Top;
+		}
+
+		return CursorAtBoundary.None;
 	}
 
 	getMarkdownRenderer() {

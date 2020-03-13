@@ -21,7 +21,7 @@ import { contrastBorder, editorBackground, focusBorder, foreground, textBlockQuo
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions, IEditorMemento, ICompositeCodeEditor, IEditorCloseEvent } from 'vs/workbench/common/editor';
-import { INotebookEditor, NotebookLayoutInfo, CellState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor, NotebookLayoutInfo, CellState, CellFocusMode } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorInput, NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
@@ -186,6 +186,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			this.body,
 			this.instantiationService.createInstance(NotebookCellListDelegate),
 			renders,
+			this.contextKeyService,
 			{
 				setRowLineHeight: false,
 				setRowHeight: false,
@@ -212,7 +213,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 					listInactiveFocusBackground: editorBackground,
 					listInactiveFocusOutline: editorBackground,
 				}
-			}
+			},
 		);
 
 		this.control = new NotebookCodeEditors(this.list, this.renderedEditors);
@@ -595,18 +596,22 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		const index = this.notebookViewModel!.getViewCellIndex(cell);
 
 		if (focusEditor) {
+			this.list?.setFocus([index]);
+			this.list?.setSelection([index]);
+			this.list?.focusView();
 
+			cell.state = CellState.PreviewContent;
+			cell.focusMode = CellFocusMode.Editor;
 		} else {
 			let itemDOM = this.list?.domElementAtIndex(index);
 			if (document.activeElement && itemDOM && itemDOM.contains(document.activeElement)) {
 				(document.activeElement as HTMLElement).blur();
 			}
 
-			cell.state = CellState.Read;
+			this.list?.setFocus([index]);
+			this.list?.setSelection([index]);
+			this.list?.focusView();
 		}
-
-		this.list?.setFocus([index]);
-		this.list?.focusView();
 	}
 
 	//#endregion

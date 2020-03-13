@@ -15,10 +15,11 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { isMacintosh } from 'vs/base/common/platform';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
-import { EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { EDITOR_TOP_PADDING, NOTEBOOK_EDITOR_CURSOR_BOUNDARY } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Range } from 'vs/editor/common/core/range';
-import { CellRevealType, CellRevealPosition } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellRevealType, CellRevealPosition, CursorAtBoundary } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+
 
 export class NotebookCellList extends WorkbenchList<CellViewModel> implements IDisposable {
 	get onWillScroll(): Event<ScrollEvent> { return this.view.onWillScroll; }
@@ -34,8 +35,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<CellViewModel>,
 		renderers: IListRenderer<CellViewModel, any>[],
+		contextKeyService: IContextKeyService,
 		options: IWorkbenchListOptions<CellViewModel>,
-		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -53,6 +54,48 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			});
 			this._previousSelectedElements = e.elements;
 		}));
+
+		const notebookEditorCursorAtBoundaryContext = NOTEBOOK_EDITOR_CURSOR_BOUNDARY.bindTo(contextKeyService);
+		notebookEditorCursorAtBoundaryContext.set('none');
+
+		let cursorSelectionLisener: IDisposable | null = null;
+
+		const recomputeContext = (element: CellViewModel) => {
+			switch (element.cursorAtBoundary()) {
+				case CursorAtBoundary.Both:
+					notebookEditorCursorAtBoundaryContext.set('both');
+					break;
+				case CursorAtBoundary.Top:
+					notebookEditorCursorAtBoundaryContext.set('top');
+					break;
+				case CursorAtBoundary.Bottom:
+					notebookEditorCursorAtBoundaryContext.set('bottom');
+					break;
+				default:
+					notebookEditorCursorAtBoundaryContext.set('none');
+					break;
+			}
+			return;
+		};
+
+		// Cursor Boundary context
+		this._localDisposableStore.add(this.onDidChangeFocus((e) => {
+			cursorSelectionLisener?.dispose();
+			if (e.elements.length) {
+				// we only validate the first focused element
+				const focusedElement = e.elements[0];
+
+				cursorSelectionLisener = focusedElement.onDidChangeCursorSelection(() => {
+					recomputeContext(focusedElement);
+				});
+				recomputeContext(focusedElement);
+				return;
+			}
+
+			// reset context
+			notebookEditorCursorAtBoundaryContext.set('none');
+		}));
+
 	}
 
 	domElementAtIndex(index: number): HTMLElement | null {

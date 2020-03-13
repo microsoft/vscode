@@ -12,8 +12,8 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebook
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { NOTEBOOK_EDITOR_FOCUSED, NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, CellState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellKind, NOTEBOOK_EDITOR_CURSOR_BOUNDARY } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
 
 registerAction2(class extends Action2 {
@@ -153,6 +153,10 @@ registerAction2(class extends Action2 {
 
 		let activeCell = editor.getActiveCell();
 		if (activeCell) {
+			if (activeCell.cellKind === CellKind.Markdown) {
+				activeCell.state = CellState.Read;
+			}
+
 			editor.focusNotebookCell(activeCell, false);
 		}
 	}
@@ -361,3 +365,109 @@ function changeActiveCellToKind(kind: CellKind, accessor: ServicesAccessor): voi
 	editor.focusNotebookCell(newCell, false);
 	editor.deleteNotebookCell(activeCell);
 }
+
+function getActiveCell(accessor: ServicesAccessor): [NotebookEditor, CellViewModel] | undefined {
+	const editorService = accessor.get(IEditorService);
+	const notebookService = accessor.get(INotebookService);
+
+	const resource = editorService.activeEditor?.resource;
+	if (!resource) {
+		return;
+	}
+
+	const editor = getActiveNotebookEditor(editorService);
+	if (!editor) {
+		return;
+	}
+
+	const notebookProviders = notebookService.getContributedNotebookProviders(resource);
+	if (!notebookProviders.length) {
+		return;
+	}
+
+	const activeCell = editor.getActiveCell();
+	if (!activeCell) {
+		return;
+	}
+
+	return [editor, activeCell];
+}
+
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.notebook.cursorDown',
+			title: 'Notebook Cursor Move Down',
+			keybinding: {
+				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.has(InputFocusedContextKey), NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('top'), NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('none')),
+				primary: KeyCode.DownArrow,
+				weight: KeybindingWeight.WorkbenchContrib
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const activeCellRet = getActiveCell(accessor);
+
+		if (!activeCellRet) {
+			return;
+		}
+
+		const [editor, activeCell] = activeCellRet;
+
+		const idx = editor.viewModel?.getViewCellIndex(activeCell);
+		if (typeof idx !== 'number') {
+			return;
+		}
+
+		const newCell = editor.viewModel?.viewCells[idx + 1];
+
+		if (!newCell) {
+			return;
+		}
+
+		editor.focusNotebookCell(newCell, true);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.notebook.cursorUp',
+			title: 'Notebook Cursor Move Up',
+			keybinding: {
+				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.has(InputFocusedContextKey), NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('bottom'), NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('none')),
+				primary: KeyCode.UpArrow,
+				weight: KeybindingWeight.WorkbenchContrib
+			},
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const activeCellRet = getActiveCell(accessor);
+
+		if (!activeCellRet) {
+			return;
+		}
+
+		const [editor, activeCell] = activeCellRet;
+		const idx = editor.viewModel?.getViewCellIndex(activeCell);
+		if (typeof idx !== 'number') {
+			return;
+		}
+
+		if (idx < 1) {
+			// we don't do loop
+			return;
+		}
+
+		const newCell = editor.viewModel?.viewCells[idx - 1];
+
+		if (!newCell) {
+			return;
+		}
+
+		editor.focusNotebookCell(newCell, true);
+	}
+});

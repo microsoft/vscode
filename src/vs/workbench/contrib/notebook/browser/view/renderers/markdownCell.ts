@@ -10,7 +10,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/sizeObserver';
 import { CELL_MARGIN, EDITOR_TOP_PADDING, EDITOR_BOTTOM_PADDING } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookEditor, CellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor, CellRenderTemplate, CellFocusMode } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { raceCancellation } from 'vs/base/common/async';
 
@@ -192,6 +192,12 @@ export class StatefullMarkdownCell extends Disposable {
 		this._register(viewCell.onDidChangeEditingState(() => {
 			this.localDisposables.clear();
 			viewUpdate();
+		}));
+
+		this._register(viewCell.onDidChangeFocusMode(() => {
+			if (viewCell.focusMode === CellFocusMode.Editor) {
+				this.editor?.focus();
+			}
 		}));
 
 		viewUpdate();

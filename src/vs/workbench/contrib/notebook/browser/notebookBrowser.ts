@@ -220,3 +220,15 @@ export enum CellState {
 	 */
 	Editing
 }
+
+export enum CellFocusMode {
+	Container,
+	Editor
+}
+
+export enum CursorAtBoundary {
+	None,
+	Top,
+	Bottom,
+	Both
+}
