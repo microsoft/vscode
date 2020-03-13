@@ -1252,24 +1252,7 @@ declare module 'vscode' {
 		/**
 		 * Event triggered by extensions to signal to VS Code that an edit has occurred.
 		 */
-		readonly onDidEdit: Event<{
-			/**
-			 * Document the edit is for.
-			 */
-			readonly document: CustomDocument;
-
-			/**
-			 * Object that describes the edit.
-			 *
-			 * Edit objects are passed back to your extension in `undoEdits`, `applyEdits`, and `revert`.
-			 */
-			readonly edit: EditType;
-
-			/**
-			 * Display name describing the edit.
-			 */
-			readonly label?: string;
-		}>;
+		readonly onDidEdit: Event<CustomDocumentEditEvent<EditType>>;
 
 		/**
 		 * Apply a set of edits.
@@ -1299,14 +1282,11 @@ declare module 'vscode' {
 		 * Revert the file to its last saved state.
 		 *
 		 * @param document Document to revert.
-		 * @param change Added or applied edits.
+		 * @param edits Added or applied edits.
 		 *
 		 * @return Thenable signaling that the change has completed.
 		 */
-		revert(document: CustomDocument, change: {
-			readonly undoneEdits: readonly EditType[];
-			readonly appliedEdits: readonly EditType[];
-		}): Thenable<void>;
+		revert(document: CustomDocument, edits: CustomDocumentRevert<EditType>): Thenable<void>;
 
 		/**
 		 * Back up the resource in its current state.
@@ -1328,6 +1308,43 @@ declare module 'vscode' {
 		 * than cancelling it to ensure that VS Code has some valid backup.
 		 */
 		backup(document: CustomDocument, cancellation: CancellationToken): Thenable<void>;
+	}
+
+	/**
+	 * Event triggered by extensions to signal to VS Code that an edit has occurred on a CustomDocument``.
+	 */
+	interface CustomDocumentEditEvent<EditType = unknown> {
+		/**
+		 * Document the edit is for.
+		 */
+		readonly document: CustomDocument;
+
+		/**
+		 * Object that describes the edit.
+		 *
+		 * Edit objects are passed back to your extension in `undoEdits`, `applyEdits`, and `revert`.
+		 */
+		readonly edit: EditType;
+
+		/**
+		 * Display name describing the edit.
+		 */
+		readonly label?: string;
+	}
+
+	/**
+	 * Data about a revert for a `CustomDocument`.
+	 */
+	interface CustomDocumentRevert<EditType = unknown> {
+		/**
+		 * List of edits that were undone to get the document back to its on disk state.
+		 */
+		readonly undoneEdits: readonly EditType[];
+
+		/**
+		 * List of edits that were reapplied to get the document back to its on disk state.
+		 */
+		readonly appliedEdits: readonly EditType[];
 	}
 
 	/**
@@ -1456,7 +1473,7 @@ declare module 'vscode' {
 		export function registerCustomEditorProvider(
 			viewType: string,
 			provider: CustomEditorProvider | CustomTextEditorProvider,
-			webviewOptions?: WebviewPanelOptions,
+			webviewOptions?: WebviewPanelOptions, // TODO: move this onto provider?
 		): Disposable;
 	}
 
