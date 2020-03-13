@@ -311,7 +311,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 		assert.equal(linkHandler.gitDiffLinkPostImageRegex.test('+++ /dev/null          '), false);
 	});
 
-	suite.only('wrapLinkHandler', () => {
+	suite('wrapLinkHandler', () => {
 		const nullMouseEvent: any = Object.freeze({ preventDefault: () => { } });
 
 		test('should allow intercepting of links with onBeforeHandleLink', async () => {
