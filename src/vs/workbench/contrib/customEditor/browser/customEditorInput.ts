@@ -161,6 +161,12 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	}
 
 	move(group: GroupIdentifier, newResource: URI): { editor: IEditorInput } | undefined {
+		if (!this._moveHandler) {
+			return {
+				editor: this.customEditorService.createInput(newResource, this.viewType, group)
+			};
+		}
+		this._moveHandler(newResource);
 		const newEditor = this.tryMoveWebview(group, newResource);
 		if (!newEditor) {
 			return;
@@ -171,12 +177,12 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	private tryMoveWebview(groupId: GroupIdentifier, uri: URI, options?: ITextEditorOptions): IEditorInput | undefined {
 		const editorInfo = this.customEditorService.getCustomEditor(this.viewType);
 		if (editorInfo?.matches(uri)) {
-			const webview = assertIsDefined(this.takeOwnershipOfWebview());
 			const newInput = this.instantiationService.createInstance(CustomEditorInput,
 				uri,
 				this.viewType,
 				this.id,
-				new Lazy(() => webview));
+				new Lazy(() => undefined!)); // this webview is replaced in the transfer call
+			this.transfer(newInput);
 			newInput.updateGroup(groupId);
 			return newInput;
 		}
@@ -192,5 +198,22 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	public redo(): void {
 		assertIsDefined(this._modelRef);
 		this.undoRedoService.redo(this.resource);
+	}
+
+	private _moveHandler?: (newResource: URI) => void;
+
+	public onMove(handler: (newResource: URI) => void): void {
+		// TODO: Move this to the service
+		this._moveHandler = handler;
+	}
+
+	protected transfer(other: CustomEditorInput): CustomEditorInput | undefined {
+		if (!super.transfer(other)) {
+			return;
+		}
+
+		other._moveHandler = this._moveHandler;
+		this._moveHandler = undefined;
+		return other;
 	}
 }

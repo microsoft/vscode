@@ -186,7 +186,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 			}
 		}
 
-		const newEditorInput = customEditorService.createInput(targetResource, toggleView, activeGroup);
+		const newEditorInput = customEditorService.createInput(targetResource, toggleView, activeGroup.id);
 
 		editorService.replaceEditors([{
 			editor: activeEditor,

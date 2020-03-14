@@ -576,6 +576,10 @@ export interface WebviewExtensionDescription {
 	readonly location: UriComponents;
 }
 
+export interface CustomTextEditorCapabilities {
+	readonly supportsMove?: boolean;
+}
+
 export interface MainThreadWebviewsShape extends IDisposable {
 	$createWebviewPanel(extension: WebviewExtensionDescription, handle: WebviewPanelHandle, viewType: string, title: string, showOptions: WebviewPanelShowOptions, options: modes.IWebviewPanelOptions & modes.IWebviewOptions): void;
 	$disposeWebview(handle: WebviewPanelHandle): void;
@@ -591,7 +595,7 @@ export interface MainThreadWebviewsShape extends IDisposable {
 	$registerSerializer(viewType: string): void;
 	$unregisterSerializer(viewType: string): void;
 
-	$registerTextEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: modes.IWebviewPanelOptions): void;
+	$registerTextEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: modes.IWebviewPanelOptions, capabilities: CustomTextEditorCapabilities): void;
 	$registerCustomEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: modes.IWebviewPanelOptions): void;
 	$unregisterEditorProvider(viewType: string): void;
 
@@ -627,6 +631,8 @@ export interface ExtHostWebviewsShape {
 	$onSaveAs(resource: UriComponents, viewType: string, targetResource: UriComponents): Promise<void>;
 
 	$backup(resource: UriComponents, viewType: string, cancellation: CancellationToken): Promise<void>;
+
+	$onMoveCustomEditor(handle: WebviewPanelHandle, newResource: UriComponents, viewType: string): Promise<void>;
 }
 
 export interface MainThreadUrlsShape extends IDisposable {

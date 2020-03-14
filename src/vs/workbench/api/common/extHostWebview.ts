@@ -488,7 +488,9 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		const disposables = new DisposableStore();
 		if ('resolveCustomTextEditor' in provider) {
 			disposables.add(this._editorProviders.addTextProvider(viewType, extension, provider));
-			this._proxy.$registerTextEditorProvider(toExtensionData(extension), viewType, options);
+			this._proxy.$registerTextEditorProvider(toExtensionData(extension), viewType, options, {
+				supportsMove: !!provider.moveCustomTextEditor,
+			});
 		} else {
 			disposables.add(this._editorProviders.addCustomProvider(viewType, extension, provider));
 			this._proxy.$registerCustomEditorProvider(toExtensionData(extension), viewType, options);
@@ -661,6 +663,26 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 	$disposeEdits(resourceComponents: UriComponents, viewType: string, editIds: number[]): void {
 		const document = this.getCustomDocument(viewType, resourceComponents);
 		document._disposeEdits(editIds);
+	}
+
+	async $onMoveCustomEditor(handle: string, newResourceComponents: UriComponents, viewType: string): Promise<void> {
+		const entry = this._editorProviders.get(viewType);
+		if (!entry) {
+			throw new Error(`No provider found for '${viewType}'`);
+		}
+
+		if (!(entry.provider as vscode.CustomTextEditorProvider).moveCustomTextEditor) {
+			throw new Error(`Provider does not implement move '${viewType}'`);
+		}
+
+		const webview = this.getWebviewPanel(handle);
+		if (!webview) {
+			throw new Error(`No webview found`);
+		}
+
+		const resource = URI.revive(newResourceComponents);
+		const document = this._extHostDocuments.getDocument(resource);
+		await (entry.provider as vscode.CustomTextEditorProvider).moveCustomTextEditor!(document, webview);
 	}
 
 	async $undo(resourceComponents: UriComponents, viewType: string, editId: number): Promise<void> {
