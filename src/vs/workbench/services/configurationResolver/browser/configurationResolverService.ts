@@ -164,12 +164,9 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 		}
 
 		// extract and dedupe all "input" and "command" variables and preserve their order in an array
-		const variables: string[] = [];
-		this.findVariables(configuration, variables);
-
 		const variableValues: IStringDictionary<string> = Object.create(null);
-
-		for (const variable of variables) {
+		const config = { ...configuration };
+		await this.findVariables(config, variableValues, async (variable, object) => {
 
 			const [type, name] = variable.split(':', 2);
 
@@ -184,7 +181,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 				case 'command':
 					// use the name as a command ID #12735
 					const commandId = (variableToCommandMap ? variableToCommandMap[name] : undefined) || name;
-					result = await this.commandService.executeCommand(commandId, configuration);
+					result = await this.commandService.executeCommand(commandId, object);
 					if (typeof result !== 'string' && !Types.isUndefinedOrNull(result)) {
 						throw new Error(nls.localize('commandVariable.noStringType', "Cannot substitute command variable '{0}' because command did not return a result of type string.", commandId));
 					}
@@ -197,11 +194,11 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 			}
 
 			if (typeof result === 'string') {
-				variableValues[variable] = result;
+				return result;
 			} else {
 				return undefined;
 			}
-		}
+		});
 
 		return variableValues;
 	}
@@ -209,34 +206,52 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 	/**
 	 * Recursively finds all command or input variables in object and pushes them into variables.
 	 * @param object object is searched for variables.
-	 * @param variables All found variables are returned in variables.
+	 * @param variables All found variables and resolved values are returned in variables.
+	 * @param resolveFn callback method for resolving the variable value.
+	 * @param source the root level object for passthrough to the resolveFn.
 	 */
-	private findVariables(object: any, variables: string[]) {
+	private async findVariables(object: any, variables: IStringDictionary<string>, resolveFn: (variable: string, root: any) => Promise<string | undefined>, source?: any): Promise<any> {
+
+		const root: any = source || object;
 		if (typeof object === 'string') {
 			let matches;
-			while ((matches = BaseConfigurationResolverService.INPUT_OR_COMMAND_VARIABLES_PATTERN.exec(object)) !== null) {
+			const input = object;
+			while ((matches = BaseConfigurationResolverService.INPUT_OR_COMMAND_VARIABLES_PATTERN.exec(input)) !== null) {
 				if (matches.length === 4) {
+					const entry = matches[0];
 					const command = matches[1];
-					if (variables.indexOf(command) < 0) {
-						variables.push(command);
+					if (!(command in variables)) {
+						// NOTE this if assumes that the user will only ever want one computed value. (e.g. have two of the same command but only get the first output for both)
+						// TODO if value is undefined, we leave the raw value and need to skip to the next match.
+						const value = await resolveFn(command, root);
+						if (value !== undefined) {
+							variables[command] = value;
+							object = object.replace(entry, value);
+						}
 					}
 				}
 			}
-			this._contributedVariables.forEach((value, contributed: string) => {
-				if ((variables.indexOf(contributed) < 0) && (object.indexOf('${' + contributed + '}') >= 0)) {
-					variables.push(contributed);
+			for (const [contributed] of this._contributedVariables) {
+				if (!(contributed in variables) && (object.indexOf('${' + contributed + '}') >= 0)) {
+					const value = await resolveFn(contributed, root);
+					if (value !== undefined) {
+						variables[contributed] = value;
+						object = object.replace('${' + contributed + '}', value);
+					}
 				}
-			});
+			}
 		} else if (Types.isArray(object)) {
-			object.forEach(value => {
-				this.findVariables(value, variables);
-			});
+			for (let index = 0; index < object.length; index++) {
+				object[index] = await this.findVariables(object[index], variables, resolveFn, root);
+			}
 		} else if (object) {
-			Object.keys(object).forEach(key => {
-				const value = object[key];
-				this.findVariables(value, variables);
-			});
+			const keys = Object.keys(object);
+			for (let index = 0; index < keys.length; index++) {
+				const key = keys[index];
+				object[key] = await this.findVariables(object[key], variables, resolveFn, root);
+			}
 		}
+		return object;
 	}
 
 	/**

@@ -46,7 +46,7 @@ suite('Configuration Resolver Service', () => {
 	let configurationResolverService: IConfigurationResolverService | null;
 	let envVariables: { [key: string]: string } = { key1: 'Value for key1', key2: 'Value for key2' };
 	let environmentService: MockWorkbenchEnvironmentService;
-	let mockCommandService: MockCommandService;
+	let mockCommandService: MockCommandService | MockCommandService2;
 	let editorService: TestEditorServiceWithActiveEditor;
 	let workspace: IWorkspaceFolder;
 	let quickInputService: MockQuickInputService;
@@ -505,6 +505,33 @@ suite('Configuration Resolver Service', () => {
 			});
 		});
 	});
+
+	test('a command variable that relies on resolved previous command vars', () => {
+
+		mockCommandService = new MockCommandService2();
+		configurationResolverService = new TestConfigurationResolverService(environmentService.userEnv, editorService, environmentService, new MockInputsConfigurationService(), mockCommandService, new TestContextService(), quickInputService);
+
+		const configuration = {
+			'name': 'Attach to Process',
+			'type': 'node',
+			'request': 'attach',
+			'value': '${command:dependency}',
+			'processId': '${command:command1}'
+		};
+
+		return configurationResolverService!.resolveWithInteractionReplace(undefined, configuration, undefined, undefined).then(result => {
+
+			assert.deepEqual(result, {
+				'name': 'Attach to Process',
+				'type': 'node',
+				'request': 'attach',
+				'value': 'dependency-result-${command:dependency}',
+				'processId': 'command1-result-dependency-result-${command:dependency}'
+			});
+
+			assert.equal(2, mockCommandService.callCount);
+		});
+	});
 });
 
 
@@ -522,6 +549,28 @@ class MockCommandService implements ICommandService {
 		if (args.length >= 1) {
 			if (args[0] && args[0].value) {
 				result = args[0].value;
+			}
+		}
+
+		return Promise.resolve(result);
+	}
+}
+
+
+class MockCommandService2 implements ICommandService {
+
+	public _serviceBrand: undefined;
+	public callCount = 0;
+
+	onWillExecuteCommand = () => Disposable.None;
+	onDidExecuteCommand = () => Disposable.None;
+	public executeCommand(commandId: string, ...args: any): Promise<any> {
+		this.callCount++;
+
+		let result = `${commandId}-result`;
+		if (args.length >= 1) {
+			if (args[0] && args[0].value) {
+				result += `-${args[0].value}`;
 			}
 		}
 
