@@ -333,14 +333,6 @@ export interface IConflictSetting {
 	remoteValue: any | undefined;
 }
 
-export const ISettingsSyncService = createDecorator<ISettingsSyncService>('ISettingsSyncService');
-export interface ISettingsSyncService extends IUserDataSynchroniser {
-	_serviceBrand: any;
-	readonly onDidChangeConflicts: Event<IConflictSetting[]>;
-	readonly conflicts: IConflictSetting[];
-	resolveSettingsConflicts(resolvedConflicts: { key: string, value: any | undefined }[]): Promise<void>;
-}
-
 //#endregion
 
 export const CONTEXT_SYNC_STATE = new RawContextKey<string>('syncStatus', SyncStatus.Uninitialized);
