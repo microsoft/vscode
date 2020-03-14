@@ -17,10 +17,9 @@ import { isFirefox } from 'vs/base/browser/browser';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { localize } from 'vs/nls';
-import { CompositeDragAndDropObserver } from 'vs/workbench/browser/parts/compositeBar';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { DragAndDropObserver } from 'vs/workbench/browser/dnd';
+import { DragAndDropObserver, CompositeDragAndDropObserver } from 'vs/workbench/browser/dnd';
 import { GroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export interface IPaneOptions {

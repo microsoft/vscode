@@ -42,13 +42,11 @@ import { parseLinkedText } from 'vs/base/common/linkedText';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { Link } from 'vs/platform/opener/browser/link';
-import { LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
+import { LocalSelectionTransfer, DraggedViewIdentifier, CompositeDragAndDropObserver } from 'vs/workbench/browser/dnd';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
-import { CompositeDragAndDropObserver } from 'vs/workbench/browser/parts/compositeBar';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { CompositeProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
 import { IProgressIndicator } from 'vs/platform/progress/common/progress';
-import { DraggedViewIdentifier } from 'vs/base/parts/composite/browser/compositeDnd';
 
 export interface IPaneColors extends IColorMapping {
 	dropBackground?: ColorIdentifier;

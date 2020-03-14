@@ -18,10 +18,8 @@ import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { IActivity } from 'vs/workbench/common/activity';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Emitter } from 'vs/base/common/event';
-import { LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
+import { LocalSelectionTransfer, DraggedCompositeIdentifier, DraggedViewIdentifier, CompositeDragAndDropObserver, ICompositeDragAndDrop } from 'vs/workbench/browser/dnd';
 import { Color } from 'vs/base/common/color';
-import { ICompositeDragAndDrop, DraggedCompositeIdentifier, DraggedViewIdentifier } from 'vs/base/parts/composite/browser/compositeDnd';
-import { CompositeDragAndDropObserver } from 'vs/workbench/browser/parts/compositeBar';
 
 export interface ICompositeActivity {
 	badge: IBadge;

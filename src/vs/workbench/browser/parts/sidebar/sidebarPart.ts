@@ -33,9 +33,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { LayoutPriority } from 'vs/base/browser/ui/grid/grid';
 import { assertIsDefined } from 'vs/base/common/types';
-import { LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
-import { CompositeDragAndDropObserver } from 'vs/workbench/browser/parts/compositeBar';
-import { DraggedViewIdentifier, DraggedCompositeIdentifier } from 'vs/base/parts/composite/browser/compositeDnd';
+import { LocalSelectionTransfer, CompositeDragAndDropObserver, DraggedViewIdentifier, DraggedCompositeIdentifier } from 'vs/workbench/browser/dnd';
 
 export class SidebarPart extends CompositePart<Viewlet> implements IViewletService {
 
