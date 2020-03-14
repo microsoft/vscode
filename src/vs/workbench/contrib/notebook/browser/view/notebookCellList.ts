@@ -261,7 +261,14 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const element = this.view.element(index);
 
 		if (viewItemOffset < scrollTop || viewItemOffset > wrapperBottom) {
+			// let it render
 			this.view.setScrollTop(viewItemOffset - this.view.renderHeight / 2);
+
+			// after rendering, it might be pushed down due to markdown cell dynamic height
+			const elementTop = this.view.elementTop(index);
+			this.view.setScrollTop(elementTop - this.view.renderHeight / 2);
+
+			// reveal editor
 			if (!element.editorAttached) {
 				getEditorAttachedPromise(element).then(() => reveal(index, range, revealType));
 			} else {
@@ -295,15 +302,14 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			return;
 		}
 
-		let viewItemOffset = elementTop;
-
-		if (revealPosition === CellRevealPosition.Top) {
-			viewItemOffset = elementTop;
-		} else if (revealPosition === CellRevealPosition.Center) {
-			viewItemOffset = elementTop - this.view.renderHeight / 2;
-		}
-
+		// first render
+		const viewItemOffset = revealPosition === CellRevealPosition.Top ? elementTop : (elementTop - this.view.renderHeight / 2);
 		this.view.setScrollTop(viewItemOffset);
+
+		// second scroll as markdown cell is dynamic
+		const newElementTop = this.view.elementTop(index);
+		const newViewItemOffset = revealPosition === CellRevealPosition.Top ? newElementTop : (newElementTop - this.view.renderHeight / 2);
+		this.view.setScrollTop(newViewItemOffset);
 	}
 
 	revealInView(index: number) {
