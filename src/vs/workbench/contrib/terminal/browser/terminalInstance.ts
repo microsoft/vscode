@@ -621,7 +621,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 
 			// Skip processing by xterm.js of keyboard events that match menu bar mnemonics
-			if (this._configHelper.config.allowMenubarMnemonics && event.altKey) {
+			if (this._configHelper.config.allowMnemonics && event.altKey) {
 				return false;
 			}
 
