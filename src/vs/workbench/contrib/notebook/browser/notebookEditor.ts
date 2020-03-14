@@ -169,7 +169,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		DOM.addClass(this.body, 'cell-list-container');
 		this.createCellList();
 		DOM.append(parent, this.body);
-		DOM.append(this.body, this.findWidget.getDomNode());
+		DOM.append(parent, this.findWidget.getDomNode());
 	}
 
 	private createCellList(): void {

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SimpleFindWidget } from 'vs/workbench/contrib/codeEditor/browser/find/simpleFindWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, INotebookEditor, CellFindMatch, CellState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -14,8 +13,9 @@ import { ICellModelDeltaDecorations, ICellModelDecorations } from 'vs/workbench/
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { SimpleFindReplaceWidget } from 'vs/workbench/contrib/codeEditor/browser/find/simpleFindReplaceWidget';
 
-export class NotebookFindWidget extends SimpleFindWidget {
+export class NotebookFindWidget extends SimpleFindReplaceWidget {
 	protected _findWidgetFocused: IContextKey<boolean>;
 	private _findMatches: CellFindMatch[] = [];
 	protected _findMatchesStarts: PrefixSumComputer | null = null;
@@ -98,6 +98,13 @@ export class NotebookFindWidget extends SimpleFindWidget {
 
 	protected onFocusTrackerBlur() {
 		this._findWidgetFocused.reset();
+	}
+
+	protected onReplaceInputFocusTrackerFocus(): void {
+		// throw new Error('Method not implemented.');
+	}
+	protected onReplaceInputFocusTrackerBlur(): void {
+		// throw new Error('Method not implemented.');
 	}
 
 	protected onFindInputFocusTrackerFocus(): void { }
