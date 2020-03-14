@@ -220,24 +220,29 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 				if (matches.length === 4) {
 					const entry = matches[0];
 					const command = matches[1];
-					if (!(command in variables)) {
+					const found = command in variables;
+					if (!found) {
 						// NOTE this if assumes that the user will only ever want one computed value. (e.g. have two of the same command but only get the first output for both)
-						// TODO if value is undefined, we leave the raw value and need to skip to the next match.
 						const value = await resolveFn(command, root);
 						if (value !== undefined) {
 							variables[command] = value;
 							object = object.replace(entry, value);
 						}
+					} else if (found) {
+						object = object.replace(entry, variables[command]);
 					}
 				}
 			}
 			for (const [contributed] of this._contributedVariables) {
-				if (!(contributed in variables) && (object.indexOf('${' + contributed + '}') >= 0)) {
+				const found = contributed in variables;
+				if (!found && (object.indexOf('${' + contributed + '}') >= 0)) {
 					const value = await resolveFn(contributed, root);
 					if (value !== undefined) {
 						variables[contributed] = value;
 						object = object.replace('${' + contributed + '}', value);
 					}
+				} else if (found) {
+					object = object.replace('${' + contributed + '}', variables[contributed]);
 				}
 			}
 		} else if (Types.isArray(object)) {
