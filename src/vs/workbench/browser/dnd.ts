@@ -635,6 +635,7 @@ export class CompositeDragAndDropObserver extends Disposable {
 		return this._register(disposableStore);
 	}
 	registerDraggable(element: HTMLElement, type: ViewType, id: string, callbacks: ICompositeDragAndDropObserverCallbacks): IDisposable {
+		element.draggable = true;
 		const disposableStore = new DisposableStore();
 		disposableStore.add(addDisposableListener(element, EventType.DRAG_START, e => {
 			this.writeDragData(id, type);
