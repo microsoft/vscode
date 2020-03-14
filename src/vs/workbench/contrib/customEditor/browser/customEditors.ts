@@ -14,14 +14,14 @@ import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { FileOperation, IFileService } from 'vs/platform/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { EditorInput, EditorOptions, IEditorInput, IEditorPane, GroupIdentifier } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, GroupIdentifier, IEditorInput, IEditorPane } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { webviewEditorsExtensionPoint } from 'vs/workbench/contrib/customEditor/browser/extensionPoint';
 import { CONTEXT_CUSTOM_EDITORS, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CustomEditorInfo, CustomEditorInfoCollection, CustomEditorPriority, CustomEditorSelector, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
@@ -118,12 +118,6 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 
 		this._register(this._editorInfoStore.onChange(() => this.updateContexts()));
 		this._register(this.editorService.onDidActiveEditorChange(() => this.updateContexts()));
-
-		this._register(fileService.onDidRunOperation(e => {
-			if (e.isOperation(FileOperation.MOVE)) {
-				this.handleMovedFileInOpenedFileEditors(e.resource, e.target.resource);
-			}
-		}));
 
 		this.updateContexts();
 	}
@@ -308,36 +302,6 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		this._customEditorContextKey.set(possibleEditors.map(x => x.id).join(','));
 		this._focusedCustomEditorIsEditable.set(activeEditorPane?.input instanceof CustomEditorInput);
 		this._webviewHasOwnEditFunctions.set(possibleEditors.length > 0);
-	}
-
-	private handleMovedFileInOpenedFileEditors(oldResource: URI, newResource: URI): void {
-		for (const group of this.editorGroupService.groups) {
-			for (const editor of group.editors) {
-				if (!(editor instanceof CustomEditorInput)) {
-					continue;
-				}
-
-				if (!isEqual(editor.resource, oldResource)) {
-					continue;
-				}
-
-				const editorInfo = this._editorInfoStore.get(editor.viewType);
-				if (!editorInfo?.matches(newResource)) {
-					continue;
-				}
-
-				const moveResult = editor.move(group.id, newResource);
-				const replacement = moveResult ? moveResult.editor : this.createInput(newResource, editor.viewType, group.id);
-
-				this.editorService.replaceEditors([{
-					editor: editor,
-					replacement: replacement,
-					options: {
-						preserveFocus: true
-					}
-				}], group);
-			}
-		}
 	}
 }
 
