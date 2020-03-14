@@ -118,7 +118,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	updateElementHeight(index: number, size: number): void {
-		this.view.updateElementHeight(index, size);
+		const focused = this.getFocus();
+		this.view.updateElementHeight(index, size, focused.length ? focused[0] : null);
 	}
 
 	// override

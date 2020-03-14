@@ -6,7 +6,7 @@
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { MenuRegistry, MenuId, Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { InputFocusedContext, InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
+import { InputFocusedContext, InputFocusedContextKey, IsDevelopmentContext } from 'vs/platform/contextkey/common/contextkeys';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -468,5 +468,40 @@ registerAction2(class extends Action2 {
 		}
 
 		editor.focusNotebookCell(newCell, true);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.notebook.testResize',
+			title: 'Notebook Test Cell Resize',
+			keybinding: {
+				when: IsDevelopmentContext,
+				primary: undefined,
+				weight: KeybindingWeight.WorkbenchContrib
+			},
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const resource = editorService.activeEditor?.resource;
+		if (!resource) {
+			return;
+		}
+
+		const editor = getActiveNotebookEditor(editorService);
+		if (!editor) {
+			return;
+		}
+
+		const cells = editor.viewModel?.viewCells;
+
+		if (cells && cells.length) {
+			const firstCell = cells[0];
+			editor.layoutNotebookCell(firstCell, 400);
+		}
 	}
 });

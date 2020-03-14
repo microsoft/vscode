@@ -1314,7 +1314,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	updateElementHeight(index: number, size: number): void {
-		this.view.updateElementHeight(index, size);
+		this.view.updateElementHeight(index, size, null);
 	}
 
 	rerender(): void {
