@@ -49,6 +49,8 @@ export interface ICustomEditorModel extends IDisposable {
 	readonly viewType: string;
 	readonly resource: URI;
 
+	isReadonly(): boolean;
+
 	isDirty(): boolean;
 	readonly onDidChangeDirty: Event<void>;
 

@@ -279,12 +279,12 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		this._revivers.delete(viewType);
 	}
 
-	public $registerTextEditorProvider(extensionData: extHostProtocol.WebviewExtensionDescription, viewType: string, options: modes.IWebviewPanelOptions): void {
-		return this.registerEditorProvider(ModelType.Text, extensionData, viewType, options);
+	public $registerTextEditorProvider(extensionData: extHostProtocol.WebviewExtensionDescription, viewType: string, options: modes.IWebviewPanelOptions, capabilities: extHostProtocol.CustomTextEditorCapabilities): void {
+		this.registerEditorProvider(ModelType.Text, extensionData, viewType, options, capabilities);
 	}
 
 	public $registerCustomEditorProvider(extensionData: extHostProtocol.WebviewExtensionDescription, viewType: string, options: modes.IWebviewPanelOptions): void {
-		return this.registerEditorProvider(ModelType.Custom, extensionData, viewType, options);
+		this.registerEditorProvider(ModelType.Custom, extensionData, viewType, options, {});
 	}
 
 	private registerEditorProvider(
@@ -292,41 +292,45 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		extensionData: extHostProtocol.WebviewExtensionDescription,
 		viewType: string,
 		options: modes.IWebviewPanelOptions,
-	): void {
+		capabilities: extHostProtocol.CustomTextEditorCapabilities,
+	): DisposableStore {
 		if (this._editorProviders.has(viewType)) {
 			throw new Error(`Provider for ${viewType} already registered`);
 		}
 
 		const extension = reviveWebviewExtension(extensionData);
 
-		this._editorProviders.set(viewType, this._webviewWorkbenchService.registerResolver({
+		const disposables = new DisposableStore();
+		disposables.add(this._webviewWorkbenchService.registerResolver({
 			canResolve: (webviewInput) => {
 				return webviewInput instanceof CustomEditorInput && webviewInput.viewType === viewType;
 			},
 			resolveWebview: async (webviewInput: CustomEditorInput) => {
 				const handle = webviewInput.id;
 				this._webviewInputs.add(handle, webviewInput);
-				this.hookupWebviewEventDelegate(handle, webviewInput);
 
+				this.hookupWebviewEventDelegate(handle, webviewInput);
 				webviewInput.webview.options = options;
 				webviewInput.webview.extension = extension;
 
 				const resource = webviewInput.resource;
+				let modelRef = await this.getOrCreateCustomEditorModel(modelType, resource, viewType);
 
-				const modelRef = await this.getOrCreateCustomEditorModel(modelType, webviewInput, resource, viewType);
 				webviewInput.webview.onDispose(() => {
 					modelRef.dispose();
 				});
 
+				if (capabilities.supportsMove) {
+					webviewInput.onMove(async (newResource: URI) => {
+						const oldModel = modelRef;
+						modelRef = await this.getOrCreateCustomEditorModel(modelType, newResource, viewType);
+						this._proxy.$onMoveCustomEditor(handle, newResource, viewType);
+						oldModel.dispose();
+					});
+				}
+
 				try {
-					await this._proxy.$resolveWebviewEditor(
-						resource,
-						handle,
-						viewType,
-						webviewInput.getTitle(),
-						editorGroupToViewColumn(this._editorGroupService, webviewInput.group || 0),
-						webviewInput.webview.options
-					);
+					await this._proxy.$resolveWebviewEditor(resource, handle, viewType, webviewInput.getTitle(), editorGroupToViewColumn(this._editorGroupService, webviewInput.group || 0), webviewInput.webview.options);
 				} catch (error) {
 					onUnexpectedError(error);
 					webviewInput.webview.html = MainThreadWebviews.getDeserializationFailedContents(viewType);
@@ -334,6 +338,10 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 				}
 			}
 		}));
+
+		this._editorProviders.set(viewType, disposables);
+
+		return disposables;
 	}
 
 	public $unregisterEditorProvider(viewType: string): void {
@@ -350,11 +358,10 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 
 	private async getOrCreateCustomEditorModel(
 		modelType: ModelType,
-		webviewInput: WebviewInput,
 		resource: URI,
 		viewType: string,
 	): Promise<IReference<ICustomEditorModel>> {
-		const existingModel = this._customEditorService.models.tryRetain(webviewInput.resource, webviewInput.viewType);
+		const existingModel = this._customEditorService.models.tryRetain(resource, viewType);
 		if (existingModel) {
 			return existingModel;
 		}
@@ -611,6 +618,10 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 
 	//#endregion
+
+	public isReadonly() {
+		return this._editable;
+	}
 
 	public get viewType() {
 		return this._viewType;

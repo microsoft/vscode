@@ -97,7 +97,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	}
 
 	public isReadonly(): boolean {
-		return false; // TODO
+		return this._modelRef ? this._modelRef.object.isReadonly() : false;
 	}
 
 	public isDirty(): boolean {
