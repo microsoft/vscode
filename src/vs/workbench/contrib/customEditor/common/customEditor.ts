@@ -6,14 +6,14 @@
 import { distinct, mergeSort } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
+import { IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorPane, IEditorInput, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IEditorInput, IEditorPane, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IDisposable, IReference } from 'vs/base/common/lifecycle';
 
 export const ICustomEditorService = createDecorator<ICustomEditorService>('customEditorService');
 
@@ -29,7 +29,7 @@ export interface ICustomEditorService {
 	getContributedCustomEditors(resource: URI): CustomEditorInfoCollection;
 	getUserConfiguredCustomEditors(resource: URI): CustomEditorInfoCollection;
 
-	createInput(resource: URI, viewType: string, group: IEditorGroup | undefined, options?: { readonly customClasses: string }): IEditorInput;
+	createInput(resource: URI, viewType: string, group: GroupIdentifier | undefined, options?: { readonly customClasses: string }): IEditorInput;
 
 	openWith(resource: URI, customEditorViewType: string, options?: ITextEditorOptions, group?: IEditorGroup): Promise<IEditorPane | undefined>;
 	promptOpenWith(resource: URI, options?: ITextEditorOptions, group?: IEditorGroup): Promise<IEditorPane | undefined>;
@@ -48,6 +48,8 @@ export interface ICustomEditorModelManager {
 export interface ICustomEditorModel extends IDisposable {
 	readonly viewType: string;
 	readonly resource: URI;
+
+	isReadonly(): boolean;
 
 	isDirty(): boolean;
 	readonly onDidChangeDirty: Event<void>;

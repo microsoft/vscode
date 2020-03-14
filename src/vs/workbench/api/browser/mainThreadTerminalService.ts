@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, Disposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IShellLaunchConfig, ITerminalProcessExtHostProxy, ISpawnExtHostProcessRequest, ITerminalDimensions, EXT_HOST_CREATION_DELAY, IAvailableShellsRequest, IDefaultShellAndArgsRequest, IStartExtensionTerminalRequest } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, IExtHostContext, IShellLaunchConfigDto, TerminalLaunchConfig, ITerminalDimensionsDto } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { URI } from 'vs/base/common/uri';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { ITerminalInstanceService, ITerminalService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstanceService, ITerminalService, ITerminalInstance, ITerminalBeforeHandleLinkEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TerminalDataBufferer } from 'vs/workbench/contrib/terminal/common/terminalDataBuffering';
@@ -23,6 +23,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	private readonly _terminalProcesses = new Map<number, Promise<ITerminalProcessExtHostProxy>>();
 	private readonly _terminalProcessesReady = new Map<number, (proxy: ITerminalProcessExtHostProxy) => void>();
 	private _dataEventTracker: TerminalDataEventTracker | undefined;
+	private _linkHandler: IDisposable | undefined;
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -144,6 +145,22 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			this._dataEventTracker.dispose();
 			this._dataEventTracker = undefined;
 		}
+	}
+
+	public $startHandlingLinks(): void {
+		this._linkHandler?.dispose();
+		this._linkHandler = this._terminalService.addLinkHandler(this._remoteAuthority || '', e => this._handleLink(e));
+	}
+
+	public $stopHandlingLinks(): void {
+		this._linkHandler?.dispose();
+	}
+
+	private async _handleLink(e: ITerminalBeforeHandleLinkEvent): Promise<boolean> {
+		if (!e.terminal) {
+			return false;
+		}
+		return this._proxy.$handleLink(e.terminal.id, e.link);
 	}
 
 	private _onActiveTerminalChanged(terminalId: number | null): void {

@@ -643,6 +643,11 @@ class ShowMoreRenderer implements ITreeRenderer<IStackFrame[], FuzzyScore, ILabe
 class CallStackDelegate implements IListVirtualDelegate<CallStackItem> {
 
 	getHeight(element: CallStackItem): number {
+		if (element instanceof StackFrame) {
+			if (!element.source || !element.source.available || isDeemphasized(element)) {
+				return 12;
+			}
+		}
 		return 22;
 	}
 

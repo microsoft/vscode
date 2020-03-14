@@ -73,6 +73,7 @@ export interface ParsedArgs {
 	'disable-user-env-probe'?: boolean;
 	'force'?: boolean;
 	'force-user-env'?: boolean;
+	'sync'?: 'on' | 'off';
 
 	// chromium command line args: https://electronjs.org/docs/all#supported-chrome-command-line-switches
 	'no-proxy-server'?: boolean;

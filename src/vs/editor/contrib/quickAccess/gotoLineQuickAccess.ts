@@ -53,7 +53,7 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 	}
 
 	private doProvideWithoutTextEditor(picker: IQuickPick<IGotoLineQuickPickItem>): IDisposable {
-		const label = localize('cannotRunGotoLine', "Open a text file first to go to a line.");
+		const label = localize('cannotRunGotoLine', "Open a text editor first to go to a line.");
 		picker.items = [{ label }];
 		picker.ariaLabel = label;
 

@@ -24,9 +24,21 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { withNullAsUndefined } from 'vs/base/common/types';
 
 export interface IResourceLabelProps {
-	resource?: URI;
+	resource?: URI | { master?: URI, detail?: URI };
 	name?: string | string[];
 	description?: string;
+}
+
+function toResource(props: IResourceLabelProps | undefined): URI | undefined {
+	if (!props || !props.resource) {
+		return undefined;
+	}
+
+	if (URI.isUri(props.resource)) {
+		return props.resource;
+	}
+
+	return props.resource.master;
 }
 
 export interface IResourceLabelOptions extends IIconLabelValueOptions {
@@ -289,11 +301,16 @@ class ResourceLabelWidget extends IconLabel {
 	}
 
 	notifyFileDecorationsChanges(e: IResourceDecorationChangeEvent): void {
-		if (!this.options || !this.label || !this.label.resource) {
+		if (!this.options) {
 			return;
 		}
 
-		if (this.options.fileDecorations && e.affectsResource(this.label.resource)) {
+		const resource = toResource(this.label);
+		if (!resource) {
+			return;
+		}
+
+		if (this.options.fileDecorations && e.affectsResource(resource)) {
 			this.render(false);
 		}
 	}
@@ -311,13 +328,13 @@ class ResourceLabelWidget extends IconLabel {
 	}
 
 	notifyFormattersChange(scheme: string): void {
-		if (this.label?.resource?.scheme === scheme) {
+		if (toResource(this.label)?.scheme === scheme) {
 			this.render(false);
 		}
 	}
 
 	notifyUntitledLabelChange(resource: URI): void {
-		if (isEqual(resource, this.label?.resource)) {
+		if (isEqual(resource, toResource(this.label))) {
 			this.render(false);
 		}
 	}
@@ -347,7 +364,10 @@ class ResourceLabelWidget extends IconLabel {
 	}
 
 	setResource(label: IResourceLabelProps, options: IResourceLabelOptions = Object.create(null)): void {
-		if (label.resource?.scheme === Schemas.untitled) {
+		const resource = toResource(this.label);
+		const isMasterDetail = this.label?.resource && !URI.isUri(this.label.resource);
+
+		if (!isMasterDetail && resource?.scheme === Schemas.untitled) {
 			// Untitled labels are very dynamic because they may change
 			// whenever the content changes (unless a path is associated).
 			// As such we always ask the actual editor for it's name and
@@ -355,7 +375,11 @@ class ResourceLabelWidget extends IconLabel {
 			// provided. If they are not provided from the label we got
 			// we assume that the client does not want to display them
 			// and as such do not override.
-			const untitledModel = this.textFileService.untitled.get(label.resource);
+			//
+			// We do not touch the label if it represents a master-detail
+			// because in that case we expect it to carry a proper label
+			// and description.
+			const untitledModel = this.textFileService.untitled.get(resource);
 			if (untitledModel && !untitledModel.hasAssociatedFilePath) {
 				if (typeof label.name === 'string') {
 					label.name = untitledModel.name;
@@ -415,7 +439,7 @@ class ResourceLabelWidget extends IconLabel {
 	}
 
 	private hasPathLabelChanged(newLabel: IResourceLabelProps, newOptions?: IResourceLabelOptions): boolean {
-		const newResource = newLabel ? newLabel.resource : undefined;
+		const newResource = toResource(newLabel);
 
 		return !!newResource && this.computedPathLabel !== this.labelService.getUriLabel(newResource);
 	}
@@ -444,7 +468,8 @@ class ResourceLabelWidget extends IconLabel {
 		}
 
 		if (this.label) {
-			const detectedModeId = this.label.resource ? withNullAsUndefined(detectModeId(this.modelService, this.modeService, this.label.resource)) : undefined;
+			const resource = toResource(this.label);
+			const detectedModeId = resource ? withNullAsUndefined(detectModeId(this.modelService, this.modeService, resource)) : undefined;
 			if (this.lastKnownDetectedModeId !== detectedModeId) {
 				clearIconCache = true;
 				this.lastKnownDetectedModeId = detectedModeId;
@@ -470,7 +495,7 @@ class ResourceLabelWidget extends IconLabel {
 			domId: this.options?.domId
 		};
 
-		const resource = this.label.resource;
+		const resource = toResource(this.label);
 		const label = this.label.name;
 
 		if (this.options && typeof this.options.title === 'string') {

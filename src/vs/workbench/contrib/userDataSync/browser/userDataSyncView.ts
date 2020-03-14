@@ -30,8 +30,7 @@ export class UserDataSyncViewContribution implements IWorkbenchContribution {
 		@IUserDataSyncBackupStoreService private readonly userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
 	) {
 		const container = this.registerSyncViewContainer();
-		// Disable until server returns the correct timestamp
-		// this.registerBackupView(container, true);
+		this.registerBackupView(container, true);
 		this.registerBackupView(container, false);
 	}
 
