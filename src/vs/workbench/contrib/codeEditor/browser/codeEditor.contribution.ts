@@ -12,6 +12,7 @@ import './inspectEditorTokens/inspectEditorTokens';
 import './quickaccess/gotoLineQuickAccess';
 import './quickaccess/gotoSymbolQuickAccess';
 import './saveParticipants';
+import './semanticTokensHelp';
 import './toggleColumnSelection';
 import './toggleMinimap';
 import './toggleMultiCursorModifier';
