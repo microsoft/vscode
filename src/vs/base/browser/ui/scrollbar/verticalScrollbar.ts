@@ -93,6 +93,10 @@ export class VerticalScrollbar extends AbstractScrollbar {
 		return e.posx;
 	}
 
+	public _updateSize(size: number): void {
+		this.slider.setWidth(size);
+	}
+
 	public writeScrollPosition(target: INewScrollPosition, scrollPosition: number): void {
 		target.scrollTop = scrollPosition;
 	}
