@@ -60,6 +60,8 @@ suite('TokenizationSupport2Adapter', () => {
 					return undefined;
 				},
 
+				semanticHighlighting: false,
+
 				tokenColorMap: []
 			};
 		}
