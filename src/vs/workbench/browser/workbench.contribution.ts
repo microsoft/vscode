@@ -17,6 +17,11 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 	registry.registerConfiguration({
 		...workbenchConfigurationNodeBase,
 		'properties': {
+			'workbench.editor.tabScrollbarHeight': {
+				type: 'number',
+				description: nls.localize('tabScrollbarHeight', 'Controls the height of the scrollbar, which is visible when the width of tabs exceeds the window width'),
+				default: 3,
+			},
 			'workbench.editor.showTabs': {
 				'type': 'boolean',
 				'description': nls.localize('showEditorTabs', "Controls whether opened editors should show in tabs or not."),

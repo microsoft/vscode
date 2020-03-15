@@ -269,6 +269,10 @@ export abstract class AbstractScrollableElement extends Widget {
 		this._scrollable.setScrollDimensions(dimensions);
 	}
 
+	public setHorizontalScrollbarSize(size: number): void {
+		this._horizontalScrollbar.updateSize(size);
+	}
+
 	/**
 	 * Update the class name of the scrollable element.
 	 */

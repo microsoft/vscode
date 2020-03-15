@@ -6,7 +6,7 @@
 import 'vs/css!./media/tabstitlecontrol';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { shorten } from 'vs/base/common/labels';
-import { toResource, GroupIdentifier, IEditorInput, Verbosity, EditorCommandsContextActionRunner, IEditorPartOptions, SideBySideEditor } from 'vs/workbench/common/editor';
+import { toResource, GroupIdentifier, IEditorInput, Verbosity, EditorCommandsContextActionRunner, IEditorPartOptions, SideBySideEditor, IEditorPartOptionsChangeEvent } from 'vs/workbench/common/editor';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -101,6 +101,13 @@ export class TabsTitleControl extends TitleControl {
 		// If we are connected to remote, this accounts for the
 		// remote OS.
 		(async () => this.path = await this.remotePathService.path)();
+		this._register(this.accessor.onDidEditorPartOptionsChange(e => this.onDidEditorPartOptionsChange(e)));
+	}
+
+	protected onDidEditorPartOptionsChange(e: IEditorPartOptionsChangeEvent) {
+		if (e.newPartOptions.tabScrollbarHeight !== undefined) {
+			this.tabsScrollbar?.setHorizontalScrollbarSize(e.newPartOptions.tabScrollbarHeight);
+		}
 	}
 
 	protected create(parent: HTMLElement): void {
@@ -146,7 +153,7 @@ export class TabsTitleControl extends TitleControl {
 			vertical: ScrollbarVisibility.Hidden,
 			scrollYToX: true,
 			useShadows: false,
-			horizontalScrollbarSize: 3
+			horizontalScrollbarSize: this.configurationService.getValue<number>('workbench.editor.tabScrollbarHeight'),
 		});
 
 		tabsScrollbar.onScroll(e => {
