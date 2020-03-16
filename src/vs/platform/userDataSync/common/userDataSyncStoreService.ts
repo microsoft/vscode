@@ -61,7 +61,7 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		}
 
 		const result = await asJson<{ url: string, created: number }[]>(context) || [];
-		return result.map(({ url, created }) => ({ ref: relativePath(uri, URI.parse(url))!, created: created * 1000 /* Server returns in seconds */ }));
+		return result.map(({ url, created }) => ({ ref: relativePath(uri, URI.parse(url).with({ scheme: uri.scheme, authority: uri.authority }))!, created: created * 1000 /* Server returns in seconds */ }));
 	}
 
 	async resolveContent(resource: SyncResource, ref: string): Promise<string | null> {
