@@ -6,14 +6,14 @@
 import * as nls from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/sizeObserver';
 import { CELL_MARGIN, IOutput, EDITOR_TOP_PADDING, EDITOR_BOTTOM_PADDING, ITransformedDisplayOutputDto, IRenderOutput, CellOutputKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { CellRenderTemplate, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellRenderTemplate, INotebookEditor, CellFocusMode } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
+import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
 
 interface IMimeTypeRenderer extends IQuickPickItem {
 	index: number;
@@ -86,6 +86,12 @@ export class CodeCell extends Disposable {
 			}
 		});
 
+		this._register(viewCell.onDidChangeFocusMode(() => {
+			if (viewCell.focusMode === CellFocusMode.Editor) {
+				templateData.editor?.focus();
+			}
+		}));
+
 		let cellWidthResizeObserver = getResizesObserver(templateData.cellContainer, {
 			width: width,
 			height: totalHeight
@@ -119,13 +125,7 @@ export class CodeCell extends Disposable {
 
 					this.viewCell.editorHeight = e.contentHeight;
 
-					if (this.viewCell.outputs.length) {
-						let outputHeight = this.viewCell.getOutputTotalHeight();
-						notebookEditor.layoutNotebookCell(this.viewCell, viewCell.editorHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING + 16 /** padding between input and output */ + outputHeight);
-					} else {
-						notebookEditor.layoutNotebookCell(this.viewCell, viewCell.editorHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING);
-					}
-
+					notebookEditor.layoutNotebookCell(this.viewCell, viewCell.getCellTotalHeight());
 				}
 
 			}
@@ -192,8 +192,7 @@ export class CodeCell extends Disposable {
 
 			let editorHeight = templateData.editor!.getContentHeight();
 			viewCell.editorHeight = editorHeight;
-			let totalOutputHeight = viewCell.getOutputTotalHeight();
-			notebookEditor.layoutNotebookCell(viewCell, viewCell.editorHeight + 32 + totalOutputHeight);
+			notebookEditor.layoutNotebookCell(viewCell, viewCell.getCellTotalHeight());
 		}));
 
 		if (viewCell.outputs.length > 0) {
@@ -207,9 +206,8 @@ export class CodeCell extends Disposable {
 				this.renderOutput(currOutput, index, undefined);
 			}
 
-			let totalOutputHeight = viewCell.getOutputTotalHeight();
 			viewCell.editorHeight = totalHeight;
-			this.notebookEditor.layoutNotebookCell(viewCell, viewCell.editorHeight + 32 + totalOutputHeight);
+			this.notebookEditor.layoutNotebookCell(viewCell, viewCell.getCellTotalHeight());
 		} else {
 			// noop
 			this.templateData.outputContainer!.style.display = 'none';
@@ -296,9 +294,7 @@ export class CodeCell extends Disposable {
 					}
 
 					this.viewCell.updateOutputHeight(currIndex, height);
-					const editorHeight = this.viewCell.editorHeight;
-					const totalOutputHeight = this.viewCell.getOutputTotalHeight();
-					this.notebookEditor.layoutNotebookCell(this.viewCell, editorHeight + 32 + totalOutputHeight);
+					this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.getCellTotalHeight());
 				}
 			});
 			elementSizeObserver.startObserving();
@@ -376,9 +372,7 @@ export class CodeCell extends Disposable {
 			output.pickedMimeTypeIndex = pick;
 
 			this.renderOutput(output, index, nextElement);
-
-			let totalOutputHeight = this.viewCell.getOutputTotalHeight();
-			this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.editorHeight + 32 + totalOutputHeight);
+			this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.getCellTotalHeight());
 		}
 	}
 

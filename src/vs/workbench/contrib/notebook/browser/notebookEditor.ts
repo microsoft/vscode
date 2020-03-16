@@ -21,7 +21,7 @@ import { contrastBorder, editorBackground, focusBorder, foreground, textBlockQuo
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions, IEditorMemento, ICompositeCodeEditor, IEditorCloseEvent } from 'vs/workbench/common/editor';
-import { INotebookEditor, NotebookLayoutInfo, CellState, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor, NotebookLayoutInfo, CellState, NOTEBOOK_EDITOR_FOCUSED, CellFocusMode, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorInput, NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
@@ -68,7 +68,7 @@ export class NotebookCodeEditors implements ICompositeCodeEditor {
 
 	constructor(
 		private _list: NotebookCellList,
-		private _renderedEditors: Map<CellViewModel, ICodeEditor | undefined>
+		private _renderedEditors: Map<ICellViewModel, ICodeEditor | undefined>
 	) {
 		_list.onDidChangeFocus(e => this._onDidChangeActiveEditor.fire(this), undefined, this._disposables);
 	}
@@ -93,7 +93,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	private webview: BackLayerWebView | null = null;
 	private list: NotebookCellList | undefined;
 	private control: ICompositeCodeEditor | undefined;
-	private renderedEditors: Map<CellViewModel, ICodeEditor | undefined> = new Map();
+	private renderedEditors: Map<ICellViewModel, ICodeEditor | undefined> = new Map();
 	private notebookViewModel: NotebookViewModel | undefined;
 	private localStore: DisposableStore = this._register(new DisposableStore());
 	private editorMemento: IEditorMemento<INotebookEditorViewState>;
@@ -167,7 +167,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		DOM.addClass(this.body, 'cell-list-container');
 		this.createCellList();
 		DOM.append(parent, this.body);
-		DOM.append(this.body, this.findWidget.getDomNode());
+		DOM.append(parent, this.findWidget.getDomNode());
 	}
 
 	private createCellList(): void {
@@ -184,6 +184,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			this.body,
 			this.instantiationService.createInstance(NotebookCellListDelegate),
 			renders,
+			this.contextKeyService,
 			{
 				setRowLineHeight: false,
 				setRowHeight: false,
@@ -210,7 +211,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 					listInactiveFocusBackground: editorBackground,
 					listInactiveFocusOutline: editorBackground,
 				}
-			}
+			},
 		);
 
 		this.control = new NotebookCodeEditors(this.list, this.renderedEditors);
@@ -280,7 +281,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		// reveal cell if editor options tell to do so
 		if (options instanceof NotebookEditorOptions && options.cellOptions) {
 			const cellOptions = options.cellOptions;
-			const cell = this.notebookViewModel!.viewCells.find(cell => cell.cell.uri.toString() === cellOptions.resource.toString());
+			const cell = this.notebookViewModel!.viewCells.find(cell => cell.uri.toString() === cellOptions.resource.toString());
 			if (cell) {
 				this.revealInCenterIfOutsideViewport(cell);
 				const editor = this.renderedEditors.get(cell)!;
@@ -365,12 +366,12 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 		this.localStore.add(this.list!.onDidChangeFocus((e) => {
 			if (e.elements.length > 0) {
-				this.notebookService.updateNotebookActiveCell(input.viewType!, input.resource!, e.elements[0].cell.handle);
+				this.notebookService.updateNotebookActiveCell(input.viewType!, input.resource!, e.elements[0].handle);
 			}
 		}));
 
 		this.list?.splice(0, this.list?.length || 0);
-		this.list?.splice(0, 0, this.notebookViewModel!.viewCells);
+		this.list?.splice(0, 0, this.notebookViewModel!.viewCells as CellViewModel[]);
 		this.list?.layout();
 	}
 
@@ -409,7 +410,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 	//#region Editor Features
 
-	selectElement(cell: CellViewModel) {
+	selectElement(cell: ICellViewModel) {
 		const index = this.notebookViewModel?.getViewCellIndex(cell);
 
 		if (index !== undefined) {
@@ -418,7 +419,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		}
 	}
 
-	revealInView(cell: CellViewModel) {
+	revealInView(cell: ICellViewModel) {
 		const index = this.notebookViewModel?.getViewCellIndex(cell);
 
 		if (index !== undefined) {
@@ -426,7 +427,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		}
 	}
 
-	revealInCenterIfOutsideViewport(cell: CellViewModel) {
+	revealInCenterIfOutsideViewport(cell: ICellViewModel) {
 		const index = this.notebookViewModel?.getViewCellIndex(cell);
 
 		if (index !== undefined) {
@@ -434,7 +435,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		}
 	}
 
-	revealInCenter(cell: CellViewModel) {
+	revealInCenter(cell: ICellViewModel) {
 		const index = this.notebookViewModel?.getViewCellIndex(cell);
 
 		if (index !== undefined) {
@@ -442,7 +443,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		}
 	}
 
-	revealLineInView(cell: CellViewModel, line: number): void {
+	revealLineInView(cell: ICellViewModel, line: number): void {
 		const index = this.notebookViewModel?.getViewCellIndex(cell);
 
 		if (index !== undefined) {
@@ -450,7 +451,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		}
 	}
 
-	revealLineInCenter(cell: CellViewModel, line: number) {
+	revealLineInCenter(cell: ICellViewModel, line: number) {
 		const index = this.notebookViewModel?.getViewCellIndex(cell);
 
 		if (index !== undefined) {
@@ -458,7 +459,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		}
 	}
 
-	revealLineInCenterIfOutsideViewport(cell: CellViewModel, line: number) {
+	revealLineInCenterIfOutsideViewport(cell: ICellViewModel, line: number) {
 		const index = this.notebookViewModel?.getViewCellIndex(cell);
 
 		if (index !== undefined) {
@@ -466,7 +467,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		}
 	}
 
-	revealRangeInView(cell: CellViewModel, range: Range): void {
+	revealRangeInView(cell: ICellViewModel, range: Range): void {
 		const index = this.notebookViewModel?.getViewCellIndex(cell);
 
 		if (index !== undefined) {
@@ -474,7 +475,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		}
 	}
 
-	revealRangeInCenter(cell: CellViewModel, range: Range): void {
+	revealRangeInCenter(cell: ICellViewModel, range: Range): void {
 		const index = this.notebookViewModel?.getViewCellIndex(cell);
 
 		if (index !== undefined) {
@@ -482,7 +483,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		}
 	}
 
-	revealRangeInCenterIfOutsideViewport(cell: CellViewModel, range: Range): void {
+	revealRangeInCenterIfOutsideViewport(cell: ICellViewModel, range: Range): void {
 		const index = this.notebookViewModel?.getViewCellIndex(cell);
 
 		if (index !== undefined) {
@@ -490,7 +491,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		}
 	}
 
-	setCellSelection(cell: CellViewModel, range: Range): void {
+	setCellSelection(cell: ICellViewModel, range: Range): void {
 		const index = this.notebookViewModel?.getViewCellIndex(cell);
 
 		if (index !== undefined) {
@@ -518,8 +519,8 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	//#endregion
 
 	//#region Cell operations
-	layoutNotebookCell(cell: CellViewModel, height: number) {
-		let relayout = (cell: CellViewModel, height: number) => {
+	layoutNotebookCell(cell: ICellViewModel, height: number) {
+		let relayout = (cell: ICellViewModel, height: number) => {
 			let index = this.notebookViewModel!.getViewCellIndex(cell);
 			if (index >= 0) {
 				this.list?.updateElementHeight(index, height);
@@ -541,7 +542,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		});
 	}
 
-	async insertNotebookCell(cell: CellViewModel, type: CellKind, direction: 'above' | 'below', initialText: string = ''): Promise<void> {
+	async insertNotebookCell(cell: ICellViewModel, type: CellKind, direction: 'above' | 'below', initialText: string = ''): Promise<void> {
 		const newLanguages = this.notebookViewModel!.languages;
 		const language = newLanguages && newLanguages.length ? newLanguages[0] : 'markdown';
 		const index = this.notebookViewModel!.getViewCellIndex(cell);
@@ -562,32 +563,32 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		});
 	}
 
-	async deleteNotebookCell(cell: CellViewModel): Promise<void> {
+	async deleteNotebookCell(cell: ICellViewModel): Promise<void> {
 		const index = this.notebookViewModel!.getViewCellIndex(cell);
 		await this.notebookService.deleteNotebookCell(this.notebookViewModel!.viewType, this.notebookViewModel!.uri, index);
 		this.notebookViewModel!.deleteCell(index);
 		this.list?.splice(index, 1);
 	}
 
-	moveCellDown(cell: CellViewModel): void {
+	moveCellDown(cell: ICellViewModel): void {
 		const index = this.notebookViewModel!.getViewCellIndex(cell);
 		const newIdx = index + 1;
 		this.moveCellToIndex(cell, index, newIdx);
 	}
 
-	moveCellUp(cell: CellViewModel): void {
+	moveCellUp(cell: ICellViewModel): void {
 		const index = this.notebookViewModel!.getViewCellIndex(cell);
 		const newIdx = index - 1;
 		this.moveCellToIndex(cell, index, newIdx);
 	}
 
-	private moveCellToIndex(cell: CellViewModel, index: number, newIdx: number): void {
+	private moveCellToIndex(cell: ICellViewModel, index: number, newIdx: number): void {
 		if (!this.notebookViewModel!.moveCellToIdx(index, newIdx)) {
 			return;
 		}
 
 		this.list?.splice(index, 1);
-		this.list!.splice(newIdx, 0, [cell]);
+		this.list!.splice(newIdx, 0, [cell as CellViewModel]);
 
 		DOM.scheduleAtNextAnimationFrame(() => {
 			this.list?.revealInCenterIfOutsideViewport(index + 1);
@@ -600,8 +601,8 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		this.renderedEditors.get(cell)?.focus();
 	}
 
-	saveNotebookCell(cell: CellViewModel): void {
-		cell.state = CellState.Read;
+	saveNotebookCell(cell: ICellViewModel): void {
+		cell.state = CellState.Preview;
 	}
 
 	getActiveCell() {
@@ -614,22 +615,29 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		return undefined;
 	}
 
-	focusNotebookCell(cell: CellViewModel, focusEditor: boolean) {
+	focusNotebookCell(cell: ICellViewModel, focusEditor: boolean) {
 		const index = this.notebookViewModel!.getViewCellIndex(cell);
 
 		if (focusEditor) {
+			this.list?.setFocus([index]);
+			this.list?.setSelection([index]);
+			this.list?.focusView();
 
+			cell.state = CellState.Editing;
+			cell.focusMode = CellFocusMode.Editor;
 		} else {
 			let itemDOM = this.list?.domElementAtIndex(index);
 			if (document.activeElement && itemDOM && itemDOM.contains(document.activeElement)) {
 				(document.activeElement as HTMLElement).blur();
 			}
 
-			cell.state = CellState.Read;
-		}
+			cell.state = CellState.Preview;
+			cell.focusMode = CellFocusMode.Editor;
 
-		this.list?.setFocus([index]);
-		this.list?.focusView();
+			this.list?.setFocus([index]);
+			this.list?.setSelection([index]);
+			this.list?.focusView();
+		}
 	}
 
 	//#endregion

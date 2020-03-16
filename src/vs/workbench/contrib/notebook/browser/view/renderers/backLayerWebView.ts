@@ -11,10 +11,10 @@ import * as UUID from 'vs/base/common/uuid';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
-import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
 import { CELL_MARGIN, IOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IWebviewService, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewResourceScheme } from 'vs/workbench/contrib/webview/common/resourceLoader';
+import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
 
 export interface IDimentionMessage {
 	type: 'dimension';
@@ -266,11 +266,9 @@ export class BackLayerWebView extends Disposable {
 				let outputHeight = height === 0 ? 0 : height + 16;
 
 				if (cell) {
-					let editorHeight = cell.editorHeight;
 					let outputIndex = cell.outputs.indexOf(output);
 					cell.updateOutputHeight(outputIndex, outputHeight);
-					let totalOutputHeight = cell.getOutputTotalHeight();
-					this.notebookEditor.layoutNotebookCell(cell, editorHeight + 32 /* code cell padding */ + totalOutputHeight);
+					this.notebookEditor.layoutNotebookCell(cell, cell.getCellTotalHeight());
 				}
 			} else if (data.type === 'scroll-ack') {
 				// const date = new Date();

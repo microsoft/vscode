@@ -14,11 +14,11 @@ import { IListService, IWorkbenchListOptions, WorkbenchList } from 'vs/platform/
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { isMacintosh } from 'vs/base/common/platform';
-import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
-import { EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { EDITOR_TOP_PADDING, NOTEBOOK_EDITOR_CURSOR_BOUNDARY } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Range } from 'vs/editor/common/core/range';
-import { CellRevealType, CellRevealPosition } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellRevealType, CellRevealPosition, CursorAtBoundary } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
 
 export class NotebookCellList extends WorkbenchList<CellViewModel> implements IDisposable {
 	get onWillScroll(): Event<ScrollEvent> { return this.view.onWillScroll; }
@@ -34,8 +34,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<CellViewModel>,
 		renderers: IListRenderer<CellViewModel, any>[],
+		contextKeyService: IContextKeyService,
 		options: IWorkbenchListOptions<CellViewModel>,
-		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -53,6 +53,48 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			});
 			this._previousSelectedElements = e.elements;
 		}));
+
+		const notebookEditorCursorAtBoundaryContext = NOTEBOOK_EDITOR_CURSOR_BOUNDARY.bindTo(contextKeyService);
+		notebookEditorCursorAtBoundaryContext.set('none');
+
+		let cursorSelectionLisener: IDisposable | null = null;
+
+		const recomputeContext = (element: CellViewModel) => {
+			switch (element.cursorAtBoundary()) {
+				case CursorAtBoundary.Both:
+					notebookEditorCursorAtBoundaryContext.set('both');
+					break;
+				case CursorAtBoundary.Top:
+					notebookEditorCursorAtBoundaryContext.set('top');
+					break;
+				case CursorAtBoundary.Bottom:
+					notebookEditorCursorAtBoundaryContext.set('bottom');
+					break;
+				default:
+					notebookEditorCursorAtBoundaryContext.set('none');
+					break;
+			}
+			return;
+		};
+
+		// Cursor Boundary context
+		this._localDisposableStore.add(this.onDidChangeFocus((e) => {
+			cursorSelectionLisener?.dispose();
+			if (e.elements.length) {
+				// we only validate the first focused element
+				const focusedElement = e.elements[0];
+
+				cursorSelectionLisener = focusedElement.onDidChangeCursorSelection(() => {
+					recomputeContext(focusedElement);
+				});
+				recomputeContext(focusedElement);
+				return;
+			}
+
+			// reset context
+			notebookEditorCursorAtBoundaryContext.set('none');
+		}));
+
 	}
 
 	domElementAtIndex(index: number): HTMLElement | null {
@@ -76,7 +118,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	updateElementHeight(index: number, size: number): void {
-		this.view.updateElementHeight(index, size);
+		const focused = this.getFocus();
+		this.view.updateElementHeight(index, size, focused.length ? focused[0] : null);
 	}
 
 	// override
@@ -218,7 +261,14 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const element = this.view.element(index);
 
 		if (viewItemOffset < scrollTop || viewItemOffset > wrapperBottom) {
+			// let it render
 			this.view.setScrollTop(viewItemOffset - this.view.renderHeight / 2);
+
+			// after rendering, it might be pushed down due to markdown cell dynamic height
+			const elementTop = this.view.elementTop(index);
+			this.view.setScrollTop(elementTop - this.view.renderHeight / 2);
+
+			// reveal editor
 			if (!element.editorAttached) {
 				getEditorAttachedPromise(element).then(() => reveal(index, range, revealType));
 			} else {
@@ -252,15 +302,14 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			return;
 		}
 
-		let viewItemOffset = elementTop;
-
-		if (revealPosition === CellRevealPosition.Top) {
-			viewItemOffset = elementTop;
-		} else if (revealPosition === CellRevealPosition.Center) {
-			viewItemOffset = elementTop - this.view.renderHeight / 2;
-		}
-
+		// first render
+		const viewItemOffset = revealPosition === CellRevealPosition.Top ? elementTop : (elementTop - this.view.renderHeight / 2);
 		this.view.setScrollTop(viewItemOffset);
+
+		// second scroll as markdown cell is dynamic
+		const newElementTop = this.view.elementTop(index);
+		const newViewItemOffset = revealPosition === CellRevealPosition.Top ? newElementTop : (newElementTop - this.view.renderHeight / 2);
+		this.view.setScrollTop(newViewItemOffset);
 	}
 
 	revealInView(index: number) {

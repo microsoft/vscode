@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import * as UUID from 'vs/base/common/uuid';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
@@ -16,16 +16,18 @@ import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer'
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MarkdownRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/mdRenderer';
 import { CellKind, EDITOR_BOTTOM_PADDING, EDITOR_TOP_PADDING, ICell, IOutput, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { CellFindMatch, CellState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellFindMatch, CellState, CursorAtBoundary, CellFocusMode, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
-export class CellViewModel extends Disposable {
+export class CellViewModel extends Disposable implements ICellViewModel {
 
 	private _mdRenderer: MarkdownRenderer | null = null;
 	private _html: HTMLElement | null = null;
 	protected readonly _onDidDispose = new Emitter<void>();
 	readonly onDidDispose = this._onDidDispose.event;
-	protected readonly _onDidChangeEditingState = new Emitter<void>();
-	readonly onDidChangeEditingState = this._onDidChangeEditingState.event;
+	protected readonly _onDidChangeCellState = new Emitter<void>();
+	readonly onDidChangeCellState = this._onDidChangeCellState.event;
+	protected readonly _onDidChangeFocusMode = new Emitter<void>();
+	readonly onDidChangeFocusMode = this._onDidChangeFocusMode.event;
 	protected readonly _onDidChangeOutputs = new Emitter<NotebookCellOutputsSplice[]>();
 	readonly onDidChangeOutputs = this._onDidChangeOutputs.event;
 	private _outputCollection: number[] = [];
@@ -33,6 +35,10 @@ export class CellViewModel extends Disposable {
 
 	get handle() {
 		return this.cell.handle;
+	}
+
+	get uri() {
+		return this.cell.uri;
 	}
 
 	get cellKind() {
@@ -45,33 +51,30 @@ export class CellViewModel extends Disposable {
 		return this.cell.outputs;
 	}
 
-	private _isEditing: boolean;
-
-	get isEditing(): boolean {
-		return this._isEditing;
-	}
-
-	private _state: CellState = CellState.Read;
+	private _state: CellState = CellState.Preview;
 
 	get state(): CellState {
 		return this._state;
 	}
 
 	set state(newState: CellState) {
-		// no downgrade from Editing to PreviewContent
-		if (this._state === CellState.Editing && newState === CellState.PreviewContent) {
+		if (newState === this._state) {
 			return;
 		}
 
 		this._state = newState;
+		this._onDidChangeCellState.fire();
+	}
 
-		if (newState !== CellState.Read) {
-			this._isEditing = true;
-		} else {
-			this._isEditing = false;
-		}
+	private _focusMode: CellFocusMode = CellFocusMode.Container;
 
-		this._onDidChangeEditingState.fire();
+	get focusMode() {
+		return this._focusMode;
+	}
+
+	set focusMode(newMode: CellFocusMode) {
+		this._focusMode = newMode;
+		this._onDidChangeFocusMode.fire();
 	}
 
 	private _selfSizeMonitoring: boolean = false;
@@ -106,6 +109,10 @@ export class CellViewModel extends Disposable {
 	private _editorViewStates: editorCommon.ICodeEditorViewState | null;
 	private _lastDecorationId: number = 0;
 	private _resolvedDecorations = new Map<string, { id?: string, options: model.IModelDeltaDecoration }>();
+	private readonly _onDidChangeCursorSelection: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onDidChangeCursorSelection: Event<void> = this._onDidChangeCursorSelection.event;
+
+	private _cursorChangeListener: IDisposable | null = null;
 
 	readonly id: string = UUID.generateUuid();
 
@@ -128,7 +135,6 @@ export class CellViewModel extends Disposable {
 		this._outputCollection = new Array(this.cell.outputs.length);
 		this._buffer = null;
 		this._editorViewStates = null;
-		this._isEditing = false;
 	}
 
 	restoreEditorViewState(editorViewStates: editorCommon.ICodeEditorViewState | null) {
@@ -235,7 +241,7 @@ export class CellViewModel extends Disposable {
 		this._html = null;
 	}
 	save() {
-		if (this._textModel && !this._textModel.isDisposed() && (this.cell.isDirty || this.isEditing)) {
+		if (this._textModel && !this._textModel.isDisposed() && (this.cell.isDirty || this.state === CellState.Editing)) {
 			let cnt = this._textModel.getLineCount();
 			this.cell.source = this._textModel.getLinesContent().map((str, index) => str + (index !== cnt - 1 ? '\n' : ''));
 		}
@@ -300,6 +306,8 @@ export class CellViewModel extends Disposable {
 			}
 		});
 
+		this._cursorChangeListener = this._textEditor.onDidChangeCursorSelection(() => this._onDidChangeCursorSelection.fire());
+		this._onDidChangeCursorSelection.fire();
 		this._onDidChangeEditorAttachState.fire(true);
 	}
 
@@ -315,6 +323,7 @@ export class CellViewModel extends Disposable {
 			}
 		});
 		this._textEditor = undefined;
+		this._cursorChangeListener?.dispose();
 		this._onDidChangeEditorAttachState.fire(false);
 	}
 
@@ -373,9 +382,40 @@ export class CellViewModel extends Disposable {
 	}
 
 	onDeselect() {
-		if (this.state === CellState.PreviewContent) {
-			this.state = CellState.Read;
+		this.state = CellState.Preview;
+	}
+
+	cursorAtBoundary(): CursorAtBoundary {
+		if (!this._textEditor) {
+			return CursorAtBoundary.None;
 		}
+
+		// only validate primary cursor
+		const selection = this._textEditor.getSelection();
+
+		// only validate empty cursor
+		if (!selection || !selection.isEmpty()) {
+			return CursorAtBoundary.None;
+		}
+
+		// we don't allow attaching text editor without a model
+		const lineCnt = this._textEditor.getModel()!.getLineCount();
+
+		if (selection.startLineNumber === lineCnt) {
+			// bottom
+
+			if (selection.startLineNumber === 1) {
+				return CursorAtBoundary.Both;
+			} else {
+				return CursorAtBoundary.Bottom;
+			}
+		}
+
+		if (selection.startLineNumber === 1) {
+			return CursorAtBoundary.Top;
+		}
+
+		return CursorAtBoundary.None;
 	}
 
 	getMarkdownRenderer() {
@@ -419,7 +459,7 @@ export class CellViewModel extends Disposable {
 		return undefined;
 	}
 
-	getOutputTotalHeight(): number {
+	private getOutputTotalHeight(): number {
 		this._ensureOutputsTop();
 
 		return this._outputsTop!.getTotalValue();
@@ -436,6 +476,14 @@ export class CellViewModel extends Disposable {
 			}
 
 			this._outputsTop!.insertValues(start, values);
+		}
+	}
+
+	getCellTotalHeight(): number {
+		if (this.outputs.length) {
+			return this.editorHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING + 16 + this.getOutputTotalHeight();
+		} else {
+			return this.editorHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING + this.getOutputTotalHeight();
 		}
 	}
 

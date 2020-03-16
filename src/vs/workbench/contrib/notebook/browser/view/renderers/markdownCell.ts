@@ -5,14 +5,14 @@
 
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/sizeObserver';
 import { CELL_MARGIN, EDITOR_TOP_PADDING, EDITOR_BOTTOM_PADDING } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookEditor, CellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor, CellRenderTemplate, CellFocusMode, CellState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { raceCancellation } from 'vs/base/common/async';
+import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
 
 export class StatefullMarkdownCell extends Disposable {
 	private editor: CodeEditorWidget | null = null;
@@ -36,7 +36,7 @@ export class StatefullMarkdownCell extends Disposable {
 		this._register(this.localDisposables);
 
 		const viewUpdate = () => {
-			if (viewCell.isEditing) {
+			if (viewCell.state === CellState.Editing) {
 				// switch to editing mode
 				let width: number;
 				const listDimension = notebookEditor.getLayoutInfo();
@@ -106,7 +106,7 @@ export class StatefullMarkdownCell extends Disposable {
 							notebookEditor.layoutNotebookCell(viewCell, this.editor!.getContentHeight() + 32 + clientHeight);
 						}));
 
-						if (viewCell.isEditing) {
+						if (viewCell.state === CellState.Editing) {
 							this.editor!.focus();
 						}
 					});
@@ -189,9 +189,15 @@ export class StatefullMarkdownCell extends Disposable {
 			}
 		};
 
-		this._register(viewCell.onDidChangeEditingState(() => {
+		this._register(viewCell.onDidChangeCellState(() => {
 			this.localDisposables.clear();
 			viewUpdate();
+		}));
+
+		this._register(viewCell.onDidChangeFocusMode(() => {
+			if (viewCell.focusMode === CellFocusMode.Editor) {
+				this.editor?.focus();
+			}
 		}));
 
 		viewUpdate();

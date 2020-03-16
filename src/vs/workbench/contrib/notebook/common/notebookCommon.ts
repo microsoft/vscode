@@ -12,6 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { PieceTreeTextBufferFactory } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export enum CellKind {
 	Markdown = 1,
@@ -329,3 +330,5 @@ export function diff<T>(before: T[], after: T[], contains: (a: T) => boolean): I
 export interface ICellEditorViewState {
 	selections: editorCommon.ICursorState[];
 }
+
+export const NOTEBOOK_EDITOR_CURSOR_BOUNDARY = new RawContextKey<'none' | 'top' | 'bottom' | 'both'>('notebookEditorCursorAtBoundary', 'none');

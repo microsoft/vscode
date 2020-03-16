@@ -8,14 +8,13 @@ import { localize } from 'vs/nls';
 import { Action2, IAction2Options, MenuId, MenuItemAction, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { InputFocusedContext, InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
+import { InputFocusedContext, InputFocusedContextKey, IsDevelopmentContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { DELETE_CELL_COMMAND_ID, EDIT_CELL_COMMAND_ID, INSERT_CODE_CELL_ABOVE_COMMAND_ID, INSERT_CODE_CELL_BELOW_COMMAND_ID, INSERT_MARKDOWN_CELL_ABOVE_COMMAND_ID, INSERT_MARKDOWN_CELL_BELOW_COMMAND_ID, MOVE_CELL_DOWN_COMMAND_ID, MOVE_CELL_UP_COMMAND_ID, SAVE_CELL_COMMAND_ID, COPY_CELL_UP_COMMAND_ID, COPY_CELL_DOWN_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/constants';
-import { INotebookEditor, KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor, KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, NOTEBOOK_EDITOR_FOCUSED, ICellViewModel, CellState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
-import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NOTEBOOK_EDITOR_CURSOR_BOUNDARY } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 registerAction2(class extends Action2 {
@@ -158,6 +157,10 @@ registerAction2(class extends Action2 {
 
 		let activeCell = editor.getActiveCell();
 		if (activeCell) {
+			if (activeCell.cellKind === CellKind.Markdown) {
+				activeCell.state = CellState.Preview;
+			}
+
 			editor.focusNotebookCell(activeCell, false);
 		}
 	}
@@ -270,7 +273,7 @@ function getActiveNotebookEditor(editorService: IEditorService): INotebookEditor
 	return activeEditorPane?.isNotebookEditor ? activeEditorPane : undefined;
 }
 
-function runActiveCell(accessor: ServicesAccessor): CellViewModel | undefined {
+function runActiveCell(accessor: ServicesAccessor): ICellViewModel | undefined {
 	const editorService = accessor.get(IEditorService);
 	const notebookService = accessor.get(INotebookService);
 
@@ -338,7 +341,7 @@ function changeActiveCellToKind(kind: CellKind, accessor: ServicesAccessor): voi
 }
 
 export interface INotebookCellActionContext {
-	cell: CellViewModel;
+	cell: ICellViewModel;
 	notebookEditor: INotebookEditor;
 }
 
@@ -769,5 +772,123 @@ registerAction2(class extends Action2 {
 		}
 
 		return copyCell(context, 'down');
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.notebook.cursorDown',
+			title: 'Notebook Cursor Move Down',
+			keybinding: {
+				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.has(InputFocusedContextKey), NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('top'), NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('none')),
+				primary: KeyCode.DownArrow,
+				weight: KeybindingWeight.WorkbenchContrib
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext): Promise<void> {
+		if (!context) {
+			context = getActiveCellContext(accessor);
+			if (!context) {
+				return;
+			}
+		}
+
+		const editor = context.notebookEditor;
+		const activeCell = context.cell;
+
+		const idx = editor.viewModel?.getViewCellIndex(activeCell);
+		if (typeof idx !== 'number') {
+			return;
+		}
+
+		const newCell = editor.viewModel?.viewCells[idx + 1];
+
+		if (!newCell) {
+			return;
+		}
+
+		editor.focusNotebookCell(newCell, true);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.notebook.cursorUp',
+			title: 'Notebook Cursor Move Up',
+			keybinding: {
+				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.has(InputFocusedContextKey), NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('bottom'), NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('none')),
+				primary: KeyCode.UpArrow,
+				weight: KeybindingWeight.WorkbenchContrib
+			},
+		});
+	}
+
+	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext): Promise<void> {
+		if (!context) {
+			context = getActiveCellContext(accessor);
+			if (!context) {
+				return;
+			}
+		}
+
+		const editor = context.notebookEditor;
+		const activeCell = context.cell;
+
+		const idx = editor.viewModel?.getViewCellIndex(activeCell);
+		if (typeof idx !== 'number') {
+			return;
+		}
+
+		if (idx < 1) {
+			// we don't do loop
+			return;
+		}
+
+		const newCell = editor.viewModel?.viewCells[idx - 1];
+
+		if (!newCell) {
+			return;
+		}
+
+		editor.focusNotebookCell(newCell, true);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.notebook.testResize',
+			title: 'Notebook Test Cell Resize',
+			keybinding: {
+				when: IsDevelopmentContext,
+				primary: undefined,
+				weight: KeybindingWeight.WorkbenchContrib
+			},
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const resource = editorService.activeEditor?.resource;
+		if (!resource) {
+			return;
+		}
+
+		const editor = getActiveNotebookEditor(editorService);
+		if (!editor) {
+			return;
+		}
+
+		const cells = editor.viewModel?.viewCells;
+
+		if (cells && cells.length) {
+			const firstCell = cells[0];
+			editor.layoutNotebookCell(firstCell, 400);
+		}
 	}
 });
