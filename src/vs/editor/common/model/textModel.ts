@@ -1793,7 +1793,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 		this._emitModelTokensChangedEvent({
 			tokenizationSupportChanged: false,
-			semanticTokensApplied: true,
+			semanticTokensApplied: false,
 			ranges: [{ fromLineNumber: 1, toLineNumber: this.getLineCount() }]
 		});
 	}
