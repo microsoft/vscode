@@ -12,7 +12,7 @@ import 'vs/css!./notebook';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -21,7 +21,7 @@ import { contrastBorder, editorBackground, focusBorder, foreground, textBlockQuo
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions, IEditorMemento, ICompositeCodeEditor, IEditorCloseEvent } from 'vs/workbench/common/editor';
-import { INotebookEditor, NotebookLayoutInfo, CellState, CellFocusMode, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor, NotebookLayoutInfo, CellState, NOTEBOOK_EDITOR_FOCUSED, CellFocusMode, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorInput, NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
@@ -44,8 +44,6 @@ import { Range } from 'vs/editor/common/core/range';
 
 const $ = DOM.$;
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
-
-export const NOTEBOOK_EDITOR_FOCUSED = new RawContextKey<boolean>('notebookEditorFocused', false);
 
 export class NotebookEditorOptions extends EditorOptions {
 
@@ -572,7 +570,32 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		this.list?.splice(index, 1);
 	}
 
-	editNotebookCell(cell: ICellViewModel): void {
+	moveCellDown(cell: ICellViewModel): void {
+		const index = this.notebookViewModel!.getViewCellIndex(cell);
+		const newIdx = index + 1;
+		this.moveCellToIndex(cell, index, newIdx);
+	}
+
+	moveCellUp(cell: ICellViewModel): void {
+		const index = this.notebookViewModel!.getViewCellIndex(cell);
+		const newIdx = index - 1;
+		this.moveCellToIndex(cell, index, newIdx);
+	}
+
+	private moveCellToIndex(cell: ICellViewModel, index: number, newIdx: number): void {
+		if (!this.notebookViewModel!.moveCellToIdx(index, newIdx)) {
+			return;
+		}
+
+		this.list?.splice(index, 1);
+		this.list!.splice(newIdx, 0, [cell as CellViewModel]);
+
+		DOM.scheduleAtNextAnimationFrame(() => {
+			this.list?.revealInCenterIfOutsideViewport(index + 1);
+		});
+	}
+
+	editNotebookCell(cell: CellViewModel): void {
 		cell.state = CellState.Editing;
 
 		this.renderedEditors.get(cell)?.focus();
@@ -686,12 +709,12 @@ registerThemingParticipant((theme, collector) => {
 	}
 	const link = theme.getColor(textLinkForeground);
 	if (link) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor a { color: ${link}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell a { color: ${link}; }`);
 	}
 	const activeLink = theme.getColor(textLinkActiveForeground);
 	if (activeLink) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor a:hover,
-			.monaco-workbench .part.editor > .content .notebook-editor a:active { color: ${activeLink}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell a:hover,
+			.monaco-workbench .part.editor > .content .notebook-editor .cell a:active { color: ${activeLink}; }`);
 	}
 	const shortcut = theme.getColor(textPreformatForeground);
 	if (shortcut) {

@@ -3,28 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!vs/workbench/contrib/notebook/browser/notebook';
 import { getZoomLevel } from 'vs/base/browser/browser';
 import * as DOM from 'vs/base/browser/dom';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { Action } from 'vs/base/common/actions';
+import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
+import { IAction } from 'vs/base/common/actions';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { deepClone } from 'vs/base/common/objects';
+import 'vs/css!vs/workbench/contrib/notebook/browser/notebook';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { InsertCodeCellAboveAction, INotebookCellActionContext, InsertCodeCellBelowAction, InsertMarkdownCellAboveAction, InsertMarkdownCellBelowAction, EditCellAction, SaveCellAction, DeleteCellAction, MoveCellUpAction, MoveCellDownAction } from 'vs/workbench/contrib/notebook/browser/contrib/notebookActions';
 import { CellRenderTemplate, INotebookEditor, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodeCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/codeCell';
 import { StatefullMarkdownCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/markdownCell';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EDITOR_TOP_PADDING, EDITOR_BOTTOM_PADDING, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
+import { CellKind, EDITOR_BOTTOM_PADDING, EDITOR_TOP_PADDING, EDITOR_TOOLBAR_HEIGHT } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellViewModel } from '../../viewModel/notebookCellViewModel';
+import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { MenuItemAction } from 'vs/platform/actions/common/actions';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class NotebookCellListDelegate implements IListVirtualDelegate<ICellViewModel> {
 	private _lineHeight: number;
+	private _toolbarHeight = EDITOR_TOOLBAR_HEIGHT;
+
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
@@ -33,7 +41,7 @@ export class NotebookCellListDelegate implements IListVirtualDelegate<ICellViewM
 	}
 
 	getHeight(element: CellViewModel): number {
-		return element.getHeight(this._lineHeight);
+		return element.getHeight(this._lineHeight) + this._toolbarHeight;
 	}
 
 	hasDynamicHeight(element: CellViewModel): boolean {
@@ -49,14 +57,17 @@ export class NotebookCellListDelegate implements IListVirtualDelegate<ICellViewM
 	}
 }
 
-class AbstractCellRenderer {
+abstract class AbstractCellRenderer {
 	protected editorOptions: IEditorOptions;
 
 	constructor(
-		protected notebookEditor: INotebookEditor,
-		private contextMenuService: IContextMenuService,
-		private configurationService: IConfigurationService,
-		language: string
+		protected readonly instantiationService: IInstantiationService,
+		protected readonly notebookEditor: INotebookEditor,
+		protected readonly contextMenuService: IContextMenuService,
+		private readonly configurationService: IConfigurationService,
+		private readonly keybindingService: IKeybindingService,
+		private readonly notificationService: INotificationService,
+		language: string,
 	) {
 		const editorOptions = deepClone(this.configurationService.getValue<IEditorOptions>('editor', { overrideIdentifier: language }));
 		this.editorOptions = {
@@ -81,89 +92,32 @@ class AbstractCellRenderer {
 		};
 	}
 
-	showContextMenu(listIndex: number | undefined, element: ICellViewModel, x: number, y: number) {
-		const actions: Action[] = [];
-		const insertAbove = new Action(
-			'workbench.notebook.code.insertCellAbove',
-			'Insert Code Cell Above',
-			undefined,
-			true,
-			async () => {
-				await this.notebookEditor.insertNotebookCell(element, CellKind.Code, 'above');
-			}
-		);
-		actions.push(insertAbove);
-
-		const insertBelow = new Action(
-			'workbench.notebook.code.insertCellBelow',
-			'Insert Code Cell Below',
-			undefined,
-			true,
-			async () => {
-				await this.notebookEditor.insertNotebookCell(element, CellKind.Code, 'below');
-			}
-		);
-		actions.push(insertBelow);
-
-		const insertMarkdownAbove = new Action(
-			'workbench.notebook.markdown.insertCellAbove',
-			'Insert Markdown Cell Above',
-			undefined,
-			true,
-			async () => {
-				await this.notebookEditor.insertNotebookCell(element, CellKind.Markdown, 'above');
-			}
-		);
-		actions.push(insertMarkdownAbove);
-
-		const insertMarkdownBelow = new Action(
-			'workbench.notebook.markdown.insertCellBelow',
-			'Insert Markdown Cell Below',
-			undefined,
-			true,
-			async () => {
-				await this.notebookEditor.insertNotebookCell(element, CellKind.Markdown, 'below');
-			}
-		);
-		actions.push(insertMarkdownBelow);
-
-		if (element.cellKind === CellKind.Markdown) {
-			const editAction = new Action(
-				'workbench.notebook.editCell',
-				'Edit Cell',
-				undefined,
-				true,
-				async () => {
-					this.notebookEditor.editNotebookCell(element);
+	protected createToolbar(container: HTMLElement): ToolBar {
+		const toolbar = new ToolBar(container, this.contextMenuService, {
+			actionViewItemProvider: action => {
+				if (action instanceof MenuItemAction) {
+					const item = new ContextAwareMenuEntryActionViewItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
+					return item;
 				}
-			);
 
-			actions.push(editAction);
-
-			const saveAction = new Action(
-				'workbench.notebook.saveCell',
-				'Save Cell',
-				undefined,
-				true,
-				async () => {
-					this.notebookEditor.saveNotebookCell(element);
-				}
-			);
-
-			actions.push(saveAction);
-		}
-
-		const deleteCell = new Action(
-			'workbench.notebook.deleteCell',
-			'Delete Cell',
-			undefined,
-			true,
-			async () => {
-				this.notebookEditor.deleteNotebookCell(element);
+				return undefined;
 			}
-		);
+		});
 
-		actions.push(deleteCell);
+		return toolbar;
+	}
+
+	showContextMenu(listIndex: number | undefined, element: CellViewModel, x: number, y: number) {
+		const actions: IAction[] = [
+			this.instantiationService.createInstance(InsertCodeCellAboveAction),
+			this.instantiationService.createInstance(InsertCodeCellBelowAction),
+			this.instantiationService.createInstance(InsertMarkdownCellAboveAction),
+			this.instantiationService.createInstance(InsertMarkdownCellBelowAction),
+		];
+		actions.push(...this.getAdditionalContextMenuActions());
+		actions.push(...[
+			this.instantiationService.createInstance(DeleteCellAction)
+		]);
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => {
@@ -172,12 +126,16 @@ class AbstractCellRenderer {
 					y
 				};
 			},
-			getActions: () => {
-				return actions;
+			getActions: () => actions,
+			getActionsContext: () => <INotebookCellActionContext>{
+				cell: element,
+				notebookEditor: this.notebookEditor
 			},
 			autoSelectFirstItem: false
 		});
 	}
+
+	abstract getAdditionalContextMenuActions(): IAction[];
 }
 
 export class MarkdownCellRenderer extends AbstractCellRenderer implements IListRenderer<ICellViewModel, CellRenderTemplate> {
@@ -186,11 +144,13 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 
 	constructor(
 		notehookEditor: INotebookEditor,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IContextMenuService contextMenuService: IContextMenuService
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@INotificationService notificationService: INotificationService,
 	) {
-		super(notehookEditor, contextMenuService, configurationService, 'markdown');
+		super(instantiationService, notehookEditor, contextMenuService, configurationService, keybindingService, notificationService, 'markdown');
 	}
 
 	get templateId() {
@@ -202,6 +162,18 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		DOM.addClasses(codeInnerContent, 'cell', 'code');
 		codeInnerContent.style.display = 'none';
 
+		const disposables = new DisposableStore();
+		const toolbar = this.createToolbar(container);
+		toolbar.setActions([
+			this.instantiationService.createInstance(MoveCellUpAction),
+			this.instantiationService.createInstance(MoveCellDownAction),
+			this.instantiationService.createInstance(InsertCodeCellBelowAction),
+			this.instantiationService.createInstance(EditCellAction),
+			this.instantiationService.createInstance(SaveCellAction),
+			this.instantiationService.createInstance(DeleteCellAction)
+		])();
+		disposables.add(toolbar);
+
 		container.appendChild(codeInnerContent);
 
 		const innerContent = document.createElement('div');
@@ -212,14 +184,14 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		DOM.addClasses(action, 'menu', 'codicon-settings-gear', 'codicon');
 		container.appendChild(action);
 
-		const template = {
+		return {
 			container: container,
 			cellContainer: innerContent,
 			menuContainer: action,
-			editingContainer: codeInnerContent
+			editingContainer: codeInnerContent,
+			disposables,
+			toolbar
 		};
-
-		return template;
 	}
 
 	renderElement(element: CellViewModel, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
@@ -256,6 +228,18 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 
 			elementDisposable!.add(new StatefullMarkdownCell(this.notebookEditor, element, templateData, this.editorOptions, this.instantiationService));
 		}
+
+		templateData.toolbar!.context = <INotebookCellActionContext>{
+			cell: element,
+			notebookEditor: this.notebookEditor
+		};
+	}
+
+	getAdditionalContextMenuActions(): IAction[] {
+		return [
+			this.instantiationService.createInstance(EditCellAction),
+			this.instantiationService.createInstance(SaveCellAction),
+		];
 	}
 
 	disposeTemplate(templateData: CellRenderTemplate): void {
@@ -279,9 +263,11 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		private renderedEditors: Map<ICellViewModel, ICodeEditor | undefined>,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@INotificationService notificationService: INotificationService,
 	) {
-		super(notebookEditor, contextMenuService, configurationService, 'python');
+		super(instantiationService, notebookEditor, contextMenuService, configurationService, keybindingService, notificationService, 'python');
 	}
 
 	get templateId() {
@@ -289,33 +275,46 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	}
 
 	renderTemplate(container: HTMLElement): CellRenderTemplate {
-		const innerContent = document.createElement('div');
-		DOM.addClasses(innerContent, 'cell', 'code');
-		container.appendChild(innerContent);
-		const editor = this.instantiationService.createInstance(CodeEditorWidget, innerContent, {
+		const disposables = new DisposableStore();
+		const toolbarContainer = document.createElement('div');
+		container.appendChild(toolbarContainer);
+		DOM.addClasses(toolbarContainer, 'menu', 'codicon-settings-gear', 'codicon');
+		const toolbar = this.createToolbar(container);
+		toolbar.setActions([
+			this.instantiationService.createInstance(MoveCellUpAction),
+			this.instantiationService.createInstance(MoveCellDownAction),
+			this.instantiationService.createInstance(InsertCodeCellBelowAction),
+			this.instantiationService.createInstance(DeleteCellAction)
+		])();
+		disposables.add(toolbar);
+
+		const cellContainer = document.createElement('div');
+		DOM.addClasses(cellContainer, 'cell', 'code');
+		container.appendChild(cellContainer);
+		const editor = this.instantiationService.createInstance(CodeEditorWidget, cellContainer, {
 			...this.editorOptions,
 			dimension: {
 				width: 0,
 				height: 0
 			}
 		}, {});
-		const action = document.createElement('div');
-		DOM.addClasses(action, 'menu', 'codicon-settings-gear', 'codicon');
-		container.appendChild(action);
+		const menuContainer = document.createElement('div');
+		DOM.addClasses(menuContainer, 'menu', 'codicon-settings-gear', 'codicon');
+		container.appendChild(menuContainer);
 
 		const outputContainer = document.createElement('div');
 		DOM.addClasses(outputContainer, 'output');
 		container.appendChild(outputContainer);
 
-		let tempalte = {
-			container: container,
-			cellContainer: innerContent,
-			menuContainer: action,
-			outputContainer: outputContainer,
-			editor
+		return {
+			container,
+			cellContainer,
+			menuContainer,
+			toolbar,
+			outputContainer,
+			editor,
+			disposables
 		};
-
-		return tempalte;
 	}
 
 	renderElement(element: CellViewModel, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
@@ -332,7 +331,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			this.disposables.set(element, new DisposableStore());
 		}
 
-		let elementDisposable = this.disposables.get(element);
+		const elementDisposable = this.disposables.get(element);
 
 		elementDisposable?.add(DOM.addStandardDisposableListener(templateData.menuContainer!, 'mousedown', e => {
 			let { top, height } = DOM.getDomNodePagePosition(templateData.menuContainer!);
@@ -354,9 +353,19 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		elementDisposable?.add(this.instantiationService.createInstance(CodeCell, this.notebookEditor, element, templateData));
 		this.renderedEditors.set(element, templateData.editor);
+
+		templateData.toolbar!.context = <INotebookCellActionContext>{
+			cell: element,
+			notebookEditor: this.notebookEditor
+		};
+	}
+
+	getAdditionalContextMenuActions(): IAction[] {
+		return [];
 	}
 
 	disposeTemplate(templateData: CellRenderTemplate): void {
+		templateData.disposables.clear();
 	}
 
 	disposeElement(element: ICellViewModel, index: number, templateData: CellRenderTemplate, height: number | undefined): void {

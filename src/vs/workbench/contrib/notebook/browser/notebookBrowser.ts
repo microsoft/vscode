@@ -13,9 +13,13 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { NotebookViewModel, IModelDecorationsChangeAccessor } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { FindMatch } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
+import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 
 export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('notebookFindWidgetFocused', false);
+
+export const NOTEBOOK_EDITOR_FOCUSED = new RawContextKey<boolean>('notebookEditorFocused', false);
 
 export interface NotebookLayoutInfo {
 	width: number;
@@ -68,6 +72,16 @@ export interface INotebookEditor {
 	 * Delete a cell from the notebook
 	 */
 	deleteNotebookCell(cell: ICellViewModel): void;
+
+	/**
+	 * Move a cell up one spot
+	 */
+	moveCellUp(cell: ICellViewModel): void;
+
+	/**
+	 * Move a cell down one spot
+	 */
+	moveCellDown(cell: ICellViewModel): void;
 
 	/**
 	 * Switch the cell into editing mode.
@@ -182,9 +196,11 @@ export interface CellRenderTemplate {
 	container: HTMLElement;
 	cellContainer: HTMLElement;
 	menuContainer?: HTMLElement;
+	toolbar: ToolBar;
 	editingContainer?: HTMLElement;
 	outputContainer?: HTMLElement;
 	editor?: CodeEditorWidget;
+	disposables: DisposableStore;
 }
 
 export interface IOutputTransformContribution {

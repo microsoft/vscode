@@ -116,6 +116,16 @@
 	cursor: pointer;
 }
 
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row .monaco-toolbar {
+	visibility: hidden;
+	margin-right: 24px;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row.focused .monaco-toolbar,
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row:hover .monaco-toolbar {
+	visibility: visible;
+}
+
 .monaco-workbench .part.editor > .content .notebook-editor .monaco-tree.focused.no-focused-item:focus:before,
 .monaco-workbench .part.editor > .content .notebook-editor .monaco-list:not(.element-focused):focus:before {
 	outline: none !important;
