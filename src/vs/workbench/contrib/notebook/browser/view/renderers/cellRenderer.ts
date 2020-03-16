@@ -22,12 +22,13 @@ import { InsertCodeCellAboveAction, INotebookCellActionContext, InsertCodeCellBe
 import { CellRenderTemplate, INotebookEditor, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodeCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/codeCell';
 import { StatefullMarkdownCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/markdownCell';
-import { CellKind, EDITOR_BOTTOM_PADDING, EDITOR_TOP_PADDING, EDITOR_TOOLBAR_HEIGHT } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellViewModel } from '../../viewModel/notebookCellViewModel';
 import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_PADDING, EDITOR_BOTTOM_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 
 export class NotebookCellListDelegate implements IListVirtualDelegate<ICellViewModel> {
 	private _lineHeight: number;

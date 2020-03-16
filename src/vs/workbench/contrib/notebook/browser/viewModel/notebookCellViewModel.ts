@@ -15,8 +15,9 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MarkdownRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/mdRenderer';
-import { CellKind, EDITOR_BOTTOM_PADDING, EDITOR_TOP_PADDING, ICell, IOutput, NotebookCellOutputsSplice, EDITOR_TOOLBAR_HEIGHT } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, ICell, IOutput, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellFindMatch, CellState, CursorAtBoundary, CellFocusMode, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { EDITOR_TOP_PADDING, EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT } from 'vs/workbench/contrib/notebook/browser/constants';
 
 export class CellViewModel extends Disposable implements ICellViewModel {
 

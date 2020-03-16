@@ -27,7 +27,7 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebook
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { BackLayerWebView } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
 import { CodeCellRenderer, MarkdownCellRenderer, NotebookCellListDelegate } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
-import { CELL_MARGIN, NotebookCellsSplice, IOutput, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookCellsSplice, IOutput, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -41,6 +41,7 @@ import { NotebookViewModel, INotebookEditorViewState, IModelDecorationsChangeAcc
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
 import { Range } from 'vs/editor/common/core/range';
+import { CELL_MARGIN } from 'vs/workbench/contrib/notebook/browser/constants';
 
 const $ = DOM.$;
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';

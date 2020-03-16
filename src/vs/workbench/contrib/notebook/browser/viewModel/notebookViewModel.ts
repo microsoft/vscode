@@ -130,7 +130,7 @@ export class NotebookViewModel extends Disposable {
 	}
 
 	moveCellToIdx(index: number, newIdx: number): boolean {
-		const viewCell = this.viewCells[index];
+		const viewCell = this.viewCells[index] as CellViewModel;
 		if (!viewCell) {
 			return false;
 		}

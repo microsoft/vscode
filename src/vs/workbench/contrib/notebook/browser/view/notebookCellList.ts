@@ -14,11 +14,12 @@ import { IListService, IWorkbenchListOptions, WorkbenchList } from 'vs/platform/
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { isMacintosh } from 'vs/base/common/platform';
-import { EDITOR_TOP_PADDING, NOTEBOOK_EDITOR_CURSOR_BOUNDARY } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NOTEBOOK_EDITOR_CURSOR_BOUNDARY } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { CellRevealType, CellRevealPosition, CursorAtBoundary } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
+import { EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 
 export class NotebookCellList extends WorkbenchList<CellViewModel> implements IDisposable {
 	get onWillScroll(): Event<ScrollEvent> { return this.view.onWillScroll; }
