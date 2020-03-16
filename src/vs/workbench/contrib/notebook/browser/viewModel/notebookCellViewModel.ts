@@ -459,7 +459,7 @@ export class CellViewModel extends Disposable implements ICellViewModel {
 		return undefined;
 	}
 
-	getOutputTotalHeight(): number {
+	private getOutputTotalHeight(): number {
 		this._ensureOutputsTop();
 
 		return this._outputsTop!.getTotalValue();
@@ -476,6 +476,14 @@ export class CellViewModel extends Disposable implements ICellViewModel {
 			}
 
 			this._outputsTop!.insertValues(start, values);
+		}
+	}
+
+	getCellTotalHeight(): number {
+		if (this.outputs.length) {
+			return this.editorHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING + 16 + this.getOutputTotalHeight();
+		} else {
+			return this.editorHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING + this.getOutputTotalHeight();
 		}
 	}
 

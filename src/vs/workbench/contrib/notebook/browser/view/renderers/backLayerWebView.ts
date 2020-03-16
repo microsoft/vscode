@@ -266,11 +266,9 @@ export class BackLayerWebView extends Disposable {
 				let outputHeight = height === 0 ? 0 : height + 16;
 
 				if (cell) {
-					let editorHeight = cell.editorHeight;
 					let outputIndex = cell.outputs.indexOf(output);
 					cell.updateOutputHeight(outputIndex, outputHeight);
-					let totalOutputHeight = cell.getOutputTotalHeight();
-					this.notebookEditor.layoutNotebookCell(cell, editorHeight + 32 /* code cell padding */ + totalOutputHeight);
+					this.notebookEditor.layoutNotebookCell(cell, cell.getCellTotalHeight());
 				}
 			} else if (data.type === 'scroll-ack') {
 				// const date = new Date();
