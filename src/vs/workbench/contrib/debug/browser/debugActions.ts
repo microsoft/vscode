@@ -393,21 +393,18 @@ export class CopyValueAction extends Action {
 	async run(): Promise<any> {
 		const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 		const session = this.debugService.getViewModel().focusedSession;
-
-		if (typeof this.value === 'string') {
-			return this.clipboardService.writeText(this.value);
+		if (!stackFrame || !session) {
+			return;
 		}
 
-		if (stackFrame && session && this.value.evaluateName) {
-			try {
-				const context = session.capabilities.supportsClipboardContext ? 'clipboard' : this.context;
-				const evaluation = await session.evaluate(this.value.evaluateName, stackFrame.frameId, context);
-				this.clipboardService.writeText(evaluation.body.result);
-			} catch (e) {
-				this.clipboardService.writeText(this.value.value);
-			}
-		} else {
-			this.clipboardService.writeText(this.value.value);
+		const context = session.capabilities.supportsClipboardContext ? 'clipboard' : this.context;
+		const toEvaluate = typeof this.value === 'string' ? this.value : this.value.evaluateName || this.value.value;
+
+		try {
+			const evaluation = await session.evaluate(toEvaluate, stackFrame.frameId, context);
+			this.clipboardService.writeText(evaluation.body.result);
+		} catch (e) {
+			this.clipboardService.writeText(typeof this.value === 'string' ? this.value : this.value.value);
 		}
 	}
 }

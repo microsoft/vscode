@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { IPickerQuickAccessItem, PickerQuickAccessProvider, TriggerAction } from 'vs/platform/quickinput/common/quickAccess';
+import { IPickerQuickAccessItem, PickerQuickAccessProvider, TriggerAction } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { matchesFuzzy } from 'vs/base/common/filters';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';

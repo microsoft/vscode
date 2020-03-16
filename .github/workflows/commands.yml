@@ -1,21 +1,21 @@
-name: Commands
-on:
-  issue_comment:
-    types: [created]
-  issues:
-    types: [labeled]
+# name: Commands
+# on:
+#   issue_comment:
+#     types: [created]
+#   issues:
+#     types: [labeled]
 
-jobs:
-  main:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Actions
-        uses: actions/checkout@v2
-        with:
-          repository: 'JacksonKearl/vscode-triage-github-actions'
-          ref: v2
-      - name: Run Commands
-        uses: ./commands
-        with:
-          token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
-          config-path: commands
+# jobs:
+#   main:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout Actions
+#         uses: actions/checkout@v2
+#         with:
+#           repository: 'JacksonKearl/vscode-triage-github-actions'
+#           ref: v2
+#       - name: Run Commands
+#         uses: ./commands
+#         with:
+#           token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
+#           config-path: commands

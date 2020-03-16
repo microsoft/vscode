@@ -37,11 +37,11 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 		// Create a picker for the provider to use with the initial value
 		// and adjust the filtering to exclude the prefix from filtering
 		const picker = disposables.add(this.quickInputService.createQuickPick());
-		picker.placeholder = descriptor.placeholder;
+		picker.placeholder = descriptor?.placeholder;
 		picker.value = value;
 		picker.valueSelection = [value.length, value.length];
-		picker.contextKey = descriptor.contextKey;
-		picker.filterValue = (value: string) => value.substring(descriptor.prefix.length);
+		picker.contextKey = descriptor?.contextKey;
+		picker.filterValue = (value: string) => value.substring(descriptor ? descriptor.prefix.length : 0);
 
 		// Remember as last active picker and clean up once picker get's disposed
 		this.lastActivePicker = picker;
@@ -72,8 +72,10 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 			}
 		}));
 
-		// Ask provider to fill the picker as needed
-		disposables.add(provider.provide(picker, cts.token));
+		// Ask provider to fill the picker as needed if we have one
+		if (provider) {
+			disposables.add(provider.provide(picker, cts.token));
+		}
 
 		// Finally, show the picker. This is important because a provider
 		// may not call this and then our disposables would leak that rely
@@ -81,8 +83,11 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 		picker.show();
 	}
 
-	private getOrInstantiateProvider(value: string): [IQuickAccessProvider, IQuickAccessProviderDescriptor] {
-		const providerDescriptor = this.registry.getQuickAccessProvider(value) || this.registry.defaultProvider;
+	private getOrInstantiateProvider(value: string): [IQuickAccessProvider | undefined, IQuickAccessProviderDescriptor | undefined] {
+		const providerDescriptor = this.registry.getQuickAccessProvider(value);
+		if (!providerDescriptor) {
+			return [undefined, undefined];
+		}
 
 		let provider = this.mapProviderToDescriptor.get(providerDescriptor);
 		if (!provider) {

@@ -59,8 +59,8 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	watch?: boolean;
 	extensionData?: ExtensionData;
 
-	private themeSemanticHighlighting: boolean;
-	private customSemanticHighlightSupport: boolean | undefined;
+	private themeSemanticHighlighting: boolean | undefined;
+	private customSemanticHighlighting: boolean | undefined;
 
 	private themeTokenColors: ITextMateThemingRule[] = [];
 	private customTokenColors: ITextMateThemingRule[] = [];
@@ -81,12 +81,10 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		this.label = label;
 		this.settingsId = settingsId;
 		this.isLoaded = false;
-		this.themeSemanticHighlighting = false;
-		this.customSemanticHighlightSupport = false;
 	}
 
 	get semanticHighlighting(): boolean {
-		return this.customSemanticHighlightSupport !== undefined ? this.customSemanticHighlightSupport : this.themeSemanticHighlighting;
+		return this.customSemanticHighlighting !== undefined ? this.customSemanticHighlighting : !!this.themeSemanticHighlighting;
 	}
 
 	get tokenColors(): ITextMateThemingRule[] {
@@ -369,7 +367,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 
 	public setCustomTokenColors(customTokenColors: ITokenColorCustomizations) {
 		this.customTokenColors = [];
-		this.customSemanticHighlightSupport = undefined;
+		this.customSemanticHighlighting = undefined;
 
 		// first add the non-theme specific settings
 		this.addCustomTokenColors(customTokenColors);
@@ -422,7 +420,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 			}
 		}
 		if (customTokenColors.semanticHighlighting !== undefined) {
-			this.customSemanticHighlightSupport = customTokenColors.semanticHighlighting;
+			this.customSemanticHighlighting = customTokenColors.semanticHighlighting;
 		}
 	}
 
@@ -476,6 +474,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 			selector: this.id.split(' ').join('.'), // to not break old clients
 			themeTokenColors: this.themeTokenColors,
 			extensionData: this.extensionData,
+			themeSemanticHighlighting: this.themeSemanticHighlighting,
 			colorMap: colorMapData,
 			watch: this.watch
 		});
@@ -483,7 +482,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	}
 
 	hasEqualData(other: ColorThemeData) {
-		return objects.equals(this.colorMap, other.colorMap) && objects.equals(this.themeTokenColors, other.themeTokenColors);
+		return objects.equals(this.colorMap, other.colorMap) && objects.equals(this.themeTokenColors, other.themeTokenColors) && this.themeSemanticHighlighting === other.themeSemanticHighlighting;
 	}
 
 	get baseTheme(): string {
@@ -533,7 +532,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 						}
 						break;
 					case 'themeTokenColors':
-					case 'id': case 'label': case 'settingsId': case 'extensionData': case 'watch':
+					case 'id': case 'label': case 'settingsId': case 'extensionData': case 'watch': case 'themeSemanticHighlighting':
 						(theme as any)[key] = data[key];
 						break;
 				}

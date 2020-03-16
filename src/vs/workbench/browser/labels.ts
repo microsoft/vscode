@@ -488,8 +488,9 @@ class ResourceLabelWidget extends IconLabel {
 
 		const iconLabelOptions: IIconLabelValueOptions & { extraClasses: string[] } = {
 			title: '',
-			italic: this.options && this.options.italic,
-			matches: this.options && this.options.matches,
+			italic: this.options?.italic,
+			strikethrough: this.options?.strikethrough,
+			matches: this.options?.matches,
 			extraClasses: [],
 			separator: this.options?.separator,
 			domId: this.options?.domId

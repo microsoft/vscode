@@ -294,8 +294,8 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: true
 		},
-		'terminal.integrated.allowMenubarMnemonics': {
-			markdownDescription: nls.localize('terminal.integrated.allowMenubarMnemonics', "Whether to allow menubar mnemonics (eg. alt+f) to trigger the open the menubar. Note that this will cause all alt keystrokes will skip the shell when true."),
+		'terminal.integrated.allowMnemonics': {
+			markdownDescription: nls.localize('terminal.integrated.allowMnemonics', "Whether to allow menubar mnemonics (eg. alt+f) to trigger the open the menubar. Note that this will cause all alt keystrokes will skip the shell when true."),
 			type: 'boolean',
 			default: false
 		},

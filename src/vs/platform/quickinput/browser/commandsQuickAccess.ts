@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { PickerQuickAccessProvider, IPickerQuickAccessItem } from 'vs/platform/quickinput/common/quickAccess';
+import { PickerQuickAccessProvider, IPickerQuickAccessItem } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { distinct } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore, Disposable, IDisposable } from 'vs/base/common/lifecycle';
@@ -40,9 +40,7 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 
 	private static WORD_FILTER = or(matchesPrefix, matchesWords, matchesContiguousSubString);
 
-	private readonly disposables = new DisposableStore();
-
-	private readonly commandsHistory = this.disposables.add(this.instantiationService.createInstance(CommandsHistory));
+	private readonly commandsHistory = this._register(this.instantiationService.createInstance(CommandsHistory));
 
 	constructor(
 		private options: ICommandsQuickAccessOptions,
@@ -173,11 +171,10 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 		return commandPicks;
 	}
 
+	/**
+	 * Subclasses to provide the actual command entries.
+	 */
 	protected abstract getCommandPicks(disposables: DisposableStore, token: CancellationToken): Promise<Array<ICommandQuickPick>>;
-
-	dispose(): void {
-		this.disposables.dispose();
-	}
 }
 
 interface ISerializedCommandHistory {
