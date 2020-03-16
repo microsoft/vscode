@@ -318,7 +318,7 @@ export class QuickInputList {
 
 	@memoize
 	get onDidChangeSelection() {
-		return Event.map(this.list.onDidChangeSelection, e => e.elements.map(e => e.item));
+		return Event.map(this.list.onDidChangeSelection, e => ({ items: e.elements.map(e => e.item), event: e.browserEvent }));
 	}
 
 	getAllVisibleChecked() {

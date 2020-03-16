@@ -19,7 +19,7 @@ import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/
 import { Range } from 'vs/editor/common/core/range';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
-import { IKeyMods } from 'vs/platform/quickinput/common/quickInput';
+import { IKeyMods, IQuickPick } from 'vs/platform/quickinput/common/quickInput';
 
 interface ISymbolsQuickPickItem extends IPickerQuickAccessItem {
 	score: FuzzyScore;
@@ -41,6 +41,12 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(SymbolsQuickAccessProvider.PREFIX);
+	}
+
+	protected configure(picker: IQuickPick<ISymbolsQuickPickItem>): void {
+
+		// Allow to open symbols in background without closing picker
+		picker.canAcceptInBackground = true;
 	}
 
 	private get configuration() {
@@ -129,9 +135,9 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 							tooltip: openSideBySideDirection === 'right' ? localize('openToSide', "Open to the Side") : localize('openToBottom', "Open to the Bottom")
 						}
 					],
-					accept: async keyMods => this.openSymbol(provider, symbol, token, keyMods),
-					trigger: async (buttonIndex, keyMods) => {
-						this.openSymbol(provider, symbol, token, keyMods, true);
+					accept: async (keyMods, event) => this.openSymbol(provider, symbol, token, keyMods, { preserveFocus: event.inBackground }),
+					trigger: (buttonIndex, keyMods) => {
+						this.openSymbol(provider, symbol, token, keyMods, { forceOpenSideBySide: true });
 
 						return TriggerAction.CLOSE_PICKER;
 					}
@@ -145,7 +151,7 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 		return symbolPicks;
 	}
 
-	private async openSymbol(provider: IWorkspaceSymbolProvider, symbol: IWorkspaceSymbol, token: CancellationToken, keyMods: IKeyMods, forceOpenSideBySide = false): Promise<void> {
+	private async openSymbol(provider: IWorkspaceSymbolProvider, symbol: IWorkspaceSymbol, token: CancellationToken, keyMods: IKeyMods, options: { forceOpenSideBySide?: boolean, preserveFocus?: boolean }): Promise<void> {
 
 		// Resolve actual symbol to open for providers that can resolve
 		let symbolToOpen = symbol;
@@ -159,18 +165,19 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 
 		// Open HTTP(s) links with opener service
 		if (symbolToOpen.location.uri.scheme === Schemas.http || symbolToOpen.location.uri.scheme === Schemas.https) {
-			this.openerService.open(symbolToOpen.location.uri, { fromUserGesture: true });
+			await this.openerService.open(symbolToOpen.location.uri, { fromUserGesture: true });
 		}
 
 		// Otherwise open as editor
 		else {
-			this.editorService.openEditor({
+			await this.editorService.openEditor({
 				resource: symbolToOpen.location.uri,
 				options: {
-					pinned: keyMods.alt || forceOpenSideBySide || this.configuration.openEditorPinned,
+					preserveFocus: options?.preserveFocus,
+					pinned: keyMods.alt || options?.preserveFocus || options?.forceOpenSideBySide || this.configuration.openEditorPinned,
 					selection: symbolToOpen.location.range ? Range.collapseToStart(symbolToOpen.location.range) : undefined
 				}
-			}, keyMods.ctrlCmd || forceOpenSideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+			}, keyMods.ctrlCmd || options?.forceOpenSideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 		}
 	}
 

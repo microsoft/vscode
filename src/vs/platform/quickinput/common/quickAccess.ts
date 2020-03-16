@@ -10,7 +10,7 @@ import { first } from 'vs/base/common/arrays';
 import { startsWith } from 'vs/base/common/strings';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IQuickPickSeparator, IKeyMods } from 'vs/base/parts/quickinput/common/quickInput';
+import { IQuickPickSeparator, IKeyMods, IQuickPickAcceptEvent } from 'vs/base/parts/quickinput/common/quickInput';
 
 export interface IQuickAccessController {
 
@@ -169,8 +169,9 @@ export interface IPickerQuickAccessItem extends IQuickPickItem {
 	* the picker. The picker will close automatically before running this.
 	*
 	* @param keyMods the state of modifier keys when the item was accepted.
+	* @param event the underlying event that caused the accept to trigger.
 	*/
-	accept?(keyMods: IKeyMods): void;
+	accept?(keyMods: IKeyMods, event: IQuickPickAcceptEvent): void;
 
 	/**
 	 * A method that will be executed when a button of the pick item was
@@ -193,6 +194,9 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 
 	provide(picker: IQuickPick<T>, token: CancellationToken): IDisposable {
 		const disposables = new DisposableStore();
+
+		// Allow subclasses to configure picker
+		this.configure(picker);
 
 		// Disable filtering & sorting, we control the results
 		picker.matchOnLabel = picker.matchOnDescription = picker.matchOnDetail = picker.sortByLabel = false;
@@ -232,11 +236,13 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 		updatePickerItems();
 
 		// Accept the pick on accept and hide picker
-		disposables.add(picker.onDidAccept(() => {
+		disposables.add(picker.onDidAccept(event => {
 			const [item] = picker.selectedItems;
 			if (typeof item?.accept === 'function') {
-				picker.hide();
-				item.accept(picker.keyMods);
+				if (!event.inBackground) {
+					picker.hide(); // hide picker unless we accept in background
+				}
+				item.accept(picker.keyMods, event);
 			}
 		}));
 
@@ -268,6 +274,13 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 
 		return disposables;
 	}
+
+	/**
+	 * Subclasses can override this method to configure the picker before showing it.
+	 *
+	 * @param picker the picker instance used for the quick access before it opens.
+	 */
+	protected configure(picker: IQuickPick<T>): void { }
 
 	/**
 	 * Returns an array of picks and separators as needed. If the picks are resolved

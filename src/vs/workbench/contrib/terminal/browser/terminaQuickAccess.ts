@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickPickSeparator, IQuickPick } from 'vs/platform/quickinput/common/quickInput';
 import { IPickerQuickAccessItem, PickerQuickAccessProvider, TriggerAction } from 'vs/platform/quickinput/common/quickAccess';
 import { matchesFuzzy } from 'vs/base/common/filters';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -20,6 +20,12 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(TerminalQuickAccessProvider.PREFIX);
+	}
+
+	protected configure(picker: IQuickPick<IPickerQuickAccessItem>): void {
+
+		// Allow to open terminals in background without closing picker
+		picker.canAcceptInBackground = true;
 	}
 
 	protected getPicks(filter: string): Array<IPickerQuickAccessItem | IQuickPickSeparator> {
@@ -60,9 +66,9 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 
 							return TriggerAction.NO_ACTION;
 						},
-						accept: () => {
+						accept: (keyMod, event) => {
 							this.terminalService.setActiveInstance(terminal);
-							this.terminalService.showPanel(true);
+							this.terminalService.showPanel(!event.inBackground);
 						}
 					});
 				}

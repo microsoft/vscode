@@ -24,6 +24,11 @@ export interface IQuickPickItem {
 	ariaLabel?: string;
 	description?: string;
 	detail?: string;
+	/**
+	 * Allows to show a keybinding next to the item to indicate
+	 * how the item can be triggered outside of the picker using
+	 * keyboard shortcut.
+	 */
 	keybinding?: ResolvedKeybinding;
 	iconClasses?: string[];
 	italic?: boolean;
@@ -171,6 +176,15 @@ export interface IQuickInput extends IDisposable {
 	hide(): void;
 }
 
+export interface IQuickPickAcceptEvent {
+
+	/**
+	 * Signals if the picker item is to be accepted
+	 * in the background while keeping the picker open.
+	 */
+	inBackground: boolean;
+}
+
 export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 
 	value: string;
@@ -187,7 +201,14 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 
 	readonly onDidChangeValue: Event<string>;
 
-	readonly onDidAccept: Event<void>;
+	readonly onDidAccept: Event<IQuickPickAcceptEvent>;
+
+	/**
+	 * If enabled, will fire the `onDidAccept` event when
+	 * pressing the arrow-right key with the idea of accepting
+	 * the selected item without closing the picker.
+	 */
+	canAcceptInBackground: boolean;
 
 	ok: boolean | 'default';
 
@@ -269,7 +290,6 @@ export interface IQuickInputButton {
 	/** iconPath or iconClass required */
 	iconClass?: string;
 	tooltip?: string;
-	alwaysShow?: boolean;
 }
 
 export interface IQuickPickItemButtonEvent<T extends IQuickPickItem> {
