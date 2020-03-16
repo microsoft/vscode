@@ -6,10 +6,10 @@
 import 'vs/css!./media/paneviewlet';
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
+import { ColorIdentifier, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { attachStyler, IColorMapping, attachButtonStyler, attachLinkStyler, attachProgressBarStyler } from 'vs/platform/theme/common/styler';
-import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_FOREGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND, SIDE_BAR_SECTION_HEADER_BORDER, PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { append, $, trackFocus, toggleClass, EventType, isAncestor, Dimension, addDisposableListener, removeClass, addClass, EventHelper } from 'vs/base/browser/dom';
+import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_FOREGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND, SIDE_BAR_SECTION_HEADER_BORDER, PANEL_BACKGROUND, SIDE_BAR_BACKGROUND, EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
+import { append, $, trackFocus, toggleClass, EventType, isAncestor, Dimension, addDisposableListener, removeClass, addClass } from 'vs/base/browser/dom';
 import { IDisposable, combinedDisposable, dispose, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { firstIndex } from 'vs/base/common/arrays';
 import { IAction } from 'vs/base/common/actions';
@@ -20,7 +20,7 @@ import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { PaneView, IPaneViewOptions, IPaneOptions, Pane } from 'vs/base/browser/ui/splitview/paneview';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -47,7 +47,6 @@ import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { CompositeProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
 import { IProgressIndicator } from 'vs/platform/progress/common/progress';
-import { GroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { RunOnceScheduler } from 'vs/base/common/async';
 
 export interface IPaneColors extends IColorMapping {
@@ -502,24 +501,36 @@ interface IViewPaneItem {
 	disposable: IDisposable;
 }
 
-class ViewPaneDropOverlay extends Disposable {
+const enum DropDirection {
+	UP,
+	DOWN,
+	LEFT,
+	RIGHT
+}
+
+class ViewPaneDropOverlay extends Themable {
 
 	private static readonly OVERLAY_ID = 'monaco-workbench-pane-drop-overlay';
 
 	private container!: HTMLElement;
 	private overlay!: HTMLElement;
 
+	private _currentDropOperation: DropDirection | undefined;
+
 	// private currentDropOperation: IDropOperation | undefined;
 	private _disposed: boolean | undefined;
 
 	private cleanupOverlayScheduler: RunOnceScheduler;
 
-	// private readonly editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
-	// private readonly groupTransfer = LocalSelectionTransfer.getInstance<DraggedEditorGroupIdentifier>();
+	get currentDropOperation(): DropDirection | undefined {
+		return this._currentDropOperation;
+	}
 
-	constructor(private paneElement: HTMLElement) {
-
-		super();
+	constructor(
+		private paneElement: HTMLElement,
+		protected themeService: IThemeService
+	) {
+		super(themeService);
 		this.cleanupOverlayScheduler = this._register(new RunOnceScheduler(() => this.dispose(), 300));
 
 		this.create();
@@ -530,12 +541,9 @@ class ViewPaneDropOverlay extends Disposable {
 	}
 
 	private create(): void {
-		const overlayOffsetHeight = this.getOverlayOffsetHeight();
-
 		// Container
 		this.container = document.createElement('div');
 		this.container.id = ViewPaneDropOverlay.OVERLAY_ID;
-		this.container.style.top = `${overlayOffsetHeight}px`;
 
 		// Parent
 		this.paneElement.appendChild(this.container);
@@ -560,14 +568,17 @@ class ViewPaneDropOverlay extends Disposable {
 	protected updateStyles(): void {
 
 		// Overlay drop background
-		this.overlay.style.backgroundColor = /* this.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND) */ 'grey';
+		this.overlay.style.backgroundColor = this.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND) || '';
 
 		// Overlay contrast border (if any)
-		const activeContrastBorderColor = /* this.getColor(activeContrastBorder) */ 'grey';
+		const activeContrastBorderColor = this.getColor(activeContrastBorder);
 		this.overlay.style.outlineColor = activeContrastBorderColor || '';
 		this.overlay.style.outlineOffset = activeContrastBorderColor ? '-2px' : '';
 		this.overlay.style.outlineStyle = activeContrastBorderColor ? 'dashed' : '';
 		this.overlay.style.outlineWidth = activeContrastBorderColor ? '2px' : '';
+
+		this.overlay.style.borderColor = activeContrastBorderColor || '';
+		this.overlay.style.borderStyle = 'solid' || '';
 	}
 
 	private registerListeners(): void {
@@ -588,15 +599,8 @@ class ViewPaneDropOverlay extends Disposable {
 			onDragEnd: e => this.dispose(),
 
 			onDrop: e => {
-				EventHelper.stop(e, true);
-
 				// Dispose overlay
 				this.dispose();
-
-				// // Handle drop if we have a valid operation
-				// if (this.currentDropOperation) {
-				// 	this.handleDrop(e, this.currentDropOperation.splitDirection);
-				// }
 			}
 		}));
 
@@ -614,196 +618,40 @@ class ViewPaneDropOverlay extends Disposable {
 		}));
 	}
 
-	private handleDrop(event: DragEvent, splitDirection?: GroupDirection): void {
-
-		// // Determine target group
-		// const ensureTargetGroup = () => {
-		// 	let targetGroup: IEditorGroupView;
-		// 	if (typeof splitDirection === 'number') {
-		// 		targetGroup = this.accessor.addGroup(this.groupView, splitDirection);
-		// 	} else {
-		// 		targetGroup = this.groupView;
-		// 	}
-
-		// 	return targetGroup;
-		// };
-
-		// // Check for group transfer
-		// if (this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype)) {
-		// 	const data = this.groupTransfer.getData(DraggedEditorGroupIdentifier.prototype);
-		// 	if (Array.isArray(data)) {
-		// 		const draggedEditorGroup = data[0].identifier;
-
-		// 		// Return if the drop is a no-op
-		// 		const sourceGroup = this.accessor.getGroup(draggedEditorGroup);
-		// 		if (sourceGroup) {
-		// 			if (typeof splitDirection !== 'number' && sourceGroup === this.groupView) {
-		// 				return;
-		// 			}
-
-		// 			// Split to new group
-		// 			let targetGroup: IEditorGroupView | undefined;
-		// 			if (typeof splitDirection === 'number') {
-		// 				if (this.isCopyOperation(event)) {
-		// 					targetGroup = this.accessor.copyGroup(sourceGroup, this.groupView, splitDirection);
-		// 				} else {
-		// 					targetGroup = this.accessor.moveGroup(sourceGroup, this.groupView, splitDirection);
-		// 				}
-		// 			}
-
-		// 			// Merge into existing group
-		// 			else {
-		// 				if (this.isCopyOperation(event)) {
-		// 					targetGroup = this.accessor.mergeGroup(sourceGroup, this.groupView, { mode: MergeGroupMode.COPY_EDITORS });
-		// 				} else {
-		// 					targetGroup = this.accessor.mergeGroup(sourceGroup, this.groupView);
-		// 				}
-		// 			}
-
-		// 			if (targetGroup) {
-		// 				this.accessor.activateGroup(targetGroup);
-		// 			}
-		// 		}
-
-		// 		this.groupTransfer.clearData(DraggedEditorGroupIdentifier.prototype);
-		// 	}
-		// }
-
-		// // Check for editor transfer
-		// else if (this.editorTransfer.hasData(DraggedEditorIdentifier.prototype)) {
-		// 	const data = this.editorTransfer.getData(DraggedEditorIdentifier.prototype);
-		// 	if (Array.isArray(data)) {
-		// 		const draggedEditor = data[0].identifier;
-		// 		const targetGroup = ensureTargetGroup();
-
-		// 		// Return if the drop is a no-op
-		// 		const sourceGroup = this.accessor.getGroup(draggedEditor.groupId);
-		// 		if (sourceGroup) {
-		// 			if (sourceGroup === targetGroup) {
-		// 				return;
-		// 			}
-
-		// 			// Open in target group
-		// 			const options = getActiveTextEditorOptions(sourceGroup, draggedEditor.editor, EditorOptions.create({ pinned: true }));
-		// 			targetGroup.openEditor(draggedEditor.editor, options);
-
-		// 			// Ensure target has focus
-		// 			targetGroup.focus();
-
-		// 			// Close in source group unless we copy
-		// 			const copyEditor = this.isCopyOperation(event, draggedEditor);
-		// 			if (!copyEditor) {
-		// 				sourceGroup.closeEditor(draggedEditor.editor);
-		// 			}
-		// 		}
-
-		// 		this.editorTransfer.clearData(DraggedEditorIdentifier.prototype);
-		// 	}
-		// }
-
-		// // Web: check for file transfer
-		// else if (isWeb && containsDragType(event, DataTransfers.FILES)) {
-		// 	let targetGroup: IEditorGroupView | undefined = undefined;
-
-		// 	const files = event.dataTransfer?.files;
-		// 	if (files) {
-		// 		for (let i = 0; i < files.length; i++) {
-		// 			const file = files.item(i);
-		// 			if (file) {
-		// 				const reader = new FileReader();
-		// 				reader.readAsArrayBuffer(file);
-		// 				reader.onload = async event => {
-		// 					const name = file.name;
-		// 					if (typeof name === 'string' && event.target?.result instanceof ArrayBuffer) {
-
-		// 						// Try to come up with a good file path for the untitled
-		// 						// editor by asking the file dialog service for the default
-		// 						let proposedFilePath: URI | undefined = undefined;
-		// 						const defaultFilePath = this.fileDialogService.defaultFilePath();
-		// 						if (defaultFilePath) {
-		// 							proposedFilePath = joinPath(defaultFilePath, name);
-		// 						}
-
-		// 						// Open as untitled file with the provided contents
-		// 						const untitledEditor = this.editorService.createEditorInput({
-		// 							resource: proposedFilePath,
-		// 							forceUntitled: true,
-		// 							contents: VSBuffer.wrap(new Uint8Array(event.target.result)).toString()
-		// 						});
-
-		// 						if (!targetGroup) {
-		// 							targetGroup = ensureTargetGroup();
-		// 						}
-
-		// 						await targetGroup.openEditor(untitledEditor);
-		// 					}
-		// 				};
-		// 			}
-		// 		}
-		// 	}
-		// }
-
-		// // Check for URI transfer
-		// else {
-		// 	const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: true /* open workspace instead of file if dropped */ });
-		// 	dropHandler.handleDrop(event, () => ensureTargetGroup(), targetGroup => {
-		// 		if (targetGroup) {
-		// 			targetGroup.focus();
-		// 		}
-		// 	});
-		// }
-	}
-
 	private positionOverlay(mousePosX: number, mousePosY: number): void {
-		// const preferSplitVertically = this.accessor.partOptions.openSideBySideDirection === 'right';
-
-		const paneWidth = this.paneElement.clientWidth;
-		const paneHeight = this.paneElement.clientHeight - this.getOverlayOffsetHeight();
-
-		// let paneWidthThresholdFactor = 0.3;
-		// let edgeHeightThresholdFactor = 0.3;
-
-		// const edgeWidthThreshold = paneWidth * paneWidthThresholdFactor;
-		// const edgeHeightThreshold = paneHeight * edgeHeightThresholdFactor;
+		// const paneWidth = this.paneElement.clientWidth;
+		const paneHeight = this.paneElement.clientHeight;
 
 		// const splitWidthThreshold = paneWidth / 3;		// offer to split left/right at 33%
 		const splitHeightThreshold = paneHeight / 2;	// offer to split up/down at 33%
 
-		// Enable to debug the drop threshold square
-		// let child = this.overlay.children.item(0) as HTMLElement || this.overlay.appendChild(document.createElement('div'));
-		// child.style.backgroundColor = 'red';
-		// child.style.position = 'absolute';
-		// child.style.width = (groupViewWidth - (2 * edgeWidthThreshold)) + 'px';
-		// child.style.height = (groupViewHeight - (2 * edgeHeightThreshold)) + 'px';
-		// child.style.left = edgeWidthThreshold + 'px';
-		// child.style.top = edgeHeightThreshold + 'px';
-
-		// No split if mouse is above certain threshold in the center of the view
-		let splitDirection: GroupDirection | undefined;
+		let dropDirection: DropDirection | undefined;
 
 		if (mousePosY < splitHeightThreshold) {
-			splitDirection = GroupDirection.UP;
+			dropDirection = DropDirection.UP;
 		} else if (mousePosY > splitHeightThreshold) {
-			splitDirection = GroupDirection.DOWN;
+			dropDirection = DropDirection.DOWN;
 		}
 
 		// Draw overlay based on split direction
-		switch (splitDirection) {
-			case GroupDirection.UP:
+		switch (dropDirection) {
+			case DropDirection.UP:
 				this.doPositionOverlay({ top: '0', left: '0', width: '100%', height: '50%' });
 				break;
-			case GroupDirection.DOWN:
-				this.doPositionOverlay({ top: '50%', left: '0', width: '100%', height: '50%' });
+			case DropDirection.DOWN:
+				this.doPositionOverlay({ bottom: '0', left: '0', width: '100%', height: '50%' });
 				break;
-			case GroupDirection.LEFT:
+			case DropDirection.LEFT:
 				this.doPositionOverlay({ top: '0', left: '0', width: '50%', height: '100%' });
 				break;
-			case GroupDirection.RIGHT:
-				this.doPositionOverlay({ top: '0', left: '50%', width: '50%', height: '100%' });
+			case DropDirection.RIGHT:
+				this.doPositionOverlay({ top: '0', right: '0', width: '50%', height: '100%' });
 				break;
 			default:
 				this.doPositionOverlay({ top: '0', left: '0', width: '100%', height: '100%' });
 		}
+
+		this.doUpdateOverlayBorder(dropDirection);
 
 		// Make sure the overlay is visible now
 		this.overlay.style.opacity = '1';
@@ -812,44 +660,30 @@ class ViewPaneDropOverlay extends Disposable {
 		setTimeout(() => addClass(this.overlay, 'overlay-move-transition'), 0);
 
 		// Remember as current split direction
-		// this.currentDropOperation = { splitDirection };
+		this._currentDropOperation = dropDirection;
 	}
 
-	private doPositionOverlay(options: { top: string, left: string, width: string, height: string }): void {
+	private doUpdateOverlayBorder(direction: DropDirection | undefined): void {
+		this.overlay.style.borderTopWidth = direction === DropDirection.UP ? '2px' : '0px';
+		this.overlay.style.borderLeftWidth = direction === DropDirection.LEFT ? '2px' : '0px';
+		this.overlay.style.borderBottomWidth = direction === DropDirection.DOWN ? '2px' : '0px';
+		this.overlay.style.borderRightWidth = direction === DropDirection.RIGHT ? '2px' : '0px';
+	}
+
+	private doPositionOverlay(options: { top?: string, bottom?: string, left?: string, right?: string, width: string, height: string }): void {
 
 		// Container
-		const offsetHeight = this.getOverlayOffsetHeight();
-		if (offsetHeight) {
-			this.container.style.height = `calc(100% - ${offsetHeight}px)`;
-		} else {
-			this.container.style.height = '100%';
-		}
+		this.container.style.height = '100%';
 
 		// Overlay
-		this.overlay.style.top = options.top;
-		this.overlay.style.left = options.left;
+		this.overlay.style.top = options.top || '';
+		this.overlay.style.left = options.left || '';
+		this.overlay.style.bottom = options.bottom || '';
+		this.overlay.style.right = options.right || '';
 		this.overlay.style.width = options.width;
 		this.overlay.style.height = options.height;
 	}
 
-	private getOverlayOffsetHeight(): number {
-		// if (!this.groupView.isEmpty && this.accessor.partOptions.showTabs) {
-		// 	return EDITOR_TITLE_HEIGHT; // show overlay below title if group shows tabs
-		// }
-
-		return 0;
-	}
-
-	// private hideOverlay(): void {
-
-	// 	// Reset overlay
-	// 	this.doPositionOverlay({ top: '0', left: '0', width: '100%', height: '100%' });
-	// 	this.overlay.style.opacity = '0';
-	// 	removeClass(this.overlay, 'overlay-move-transition');
-
-	// 	// Reset current operation
-	// 	this.currentDropOperation = undefined;
-	// }
 
 	contains(element: HTMLElement): boolean {
 		return element === this.container || element === this.overlay;
@@ -1303,11 +1137,53 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 		this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(pane.dropTargetElement, {
 			onDragEnter: (e) => {
-				if (!overlay) {
-					overlay = new ViewPaneDropOverlay(pane.dropTargetElement);
+				if (!overlay && e.dragAndDropData.getData().type === 'view' && e.dragAndDropData.getData().id !== pane.id) {
+					overlay = new ViewPaneDropOverlay(pane.dropTargetElement, this.themeService);
 				}
 			},
 			onDragLeave: (e) => {
+				overlay?.dispose();
+				overlay = undefined;
+			},
+			onDrop: (e) => {
+				if (overlay) {
+					const dropData = e.dragAndDropData.getData();
+					if (dropData.type === 'view') {
+						if (overlay.currentDropOperation === DropDirection.DOWN ||
+							overlay.currentDropOperation === DropDirection.RIGHT) {
+
+							const fromIndex = this.panes.findIndex(p => p.id === dropData.id);
+							let toIndex = this.panes.findIndex(p => p.id === pane.id);
+
+							if (fromIndex >= 0 || toIndex >= 0) {
+								if (fromIndex > toIndex) {
+									toIndex++;
+								}
+
+								if (toIndex < this.panes.length && toIndex !== fromIndex) {
+									this.movePane(this.panes[fromIndex], this.panes[toIndex]);
+								}
+							}
+						}
+
+						if (overlay.currentDropOperation === DropDirection.UP ||
+							overlay.currentDropOperation === DropDirection.LEFT) {
+							const fromIndex = this.panes.findIndex(p => p.id === dropData.id);
+							let toIndex = this.panes.findIndex(p => p.id === pane.id);
+
+							if (fromIndex >= 0 || toIndex >= 0) {
+								if (fromIndex < toIndex) {
+									toIndex--;
+								}
+
+								if (toIndex >= 0 && toIndex !== fromIndex) {
+									this.movePane(this.panes[fromIndex], this.panes[toIndex]);
+								}
+							}
+						}
+					}
+				}
+
 				overlay?.dispose();
 				overlay = undefined;
 			}
