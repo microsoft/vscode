@@ -6,9 +6,8 @@
 import { IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { first } from 'vs/base/common/arrays';
+import { first, coalesce } from 'vs/base/common/arrays';
 import { startsWith } from 'vs/base/common/strings';
-import { assertIsDefined } from 'vs/base/common/types';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 
 export interface IQuickAccessController {
@@ -93,11 +92,6 @@ export const Extensions = {
 export interface IQuickAccessRegistry {
 
 	/**
-	 * The default provider to use when no other provider matches.
-	 */
-	defaultProvider: IQuickAccessProviderDescriptor;
-
-	/**
 	 * Registers a quick access provider to the platform.
 	 */
 	registerQuickAccessProvider(provider: IQuickAccessProviderDescriptor): IDisposable;
@@ -113,29 +107,53 @@ export interface IQuickAccessRegistry {
 	getQuickAccessProvider(prefix: string): IQuickAccessProviderDescriptor | undefined;
 }
 
-class QuickAccessRegistry implements IQuickAccessRegistry {
+export class QuickAccessRegistry implements IQuickAccessRegistry {
 	private providers: IQuickAccessProviderDescriptor[] = [];
-
-	private _defaultProvider: IQuickAccessProviderDescriptor | undefined = undefined;
-	get defaultProvider(): IQuickAccessProviderDescriptor { return assertIsDefined(this._defaultProvider); }
-	set defaultProvider(provider: IQuickAccessProviderDescriptor) { this._defaultProvider = provider; }
+	private defaultProvider: IQuickAccessProviderDescriptor | undefined = undefined;
 
 	registerQuickAccessProvider(provider: IQuickAccessProviderDescriptor): IDisposable {
-		this.providers.push(provider);
+
+		// Extract the default provider when no prefix is present
+		if (provider.prefix.length === 0) {
+			this.defaultProvider = provider;
+		} else {
+			this.providers.push(provider);
+		}
 
 		// sort the providers by decreasing prefix length, such that longer
 		// prefixes take priority: 'ext' vs 'ext install' - the latter should win
 		this.providers.sort((providerA, providerB) => providerB.prefix.length - providerA.prefix.length);
 
-		return toDisposable(() => this.providers.splice(this.providers.indexOf(provider), 1));
+		return toDisposable(() => {
+			this.providers.splice(this.providers.indexOf(provider), 1);
+
+			if (this.defaultProvider === provider) {
+				this.defaultProvider = undefined;
+			}
+		});
 	}
 
 	getQuickAccessProviders(): IQuickAccessProviderDescriptor[] {
-		return [this.defaultProvider, ...this.providers];
+		return coalesce([this.defaultProvider, ...this.providers]);
 	}
 
 	getQuickAccessProvider(prefix: string): IQuickAccessProviderDescriptor | undefined {
-		return prefix ? (first(this.providers, provider => startsWith(prefix, provider.prefix)) || undefined) : undefined;
+		const result = prefix ? (first(this.providers, provider => startsWith(prefix, provider.prefix)) || undefined) : undefined;
+
+		return result || this.defaultProvider;
+	}
+
+	clear(): Function {
+		const providers = [...this.providers];
+		const defaultProvider = this.defaultProvider;
+
+		this.providers = [];
+		this.defaultProvider = undefined;
+
+		return () => {
+			this.providers = providers;
+			this.defaultProvider = defaultProvider;
+		};
 	}
 }
 
