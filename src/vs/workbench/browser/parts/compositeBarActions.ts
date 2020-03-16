@@ -516,41 +516,28 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 			this.showContextMenu(container);
 		}));
 
+		let insertDropBefore: boolean | undefined = undefined;
 		// Allow to drag
-		this._register(dom.addDisposableListener(this.container, dom.EventType.DRAG_START, (e: DragEvent) => {
-			if (e.dataTransfer) {
-				e.dataTransfer.effectAllowed = 'move';
-			}
-
-			// Registe as dragged to local transfer
-			this.compositeTransfer.setData([new DraggedCompositeIdentifier(this.activity.id)], DraggedCompositeIdentifier.prototype);
-
-			// Trigger the action even on drag start to prevent clicks from failing that started a drag
-			if (!this.getAction().checked) {
-				this.getAction().run();
-			}
-		}));
-
 		this._register(CompositeDragAndDropObserver.INSTANCE.registerDraggable(this.container, 'composite', this.activity.id, {
 			onDragOver: e => {
 				// if (e.eventData.dataTransfer && !this.dndHandler.onDragOver(e.dragAndDropData, this.activity.id, e.eventData)) {
 				// 	e.eventData.dataTransfer.dropEffect = 'none';
 				// }
 
-				this.updateFromDragging(container, e.dragAndDropData.getData().id !== this.activity.id && true, e.eventData);
+				insertDropBefore = this.updateFromDragging(container, e.dragAndDropData.getData().id !== this.activity.id && true, e.eventData);
 			},
 
 			onDragLeave: e => {
-				this.updateFromDragging(container, false, e.eventData);
+				insertDropBefore = this.updateFromDragging(container, false, e.eventData);
 			},
 
 			onDragEnd: e => {
-				this.updateFromDragging(container, false, e.eventData);
+				insertDropBefore = this.updateFromDragging(container, false, e.eventData);
 			},
 
 			onDrop: e => {
-				this.dndHandler.drop(e.dragAndDropData, this.activity.id, e.eventData);
-				this.updateFromDragging(container, false, e.eventData);
+				this.dndHandler.drop(e.dragAndDropData, this.activity.id, e.eventData, !!insertDropBefore);
+				insertDropBefore = this.updateFromDragging(container, false, e.eventData);
 			},
 			onDragStart: e => {
 				if (e.dragAndDropData.getData().id !== this.activity.id) {
@@ -580,7 +567,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 		this.updateStyles();
 	}
 
-	private updateFromDragging(element: HTMLElement, showFeedback: boolean, event: DragEvent): void {
+	private updateFromDragging(element: HTMLElement, showFeedback: boolean, event: DragEvent): boolean | undefined {
 		const rect = element.getBoundingClientRect();
 		const posX = event.clientX;
 		const posY = event.clientY;
@@ -598,7 +585,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 		const classes = element.classList;
 		const lastClasses = {
 			vertical: classes.contains('top') ? 'top' : (classes.contains('bottom') ? 'bottom' : undefined),
-			horizontal:  classes.contains('left') ? 'left' : (classes.contains('right') ? 'right' : undefined)
+			horizontal: classes.contains('left') ? 'left' : (classes.contains('right') ? 'right' : undefined)
 		};
 
 		const top = forceTop || (preferTop && !lastClasses.vertical) || (!forceBottom && lastClasses.vertical === 'top');
@@ -610,6 +597,12 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 		dom.toggleClass(element, 'bottom', showFeedback && bottom);
 		dom.toggleClass(element, 'left', showFeedback && left);
 		dom.toggleClass(element, 'right', showFeedback && right);
+
+		if (!showFeedback) {
+			return undefined;
+		}
+
+		return top || left;
 	}
 
 	private showContextMenu(container: HTMLElement): void {

@@ -39,10 +39,10 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 		private viewDescriptorService: IViewDescriptorService,
 		private targetContainerLocation: ViewContainerLocation,
 		private openComposite: (id: string, focus?: boolean) => Promise<IPaneComposite | undefined>,
-		private moveComposite: (from: string, to: string) => void,
+		private moveComposite: (from: string, to: string, before?: boolean) => void,
 		private getVisibleCompositeIds: () => string[]
 	) { }
-	drop(data: CompositeDragAndDropData, targetCompositeId: string | undefined, originalEvent: DragEvent): void {
+	drop(data: CompositeDragAndDropData, targetCompositeId: string | undefined, originalEvent: DragEvent, before?: boolean): void {
 		const dragData = data.getData();
 		const viewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 
@@ -62,7 +62,7 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 						});
 					}
 				} else {
-					this.moveComposite(dragData.id, targetCompositeId);
+					this.moveComposite(dragData.id, targetCompositeId, before);
 				}
 			} else {
 				const draggedViews = this.viewDescriptorService.getViewDescriptors(currentContainer).allViewDescriptors;
@@ -440,10 +440,34 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		return item?.pinned;
 	}
 
-	move(compositeId: string, toCompositeId: string): void {
-		if (this.model.move(compositeId, toCompositeId)) {
-			// timeout helps to prevent artifacts from showing up
-			setTimeout(() => this.updateCompositeSwitcher(), 0);
+	move(compositeId: string, toCompositeId: string, before?: boolean): void {
+
+		if (before !== undefined) {
+			const fromIndex = this.model.items.findIndex(c => c.id === compositeId);
+			let toIndex = this.model.items.findIndex(c => c.id === toCompositeId);
+
+			if (fromIndex >= 0 && toIndex >= 0) {
+				if (!before && fromIndex > toIndex) {
+					toIndex++;
+				}
+
+				if (before && fromIndex < toIndex) {
+					toIndex--;
+				}
+
+				if (toIndex < this.model.items.length && toIndex >= 0 && toIndex !== fromIndex) {
+					if (this.model.move(this.model.items[fromIndex].id, this.model.items[toIndex].id)) {
+						// timeout helps to prevent artifacts from showing up
+						setTimeout(() => this.updateCompositeSwitcher(), 0);
+					}
+				}
+			}
+
+		} else {
+			if (this.model.move(compositeId, toCompositeId)) {
+				// timeout helps to prevent artifacts from showing up
+				setTimeout(() => this.updateCompositeSwitcher(), 0);
+			}
 		}
 	}
 

@@ -146,7 +146,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			hidePart: () => this.layoutService.setPanelHidden(true),
 			dndHandler: new CompositeDragAndDrop(this.viewDescriptorService, ViewContainerLocation.Panel,
 				(id: string, focus?: boolean) => this.openPanel(id, focus) as Promise<IPaneComposite | undefined>,
-				(from: string, to: string) => this.compositeBar.move(from, to),
+				(from: string, to: string, before?: boolean) => this.compositeBar.move(from, to, before),
 				() => this.getPinnedPanels().map(p => p.id)
 			),
 			compositeSize: 0,

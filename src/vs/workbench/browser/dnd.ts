@@ -510,7 +510,7 @@ export function containsDragType(event: DragEvent, ...dragTypesToFind: string[])
 }
 
 export interface ICompositeDragAndDrop {
-	drop(data: IDragAndDropData, target: string | undefined, originalEvent: DragEvent): void;
+	drop(data: IDragAndDropData, target: string | undefined, originalEvent: DragEvent, before?: boolean): void;
 	onDragOver(data: IDragAndDropData, target: string | undefined, originalEvent: DragEvent): boolean;
 	onDragEnter(data: IDragAndDropData, target: string | undefined, originalEvent: DragEvent): boolean;
 }
@@ -604,13 +604,17 @@ export class CompositeDragAndDropObserver extends Disposable {
 			},
 			onDragLeave: e => {
 				const data = this.readDragData('composite') || this.readDragData('view');
-				if (callbacks.onDragLeave) {
+				if (callbacks.onDragLeave && data) {
 					callbacks.onDragLeave({ eventData: e, dragAndDropData: data! });
 				}
 			},
 			onDrop: e => {
 				if (callbacks.onDrop) {
 					const data = this.readDragData('composite') || this.readDragData('view');
+					if (!data) {
+						return;
+					}
+
 					callbacks.onDrop({ eventData: e, dragAndDropData: data! });
 				}
 			},
@@ -618,6 +622,10 @@ export class CompositeDragAndDropObserver extends Disposable {
 				e.preventDefault();
 				if (callbacks.onDragOver) {
 					const data = this.readDragData('composite') || this.readDragData('view');
+					if (!data) {
+						return;
+					}
+
 					callbacks.onDragOver({ eventData: e, dragAndDropData: data! });
 				}
 			}
@@ -647,11 +655,20 @@ export class CompositeDragAndDropObserver extends Disposable {
 				if (data && data.getData().id === id) {
 					this.transferData.clearData(type === 'view' ? DraggedViewIdentifier.prototype : DraggedCompositeIdentifier.prototype);
 				}
+
+				if (!data) {
+					return;
+				}
+
 				this._onDragEnd.fire({ eventData: e, dragAndDropData: data! });
 			},
 			onDragEnter: e => {
 				if (callbacks.onDragEnter) {
 					const data = this.readDragData('composite') || this.readDragData('view');
+					if (!data) {
+						return;
+					}
+
 					if (data) {
 						callbacks.onDragEnter({ eventData: e, dragAndDropData: data! });
 					}
@@ -659,6 +676,10 @@ export class CompositeDragAndDropObserver extends Disposable {
 			},
 			onDragLeave: e => {
 				const data = this.readDragData('composite') || this.readDragData('view');
+				if (!data) {
+					return;
+				}
+
 				if (callbacks.onDragLeave) {
 					callbacks.onDragLeave({ eventData: e, dragAndDropData: data! });
 				}
@@ -666,12 +687,20 @@ export class CompositeDragAndDropObserver extends Disposable {
 			onDrop: e => {
 				if (callbacks.onDrop) {
 					const data = this.readDragData('composite') || this.readDragData('view');
+
+					if (!data) {
+						return;
+					}
 					callbacks.onDrop({ eventData: e, dragAndDropData: data! });
 				}
 			},
 			onDragOver: e => {
 				if (callbacks.onDragOver) {
 					const data = this.readDragData('composite') || this.readDragData('view');
+					if (!data) {
+						return;
+					}
+
 					callbacks.onDragOver({ eventData: e, dragAndDropData: data! });
 				}
 			}

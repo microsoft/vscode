@@ -1137,7 +1137,19 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 		this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(pane.dropTargetElement, {
 			onDragEnter: (e) => {
-				if (!overlay && e.dragAndDropData.getData().type === 'view' && e.dragAndDropData.getData().id !== pane.id) {
+				if (!overlay) {
+					const dropData = e.dragAndDropData.getData();
+					if (dropData.type !== 'view' || dropData.id === pane.id) {
+						return;
+					}
+
+					const oldViewContainer = this.viewDescriptorService.getViewContainer(dropData.id);
+					const viewDescriptor = this.viewDescriptorService.getViewDescriptor(dropData.id);
+
+					if (oldViewContainer !== this.viewContainer && (!viewDescriptor || !viewDescriptor.canMoveView)) {
+						return;
+					}
+
 					overlay = new ViewPaneDropOverlay(pane.dropTargetElement, this.themeService);
 				}
 			},
@@ -1149,13 +1161,20 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 				if (overlay) {
 					const dropData = e.dragAndDropData.getData();
 					if (dropData.type === 'view') {
+
+						const oldViewContainer = this.viewDescriptorService.getViewContainer(dropData.id);
+						const viewDescriptor = this.viewDescriptorService.getViewDescriptor(dropData.id);
+						if (oldViewContainer !== this.viewContainer && viewDescriptor && viewDescriptor.canMoveView) {
+							this.viewDescriptorService.moveViewsToContainer([viewDescriptor], this.viewContainer);
+						}
+
 						if (overlay.currentDropOperation === DropDirection.DOWN ||
 							overlay.currentDropOperation === DropDirection.RIGHT) {
 
 							const fromIndex = this.panes.findIndex(p => p.id === dropData.id);
 							let toIndex = this.panes.findIndex(p => p.id === pane.id);
 
-							if (fromIndex >= 0 || toIndex >= 0) {
+							if (fromIndex >= 0 && toIndex >= 0) {
 								if (fromIndex > toIndex) {
 									toIndex++;
 								}
@@ -1171,7 +1190,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 							const fromIndex = this.panes.findIndex(p => p.id === dropData.id);
 							let toIndex = this.panes.findIndex(p => p.id === pane.id);
 
-							if (fromIndex >= 0 || toIndex >= 0) {
+							if (fromIndex >= 0 && toIndex >= 0) {
 								if (fromIndex < toIndex) {
 									toIndex--;
 								}
