@@ -23,6 +23,7 @@ export interface IIconLabelValueOptions {
 	hideIcon?: boolean;
 	extraClasses?: string[];
 	italic?: boolean;
+	strikethrough?: boolean;
 	matches?: IMatch[];
 	labelEscapeNewLines?: boolean;
 	descriptionMatches?: IMatch[];
@@ -135,6 +136,10 @@ export class IconLabel extends Disposable {
 
 			if (options.italic) {
 				classes.push('italic');
+			}
+
+			if (options.strikethrough) {
+				classes.push('strikethrough');
 			}
 		}
 

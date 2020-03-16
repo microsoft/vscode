@@ -27,6 +27,7 @@ export interface IQuickPickItem {
 	keybinding?: ResolvedKeybinding;
 	iconClasses?: string[];
 	italic?: boolean;
+	strikethrough?: boolean;
 	highlights?: IQuickPickItemHighlights;
 	buttons?: IQuickInputButton[];
 	/**

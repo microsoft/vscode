@@ -154,6 +154,7 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 		options.descriptionMatches = descriptionHighlights || [];
 		options.extraClasses = element.item.iconClasses;
 		options.italic = element.item.italic;
+		options.strikethrough = element.item.strikethrough;
 		data.label.setLabel(element.saneLabel, element.saneDescription, options);
 
 		// Keybinding

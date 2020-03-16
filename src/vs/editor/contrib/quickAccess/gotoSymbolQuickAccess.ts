@@ -160,7 +160,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 						selection: Range.collapseToStart(symbol.selectionRange),
 						decoration: symbol.range
 					},
-					italic: deprecated
+					strikethrough: deprecated
 				});
 			}
 		}
