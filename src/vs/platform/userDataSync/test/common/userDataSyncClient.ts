@@ -56,6 +56,7 @@ export class UserDataSyncClient extends Disposable {
 			keybindingsResource: joinPath(userDataDirectory, 'keybindings.json'),
 			keybindingsSyncPreviewResource: joinPath(userDataSyncHome, 'keybindings.json'),
 			argvResource: joinPath(userDataDirectory, 'argv.json'),
+			args: {}
 		});
 
 		const logService = new NullLogService();
