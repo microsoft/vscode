@@ -524,7 +524,8 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 				// 	e.eventData.dataTransfer.dropEffect = 'none';
 				// }
 
-				insertDropBefore = this.updateFromDragging(container, e.dragAndDropData.getData().id !== this.activity.id && true, e.eventData);
+				const isValidMove = e.dragAndDropData.getData().id !== this.activity.id && this.dndHandler.onDragOver(e.dragAndDropData, this.activity.id, e.eventData);
+				insertDropBefore = this.updateFromDragging(container, isValidMove, e.eventData);
 			},
 
 			onDragLeave: e => {
