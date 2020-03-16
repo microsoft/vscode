@@ -164,6 +164,7 @@
 .monaco-workbench  .debug-pane .debug-call-stack .monaco-action-bar .action-item > .action-label {
 	width: 16px;
 	height: 100%;
+	line-height: 22px;
 	margin-right: 8px;
 	vertical-align: text-top;
 }
