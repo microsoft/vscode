@@ -48,7 +48,7 @@ export class SemanticTokensHelp extends Disposable implements IEditorContributio
 							'Variable 1 will be a theme name.'
 						]
 					},
-					"Semantic highlighting has been applied on top of the syntax highlighting of {0} as current the theme ({1}) has semantic highlighting enabled.",
+					"Semantic highlighting has been applied to '{0}' as the theme '{1}' has semantic highlighting enabled.",
 					path.basename(model.uri.path), _themeService.getColorTheme().label
 				);
 
@@ -56,7 +56,7 @@ export class SemanticTokensHelp extends Disposable implements IEditorContributio
 					{
 						label: nls.localize('learnMoreButton', "Learn More"),
 						run: () => {
-							const url = 'https://go.microsoft.com/fwlink/?linkid=852450';
+							const url = 'https://go.microsoft.com/fwlink/?linkid=2122588';
 
 							_openerService.open(URI.parse(url));
 						}
