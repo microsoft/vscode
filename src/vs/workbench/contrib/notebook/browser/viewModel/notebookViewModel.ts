@@ -9,7 +9,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
-import { NotebookCellsSplice, ICell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { CellFindMatch, CellState, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -18,6 +18,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { WorkspaceTextEdit } from 'vs/editor/common/modes';
 import { URI } from 'vs/base/common/uri';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
+import { InsertCellEdit, DeleteCellEdit, MoveCellEdit } from 'vs/workbench/contrib/notebook/browser/viewModel/cellEdit';
 
 export interface INotebookEditorViewState {
 	editingCells: { [key: number]: boolean };
@@ -40,6 +41,17 @@ export interface IModelDecorationsChangeAccessor {
 
 const invalidFunc = () => { throw new Error(`Invalid change accessor`); };
 
+
+export type NotebookViewCellsSplice = [
+	number /* start */,
+	number /* delete count */,
+	CellViewModel[]
+];
+
+export interface INotebookViewCellsUpdateEvent {
+	synchronous: boolean;
+	splices: NotebookViewCellsSplice[];
+}
 
 export class NotebookViewModel extends Disposable {
 	private _localStore: DisposableStore = this._register(new DisposableStore());
@@ -69,8 +81,8 @@ export class NotebookViewModel extends Disposable {
 		return this._model.notebook.uri;
 	}
 
-	private readonly _onDidChangeCells = new Emitter<NotebookCellsSplice[]>();
-	get onDidChangeCells(): Event<NotebookCellsSplice[]> { return this._onDidChangeCells.event; }
+	private readonly _onDidChangeViewCells = new Emitter<INotebookViewCellsUpdateEvent>();
+	get onDidChangeViewCells(): Event<INotebookViewCellsUpdateEvent> { return this._onDidChangeViewCells.event; }
 
 	private _lastNotebookEditResource: URI[] = [];
 
@@ -90,7 +102,15 @@ export class NotebookViewModel extends Disposable {
 	) {
 		super();
 
-		this._register(this._model.onDidChangeCells(e => this._onDidChangeCells.fire(e)));
+		this._register(this._model.onDidChangeCells(e => {
+			this._onDidChangeViewCells.fire({
+				synchronous: true,
+				splices: e.map(splice => {
+					return [splice[0], splice[1], splice[2].map(cell => this.instantiationService.createInstance(CellViewModel, this.viewType, this.handle, cell))];
+				})
+			});
+		}));
+
 		this._viewCells = this._model!.notebook!.cells.map(cell => {
 			const viewCell = this.instantiationService.createInstance(CellViewModel, this.viewType, this._model!.notebook!.handle, cell);
 			this._localStore.add(viewCell);
@@ -114,22 +134,53 @@ export class NotebookViewModel extends Disposable {
 		return this._viewCells.indexOf(cell as CellViewModel);
 	}
 
-	insertCell(index: number, cell: ICell): CellViewModel {
+	insertCell(index: number, cell: ICell, synchronous: boolean): CellViewModel {
 		const newCell = this.instantiationService.createInstance(CellViewModel, this.viewType, this.handle, cell);
 		this._viewCells!.splice(index, 0, newCell);
 		this._model.insertCell(newCell.cell, index);
 		this._localStore.add(newCell);
+		this.undoService.pushElement(new InsertCellEdit(this.uri, index, newCell, {
+			insertCell: (insertIndex: number, viewCell: CellViewModel) => {
+				this._viewCells!.splice(insertIndex, 0, viewCell);
+				this._model.insertCell(viewCell.cell, insertIndex);
+				this._localStore.add(viewCell);
+				this._onDidChangeViewCells.fire({ synchronous: true, splices: [[insertIndex, 0, [viewCell]]] });
+			},
+			deleteCell: (deleteIndex: number, cell: ICell) => {
+				this._viewCells.splice(deleteIndex, 1);
+				this._model.deleteCell(cell);
+				this._onDidChangeViewCells.fire({ synchronous: true, splices: [[deleteIndex, 1, []]] });
+			}
+		}));
+
+		this._onDidChangeViewCells.fire({ synchronous: synchronous, splices: [[index, 0, [newCell]]] });
 		return newCell;
 	}
 
-	deleteCell(index: number) {
+	deleteCell(index: number, synchronous: boolean) {
 		let viewCell = this._viewCells[index];
 		this._viewCells.splice(index, 1);
 		this._model.deleteCell(viewCell.cell);
+
+		this.undoService.pushElement(new DeleteCellEdit(this.uri, index, viewCell, {
+			insertCell: (insertIndex: number, viewCell: CellViewModel) => {
+				this._viewCells!.splice(insertIndex, 0, viewCell);
+				this._model.insertCell(viewCell.cell, insertIndex);
+				this._localStore.add(viewCell);
+				this._onDidChangeViewCells.fire({ synchronous: true, splices: [[insertIndex, 0, [viewCell]]] });
+			},
+			deleteCell: (deleteIndex: number, cell: ICell) => {
+				this._viewCells.splice(deleteIndex, 1);
+				this._model.deleteCell(cell);
+				this._onDidChangeViewCells.fire({ synchronous: true, splices: [[deleteIndex, 1, []]] });
+			}
+		}, this.instantiationService, this));
+
+		this._onDidChangeViewCells.fire({ synchronous: synchronous, splices: [[index, 1, []]] });
 		viewCell.dispose();
 	}
 
-	moveCellToIdx(index: number, newIdx: number): boolean {
+	moveCellToIdx(index: number, newIdx: number, synchronous: boolean, pushedToUndoStack: boolean = true): boolean {
 		const viewCell = this.viewCells[index] as CellViewModel;
 		if (!viewCell) {
 			return false;
@@ -140,6 +191,17 @@ export class NotebookViewModel extends Disposable {
 
 		this.viewCells!.splice(newIdx, 0, viewCell);
 		this._model.insertCell(viewCell.cell, newIdx);
+
+		if (pushedToUndoStack) {
+			this.undoService.pushElement(new MoveCellEdit(this.uri, index, newIdx, {
+				moveCell: (fromIndex: number, toIndex: number) => {
+					this.moveCellToIdx(fromIndex, toIndex, true, false);
+				}
+			}));
+		}
+
+		this._onDidChangeViewCells.fire({ synchronous: synchronous, splices: [[index, 1, []]] });
+		this._onDidChangeViewCells.fire({ synchronous: synchronous, splices: [[newIdx, 0, [viewCell]]] });
 
 		return true;
 	}
@@ -296,34 +358,15 @@ export class NotebookViewModel extends Disposable {
 	}
 
 	canUndo(): boolean {
-		const lastResource = this.lastNotebookEditResource;
-
-		if (!lastResource) {
-			return false;
-		}
-
-		const lastElement = this.undoService.getLastElement(lastResource);
-
-		if (lastElement?.label === 'Notebook Replace' || lastElement?.label === 'Notebook Replace All') {
-			return true;
-		}
-
-		return false;
+		return this.undoService.canUndo(this.uri);
 	}
 
 	undo() {
-		const lastResource = this.lastNotebookEditResource;
+		this.undoService.undo(this.uri);
+	}
 
-		if (!lastResource) {
-			return;
-		}
-
-		const lastElement = this.undoService.getLastElement(lastResource);
-
-		if (lastElement?.label === 'Notebook Replace' || lastElement?.label === 'Notebook Replace All') {
-			this.undoService.undo(lastResource);
-			this._lastNotebookEditResource.pop();
-		}
+	redo() {
+		this.undoService.redo(this.uri);
 	}
 
 	equal(model: NotebookEditorModel) {

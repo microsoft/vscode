@@ -35,12 +35,12 @@ suite('NotebookViewModel', () => {
 				[['var b = 2;'], 'javascript', CellKind.Code, []]
 			],
 			(editor, viewModel) => {
-				const cell = viewModel.insertCell(1, new TestCell(viewModel.viewType, 0, ['var c = 3;'], 'javascript', CellKind.Code, []));
+				const cell = viewModel.insertCell(1, new TestCell(viewModel.viewType, 0, ['var c = 3;'], 'javascript', CellKind.Code, []), true);
 				assert.equal(viewModel.viewCells.length, 3);
 				assert.equal(viewModel.notebookDocument.cells.length, 3);
 				assert.equal(viewModel.getViewCellIndex(cell), 1);
 
-				viewModel.deleteCell(1);
+				viewModel.deleteCell(1, true);
 				assert.equal(viewModel.viewCells.length, 2);
 				assert.equal(viewModel.notebookDocument.cells.length, 2);
 				assert.equal(viewModel.getViewCellIndex(cell), -1);
@@ -62,13 +62,13 @@ suite('NotebookViewModel', () => {
 				const lastViewCell = viewModel.viewCells[viewModel.viewCells.length - 1];
 
 				const insertIndex = viewModel.getViewCellIndex(firstViewCell) + 1;
-				const cell = viewModel.insertCell(insertIndex, new TestCell(viewModel.viewType, 3, ['var c = 3;'], 'javascript', CellKind.Code, []));
+				const cell = viewModel.insertCell(insertIndex, new TestCell(viewModel.viewType, 3, ['var c = 3;'], 'javascript', CellKind.Code, []), true);
 
 				const addedCellIndex = viewModel.getViewCellIndex(cell);
-				viewModel.deleteCell(addedCellIndex);
+				viewModel.deleteCell(addedCellIndex, true);
 
 				const secondInsertIndex = viewModel.getViewCellIndex(lastViewCell) + 1;
-				const cell2 = viewModel.insertCell(secondInsertIndex, new TestCell(viewModel.viewType, 4, ['var d = 4;'], 'javascript', CellKind.Code, []));
+				const cell2 = viewModel.insertCell(secondInsertIndex, new TestCell(viewModel.viewType, 4, ['var d = 4;'], 'javascript', CellKind.Code, []), true);
 
 				assert.equal(viewModel.viewCells.length, 3);
 				assert.equal(viewModel.notebookDocument.cells.length, 3);

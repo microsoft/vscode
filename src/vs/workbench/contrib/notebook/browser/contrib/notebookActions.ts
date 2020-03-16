@@ -885,9 +885,38 @@ registerAction2(class extends Action2 {
 			return;
 		}
 
-		if (viewModel.canUndo()) {
-			viewModel.undo();
+		viewModel.undo();
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.notebook.redo',
+			title: 'Notebook Redo',
+			keybinding: {
+				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z,
+				weight: KeybindingWeight.WorkbenchContrib
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+
+		const editor = getActiveNotebookEditor(editorService);
+		if (!editor) {
+			return;
 		}
+
+		const viewModel = editor.viewModel;
+
+		if (!viewModel) {
+			return;
+		}
+
+		viewModel.redo();
 	}
 });
 

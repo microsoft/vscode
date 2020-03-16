@@ -27,7 +27,7 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebook
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { BackLayerWebView } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
 import { CodeCellRenderer, MarkdownCellRenderer, NotebookCellListDelegate } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
-import { NotebookCellsSplice, IOutput, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IOutput, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -329,8 +329,18 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		const viewState = this.loadTextEditorViewState(input);
 		this.notebookViewModel.restoreEditorViewState(viewState);
 
-		this.localStore.add(this.notebookViewModel.onDidChangeCells((e) => {
-			this.updateViewCells(e);
+		this.localStore.add(this.notebookViewModel.onDidChangeViewCells((e) => {
+			if (e.synchronous) {
+				e.splices.reverse().forEach((diff) => {
+					this.list?.splice(diff[0], diff[1], diff[2]);
+				});
+			} else {
+				DOM.scheduleAtNextAnimationFrame(() => {
+					e.splices.reverse().forEach((diff) => {
+						this.list?.splice(diff[0], diff[1], diff[2]);
+					});
+				});
+			}
 		}));
 
 		this.webview?.updateRendererPreloads(this.notebookViewModel.renderers);
@@ -533,16 +543,6 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		});
 	}
 
-	updateViewCells(splices: NotebookCellsSplice[]) {
-		DOM.scheduleAtNextAnimationFrame(() => {
-			splices.reverse().forEach((diff) => {
-				this.list?.splice(diff[0], diff[1], diff[2].map(cell => {
-					return this.instantiationService.createInstance(CellViewModel, this.notebookViewModel!.viewType, this.notebookViewModel!.handle, cell);
-				}));
-			});
-		});
-	}
-
 	async insertNotebookCell(cell: ICellViewModel, type: CellKind, direction: 'above' | 'below', initialText: string = ''): Promise<void> {
 		const newLanguages = this.notebookViewModel!.languages;
 		const language = newLanguages && newLanguages.length ? newLanguages[0] : 'markdown';
@@ -550,9 +550,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		const insertIndex = direction === 'above' ? index : index + 1;
 		const newModeCell = await this.notebookService.createNotebookCell(this.notebookViewModel!.viewType, this.notebookViewModel!.uri, insertIndex, language, type);
 		newModeCell!.source = initialText.split(/\r?\n/g);
-		const newCell = this.notebookViewModel!.insertCell(insertIndex, newModeCell!);
-
-		this.list?.splice(insertIndex, 0, [newCell]);
+		const newCell = this.notebookViewModel!.insertCell(insertIndex, newModeCell!, true);
 		this.list?.setFocus([insertIndex]);
 
 		if (type === CellKind.Markdown) {
@@ -567,8 +565,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	async deleteNotebookCell(cell: ICellViewModel): Promise<void> {
 		const index = this.notebookViewModel!.getViewCellIndex(cell);
 		await this.notebookService.deleteNotebookCell(this.notebookViewModel!.viewType, this.notebookViewModel!.uri, index);
-		this.notebookViewModel!.deleteCell(index);
-		this.list?.splice(index, 1);
+		this.notebookViewModel!.deleteCell(index, true);
 	}
 
 	moveCellDown(cell: ICellViewModel): void {
@@ -584,12 +581,9 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	}
 
 	private moveCellToIndex(cell: ICellViewModel, index: number, newIdx: number): void {
-		if (!this.notebookViewModel!.moveCellToIdx(index, newIdx)) {
+		if (!this.notebookViewModel!.moveCellToIdx(index, newIdx, true)) {
 			return;
 		}
-
-		this.list?.splice(index, 1);
-		this.list!.splice(newIdx, 0, [cell as CellViewModel]);
 
 		DOM.scheduleAtNextAnimationFrame(() => {
 			this.list?.revealInCenterIfOutsideViewport(index + 1);
