@@ -20,6 +20,9 @@ import { Range } from 'vs/editor/common/core/range';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { IKeyMods, IQuickPick } from 'vs/platform/quickinput/common/quickInput';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { createResourceExcludeMatcher } from 'vs/workbench/services/search/common/search';
+import { ResourceMap } from 'vs/base/common/map';
 
 interface ISymbolsQuickPickItem extends IPickerQuickAccessItem {
 	score: FuzzyScore;
@@ -34,11 +37,14 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 
 	private delayer = new ThrottledDelayer<ISymbolsQuickPickItem[]>(SymbolsQuickAccessProvider.TYPING_SEARCH_DELAY);
 
+	private readonly resourceExcludeMatcher = this._register(createResourceExcludeMatcher(this.instantiationService, this.configurationService));
+
 	constructor(
 		@ILabelService private readonly labelService: ILabelService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super(SymbolsQuickAccessProvider.PREFIX);
 	}
@@ -83,14 +89,21 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 
 		// Convert to symbol picks and apply filtering
 		const openSideBySideDirection = this.configuration.openSideBySideDirection;
+		const symbolsExcludedByResource = new ResourceMap<boolean>();
 		for (const [provider, symbols] of workspaceSymbols) {
 			for (const symbol of symbols) {
-				const symbolLabel = symbol.name;
-				const symbolLabelWithIcon = `$(symbol-${SymbolKinds.toString(symbol.kind) || 'property'}) ${symbolLabel}`;
 
+				// Score by symbol label
+				const symbolLabel = symbol.name;
+				const symbolScore = fuzzyScore(symbolFilter, symbolFilterLow, 0, symbolLabel, symbolLabel.toLowerCase(), 0, true);
+				if (!symbolScore) {
+					continue;
+				}
+
+				const symbolUri = symbol.location.uri;
 				let containerLabel: string | undefined = undefined;
-				if (symbol.location.uri) {
-					const containerPath = this.labelService.getUriLabel(symbol.location.uri, { relative: true });
+				if (symbolUri) {
+					const containerPath = this.labelService.getUriLabel(symbolUri, { relative: true });
 					if (symbol.containerName) {
 						containerLabel = `${symbol.containerName} • ${containerPath}`;
 					} else {
@@ -98,14 +111,8 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 					}
 				}
 
-				// Score by symbol
-				const symbolScore = fuzzyScore(symbolFilter, symbolFilterLow, 0, symbolLabel, symbolLabel.toLowerCase(), 0, true);
-				let containerScore: FuzzyScore | undefined = undefined;
-				if (!symbolScore) {
-					continue;
-				}
-
 				// Score by container if specified
+				let containerScore: FuzzyScore | undefined = undefined;
 				if (containerFilter && containerFilterLow) {
 					if (containerLabel) {
 						containerScore = fuzzyScore(containerFilter, containerFilterLow, 0, containerLabel, containerLabel.toLowerCase(), 0, true);
@@ -116,6 +123,20 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 					}
 				}
 
+				// Filter out symbols that match the global resource filter
+				if (symbolUri) {
+					let excludeSymbolByResource = symbolsExcludedByResource.get(symbolUri);
+					if (typeof excludeSymbolByResource === 'undefined') {
+						excludeSymbolByResource = this.resourceExcludeMatcher.matches(symbolUri);
+						symbolsExcludedByResource.set(symbolUri, excludeSymbolByResource);
+					}
+
+					if (excludeSymbolByResource) {
+						continue;
+					}
+				}
+
+				const symbolLabelWithIcon = `$(symbol-${SymbolKinds.toString(symbol.kind) || 'property'}) ${symbolLabel}`;
 				const deprecated = symbol.tags ? symbol.tags.indexOf(SymbolTag.Deprecated) >= 0 : false;
 
 				symbolPicks.push({

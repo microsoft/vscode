@@ -9,7 +9,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { first } from 'vs/base/common/arrays';
 import { startsWith } from 'vs/base/common/strings';
 import { assertIsDefined } from 'vs/base/common/types';
-import { IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { IQuickPickSeparator, IKeyMods, IQuickPickAcceptEvent } from 'vs/base/parts/quickinput/common/quickInput';
 
 export interface IQuickAccessController {
@@ -188,9 +188,11 @@ export interface IPickerQuickAccessItem extends IQuickPickItem {
 	trigger?(buttonIndex: number, keyMods: IKeyMods): TriggerAction | Promise<TriggerAction>;
 }
 
-export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem> implements IQuickAccessProvider {
+export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem> extends Disposable implements IQuickAccessProvider {
 
-	constructor(private prefix: string) { }
+	constructor(private prefix: string) {
+		super();
+	}
 
 	provide(picker: IQuickPick<T>, token: CancellationToken): IDisposable {
 		const disposables = new DisposableStore();
