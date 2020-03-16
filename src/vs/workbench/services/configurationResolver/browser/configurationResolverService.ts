@@ -22,6 +22,7 @@ import { IQuickInputService, IInputOptions, IQuickPickItem, IPickOptions } from 
 import { ConfiguredInput, IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { deepClone } from 'vs/base/common/objects';
 
 export abstract class BaseConfigurationResolverService extends AbstractVariableResolverService {
 
@@ -165,7 +166,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 
 		// extract and dedupe all "input" and "command" variables and preserve their order in an array
 		const variableValues: IStringDictionary<string> = Object.create(null);
-		const config = { ...configuration };
+		const config = deepClone(configuration);
 		await this.findVariables(config, variableValues, async (variable, object) => {
 
 			const [type, name] = variable.split(':', 2);
