@@ -162,35 +162,54 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 
 		// Normalize filter
 		const filterBySymbolKind = filter.indexOf(AbstractGotoSymbolQuickAccessProvider.SCOPE_PREFIX) === 0;
-		const filterLow = filter.toLowerCase();
 		const filterPos = filterBySymbolKind ? 1 : 0;
+		const [symbolFilter, containerFilter] = filter.split(' ') as [string, string | undefined];
+		const symbolFilterLow = symbolFilter.toLowerCase();
+		const containerFilterLow = containerFilter?.toLowerCase();
 
 		// Convert to symbol picks and apply filtering
 		const filteredSymbolPicks: IGotoSymbolQuickPickItem[] = [];
 		for (let index = 0; index < symbols.length; index++) {
 			const symbol = symbols[index];
 
-			const label = trim(symbol.name);
-			const deprecated = symbol.tags && symbol.tags.indexOf(SymbolTag.Deprecated) >= 0;
+			const symbolLabel = trim(symbol.name);
+			const containerLabel = symbol.containerName;
 
-			let score: FuzzyScore | undefined = undefined;
+			let symbolScore: FuzzyScore | undefined = undefined;
+			let containerScore: FuzzyScore | undefined = undefined;
+
 			let includeSymbol = true;
 			if (filter.length > filterPos) {
-				score = fuzzyScore(filter, filterLow, filterPos, label, label.toLowerCase(), 0, true);
-				includeSymbol = !!score;
+
+				// Score by symbol
+				symbolScore = fuzzyScore(symbolFilter, symbolFilterLow, filterPos, symbolLabel, symbolLabel.toLowerCase(), 0, true);
+				includeSymbol = !!symbolScore;
+
+				// Score by container if specified
+				if (includeSymbol && containerFilter && containerFilterLow) {
+					if (containerLabel) {
+						containerScore = fuzzyScore(containerFilter, containerFilterLow, filterPos, containerLabel, containerLabel.toLowerCase(), 0, true);
+					}
+
+					includeSymbol = !!containerScore;
+				}
 			}
 
 			if (includeSymbol) {
-				const labelWithIcon = `$(symbol-${SymbolKinds.toString(symbol.kind) || 'property'}) ${label}`;
+				const labelWithIcon = `$(symbol-${SymbolKinds.toString(symbol.kind) || 'property'}) ${symbolLabel}`;
+				const deprecated = symbol.tags && symbol.tags.indexOf(SymbolTag.Deprecated) >= 0;
 
 				filteredSymbolPicks.push({
 					index,
 					kind: symbol.kind,
-					score,
+					score: symbolScore,
 					label: labelWithIcon,
-					ariaLabel: localize('symbolsAriaLabel', "{0}, symbols picker", label),
-					description: symbol.containerName,
-					highlights: deprecated ? undefined : { label: createMatches(score, labelWithIcon.length - label.length /* Readjust matches to account for codicons */) },
+					ariaLabel: localize('symbolsAriaLabel', "{0}, symbols picker", symbolLabel),
+					description: containerLabel,
+					highlights: deprecated ? undefined : {
+						label: createMatches(symbolScore, labelWithIcon.length - symbolLabel.length /* Readjust matches to account for codicons in label */),
+						description: createMatches(containerScore)
+					},
 					range: {
 						selection: Range.collapseToStart(symbol.selectionRange),
 						decoration: symbol.range
