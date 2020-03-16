@@ -540,7 +540,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostProgress.withProgress(extension, { location: extHostTypes.ProgressLocation.SourceControl }, (progress, token) => task({ report(n: number) { /*noop*/ } }));
 			},
 			withProgress<R>(options: vscode.ProgressOptions, task: (progress: vscode.Progress<{ message?: string; worked?: number }>, token: vscode.CancellationToken) => Thenable<R>) {
-				if (typeof options.location !== 'number') {
+				if (typeof options.location === 'object') {
 					checkProposedApiEnabled(extension);
 				}
 				return extHostProgress.withProgress(extension, options, task);

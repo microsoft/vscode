@@ -1094,8 +1094,8 @@ export namespace EndOfLine {
 
 export namespace ProgressLocation {
 	export function from(loc: vscode.ProgressLocation | { viewId: string }): MainProgressLocation | string {
-		if (typeof loc === 'string') {
-			return loc;
+		if (typeof loc === 'object') {
+			return loc.viewId;
 		}
 
 		switch (loc) {
