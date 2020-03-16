@@ -9,21 +9,19 @@ import { ITextEditorOptions, IResourceEditorInput, TextEditorSelectionRevealType
 import { IEditorInput, IEditorPane, Extensions as EditorExtensions, EditorInput, IEditorCloseEvent, IEditorInputFactoryRegistry, toResource, IEditorIdentifier, GroupIdentifier, EditorsOrder } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { FileChangesEvent, IFileService, FileChangeType, FILES_EXCLUDE_CONFIG } from 'vs/platform/files/common/files';
+import { FileChangesEvent, IFileService, FileChangeType } from 'vs/platform/files/common/files';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Event } from 'vs/base/common/event';
-import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { getCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { getExcludes, ISearchConfiguration } from 'vs/workbench/services/search/common/search';
-import { IExpression } from 'vs/base/common/glob';
+import { createResourceExcludeMatcher } from 'vs/workbench/services/search/common/search';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -98,8 +96,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private readonly activeEditorListeners = this._register(new DisposableStore());
 	private lastActiveEditor?: IEditorIdentifier;
 
-	private readonly editorHistoryListeners: Map<EditorInput, DisposableStore> = new Map();
-	private readonly editorStackListeners: Map<EditorInput, DisposableStore> = new Map();
+	private readonly editorHistoryListeners = new Map();
+	private readonly editorStackListeners = new Map();
 
 	constructor(
 		@IEditorService private readonly editorService: EditorServiceImpl,
@@ -124,7 +122,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this._register(this.editorService.onDidCloseEditor(event => this.onEditorClosed(event)));
 		this._register(this.storageService.onWillSaveState(() => this.saveState()));
 		this._register(this.fileService.onDidFilesChange(event => this.onDidFilesChange(event)));
-		this._register(this.resourceFilter.onExpressionChange(() => this.removeExcludedFromHistory()));
+		this._register(this.resourceExcludeMatcher.onExpressionChange(() => this.removeExcludedFromHistory()));
 		this._register(this.editorService.onDidMostRecentlyActiveEditorsChange(() => this.handleEditorEventInRecentEditorsStack()));
 
 		// if the service is created late enough that an editor is already opened
@@ -718,17 +716,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	private history: Array<IEditorInput | IResourceEditorInput> | undefined = undefined;
 
-	private readonly resourceFilter = this._register(this.instantiationService.createInstance(
-		ResourceGlobMatcher,
-		(root?: URI) => this.getExcludes(root),
-		(event: IConfigurationChangeEvent) => event.affectsConfiguration(FILES_EXCLUDE_CONFIG) || event.affectsConfiguration('search.exclude')
-	));
-
-	private getExcludes(root?: URI): IExpression {
-		const scope = root ? { resource: root } : undefined;
-
-		return getExcludes(scope ? this.configurationService.getValue<ISearchConfiguration>(scope) : this.configurationService.getValue<ISearchConfiguration>())!;
-	}
+	private readonly resourceExcludeMatcher = this._register(createResourceExcludeMatcher(this.instantiationService, this.configurationService));
 
 	private handleEditorEventInHistory(editor?: IEditorPane): void {
 
@@ -764,7 +752,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		const resourceEditorInput = input as IResourceEditorInput;
 
-		return !this.resourceFilter.matches(resourceEditorInput.resource);
+		return !this.resourceExcludeMatcher.matches(resourceEditorInput.resource);
 	}
 
 	private removeExcludedFromHistory(): void {

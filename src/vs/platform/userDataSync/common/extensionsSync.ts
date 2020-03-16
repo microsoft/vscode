@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SyncStatus, IUserDataSyncStoreService, ISyncExtension, IUserDataSyncLogService, IUserDataSynchroniser, SyncSource, IUserDataSyncEnablementService, IUserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSync';
+import { SyncStatus, IUserDataSyncStoreService, ISyncExtension, IUserDataSyncLogService, IUserDataSynchroniser, SyncResource, IUserDataSyncEnablementService, IUserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSync';
 import { Event } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IExtensionManagementService, IExtensionGalleryService, IGlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -50,7 +50,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		@IUserDataSyncEnablementService userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(SyncSource.Extensions, 'extensions', fileService, environmentService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService);
+		super(SyncResource.Extensions, fileService, environmentService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService);
 		this._register(
 			Event.debounce(
 				Event.any<any>(
@@ -62,14 +62,14 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 
 	async pull(): Promise<void> {
 		if (!this.isEnabled()) {
-			this.logService.info('Extensions: Skipped pulling extensions as it is disabled.');
+			this.logService.info(`${this.syncResourceLogLabel}: Skipped pulling extensions as it is disabled.`);
 			return;
 		}
 
 		this.stop();
 
 		try {
-			this.logService.info('Extensions: Started pulling extensions...');
+			this.logService.info(`${this.syncResourceLogLabel}: Started pulling extensions...`);
 			this.setStatus(SyncStatus.Syncing);
 
 			const lastSyncUserData = await this.getLastSyncUserData<ILastSyncUserData>();
@@ -84,10 +84,10 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 
 			// No remote exists to pull
 			else {
-				this.logService.info('Extensions: Remote extensions does not exist.');
+				this.logService.info(`${this.syncResourceLogLabel}: Remote extensions does not exist.`);
 			}
 
-			this.logService.info('Extensions: Finished pulling extensions.');
+			this.logService.info(`${this.syncResourceLogLabel}: Finished pulling extensions.`);
 		} finally {
 			this.setStatus(SyncStatus.Idle);
 		}
@@ -95,14 +95,14 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 
 	async push(): Promise<void> {
 		if (!this.isEnabled()) {
-			this.logService.info('Extensions: Skipped pushing extensions as it is disabled.');
+			this.logService.info(`${this.syncResourceLogLabel}: Skipped pushing extensions as it is disabled.`);
 			return;
 		}
 
 		this.stop();
 
 		try {
-			this.logService.info('Extensions: Started pushing extensions...');
+			this.logService.info(`${this.syncResourceLogLabel}: Started pushing extensions...`);
 			this.setStatus(SyncStatus.Syncing);
 
 			const localExtensions = await this.getLocalExtensions();
@@ -111,7 +111,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 			const remoteUserData = await this.getRemoteUserData(lastSyncUserData);
 			await this.apply({ added, removed, updated, remote, remoteUserData, localExtensions, skippedExtensions: [], lastSyncUserData }, true);
 
-			this.logService.info('Extensions: Finished pushing extensions.');
+			this.logService.info(`${this.syncResourceLogLabel}: Finished pushing extensions.`);
 		} finally {
 			this.setStatus(SyncStatus.Idle);
 		}
@@ -148,7 +148,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 	}
 
 	accept(content: string): Promise<void> {
-		throw new Error('Extensions: Conflicts should not occur');
+		throw new Error(`${this.syncResourceLogLabel}: Conflicts should not occur`);
 	}
 
 	async hasLocalData(): Promise<boolean> {
@@ -177,9 +177,9 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		const localExtensions = await this.getLocalExtensions();
 
 		if (remoteExtensions) {
-			this.logService.trace('Extensions: Merging remote extensions with local extensions...');
+			this.logService.trace(`${this.syncResourceLogLabel}: Merging remote extensions with local extensions...`);
 		} else {
-			this.logService.trace('Extensions: Remote extensions does not exist. Synchronizing extensions for the first time.');
+			this.logService.trace(`${this.syncResourceLogLabel}: Remote extensions does not exist. Synchronizing extensions for the first time.`);
 		}
 
 		const { added, removed, updated, remote } = merge(localExtensions, remoteExtensions, lastSyncExtensions, skippedExtensions, this.getIgnoredExtensions());
@@ -196,7 +196,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		const hasChanges = added.length || removed.length || updated.length || remote;
 
 		if (!hasChanges) {
-			this.logService.info('Extensions: No changes found during synchronizing extensions.');
+			this.logService.info(`${this.syncResourceLogLabel}: No changes found during synchronizing extensions.`);
 		}
 
 		if (added.length || removed.length || updated.length) {
@@ -208,17 +208,17 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 
 		if (remote) {
 			// update remote
-			this.logService.trace('Extensions: Updating remote extensions...');
+			this.logService.trace(`${this.syncResourceLogLabel}: Updating remote extensions...`);
 			const content = JSON.stringify(remote);
 			remoteUserData = await this.updateRemoteUserData(content, forcePush ? null : remoteUserData.ref);
-			this.logService.info('Extensions: Updated remote extensions');
+			this.logService.info(`${this.syncResourceLogLabel}: Updated remote extensions`);
 		}
 
 		if (lastSyncUserData?.ref !== remoteUserData.ref) {
 			// update last sync
-			this.logService.trace('Extensions: Updating last synchronized extensions...');
+			this.logService.trace(`${this.syncResourceLogLabel}: Updating last synchronized extensions...`);
 			await this.updateLastSyncUserData(remoteUserData, { skippedExtensions });
-			this.logService.info('Extensions: Updated last synchronized extensions');
+			this.logService.info(`${this.syncResourceLogLabel}: Updated last synchronized extensions`);
 		}
 	}
 
@@ -230,9 +230,9 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 			const installedExtensions = await this.extensionManagementService.getInstalled(ExtensionType.User);
 			const extensionsToRemove = installedExtensions.filter(({ identifier }) => removed.some(r => areSameExtensions(identifier, r)));
 			await Promise.all(extensionsToRemove.map(async extensionToRemove => {
-				this.logService.trace('Extensions: Uninstalling local extension...', extensionToRemove.identifier.id);
+				this.logService.trace(`${this.syncResourceLogLabel}: Uninstalling local extension...', extensionToRemove.identifier.i`);
 				await this.extensionManagementService.uninstall(extensionToRemove);
-				this.logService.info('Extensions: Uninstalled local extension.', extensionToRemove.identifier.id);
+				this.logService.info(`${this.syncResourceLogLabel}: Uninstalled local extension.', extensionToRemove.identifier.i`);
 				removeFromSkipped.push(extensionToRemove.identifier);
 			}));
 		}
@@ -245,13 +245,13 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 				// Builtin Extension: Sync only enablement state
 				if (installedExtension && installedExtension.type === ExtensionType.System) {
 					if (e.disabled) {
-						this.logService.trace('Extensions: Disabling extension...', e.identifier.id);
+						this.logService.trace(`${this.syncResourceLogLabel}: Disabling extension...', e.identifier.i`);
 						await this.extensionEnablementService.disableExtension(e.identifier);
-						this.logService.info('Extensions: Disabled extension', e.identifier.id);
+						this.logService.info(`${this.syncResourceLogLabel}: Disabled extension', e.identifier.i`);
 					} else {
-						this.logService.trace('Extensions: Enabling extension...', e.identifier.id);
+						this.logService.trace(`${this.syncResourceLogLabel}: Enabling extension...', e.identifier.i`);
 						await this.extensionEnablementService.enableExtension(e.identifier);
-						this.logService.info('Extensions: Enabled extension', e.identifier.id);
+						this.logService.info(`${this.syncResourceLogLabel}: Enabled extension', e.identifier.i`);
 					}
 					removeFromSkipped.push(e.identifier);
 					return;
@@ -261,19 +261,19 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 				if (extension) {
 					try {
 						if (e.disabled) {
-							this.logService.trace('Extensions: Disabling extension...', e.identifier.id, extension.version);
+							this.logService.trace(`${this.syncResourceLogLabel}: Disabling extension...', e.identifier.id, extension.versio`);
 							await this.extensionEnablementService.disableExtension(extension.identifier);
-							this.logService.info('Extensions: Disabled extension', e.identifier.id, extension.version);
+							this.logService.info(`${this.syncResourceLogLabel}: Disabled extension', e.identifier.id, extension.versio`);
 						} else {
-							this.logService.trace('Extensions: Enabling extension...', e.identifier.id, extension.version);
+							this.logService.trace(`${this.syncResourceLogLabel}: Enabling extension...', e.identifier.id, extension.versio`);
 							await this.extensionEnablementService.enableExtension(extension.identifier);
-							this.logService.info('Extensions: Enabled extension', e.identifier.id, extension.version);
+							this.logService.info(`${this.syncResourceLogLabel}: Enabled extension', e.identifier.id, extension.versio`);
 						}
 						// Install only if the extension does not exist
 						if (!installedExtension || installedExtension.manifest.version !== extension.version) {
-							this.logService.trace('Extensions: Installing extension...', e.identifier.id, extension.version);
+							this.logService.trace(`${this.syncResourceLogLabel}: Installing extension...', e.identifier.id, extension.versio`);
 							await this.extensionManagementService.installFromGallery(extension);
-							this.logService.info('Extensions: Installed extension.', e.identifier.id, extension.version);
+							this.logService.info(`${this.syncResourceLogLabel}: Installed extension.', e.identifier.id, extension.versio`);
 							removeFromSkipped.push(extension.identifier);
 						}
 					} catch (error) {

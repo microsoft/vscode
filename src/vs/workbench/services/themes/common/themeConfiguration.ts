@@ -132,6 +132,10 @@ const tokenColorSchema: IJSONSchema = {
 		textMateRules: {
 			description: nls.localize('editorColors.textMateRules', 'Sets colors and styles using textmate theming rules (advanced).'),
 			$ref: textmateColorsSchemaId
+		},
+		semanticHighlighting: {
+			description: nls.localize('editorColors.semanticHighlighting', 'Whether semantic highlighting should be enabled for this theme.'),
+			type: 'boolean'
 		}
 	}
 };
@@ -154,6 +158,7 @@ const tokenColorCustomizationConfiguration: IConfigurationNode = {
 		[ThemeSettings.TOKEN_COLOR_CUSTOMIZATIONS_EXPERIMENTAL]: experimentalTokenStylingCustomizationSchema
 	}
 };
+
 configurationRegistry.registerConfiguration(tokenColorCustomizationConfiguration);
 
 export function updateColorThemeConfigurationSchemas(themes: IWorkbenchColorTheme[]) {

@@ -419,7 +419,7 @@ registerEditorAction(class ShowLensesInCurrentLine extends EditorAction {
 		super({
 			id: 'codelens.showLensesInCurrentLine',
 			precondition: EditorContextKeys.hasCodeLensProvider,
-			label: localize('showLensOnLine', "Show Code Lens Command For Current Line"),
+			label: localize('showLensOnLine', "Show Code Lens Commands For Current Line"),
 			alias: 'Show Code Lens Commands For Current Line',
 		});
 	}

@@ -10,11 +10,11 @@ import { basename } from 'vs/base/common/path';
 import { isEqual } from 'vs/base/common/resources';
 import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, Verbosity } from 'vs/workbench/common/editor';
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { IWebviewService, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
@@ -44,6 +44,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IUndoRedoService private readonly undoRedoService: IUndoRedoService,
 	) {
 		super(id, viewType, '', webview, webviewService, webviewWorkbenchService);
 		this._editorResource = resource;
@@ -96,7 +97,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	}
 
 	public isReadonly(): boolean {
-		return false; // TODO
+		return this._modelRef ? this._modelRef.object.isReadonly() : false;
 	}
 
 	public isDirty(): boolean {
@@ -137,7 +138,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			return undefined;
 		}
 
-		return this.handleMove(groupId, target) || this.editorService.createEditorInput({ resource: target, forceFile: true });
+		return this.tryMoveWebview(groupId, target) || this.editorService.createEditorInput({ resource: target, forceFile: true });
 	}
 
 	public async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
@@ -159,26 +160,60 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		return null;
 	}
 
-	public handleMove(groupId: GroupIdentifier, uri: URI, options?: ITextEditorOptions): IEditorInput | undefined {
+	move(group: GroupIdentifier, newResource: URI): { editor: IEditorInput } | undefined {
+		if (!this._moveHandler) {
+			return {
+				editor: this.customEditorService.createInput(newResource, this.viewType, group)
+			};
+		}
+		this._moveHandler(newResource);
+		const newEditor = this.tryMoveWebview(group, newResource);
+		if (!newEditor) {
+			return;
+		}
+		return { editor: newEditor };
+	}
+
+	private tryMoveWebview(groupId: GroupIdentifier, uri: URI, options?: ITextEditorOptions): IEditorInput | undefined {
 		const editorInfo = this.customEditorService.getCustomEditor(this.viewType);
 		if (editorInfo?.matches(uri)) {
-			const webview = assertIsDefined(this.takeOwnershipOfWebview());
 			const newInput = this.instantiationService.createInstance(CustomEditorInput,
 				uri,
 				this.viewType,
-				generateUuid(),
-				new Lazy(() => webview));
+				this.id,
+				new Lazy(() => undefined!)); // this webview is replaced in the transfer call
+			this.transfer(newInput);
 			newInput.updateGroup(groupId);
 			return newInput;
 		}
 		return undefined;
 	}
 
+
 	public undo(): void {
-		assertIsDefined(this._modelRef).object.undo();
+		assertIsDefined(this._modelRef);
+		this.undoRedoService.undo(this.resource);
 	}
 
 	public redo(): void {
-		assertIsDefined(this._modelRef).object.redo();
+		assertIsDefined(this._modelRef);
+		this.undoRedoService.redo(this.resource);
+	}
+
+	private _moveHandler?: (newResource: URI) => void;
+
+	public onMove(handler: (newResource: URI) => void): void {
+		// TODO: Move this to the service
+		this._moveHandler = handler;
+	}
+
+	protected transfer(other: CustomEditorInput): CustomEditorInput | undefined {
+		if (!super.transfer(other)) {
+			return;
+		}
+
+		other._moveHandler = this._moveHandler;
+		this._moveHandler = undefined;
+		return other;
 	}
 }

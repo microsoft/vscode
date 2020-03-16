@@ -26,7 +26,7 @@ import { findMatchingThemeRule } from 'vs/workbench/services/textMate/common/TMH
 import { ITextMateService, IGrammar, IToken, StackElement } from 'vs/workbench/services/textMate/common/textMateService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { ColorThemeData, TokenStyleDefinitions, TokenStyleDefinition } from 'vs/workbench/services/themes/common/colorThemeData';
+import { ColorThemeData, TokenStyleDefinitions, TokenStyleDefinition, TextMateThemingRuleDefinitions } from 'vs/workbench/services/themes/common/colorThemeData';
 import { TokenStylingRule, TokenStyleData, TokenStyle } from 'vs/platform/theme/common/tokenClassificationRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
@@ -260,6 +260,9 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 	}
 
 	private _isSemanticColoringEnabled() {
+		if (!this._themeService.getColorTheme().semanticHighlighting) {
+			return false;
+		}
 		const options = this._configurationService.getValue<IEditorSemanticHighlightingOptions>('editor.semanticHighlighting', { overrideIdentifier: this._model.getLanguageIdentifier().language, resource: this._model.uri });
 		return options && options.enabled;
 	}
@@ -303,7 +306,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 				const allDefValues = []; // remember the order
 				// first collect to detect when the same rule is used fro multiple properties
 				for (let property of properties) {
-					if (semanticTokenInfo.metadata[property]) {
+					if (semanticTokenInfo.metadata[property] !== undefined) {
 						const definition = semanticTokenInfo.definitions[property];
 						const defValue = this._renderTokenStyleDefinition(definition, property);
 						let properties = propertiesByDefValue[defValue];
@@ -532,11 +535,11 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 
 		const isTokenStylingRule = (d: any): d is TokenStylingRule => !!d.value;
 		if (Array.isArray(definition)) {
-			for (const d of definition) {
-				const matchingRule = findMatchingThemeRule(theme, d, false);
-				if (matchingRule) {
-					return `${escape(d.join(' '))}<br><code class="tiw-theme-selector">${matchingRule.rawSelector}\n${JSON.stringify(matchingRule.settings, null, '\t')}</code>`;
-				}
+			const scopesDefinition: TextMateThemingRuleDefinitions = {};
+			theme.resolveScopes(definition, scopesDefinition);
+			const matchingRule = scopesDefinition[property];
+			if (matchingRule && scopesDefinition.scope) {
+				return `${escape(scopesDefinition.scope.join(' '))}<br><code class="tiw-theme-selector">${matchingRule.scope}\n${JSON.stringify(matchingRule.settings, null, '\t')}</code>`;
 			}
 			return '';
 		} else if (isTokenStylingRule(definition)) {

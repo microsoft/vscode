@@ -4,60 +4,39 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IQuickPick, IQuickPickSeparator, quickPickItemScorerAccessor, IQuickPickItemWithResource } from 'vs/platform/quickinput/common/quickInput';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IQuickAccessProvider } from 'vs/platform/quickinput/common/quickAccess';
+import { IQuickPickSeparator, quickPickItemScorerAccessor, IQuickPickItemWithResource, IQuickPick } from 'vs/platform/quickinput/common/quickInput';
+import { PickerQuickAccessProvider, IPickerQuickAccessItem, TriggerAction } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { IEditorGroupsService, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorsOrder, IEditorIdentifier, toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
-import { prepareQuery, IPreparedQuery, ScorerCache, scoreItem, compareItemsByScore } from 'vs/base/common/fuzzyScorer';
-import { URI } from 'vs/base/common/uri';
+import { prepareQuery, scoreItem, compareItemsByScore } from 'vs/base/common/fuzzyScorer';
 
-interface IEditorQuickPickItem extends IQuickPickItemWithResource, IEditorIdentifier {
-	resource: URI | undefined;
-}
+interface IEditorQuickPickItem extends IQuickPickItemWithResource, IEditorIdentifier, IPickerQuickAccessItem { }
 
-export abstract class BaseEditorQuickAccessProvider implements IQuickAccessProvider {
-
-	protected abstract readonly prefix: string;
+export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessProvider<IEditorQuickPickItem> {
 
 	constructor(
+		prefix: string,
 		@IEditorGroupsService protected readonly editorGroupService: IEditorGroupsService,
 		@IEditorService protected readonly editorService: IEditorService,
 		@IModelService private readonly modelService: IModelService,
 		@IModeService private readonly modeService: IModeService
 	) {
+		super(prefix);
 	}
 
-	provide(picker: IQuickPick<IEditorQuickPickItem>, token: CancellationToken): IDisposable {
-		const disposables = new DisposableStore();
+	protected configure(picker: IQuickPick<IEditorQuickPickItem>): void {
 
-		// Disable filtering & sorting, we control the results
-		picker.matchOnLabel = picker.matchOnDescription = picker.matchOnDetail = picker.sortByLabel = false;
+		// Allow to open editors in background without closing picker
+		picker.canAcceptInBackground = true;
+	}
 
-		// Add all view items & filter on type
+	protected getPicks(filter: string): Array<IEditorQuickPickItem | IQuickPickSeparator> {
+		const query = prepareQuery(filter);
 		const scorerCache = Object.create(null);
-		const updatePickerItems = () => picker.items = this.getEditorPickItems(prepareQuery(picker.value.trim().substr(this.prefix.length)), scorerCache);
-		disposables.add(picker.onDidChangeValue(() => updatePickerItems()));
-		updatePickerItems();
-
-		// Open the picked view on accept
-		disposables.add(picker.onDidAccept(() => {
-			const [item] = picker.selectedItems;
-			if (item) {
-				picker.hide();
-				this.editorGroupService.getGroup(item.groupId)?.openEditor(item.editor);
-			}
-		}));
-
-		return disposables;
-	}
-
-	private getEditorPickItems(query: IPreparedQuery, scorerCache: ScorerCache): Array<IEditorQuickPickItem | IQuickPickSeparator> {
 		const filteredEditorEntries = this.doGetEditorPickItems().filter(entry => {
 			if (!query.value) {
 				return true;
@@ -110,18 +89,32 @@ export abstract class BaseEditorQuickAccessProvider implements IQuickAccessProvi
 	}
 
 	private doGetEditorPickItems(): Array<IEditorQuickPickItem> {
-		return this.doGetEditors().map(({ editor, groupId }) => {
+		return this.doGetEditors().map(({ editor, groupId }): IEditorQuickPickItem => {
 			const resource = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
+			const isDirty = editor.isDirty() && !editor.isSaving();
 
 			return {
 				editor,
 				groupId,
 				resource,
-				label: editor.isDirty() && !editor.isSaving() ? `$(circle-filled) ${editor.getName()}` : editor.getName(),
-				ariaLabel: localize('entryAriaLabel', "{0}, editor picker", editor.getName()),
+				label: editor.getName(),
+				ariaLabel: localize('entryAriaLabel', "{0}, editors picker", editor.getName()),
 				description: editor.getDescription(),
 				iconClasses: getIconClasses(this.modelService, this.modeService, resource),
-				italic: !this.editorGroupService.getGroup(groupId)?.isPinned(editor)
+				italic: !this.editorGroupService.getGroup(groupId)?.isPinned(editor),
+				buttonsAlwaysVisible: isDirty,
+				buttons: [
+					{
+						iconClass: isDirty ? 'codicon-circle-filled' : 'codicon-close',
+						tooltip: localize('closeEditor', "Close Editor")
+					}
+				],
+				trigger: async () => {
+					await this.editorGroupService.getGroup(groupId)?.closeEditor(editor, { preserveFocus: true });
+
+					return TriggerAction.REFRESH_PICKER;
+				},
+				accept: (keyMods, event) => this.editorGroupService.getGroup(groupId)?.openEditor(editor, { preserveFocus: event.inBackground }),
 			};
 		});
 	}
@@ -135,7 +128,14 @@ export class ActiveGroupEditorsByMostRecentlyUsedQuickAccess extends BaseEditorQ
 
 	static PREFIX = 'edt active ';
 
-	readonly prefix = ActiveGroupEditorsByMostRecentlyUsedQuickAccess.PREFIX;
+	constructor(
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IEditorService editorService: IEditorService,
+		@IModelService modelService: IModelService,
+		@IModeService modeService: IModeService
+	) {
+		super(ActiveGroupEditorsByMostRecentlyUsedQuickAccess.PREFIX, editorGroupService, editorService, modelService, modeService);
+	}
 
 	protected doGetEditors(): IEditorIdentifier[] {
 		const group = this.editorGroupService.activeGroup;
@@ -153,7 +153,14 @@ export class AllEditorsByAppearanceQuickAccess extends BaseEditorQuickAccessProv
 
 	static PREFIX = 'edt ';
 
-	readonly prefix = AllEditorsByAppearanceQuickAccess.PREFIX;
+	constructor(
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IEditorService editorService: IEditorService,
+		@IModelService modelService: IModelService,
+		@IModeService modeService: IModeService
+	) {
+		super(AllEditorsByAppearanceQuickAccess.PREFIX, editorGroupService, editorService, modelService, modeService);
+	}
 
 	protected doGetEditors(): IEditorIdentifier[] {
 		const entries: IEditorIdentifier[] = [];
@@ -177,7 +184,14 @@ export class AllEditorsByMostRecentlyUsedQuickAccess extends BaseEditorQuickAcce
 
 	static PREFIX = 'edt mru ';
 
-	readonly prefix = AllEditorsByMostRecentlyUsedQuickAccess.PREFIX;
+	constructor(
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IEditorService editorService: IEditorService,
+		@IModelService modelService: IModelService,
+		@IModeService modeService: IModeService
+	) {
+		super(AllEditorsByMostRecentlyUsedQuickAccess.PREFIX, editorGroupService, editorService, modelService, modeService);
+	}
 
 	protected doGetEditors(): IEditorIdentifier[] {
 		const entries: IEditorIdentifier[] = [];

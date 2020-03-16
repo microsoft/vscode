@@ -28,6 +28,8 @@ export class TestColorTheme implements IColorTheme {
 		return undefined;
 	}
 
+	readonly semanticHighlighting = false;
+
 	get tokenColorMap(): string[] {
 		return [];
 	}

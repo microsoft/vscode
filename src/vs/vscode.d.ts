@@ -2116,6 +2116,9 @@ declare module 'vscode' {
 
 		/**
 		 * A [command](#Command) this code action executes.
+		 *
+		 * If this command throws an exception, VS Code displays the exception message to users in the editor at the
+		 * current cursor position.
 		 */
 		command?: Command;
 
@@ -2145,8 +2148,8 @@ declare module 'vscode' {
 		 * of code action, such as refactorings.
 		 *
 		 * - If the user has a [keybinding](https://code.visualstudio.com/docs/editor/refactoring#_keybindings-for-code-actions)
-		 * that auto applies a code action and only a disabled code actions are returned, VS Code will show the user a
-		 * message with `reason` in the editor.
+		 * that auto applies a code action and only a disabled code actions are returned, VS Code will show the user an
+		 * error message with `reason` in the editor.
 		 */
 		disabled?: {
 			/**
@@ -7929,7 +7932,7 @@ declare module 'vscode' {
 		/**
 		 * The location at which progress should show.
 		 */
-		location: ProgressLocation;
+		location: ProgressLocation | { viewId: string };
 
 		/**
 		 * A human-readable string which will be used to describe the

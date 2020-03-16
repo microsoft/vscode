@@ -143,39 +143,26 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: `workbench.output.action.turnOffAutoScroll`,
-			title: nls.localize('outputScrollOff', "Turn Auto Scrolling Off"),
+			id: `workbench.output.action.toggleAutoScroll`,
+			title: { value: nls.localize('toggleAutoScroll', "Toggle Auto Scrolling"), original: 'Toggle Auto Scrolling' },
+			tooltip: { value: nls.localize('outputScrollOff', "Turn Auto Scrolling Off"), original: 'Turn Auto Scrolling Off' },
 			menu: {
 				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', OUTPUT_VIEW_ID), CONTEXT_OUTPUT_SCROLL_LOCK.negate()),
+				when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', OUTPUT_VIEW_ID)),
 				group: 'navigation',
 				order: 3,
 			},
-			icon: { id: 'codicon/unlock' }
+			icon: { id: 'codicon/unlock' },
+			toggled: {
+				condition: CONTEXT_OUTPUT_SCROLL_LOCK,
+				icon: { id: 'codicon/lock' },
+				tooltip: { value: nls.localize('outputScrollOn', "Turn Auto Scrolling On"), original: 'Turn Auto Scrolling On' }
+			}
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const outputView = accessor.get(IViewsService).getActiveViewWithId<OutputViewPane>(OUTPUT_VIEW_ID)!;
-		outputView.scrollLock = true;
-	}
-});
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: `workbench.output.action.turnOnAutoScroll`,
-			title: nls.localize('outputScrollOn', "Turn Auto Scrolling On"),
-			menu: {
-				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', OUTPUT_VIEW_ID), CONTEXT_OUTPUT_SCROLL_LOCK),
-				group: 'navigation',
-				order: 3,
-			},
-			icon: { id: 'codicon/lock' },
-		});
-	}
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const outputView = accessor.get(IViewsService).getActiveViewWithId<OutputViewPane>(OUTPUT_VIEW_ID)!;
-		outputView.scrollLock = false;
+		outputView.scrollLock = !outputView.scrollLock;
 	}
 });
 registerAction2(class extends Action2 {

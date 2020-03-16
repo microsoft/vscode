@@ -76,9 +76,9 @@ declare module 'vscode' {
 		export const onDidChangeAuthenticationProviders: Event<AuthenticationProvidersChangeEvent>;
 
 		/**
-		 * Returns whether a provider with providerId is currently registered.
+		 * An array of the ids of authentication providers that are currently registered.
 		 */
-		export function hasProvider(providerId: string): boolean;
+		export const providerIds: string[];
 
 		/**
 		 * Get existing authentication sessions. Rejects if a provider with providerId is not
@@ -1086,6 +1086,22 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region Terminal link handlers https://github.com/microsoft/vscode/issues/91606
+
+	export namespace window {
+		export function registerTerminalLinkHandler(handler: TerminalLinkHandler): Disposable;
+	}
+
+	export interface TerminalLinkHandler {
+		/**
+		 * @return true when the link was handled (and should not be considered by
+		 * other providers including the default), false when the link was not handled.
+		 */
+		handleLink(terminal: Terminal, link: string): ProviderResult<boolean>;
+	}
+
+	//#endregion
+
 	//#region Joh -> exclusive document filters
 
 	export interface DocumentFilter {
@@ -1223,80 +1239,70 @@ declare module 'vscode' {
 	// - More properties from `TextDocument`?
 
 	/**
-	 * Defines the capabilities of a custom webview editor.
-	 */
-	interface CustomEditorCapabilities {
-		/**
-		 * Defines the editing capability of a custom webview document.
-		 *
-		 * When not provided, the document is considered readonly.
-		 */
-		readonly editing?: CustomEditorEditingCapability;
-	}
-
-	/**
 	 * Defines the editing capability of a custom webview editor. This allows the webview editor to hook into standard
 	 * editor events such as `undo` or `save`.
 	 *
 	 * @param EditType Type of edits.
 	 */
-	interface CustomEditorEditingCapability<EditType = unknown> {
+	interface CustomEditorEditingDelegate<EditType = unknown> {
 		/**
 		 * Save the resource.
 		 *
+		 * @param document Document to save.
 		 * @param cancellation Token that signals the save is no longer required (for example, if another save was triggered).
 		 *
 		 * @return Thenable signaling that the save has completed.
 		 */
-		save(cancellation: CancellationToken): Thenable<void>;
+		save(document: CustomDocument, cancellation: CancellationToken): Thenable<void>;
 
 		/**
 		 * Save the existing resource at a new path.
 		 *
+		 * @param document Document to save.
 		 * @param targetResource Location to save to.
 		 *
 		 * @return Thenable signaling that the save has completed.
 		 */
-		saveAs(targetResource: Uri): Thenable<void>;
+		saveAs(document: CustomDocument, targetResource: Uri): Thenable<void>;
 
 		/**
 		 * Event triggered by extensions to signal to VS Code that an edit has occurred.
 		 */
-		readonly onDidEdit: Event<EditType>;
+		readonly onDidEdit: Event<CustomDocumentEditEvent<EditType>>;
 
 		/**
 		 * Apply a set of edits.
 		 *
 		 * Note that is not invoked when `onDidEdit` is called because `onDidEdit` implies also updating the view to reflect the edit.
 		 *
+		 * @param document Document to apply edits to.
 		 * @param edit Array of edits. Sorted from oldest to most recent.
 		 *
 		 * @return Thenable signaling that the change has completed.
 		 */
-		applyEdits(edits: readonly EditType[]): Thenable<void>;
+		applyEdits(document: CustomDocument, edits: readonly EditType[]): Thenable<void>;
 
 		/**
 		 * Undo a set of edits.
 		 *
 		 * This is triggered when a user undoes an edit.
 		 *
+		 * @param document Document to undo edits from.
 		 * @param edit Array of edits. Sorted from most recent to oldest.
 		 *
 		 * @return Thenable signaling that the change has completed.
 		 */
-		undoEdits(edits: readonly EditType[]): Thenable<void>;
+		undoEdits(document: CustomDocument, edits: readonly EditType[]): Thenable<void>;
 
 		/**
 		 * Revert the file to its last saved state.
 		 *
-		 * @param change Added or applied edits.
+		 * @param document Document to revert.
+		 * @param edits Added or applied edits.
 		 *
 		 * @return Thenable signaling that the change has completed.
 		 */
-		revert(change: {
-			readonly undoneEdits: readonly EditType[];
-			readonly appliedEdits: readonly EditType[];
-		}): Thenable<void>;
+		revert(document: CustomDocument, edits: CustomDocumentRevert<EditType>): Thenable<void>;
 
 		/**
 		 * Back up the resource in its current state.
@@ -1311,12 +1317,50 @@ declare module 'vscode' {
 		 * made in quick succession, `backup` is only triggered after the last one. `backup` is not invoked when
 		 * `auto save` is enabled (since auto save already persists resource ).
 		 *
+		 * @param document Document to revert.
 		 * @param cancellation Token that signals the current backup since a new backup is coming in. It is up to your
 		 * extension to decided how to respond to cancellation. If for example your extension is backing up a large file
 		 * in an operation that takes time to complete, your extension may decide to finish the ongoing backup rather
 		 * than cancelling it to ensure that VS Code has some valid backup.
 		 */
-		backup(cancellation: CancellationToken): Thenable<void>;
+		backup(document: CustomDocument, cancellation: CancellationToken): Thenable<void>;
+	}
+
+	/**
+	 * Event triggered by extensions to signal to VS Code that an edit has occurred on a CustomDocument``.
+	 */
+	interface CustomDocumentEditEvent<EditType = unknown> {
+		/**
+		 * Document the edit is for.
+		 */
+		readonly document: CustomDocument;
+
+		/**
+		 * Object that describes the edit.
+		 *
+		 * Edit objects are passed back to your extension in `undoEdits`, `applyEdits`, and `revert`.
+		 */
+		readonly edit: EditType;
+
+		/**
+		 * Display name describing the edit.
+		 */
+		readonly label?: string;
+	}
+
+	/**
+	 * Data about a revert for a `CustomDocument`.
+	 */
+	interface CustomDocumentRevert<EditType = unknown> {
+		/**
+		 * List of edits that were undone to get the document back to its on disk state.
+		 */
+		readonly undoneEdits: readonly EditType[];
+
+		/**
+		 * List of edits that were reapplied to get the document back to its on disk state.
+		 */
+		readonly appliedEdits: readonly EditType[];
 	}
 
 	/**
@@ -1375,7 +1419,7 @@ declare module 'vscode' {
 		 *
 		 * @return The capabilities of the resolved document.
 		 */
-		resolveCustomDocument(document: CustomDocument): Thenable<CustomEditorCapabilities>;
+		resolveCustomDocument(document: CustomDocument): Thenable<void>;
 
 		/**
 		 * Resolve a webview editor for a given resource.
@@ -1393,6 +1437,13 @@ declare module 'vscode' {
 		 * @return Thenable indicating that the webview editor has been resolved.
 		 */
 		resolveCustomEditor(document: CustomDocument, webviewPanel: WebviewPanel): Thenable<void>;
+
+		/**
+		 * Defines the editing capability of a custom webview document.
+		 *
+		 * When not provided, the document is considered readonly.
+		 */
+		readonly editingDelegate?: CustomEditorEditingDelegate;
 	}
 
 	/**
@@ -1422,6 +1473,21 @@ declare module 'vscode' {
 		 * @return Thenable indicating that the webview editor has been resolved.
 		 */
 		resolveCustomTextEditor(document: TextDocument, webviewPanel: WebviewPanel): Thenable<void>;
+
+		/**
+		 * TODO: discuss this at api sync.
+		 *
+		 * Handle when the underlying resource for a custom editor is renamed.
+		 *
+		 * This allows the webview for the editor be preserved throughout the rename. If this method is not implemented,
+		 * VS Code will destory the previous custom editor and create a replacement one.
+		 *
+		 * @param newDocument New text document to use for the custom editor.
+		 * @param existingWebviewPanel Webview panel for the custom editor.
+		 *
+		 * @return Thenable indicating that the webview editor has been moved.
+		 */
+		moveCustomTextEditor?(newDocument: TextDocument, existingWebviewPanel: WebviewPanel): Thenable<void>;
 	}
 
 	namespace window {
@@ -1438,7 +1504,7 @@ declare module 'vscode' {
 		export function registerCustomEditorProvider(
 			viewType: string,
 			provider: CustomEditorProvider | CustomTextEditorProvider,
-			webviewOptions?: WebviewPanelOptions,
+			webviewOptions?: WebviewPanelOptions, // TODO: move this onto provider?
 		): Disposable;
 	}
 
@@ -1921,9 +1987,9 @@ declare module 'vscode' {
 		 * A code that identifies this error.
 		 *
 		 * Possible values are names of errors, like [`FileNotFound`](#FileSystemError.FileNotFound),
-		 * or `undefined` for an unspecified error.
+		 * or `Unknown` for an unspecified error.
 		 */
-		readonly code?: string;
+		readonly code: string;
 	}
 
 	//#endregion
@@ -1943,4 +2009,5 @@ declare module 'vscode' {
 	}
 
 	//#endregion
+
 }

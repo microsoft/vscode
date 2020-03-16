@@ -24,7 +24,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { ITimelineService, TimelineChangeEvent, TimelineItem, TimelineOptions, TimelineProvidersChangeEvent, TimelineRequest, Timeline, TimelinePaneId } from 'vs/workbench/contrib/timeline/common/timeline';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { SideBySideEditor, toResource } from 'vs/workbench/common/editor';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IThemeService, LIGHT, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { basename } from 'vs/base/common/path';
@@ -34,7 +34,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IActionViewItemProvider, ActionBar, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction, ActionRunner } from 'vs/base/common/actions';
 import { ContextAwareMenuEntryActionViewItem, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { MenuItemAction, IMenuService, MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
+import { MenuItemAction, IMenuService, MenuId, registerAction2, Action2, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { fromNow } from 'vs/base/common/date';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
@@ -403,7 +403,7 @@ export class TimelinePane extends ViewPane {
 	private async handleRequest(request: TimelineRequest) {
 		let timeline: Timeline | undefined;
 		try {
-			timeline = await this.progressService.withProgress({ location: this.getProgressLocation() }, () => request.result);
+			timeline = await this.progressService.withProgress({ location: this.id }, () => request.result);
 		}
 		finally {
 			this._pendingRequests.delete(request.source);
@@ -932,38 +932,35 @@ class TimelinePaneCommands extends Disposable {
 			}
 		}));
 
-		this._register(registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: 'timeline.toggleFollowActiveEditor',
-					title: { value: localize('timeline.toggleFollowActiveEditorCommand', "Toggle Active Editor Following"), original: 'Toggle Active Editor Following' },
-					category: { value: localize('timeline', "Timeline"), original: 'Timeline' },
-					menu: [{
-						id: MenuId.TimelineTitle,
-						command: {
-							// title: localize(`timeline.toggleFollowActiveEditorCommand.stop`, "Stop following the Active Editor"),
-							icon: { id: 'codicon/eye' }
-						},
-						group: 'navigation',
-						order: 98,
-						when: TimelineFollowActiveEditorContext
-					},
-					{
-						id: MenuId.TimelineTitle,
-						command: {
-							// title: localize(`ToggleFollowActiveEditorCommand.follow`, "Follow the Active Editor"),
-							icon: { id: 'codicon/eye-closed' }
-						},
-						group: 'navigation',
-						order: 98,
-						when: TimelineFollowActiveEditorContext.toNegated()
-					}]
-				});
-			}
-			run(accessor: ServicesAccessor, ...args: any[]) {
-				pane.followActiveEditor = !pane.followActiveEditor;
-			}
-		}));
+		this._register(CommandsRegistry.registerCommand('timeline.toggleFollowActiveEditor',
+			(accessor: ServicesAccessor, ...args: any[]) => pane.followActiveEditor = !pane.followActiveEditor
+		));
+
+		this._register(MenuRegistry.appendMenuItem(MenuId.TimelineTitle, ({
+			command: {
+				id: 'timeline.toggleFollowActiveEditor',
+				title: { value: localize('timeline.toggleFollowActiveEditorCommand', "Toggle Active Editor Following"), original: 'Toggle Active Editor Following' },
+				// title: localize(`timeline.toggleFollowActiveEditorCommand.stop`, "Stop following the Active Editor"),
+				icon: { id: 'codicon/eye' },
+				category: { value: localize('timeline', "Timeline"), original: 'Timeline' },
+			},
+			group: 'navigation',
+			order: 98,
+			when: TimelineFollowActiveEditorContext
+		})));
+
+		this._register(MenuRegistry.appendMenuItem(MenuId.TimelineTitle, ({
+			command: {
+				id: 'timeline.toggleFollowActiveEditor',
+				title: { value: localize('timeline.toggleFollowActiveEditorCommand', "Toggle Active Editor Following"), original: 'Toggle Active Editor Following' },
+				// title: localize(`timeline.toggleFollowActiveEditorCommand.stop`, "Stop following the Active Editor"),
+				icon: { id: 'codicon/eye-closed' },
+				category: { value: localize('timeline', "Timeline"), original: 'Timeline' },
+			},
+			group: 'navigation',
+			order: 98,
+			when: TimelineFollowActiveEditorContext.toNegated()
+		})));
 
 		this._register(timelineService.onDidChangeProviders(() => this.updateTimelineSourceFilters()));
 		this.updateTimelineSourceFilters();

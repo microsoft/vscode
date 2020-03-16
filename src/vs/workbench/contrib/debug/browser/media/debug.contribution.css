@@ -125,7 +125,8 @@
 	font-style: italic;
 }
 
-.monaco-workbench .monaco-list-row .expression .error {
+.monaco-workbench .monaco-list-row .expression .error,
+.monaco-workbench .debug-pane .debug-variables .scope .error {
 	color: #e51400;
 }
 
@@ -145,7 +146,8 @@
 	color: rgba(204, 204, 204, 0.6);
 }
 
-.vs-dark .monaco-workbench .monaco-list-row .expression .error {
+.vs-dark .monaco-workbench .monaco-list-row .expression .error,
+.vs-dark .monaco-workbench .debug-pane .debug-variables .scope .error {
 	color: #f48771;
 }
 
@@ -173,7 +175,8 @@
 	color: #ce9178;
 }
 
-.hc-black .monaco-workbench .monaco-list-row .expression .error {
+.hc-black .monaco-workbench .monaco-list-row .expression .error,
+.hc-black .monaco-workbench .debug-pane .debug-variables .scope .error {
 	color: #f48771;
 }
 

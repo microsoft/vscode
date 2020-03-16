@@ -1093,7 +1093,11 @@ export namespace EndOfLine {
 }
 
 export namespace ProgressLocation {
-	export function from(loc: vscode.ProgressLocation): MainProgressLocation {
+	export function from(loc: vscode.ProgressLocation | { viewId: string }): MainProgressLocation | string {
+		if (typeof loc === 'string') {
+			return loc;
+		}
+
 		switch (loc) {
 			case types.ProgressLocation.SourceControl: return MainProgressLocation.Scm;
 			case types.ProgressLocation.Window: return MainProgressLocation.Window;

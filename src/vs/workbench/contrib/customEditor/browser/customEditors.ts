@@ -21,7 +21,7 @@ import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { EditorInput, EditorOptions, IEditorInput, IEditorPane } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, IEditorInput, IEditorPane, GroupIdentifier } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { webviewEditorsExtensionPoint } from 'vs/workbench/contrib/customEditor/browser/extensionPoint';
 import { CONTEXT_CUSTOM_EDITORS, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CustomEditorInfo, CustomEditorInfoCollection, CustomEditorPriority, CustomEditorSelector, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
@@ -238,14 +238,14 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 			return this.promptOpenWith(resource, options, group);
 		}
 
-		const input = this.createInput(resource, viewType, group);
+		const input = this.createInput(resource, viewType, group?.id);
 		return this.openEditorForResource(resource, input, options, group);
 	}
 
 	public createInput(
 		resource: URI,
 		viewType: string,
-		group: IEditorGroup | undefined,
+		group: GroupIdentifier | undefined,
 		options?: { readonly customClasses: string; },
 	): IEditorInput {
 		if (viewType === defaultEditorId) {
@@ -257,8 +257,8 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 			return this.webviewService.createWebviewOverlay(id, { customClasses: options?.customClasses }, {});
 		});
 		const input = this.instantiationService.createInstance(CustomEditorInput, resource, viewType, id, webview);
-		if (group) {
-			input.updateGroup(group.id);
+		if (typeof group !== 'undefined') {
+			input.updateGroup(group);
 		}
 		return input;
 	}
@@ -317,12 +317,18 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 					continue;
 				}
 
+				if (!isEqual(editor.resource, oldResource)) {
+					continue;
+				}
+
 				const editorInfo = this._editorInfoStore.get(editor.viewType);
 				if (!editorInfo?.matches(newResource)) {
 					continue;
 				}
 
-				const replacement = this.createInput(newResource, editor.viewType, group);
+				const moveResult = editor.move(group.id, newResource);
+				const replacement = moveResult ? moveResult.editor : this.createInput(newResource, editor.viewType, group.id);
+
 				this.editorService.replaceEditors([{
 					editor: editor,
 					replacement: replacement,
@@ -486,7 +492,7 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 				return undefined;
 			}
 
-			const input = this.customEditorService.createInput(resource, bestAvailableEditor.id, group, { customClasses });
+			const input = this.customEditorService.createInput(resource, bestAvailableEditor.id, group.id, { customClasses });
 			if (input instanceof EditorInput) {
 				return input;
 			}

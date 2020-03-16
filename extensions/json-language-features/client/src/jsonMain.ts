@@ -188,6 +188,9 @@ export function activate(context: ExtensionContext) {
 		// handle content request
 		client.onRequest(VSCodeContentRequest.type, (uriPath: string) => {
 			const uri = Uri.parse(uriPath);
+			if (uri.scheme === 'untitled') {
+				return Promise.reject(new Error(localize('untitled.schema', 'Unable to load {0}', uri.toString())));
+			}
 			if (uri.scheme !== 'http' && uri.scheme !== 'https') {
 				return workspace.openTextDocument(uri).then(doc => {
 					schemaDocuments[uri.toString()] = true;
@@ -342,6 +345,9 @@ function getSchemaAssociations(_context: ExtensionContext): ISchemaAssociation[]
 						fileMatch = [fileMatch];
 					}
 					if (Array.isArray(fileMatch) && url) {
+						if (url[0] === '.' && url[1] === '/') {
+							url = Uri.file(path.join(extension.extensionPath, url)).toString();
+						}
 						fileMatch = fileMatch.map(fm => {
 							if (fm[0] === '%') {
 								fm = fm.replace(/%APP_SETTINGS_HOME%/, '/User');

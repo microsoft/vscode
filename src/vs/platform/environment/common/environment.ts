@@ -39,7 +39,6 @@ export interface ParsedArgs {
 	'builtin-extensions-dir'?: string;
 	extensionDevelopmentPath?: string[]; // // undefined or array of 1 or more local paths or URIs
 	extensionTestsPath?: string; // either a local path or a URI
-	'extension-development-confirm-save'?: boolean;
 	'inspect-extensions'?: string;
 	'inspect-brk-extensions'?: string;
 	debugId?: string;
@@ -74,6 +73,7 @@ export interface ParsedArgs {
 	'disable-user-env-probe'?: boolean;
 	'force'?: boolean;
 	'force-user-env'?: boolean;
+	'sync'?: 'on' | 'off';
 
 	// chromium command line args: https://electronjs.org/docs/all#supported-chrome-command-line-switches
 	'no-proxy-server'?: boolean;
@@ -167,5 +167,5 @@ export interface IEnvironmentService extends IUserHomeProvider {
 	driverHandle?: string;
 	driverVerbose: boolean;
 
-	galleryMachineIdResource?: URI;
+	serviceMachineIdResource?: URI;
 }
