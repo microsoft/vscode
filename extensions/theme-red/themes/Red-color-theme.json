@@ -385,5 +385,6 @@
 				"foreground": "#ec0d1e"
 			}
 		}
-	]
+	],
+	"semanticHighlighting": true
 }

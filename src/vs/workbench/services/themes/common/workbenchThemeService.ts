@@ -70,7 +70,7 @@ export interface IColorCustomizations {
 }
 
 export interface ITokenColorCustomizations {
-	[groupIdOrThemeSettingsId: string]: string | ITokenColorizationSetting | ITokenColorCustomizations | undefined | ITextMateThemingRule[];
+	[groupIdOrThemeSettingsId: string]: string | ITokenColorizationSetting | ITokenColorCustomizations | undefined | ITextMateThemingRule[] | boolean;
 	comments?: string | ITokenColorizationSetting;
 	strings?: string | ITokenColorizationSetting;
 	numbers?: string | ITokenColorizationSetting;
@@ -79,6 +79,7 @@ export interface ITokenColorCustomizations {
 	functions?: string | ITokenColorizationSetting;
 	variables?: string | ITokenColorizationSetting;
 	textMateRules?: ITextMateThemingRule[];
+	semanticHighlighting?: boolean;
 }
 
 export interface IExperimentalTokenStyleCustomizations {

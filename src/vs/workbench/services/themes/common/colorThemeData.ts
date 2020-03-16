@@ -53,6 +53,9 @@ export class ColorThemeData implements IColorTheme {
 	watch?: boolean;
 	extensionData?: ExtensionData;
 
+	private themeSemanticHighlighting: boolean | undefined;
+	private customSemanticHighlighting: boolean | undefined;
+
 	private themeTokenColors: ITextMateThemingRule[] = [];
 	private customTokenColors: ITextMateThemingRule[] = [];
 	private colorMap: IColorMap = {};
@@ -72,6 +75,10 @@ export class ColorThemeData implements IColorTheme {
 		this.label = label;
 		this.settingsId = settingsId;
 		this.isLoaded = false;
+	}
+
+	get semanticHighlighting(): boolean {
+		return this.customSemanticHighlighting !== undefined ? this.customSemanticHighlighting : !!this.themeSemanticHighlighting;
 	}
 
 	get tokenColors(): ITextMateThemingRule[] {
@@ -289,9 +296,11 @@ export class ColorThemeData implements IColorTheme {
 						const settings = tokenColors[i].settings;
 						if (score >= foregroundScore && settings.foreground) {
 							foreground = settings.foreground;
+							foregroundScore = score;
 						}
 						if (score >= fontStyleScore && types.isString(settings.fontStyle)) {
 							fontStyle = settings.fontStyle;
+							fontStyleScore = score;
 						}
 					}
 				}
@@ -334,6 +343,7 @@ export class ColorThemeData implements IColorTheme {
 
 	public setCustomTokenColors(customTokenColors: ITokenColorCustomizations) {
 		this.customTokenColors = [];
+		this.customSemanticHighlighting = undefined;
 
 		// first add the non-theme specific settings
 		this.addCustomTokenColors(customTokenColors);
@@ -385,6 +395,9 @@ export class ColorThemeData implements IColorTheme {
 				}
 			}
 		}
+		if (customTokenColors.semanticHighlighting !== undefined) {
+			this.customSemanticHighlighting = customTokenColors.semanticHighlighting;
+		}
 	}
 
 	public ensureLoaded(extensionResourceLoaderService: IExtensionResourceLoaderService): Promise<void> {
@@ -405,13 +418,15 @@ export class ColorThemeData implements IColorTheme {
 		const result = {
 			colors: {},
 			textMateRules: [],
-			stylingRules: undefined
+			stylingRules: undefined,
+			semanticHighlighting: false
 		};
 		return _loadColorTheme(extensionResourceLoaderService, this.location, result).then(_ => {
 			this.isLoaded = true;
 			this.tokenStylingRules = result.stylingRules;
 			this.colorMap = result.colors;
 			this.themeTokenColors = result.textMateRules;
+			this.themeSemanticHighlighting = result.semanticHighlighting;
 		});
 	}
 
@@ -435,13 +450,14 @@ export class ColorThemeData implements IColorTheme {
 			selector: this.id.split(' ').join('.'), // to not break old clients
 			themeTokenColors: this.themeTokenColors,
 			extensionData: this.extensionData,
+			themeSemanticHighlighting: this.themeSemanticHighlighting,
 			colorMap: colorMapData,
 			watch: this.watch
 		});
 	}
 
 	hasEqualData(other: ColorThemeData) {
-		return objects.equals(this.colorMap, other.colorMap) && objects.equals(this.themeTokenColors, other.themeTokenColors);
+		return objects.equals(this.colorMap, other.colorMap) && objects.equals(this.themeTokenColors, other.themeTokenColors) && this.themeSemanticHighlighting === other.themeSemanticHighlighting;
 	}
 
 	get baseTheme(): string {
@@ -487,7 +503,7 @@ export class ColorThemeData implements IColorTheme {
 						}
 						break;
 					case 'themeTokenColors':
-					case 'id': case 'label': case 'settingsId': case 'extensionData': case 'watch':
+					case 'id': case 'label': case 'settingsId': case 'extensionData': case 'watch': case 'themeSemanticHighlighting':
 						(theme as any)[key] = data[key];
 						break;
 				}
@@ -531,7 +547,7 @@ function toCSSSelector(extensionId: string, path: string) {
 	return str;
 }
 
-function _loadColorTheme(extensionResourceLoaderService: IExtensionResourceLoaderService, themeLocation: URI, result: { textMateRules: ITextMateThemingRule[], colors: IColorMap, stylingRules: TokenStylingRule[] | undefined }): Promise<any> {
+function _loadColorTheme(extensionResourceLoaderService: IExtensionResourceLoaderService, themeLocation: URI, result: { textMateRules: ITextMateThemingRule[], colors: IColorMap, stylingRules: TokenStylingRule[] | undefined, semanticHighlighting: boolean }): Promise<any> {
 	if (resources.extname(themeLocation) === '.json') {
 		return extensionResourceLoaderService.readExtensionResource(themeLocation).then(content => {
 			let errors: Json.ParseError[] = [];
@@ -550,6 +566,7 @@ function _loadColorTheme(extensionResourceLoaderService: IExtensionResourceLoade
 					convertSettings(contentValue.settings, result);
 					return null;
 				}
+				result.semanticHighlighting = result.semanticHighlighting || contentValue.semanticHighlighting;
 				let colors = contentValue.colors;
 				if (colors) {
 					if (typeof colors !== 'object') {
@@ -574,10 +591,10 @@ function _loadColorTheme(extensionResourceLoaderService: IExtensionResourceLoade
 						return Promise.reject(new Error(nls.localize({ key: 'error.invalidformat.tokenColors', comment: ['{0} will be replaced by a path. Values in quotes should not be translated.'] }, "Problem parsing color theme file: {0}. Property 'tokenColors' should be either an array specifying colors or a path to a TextMate theme file", themeLocation.toString())));
 					}
 				}
-				let tokenStylingRules = contentValue.tokenStylingRules;
-				if (tokenStylingRules && typeof tokenStylingRules === 'object') {
-					result.stylingRules = readCustomTokenStyleRules(tokenStylingRules, result.stylingRules);
-				}
+				// let tokenStylingRules = contentValue.tokenStylingRules;
+				// if (tokenStylingRules && typeof tokenStylingRules === 'object') {
+				// 	result.stylingRules = readCustomTokenStyleRules(tokenStylingRules, result.stylingRules);
+				// }
 				return null;
 			});
 		});
@@ -642,7 +659,7 @@ function nameMatcher(identifers: string[], scope: ProbeScope): number {
 	let lastScopeIndex = scope.length - 1;
 	let lastIdentifierIndex = findInIdents(scope[lastScopeIndex--], identifers.length);
 	if (lastIdentifierIndex >= 0) {
-		const score = (lastIdentifierIndex + 1) * 0x10000 + scope.length;
+		const score = (lastIdentifierIndex + 1) * 0x10000 + identifers[lastIdentifierIndex].length;
 		while (lastScopeIndex >= 0) {
 			lastIdentifierIndex = findInIdents(scope[lastScopeIndex--], lastIdentifierIndex);
 			if (lastIdentifierIndex === -1) {

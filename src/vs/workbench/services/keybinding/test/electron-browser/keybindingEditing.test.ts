@@ -54,6 +54,8 @@ import { IFilesConfigurationService, FilesConfigurationService } from 'vs/workbe
 import { WorkingCopyFileService, IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 
 class TestEnvironmentService extends NativeWorkbenchEnvironmentService {
 
@@ -106,6 +108,7 @@ suite('KeybindingsEditing', () => {
 			instantiationService.stub(IFilesConfigurationService, instantiationService.createInstance(FilesConfigurationService));
 			instantiationService.stub(ITextResourcePropertiesService, new TestTextResourcePropertiesService(instantiationService.get(IConfigurationService)));
 			instantiationService.stub(IUndoRedoService, instantiationService.createInstance(UndoRedoService));
+			instantiationService.stub(IThemeService, new TestThemeService());
 			instantiationService.stub(IModelService, instantiationService.createInstance(ModelServiceImpl));
 			const fileService = new FileService(new NullLogService());
 			const diskFileSystemProvider = new DiskFileSystemProvider(new NullLogService());

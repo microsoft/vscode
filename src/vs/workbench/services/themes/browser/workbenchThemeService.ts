@@ -816,6 +816,10 @@ const tokenColorSchema: IJSONSchema = {
 		textMateRules: {
 			description: nls.localize('editorColors.textMateRules', 'Sets colors and styles using textmate theming rules (advanced).'),
 			$ref: textmateColorsSchemaId
+		},
+		semanticHighlighting: {
+			description: nls.localize('editorColors.semanticHighlighting', 'Whether semantic highlighting should be enabled for this theme.'),
+			type: 'boolean'
 		}
 	}
 };
