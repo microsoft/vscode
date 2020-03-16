@@ -110,6 +110,8 @@ export class CellViewModel extends Disposable implements ICellViewModel {
 	private _editorViewStates: editorCommon.ICodeEditorViewState | null;
 	private _lastDecorationId: number = 0;
 	private _resolvedDecorations = new Map<string, { id?: string, options: model.IModelDeltaDecoration }>();
+	private readonly _onDidChangeContent: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 	private readonly _onDidChangeCursorSelection: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidChangeCursorSelection: Event<void> = this._onDidChangeCursorSelection.event;
 
@@ -275,6 +277,8 @@ export class CellViewModel extends Disposable implements ICellViewModel {
 			this._register(ref);
 			this._register(this._textModel.onDidChangeContent(() => {
 				this.cell.isDirty = true;
+				this._html = null;
+				this._onDidChangeContent.fire();
 			}));
 		}
 		return this._textModel;

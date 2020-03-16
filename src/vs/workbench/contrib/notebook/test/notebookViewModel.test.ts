@@ -10,20 +10,26 @@ import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/noteb
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { TestNotebook, withTestNotebook, TestCell } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
+import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 
 suite('NotebookViewModel', () => {
 	const instantiationService = new TestInstantiationService();
+	const blukEditService = instantiationService.get(IBulkEditService);
+	const undoRedoService = instantiationService.get(IUndoRedoService);
 
 	test('ctor', function () {
 		const notebook = new TestNotebook(0, 'notebook', URI.parse('test'));
 		const model = new NotebookEditorModel(notebook);
-		const viewModel = new NotebookViewModel('notebook', model, instantiationService);
+		const viewModel = new NotebookViewModel('notebook', model, instantiationService, blukEditService, undoRedoService);
 		assert.equal(viewModel.viewType, 'notebook');
 	});
 
 	test('insert/delete', function () {
 		withTestNotebook(
 			instantiationService,
+			blukEditService,
+			undoRedoService,
 			[
 				[['var a = 1;'], 'javascript', CellKind.Code, []],
 				[['var b = 2;'], 'javascript', CellKind.Code, []]
@@ -45,6 +51,8 @@ suite('NotebookViewModel', () => {
 	test('index', function () {
 		withTestNotebook(
 			instantiationService,
+			blukEditService,
+			undoRedoService,
 			[
 				[['var a = 1;'], 'javascript', CellKind.Code, []],
 				[['var b = 2;'], 'javascript', CellKind.Code, []]

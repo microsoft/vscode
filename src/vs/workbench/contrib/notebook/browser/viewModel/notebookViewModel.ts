@@ -13,6 +13,11 @@ import { NotebookCellsSplice, ICell } from 'vs/workbench/contrib/notebook/common
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { CellFindMatch, CellState, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import { Range } from 'vs/editor/common/core/range';
+import { WorkspaceTextEdit } from 'vs/editor/common/modes';
+import { URI } from 'vs/base/common/uri';
+import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 
 export interface INotebookEditorViewState {
 	editingCells: { [key: number]: boolean };
@@ -67,10 +72,21 @@ export class NotebookViewModel extends Disposable {
 	private readonly _onDidChangeCells = new Emitter<NotebookCellsSplice[]>();
 	get onDidChangeCells(): Event<NotebookCellsSplice[]> { return this._onDidChangeCells.event; }
 
+	private _lastNotebookEditResource: URI[] = [];
+
+	get lastNotebookEditResource(): URI | null {
+		if (this._lastNotebookEditResource.length) {
+			return this._lastNotebookEditResource[this._lastNotebookEditResource.length - 1];
+		}
+		return null;
+	}
+
 	constructor(
 		public viewType: string,
 		private _model: NotebookEditorModel,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IBulkEditService private readonly bulkEditService: IBulkEditService,
+		@IUndoRedoService private readonly undoService: IUndoRedoService
 	) {
 		super();
 
@@ -96,22 +112,6 @@ export class NotebookViewModel extends Disposable {
 
 	getViewCellIndex(cell: ICellViewModel) {
 		return this._viewCells.indexOf(cell as CellViewModel);
-	}
-
-	/**
-	 * Search in notebook text model
-	 * @param value
-	 */
-	find(value: string): CellFindMatch[] {
-		const matches: CellFindMatch[] = [];
-		this._viewCells.forEach(cell => {
-			const cellMatches = cell.startFind(value);
-			if (cellMatches) {
-				matches.push(cellMatches);
-			}
-		});
-
-		return matches;
 	}
 
 	insertCell(index: number, cell: ICell): CellViewModel {
@@ -243,6 +243,87 @@ export class NotebookViewModel extends Disposable {
 		});
 
 		return ret;
+	}
+
+
+	/**
+	 * Search in notebook text model
+	 * @param value
+	 */
+	find(value: string): CellFindMatch[] {
+		const matches: CellFindMatch[] = [];
+		this._viewCells.forEach(cell => {
+			const cellMatches = cell.startFind(value);
+			if (cellMatches) {
+				matches.push(cellMatches);
+			}
+		});
+
+		return matches;
+	}
+
+	replaceOne(cell: ICellViewModel, range: Range, text: string): Promise<void> {
+		const viewCell = cell as CellViewModel;
+		this._lastNotebookEditResource.push(viewCell.uri);
+		return viewCell.resolveTextModel().then(() => {
+			this.bulkEditService.apply({ edits: [{ edit: { range: range, text: text }, resource: cell.uri }] }, { quotableLabel: 'Notebook Replace' });
+		});
+	}
+
+	async replaceAll(matches: CellFindMatch[], text: string): Promise<void> {
+		if (!matches.length) {
+			return;
+		}
+
+		let textEdits: WorkspaceTextEdit[] = [];
+		this._lastNotebookEditResource.push(matches[0].cell.uri);
+
+		matches.forEach(match => {
+			match.matches.forEach(singleMatch => {
+				textEdits.push({
+					edit: { range: singleMatch.range, text: text },
+					resource: match.cell.uri
+				});
+			});
+		});
+
+		return Promise.all(matches.map(match => {
+			return match.cell.resolveTextModel();
+		})).then(async () => {
+			this.bulkEditService.apply({ edits: textEdits }, { quotableLabel: 'Notebook Replace All' });
+			return;
+		});
+	}
+
+	canUndo(): boolean {
+		const lastResource = this.lastNotebookEditResource;
+
+		if (!lastResource) {
+			return false;
+		}
+
+		const lastElement = this.undoService.getLastElement(lastResource);
+
+		if (lastElement?.label === 'Notebook Replace' || lastElement?.label === 'Notebook Replace All') {
+			return true;
+		}
+
+		return false;
+	}
+
+	undo() {
+		const lastResource = this.lastNotebookEditResource;
+
+		if (!lastResource) {
+			return;
+		}
+
+		const lastElement = this.undoService.getLastElement(lastResource);
+
+		if (lastElement?.label === 'Notebook Replace' || lastElement?.label === 'Notebook Replace All') {
+			this.undoService.undo(lastResource);
+			this._lastNotebookEditResource.pop();
+		}
 	}
 
 	equal(model: NotebookEditorModel) {

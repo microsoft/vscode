@@ -212,7 +212,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			label: NLS_REPLACE_BTN_LABEL,
 			className: 'codicon codicon-replace',
 			onTrigger: () => {
-				// this._controller.replace();
+				this.replaceOne();
 			}
 		}));
 
@@ -221,7 +221,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			label: NLS_REPLACE_ALL_BTN_LABEL,
 			className: 'codicon codicon-replace-all',
 			onTrigger: () => {
-				// this._controller.replaceAll();
+				this.replaceAll();
 			}
 		}));
 
@@ -234,6 +234,8 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	protected abstract onInputChanged(): boolean;
 	protected abstract find(previous: boolean): void;
 	protected abstract findFirst(): void;
+	protected abstract replaceOne(): void;
+	protected abstract replaceAll(): void;
 	protected abstract onFocusTrackerFocus(): void;
 	protected abstract onFocusTrackerBlur(): void;
 	protected abstract onFindInputFocusTrackerFocus(): void;
@@ -243,6 +245,10 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 
 	protected get inputValue() {
 		return this._findInput.getValue();
+	}
+
+	protected get replaceValue() {
+		return this._replaceInput.getValue();
 	}
 
 	public get focusTracker(): dom.IFocusTracker {

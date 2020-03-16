@@ -17,6 +17,8 @@ import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { Range } from 'vs/editor/common/core/range';
+import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 
 export class TestCell implements ICell {
 	uri: URI;
@@ -200,7 +202,7 @@ export function createTestCellViewModel(instantiationService: IInstantiationServ
 	return instantiationService.createInstance(CellViewModel, viewType, notebookHandle, mockCell);
 }
 
-export function withTestNotebook(instantiationService: IInstantiationService, cells: [string[], string, CellKind, IOutput[]][], callback: (editor: TestNotebookEditor, viewModel: NotebookViewModel) => void) {
+export function withTestNotebook(instantiationService: IInstantiationService, blukEditService: IBulkEditService, undoRedoService: IUndoRedoService, cells: [string[], string, CellKind, IOutput[]][], callback: (editor: TestNotebookEditor, viewModel: NotebookViewModel) => void) {
 	const viewType = 'notebook';
 	const editor = new TestNotebookEditor();
 	const notebook = new TestNotebook(0, viewType, URI.parse('test'));
@@ -208,7 +210,7 @@ export function withTestNotebook(instantiationService: IInstantiationService, ce
 		return new TestCell(viewType, index, cell[0], cell[1], cell[2], cell[3]);
 	});
 	const model = new NotebookEditorModel(notebook);
-	const viewModel = new NotebookViewModel(viewType, model, instantiationService);
+	const viewModel = new NotebookViewModel(viewType, model, instantiationService, blukEditService, undoRedoService);
 
 	callback(editor, viewModel);
 

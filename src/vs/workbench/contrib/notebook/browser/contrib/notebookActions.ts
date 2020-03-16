@@ -861,6 +861,39 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
+			id: 'workbench.action.notebook.undo',
+			title: 'Notebook Undo',
+			keybinding: {
+				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
+				primary: KeyMod.CtrlCmd | KeyCode.KEY_Z,
+				weight: KeybindingWeight.WorkbenchContrib
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+
+		const editor = getActiveNotebookEditor(editorService);
+		if (!editor) {
+			return;
+		}
+
+		const viewModel = editor.viewModel;
+
+		if (!viewModel) {
+			return;
+		}
+
+		if (viewModel.canUndo()) {
+			viewModel.undo();
+		}
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
 			id: 'workbench.action.notebook.testResize',
 			title: 'Notebook Test Cell Resize',
 			keybinding: {

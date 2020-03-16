@@ -82,6 +82,27 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget {
 		this.revealCellRange(nextIndex.index, nextIndex.remainder);
 	}
 
+	protected replaceOne() {
+		if (!this._findMatches.length) {
+			return;
+		}
+
+		if (!this._findMatchesStarts) {
+			this.set(this._findMatches);
+		}
+
+		const nextIndex = this._findMatchesStarts!.getIndexOf(this._currentMatch);
+		const cell = this._findMatches[nextIndex.index].cell;
+		const match = this._findMatches[nextIndex.index].matches[nextIndex.remainder];
+
+		return this._notebookEditor.viewModel!.replaceOne(cell, match.range, this.replaceValue);
+
+	}
+
+	protected replaceAll() {
+		return this._notebookEditor.viewModel!.replaceAll(this._findMatches, this.replaceValue);
+	}
+
 	private revealCellRange(cellIndex: number, matchIndex: number) {
 		this._findMatches[cellIndex].cell.state = CellState.Editing;
 		this._notebookEditor.selectElement(this._findMatches[cellIndex].cell);
