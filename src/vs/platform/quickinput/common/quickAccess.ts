@@ -10,7 +10,7 @@ import { first } from 'vs/base/common/arrays';
 import { startsWith } from 'vs/base/common/strings';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IQuickPickSeparator } from 'vs/base/parts/quickinput/common/quickInput';
+import { IQuickPickSeparator, IKeyMods } from 'vs/base/parts/quickinput/common/quickInput';
 
 export interface IQuickAccessController {
 
@@ -167,8 +167,10 @@ export interface IPickerQuickAccessItem extends IQuickPickItem {
 	/**
 	* A method that will be executed when the pick item is accepted from
 	* the picker. The picker will close automatically before running this.
+	*
+	* @param keyMods the state of modifier keys when the item was accepted.
 	*/
-	accept?(): void;
+	accept?(keyMods: IKeyMods): void;
 
 	/**
 	 * A method that will be executed when a button of the pick item was
@@ -177,10 +179,12 @@ export interface IPickerQuickAccessItem extends IQuickPickItem {
 	 * @param buttonIndex index of the button of the item that
 	 * was clicked.
 	 *
+	 * @param the state of modifier keys when the button was triggered.
+	 *
 	 * @returns a value that indicates what should happen after the trigger
 	 * which can be a `Promise` for long running operations.
 	 */
-	trigger?(buttonIndex: number): TriggerAction | Promise<TriggerAction>;
+	trigger?(buttonIndex: number, keyMods: IKeyMods): TriggerAction | Promise<TriggerAction>;
 }
 
 export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem> implements IQuickAccessProvider {
@@ -232,7 +236,7 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 			const [item] = picker.selectedItems;
 			if (typeof item?.accept === 'function') {
 				picker.hide();
-				item.accept();
+				item.accept(picker.keyMods);
 			}
 		}));
 
@@ -241,7 +245,7 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 			if (typeof item.trigger === 'function') {
 				const buttonIndex = item.buttons?.indexOf(button) ?? -1;
 				if (buttonIndex >= 0) {
-					const result = item.trigger(buttonIndex);
+					const result = item.trigger(buttonIndex, picker.keyMods);
 					const action = (typeof result === 'number') ? result : await result;
 
 					if (token.isCancellationRequested) {

@@ -196,18 +196,18 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 			}
 
 			if (includeSymbol) {
-				const labelWithIcon = `$(symbol-${SymbolKinds.toString(symbol.kind) || 'property'}) ${symbolLabel}`;
+				const symbolLabelWithIcon = `$(symbol-${SymbolKinds.toString(symbol.kind) || 'property'}) ${symbolLabel}`;
 				const deprecated = symbol.tags && symbol.tags.indexOf(SymbolTag.Deprecated) >= 0;
 
 				filteredSymbolPicks.push({
 					index,
 					kind: symbol.kind,
 					score: symbolScore,
-					label: labelWithIcon,
+					label: symbolLabelWithIcon,
 					ariaLabel: localize('symbolsAriaLabel', "{0}, symbols picker", symbolLabel),
 					description: containerLabel,
 					highlights: deprecated ? undefined : {
-						label: createMatches(symbolScore, labelWithIcon.length - symbolLabel.length /* Readjust matches to account for codicons in label */),
+						label: createMatches(symbolScore, symbolLabelWithIcon.length - symbolLabel.length /* Readjust matches to account for codicons in label */),
 						description: createMatches(containerScore)
 					},
 					range: {

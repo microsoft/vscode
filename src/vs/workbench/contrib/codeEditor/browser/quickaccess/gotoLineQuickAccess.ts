@@ -11,12 +11,17 @@ import { IRange } from 'vs/editor/common/core/range';
 import { AbstractGotoLineQuickAccessProvider } from 'vs/editor/contrib/quickAccess/gotoLineQuickAccess';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IQuickAccessRegistry, Extensions } from 'vs/platform/quickinput/common/quickAccess';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 
 export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProvider {
 
 	protected readonly onDidActiveTextEditorControlChange = this.editorService.onDidActiveEditorChange;
 
-	constructor(@IEditorService private readonly editorService: IEditorService) {
+	constructor(
+		@IEditorService private readonly editorService: IEditorService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
+	) {
 		super();
 	}
 
@@ -25,10 +30,14 @@ export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProv
 	}
 
 	protected gotoLine(editor: IEditor, range: IRange, keyMods: IKeyMods): void {
+		const enablePreviewFromQuickAccess = this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen;
 
 		// Check for sideBySide use
 		if (keyMods.ctrlCmd && this.editorService.activeEditor) {
-			this.editorService.openEditor(this.editorService.activeEditor, { selection: range, pinned: keyMods.alt }, SIDE_GROUP);
+			this.editorService.openEditor(this.editorService.activeEditor, {
+				selection: range,
+				pinned: keyMods.alt || !enablePreviewFromQuickAccess
+			}, SIDE_GROUP);
 		}
 
 		// Otherwise let parent handle it

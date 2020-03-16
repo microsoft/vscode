@@ -52,7 +52,7 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 					highlights: { label: highlights },
 					buttons: [{
 						iconClass: 'codicon-gear',
-						tooltip: localize('customizeTask', "Configure Launch Configuration")
+						tooltip: localize('customizeLaunchConfig', "Configure Launch Configuration")
 					}],
 					trigger: () => {
 						config.launch.openConfigFile(false, false);
