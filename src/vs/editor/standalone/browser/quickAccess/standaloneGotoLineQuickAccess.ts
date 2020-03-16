@@ -13,13 +13,13 @@ import { Event } from 'vs/base/common/event';
 
 export class StandaloneGotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProvider {
 
-	readonly onDidActiveTextEditorControlChange = Event.None;
+	protected readonly onDidActiveTextEditorControlChange = Event.None;
 
 	constructor(@ICodeEditorService private readonly editorService: ICodeEditorService) {
 		super();
 	}
 
-	get activeTextEditorControl() {
+	protected get activeTextEditorControl() {
 		return withNullAsUndefined(this.editorService.getFocusedCodeEditor());
 	}
 }

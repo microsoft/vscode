@@ -4,16 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IQuickPick, IQuickPickItem, IKeyMods, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickPick, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { DisposableStore, toDisposable, IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { once } from 'vs/base/common/functional';
-import { IEditor, ScrollType, IDiffEditor } from 'vs/editor/common/editorCommon';
+import { DisposableStore, IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IEditor, ScrollType } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { AbstractEditorQuickAccessProvider } from 'vs/editor/contrib/quickAccess/quickAccess';
+import { AbstractEditorNavigationQuickAccessProvider } from 'vs/editor/contrib/quickAccess/editorNavigationQuickAccess';
 import { DocumentSymbol, SymbolKinds, SymbolTag, DocumentSymbolProviderRegistry, SymbolKind } from 'vs/editor/common/modes';
 import { OutlineModel, OutlineElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { values } from 'vs/base/common/collections';
@@ -27,47 +24,19 @@ interface IGotoSymbolQuickPickItem extends IQuickPickItem {
 	range?: { decoration: IRange, selection: IRange },
 }
 
-export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEditorQuickAccessProvider {
+export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEditorNavigationQuickAccessProvider<IGotoSymbolQuickPickItem> {
 
 	static PREFIX = '@';
 	static SCOPE_PREFIX = ':';
 	static PREFIX_BY_CATEGORY = `${AbstractGotoSymbolQuickAccessProvider.PREFIX}${AbstractGotoSymbolQuickAccessProvider.SCOPE_PREFIX}`;
 
-	provide(picker: IQuickPick<IGotoSymbolQuickPickItem>, token: CancellationToken): IDisposable {
-		const disposables = new DisposableStore();
+	protected canProvideWithTextEditor(editor: IEditor): boolean {
+		const model = this.getModel(editor);
 
-		// Disable filtering & sorting, we control the results
-		picker.matchOnLabel = picker.matchOnDescription = picker.matchOnDetail = picker.sortByLabel = false;
-
-		// Provide based on current active editor
-		let pickerDisposable = this.doProvide(picker, token);
-		disposables.add(toDisposable(() => pickerDisposable.dispose()));
-
-		// Re-create whenever the active editor changes
-		disposables.add(this.onDidActiveTextEditorControlChange(() => {
-			pickerDisposable.dispose();
-			pickerDisposable = this.doProvide(picker, token);
-		}));
-
-		return disposables;
+		return !!model && DocumentSymbolProviderRegistry.has(model);
 	}
 
-	private doProvide(picker: IQuickPick<IGotoSymbolQuickPickItem>, token: CancellationToken): IDisposable {
-		const activeTextEditorControl = this.activeTextEditorControl;
-
-		// With text control
-		if (activeTextEditorControl) {
-			const model = this.getModel(activeTextEditorControl);
-			if (model && DocumentSymbolProviderRegistry.has(model)) {
-				return this.doProvideWithSymbols(activeTextEditorControl, model, picker, token);
-			}
-		}
-
-		// Without text control
-		return this.doProvideWithoutSymbols(picker);
-	}
-
-	private doProvideWithoutSymbols(picker: IQuickPick<IGotoSymbolQuickPickItem>): IDisposable {
+	protected provideWithoutTextEditor(picker: IQuickPick<IGotoSymbolQuickPickItem>): IDisposable {
 		const label = localize('cannotRunGotoSymbol', "Open a text editor with symbol information first to go to a symbol.");
 		picker.items = [{ label, index: 0, kind: SymbolKind.String }];
 		picker.ariaLabel = label;
@@ -75,23 +44,19 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 		return Disposable.None;
 	}
 
-	private doProvideWithSymbols(editor: IEditor, model: ITextModel, picker: IQuickPick<IGotoSymbolQuickPickItem>, token: CancellationToken): IDisposable {
-		const disposables = new DisposableStore();
+	protected provideWithTextEditor(editor: IEditor, picker: IQuickPick<IGotoSymbolQuickPickItem>, token: CancellationToken): IDisposable {
+		const model = this.getModel(editor);
+		if (!model) {
+			return Disposable.None;
+		}
 
-		// Restore any view state if this picker was closed
-		// without actually going to a symbol
-		const lastKnownEditorViewState = withNullAsUndefined(editor.saveViewState());
-		once(token.onCancellationRequested)(() => {
-			if (lastKnownEditorViewState) {
-				editor.restoreViewState(lastKnownEditorViewState);
-			}
-		});
+		const disposables = new DisposableStore();
 
 		// Goto symbol once picked
 		disposables.add(picker.onDidAccept(() => {
 			const [item] = picker.selectedItems;
 			if (item && item.range) {
-				this.gotoSymbol(editor, item.range.selection, picker.keyMods);
+				this.gotoLocation(editor, item.range.selection, picker.keyMods);
 
 				picker.hide();
 			}
@@ -138,9 +103,6 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 				this.addDecorations(editor, item.range.decoration);
 			}
 		}));
-
-		// Clean up decorations on dispose
-		disposables.add(toDisposable(() => this.clearDecorations(editor)));
 
 		return disposables;
 	}
@@ -341,18 +303,6 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 				this.flattenDocumentSymbols(bucket, entry.children, entry.name);
 			}
 		}
-	}
-
-	private getModel(editor: IEditor | IDiffEditor): ITextModel | undefined {
-		return isDiffEditor(editor) ?
-			editor.getModel()?.modified :
-			editor.getModel() as ITextModel;
-	}
-
-	protected gotoSymbol(editor: IEditor, range: IRange, keyMods: IKeyMods): void {
-		editor.setSelection(range);
-		editor.revealRangeInCenter(range, ScrollType.Smooth);
-		editor.focus();
 	}
 }
 

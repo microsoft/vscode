@@ -14,13 +14,13 @@ import { AbstractGotoSymbolQuickAccessProvider } from 'vs/editor/contrib/quickAc
 
 export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccessProvider {
 
-	readonly onDidActiveTextEditorControlChange = this.editorService.onDidActiveEditorChange;
+	protected readonly onDidActiveTextEditorControlChange = this.editorService.onDidActiveEditorChange;
 
 	constructor(@IEditorService private readonly editorService: IEditorService) {
 		super();
 	}
 
-	get activeTextEditorControl() {
+	protected get activeTextEditorControl() {
 		return this.editorService.activeTextEditorControl;
 	}
 
@@ -33,7 +33,7 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 
 		// Otherwise let parent handle it
 		else {
-			super.gotoSymbol(editor, range, keyMods);
+			super.gotoLocation(editor, range, keyMods);
 		}
 	}
 }

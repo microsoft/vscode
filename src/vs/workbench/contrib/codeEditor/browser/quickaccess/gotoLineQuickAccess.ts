@@ -14,13 +14,13 @@ import { IQuickAccessRegistry, Extensions } from 'vs/platform/quickinput/common/
 
 export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProvider {
 
-	readonly onDidActiveTextEditorControlChange = this.editorService.onDidActiveEditorChange;
+	protected readonly onDidActiveTextEditorControlChange = this.editorService.onDidActiveEditorChange;
 
 	constructor(@IEditorService private readonly editorService: IEditorService) {
 		super();
 	}
 
-	get activeTextEditorControl() {
+	protected get activeTextEditorControl() {
 		return this.editorService.activeTextEditorControl;
 	}
 
@@ -33,7 +33,7 @@ export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProv
 
 		// Otherwise let parent handle it
 		else {
-			super.gotoLine(editor, range, keyMods);
+			super.gotoLocation(editor, range, keyMods);
 		}
 	}
 }
