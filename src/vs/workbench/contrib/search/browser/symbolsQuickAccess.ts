@@ -12,7 +12,6 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { getWorkspaceSymbols, IWorkspaceSymbol, IWorkspaceSymbolProvider } from 'vs/workbench/contrib/search/common/search';
 import { SymbolKinds, SymbolTag } from 'vs/editor/common/modes';
-import { basename } from 'vs/base/common/resources';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Schemas } from 'vs/base/common/network';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -85,10 +84,11 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 
 				let containerLabel: string | undefined = undefined;
 				if (symbol.location.uri) {
+					const containerPath = this.labelService.getUriLabel(symbol.location.uri, { relative: true });
 					if (symbol.containerName) {
-						containerLabel = `${symbol.containerName} — ${basename(symbol.location.uri)}`;
+						containerLabel = `${symbol.containerName} • ${containerPath}`;
 					} else {
-						containerLabel = this.labelService.getUriLabel(symbol.location.uri, { relative: true });
+						containerLabel = containerPath;
 					}
 				}
 
