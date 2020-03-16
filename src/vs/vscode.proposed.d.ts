@@ -1891,23 +1891,4 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region https://github.com/microsoft/vscode/issues/92421
-
-	export enum ProgressLocation {
-		/**
-		 * Show progress for a view, as progress bar inside the view (when visible),
-		 * and as an overlay on the activity bar icon. Doesn't support cancellation or discrete progress.
-		 */
-		View = 25,
-	}
-
-	export interface ProgressOptions {
-		/**
-		 * The target view identifier for showing progress when using [ProgressLocation.View](#ProgressLocation.View).
-		 */
-		viewId?: string
-	}
-
-	//#endregion
-
 }
