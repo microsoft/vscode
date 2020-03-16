@@ -31,13 +31,12 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 	static PREFIX_BY_CATEGORY = `${AbstractGotoSymbolQuickAccessProvider.PREFIX}${AbstractGotoSymbolQuickAccessProvider.SCOPE_PREFIX}`;
 
 	protected canProvideWithTextEditor(editor: IEditor): boolean {
-		const model = this.getModel(editor);
-
-		return !!model && DocumentSymbolProviderRegistry.has(model);
+		return !!this.getModel(editor);
 	}
 
 	protected provideWithoutTextEditor(picker: IQuickPick<IGotoSymbolQuickPickItem>): IDisposable {
-		const label = localize('cannotRunGotoSymbol', "Open a text editor with symbol information first to go to a symbol.");
+		const label = localize('cannotRunGotoSymbolWithoutEditor', "Open a text editor first to go to a symbol.");
+
 		picker.items = [{ label, index: 0, kind: SymbolKind.String }];
 		picker.ariaLabel = label;
 
@@ -50,6 +49,42 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 			return Disposable.None;
 		}
 
+		// Provide symbols from model if available in registry
+		if (DocumentSymbolProviderRegistry.has(model)) {
+			return this.doProvideWithEditorSymbols(editor, model, picker, token);
+		}
+
+		// Otherwise show an entry for a model without registry
+		// But give a chance to resolve the symbols at a later
+		// point if possible
+		return this.doProvideWithoutEditorSymbols(editor, model, picker, token);
+	}
+
+	private doProvideWithoutEditorSymbols(editor: IEditor, model: ITextModel, picker: IQuickPick<IGotoSymbolQuickPickItem>, token: CancellationToken): IDisposable {
+		const disposables = new DisposableStore();
+
+		// Generic pick for not having any symbol information
+		const label = localize('cannotRunGotoSymbolWithoutSymbolProvider', "Open a text editor with symbol information first to go to a symbol.");
+		picker.items = [{ label, index: 0, kind: SymbolKind.String }];
+		picker.ariaLabel = label;
+
+		// Listen to changes to the registry and see if eventually
+		// we do get symbols. This can happen if the picker is opened
+		// very early after the model has loaded but before the
+		// language registry is ready.
+		// https://github.com/microsoft/vscode/issues/70607
+		const symbolProviderListener = disposables.add(DocumentSymbolProviderRegistry.onDidChange(() => {
+			if (DocumentSymbolProviderRegistry.has(model)) {
+				symbolProviderListener.dispose();
+
+				disposables.add(this.doProvideWithEditorSymbols(editor, model, picker, token));
+			}
+		}));
+
+		return disposables;
+	}
+
+	private doProvideWithEditorSymbols(editor: IEditor, model: ITextModel, picker: IQuickPick<IGotoSymbolQuickPickItem>, token: CancellationToken): IDisposable {
 		const disposables = new DisposableStore();
 
 		// Goto symbol once picked
