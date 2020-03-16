@@ -1754,6 +1754,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		if (ranges.length > 0) {
 			this._emitModelTokensChangedEvent({
 				tokenizationSupportChanged: false,
+				semanticTokensApplied: false,
 				ranges: ranges
 			});
 		}
@@ -1764,6 +1765,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 		this._emitModelTokensChangedEvent({
 			tokenizationSupportChanged: false,
+			semanticTokensApplied: tokens !== null,
 			ranges: [{ fromLineNumber: 1, toLineNumber: this.getLineCount() }]
 		});
 	}
@@ -1778,6 +1780,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this._tokens.flush();
 		this._emitModelTokensChangedEvent({
 			tokenizationSupportChanged: true,
+			semanticTokensApplied: false,
 			ranges: [{
 				fromLineNumber: 1,
 				toLineNumber: this._buffer.getLineCount()
@@ -1790,6 +1793,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 		this._emitModelTokensChangedEvent({
 			tokenizationSupportChanged: false,
+			semanticTokensApplied: false,
 			ranges: [{ fromLineNumber: 1, toLineNumber: this.getLineCount() }]
 		});
 	}
