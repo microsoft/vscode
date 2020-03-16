@@ -13,12 +13,19 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IAuthenticationTokenService } from 'vs/platform/authentication/common/authentication';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { URI } from 'vs/base/common/uri';
+import { getServiceMachineId } from 'vs/platform/serviceMachineId/common/serviceMachineId';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IFileService } from 'vs/platform/files/common/files';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { assign } from 'vs/base/common/objects';
+
 
 export class UserDataSyncStoreService extends Disposable implements IUserDataSyncStoreService {
 
 	_serviceBrand: any;
 
 	readonly userDataSyncStore: IUserDataSyncStore | undefined;
+	private readonly commonHeadersPromise: Promise<{ [key: string]: string; }>;
 
 	constructor(
 		@IProductService productService: IProductService,
@@ -26,9 +33,17 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		@IRequestService private readonly requestService: IRequestService,
 		@IAuthenticationTokenService private readonly authTokenService: IAuthenticationTokenService,
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IFileService fileService: IFileService,
+		@IStorageService storageService: IStorageService,
 	) {
 		super();
 		this.userDataSyncStore = getUserDataSyncStore(productService, configurationService);
+		this.commonHeadersPromise = getServiceMachineId(environmentService, fileService, storageService)
+			.then(uuid => ({
+				'X-Sync-Client-Id': productService.version,
+				'X-Sync-Machine-Id': uuid
+			}));
 	}
 
 	async getAllRefs(resource: SyncResource): Promise<IResourceRefHandle[]> {
@@ -174,8 +189,11 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		if (!authToken) {
 			throw new UserDataSyncStoreError('No Auth Token Available', UserDataSyncErrorCode.Unauthorized, source);
 		}
-		options.headers = options.headers || {};
-		options.headers['authorization'] = `Bearer ${authToken}`;
+
+		const commonHeaders = await this.commonHeadersPromise;
+		options.headers = assign(options.headers || {}, commonHeaders, {
+			'authorization': `Bearer ${authToken}`,
+		});
 
 		this.logService.trace('Sending request to server', { url: options.url, type: options.type, headers: { ...options.headers, ...{ authorization: undefined } } });
 
