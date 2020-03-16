@@ -19,7 +19,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 
 export class StandaloneCommandsQuickAccessProvider extends AbstractEditorCommandsQuickAccessProvider {
 
-	get activeTextEditorControl(): IEditor | undefined { return withNullAsUndefined(this.codeEditorService.getFocusedCodeEditor()); }
+	protected get activeTextEditorControl(): IEditor | undefined { return withNullAsUndefined(this.codeEditorService.getFocusedCodeEditor()); }
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,

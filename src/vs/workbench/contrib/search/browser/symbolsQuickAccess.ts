@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IPickerQuickAccessItem, PickerQuickAccessProvider, TriggerAction } from 'vs/platform/quickinput/common/quickAccess';
+import { IPickerQuickAccessItem, PickerQuickAccessProvider, TriggerAction } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { fuzzyScore, createMatches, FuzzyScore } from 'vs/base/common/filters';
 import { stripWildcards } from 'vs/base/common/strings';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -195,7 +195,7 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 				resource: symbolToOpen.location.uri,
 				options: {
 					preserveFocus: options?.preserveFocus,
-					pinned: keyMods.alt || options?.preserveFocus || options?.forceOpenSideBySide || this.configuration.openEditorPinned,
+					pinned: keyMods.alt || this.configuration.openEditorPinned,
 					selection: symbolToOpen.location.range ? Range.collapseToStart(symbolToOpen.location.range) : undefined
 				}
 			}, keyMods.ctrlCmd || options?.forceOpenSideBySide ? SIDE_GROUP : ACTIVE_GROUP);
