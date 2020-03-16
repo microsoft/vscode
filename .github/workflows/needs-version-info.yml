@@ -1,20 +1,20 @@
-# name: Needs Version Info
-# on:
-#   issues:
-#     types: [opened]
+name: Needs Version Info
+on:
+  issues:
+    types: [opened]
 
-# jobs:
-#   main:
-#     runs-on: ubuntu-latest
-#     steps:
-#       - name: Checkout Actions
-#         uses: actions/checkout@v2
-#         with:
-#           repository: 'JacksonKearl/vscode-triage-github-actions'
-#           ref: v2
-#       - name: Run Needs Version Info
-#         uses: ./needs-more-info
-#         with:
-#           token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
-#           matcher: '\b(\d\.\d{2,3}\.\d|insiders?|1\.\d\d\d?)\b'
-#           label: ~needs version info
+jobs:
+  main:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Actions
+        uses: actions/checkout@v2
+        with:
+          repository: 'JacksonKearl/vscode-triage-github-actions'
+          ref: v2
+      # - name: Run Needs Version Info
+      #   uses: ./needs-more-info
+      #   with:
+      #     token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
+      #     matcher: '\b(\d\.\d{2,3}\.\d|insiders?|1\.\d\d\d?)\b'
+      #     label: ~needs version info
