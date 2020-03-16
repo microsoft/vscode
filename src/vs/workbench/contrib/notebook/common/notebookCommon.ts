@@ -158,6 +158,7 @@ export const CELL_MARGIN = 24;
 
 export const EDITOR_TOP_PADDING = 8;
 export const EDITOR_BOTTOM_PADDING = 8;
+export const EDITOR_TOOLBAR_HEIGHT = 22;
 
 
 export type NotebookCellsSplice = [

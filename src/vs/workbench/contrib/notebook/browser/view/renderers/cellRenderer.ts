@@ -22,7 +22,7 @@ import { InsertCodeCellAboveAction, INotebookCellActionContext, InsertCodeCellBe
 import { CellRenderTemplate, INotebookEditor, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodeCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/codeCell';
 import { StatefullMarkdownCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/markdownCell';
-import { CellKind, EDITOR_BOTTOM_PADDING, EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, EDITOR_BOTTOM_PADDING, EDITOR_TOP_PADDING, EDITOR_TOOLBAR_HEIGHT } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellViewModel } from '../../viewModel/notebookCellViewModel';
 import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { MenuItemAction } from 'vs/platform/actions/common/actions';
@@ -31,7 +31,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 
 export class NotebookCellListDelegate implements IListVirtualDelegate<ICellViewModel> {
 	private _lineHeight: number;
-	private _toolbarHeight = 22;
+	private _toolbarHeight = EDITOR_TOOLBAR_HEIGHT;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService
