@@ -28,7 +28,7 @@ export interface IGotoSymbolQuickAccessProviderOptions {
 	openSideBySideDirection: () => undefined | 'right' | 'down'
 }
 
-export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEditorNavigationQuickAccessProvider<IGotoSymbolQuickPickItem> {
+export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEditorNavigationQuickAccessProvider {
 
 	static PREFIX = '@';
 	static SCOPE_PREFIX = ':';

@@ -27,11 +27,11 @@ interface IEditorLineDecoration {
  * for adding decorations for navigating in the currently active file
  * (for example "Go to line", "Go to symbol").
  */
-export abstract class AbstractEditorNavigationQuickAccessProvider<T extends IQuickPickItem> implements IQuickAccessProvider {
+export abstract class AbstractEditorNavigationQuickAccessProvider implements IQuickAccessProvider {
 
 	//#region Provider methods
 
-	provide(picker: IQuickPick<T>, token: CancellationToken): IDisposable {
+	provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable {
 		const disposables = new DisposableStore();
 
 		// Disable filtering & sorting, we control the results
@@ -50,7 +50,7 @@ export abstract class AbstractEditorNavigationQuickAccessProvider<T extends IQui
 		return disposables;
 	}
 
-	private doProvide(picker: IQuickPick<T>, token: CancellationToken): IDisposable {
+	private doProvide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable {
 		const disposables = new DisposableStore();
 
 		// With text control
@@ -91,12 +91,12 @@ export abstract class AbstractEditorNavigationQuickAccessProvider<T extends IQui
 	/**
 	 * Subclasses to implement to provide picks for the picker when an editor is active.
 	 */
-	protected abstract provideWithTextEditor(editor: IEditor, picker: IQuickPick<T>, token: CancellationToken): IDisposable;
+	protected abstract provideWithTextEditor(editor: IEditor, picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable;
 
 	/**
 	 * Subclasses to implement to provide picks for the picker when no editor is active.
 	 */
-	protected abstract provideWithoutTextEditor(picker: IQuickPick<T>, token: CancellationToken): IDisposable;
+	protected abstract provideWithoutTextEditor(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable;
 
 	protected gotoLocation(editor: IEditor, range: IRange, keyMods: IKeyMods, forceSideBySide?: boolean): void {
 		editor.setSelection(range);

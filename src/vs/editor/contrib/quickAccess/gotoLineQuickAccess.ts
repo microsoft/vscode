@@ -14,7 +14,7 @@ import { IPosition } from 'vs/editor/common/core/position';
 
 interface IGotoLineQuickPickItem extends IQuickPickItem, Partial<IPosition> { }
 
-export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditorNavigationQuickAccessProvider<IGotoLineQuickPickItem> {
+export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditorNavigationQuickAccessProvider {
 
 	static PREFIX = ':';
 
