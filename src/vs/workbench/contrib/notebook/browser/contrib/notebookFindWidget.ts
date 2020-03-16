@@ -69,6 +69,10 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget {
 			return;
 		}
 
+		if (!this._findMatchesStarts) {
+			this.set(this._findMatches);
+		}
+
 		const totalVal = this._findMatchesStarts!.getTotalValue();
 		const nextVal = (this._currentMatch + (previous ? -1 : 1) + totalVal) % totalVal;
 		this._currentMatch = nextVal;
