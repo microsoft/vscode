@@ -98,7 +98,7 @@ export abstract class AbstractEditorNavigationQuickAccessProvider<T extends IQui
 	 */
 	protected abstract provideWithoutTextEditor(picker: IQuickPick<T>, token: CancellationToken): IDisposable;
 
-	protected gotoLocation(editor: IEditor, range: IRange, keyMods: IKeyMods): void {
+	protected gotoLocation(editor: IEditor, range: IRange, keyMods: IKeyMods, forceSideBySide?: boolean): void {
 		editor.setSelection(range);
 		editor.revealRangeInCenter(range, ScrollType.Smooth);
 		editor.focus();

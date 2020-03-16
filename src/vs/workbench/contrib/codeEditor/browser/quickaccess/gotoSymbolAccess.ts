@@ -22,21 +22,31 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
-		super();
+		super({
+			openSideBySideDirection: () => this.configuration.openSideBySideDirection
+		});
+	}
+
+	private get configuration() {
+		const editorConfig = this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor;
+
+		return {
+			openEditorPinned: !editorConfig.enablePreviewFromQuickOpen,
+			openSideBySideDirection: editorConfig.openSideBySideDirection
+		};
 	}
 
 	protected get activeTextEditorControl() {
 		return this.editorService.activeTextEditorControl;
 	}
 
-	protected gotoSymbol(editor: IEditor, range: IRange, keyMods: IKeyMods): void {
-		const enablePreviewFromQuickAccess = this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen;
+	protected gotoLocation(editor: IEditor, range: IRange, keyMods: IKeyMods, forceSideBySide?: boolean): void {
 
 		// Check for sideBySide use
-		if (keyMods.ctrlCmd && this.editorService.activeEditor) {
+		if ((keyMods.ctrlCmd || forceSideBySide) && this.editorService.activeEditor) {
 			this.editorService.openEditor(this.editorService.activeEditor, {
 				selection: range,
-				pinned: keyMods.alt || !enablePreviewFromQuickAccess
+				pinned: keyMods.alt || this.configuration.openEditorPinned
 			}, SIDE_GROUP);
 		}
 

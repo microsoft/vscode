@@ -24,14 +24,18 @@ interface IGotoSymbolQuickPickItem extends IQuickPickItem {
 	range?: { decoration: IRange, selection: IRange },
 }
 
+export interface IGotoSymbolQuickAccessProviderOptions {
+	openSideBySideDirection: () => undefined | 'right' | 'down'
+}
+
 export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEditorNavigationQuickAccessProvider<IGotoSymbolQuickPickItem> {
 
 	static PREFIX = '@';
 	static SCOPE_PREFIX = ':';
 	static PREFIX_BY_CATEGORY = `${AbstractGotoSymbolQuickAccessProvider.PREFIX}${AbstractGotoSymbolQuickAccessProvider.SCOPE_PREFIX}`;
 
-	protected canProvideWithTextEditor(editor: IEditor): boolean {
-		return !!this.getModel(editor);
+	constructor(private options?: IGotoSymbolQuickAccessProviderOptions) {
+		super();
 	}
 
 	protected provideWithoutTextEditor(picker: IQuickPick<IGotoSymbolQuickPickItem>): IDisposable {
@@ -92,6 +96,15 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 			const [item] = picker.selectedItems;
 			if (item && item.range) {
 				this.gotoLocation(editor, item.range.selection, picker.keyMods);
+
+				picker.hide();
+			}
+		}));
+
+		// Goto symbol side by side if enabled
+		disposables.add(picker.onDidTriggerItemButton(({ item }) => {
+			if (item && item.range) {
+				this.gotoLocation(editor, item.range.selection, picker.keyMods, true);
 
 				picker.hide();
 			}
@@ -214,7 +227,20 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 						selection: Range.collapseToStart(symbol.selectionRange),
 						decoration: symbol.range
 					},
-					strikethrough: deprecated
+					strikethrough: deprecated,
+					buttons: (() => {
+						const openSideBySideDirection = this.options?.openSideBySideDirection();
+						if (!openSideBySideDirection) {
+							return undefined;
+						}
+
+						return [
+							{
+								iconClass: openSideBySideDirection === 'right' ? 'codicon-split-horizontal' : 'codicon-split-vertical',
+								tooltip: openSideBySideDirection === 'right' ? localize('openToSide', "Open to the Side") : localize('openToBottom', "Open to the Bottom")
+							}
+						];
+					})()
 				});
 			}
 		}
