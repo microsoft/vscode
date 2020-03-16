@@ -62,6 +62,10 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 			}
 		}));
 
+		// Resolve symbols from document once and reuse this
+		// request for all filtering and typing then on
+		const symbolsPromise = this.getDocumentSymbols(model, true, token);
+
 		// Set initial picks and update on type
 		let picksCts: CancellationTokenSource | undefined = undefined;
 		const updatePickerItems = async () => {
@@ -76,7 +80,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 			// Collect symbol picks
 			picker.busy = true;
 			try {
-				const items = await this.getSymbolPicks(model, picker.value.substr(AbstractGotoSymbolQuickAccessProvider.PREFIX.length).trim(), picksCts.token);
+				const items = await this.getSymbolPicks(symbolsPromise, picker.value.substr(AbstractGotoSymbolQuickAccessProvider.PREFIX.length).trim(), picksCts.token);
 				if (token.isCancellationRequested) {
 					return;
 				}
@@ -92,9 +96,17 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 		updatePickerItems();
 
 		// Reveal and decorate when active item changes
+		// However, ignore the very first event so that
+		// opening the picker is not immediately revealing
+		// and decorating the first entry.
+		let ignoreFirstActiveEvent = true;
 		disposables.add(picker.onDidChangeActive(() => {
 			const [item] = picker.activeItems;
 			if (item && item.range) {
+				if (ignoreFirstActiveEvent) {
+					ignoreFirstActiveEvent = false;
+					return;
+				}
 
 				// Reveal
 				editor.revealRangeInCenter(item.range.selection, ScrollType.Smooth);
@@ -107,10 +119,8 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 		return disposables;
 	}
 
-	private async getSymbolPicks(model: ITextModel, filter: string, token: CancellationToken): Promise<Array<IGotoSymbolQuickPickItem | IQuickPickSeparator>> {
-
-		// Resolve symbols from document
-		const symbols = await this.getDocumentSymbols(model, true, token);
+	private async getSymbolPicks(symbolsPromise: Promise<DocumentSymbol[]>, filter: string, token: CancellationToken): Promise<Array<IGotoSymbolQuickPickItem | IQuickPickSeparator>> {
+		const symbols = await symbolsPromise;
 		if (token.isCancellationRequested) {
 			return [];
 		}
@@ -138,16 +148,6 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 			if (includeSymbol) {
 				const labelWithIcon = `$(symbol-${SymbolKinds.toString(symbol.kind) || 'property'}) ${label}`;
 
-				// Readjust matches to account for codicons
-				const labelOffset = labelWithIcon.length - label.length;
-				const matches = createMatches(score);
-				if (matches) {
-					for (const match of matches) {
-						match.start += labelOffset;
-						match.end += labelOffset;
-					}
-				}
-
 				filteredSymbolPicks.push({
 					index,
 					kind: symbol.kind,
@@ -155,7 +155,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 					label: labelWithIcon,
 					ariaLabel: localize('symbolsAriaLabel', "{0}, symbols picker", label),
 					description: symbol.containerName,
-					highlights: deprecated ? undefined : { label: matches },
+					highlights: deprecated ? undefined : { label: createMatches(score, labelWithIcon.length - label.length /* Readjust matches to account for codicons */) },
 					range: {
 						selection: Range.collapseToStart(symbol.selectionRange),
 						decoration: symbol.range
