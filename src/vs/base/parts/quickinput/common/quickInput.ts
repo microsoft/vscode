@@ -308,22 +308,35 @@ export type QuickPickInput<T = IQuickPickItem> = T | IQuickPickSeparator;
 
 export type IQuickPickItemWithResource = IQuickPickItem & { resource: URI | undefined };
 
-export const quickPickItemScorerAccessor = new class implements IItemAccessor<IQuickPickItemWithResource> {
+export class QuickPickItemScorerAccessor implements IItemAccessor<IQuickPickItemWithResource> {
+
+	constructor(private options?: { skipDescription?: boolean, skipPath?: boolean }) { }
+
 	getItemLabel(entry: IQuickPickItemWithResource): string {
 		return entry.label;
 	}
 
 	getItemDescription(entry: IQuickPickItemWithResource): string | undefined {
+		if (this.options?.skipDescription) {
+			return undefined;
+		}
+
 		return entry.description;
 	}
 
 	getItemPath(entry: IQuickPickItemWithResource): string | undefined {
+		if (this.options?.skipPath) {
+			return undefined;
+		}
+
 		if (entry.resource?.scheme === Schemas.file) {
 			return entry.resource.fsPath;
 		}
 
 		return entry.resource?.path;
 	}
-};
+}
+
+export const quickPickItemScorerAccessor = new QuickPickItemScorerAccessor();
 
 //#endregion
