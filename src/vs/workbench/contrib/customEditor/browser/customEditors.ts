@@ -14,14 +14,14 @@ import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IFileService } from 'vs/platform/files/common/files';
+import { FileOperation, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { EditorInput, EditorOptions, GroupIdentifier, IEditorInput, IEditorPane } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, IEditorInput, IEditorPane, GroupIdentifier } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { webviewEditorsExtensionPoint } from 'vs/workbench/contrib/customEditor/browser/extensionPoint';
 import { CONTEXT_CUSTOM_EDITORS, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CustomEditorInfo, CustomEditorInfoCollection, CustomEditorPriority, CustomEditorSelector, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
@@ -30,6 +30,7 @@ import { IWebviewService, webviewHasOwnEditFunctionsContext } from 'vs/workbench
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
 import { CustomEditorInput } from './customEditorInput';
+import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 
 export const defaultEditorId = 'default';
 
@@ -119,6 +120,12 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		this._register(this._editorInfoStore.onChange(() => this.updateContexts()));
 		this._register(this.editorService.onDidActiveEditorChange(() => this.updateContexts()));
 
+		this._register(fileService.onDidRunOperation(e => {
+			if (e.isOperation(FileOperation.MOVE)) {
+				this.handleMovedFileInOpenedFileEditors(e.resource, e.target.resource);
+			}
+		}));
+
 		this.updateContexts();
 	}
 
@@ -140,15 +147,33 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 				.map(association => this._editorInfoStore.get(association.viewType))));
 	}
 
+	public getAllCustomEditors(resource: URI): CustomEditorInfoCollection {
+		return new CustomEditorInfoCollection([
+			...this.getUserConfiguredCustomEditors(resource).allEditors,
+			...this.getContributedCustomEditors(resource).allEditors,
+		]);
+	}
+
 	public async promptOpenWith(
 		resource: URI,
 		options?: ITextEditorOptions,
 		group?: IEditorGroup,
 	): Promise<IEditorPane | undefined> {
+		const pick = await this.showOpenWithPrompt(resource, group);
+		if (!pick) {
+			return;
+		}
+
+		return this.openWith(resource, pick, options, group);
+	}
+
+	private showOpenWithPrompt(
+		resource: URI,
+		group?: IEditorGroup,
+	): Promise<string | undefined> {
 		const customEditors = new CustomEditorInfoCollection([
 			defaultEditorInfo,
-			...this.getUserConfiguredCustomEditors(resource).allEditors,
-			...this.getContributedCustomEditors(resource).allEditors,
+			...this.getAllCustomEditors(resource).allEditors,
 		]);
 
 		let currentlyOpenedEditorType: undefined | string;
@@ -177,7 +202,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		picker.items = items;
 		picker.placeholder = nls.localize('promptOpenWith.placeHolder', "Select editor to use for '{0}'...", basename(resource));
 
-		const pick = await new Promise<string | undefined>(resolve => {
+		return new Promise<string | undefined>(resolve => {
 			picker.onDidAccept(() => {
 				resolve(picker.selectedItems.length === 1 ? picker.selectedItems[0].id : undefined);
 				picker.dispose();
@@ -209,12 +234,6 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 			});
 			picker.show();
 		});
-
-		if (!pick) {
-			return;
-		}
-
-		return this.openWith(resource, pick, options, group);
 	}
 
 	public openWith(
@@ -295,13 +314,64 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 			return;
 		}
 
-		const possibleEditors = [
-			...this.getContributedCustomEditors(resource).allEditors,
-			...this.getUserConfiguredCustomEditors(resource).allEditors,
-		];
+		const possibleEditors = this.getAllCustomEditors(resource).allEditors;
+
 		this._customEditorContextKey.set(possibleEditors.map(x => x.id).join(','));
 		this._focusedCustomEditorIsEditable.set(activeEditorPane?.input instanceof CustomEditorInput);
 		this._webviewHasOwnEditFunctions.set(possibleEditors.length > 0);
+	}
+
+	private async handleMovedFileInOpenedFileEditors(_oldResource: URI, newResource: URI): Promise<void> {
+		// See if the new resource can be opened in a custom editor
+		const possibleEditors = this.getAllCustomEditors(newResource).allEditors;
+		if (!possibleEditors.length) {
+			return;
+		}
+
+		// If so, check all editors to see if there are any file editors open for the new resource
+		const editorsToReplace = new Map<GroupIdentifier, IEditorInput[]>();
+		for (const group of this.editorGroupService.groups) {
+			for (const editor of group.editors) {
+				if (editor instanceof FileEditorInput
+					&& !(editor instanceof CustomEditorInput)
+					&& isEqual(editor.resource, newResource)
+				) {
+					let entry = editorsToReplace.get(group.id);
+					if (!entry) {
+						entry = [];
+						editorsToReplace.set(group.id, entry);
+					}
+					entry.push(editor);
+				}
+			}
+		}
+
+		if (!editorsToReplace.size) {
+			return;
+		}
+
+		// If there is, show a single prompt for all editors to see if the user wants to re-open them
+		//
+		// TODO: instead of prompting eagerly, it'd likly be better to replace all the editors with
+		// ones that would prompt when they first become visible
+		await new Promise(resolve => setTimeout(resolve, 50));
+		const pickedViewType = await this.showOpenWithPrompt(newResource);
+		if (!pickedViewType) {
+			return;
+		}
+
+		for (const [group, entries] of editorsToReplace) {
+			this.editorService.replaceEditors(entries.map(editor => {
+				const replacement = this.createInput(newResource, pickedViewType, group);
+				return {
+					editor,
+					replacement,
+					options: {
+						preserveFocus: true,
+					}
+				};
+			}), group);
+		}
 	}
 }
 
