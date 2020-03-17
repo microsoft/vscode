@@ -1181,7 +1181,7 @@ export class SearchView extends ViewPane {
 		}
 
 		if (!skipLayout && this.size) {
-			this.layout(this.size.height);
+			this.layout(this._orientation === Orientation.VERTICAL ? this.size.height : this.size.width);
 		}
 	}
 
