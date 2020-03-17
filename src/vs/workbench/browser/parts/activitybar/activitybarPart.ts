@@ -324,13 +324,10 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		CompositeDragAndDropObserver.INSTANCE.registerTarget(this.element, {
 			onDragStart: e => {
-				// this.element.style.outline = `1px solid`;
-				// this.element.style.outlineOffset = '-1px';
 				overlay.style.backgroundColor = this.theme.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND, true)?.toString() || '';
 				overlay.style.opacity = '.8';
 			},
 			onDragEnd: e => {
-				// this.element.style.outline = '';
 				overlay.style.opacity = '';
 			},
 			onDragEnter: e => {
