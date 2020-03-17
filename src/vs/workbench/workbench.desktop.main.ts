@@ -50,7 +50,6 @@ import 'vs/workbench/services/url/electron-browser/urlService';
 import 'vs/workbench/services/workspaces/electron-browser/workspacesService';
 import 'vs/workbench/services/workspaces/electron-browser/workspaceEditingService';
 import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncService';
-import 'vs/workbench/services/userDataSync/electron-browser/settingsSyncService';
 import 'vs/workbench/services/userDataSync/electron-browser/userDataAutoSyncService';
 import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncStoreService';
 import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncBackupStoreService';

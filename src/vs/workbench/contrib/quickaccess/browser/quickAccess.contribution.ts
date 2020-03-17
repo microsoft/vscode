@@ -15,13 +15,6 @@ import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/co
 
 const registry = Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess);
 
-registry.defaultProvider = {
-	ctor: HelpQuickAccessProvider,
-	prefix: '',
-	placeholder: localize('defaultAccessPlaceholder', "Type the name of a file to open."),
-	helpEntries: [{ description: localize('gotoFileQuickAccess', "Go to File"), needsEditor: false }]
-};
-
 registry.registerQuickAccessProvider({
 	ctor: HelpQuickAccessProvider,
 	prefix: HelpQuickAccessProvider.PREFIX,

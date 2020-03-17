@@ -11,29 +11,45 @@ import { IRange } from 'vs/editor/common/core/range';
 import { AbstractGotoLineQuickAccessProvider } from 'vs/editor/contrib/quickAccess/gotoLineQuickAccess';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IQuickAccessRegistry, Extensions } from 'vs/platform/quickinput/common/quickAccess';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 
 export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProvider {
 
-	readonly onDidActiveTextEditorControlChange = this.editorService.onDidActiveEditorChange;
+	protected readonly onDidActiveTextEditorControlChange = this.editorService.onDidActiveEditorChange;
 
-	constructor(@IEditorService private readonly editorService: IEditorService) {
+	constructor(
+		@IEditorService private readonly editorService: IEditorService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
+	) {
 		super();
 	}
 
-	get activeTextEditorControl() {
+	private get configuration() {
+		const editorConfig = this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor;
+
+		return {
+			openEditorPinned: !editorConfig.enablePreviewFromQuickOpen,
+		};
+	}
+
+	protected get activeTextEditorControl() {
 		return this.editorService.activeTextEditorControl;
 	}
 
-	protected gotoLine(editor: IEditor, range: IRange, keyMods: IKeyMods): void {
+	protected gotoLocation(editor: IEditor, range: IRange, keyMods: IKeyMods, forceSideBySide?: boolean): void {
 
 		// Check for sideBySide use
-		if (keyMods.ctrlCmd && this.editorService.activeEditor) {
-			this.editorService.openEditor(this.editorService.activeEditor, { selection: range, pinned: keyMods.alt }, SIDE_GROUP);
+		if ((keyMods.ctrlCmd || forceSideBySide) && this.editorService.activeEditor) {
+			this.editorService.openEditor(this.editorService.activeEditor, {
+				selection: range,
+				pinned: keyMods.alt || this.configuration.openEditorPinned
+			}, SIDE_GROUP);
 		}
 
 		// Otherwise let parent handle it
 		else {
-			super.gotoLine(editor, range, keyMods);
+			super.gotoLocation(editor, range, keyMods);
 		}
 	}
 }

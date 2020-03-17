@@ -10,7 +10,6 @@ import { IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from 'vs/plat
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { timeout } from 'vs/base/common/async';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { DisposableStore, toDisposable, dispose } from 'vs/base/common/lifecycle';
 import { AbstractEditorCommandsQuickAccessProvider } from 'vs/editor/contrib/quickAccess/commandsQuickAccess';
@@ -33,13 +32,12 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		this.extensionService.whenInstalledExtensionsRegistered()
 	]);
 
-	get activeTextEditorControl(): IEditor | undefined { return this.editorService.activeTextEditorControl; }
+	protected get activeTextEditorControl(): IEditor | undefined { return this.editorService.activeTextEditorControl; }
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IEnvironmentService environmentService: IEnvironmentService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ICommandService commandService: ICommandService,

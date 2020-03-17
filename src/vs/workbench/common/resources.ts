@@ -113,8 +113,8 @@ export class ResourceGlobMatcher extends Disposable {
 	private readonly _onExpressionChange = this._register(new Emitter<void>());
 	readonly onExpressionChange = this._onExpressionChange.event;
 
-	private readonly mapRootToParsedExpression: Map<string | null, ParsedExpression> = new Map<string, ParsedExpression>();
-	private readonly mapRootToExpressionConfig: Map<string | null, IExpression> = new Map<string, IExpression>();
+	private readonly mapRootToParsedExpression = new Map<string | null, ParsedExpression>();
+	private readonly mapRootToExpressionConfig = new Map<string | null, IExpression>();
 
 	constructor(
 		private globFn: (root?: URI) => IExpression,

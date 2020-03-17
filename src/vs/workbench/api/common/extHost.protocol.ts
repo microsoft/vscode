@@ -432,6 +432,8 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	$show(terminalId: number, preserveFocus: boolean): void;
 	$startSendingDataEvents(): void;
 	$stopSendingDataEvents(): void;
+	$startHandlingLinks(): void;
+	$stopHandlingLinks(): void;
 
 	// Process
 	$sendProcessTitle(terminalId: number, title: string): void;
@@ -574,6 +576,10 @@ export interface WebviewExtensionDescription {
 	readonly location: UriComponents;
 }
 
+export interface CustomTextEditorCapabilities {
+	readonly supportsMove?: boolean;
+}
+
 export interface MainThreadWebviewsShape extends IDisposable {
 	$createWebviewPanel(extension: WebviewExtensionDescription, handle: WebviewPanelHandle, viewType: string, title: string, showOptions: WebviewPanelShowOptions, options: modes.IWebviewPanelOptions & modes.IWebviewOptions): void;
 	$disposeWebview(handle: WebviewPanelHandle): void;
@@ -589,7 +595,7 @@ export interface MainThreadWebviewsShape extends IDisposable {
 	$registerSerializer(viewType: string): void;
 	$unregisterSerializer(viewType: string): void;
 
-	$registerTextEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: modes.IWebviewPanelOptions): void;
+	$registerTextEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: modes.IWebviewPanelOptions, capabilities: CustomTextEditorCapabilities): void;
 	$registerCustomEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: modes.IWebviewPanelOptions): void;
 	$unregisterEditorProvider(viewType: string): void;
 
@@ -612,8 +618,8 @@ export interface ExtHostWebviewsShape {
 
 	$deserializeWebviewPanel(newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, state: any, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions): Promise<void>;
 
-	$resolveWebviewEditor(resource: UriComponents, newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions): Promise<void>;
-	$createWebviewCustomEditorDocument(resource: UriComponents, viewType: string): Promise<{ editable: boolean }>;
+	$resolveWebviewEditor(resource: UriComponents, newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions, cancellation: CancellationToken): Promise<void>;
+	$createWebviewCustomEditorDocument(resource: UriComponents, viewType: string, cancellation: CancellationToken): Promise<{ editable: boolean }>;
 	$disposeWebviewCustomEditorDocument(resource: UriComponents, viewType: string): Promise<void>;
 
 	$undo(resource: UriComponents, viewType: string, editId: number): Promise<void>;
@@ -625,6 +631,8 @@ export interface ExtHostWebviewsShape {
 	$onSaveAs(resource: UriComponents, viewType: string, targetResource: UriComponents): Promise<void>;
 
 	$backup(resource: UriComponents, viewType: string, cancellation: CancellationToken): Promise<void>;
+
+	$onMoveCustomEditor(handle: WebviewPanelHandle, newResource: UriComponents, viewType: string): Promise<void>;
 }
 
 export interface MainThreadUrlsShape extends IDisposable {
@@ -1311,6 +1319,7 @@ export interface ExtHostTerminalServiceShape {
 	$acceptWorkspacePermissionsChanged(isAllowed: boolean): void;
 	$getAvailableShells(): Promise<IShellDefinitionDto[]>;
 	$getDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto>;
+	$handleLink(id: number, link: string): Promise<boolean>;
 }
 
 export interface ExtHostSCMShape {
