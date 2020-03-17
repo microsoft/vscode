@@ -16,7 +16,8 @@ import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 suite('NotebookViewModel', () => {
 	const instantiationService = new TestInstantiationService();
 	const blukEditService = instantiationService.get(IBulkEditService);
-	const undoRedoService = instantiationService.get(IUndoRedoService);
+	const undoRedoService = instantiationService.stub(IUndoRedoService, () => { });
+	instantiationService.spy(IUndoRedoService, 'pushElement');
 
 	test('ctor', function () {
 		const notebook = new TestNotebook(0, 'notebook', URI.parse('test'));
