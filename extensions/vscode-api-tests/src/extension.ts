@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/// <reference path="../../../../src/vs/vscode.d.ts" />
-/// <reference path="../../../../src/vs/vscode.proposed.d.ts" />
-/// <reference types='@types/node'/>
+import * as vscode from 'vscode';
+
+export function activate(_context: vscode.ExtensionContext) {
+	// noop
+}
+
