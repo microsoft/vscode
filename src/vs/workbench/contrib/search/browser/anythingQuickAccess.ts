@@ -38,6 +38,7 @@ import { IResourceEditorInput, ITextEditorOptions } from 'vs/platform/editor/com
 import { Schemas } from 'vs/base/common/network';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ResourceMap } from 'vs/base/common/map';
+import { SymbolsQuickAccessProvider, ISymbolsQuickPickItem } from 'vs/workbench/contrib/search/browser/symbolsQuickAccess';
 
 interface IAnythingQuickPickItem extends IPickerQuickAccessItem {
 	resource: URI | undefined;
@@ -136,7 +137,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		// Resolve file and symbol picks (if enabled)
 		const [filePicks, symbolPicks] = await Promise.all([
 			this.getFilePicks(query, range, excludes, token),
-			this.getSymbolPicks(query, range, excludes, token)
+			this.getSymbolPicks(query, range, token)
 		]);
 
 		if (token.isCancellationRequested) {
@@ -329,7 +330,9 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	//#region Symbols (if enabled)
 
-	protected async getSymbolPicks(query: IPreparedQuery, range: IRange | undefined, excludes: ResourceMap<boolean>, token: CancellationToken): Promise<Array<IAnythingQuickPickItem>> {
+	private symbolsQuickAccess = this._register(this.instantiationService.createInstance(SymbolsQuickAccessProvider));
+
+	protected async getSymbolPicks(query: IPreparedQuery, range: IRange | undefined, token: CancellationToken): Promise<Array<ISymbolsQuickPickItem>> {
 		if (
 			!query.value ||							// we need a value for search for
 			!this.configuration.includeSymbols ||	// we need to enable symbols in search
@@ -338,7 +341,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			return [];
 		}
 
-		return [];
+		// Delegate to the existing symbols quick access
+		return this.symbolsQuickAccess.getSymbolPicks(query.value, token, { skipLocal: true, skipSorting: true, skipMatching: true });
 	}
 
 	//#endregion
