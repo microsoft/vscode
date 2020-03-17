@@ -32,6 +32,8 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 	protected getPicks(filter: string): Array<IEditorQuickPickItem | IQuickPickSeparator> {
 		const query = prepareQuery(filter);
 		const scorerCache = Object.create(null);
+
+		// Filtering
 		const filteredEditorEntries = this.doGetEditorPickItems().filter(entry => {
 			if (!query.value) {
 				return true;

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/anythingQuickAccess';
-import { IQuickPickSeparator, IQuickInputButton, IKeyMods, quickPickItemScorerAccessor, QuickPickItemScorerAccessor } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickPickSeparator, IQuickInputButton, IKeyMods, quickPickItemScorerAccessor, QuickPickItemScorerAccessor, IQuickPick } from 'vs/platform/quickinput/common/quickInput';
 import { IPickerQuickAccessItem, PickerQuickAccessProvider, TriggerAction, FastAndSlowPicksType } from 'vs/platform/quickinput/browser/pickerQuickAccess';
-import { prepareQuery, IPreparedQuery, compareItemsByScore, scoreItem } from 'vs/base/common/fuzzyScorer';
+import { prepareQuery, IPreparedQuery, compareItemsByScore, scoreItem, ScorerCache } from 'vs/base/common/fuzzyScorer';
 import { IFileQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { getOutOfWorkspaceEditorResources, extractRangeFromFilter, IWorkbenchSearchConfiguration } from 'vs/workbench/contrib/search/common/search';
@@ -19,7 +19,7 @@ import { toLocalResource, dirname, basenameOrAuthority } from 'vs/base/common/re
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -49,6 +49,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 	static PREFIX = '';
 
 	private static readonly MAX_RESULTS = 512;
+
+	private scorerCache: ScorerCache = Object.create(null);
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -82,10 +84,16 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		};
 	}
 
-	protected getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): FastAndSlowPicksType<IAnythingQuickPickItem | IQuickPickSeparator> {
+	provide(picker: IQuickPick<IAnythingQuickPickItem>, token: CancellationToken): IDisposable {
 
-		// TODO this should run just once when picker opens
+		// Prepare caches for the run
 		this.warmUpFileQueryCache();
+		this.scorerCache = Object.create(null);
+
+		return super.provide(picker, token);
+	}
+
+	protected getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): FastAndSlowPicksType<IAnythingQuickPickItem | IQuickPickSeparator> {
 
 		// Find a suitable range from the pattern looking for ":", "#" or ","
 		let range: IRange | undefined = undefined;
@@ -145,10 +153,9 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		}
 
 		// Sort top 512 items by score
-		const scorerCache = Object.create(null); // TODO should keep this for as long as the picker is opened (also check other pickers)
 		const sortedAnythingPicks = top(
 			[...filePicks, ...symbolPicks],
-			(anyPickA, anyPickB) => compareItemsByScore(anyPickA, anyPickB, query, true, quickPickItemScorerAccessor, scorerCache),
+			(anyPickA, anyPickB) => compareItemsByScore(anyPickA, anyPickB, query, true, quickPickItemScorerAccessor, this.scorerCache),
 			AnythingQuickAccessProvider.MAX_RESULTS
 		);
 
@@ -158,7 +165,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 				continue; // preserve any highlights we got already (e.g. symbols)
 			}
 
-			const { labelMatch, descriptionMatch } = scoreItem(anythingPick, query, true, quickPickItemScorerAccessor, scorerCache);
+			const { labelMatch, descriptionMatch } = scoreItem(anythingPick, query, true, quickPickItemScorerAccessor, this.scorerCache);
 
 			anythingPick.highlights = {
 				label: labelMatch,
@@ -189,7 +196,6 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		// Otherwise filter and sort by query
 		const editorHistoryPicks: Array<IAnythingQuickPickItem> = [];
-		const scorerCache = Object.create(null); // TODO should keep this for as long as the picker is opened (also check other pickers)
 		for (const editor of this.historyService.getHistory()) {
 			const resource = editor.resource;
 			if (!resource || (!this.fileService.canHandleResource(resource) && resource.scheme !== Schemas.untitled)) {
@@ -198,7 +204,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 			const editorHistoryPick = this.createAnythingPick(editor, range);
 
-			const { score, labelMatch, descriptionMatch } = scoreItem(editorHistoryPick, query, false, editorHistoryScorerAccessor, scorerCache);
+			const { score, labelMatch, descriptionMatch } = scoreItem(editorHistoryPick, query, false, editorHistoryScorerAccessor, this.scorerCache);
 			if (!score) {
 				continue; // exclude editors not matching query
 			}
@@ -211,7 +217,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			editorHistoryPicks.push(editorHistoryPick);
 		}
 
-		return editorHistoryPicks.sort((editorA, editorB) => compareItemsByScore(editorA, editorB, query, false, editorHistoryScorerAccessor, scorerCache, () => -1));
+		return editorHistoryPicks.sort((editorA, editorB) => compareItemsByScore(editorA, editorB, query, false, editorHistoryScorerAccessor, this.scorerCache, () => -1));
 	}
 
 	//#endregion
@@ -232,8 +238,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			query => this.searchService.fileSearch(query),
 			cacheKey => this.searchService.clearCache(cacheKey),
 			this.fileQueryCacheState
-		);
-		this.fileQueryCacheState.load();
+		).load();
 	}
 
 	protected async getFilePicks(query: IPreparedQuery, range: IRange | undefined, excludes: ResourceMap<boolean>, token: CancellationToken): Promise<Array<IAnythingQuickPickItem>> {
