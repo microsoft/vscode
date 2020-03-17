@@ -1016,7 +1016,7 @@ export class QuickInputController extends Disposable {
 	}
 
 	private registerKeyModsListeners() {
-		this._register(dom.addDisposableListener(this.parentElement, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+		this._register(dom.addDisposableListener(window, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			switch (event.keyCode) {
 				case KeyCode.Ctrl:
@@ -1028,7 +1028,7 @@ export class QuickInputController extends Disposable {
 					break;
 			}
 		}));
-		this._register(dom.addDisposableListener(this.parentElement, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
+		this._register(dom.addDisposableListener(window, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			switch (event.keyCode) {
 				case KeyCode.Ctrl:
