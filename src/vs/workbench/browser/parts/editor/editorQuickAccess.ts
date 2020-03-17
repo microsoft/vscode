@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IQuickPickSeparator, quickPickItemScorerAccessor, IQuickPickItemWithResource } from 'vs/platform/quickinput/common/quickInput';
-import { PickerQuickAccessProvider, IPickerQuickAccessItem, TriggerAction } from 'vs/platform/quickinput/common/quickAccess';
+import { IQuickPickSeparator, quickPickItemScorerAccessor, IQuickPickItemWithResource, IQuickPick } from 'vs/platform/quickinput/common/quickInput';
+import { PickerQuickAccessProvider, IPickerQuickAccessItem, TriggerAction } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { IEditorGroupsService, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorsOrder, IEditorIdentifier, toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -26,6 +26,12 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 		@IModeService private readonly modeService: IModeService
 	) {
 		super(prefix);
+	}
+
+	protected configure(picker: IQuickPick<IEditorQuickPickItem>): void {
+
+		// Allow to open editors in background without closing picker
+		picker.canAcceptInBackground = true;
 	}
 
 	protected getPicks(filter: string): Array<IEditorQuickPickItem | IQuickPickSeparator> {
@@ -108,7 +114,7 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 
 					return TriggerAction.REFRESH_PICKER;
 				},
-				accept: () => this.editorGroupService.getGroup(groupId)?.openEditor(editor),
+				accept: (keyMods, event) => this.editorGroupService.getGroup(groupId)?.openEditor(editor, { preserveFocus: event.inBackground }),
 			};
 		});
 	}

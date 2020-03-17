@@ -11,15 +11,20 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { AbstractEditorCommandsQuickAccessProvider } from 'vs/editor/contrib/quickAccess/commandsQuickAccess';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { EditorAction, registerEditorAction } from 'vs/editor/browser/editorExtensions';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
 export class StandaloneCommandsQuickAccessProvider extends AbstractEditorCommandsQuickAccessProvider {
 
-	get activeTextEditorControl(): IEditor | undefined { return withNullAsUndefined(this.codeEditorService.getFocusedCodeEditor()); }
+	protected get activeTextEditorControl(): IEditor | undefined { return withNullAsUndefined(this.codeEditorService.getFocusedCodeEditor()); }
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -42,3 +47,30 @@ Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessPro
 	prefix: StandaloneCommandsQuickAccessProvider.PREFIX,
 	helpEntries: [{ description: QuickCommandNLS.quickCommandHelp, needsEditor: true }]
 });
+
+export class GotoLineAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.quickCommand',
+			label: QuickCommandNLS.quickCommandActionLabel,
+			alias: 'Command Palette',
+			precondition: undefined,
+			kbOpts: {
+				kbExpr: EditorContextKeys.focus,
+				primary: KeyCode.F1,
+				weight: KeybindingWeight.EditorContrib
+			},
+			contextMenuOpts: {
+				group: 'z_commands',
+				order: 1
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		accessor.get(IQuickInputService).quickAccess.show(StandaloneCommandsQuickAccessProvider.PREFIX);
+	}
+}
+
+registerEditorAction(GotoLineAction);

@@ -1319,7 +1319,8 @@ export interface IEditorPartOptionsChangeEvent {
 
 export enum SideBySideEditor {
 	MASTER = 1,
-	DETAILS = 2
+	DETAILS = 2,
+	BOTH = 3
 }
 
 export interface IResourceOptions {
@@ -1327,12 +1328,22 @@ export interface IResourceOptions {
 	filterByScheme?: string | string[];
 }
 
-export function toResource(editor: IEditorInput | undefined, options?: IResourceOptions): URI | undefined {
+export function toResource(editor: IEditorInput | undefined): URI | undefined;
+export function toResource(editor: IEditorInput | undefined, options: IResourceOptions & { supportSideBySide?: SideBySideEditor.MASTER | SideBySideEditor.DETAILS }): URI | undefined;
+export function toResource(editor: IEditorInput | undefined, options: IResourceOptions & { supportSideBySide: SideBySideEditor.BOTH }): URI | { master?: URI, detail?: URI } | undefined;
+export function toResource(editor: IEditorInput | undefined, options?: IResourceOptions): URI | { master?: URI, detail?: URI } | undefined {
 	if (!editor) {
 		return undefined;
 	}
 
 	if (options?.supportSideBySide && editor instanceof SideBySideEditorInput) {
+		if (options?.supportSideBySide === SideBySideEditor.BOTH) {
+			return {
+				master: toResource(editor.master, { filterByScheme: options.filterByScheme }),
+				detail: toResource(editor.details, { filterByScheme: options.filterByScheme })
+			};
+		}
+
 		editor = options.supportSideBySide === SideBySideEditor.MASTER ? editor.master : editor.details;
 	}
 
@@ -1341,12 +1352,14 @@ export function toResource(editor: IEditorInput | undefined, options?: IResource
 		return resource;
 	}
 
-	if (Array.isArray(options.filterByScheme) && options.filterByScheme.some(scheme => resource.scheme === scheme)) {
-		return resource;
-	}
-
-	if (options.filterByScheme === resource.scheme) {
-		return resource;
+	if (Array.isArray(options.filterByScheme)) {
+		if (options.filterByScheme.some(scheme => resource.scheme === scheme)) {
+			return resource;
+		}
+	} else {
+		if (options.filterByScheme === resource.scheme) {
+			return resource;
+		}
 	}
 
 	return undefined;

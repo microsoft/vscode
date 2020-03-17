@@ -5,7 +5,7 @@
 
 @font-face {
 	font-family: "codicon";
-	src: url("./codicon.ttf?df9e07bbeddc0cf98f4d7a7c92bef3d8") format("truetype");
+	src: url("./codicon.ttf?5490083fcec741c6a0a08a366d2f9c98") format("truetype");
 }
 
 .codicon[class*='codicon-'] {
@@ -419,3 +419,4 @@
 .codicon-bell-dot:before { content: "\f101" }
 .codicon-debug-alt-2:before { content: "\f102" }
 .codicon-debug-alt:before { content: "\f103" }
+.codicon-run-all:before { content: "\f104" }

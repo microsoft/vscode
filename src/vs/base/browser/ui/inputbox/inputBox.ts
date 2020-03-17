@@ -295,6 +295,10 @@ export class InputBox extends Widget {
 		}
 	}
 
+	public isSelectionAtEnd(): boolean {
+		return this.input.selectionEnd === this.input.value.length && this.input.selectionStart === this.input.selectionEnd;
+	}
+
 	public enable(): void {
 		this.input.removeAttribute('disabled');
 	}

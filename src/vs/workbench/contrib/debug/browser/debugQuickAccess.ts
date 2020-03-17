@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { PickerQuickAccessProvider, IPickerQuickAccessItem, TriggerAction } from 'vs/platform/quickinput/common/quickAccess';
+import { PickerQuickAccessProvider, IPickerQuickAccessItem, TriggerAction } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { localize } from 'vs/nls';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
@@ -52,7 +52,7 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 					highlights: { label: highlights },
 					buttons: [{
 						iconClass: 'codicon-gear',
-						tooltip: localize('customizeTask', "Configure Launch Configuration")
+						tooltip: localize('customizeLaunchConfig', "Configure Launch Configuration")
 					}],
 					trigger: () => {
 						config.launch.openConfigFile(false, false);

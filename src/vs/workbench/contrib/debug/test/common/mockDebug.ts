@@ -222,6 +222,14 @@ export class MockSession implements IDebugSession {
 		throw new Error('not implemented');
 	}
 
+	get onDidProgressStart(): Event<DebugProtocol.ProgressStartEvent> {
+		throw new Error('not implemented');
+	}
+
+	get onDidProgressEnd(): Event<DebugProtocol.ProgressEndEvent> {
+		throw new Error('not implemented');
+	}
+
 	setConfiguration(configuration: { resolved: IConfig, unresolved: IConfig }) { }
 
 	getAllThreads(): IThread[] {

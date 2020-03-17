@@ -154,6 +154,7 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 		options.descriptionMatches = descriptionHighlights || [];
 		options.extraClasses = element.item.iconClasses;
 		options.italic = element.item.italic;
+		options.strikethrough = element.item.strikethrough;
 		data.label.setLabel(element.saneLabel, element.saneDescription, options);
 
 		// Keybinding
@@ -317,7 +318,7 @@ export class QuickInputList {
 
 	@memoize
 	get onDidChangeSelection() {
-		return Event.map(this.list.onDidChangeSelection, e => e.elements.map(e => e.item));
+		return Event.map(this.list.onDidChangeSelection, e => ({ items: e.elements.map(e => e.item), event: e.browserEvent }));
 	}
 
 	getAllVisibleChecked() {

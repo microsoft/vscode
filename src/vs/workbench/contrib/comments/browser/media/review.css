@@ -146,22 +146,8 @@
 	margin-right: 4px;
 }
 
-.monaco-editor .review-widget .head .review-actions > .monaco-action-bar .codicon.expand-review-action {
-	background-image: url("./close-light.svg");
-	background-size: 16px;
-}
-
-.monaco-editor.vs-dark .review-widget .head .review-actions > .monaco-action-bar .codicon.expand-review-action {
-	background-image: url("./close-dark.svg");
-}
-
-.monaco-editor.hc-black .review-widget .head .review-actions > .monaco-action-bar .codicon.expand-review-action {
-	background-image: url("./close-hc.svg");
-}
-
 .monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label.toolbar-toggle-pickReactions {
 	display: none;
-	background-image: url("./reaction-light.svg");
 	background-size: 16px;
 	width: 26px;
 	height: 16px;
@@ -176,14 +162,6 @@
 	background-size: 16px;
 }
 
-.monaco-editor.vs-dark .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label.toolbar-toggle-pickReactions {
-	background-image: url("./reaction-dark.svg");
-}
-
-.monaco-editor.hc-black .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label.toolbar-toggle-pickReactions {
-	background-image: url("./reaction-hc.svg");
-}
-
 .monaco-editor .review-widget .body .review-comment .comment-title .action-label {
 	display: block;
 	height: 16px;
@@ -191,23 +169,6 @@
 	background-size: 16px;
 	background-position: center center;
 	background-repeat: no-repeat;
-}
-
-.monaco-editor .review-widget .body .review-comment .comment-title .action-label.toolbar-toggle-pickReactions {
-	background-image: url("./reaction-light.svg");
-	width: 16px;
-	height: 16px;
-	background-size: 16px;
-	background-position: center;
-	background-repeat: no-repeat;
-}
-
-.monaco-editor.vs-dark .review-widget .body .review-comment .comment-title .action-label.toolbar-toggle-pickReactions {
-	background-image: url("./reaction-dark.svg");
-}
-
-.monaco-editor.hc-black .review-widget .body .review-comment .comment-title .action-label.toolbar-toggle-pickReactions {
-	background-image: url("./reaction-hc.svg");
 }
 
 .monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label {
@@ -410,10 +371,6 @@
 
 .monaco-editor .review-widget .head .review-actions > .monaco-action-bar .action-label.codicon {
 	margin: 0;
-}
-
-.monaco-editor .review-widget .head .review-actions .action-label.codicon.close-review-action {
-	background: url("./close.svg") center center no-repeat;
 }
 
 .monaco-editor .review-widget > .body {

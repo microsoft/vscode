@@ -8,6 +8,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IStorageService, IWorkspaceStorageChangeEvent, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 type SyncEnablementClassification = {
 	enabled?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
@@ -29,8 +30,17 @@ export class UserDataSyncEnablementService extends Disposable implements IUserDa
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IEnvironmentService environmentService: IEnvironmentService,
 	) {
 		super();
+		switch (environmentService.args['sync']) {
+			case 'on':
+				this.setEnablement(true);
+				break;
+			case 'off':
+				this.setEnablement(false);
+				break;
+		}
 		this._register(storageService.onDidChangeStorage(e => this.onDidStorageChange(e)));
 	}
 

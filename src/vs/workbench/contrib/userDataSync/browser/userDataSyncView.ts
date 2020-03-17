@@ -30,8 +30,7 @@ export class UserDataSyncViewContribution implements IWorkbenchContribution {
 		@IUserDataSyncBackupStoreService private readonly userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
 	) {
 		const container = this.registerSyncViewContainer();
-		// Disable remote backup view until server is upgraded.
-		// this.registerBackupView(container, true);
+		this.registerBackupView(container, true);
 		this.registerBackupView(container, false);
 	}
 
