@@ -53,17 +53,21 @@ export interface IPickerQuickAccessItem extends IQuickPickItem {
 	trigger?(buttonIndex: number, keyMods: IKeyMods): TriggerAction | Promise<TriggerAction>;
 }
 
+export interface IPickerQuickAccessProviderOptions {
+	canAcceptInBackground?: boolean;
+}
+
 export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem> extends Disposable implements IQuickAccessProvider {
 
-	constructor(private prefix: string) {
+	constructor(private prefix: string, protected options?: IPickerQuickAccessProviderOptions) {
 		super();
 	}
 
 	provide(picker: IQuickPick<T>, token: CancellationToken): IDisposable {
 		const disposables = new DisposableStore();
 
-		// Allow subclasses to configure picker
-		this.configure(picker);
+		// Apply options if any
+		picker.canAcceptInBackground = !!this.options?.canAcceptInBackground;
 
 		// Disable filtering & sorting, we control the results
 		picker.matchOnLabel = picker.matchOnDescription = picker.matchOnDetail = picker.sortByLabel = false;
@@ -141,13 +145,6 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 
 		return disposables;
 	}
-
-	/**
-	 * Subclasses can override this method to configure the picker before showing it.
-	 *
-	 * @param picker the picker instance used for the quick access before it opens.
-	 */
-	protected configure(picker: IQuickPick<T>): void { }
 
 	/**
 	 * Returns an array of picks and separators as needed. If the picks are resolved
