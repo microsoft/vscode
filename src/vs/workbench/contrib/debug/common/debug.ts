@@ -199,6 +199,8 @@ export interface IDebugSession extends ITreeElement {
 
 	readonly onDidLoadedSource: Event<LoadedSourceEvent>;
 	readonly onDidCustomEvent: Event<DebugProtocol.Event>;
+	readonly onDidProgressStart: Event<DebugProtocol.ProgressStartEvent>;
+	readonly onDidProgressEnd: Event<DebugProtocol.ProgressEndEvent>;
 
 	// DAP request
 
