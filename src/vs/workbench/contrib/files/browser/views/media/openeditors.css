@@ -25,6 +25,10 @@
 	justify-content: center;
 }
 
+.open-editors .monaco-list .monaco-list-row.dirty:not(:hover) > .monaco-action-bar .codicon-close::before {
+	content: "\ea71"; /* Close icon flips between black dot and "X" for dirty open editors */
+}
+
 .open-editors .monaco-list .monaco-list-row > .monaco-action-bar .action-close-all-files,
 .open-editors .monaco-list .monaco-list-row > .monaco-action-bar .save-all {
 	width: 23px;
