@@ -16,9 +16,11 @@ import { SimpleButton } from 'vs/editor/contrib/find/findWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { editorWidgetBackground, inputActiveOptionBorder, inputActiveOptionBackground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow, editorWidgetForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IColorTheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, registerThemingParticipant, IThemeService } from 'vs/platform/theme/common/themeService';
 import { ContextScopedFindInput, ContextScopedReplaceInput } from 'vs/platform/browser/contextScopedHistoryWidget';
 import { ReplaceInput, IReplaceInputStyles } from 'vs/base/browser/ui/findinput/replaceInput';
+import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
+import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
@@ -53,9 +55,13 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	private _isReplaceVisible: boolean = false;
 	private foundMatch: boolean = false;
 
+	protected _progressBar!: ProgressBar;
+
+
 	constructor(
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IThemeService private readonly _themeService: IThemeService,
 		private readonly _state: FindReplaceState = new FindReplaceState(),
 		showOptionButtons?: boolean
 	) {
@@ -64,6 +70,11 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._domNode = document.createElement('div');
 		this._domNode.classList.add('simple-fr-find-part-wrapper');
 		this._register(this._state.onFindReplaceStateChange((e) => this._onStateChanged(e)));
+
+		let progressContainer = dom.$('.find-replace-progress');
+		this._progressBar = new ProgressBar(progressContainer);
+		this._register(attachProgressBarStyler(this._progressBar, this._themeService));
+		this._domNode.appendChild(progressContainer);
 
 		// Toggle replace button
 		this._toggleReplaceBtn = this._register(new SimpleButton({

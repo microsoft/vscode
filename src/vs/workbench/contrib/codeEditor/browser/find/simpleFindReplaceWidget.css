@@ -40,6 +40,22 @@
 	margin: 0 0 0 17px;
 }
 
+.monaco-workbench .simple-fr-find-part-wrapper .find-replace-progress {
+	width: 100%;
+	height: 2px;
+	position: absolute;
+}
+
+.monaco-workbench .simple-fr-find-part-wrapper .find-replace-progress .monaco-progress-container {
+	height: 2px;
+	top: 0px !important;
+	z-index: 100 !important;
+}
+
+.monaco-workbench .simple-fr-find-part-wrapper .find-replace-progress .monaco-progress-container .progress-bit {
+	height: 2px;
+}
+
 .monaco-workbench .simple-fr-find-part-wrapper .monaco-findInput {
 	width: 224px;
 }

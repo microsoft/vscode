@@ -14,6 +14,7 @@ import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer'
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { SimpleFindReplaceWidget } from 'vs/workbench/contrib/codeEditor/browser/find/simpleFindReplaceWidget';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class NotebookFindWidget extends SimpleFindReplaceWidget {
 	protected _findWidgetFocused: IContextKey<boolean>;
@@ -26,9 +27,11 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget {
 	constructor(
 		private readonly _notebookEditor: INotebookEditor,
 		@IContextViewService contextViewService: IContextViewService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IThemeService themeService: IThemeService,
+
 	) {
-		super(contextViewService, contextKeyService);
+		super(contextViewService, contextKeyService, themeService);
 		this._findWidgetFocused = KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED.bindTo(contextKeyService);
 		this._register(this._findInput.onKeyDown((e) => this._onFindInputKeyDown(e)));
 	}
@@ -95,12 +98,19 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget {
 		const cell = this._findMatches[nextIndex.index].cell;
 		const match = this._findMatches[nextIndex.index].matches[nextIndex.remainder];
 
-		return this._notebookEditor.viewModel!.replaceOne(cell, match.range, this.replaceValue);
+		this._progressBar.infinite().show();
 
+		this._notebookEditor.viewModel!.replaceOne(cell, match.range, this.replaceValue).then(() => {
+			this._progressBar.stop();
+		});
 	}
 
 	protected replaceAll() {
-		return this._notebookEditor.viewModel!.replaceAll(this._findMatches, this.replaceValue);
+		this._progressBar.infinite().show();
+
+		this._notebookEditor.viewModel!.replaceAll(this._findMatches, this.replaceValue).then(() => {
+			this._progressBar.stop();
+		});
 	}
 
 	private revealCellRange(cellIndex: number, matchIndex: number) {
