@@ -241,14 +241,20 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 		const model = editorModel.textEditorModel;
 
 		const settingsOverrides = { overrideIdentifier: model.getLanguageIdentifier().language, resource: editorModel.resource };
-		const setting = this.configurationService.getValue<{ [kind: string]: boolean }>('editor.codeActionsOnSave', settingsOverrides);
+		const setting = this.configurationService.getValue<{ [kind: string]: boolean } | string[]>('editor.codeActionsOnSave', settingsOverrides);
 		if (!setting) {
 			return undefined;
 		}
 
-		const codeActionsOnSave = Object.keys(setting)
-			.filter(x => setting[x]).map(x => new CodeActionKind(x))
-			.sort((a, b) => {
+		const settingItems: string[] = Array.isArray(setting)
+			? setting
+			: Object.keys(setting).filter(x => setting[x]);
+
+		const codeActionsOnSave = settingItems
+			.map(x => new CodeActionKind(x));
+
+		if (!Array.isArray(setting)) {
+			codeActionsOnSave.sort((a, b) => {
 				if (CodeActionKind.SourceFixAll.contains(a)) {
 					if (CodeActionKind.SourceFixAll.contains(b)) {
 						return 0;
@@ -260,14 +266,17 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 				}
 				return 0;
 			});
+		}
 
 		if (!codeActionsOnSave.length) {
 			return undefined;
 		}
 
-		const excludedActions = Object.keys(setting)
-			.filter(x => setting[x] === false)
-			.map(x => new CodeActionKind(x));
+		const excludedActions = Array.isArray(setting)
+			? []
+			: Object.keys(setting)
+				.filter(x => setting[x] === false)
+				.map(x => new CodeActionKind(x));
 
 		progress.report({ message: localize('codeaction', "Quick Fixes") });
 		await this.applyOnSaveActions(model, codeActionsOnSave, excludedActions, progress, token);
