@@ -38,7 +38,7 @@ import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { BreadcrumbsConfig, IBreadcrumbsService } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { BreadcrumbElement, EditorBreadcrumbsModel, FileElement } from 'vs/workbench/browser/parts/editor/breadcrumbsModel';
 import { BreadcrumbsPicker, createBreadcrumbsPicker } from 'vs/workbench/browser/parts/editor/breadcrumbsPicker';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor';
+import { SideBySideEditorInput, IEditorPartOptions } from 'vs/workbench/common/editor';
 import { ACTIVE_GROUP, ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -133,6 +133,10 @@ export interface IBreadcrumbsControlOptions {
 export class BreadcrumbsControl {
 
 	static readonly HEIGHT = 22;
+	static readonly SCROLLBAR_SIZES = {
+		default: 3,
+		large: 8,
+	};
 
 	static readonly Payload_Reveal = {};
 	static readonly Payload_RevealAside = {};
@@ -148,7 +152,7 @@ export class BreadcrumbsControl {
 
 	private readonly _cfUseQuickPick: BreadcrumbsConfig<boolean>;
 	private readonly _cfShowIcons: BreadcrumbsConfig<boolean>;
-	private readonly _cfScrollbarHeight: BreadcrumbsConfig<number>;
+	private readonly _cfTitleScrollbarSizing: BreadcrumbsConfig<IEditorPartOptions['titleScrollbarSizing']>;
 
 	readonly domNode: HTMLDivElement;
 	private readonly _widget: BreadcrumbsWidget;
@@ -183,9 +187,10 @@ export class BreadcrumbsControl {
 
 		this._cfUseQuickPick = BreadcrumbsConfig.UseQuickPick.bindTo(_configurationService);
 		this._cfShowIcons = BreadcrumbsConfig.Icons.bindTo(_configurationService);
-		this._cfScrollbarHeight = BreadcrumbsConfig.ScrollbarHeight.bindTo(_configurationService);
+		this._cfTitleScrollbarSizing = BreadcrumbsConfig.TitleScrollbarSizing.bindTo(_configurationService);
 
-		this._widget = new BreadcrumbsWidget(this.domNode, this._cfScrollbarHeight.getValue());
+		const sizing = this._cfTitleScrollbarSizing.getValue() ?? 'default';
+		this._widget = new BreadcrumbsWidget(this.domNode, BreadcrumbsControl.SCROLLBAR_SIZES[sizing]);
 		this._widget.onDidSelectItem(this._onSelectEvent, this, this._disposables);
 		this._widget.onDidFocusItem(this._onFocusEvent, this, this._disposables);
 		this._widget.onDidChangeFocus(this._updateCkBreadcrumbsActive, this, this._disposables);
@@ -279,12 +284,12 @@ export class BreadcrumbsControl {
 		this._breadcrumbsDisposables.add(listener);
 		this._breadcrumbsDisposables.add(configListener);
 
-		const updateScrollbarSize = () => {
-			const size = this._cfScrollbarHeight.getValue();
-			this._widget.setHorizontalScrollbarSize(size);
+		const updateScrollbarSizing = () => {
+			const sizing = this._cfTitleScrollbarSizing.getValue() ?? 'default';
+			this._widget.setHorizontalScrollbarSize(BreadcrumbsControl.SCROLLBAR_SIZES[sizing]);
 		};
-		updateScrollbarSize();
-		const updateScrollbarSizeListener = this._cfScrollbarHeight.onDidChange(updateScrollbarSize);
+		updateScrollbarSizing();
+		const updateScrollbarSizeListener = this._cfTitleScrollbarSizing.onDidChange(updateScrollbarSizing);
 		this._breadcrumbsDisposables.add(updateScrollbarSizeListener);
 
 		// close picker on hide/update

@@ -17,10 +17,15 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 	registry.registerConfiguration({
 		...workbenchConfigurationNodeBase,
 		'properties': {
-			'workbench.editor.tabScrollbarHeight': {
-				type: 'number',
-				description: nls.localize('tabScrollbarHeight', 'Controls the height of the scrollbar, which is visible when the width of tabs exceeds the window width'),
-				default: 3,
+			'workbench.editor.titleScrollbarSizing': {
+				type: 'string',
+				enum: ['default', 'large'],
+				enumDescriptions: [
+					nls.localize('workbench.editor.titleScrollbarSizing.default', "The default size."),
+					nls.localize('workbench.editor.titleScrollbarSizing.large', "Increases the size, so it can be grabed more easily with the mouse")
+				],
+				description: nls.localize('tabScrollbarHeight', "Controls the height of all scrollbars visible in the title area (Tabs &Breadcrumbs)"),
+				default: 'default',
 			},
 			'workbench.editor.showTabs': {
 				'type': 'boolean',

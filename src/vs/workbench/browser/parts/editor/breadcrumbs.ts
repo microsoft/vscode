@@ -13,7 +13,7 @@ import { Extensions, IConfigurationRegistry, ConfigurationScope } from 'vs/platf
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { GroupIdentifier } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IEditorPartOptions } from 'vs/workbench/common/editor';
 
 export const IBreadcrumbsService = createDecorator<IBreadcrumbsService>('IEditorBreadcrumbsService');
 
@@ -72,7 +72,7 @@ export abstract class BreadcrumbsConfig<T> {
 	static readonly SymbolPath = BreadcrumbsConfig._stub<'on' | 'off' | 'last'>('breadcrumbs.symbolPath');
 	static readonly SymbolSortOrder = BreadcrumbsConfig._stub<'position' | 'name' | 'type'>('breadcrumbs.symbolSortOrder');
 	static readonly Icons = BreadcrumbsConfig._stub<boolean>('breadcrumbs.icons');
-	static readonly ScrollbarHeight = BreadcrumbsConfig._stub<number>('breadcrumbs.scrollbarHeight');
+	static readonly TitleScrollbarSizing = BreadcrumbsConfig._stub<IEditorPartOptions['titleScrollbarSizing']>('workbench.editor.titleScrollbarSizing');
 
 	static readonly FileExcludes = BreadcrumbsConfig._stub<glob.IExpression>('files.exclude');
 
@@ -319,11 +319,6 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			default: true,
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
 			markdownDescription: localize('filteredTypes.typeParameter', "When enabled breadcrumbs show `typeParameter`-symbols.")
-		},
-		'breadcrumbs.scrollbarHeight': {
-			type: 'number',
-			default: 3,
-			markdownDescription: localize('filteredTypes.scrollbarHeight', "Controls the height of the scrollbar, which is visible when the breadcrumb width exceeds the window width.")
 		}
 	}
 });

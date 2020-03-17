@@ -55,6 +55,10 @@ interface IEditorInputLabel {
 type AugmentedLabel = IEditorInputLabel & { editor: IEditorInput };
 
 export class TabsTitleControl extends TitleControl {
+	private static readonly SCROLLBAR_SIZES = {
+		default: 3,
+		large: 10,
+	};
 
 	private titleContainer: HTMLElement | undefined;
 	private tabsContainer: HTMLElement | undefined;
@@ -105,8 +109,9 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	protected onDidEditorPartOptionsChange(e: IEditorPartOptionsChangeEvent) {
-		if (e.newPartOptions.tabScrollbarHeight !== undefined) {
-			this.tabsScrollbar?.setHorizontalScrollbarSize(e.newPartOptions.tabScrollbarHeight);
+		if (e.newPartOptions.titleScrollbarSizing !== undefined) {
+			const size = BreadcrumbsControl.SCROLLBAR_SIZES[e.newPartOptions.titleScrollbarSizing ?? 'default'];
+			this.tabsScrollbar?.setHorizontalScrollbarSize(size);
 		}
 	}
 
@@ -148,12 +153,15 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private createTabsScrollbar(scrollable: HTMLElement): ScrollableElement {
+		const scrollbarSizing = this.configurationService
+			.getValue<IEditorPartOptions['titleScrollbarSizing']>('workbench.editor.titleScrollbarSizing') ?? 'default';
+
 		const tabsScrollbar = new ScrollableElement(scrollable, {
 			horizontal: ScrollbarVisibility.Auto,
 			vertical: ScrollbarVisibility.Hidden,
 			scrollYToX: true,
 			useShadows: false,
-			horizontalScrollbarSize: this.configurationService.getValue<number>('workbench.editor.tabScrollbarHeight'),
+			horizontalScrollbarSize: TabsTitleControl.SCROLLBAR_SIZES[scrollbarSizing],
 		});
 
 		tabsScrollbar.onScroll(e => {

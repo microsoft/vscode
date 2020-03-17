@@ -1288,7 +1288,7 @@ interface IEditorPartConfiguration {
 	highlightModifiedTabs?: boolean;
 	tabCloseButton?: 'left' | 'right' | 'off';
 	tabSizing?: 'fit' | 'shrink';
-	tabScrollbarHeight?: number;
+	titleScrollbarSizing?: 'default' | 'large';
 	focusRecentEditorAfterClose?: boolean;
 	showIcons?: boolean;
 	enablePreview?: boolean;
