@@ -9,6 +9,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { ApplyEditsResult, EndOfLinePreference, FindMatch, IInternalModelContentChange, ISingleEditOperationIdentifier, ITextBuffer, ITextSnapshot, ValidAnnotatedEditOperation, IValidEditOperation } from 'vs/editor/common/model';
 import { PieceTreeBase, StringBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase';
 import { SearchData } from 'vs/editor/common/model/textModelSearch';
+import { CharCode } from 'vs/base/common/charCode';
 
 export interface IValidatedEditOperation {
 	sortIndex: number;
@@ -220,13 +221,42 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 			if (!mightContainNonBasicASCII && op.text) {
 				mightContainNonBasicASCII = !strings.isBasicASCII(op.text);
 			}
+
+			let lines: string[] | null = null;
+			if (op.text) {
+				lines = [];
+				let linesLen = 0;
+				let lastLineStart = 0;
+				for (let j = 0, len = op.text.length; j < len; j++) {
+					const chr = op.text.charCodeAt(j);
+
+					if (chr === CharCode.CarriageReturn) {
+						if (j + 1 < len && op.text.charCodeAt(j + 1) === CharCode.LineFeed) {
+							// \r\n... case
+							lines[linesLen++] = op.text.substring(lastLineStart, j);
+							lastLineStart = j + 2;
+							j++; // skip \n
+						} else {
+							// \r... case
+							lines[linesLen++] = op.text.substring(lastLineStart, j);
+							lastLineStart = j + 1;
+						}
+					} else if (chr === CharCode.LineFeed) {
+						// \n... case
+						lines[linesLen++] = op.text.substring(lastLineStart, j);
+						lastLineStart = j + 1;
+					}
+				}
+				lines[linesLen++] = op.text.substring(lastLineStart, op.text.length);
+			}
+
 			operations[i] = {
 				sortIndex: i,
 				identifier: op.identifier || null,
 				range: validatedRange,
 				rangeOffset: this.getOffsetAt(validatedRange.startLineNumber, validatedRange.startColumn),
 				rangeLength: this.getValueLengthInRange(validatedRange),
-				lines: op.text ? op.text.split(/\r\n|\r|\n/) : null,
+				lines: lines,
 				forceMoveMarkers: Boolean(op.forceMoveMarkers),
 				isAutoWhitespaceEdit: op.isAutoWhitespaceEdit || false
 			};
@@ -426,10 +456,6 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 				continue;
 			}
 
-			const deletingLinesCnt = endLineNumber - startLineNumber;
-			const insertingLinesCnt = (op.lines ? op.lines.length - 1 : 0);
-			const editingLinesCnt = Math.min(deletingLinesCnt, insertingLinesCnt);
-
 			const text = (op.lines ? op.lines.join(this.getEOL()) : '');
 
 			if (text) {
@@ -440,15 +466,6 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 			} else {
 				// deletion
 				this._pieceTree.delete(op.rangeOffset, op.rangeLength);
-			}
-
-			if (editingLinesCnt < insertingLinesCnt) {
-				let newLinesContent: string[] = [];
-				for (let j = editingLinesCnt + 1; j <= insertingLinesCnt; j++) {
-					newLinesContent.push(op.lines![j]);
-				}
-
-				newLinesContent[newLinesContent.length - 1] = this.getLineContent(startLineNumber + insertingLinesCnt - 1);
 			}
 
 			const contentChangeRange = new Range(startLineNumber, startColumn, endLineNumber, endColumn);
