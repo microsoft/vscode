@@ -226,4 +226,9 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget {
 			this._allMatchesDecorations = accessor.deltaDecorations(this._allMatchesDecorations, deltaDecorations);
 		});
 	}
+
+	clear() {
+		this._currentMatch = -1;
+		this._findMatches = [];
+	}
 }

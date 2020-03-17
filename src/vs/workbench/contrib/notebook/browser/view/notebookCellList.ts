@@ -252,7 +252,9 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			this.view.setScrollTop(lineOffsetInView - this.view.renderHeight / 2);
 
 			if (revealType === CellRevealType.Range) {
-				element.revealRangeInCenter(range);
+				setTimeout(() => {
+					element.revealRangeInCenter(range);
+				}, 240);
 			}
 		};
 

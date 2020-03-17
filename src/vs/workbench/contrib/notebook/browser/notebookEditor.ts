@@ -317,6 +317,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		this.notebookViewModel = undefined;
 		this.webview?.clearInsets();
 		this.webview?.clearPreloadsCache();
+		this.findWidget.clear();
 	}
 
 	private async attachModel(input: NotebookEditorInput, model: NotebookEditorModel) {
@@ -563,6 +564,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	}
 
 	async deleteNotebookCell(cell: ICellViewModel): Promise<void> {
+		(cell as CellViewModel).save();
 		const index = this.notebookViewModel!.getViewCellIndex(cell);
 		await this.notebookService.deleteNotebookCell(this.notebookViewModel!.viewType, this.notebookViewModel!.uri, index);
 		this.notebookViewModel!.deleteCell(index, true);
