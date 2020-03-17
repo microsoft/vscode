@@ -327,6 +327,25 @@ suite('ModelService', () => {
 			model2.undo();
 			assert.equal(model2.getValue(), 'text');
 		});
+
+		test('maintains version id and alternative version id for same resource and same content', () => {
+			const resource = URI.parse('file://test.txt');
+
+			// create a model
+			const model1 = modelService.createModel('text', null, resource);
+			// make an edit
+			model1.pushEditOperations(null, [{ range: new Range(1, 5, 1, 5), text: '1' }], () => [new Selection(1, 5, 1, 5)]);
+			assert.equal(model1.getValue(), 'text1');
+			const versionId = model1.getVersionId();
+			const alternativeVersionId = model1.getAlternativeVersionId();
+			// dispose it
+			modelService.destroyModel(resource);
+
+			// create a new model with the same content
+			const model2 = modelService.createModel('text1', null, resource);
+			assert.equal(model2.getVersionId(), versionId);
+			assert.equal(model2.getAlternativeVersionId(), alternativeVersionId);
+		});
 	}
 
 	test('does not maintain undo for same resource and different content', () => {

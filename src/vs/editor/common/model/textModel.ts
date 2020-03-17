@@ -705,6 +705,10 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this._alternativeVersionId = this._versionId;
 	}
 
+	public _overwriteVersionId(versionId: number): void {
+		this._versionId = versionId;
+	}
+
 	public _overwriteAlternativeVersionId(newAlternativeVersionId: number): void {
 		this._alternativeVersionId = newAlternativeVersionId;
 	}

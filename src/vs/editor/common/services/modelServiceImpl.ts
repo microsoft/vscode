@@ -140,6 +140,7 @@ class DisposedModelInfo {
 	constructor(
 		public readonly uri: URI,
 		public readonly sha1: string,
+		public readonly versionId: number,
 		public readonly alternativeVersionId: number,
 	) { }
 }
@@ -346,6 +347,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 					element.setModel(model);
 				}
 				this._undoRedoService.setElementsIsValid(resource, true);
+				model._overwriteVersionId(disposedModelData.versionId);
 				model._overwriteAlternativeVersionId(disposedModelData.alternativeVersionId);
 			} else {
 				this._undoRedoService.removeElements(resource);
@@ -481,7 +483,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		if (maintainUndoRedoStack) {
 			// We only invalidate the elements, but they remain in the undo-redo service.
 			this._undoRedoService.setElementsIsValid(resource, false);
-			this._disposedModels.set(MODEL_ID(resource), new DisposedModelInfo(resource, computeModelSha1(model), model.getAlternativeVersionId()));
+			this._disposedModels.set(MODEL_ID(resource), new DisposedModelInfo(resource, computeModelSha1(model), model.getVersionId(), model.getAlternativeVersionId()));
 		} else {
 			this._undoRedoService.removeElements(resource);
 		}
