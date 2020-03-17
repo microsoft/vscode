@@ -286,17 +286,25 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		const lastRenderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
 
-		const heightDiff =
-			(anchorIndex !== null && anchorIndex > index && anchorIndex <= lastRenderRange.end)
-				? size - this.items[index].size // Element at anchor index will keep its visual position
-				: index < lastRenderRange.start
-					? size - this.items[index].size
-					: 0;
+		let heightDiff = 0;
+
+		if (index < lastRenderRange.start) {
+			// do not scroll the viewport if resized element is out of viewport
+			heightDiff = size - this.items[index].size;
+		} else {
+			if (anchorIndex !== null && anchorIndex > index && anchorIndex <= lastRenderRange.end) {
+				// anchor in viewport
+				// resized elemnet in viewport and above the anchor
+				heightDiff = size - this.items[index].size;
+			} else {
+				heightDiff = 0;
+			}
+		}
 
 		this.rangeMap.splice(index, 1, [{ size: size }]);
 		this.items[index].size = size;
 
-		this.render(lastRenderRange, this.lastRenderTop + heightDiff, this.lastRenderHeight, undefined, undefined, true);
+		this.render(lastRenderRange, Math.max(0, this.lastRenderTop + heightDiff), this.lastRenderHeight, undefined, undefined, true);
 
 		this.eventuallyUpdateScrollDimensions();
 
