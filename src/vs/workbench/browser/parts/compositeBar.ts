@@ -43,69 +43,66 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 		private getVisibleCompositeIds: () => string[]
 	) { }
 	drop(data: CompositeDragAndDropData, targetCompositeId: string | undefined, originalEvent: DragEvent, before?: boolean): void {
-		// Delay as drop behavior destroys some elements preventing some drag events from firing
-		setTimeout(() => {
-			const dragData = data.getData();
-			const viewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
+		const dragData = data.getData();
+		const viewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 
-			if (dragData.type === 'composite') {
-				const currentContainer = viewContainerRegistry.get(dragData.id)!;
-				const currentLocation = viewContainerRegistry.getViewContainerLocation(currentContainer);
+		if (dragData.type === 'composite') {
+			const currentContainer = viewContainerRegistry.get(dragData.id)!;
+			const currentLocation = viewContainerRegistry.getViewContainerLocation(currentContainer);
 
-				// Inserting a composite between composites
-				if (targetCompositeId) {
-					// ... on the same composite bar
-					if (currentLocation === this.targetContainerLocation) {
-						this.moveComposite(dragData.id, targetCompositeId, before);
-					}
-					// ... on a different composite bar
-					else {
-						const viewsToMove = this.viewDescriptorService.getViewDescriptors(currentContainer)!.allViewDescriptors.filter(vd => vd.canMoveView);
-						if (viewsToMove.length === 1) {
-							this.viewDescriptorService.moveViewToLocation(viewsToMove[0], this.targetContainerLocation);
-
-							const newContainer = this.viewDescriptorService.getViewContainer(viewsToMove[0].id)!;
-
-							this.moveComposite(newContainer.id, targetCompositeId, before);
-
-							this.openComposite(newContainer.id, true).then(composite => {
-								if (composite && viewsToMove.length === 1) {
-									composite.openView(viewsToMove[0].id, true);
-								}
-							});
-						}
-					}
-				} else {
-					const draggedViews = this.viewDescriptorService.getViewDescriptors(currentContainer).allViewDescriptors;
-					if (draggedViews.length === 1 && draggedViews[0].canMoveView) {
-						dragData.type = 'view';
-						dragData.id = draggedViews[0].id;
-					}
+			// Inserting a composite between composites
+			if (targetCompositeId) {
+				// ... on the same composite bar
+				if (currentLocation === this.targetContainerLocation) {
+					this.moveComposite(dragData.id, targetCompositeId, before);
 				}
-			}
+				// ... on a different composite bar
+				else {
+					const viewsToMove = this.viewDescriptorService.getViewDescriptors(currentContainer)!.allViewDescriptors.filter(vd => vd.canMoveView);
+					if (viewsToMove.length === 1) {
+						this.viewDescriptorService.moveViewToLocation(viewsToMove[0], this.targetContainerLocation);
 
-			if (dragData.type === 'view') {
-				if (targetCompositeId) {
-					const viewToMove = this.viewDescriptorService.getViewDescriptor(dragData.id)!;
-
-					if (viewToMove && viewToMove.canMoveView) {
-						this.viewDescriptorService.moveViewToLocation(viewToMove, this.targetContainerLocation);
-
-						const newContainer = this.viewDescriptorService.getViewContainer(viewToMove.id)!;
+						const newContainer = this.viewDescriptorService.getViewContainer(viewsToMove[0].id)!;
 
 						this.moveComposite(newContainer.id, targetCompositeId, before);
 
 						this.openComposite(newContainer.id, true).then(composite => {
-							if (composite) {
-								composite.openView(viewToMove.id, true);
+							if (composite && viewsToMove.length === 1) {
+								composite.openView(viewsToMove[0].id, true);
 							}
 						});
 					}
-				} else {
-
+				}
+			} else {
+				const draggedViews = this.viewDescriptorService.getViewDescriptors(currentContainer).allViewDescriptors;
+				if (draggedViews.length === 1 && draggedViews[0].canMoveView) {
+					dragData.type = 'view';
+					dragData.id = draggedViews[0].id;
 				}
 			}
-		}, 10);
+		}
+
+		if (dragData.type === 'view') {
+			if (targetCompositeId) {
+				const viewToMove = this.viewDescriptorService.getViewDescriptor(dragData.id)!;
+
+				if (viewToMove && viewToMove.canMoveView) {
+					this.viewDescriptorService.moveViewToLocation(viewToMove, this.targetContainerLocation);
+
+					const newContainer = this.viewDescriptorService.getViewContainer(viewToMove.id)!;
+
+					this.moveComposite(newContainer.id, targetCompositeId, before);
+
+					this.openComposite(newContainer.id, true).then(composite => {
+						if (composite) {
+							composite.openView(viewToMove.id, true);
+						}
+					});
+				}
+			} else {
+
+			}
+		}
 	}
 
 	onDragEnter(data: CompositeDragAndDropData, targetCompositeId: string | undefined, originalEvent: DragEvent): boolean {

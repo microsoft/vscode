@@ -1139,18 +1139,29 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			onDragEnter: (e) => {
 				if (!overlay) {
 					const dropData = e.dragAndDropData.getData();
-					if (dropData.type !== 'view' || dropData.id === pane.id) {
-						return;
+					if (dropData.type === 'view' && dropData.id !== pane.id) {
+
+						const oldViewContainer = this.viewDescriptorService.getViewContainer(dropData.id);
+						const viewDescriptor = this.viewDescriptorService.getViewDescriptor(dropData.id);
+
+						if (oldViewContainer !== this.viewContainer && (!viewDescriptor || !viewDescriptor.canMoveView)) {
+							return;
+						}
+
+						overlay = new ViewPaneDropOverlay(pane.dropTargetElement, this.themeService);
 					}
 
-					const oldViewContainer = this.viewDescriptorService.getViewContainer(dropData.id);
-					const viewDescriptor = this.viewDescriptorService.getViewDescriptor(dropData.id);
+					if (dropData.type === 'composite' && dropData.id !== this.viewContainer.id) {
+						const viewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 
-					if (oldViewContainer !== this.viewContainer && (!viewDescriptor || !viewDescriptor.canMoveView)) {
-						return;
+						const container = viewContainerRegistry.get(dropData.id)!;
+						const viewsToMove = this.viewDescriptorService.getViewDescriptors(container).allViewDescriptors;
+
+						if (viewsToMove.length === 1 && viewsToMove[0].canMoveView) {
+							overlay = new ViewPaneDropOverlay(pane.dropTargetElement, this.themeService);
+						}
 					}
 
-					overlay = new ViewPaneDropOverlay(pane.dropTargetElement, this.themeService);
 				}
 			},
 			onDragLeave: (e) => {
@@ -1160,6 +1171,19 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			onDrop: (e) => {
 				if (overlay) {
 					const dropData = e.dragAndDropData.getData();
+
+					if (dropData.type === 'composite' && dropData.id !== this.viewContainer.id) {
+						const viewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
+
+						const container = viewContainerRegistry.get(dropData.id)!;
+						const viewsToMove = this.viewDescriptorService.getViewDescriptors(container).allViewDescriptors;
+
+						if (viewsToMove.length === 1 && viewsToMove[0].canMoveView) {
+							dropData.type = 'view';
+							dropData.id = viewsToMove[0].id;
+						}
+					}
+
 					if (dropData.type === 'view') {
 
 						const oldViewContainer = this.viewDescriptorService.getViewContainer(dropData.id);

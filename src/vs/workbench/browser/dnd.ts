@@ -616,6 +616,9 @@ export class CompositeDragAndDropObserver extends Disposable {
 					}
 
 					callbacks.onDrop({ eventData: e, dragAndDropData: data! });
+
+					// Fire drag event in case drop handler destroys the dragged element
+					this._onDragEnd.fire({ eventData: e, dragAndDropData: data! });
 				}
 			},
 			onDragOver: e => {
@@ -692,6 +695,9 @@ export class CompositeDragAndDropObserver extends Disposable {
 						return;
 					}
 					callbacks.onDrop({ eventData: e, dragAndDropData: data! });
+
+					// Fire drag event in case drop handler destroys the dragged element
+					this._onDragEnd.fire({ eventData: e, dragAndDropData: data! });
 				}
 			},
 			onDragOver: e => {
