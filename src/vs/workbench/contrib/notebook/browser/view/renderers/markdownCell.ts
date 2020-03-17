@@ -168,7 +168,7 @@ export class StatefullMarkdownCell extends Disposable {
 				if (this.editor) {
 					// switch from editing mode
 					this.editingContainer!.style.display = 'none';
-					const clientHeight = this.cellContainer.clientHeight;
+					const clientHeight = templateData.container.clientHeight;
 					notebookEditor.layoutNotebookCell(viewCell, clientHeight);
 				} else {
 					// first time, readonly mode
@@ -182,7 +182,7 @@ export class StatefullMarkdownCell extends Disposable {
 					}
 
 					this.localDisposables.add(markdownRenderer.onDidUpdateRender(() => {
-						const clientHeight = this.cellContainer.clientHeight;
+						const clientHeight = templateData.container.clientHeight;
 						notebookEditor.layoutNotebookCell(viewCell, clientHeight);
 					}));
 
