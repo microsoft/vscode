@@ -38,7 +38,7 @@ import { IResourceEditorInput, ITextEditorOptions } from 'vs/platform/editor/com
 import { Schemas } from 'vs/base/common/network';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ResourceMap } from 'vs/base/common/map';
-import { SymbolsQuickAccessProvider, ISymbolsQuickPickItem } from 'vs/workbench/contrib/search/browser/symbolsQuickAccess';
+import { SymbolsQuickAccessProvider } from 'vs/workbench/contrib/search/browser/symbolsQuickAccess';
 
 interface IAnythingQuickPickItem extends IPickerQuickAccessItem {
 	resource: URI | undefined;
@@ -154,6 +154,10 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		// Adjust highlights
 		for (const anythingPick of sortedAnythingPicks) {
+			if (anythingPick.highlights) {
+				continue; // preserve any highlights we got already (e.g. symbols)
+			}
+
 			const { labelMatch, descriptionMatch } = scoreItem(anythingPick, query, true, quickPickItemScorerAccessor, scorerCache);
 
 			anythingPick.highlights = {
@@ -337,7 +341,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	private symbolsQuickAccess = this._register(this.instantiationService.createInstance(SymbolsQuickAccessProvider));
 
-	protected async getSymbolPicks(query: IPreparedQuery, range: IRange | undefined, token: CancellationToken): Promise<Array<ISymbolsQuickPickItem>> {
+	protected async getSymbolPicks(query: IPreparedQuery, range: IRange | undefined, token: CancellationToken): Promise<Array<IAnythingQuickPickItem>> {
 		if (
 			!query.value ||							// we need a value for search for
 			!this.configuration.includeSymbols ||	// we need to enable symbols in search
@@ -347,7 +351,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		}
 
 		// Delegate to the existing symbols quick access
-		return this.symbolsQuickAccess.getSymbolPicks(query.value, token, { skipLocal: true, skipSorting: true, skipMatching: true });
+		return this.symbolsQuickAccess.getSymbolPicks(query.value, token, { skipLocal: true, skipSorting: true });
 	}
 
 	//#endregion
@@ -382,7 +386,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 				localize('historyPickAriaLabel', "{0}, recently opened", label) :
 				localize('filePickAriaLabel', "{0}, file picker", label),
 			description,
-			iconClasses: getIconClasses(this.modelService, this.modeService, resource), // TODO force 'file' icon if symbols are merged in for better looks
+			iconClasses: getIconClasses(this.modelService, this.modeService, resource),
 			buttonsAlwaysVisible: isDirty,
 			buttons: (() => {
 				const openSideBySideDirection = this.configuration.openSideBySideDirection;
