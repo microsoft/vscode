@@ -3,18 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export interface ITextChange {
-	readonly oldPosition: number;
-	readonly oldLength: number;
-	readonly oldEnd: number;
-	readonly oldText: string;
-	readonly newPosition: number;
-	readonly newLength: number;
-	readonly newEnd: number;
-	readonly newText: string;
-}
-
-export class TextChange implements ITextChange {
+export class TextChange {
 	public readonly oldPosition: number;
 	public readonly oldLength: number;
 	public readonly oldEnd: number;
@@ -42,7 +31,7 @@ export class TextChange implements ITextChange {
 	}
 }
 
-export function compressConsecutiveTextChanges(prevEdits: ITextChange[] | null, currEdits: ITextChange[]): ITextChange[] {
+export function compressConsecutiveTextChanges(prevEdits: TextChange[] | null, currEdits: TextChange[]): TextChange[] {
 	if (prevEdits === null) {
 		return currEdits;
 	}
@@ -52,10 +41,10 @@ export function compressConsecutiveTextChanges(prevEdits: ITextChange[] | null, 
 
 class TextChangeCompressor {
 
-	private _prevEdits: ITextChange[];
-	private _currEdits: ITextChange[];
+	private _prevEdits: TextChange[];
+	private _currEdits: TextChange[];
 
-	private _result: ITextChange[];
+	private _result: TextChange[];
 	private _resultLen: number;
 
 	private _prevLen: number;
@@ -64,7 +53,7 @@ class TextChangeCompressor {
 	private _currLen: number;
 	private _currDeltaOffset: number;
 
-	constructor(prevEdits: ITextChange[], currEdits: ITextChange[]) {
+	constructor(prevEdits: TextChange[], currEdits: TextChange[]) {
 		this._prevEdits = prevEdits;
 		this._currEdits = currEdits;
 
@@ -78,7 +67,7 @@ class TextChangeCompressor {
 		this._currDeltaOffset = 0;
 	}
 
-	public compress(): ITextChange[] {
+	public compress(): TextChange[] {
 		let prevIndex = 0;
 		let currIndex = 0;
 
@@ -127,8 +116,8 @@ class TextChangeCompressor {
 
 			// At this point, currEdit.oldPosition === prevEdit.newPosition
 
-			let mergePrev: ITextChange;
-			let mergeCurr: ITextChange;
+			let mergePrev: TextChange;
+			let mergeCurr: TextChange;
 
 			if (currEdit.oldEnd === prevEdit.newEnd) {
 				mergePrev = prevEdit;
@@ -164,25 +153,25 @@ class TextChangeCompressor {
 		return cleaned;
 	}
 
-	private _acceptCurr(currEdit: ITextChange): void {
+	private _acceptCurr(currEdit: TextChange): void {
 		this._result[this._resultLen++] = TextChangeCompressor._rebaseCurr(this._prevDeltaOffset, currEdit);
 		this._currDeltaOffset += currEdit.newLength - currEdit.oldLength;
 	}
 
-	private _getCurr(currIndex: number): ITextChange | null {
+	private _getCurr(currIndex: number): TextChange | null {
 		return (currIndex < this._currLen ? this._currEdits[currIndex] : null);
 	}
 
-	private _acceptPrev(prevEdit: ITextChange): void {
+	private _acceptPrev(prevEdit: TextChange): void {
 		this._result[this._resultLen++] = TextChangeCompressor._rebasePrev(this._currDeltaOffset, prevEdit);
 		this._prevDeltaOffset += prevEdit.newLength - prevEdit.oldLength;
 	}
 
-	private _getPrev(prevIndex: number): ITextChange | null {
+	private _getPrev(prevIndex: number): TextChange | null {
 		return (prevIndex < this._prevLen ? this._prevEdits[prevIndex] : null);
 	}
 
-	private static _rebaseCurr(prevDeltaOffset: number, currEdit: ITextChange): ITextChange {
+	private static _rebaseCurr(prevDeltaOffset: number, currEdit: TextChange): TextChange {
 		return new TextChange(
 			currEdit.oldPosition - prevDeltaOffset,
 			currEdit.oldText,
@@ -191,7 +180,7 @@ class TextChangeCompressor {
 		);
 	}
 
-	private static _rebasePrev(currDeltaOffset: number, prevEdit: ITextChange): ITextChange {
+	private static _rebasePrev(currDeltaOffset: number, prevEdit: TextChange): TextChange {
 		return new TextChange(
 			prevEdit.oldPosition,
 			prevEdit.oldText,
@@ -200,7 +189,7 @@ class TextChangeCompressor {
 		);
 	}
 
-	private static _splitPrev(edit: ITextChange, offset: number): [ITextChange, ITextChange] {
+	private static _splitPrev(edit: TextChange, offset: number): [TextChange, TextChange] {
 		const preText = edit.newText.substr(0, offset);
 		const postText = edit.newText.substr(offset);
 
@@ -220,7 +209,7 @@ class TextChangeCompressor {
 		];
 	}
 
-	private static _splitCurr(edit: ITextChange, offset: number): [ITextChange, ITextChange] {
+	private static _splitCurr(edit: TextChange, offset: number): [TextChange, TextChange] {
 		const preText = edit.oldText.substr(0, offset);
 		const postText = edit.oldText.substr(offset);
 
@@ -240,12 +229,12 @@ class TextChangeCompressor {
 		];
 	}
 
-	private static _merge(edits: ITextChange[]): ITextChange[] {
+	private static _merge(edits: TextChange[]): TextChange[] {
 		if (edits.length === 0) {
 			return edits;
 		}
 
-		let result: ITextChange[] = [], resultLen = 0;
+		let result: TextChange[] = [], resultLen = 0;
 
 		let prev = edits[0];
 		for (let i = 1; i < edits.length; i++) {
@@ -269,12 +258,12 @@ class TextChangeCompressor {
 		return result;
 	}
 
-	private static _removeNoOps(edits: ITextChange[]): ITextChange[] {
+	private static _removeNoOps(edits: TextChange[]): TextChange[] {
 		if (edits.length === 0) {
 			return edits;
 		}
 
-		let result: ITextChange[] = [], resultLen = 0;
+		let result: TextChange[] = [], resultLen = 0;
 
 		for (let i = 0; i < edits.length; i++) {
 			const edit = edits[i];

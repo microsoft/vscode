@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ITextChange, compressConsecutiveTextChanges, TextChange } from 'vs/editor/common/model/textChange';
+import { compressConsecutiveTextChanges, TextChange } from 'vs/editor/common/model/textChange';
 
 const GENERATE_TESTS = false;
 
@@ -28,9 +28,9 @@ suite('TextChangeCompressor', () => {
 		return content;
 	}
 
-	function getTextChanges(initialContent: string, edits: IGeneratedEdit[]): ITextChange[] {
+	function getTextChanges(initialContent: string, edits: IGeneratedEdit[]): TextChange[] {
 		let content = initialContent;
-		let changes: ITextChange[] = new Array<ITextChange>(edits.length);
+		let changes: TextChange[] = new Array<TextChange>(edits.length);
 		let deltaOffset = 0;
 
 		for (let i = 0; i < edits.length; i++) {
