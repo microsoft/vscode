@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/anythingQuickAccess';
-import { IQuickPickSeparator, IQuickInputButton, IKeyMods, quickPickItemScorerAccessor } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickPickSeparator, IQuickInputButton, IKeyMods, quickPickItemScorerAccessor, QuickPickItemScorerAccessor } from 'vs/platform/quickinput/common/quickInput';
 import { IPickerQuickAccessItem, PickerQuickAccessProvider, TriggerAction, FastAndSlowPicksType } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { prepareQuery, IPreparedQuery, compareItemsByScore, scoreItem } from 'vs/base/common/fuzzyScorer';
 import { IFileQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
@@ -168,6 +168,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	//#region Editor History
 
+	private readonly labelOnlyEditorHistoryPickAccessor = new QuickPickItemScorerAccessor({ skipDescription: true });
+
 	protected getEditorHistoryPicks(query: IPreparedQuery, range: IRange | undefined): Array<IAnythingQuickPickItem> {
 		if (!this.configuration.includeHistory) {
 			return []; // disabled
@@ -177,6 +179,9 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		if (!query.value) {
 			return this.historyService.getHistory().map(editor => this.createAnythingPick(editor, range));
 		}
+
+		// Only match on label of the editor unless the search includes path separators
+		const editorHistoryScorerAccessor = query.containsPathSeparator ? quickPickItemScorerAccessor : this.labelOnlyEditorHistoryPickAccessor;
 
 		// Otherwise filter and sort by query
 		const editorHistoryPicks: Array<IAnythingQuickPickItem> = [];
@@ -189,7 +194,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 			const editorHistoryPick = this.createAnythingPick(editor, range);
 
-			const { score, labelMatch, descriptionMatch } = scoreItem(editorHistoryPick, query, false, quickPickItemScorerAccessor, scorerCache);
+			const { score, labelMatch, descriptionMatch } = scoreItem(editorHistoryPick, query, false, editorHistoryScorerAccessor, scorerCache);
 			if (!score) {
 				continue; // exclude editors not matching query
 			}
@@ -202,7 +207,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			editorHistoryPicks.push(editorHistoryPick);
 		}
 
-		return editorHistoryPicks.sort((editorA, editorB) => compareItemsByScore(editorA, editorB, query, false, quickPickItemScorerAccessor, scorerCache, () => -1));
+		return editorHistoryPicks.sort((editorA, editorB) => compareItemsByScore(editorA, editorB, query, false, editorHistoryScorerAccessor, scorerCache, () => -1));
 	}
 
 	//#endregion
