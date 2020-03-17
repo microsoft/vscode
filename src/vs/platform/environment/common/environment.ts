@@ -167,5 +167,5 @@ export interface IEnvironmentService extends IUserHomeProvider {
 	driverHandle?: string;
 	driverVerbose: boolean;
 
-	galleryMachineIdResource?: URI;
+	serviceMachineIdResource?: URI;
 }

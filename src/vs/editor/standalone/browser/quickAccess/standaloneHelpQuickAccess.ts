@@ -8,8 +8,8 @@ import { IQuickAccessRegistry, Extensions } from 'vs/platform/quickinput/common/
 import { QuickHelpNLS } from 'vs/editor/common/standaloneStrings';
 import { HelpQuickAccessProvider } from 'vs/platform/quickinput/browser/helpQuickAccess';
 
-Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).defaultProvider = {
+Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessProvider({
 	ctor: HelpQuickAccessProvider,
 	prefix: '',
 	helpEntries: [{ description: QuickHelpNLS.helpQuickAccessActionLabel, needsEditor: true }]
-};
+});

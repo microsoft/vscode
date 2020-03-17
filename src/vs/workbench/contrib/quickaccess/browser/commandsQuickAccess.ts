@@ -32,7 +32,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		this.extensionService.whenInstalledExtensionsRegistered()
 	]);
 
-	get activeTextEditorControl(): IEditor | undefined { return this.editorService.activeTextEditorControl; }
+	protected get activeTextEditorControl(): IEditor | undefined { return this.editorService.activeTextEditorControl; }
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,

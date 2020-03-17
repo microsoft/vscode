@@ -27,7 +27,7 @@ export abstract class AbstractEditorCommandsQuickAccessProvider extends Abstract
 	/**
 	 * Subclasses to provide the current active editor control.
 	 */
-	abstract activeTextEditorControl: IEditor | undefined;
+	protected abstract activeTextEditorControl: IEditor | undefined;
 
 	protected getCodeEditorCommandPicks(): ICommandQuickPick[] {
 		const activeTextEditorControl = this.activeTextEditorControl;

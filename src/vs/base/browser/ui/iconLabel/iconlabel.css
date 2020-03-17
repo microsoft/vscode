@@ -60,6 +60,11 @@
 	font-style: italic;
 }
 
+.monaco-icon-label.strikethrough > .monaco-icon-label-container > .monaco-icon-name-container > .label-name,
+.monaco-icon-label.strikethrough > .monaco-icon-description-container > .label-description {
+	text-decoration: line-through;
+}
+
 .monaco-icon-label::after {
 	opacity: 0.75;
 	font-size: 90%;
