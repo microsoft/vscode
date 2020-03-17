@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals } from 'vs/base/common/arrays';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { memoize } from 'vs/base/common/decorators';
 import { Iterable } from 'vs/base/common/iterator';
 import { Lazy } from 'vs/base/common/lazy';
@@ -90,6 +91,7 @@ export interface WebviewResolver {
 
 	resolveWebview(
 		webview: WebviewInput,
+		cancellation: CancellationToken,
 	): Promise<void>;
 }
 
@@ -142,12 +144,12 @@ class RevivalPool {
 		this._awaitingRevival.push({ input, resolve });
 	}
 
-	public reviveFor(reviver: WebviewResolver) {
+	public reviveFor(reviver: WebviewResolver, cancellation: CancellationToken) {
 		const toRevive = this._awaitingRevival.filter(({ input }) => canRevive(reviver, input));
 		this._awaitingRevival = this._awaitingRevival.filter(({ input }) => !canRevive(reviver, input));
 
 		for (const { input, resolve } of toRevive) {
-			reviver.resolveWebview(input).then(resolve);
+			reviver.resolveWebview(input, cancellation).then(resolve);
 		}
 	}
 }
@@ -235,7 +237,7 @@ export class WebviewEditorService implements IWebviewWorkbenchService {
 		reviver: WebviewResolver
 	): IDisposable {
 		this._revivers.add(reviver);
-		this._revivalPool.reviveFor(reviver);
+		this._revivalPool.reviveFor(reviver, CancellationToken.None);
 
 		return toDisposable(() => {
 			this._revivers.delete(reviver);
@@ -259,7 +261,7 @@ export class WebviewEditorService implements IWebviewWorkbenchService {
 	): Promise<boolean> {
 		for (const reviver of this._revivers.values()) {
 			if (canRevive(reviver, webview)) {
-				await reviver.resolveWebview(webview);
+				await reviver.resolveWebview(webview, CancellationToken.None);
 				return true;
 			}
 		}

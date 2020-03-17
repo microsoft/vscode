@@ -588,7 +588,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		await serializer.deserializeWebviewPanel(revivedPanel, state);
 	}
 
-	async $createWebviewCustomEditorDocument(resource: UriComponents, viewType: string) {
+	async $createWebviewCustomEditorDocument(resource: UriComponents, viewType: string, cancellation: CancellationToken) {
 		const entry = this._editorProviders.get(viewType);
 		if (!entry) {
 			throw new Error(`No provider found for '${viewType}'`);
@@ -600,7 +600,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 
 		const revivedResource = URI.revive(resource);
 		const document = CustomDocument.create(viewType, revivedResource, entry.provider.editingDelegate);
-		await entry.provider.resolveCustomDocument(document);
+		await entry.provider.resolveCustomDocument(document, cancellation);
 		this._documents.add(document);
 		return {
 			editable: !!entry.provider.editingDelegate,
@@ -629,7 +629,8 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		viewType: string,
 		title: string,
 		position: EditorViewColumn,
-		options: modes.IWebviewOptions & modes.IWebviewPanelOptions
+		options: modes.IWebviewOptions & modes.IWebviewPanelOptions,
+		cancellation: CancellationToken,
 	): Promise<void> {
 		const entry = this._editorProviders.get(viewType);
 		if (!entry) {
@@ -646,12 +647,12 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 			case WebviewEditorType.Custom:
 				{
 					const document = this.getCustomDocument(viewType, revivedResource);
-					return entry.provider.resolveCustomEditor(document, revivedPanel);
+					return entry.provider.resolveCustomEditor(document, revivedPanel, cancellation);
 				}
 			case WebviewEditorType.Text:
 				{
 					const document = this._extHostDocuments.getDocument(revivedResource);
-					return entry.provider.resolveCustomTextEditor(document, revivedPanel);
+					return entry.provider.resolveCustomTextEditor(document, revivedPanel, cancellation);
 				}
 			default:
 				{
@@ -682,7 +683,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 
 		const resource = URI.revive(newResourceComponents);
 		const document = this._extHostDocuments.getDocument(resource);
-		await (entry.provider as vscode.CustomTextEditorProvider).moveCustomTextEditor!(document, webview);
+		await (entry.provider as vscode.CustomTextEditorProvider).moveCustomTextEditor!(document, webview, CancellationToken.None);
 	}
 
 	async $undo(resourceComponents: UriComponents, viewType: string, editId: number): Promise<void> {
