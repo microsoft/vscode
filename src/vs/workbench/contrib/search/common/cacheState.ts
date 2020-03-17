@@ -59,9 +59,9 @@ export class FileQueryCacheState {
 		}
 	}
 
-	load(): void {
+	load(): FileQueryCacheState {
 		if (this.isUpdating) {
-			return;
+			return this;
 		}
 
 		this.loadingPhase = LoadingPhase.Loading;
@@ -82,6 +82,8 @@ export class FileQueryCacheState {
 				throw error;
 			}
 		})();
+
+		return this;
 	}
 
 	dispose(): void {
