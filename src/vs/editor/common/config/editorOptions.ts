@@ -136,6 +136,11 @@ export interface IEditorOptions {
 	 */
 	readOnly?: boolean;
 	/**
+	 * Rename matching regions on type.
+	 * Defaults to false.
+	 */
+	renameOnType?: boolean;
+	/**
 	 * Should the editor render validation decorations.
 	 * Defaults to editable.
 	 */
@@ -238,11 +243,6 @@ export interface IEditorOptions {
 	 * Defaults to false.
 	 */
 	automaticLayout?: boolean;
-	/**
-	 * Rename matching regions on type.
-	 * Defaults to false.
-	 */
-	renameOnType?: boolean;
 	/**
 	 * Control the wrapping of the editor.
 	 * When `wordWrap` = "off", the lines will never wrap.
@@ -3316,7 +3316,6 @@ export const enum EditorOption {
 	autoClosingQuotes,
 	autoIndent,
 	automaticLayout,
-	renameOnType,
 	autoSurround,
 	codeLens,
 	colorDecorators,
@@ -3380,6 +3379,7 @@ export const enum EditorOption {
 	quickSuggestions,
 	quickSuggestionsDelay,
 	readOnly,
+	renameOnType,
 	renderControlCharacters,
 	renderIndentGuides,
 	renderFinalNewline,
@@ -3523,10 +3523,6 @@ export const EditorOptions = {
 	)),
 	automaticLayout: register(new EditorBooleanOption(
 		EditorOption.automaticLayout, 'automaticLayout', false,
-	)),
-	renameOnType: register(new EditorBooleanOption(
-		EditorOption.renameOnType, 'renameOnType', false,
-		{ description: nls.localize('renameOnType', "Controls whether the editor auto renames on type.") }
 	)),
 	autoSurround: register(new EditorStringEnumOption(
 		EditorOption.autoSurround, 'autoSurround',
@@ -3799,6 +3795,10 @@ export const EditorOptions = {
 	)),
 	readOnly: register(new EditorBooleanOption(
 		EditorOption.readOnly, 'readOnly', false,
+	)),
+	renameOnType: register(new EditorBooleanOption(
+		EditorOption.renameOnType, 'renameOnType', false,
+		{ description: nls.localize('renameOnType', "Controls whether the editor auto renames on type.") }
 	)),
 	renderControlCharacters: register(new EditorBooleanOption(
 		EditorOption.renderControlCharacters, 'renderControlCharacters', false,
