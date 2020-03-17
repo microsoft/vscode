@@ -244,6 +244,7 @@
 
 .debug-pane .debug-call-stack .show-more {
 	opacity: 0.35;
+	text-align: center;
 }
 
 .debug-pane .debug-call-stack .error {
