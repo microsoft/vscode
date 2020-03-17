@@ -23,9 +23,11 @@ import { IKeyMods } from 'vs/platform/quickinput/common/quickInput';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { createResourceExcludeMatcher } from 'vs/workbench/services/search/common/search';
 import { ResourceMap } from 'vs/base/common/map';
+import { URI } from 'vs/base/common/uri';
 
-interface ISymbolsQuickPickItem extends IPickerQuickAccessItem {
-	score: FuzzyScore;
+export interface ISymbolsQuickPickItem extends IPickerQuickAccessItem {
+	resource: URI | undefined;
+	score: FuzzyScore | undefined;
 	symbol: IWorkspaceSymbol;
 }
 
@@ -64,11 +66,11 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 				return [];
 			}
 
-			return this.doGetSymbolPicks(filter, token);
+			return this.getSymbolPicks(filter, token);
 		});
 	}
 
-	private async doGetSymbolPicks(filter: string, token: CancellationToken): Promise<Array<ISymbolsQuickPickItem>> {
+	async getSymbolPicks(filter: string, token: CancellationToken, options?: { skipLocal: boolean, skipSorting: boolean, skipMatching: boolean }): Promise<Array<ISymbolsQuickPickItem>> {
 		const workspaceSymbols = await getWorkspaceSymbols(filter, token);
 		if (token.isCancellationRequested) {
 			return [];
@@ -86,15 +88,13 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 		const symbolsExcludedByResource = new ResourceMap<boolean>();
 		for (const [provider, symbols] of workspaceSymbols) {
 			for (const symbol of symbols) {
-
-				// Score by symbol label
-				const symbolLabel = symbol.name;
-				const symbolScore = fuzzyScore(symbolFilter, symbolFilterLow, 0, symbolLabel, symbolLabel.toLowerCase(), 0, true);
-				if (!symbolScore) {
-					continue;
+				if (options?.skipLocal && !!symbol.containerName) {
+					continue; // ignore local symbols if we are told so
 				}
 
 				const symbolUri = symbol.location.uri;
+				const symbolLabel = symbol.name;
+
 				let containerLabel: string | undefined = undefined;
 				if (symbolUri) {
 					const containerPath = this.labelService.getUriLabel(symbolUri, { relative: true });
@@ -105,15 +105,26 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 					}
 				}
 
-				// Score by container if specified
+				// Score (only if enabled)
+				let symbolScore: FuzzyScore | undefined = undefined;
 				let containerScore: FuzzyScore | undefined = undefined;
-				if (containerFilter && containerFilterLow) {
-					if (containerLabel) {
-						containerScore = fuzzyScore(containerFilter, containerFilterLow, 0, containerLabel, containerLabel.toLowerCase(), 0, true);
+				if (!options?.skipMatching) {
+
+					// Score by symbol label
+					symbolScore = fuzzyScore(symbolFilter, symbolFilterLow, 0, symbolLabel, symbolLabel.toLowerCase(), 0, true);
+					if (!symbolScore) {
+						continue;
 					}
 
-					if (!containerScore) {
-						continue;
+					// Score by container if specified
+					if (containerFilter && containerFilterLow) {
+						if (containerLabel) {
+							containerScore = fuzzyScore(containerFilter, containerFilterLow, 0, containerLabel, containerLabel.toLowerCase(), 0, true);
+						}
+
+						if (!containerScore) {
+							continue;
+						}
 					}
 				}
 
@@ -135,6 +146,7 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 
 				symbolPicks.push({
 					symbol,
+					resource: symbol.location.uri,
 					score: symbolScore,
 					label: symbolLabelWithIcon,
 					ariaLabel: localize('symbolAriaLabel', "{0}, symbols picker", symbolLabel),
@@ -160,8 +172,10 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 			}
 		}
 
-		// Sort picks
-		symbolPicks.sort((symbolA, symbolB) => this.compareSymbols(symbolA, symbolB));
+		// Sort picks (unless disabled)
+		if (!options?.skipSorting) {
+			symbolPicks.sort((symbolA, symbolB) => this.compareSymbols(symbolA, symbolB));
+		}
 
 		return symbolPicks;
 	}
