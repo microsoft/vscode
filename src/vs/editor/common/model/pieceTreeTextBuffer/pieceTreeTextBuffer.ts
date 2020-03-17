@@ -9,7 +9,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { ApplyEditsResult, EndOfLinePreference, FindMatch, IInternalModelContentChange, ISingleEditOperationIdentifier, ITextBuffer, ITextSnapshot, ValidAnnotatedEditOperation, IValidEditOperation } from 'vs/editor/common/model';
 import { PieceTreeBase, StringBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase';
 import { SearchData } from 'vs/editor/common/model/textModelSearch';
-import { CharCode } from 'vs/base/common/charCode';
+import { countEOL, StringEOL } from 'vs/editor/common/model/tokensStore';
 
 export interface IValidatedEditOperation {
 	sortIndex: number;
@@ -17,10 +17,10 @@ export interface IValidatedEditOperation {
 	range: Range;
 	rangeOffset: number;
 	rangeLength: number;
-	lines: string[] | null;
 	text: string | null;
-	firstLine: string | null;
-	lastLine: string | null;
+	eolCount: number;
+	firstLineLength: number;
+	lastLineLength: number;
 	forceMoveMarkers: boolean;
 	isAutoWhitespaceEdit: boolean;
 }
@@ -64,7 +64,7 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 	public getBOM(): string {
 		return this._BOM;
 	}
-	public getEOL(): string {
+	public getEOL(): '\r\n' | '\n' {
 		return this._pieceTree.getEOL();
 	}
 
@@ -225,53 +225,21 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 				mightContainNonBasicASCII = !strings.isBasicASCII(op.text);
 			}
 
-			let lines: string[] | null = null;
-			let firstLine: string | null = null;
-			let lastLine: string | null = null;
 			let validText: string | null = null;
+			let eolCount = 0;
+			let firstLineLength = 0;
+			let lastLineLength = 0;
 			if (op.text) {
-				const eol = this.getEOL();
+				let strEOL: StringEOL;
+				[eolCount, firstLineLength, lastLineLength, strEOL] = countEOL(op.text);
 
-				lines = [];
-				let linesLen = 0;
-				let lastLineStart = 0;
-				let textIsValid = true;
-				for (let j = 0, len = op.text.length; j < len; j++) {
-					const chr = op.text.charCodeAt(j);
-					if (chr === CharCode.CarriageReturn) {
-						if (j + 1 < len && op.text.charCodeAt(j + 1) === CharCode.LineFeed) {
-							// \r\n... case
-							if (eol !== '\r\n') {
-								textIsValid = false;
-							}
-							lines[linesLen++] = op.text.substring(lastLineStart, j);
-							lastLineStart = j + 2;
-							j++; // skip \n
-						} else {
-							// \r... case
-							textIsValid = false;
-							lines[linesLen++] = op.text.substring(lastLineStart, j);
-							lastLineStart = j + 1;
-						}
-					} else if (chr === CharCode.LineFeed) {
-						// \n... case
-						if (eol !== '\n') {
-							textIsValid = false;
-						}
-						lines[linesLen++] = op.text.substring(lastLineStart, j);
-						lastLineStart = j + 1;
-					}
-				}
-				lastLine = op.text.substring(lastLineStart, op.text.length);
-				lines[linesLen++] = lastLine;
-
-				if (textIsValid) {
+				const bufferEOL = this.getEOL();
+				const expectedStrEOL = (bufferEOL === '\r\n' ? StringEOL.CRLF : StringEOL.LF);
+				if (strEOL === StringEOL.Unknown || strEOL === expectedStrEOL) {
 					validText = op.text;
 				} else {
-					validText = lines.join(eol);
+					validText = op.text.replace(/\r\n|\r|\n/g, bufferEOL);
 				}
-
-				firstLine = lines[0];
 			}
 
 			operations[i] = {
@@ -280,10 +248,10 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 				range: validatedRange,
 				rangeOffset: this.getOffsetAt(validatedRange.startLineNumber, validatedRange.startColumn),
 				rangeLength: this.getValueLengthInRange(validatedRange),
-				lines: lines,
 				text: validText,
-				firstLine: firstLine,
-				lastLine: lastLine,
+				eolCount: eolCount,
+				firstLineLength: firstLineLength,
+				lastLineLength: lastLineLength,
 				forceMoveMarkers: Boolean(op.forceMoveMarkers),
 				isAutoWhitespaceEdit: op.isAutoWhitespaceEdit || false
 			};
@@ -407,54 +375,34 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 	}
 
 	_toSingleEditOperation(operations: IValidatedEditOperation[]): IValidatedEditOperation {
-		let forceMoveMarkers = false,
-			firstEditRange = operations[0].range,
-			lastEditRange = operations[operations.length - 1].range,
-			entireEditRange = new Range(firstEditRange.startLineNumber, firstEditRange.startColumn, lastEditRange.endLineNumber, lastEditRange.endColumn),
-			lastEndLineNumber = firstEditRange.startLineNumber,
-			lastEndColumn = firstEditRange.startColumn,
-			result: string[] = [];
+		let forceMoveMarkers = false;
+		const firstEditRange = operations[0].range;
+		const lastEditRange = operations[operations.length - 1].range;
+		const entireEditRange = new Range(firstEditRange.startLineNumber, firstEditRange.startColumn, lastEditRange.endLineNumber, lastEditRange.endColumn);
+		let lastEndLineNumber = firstEditRange.startLineNumber;
+		let lastEndColumn = firstEditRange.startColumn;
+		const result: string[] = [];
 
 		for (let i = 0, len = operations.length; i < len; i++) {
-			let operation = operations[i],
-				range = operation.range;
+			const operation = operations[i];
+			const range = operation.range;
 
 			forceMoveMarkers = forceMoveMarkers || operation.forceMoveMarkers;
 
 			// (1) -- Push old text
-			for (let lineNumber = lastEndLineNumber; lineNumber < range.startLineNumber; lineNumber++) {
-				if (lineNumber === lastEndLineNumber) {
-					result.push(this.getLineContent(lineNumber).substring(lastEndColumn - 1));
-				} else {
-					result.push('\n');
-					result.push(this.getLineContent(lineNumber));
-				}
-			}
-
-			if (range.startLineNumber === lastEndLineNumber) {
-				result.push(this.getLineContent(range.startLineNumber).substring(lastEndColumn - 1, range.startColumn - 1));
-			} else {
-				result.push('\n');
-				result.push(this.getLineContent(range.startLineNumber).substring(0, range.startColumn - 1));
-			}
+			result.push(this.getValueInRange(new Range(lastEndLineNumber, lastEndColumn, range.startLineNumber, range.startColumn)));
 
 			// (2) -- Push new text
-			if (operation.lines) {
-				for (let j = 0, lenJ = operation.lines.length; j < lenJ; j++) {
-					if (j !== 0) {
-						result.push('\n');
-					}
-					result.push(operation.lines[j]);
-				}
+			if (operation.text) {
+				result.push(operation.text);
 			}
 
-			lastEndLineNumber = operation.range.endLineNumber;
-			lastEndColumn = operation.range.endColumn;
+			lastEndLineNumber = range.endLineNumber;
+			lastEndColumn = range.endColumn;
 		}
 
-		const lines = result.join('').split('\n');
-		const firstLine = lines[0];
-		const lastLine = lines[lines.length - 1];
+		const text = result.join('');
+		const [eolCount, firstLineLength, lastLineLength] = countEOL(text);
 
 		return {
 			sortIndex: 0,
@@ -462,10 +410,10 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 			range: entireEditRange,
 			rangeOffset: this.getOffsetAt(entireEditRange.startLineNumber, entireEditRange.startColumn),
 			rangeLength: this.getValueLengthInRange(entireEditRange, EndOfLinePreference.TextDefined),
-			lines: lines,
-			text: lines.join(this.getEOL()),
-			firstLine: firstLine,
-			lastLine: lastLine,
+			text: text,
+			eolCount: eolCount,
+			firstLineLength: firstLineLength,
+			lastLineLength: lastLineLength,
 			forceMoveMarkers: forceMoveMarkers,
 			isAutoWhitespaceEdit: false
 		};
@@ -555,18 +503,16 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 
 			let resultRange: Range;
 
-			if (op.lines && op.lines.length > 0) {
+			if (op.text && op.text.length > 0) {
 				// the operation inserts something
-				let lineCount = op.lines.length;
-				let firstLine = op.lines[0];
-				let lastLine = op.lines[lineCount - 1];
+				const lineCount = op.eolCount + 1;
 
 				if (lineCount === 1) {
 					// single line insert
-					resultRange = new Range(startLineNumber, startColumn, startLineNumber, startColumn + firstLine.length);
+					resultRange = new Range(startLineNumber, startColumn, startLineNumber, startColumn + op.firstLineLength);
 				} else {
 					// multi line insert
-					resultRange = new Range(startLineNumber, startColumn, startLineNumber + lineCount - 1, lastLine.length + 1);
+					resultRange = new Range(startLineNumber, startColumn, startLineNumber + lineCount - 1, op.lastLineLength + 1);
 				}
 			} else {
 				// There is nothing to insert
