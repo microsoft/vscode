@@ -68,6 +68,7 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { OpenSearchEditorAction, createEditorFromSearchResult } from 'vs/workbench/contrib/searchEditor/browser/searchEditorActions';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { Orientation } from 'vs/base/browser/ui/sash/sash';
 
 const $ = dom.$;
 
