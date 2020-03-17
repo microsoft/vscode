@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/editorquickaccess';
 import { localize } from 'vs/nls';
 import { IQuickPickSeparator, quickPickItemScorerAccessor, IQuickPickItemWithResource } from 'vs/platform/quickinput/common/quickInput';
 import { PickerQuickAccessProvider, IPickerQuickAccessItem, TriggerAction } from 'vs/platform/quickinput/browser/pickerQuickAccess';
@@ -99,7 +100,7 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 				buttonsAlwaysVisible: isDirty,
 				buttons: [
 					{
-						iconClass: isDirty ? 'codicon-circle-filled' : 'codicon-close',
+						iconClass: isDirty ? 'dirty-editor codicon-circle-filled' : 'codicon-close',
 						tooltip: localize('closeEditor', "Close Editor")
 					}
 				],
