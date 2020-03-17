@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { createRandomFile, deleteFile, closeAllEditors, pathEquals, rndName, disposeAll, testFs, delay, withLogDisabled } from '../utils';
+import { createRandomFile, deleteFile, closeAllEditors, pathEquals, randomFileName, disposeAll, testFs, delay, withLogDisabled } from '../utils';
 import { join, posix, basename } from 'path';
 import * as fs from 'fs';
 
@@ -709,7 +709,7 @@ suite('vscode API - workspace', () => {
 
 	test('WorkspaceEdit: edit and rename parent folder duplicates resource #42641', async function () {
 
-		let dir = vscode.Uri.parse(`${testFs.scheme}:/before-${rndName()}`);
+		let dir = vscode.Uri.parse(`${testFs.scheme}:/before-${randomFileName()}`);
 		await testFs.createDirectory(dir);
 
 		let docUri = await createRandomFile('', dir);

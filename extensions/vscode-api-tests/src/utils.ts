@@ -7,9 +7,19 @@ import * as vscode from 'vscode';
 import { MemFS } from './memfs';
 import * as assert from 'assert';
 
-export function rndName() {
-	return Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 10);
+export function randomFileName(extension?: string) {
+	return Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 10) + (extension || '');
 }
+
+export function randomFilePath(options: { readonly root?: vscode.Uri; readonly ext?: string; }): vscode.Uri {
+	let dir = options.root;
+	if (!dir) {
+		assert.ok(vscode.workspace.rootPath);
+		dir = vscode.Uri.file(vscode.workspace.rootPath!);
+	}
+	return dir.with({ path: dir.path + '/' + randomFileName(options.ext) });
+}
+
 
 export const testFs = new MemFS();
 vscode.workspace.registerFileSystemProvider(testFs.scheme, testFs);
@@ -18,9 +28,9 @@ export async function createRandomFile(contents = '', dir: vscode.Uri | undefine
 	let fakeFile: vscode.Uri;
 	if (dir) {
 		assert.equal(dir.scheme, testFs.scheme);
-		fakeFile = dir.with({ path: dir.path + '/' + rndName() + ext });
+		fakeFile = dir.with({ path: dir.path + '/' + randomFileName(ext) });
 	} else {
-		fakeFile = vscode.Uri.parse(`${testFs.scheme}:/${rndName() + ext}`);
+		fakeFile = vscode.Uri.parse(`${testFs.scheme}:/${randomFileName(ext)}`);
 	}
 	await testFs.writeFile(fakeFile, Buffer.from(contents), { create: true, overwrite: true });
 	return fakeFile;
