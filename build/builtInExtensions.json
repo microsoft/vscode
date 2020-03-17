@@ -31,7 +31,7 @@
 	},
 	{
 		"name": "ms-vscode.references-view",
-		"version": "0.0.49",
+		"version": "0.0.50",
 		"repo": "https://github.com/Microsoft/vscode-reference-view",
 		"metadata": {
 			"id": "dc489f46-520d-4556-ae85-1f9eab3c412d",
@@ -46,7 +46,7 @@
 	},
 	{
 		"name": "ms-vscode.js-debug-nightly",
-		"version": "2020.3.1117",
+		"version": "2020.3.1617",
 		"forQualities": [
 			"insider"
 		],

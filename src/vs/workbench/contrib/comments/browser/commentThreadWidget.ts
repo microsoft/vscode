@@ -50,7 +50,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
-const COLLAPSE_ACTION_CLASS = 'expand-review-action';
+const COLLAPSE_ACTION_CLASS = 'expand-review-action codicon-chevron-up';
 const COMMENT_SCHEME = 'comment';
 
 
