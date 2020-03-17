@@ -134,23 +134,27 @@ export class NotebookViewModel extends Disposable {
 		return this._viewCells.indexOf(cell as CellViewModel);
 	}
 
+	private _insertCellDelegate(insertIndex: number, insertCell: CellViewModel) {
+		this._viewCells!.splice(insertIndex, 0, insertCell);
+		this._model.insertCell(insertCell.cell, insertIndex);
+		this._localStore.add(insertCell);
+		this._onDidChangeViewCells.fire({ synchronous: true, splices: [[insertIndex, 0, [insertCell]]] });
+	}
+
+	private _deleteCellDelegate(deleteIndex: number, cell: ICell) {
+		this._viewCells.splice(deleteIndex, 1);
+		this._model.deleteCell(cell);
+		this._onDidChangeViewCells.fire({ synchronous: true, splices: [[deleteIndex, 1, []]] });
+	}
+
 	insertCell(index: number, cell: ICell, synchronous: boolean): CellViewModel {
 		const newCell = this.instantiationService.createInstance(CellViewModel, this.viewType, this.handle, cell);
 		this._viewCells!.splice(index, 0, newCell);
 		this._model.insertCell(newCell.cell, index);
 		this._localStore.add(newCell);
 		this.undoService.pushElement(new InsertCellEdit(this.uri, index, newCell, {
-			insertCell: (insertIndex: number, viewCell: CellViewModel) => {
-				this._viewCells!.splice(insertIndex, 0, viewCell);
-				this._model.insertCell(viewCell.cell, insertIndex);
-				this._localStore.add(viewCell);
-				this._onDidChangeViewCells.fire({ synchronous: true, splices: [[insertIndex, 0, [viewCell]]] });
-			},
-			deleteCell: (deleteIndex: number, cell: ICell) => {
-				this._viewCells.splice(deleteIndex, 1);
-				this._model.deleteCell(cell);
-				this._onDidChangeViewCells.fire({ synchronous: true, splices: [[deleteIndex, 1, []]] });
-			}
+			insertCell: this._insertCellDelegate.bind(this),
+			deleteCell: this._deleteCellDelegate.bind(this)
 		}));
 
 		this._onDidChangeViewCells.fire({ synchronous: synchronous, splices: [[index, 0, [newCell]]] });
@@ -163,17 +167,8 @@ export class NotebookViewModel extends Disposable {
 		this._model.deleteCell(viewCell.cell);
 
 		this.undoService.pushElement(new DeleteCellEdit(this.uri, index, viewCell, {
-			insertCell: (insertIndex: number, viewCell: CellViewModel) => {
-				this._viewCells!.splice(insertIndex, 0, viewCell);
-				this._model.insertCell(viewCell.cell, insertIndex);
-				this._localStore.add(viewCell);
-				this._onDidChangeViewCells.fire({ synchronous: true, splices: [[insertIndex, 0, [viewCell]]] });
-			},
-			deleteCell: (deleteIndex: number, cell: ICell) => {
-				this._viewCells.splice(deleteIndex, 1);
-				this._model.deleteCell(cell);
-				this._onDidChangeViewCells.fire({ synchronous: true, splices: [[deleteIndex, 1, []]] });
-			}
+			insertCell: this._insertCellDelegate.bind(this),
+			deleteCell: this._deleteCellDelegate.bind(this)
 		}, this.instantiationService, this));
 
 		this._onDidChangeViewCells.fire({ synchronous: synchronous, splices: [[index, 1, []]] });

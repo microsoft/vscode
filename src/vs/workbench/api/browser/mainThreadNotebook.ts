@@ -37,13 +37,21 @@ export class MainThreadCell implements ICell {
 		this._onDidChangeDirtyState.fire(newState);
 	}
 
+	get source() {
+		return this._source;
+	}
+
+	set source(newValue: string[]) {
+		this._source = newValue;
+		this._buffer = null;
+	}
 
 	private _buffer: PieceTreeTextBufferFactory | null = null;
 
 	constructor(
 		readonly uri: URI,
 		public handle: number,
-		public source: string[],
+		private _source: string[],
 		public language: string,
 		public cellKind: CellKind,
 		outputs: IOutput[]
