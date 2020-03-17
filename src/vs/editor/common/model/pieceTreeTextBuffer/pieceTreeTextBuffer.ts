@@ -18,6 +18,9 @@ export interface IValidatedEditOperation {
 	rangeOffset: number;
 	rangeLength: number;
 	lines: string[] | null;
+	text: string | null;
+	firstLine: string | null;
+	lastLine: string | null;
 	forceMoveMarkers: boolean;
 	isAutoWhitespaceEdit: boolean;
 }
@@ -223,31 +226,52 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 			}
 
 			let lines: string[] | null = null;
+			let firstLine: string | null = null;
+			let lastLine: string | null = null;
+			let validText: string | null = null;
 			if (op.text) {
+				const eol = this.getEOL();
+
 				lines = [];
 				let linesLen = 0;
 				let lastLineStart = 0;
+				let textIsValid = true;
 				for (let j = 0, len = op.text.length; j < len; j++) {
 					const chr = op.text.charCodeAt(j);
-
 					if (chr === CharCode.CarriageReturn) {
 						if (j + 1 < len && op.text.charCodeAt(j + 1) === CharCode.LineFeed) {
 							// \r\n... case
+							if (eol !== '\r\n') {
+								textIsValid = false;
+							}
 							lines[linesLen++] = op.text.substring(lastLineStart, j);
 							lastLineStart = j + 2;
 							j++; // skip \n
 						} else {
 							// \r... case
+							textIsValid = false;
 							lines[linesLen++] = op.text.substring(lastLineStart, j);
 							lastLineStart = j + 1;
 						}
 					} else if (chr === CharCode.LineFeed) {
 						// \n... case
+						if (eol !== '\n') {
+							textIsValid = false;
+						}
 						lines[linesLen++] = op.text.substring(lastLineStart, j);
 						lastLineStart = j + 1;
 					}
 				}
-				lines[linesLen++] = op.text.substring(lastLineStart, op.text.length);
+				lastLine = op.text.substring(lastLineStart, op.text.length);
+				lines[linesLen++] = lastLine;
+
+				if (textIsValid) {
+					validText = op.text;
+				} else {
+					validText = lines.join(eol);
+				}
+
+				firstLine = lines[0];
 			}
 
 			operations[i] = {
@@ -257,6 +281,9 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 				rangeOffset: this.getOffsetAt(validatedRange.startLineNumber, validatedRange.startColumn),
 				rangeLength: this.getValueLengthInRange(validatedRange),
 				lines: lines,
+				text: validText,
+				firstLine: firstLine,
+				lastLine: lastLine,
 				forceMoveMarkers: Boolean(op.forceMoveMarkers),
 				isAutoWhitespaceEdit: op.isAutoWhitespaceEdit || false
 			};
@@ -425,13 +452,20 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 			lastEndColumn = operation.range.endColumn;
 		}
 
+		const lines = result.join('').split('\n');
+		const firstLine = lines[0];
+		const lastLine = lines[lines.length - 1];
+
 		return {
 			sortIndex: 0,
 			identifier: operations[0].identifier,
 			range: entireEditRange,
 			rangeOffset: this.getOffsetAt(entireEditRange.startLineNumber, entireEditRange.startColumn),
 			rangeLength: this.getValueLengthInRange(entireEditRange, EndOfLinePreference.TextDefined),
-			lines: result.join('').split('\n'),
+			lines: lines,
+			text: lines.join(this.getEOL()),
+			firstLine: firstLine,
+			lastLine: lastLine,
 			forceMoveMarkers: forceMoveMarkers,
 			isAutoWhitespaceEdit: false
 		};
@@ -451,12 +485,12 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 			const endLineNumber = op.range.endLineNumber;
 			const endColumn = op.range.endColumn;
 
-			if (startLineNumber === endLineNumber && startColumn === endColumn && (!op.lines || op.lines.length === 0)) {
+			if (startLineNumber === endLineNumber && startColumn === endColumn && (!op.text || op.text.length === 0)) {
 				// no-op
 				continue;
 			}
 
-			const text = (op.lines ? op.lines.join(this.getEOL()) : '');
+			const text = op.text ? op.text : '';
 
 			if (text) {
 				// replacement

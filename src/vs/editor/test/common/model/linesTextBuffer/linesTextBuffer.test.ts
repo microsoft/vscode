@@ -19,6 +19,9 @@ suite('PieceTreeTextBuffer._getInverseEdits', () => {
 			rangeOffset: 0,
 			rangeLength: 0,
 			lines: text,
+			text: text ? text.join('\n') : null,
+			firstLine: text ? text[0] : null,
+			lastLine: text ? text[text.length - 1] : null,
 			forceMoveMarkers: false,
 			isAutoWhitespaceEdit: false
 		};
@@ -270,6 +273,9 @@ suite('PieceTreeTextBuffer._toSingleEditOperation', () => {
 			rangeOffset: rangeOffset,
 			rangeLength: rangeLength,
 			lines: text,
+			text: text ? text.join('\n') : null,
+			firstLine: text ? text[0] : null,
+			lastLine: text ? text[text.length - 1] : null,
 			forceMoveMarkers: false,
 			isAutoWhitespaceEdit: false
 		};
