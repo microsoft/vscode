@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IQuickPickSeparator, quickPickItemScorerAccessor, IQuickPickItemWithResource, IQuickPick } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickPickSeparator, quickPickItemScorerAccessor, IQuickPickItemWithResource } from 'vs/platform/quickinput/common/quickInput';
 import { PickerQuickAccessProvider, IPickerQuickAccessItem, TriggerAction } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { IEditorGroupsService, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorsOrder, IEditorIdentifier, toResource, SideBySideEditor } from 'vs/workbench/common/editor';
@@ -25,13 +25,7 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 		@IModelService private readonly modelService: IModelService,
 		@IModeService private readonly modeService: IModeService
 	) {
-		super(prefix);
-	}
-
-	protected configure(picker: IQuickPick<IEditorQuickPickItem>): void {
-
-		// Allow to open editors in background without closing picker
-		picker.canAcceptInBackground = true;
+		super(prefix, { canAcceptInBackground: true });
 	}
 
 	protected getPicks(filter: string): Array<IEditorQuickPickItem | IQuickPickSeparator> {

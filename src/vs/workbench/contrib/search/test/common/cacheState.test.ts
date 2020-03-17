@@ -6,11 +6,11 @@
 import * as assert from 'assert';
 import * as errors from 'vs/base/common/errors';
 import * as objects from 'vs/base/common/objects';
-import { CacheState } from 'vs/workbench/contrib/search/browser/openFileHandler';
 import { DeferredPromise } from 'vs/base/test/common/utils';
 import { QueryType, IFileQuery } from 'vs/workbench/services/search/common/search';
+import { FileQueryCacheState } from 'vs/workbench/contrib/search/common/cacheState';
 
-suite('CacheState', () => {
+suite('FileQueryCacheState', () => {
 
 	test('reuse old cacheKey until new cache is loaded', async function () {
 
@@ -162,8 +162,8 @@ suite('CacheState', () => {
 		assert.strictEqual(third.cacheKey, thirdKey); // recover with next successful load
 	});
 
-	function createCacheState(cache: MockCache, previous?: CacheState): CacheState {
-		return new CacheState(
+	function createCacheState(cache: MockCache, previous?: FileQueryCacheState): FileQueryCacheState {
+		return new FileQueryCacheState(
 			cacheKey => cache.query(cacheKey),
 			query => cache.load(query),
 			cacheKey => cache.dispose(cacheKey),
