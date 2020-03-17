@@ -85,38 +85,24 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 			}
 
 			if (dragData.type === 'view') {
-				const viewDescriptor = this.viewDescriptorService.getViewDescriptor(dragData.id);
-				if (viewDescriptor && viewDescriptor.canMoveView) {
-					if (targetCompositeId) {
-						const destinationContainer = viewContainerRegistry.get(targetCompositeId);
-						if (destinationContainer && !destinationContainer.rejectAddedViews) {
-							if (this.targetContainerLocation === ViewContainerLocation.Sidebar || this.targetContainerLocation === ViewContainerLocation.Panel) {
-								this.viewDescriptorService.moveViewsToContainer([viewDescriptor], destinationContainer);
-								this.openComposite(targetCompositeId, true).then(composite => {
-									if (composite) {
-										composite.openView(viewDescriptor.id, true);
-									}
-								});
-							} else {
-								this.viewDescriptorService.moveViewToLocation(viewDescriptor, this.targetContainerLocation);
-								this.moveComposite(this.viewDescriptorService.getViewContainer(viewDescriptor.id)!.id, targetCompositeId);
-							}
-						}
-					} else {
-						this.viewDescriptorService.moveViewToLocation(viewDescriptor, this.targetContainerLocation);
-						const newCompositeId = this.viewDescriptorService.getViewContainer(dragData.id)!.id;
-						const visibleItems = this.getVisibleCompositeIds();
-						const targetId = visibleItems.length ? visibleItems[visibleItems.length - 1] : undefined;
-						if (targetId && targetId !== newCompositeId) {
-							this.moveComposite(newCompositeId, targetId);
-						}
+				if (targetCompositeId) {
+					const viewToMove = this.viewDescriptorService.getViewDescriptor(dragData.id)!;
 
-						this.openComposite(newCompositeId, true).then(composite => {
+					if (viewToMove && viewToMove.canMoveView) {
+						this.viewDescriptorService.moveViewToLocation(viewToMove, this.targetContainerLocation);
+
+						const newContainer = this.viewDescriptorService.getViewContainer(viewToMove.id)!;
+
+						this.moveComposite(newContainer.id, targetCompositeId, before);
+
+						this.openComposite(newContainer.id, true).then(composite => {
 							if (composite) {
-								composite.openView(viewDescriptor.id, true);
+								composite.openView(viewToMove.id, true);
 							}
 						});
 					}
+				} else {
+
 				}
 			}
 		}, 10);
