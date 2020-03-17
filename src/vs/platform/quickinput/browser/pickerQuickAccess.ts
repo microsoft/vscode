@@ -57,6 +57,14 @@ export interface IPickerQuickAccessProviderOptions {
 	canAcceptInBackground?: boolean;
 }
 
+export type FastAndSlowPicksType<T> = { picks: Array<T | IQuickPickSeparator>, additionalPicks: Promise<Array<T | IQuickPickSeparator>> };
+
+function isFastAndSlowPicksType<T>(obj: unknown): obj is FastAndSlowPicksType<T> {
+	const candidate = obj as FastAndSlowPicksType<T>;
+
+	return Array.isArray(candidate.picks) && candidate.additionalPicks instanceof Promise;
+}
+
 export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem> extends Disposable implements IQuickAccessProvider {
 
 	constructor(private prefix: string, protected options?: IPickerQuickAccessProviderOptions) {
@@ -83,9 +91,26 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 			// Create new cancellation source for this run
 			picksCts = new CancellationTokenSource(token);
 
-			// Collect picks and support both long running and short
+			// Collect picks and support both long running and short or combined
 			const res = this.getPicks(picker.value.substr(this.prefix.length).trim(), disposables.add(new DisposableStore()), picksCts.token);
-			if (Array.isArray(res)) {
+			if (isFastAndSlowPicksType(res)) {
+				picker.items = res.picks;
+				picker.busy = true;
+				try {
+					const additionalPicks = await res.additionalPicks;
+					if (token.isCancellationRequested) {
+						return;
+					}
+
+					if (additionalPicks.length > 0) {
+						picker.items = [...res.picks, ...additionalPicks];
+					}
+				} finally {
+					if (!token.isCancellationRequested) {
+						picker.busy = false;
+					}
+				}
+			} else if (Array.isArray(res)) {
 				picker.items = res;
 			} else {
 				picker.busy = true;
@@ -159,6 +184,7 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 	 * up when the picker closes.
 	 * @param token for long running tasks, implementors need to check on cancellation
 	 * through this token.
+	 * @returns the picks either directly, as promise or combined fast and slow results.
 	 */
-	protected abstract getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Array<T | IQuickPickSeparator> | Promise<Array<T | IQuickPickSeparator>>;
+	protected abstract getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Array<T | IQuickPickSeparator> | Promise<Array<T | IQuickPickSeparator>> | { picks: Array<T | IQuickPickSeparator>, additionalPicks: Promise<Array<T | IQuickPickSeparator>> };
 }

@@ -76,6 +76,7 @@ export function getWorkspaceSymbols(query: string, token: CancellationToken = Ca
 export interface IWorkbenchSearchConfigurationProperties extends ISearchConfigurationProperties {
 	quickOpen: {
 		includeSymbols: boolean;
+		includeHistory: boolean;
 	};
 }
 
