@@ -147,7 +147,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 
 		this.prevBtn = this._register(new SimpleButton({
 			label: NLS_PREVIOUS_MATCH_BTN_LABEL,
-			className: 'previous',
+			className: 'codicon codicon-arrow-up',
 			onTrigger: () => {
 				this.find(true);
 			}
@@ -155,7 +155,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 
 		this.nextBtn = this._register(new SimpleButton({
 			label: NLS_NEXT_MATCH_BTN_LABEL,
-			className: 'next',
+			className: 'codicon codicon-arrow-down',
 			onTrigger: () => {
 				this.find(false);
 			}
@@ -163,7 +163,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 
 		const closeBtn = this._register(new SimpleButton({
 			label: NLS_CLOSE_BTN_LABEL,
-			className: 'close-fw',
+			className: 'codicon codicon-close',
 			onTrigger: () => {
 				this.hide();
 			}
