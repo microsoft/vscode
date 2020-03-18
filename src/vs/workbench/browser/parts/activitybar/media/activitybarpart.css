@@ -7,6 +7,17 @@
 	width: 48px;
 }
 
+.monaco-workbench .part > .drag-overlay {
+	transition-property: opacity;
+	transition-duration: .2s;
+	width: 100%;
+	height: 100%;
+	position: absolute;
+	opacity: 0;
+	top: 0;
+	pointer-events: none;
+}
+
 .monaco-workbench .activitybar > .content {
 	height: 100%;
 	display: flex;

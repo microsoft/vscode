@@ -12,6 +12,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { DisposableStore, toDisposable, IDisposable } from 'vs/base/common/lifecycle';
 import { timeout } from 'vs/base/common/async';
+import { PickerQuickAccessProvider, FastAndSlowPicksType } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 
 suite('QuickAccess', () => {
 
@@ -187,6 +188,124 @@ suite('QuickAccess', () => {
 
 		assert.equal(provider3Canceled, true);
 		assert.equal(provider3Disposed, true);
+
+		disposables.dispose();
+
+		restore();
+	});
+
+	let fastProviderCalled = false;
+	let slowProviderCalled = false;
+	let fastAndSlowProviderCalled = false;
+
+	let slowProviderCanceled = false;
+	let fastAndSlowProviderCanceled = false;
+
+	class FastTestQuickPickProvider extends PickerQuickAccessProvider<IQuickPickItem> {
+
+		constructor() {
+			super('fast');
+		}
+
+		protected getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Array<IQuickPickItem> {
+			fastProviderCalled = true;
+
+			return [{ label: 'Fast Pick' }];
+		}
+	}
+
+	class SlowTestQuickPickProvider extends PickerQuickAccessProvider<IQuickPickItem> {
+
+		constructor() {
+			super('slow');
+		}
+
+		protected async getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Promise<Array<IQuickPickItem>> {
+			slowProviderCalled = true;
+
+			await timeout(1);
+
+			if (token.isCancellationRequested) {
+				slowProviderCanceled = true;
+			}
+
+			return [{ label: 'Slow Pick' }];
+		}
+	}
+
+	class FastAndSlowTestQuickPickProvider extends PickerQuickAccessProvider<IQuickPickItem> {
+
+		constructor() {
+			super('bothFastAndSlow');
+		}
+
+		protected getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): FastAndSlowPicksType<IQuickPickItem> {
+			fastAndSlowProviderCalled = true;
+
+			return {
+				picks: [{ label: 'Fast Pick' }],
+				additionalPicks: (async () => {
+					await timeout(1);
+
+					if (token.isCancellationRequested) {
+						fastAndSlowProviderCanceled = true;
+					}
+
+					return [{ label: 'Slow Pick' }];
+				})()
+			};
+		}
+	}
+
+	const fastProviderDescriptor = { ctor: FastTestQuickPickProvider, prefix: 'fast', helpEntries: [] };
+	const slowProviderDescriptor = { ctor: SlowTestQuickPickProvider, prefix: 'slow', helpEntries: [] };
+	const fastAndSlowProviderDescriptor = { ctor: FastAndSlowTestQuickPickProvider, prefix: 'bothFastAndSlow', helpEntries: [] };
+
+	test('quick pick access', async () => {
+		const registry = (Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess));
+		const restore = (registry as QuickAccessRegistry).clear();
+
+		const disposables = new DisposableStore();
+
+		disposables.add(registry.registerQuickAccessProvider(fastProviderDescriptor));
+		disposables.add(registry.registerQuickAccessProvider(slowProviderDescriptor));
+		disposables.add(registry.registerQuickAccessProvider(fastAndSlowProviderDescriptor));
+
+		accessor.quickInputService.quickAccess.show('fast');
+		assert.equal(fastProviderCalled, true);
+		assert.equal(slowProviderCalled, false);
+		assert.equal(fastAndSlowProviderCalled, false);
+		fastProviderCalled = false;
+
+		accessor.quickInputService.quickAccess.show('slow');
+		await timeout(2);
+
+		assert.equal(fastProviderCalled, false);
+		assert.equal(slowProviderCalled, true);
+		assert.equal(slowProviderCanceled, false);
+		assert.equal(fastAndSlowProviderCalled, false);
+		slowProviderCalled = false;
+
+		accessor.quickInputService.quickAccess.show('bothFastAndSlow');
+		await timeout(2);
+
+		assert.equal(fastProviderCalled, false);
+		assert.equal(slowProviderCalled, false);
+		assert.equal(fastAndSlowProviderCalled, true);
+		assert.equal(fastAndSlowProviderCanceled, false);
+		fastAndSlowProviderCalled = false;
+
+		accessor.quickInputService.quickAccess.show('slow');
+		accessor.quickInputService.quickAccess.show('bothFastAndSlow');
+		accessor.quickInputService.quickAccess.show('fast');
+
+		assert.equal(fastProviderCalled, true);
+		assert.equal(slowProviderCalled, true);
+		assert.equal(fastAndSlowProviderCalled, true);
+
+		await timeout(2);
+		assert.equal(slowProviderCanceled, true);
+		assert.equal(fastAndSlowProviderCanceled, true);
 
 		disposables.dispose();
 

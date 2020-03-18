@@ -445,11 +445,6 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	moveViewToLocation(view: IViewDescriptor, location: ViewContainerLocation): void {
-		const previousContainer = this.getViewContainer(view.id);
-		if (previousContainer && this.getViewContainerLocation(previousContainer) === location) {
-			return;
-		}
-
 		let container = this.getDefaultContainer(view.id)!;
 		if (this.getViewContainerLocation(container) !== location) {
 			container = this.registerViewContainerForSingleView(view, location);

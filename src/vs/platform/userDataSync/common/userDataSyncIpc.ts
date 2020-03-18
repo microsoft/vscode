@@ -27,9 +27,9 @@ export class UserDataSyncChannel implements IServerChannel {
 
 	call(context: any, command: string, args?: any): Promise<any> {
 		switch (command) {
-			case '_getInitialData': return Promise.resolve([this.service.status, this.service.conflictsSources, this.service.lastSyncTime]);
+			case '_getInitialData': return Promise.resolve([this.service.status, this.service.conflicts, this.service.lastSyncTime]);
 			case 'sync': return this.service.sync();
-			case 'accept': return this.service.accept(args[0], args[1]);
+			case 'acceptConflict': return this.service.acceptConflict(URI.revive(args[0]), args[1]);
 			case 'pull': return this.service.pull();
 			case 'stop': this.service.stop(); return Promise.resolve();
 			case 'reset': return this.service.reset();

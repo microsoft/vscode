@@ -85,6 +85,26 @@
 	display: flex;
 }
 
+.monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item.left::before {
+	content: '';
+	width: 2px;
+	height: 35px;
+	display: block;
+	background-color: var(--insert-border-color);
+	margin-left: -11px;
+	margin-right: 9px;
+}
+
+.monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item.right::after {
+	content: '';
+	width: 2px;
+	height: 35px;
+	display: block;
+	background-color: var(--insert-border-color);
+	margin-right: -11px;
+	margin-left: 9px;
+}
+
 .monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item .action-label{
 	margin-right: 0;
 }
