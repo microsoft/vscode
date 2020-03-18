@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IDebugService, VIEWLET_ID } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, VIEWLET_ID, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 
@@ -18,7 +18,7 @@ export class DebugProgressContribution implements IWorkbenchContribution {
 		@IProgressService private readonly progressService: IProgressService
 	) {
 		let progressListener: IDisposable;
-		this.toDispose.push(this.debugService.getViewModel().onDidFocusSession(session => {
+		const onFocusSession = (session: IDebugSession | undefined) => {
 			if (progressListener) {
 				progressListener.dispose();
 			}
@@ -42,7 +42,9 @@ export class DebugProgressContribution implements IWorkbenchContribution {
 					}, () => promise, () => session.cancel(progressStartEvent.body.progressId));
 				});
 			}
-		}));
+		};
+		this.toDispose.push(this.debugService.getViewModel().onDidFocusSession(onFocusSession));
+		onFocusSession(this.debugService.getViewModel().focusedSession);
 	}
 
 	dispose(): void {
