@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, isCodeEditor, isDiffEditor, isCompositeEditor } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServiceImpl';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { TextEditorOptions, ICompositeCodeEditor } from 'vs/workbench/common/editor';
+import { TextEditorOptions } from 'vs/workbench/common/editor';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -33,7 +33,7 @@ export class CodeEditorService extends CodeEditorServiceImpl {
 		}
 
 		const activeControl = this.editorService.activeEditorPane?.getControl();
-		if (ICompositeCodeEditor.is(activeControl) && isCodeEditor(activeControl.activeCodeEditor)) {
+		if (isCompositeEditor(activeControl) && isCodeEditor(activeControl.activeCodeEditor)) {
 			return activeControl.activeCodeEditor;
 		}
 

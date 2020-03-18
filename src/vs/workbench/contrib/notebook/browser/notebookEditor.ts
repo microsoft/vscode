@@ -20,7 +20,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { contrastBorder, editorBackground, focusBorder, foreground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground, textPreformatForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { EditorOptions, IEditorMemento, ICompositeCodeEditor, IEditorCloseEvent } from 'vs/workbench/common/editor';
+import { EditorOptions, IEditorMemento, IEditorCloseEvent } from 'vs/workbench/common/editor';
 import { INotebookEditor, NotebookLayoutInfo, CellState, NOTEBOOK_EDITOR_FOCUSED, CellFocusMode, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorInput, NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
@@ -32,7 +32,7 @@ import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IEditor } from 'vs/editor/common/editorCommon';
+import { IEditor, ICompositeCodeEditor } from 'vs/editor/common/editorCommon';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { Emitter, Event } from 'vs/base/common/event';
 import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
@@ -71,7 +71,7 @@ export class NotebookCodeEditors implements ICompositeCodeEditor {
 		private _list: NotebookCellList,
 		private _renderedEditors: Map<ICellViewModel, ICodeEditor | undefined>
 	) {
-		_list.onDidChangeFocus(e => this._onDidChangeActiveEditor.fire(this), undefined, this._disposables);
+		_list.onDidChangeFocus(_e => this._onDidChangeActiveEditor.fire(this), undefined, this._disposables);
 	}
 
 	dispose(): void {

@@ -161,21 +161,6 @@ export interface ITextDiffEditorPane extends IEditorPane {
  */
 export interface IEditorControl extends ICompositeControl { }
 
-export interface ICompositeCodeEditor {
-	readonly onDidChangeActiveEditor: Event<ICompositeCodeEditor>;
-	readonly activeCodeEditor: IEditor | undefined;
-	// readonly editors: readonly ICodeEditor[] maybe supported with uris
-}
-
-export namespace ICompositeCodeEditor {
-	export function is(thing: any): thing is ICompositeCodeEditor {
-		if (!thing || typeof thing !== 'object') {
-			return false;
-		}
-		return typeof (<ICompositeCodeEditor>thing).onDidChangeActiveEditor === 'function';
-	}
-}
-
 export interface IFileEditorInputFactory {
 
 	createFileEditorInput(resource: URI, encoding: string | undefined, mode: string | undefined, instantiationService: IInstantiationService): IFileEditorInput;
