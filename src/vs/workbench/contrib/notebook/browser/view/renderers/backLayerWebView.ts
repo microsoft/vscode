@@ -86,7 +86,7 @@ export class BackLayerWebView extends Disposable {
 		this.element.style.width = `calc(100% - ${CELL_MARGIN * 2}px)`;
 		this.element.style.height = '1400px';
 		this.element.style.position = 'absolute';
-		this.element.style.margin = '0px 0 0px 24px';
+		this.element.style.margin = `0px 0 0px ${CELL_MARGIN}px`;
 
 		const loader = URI.file(path.join(environmentSerice.appRoot, '/out/vs/loader.js')).with({ scheme: WebviewResourceScheme });
 
