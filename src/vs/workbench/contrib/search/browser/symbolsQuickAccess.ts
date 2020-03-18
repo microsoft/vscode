@@ -19,23 +19,25 @@ import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/
 import { Range } from 'vs/editor/common/core/range';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
-import { IKeyMods, IQuickPick } from 'vs/platform/quickinput/common/quickInput';
+import { IKeyMods } from 'vs/platform/quickinput/common/quickInput';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { createResourceExcludeMatcher } from 'vs/workbench/services/search/common/search';
 import { ResourceMap } from 'vs/base/common/map';
+import { URI } from 'vs/base/common/uri';
 
-interface ISymbolsQuickPickItem extends IPickerQuickAccessItem {
-	score: FuzzyScore;
+interface ISymbolQuickPickItem extends IPickerQuickAccessItem {
+	resource: URI | undefined;
+	score: FuzzyScore | undefined;
 	symbol: IWorkspaceSymbol;
 }
 
-export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbolsQuickPickItem> {
+export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbolQuickPickItem> {
 
 	static PREFIX = '#';
 
 	private static readonly TYPING_SEARCH_DELAY = 200; // this delay accommodates for the user typing a word and then stops typing to start searching
 
-	private delayer = new ThrottledDelayer<ISymbolsQuickPickItem[]>(SymbolsQuickAccessProvider.TYPING_SEARCH_DELAY);
+	private delayer = this._register(new ThrottledDelayer<ISymbolQuickPickItem[]>(SymbolsQuickAccessProvider.TYPING_SEARCH_DELAY));
 
 	private readonly resourceExcludeMatcher = this._register(createResourceExcludeMatcher(this.instantiationService, this.configurationService));
 
@@ -46,13 +48,7 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
-		super(SymbolsQuickAccessProvider.PREFIX);
-	}
-
-	protected configure(picker: IQuickPick<ISymbolsQuickPickItem>): void {
-
-		// Allow to open symbols in background without closing picker
-		picker.canAcceptInBackground = true;
+		super(SymbolsQuickAccessProvider.PREFIX, { canAcceptInBackground: true });
 	}
 
 	private get configuration() {
@@ -64,23 +60,27 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 		};
 	}
 
-	protected getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Promise<Array<ISymbolsQuickPickItem>> {
+	protected getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Promise<Array<ISymbolQuickPickItem>> {
+		return this.getSymbolPicks(filter, undefined, token);
+	}
+
+	async getSymbolPicks(filter: string, options: { skipLocal: boolean, skipSorting: boolean, delay: number } | undefined, token: CancellationToken): Promise<Array<ISymbolQuickPickItem>> {
 		return this.delayer.trigger(async () => {
 			if (token.isCancellationRequested) {
 				return [];
 			}
 
-			return this.doGetSymbolPicks(filter, token);
-		});
+			return this.doGetSymbolPicks(filter, options, token);
+		}, options?.delay);
 	}
 
-	private async doGetSymbolPicks(filter: string, token: CancellationToken): Promise<Array<ISymbolsQuickPickItem>> {
+	private async doGetSymbolPicks(filter: string, options: { skipLocal: boolean, skipSorting: boolean } | undefined, token: CancellationToken): Promise<Array<ISymbolQuickPickItem>> {
 		const workspaceSymbols = await getWorkspaceSymbols(filter, token);
 		if (token.isCancellationRequested) {
 			return [];
 		}
 
-		const symbolPicks: Array<ISymbolsQuickPickItem> = [];
+		const symbolPicks: Array<ISymbolQuickPickItem> = [];
 
 		// Normalize filter
 		const [symbolFilter, containerFilter] = stripWildcards(filter).split(' ') as [string, string | undefined];
@@ -92,6 +92,9 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 		const symbolsExcludedByResource = new ResourceMap<boolean>();
 		for (const [provider, symbols] of workspaceSymbols) {
 			for (const symbol of symbols) {
+				if (options?.skipLocal && !!symbol.containerName) {
+					continue; // ignore local symbols if we are told so
+				}
 
 				// Score by symbol label
 				const symbolLabel = symbol.name;
@@ -141,6 +144,7 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 
 				symbolPicks.push({
 					symbol,
+					resource: symbolUri,
 					score: symbolScore,
 					label: symbolLabelWithIcon,
 					ariaLabel: localize('symbolAriaLabel', "{0}, symbols picker", symbolLabel),
@@ -156,23 +160,25 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 							tooltip: openSideBySideDirection === 'right' ? localize('openToSide', "Open to the Side") : localize('openToBottom', "Open to the Bottom")
 						}
 					],
-					accept: async (keyMods, event) => this.openSymbol(provider, symbol, token, keyMods, { preserveFocus: event.inBackground }),
 					trigger: (buttonIndex, keyMods) => {
-						this.openSymbol(provider, symbol, token, keyMods, { forceOpenSideBySide: true });
+						this.openSymbol(provider, symbol, token, { keyMods, forceOpenSideBySide: true });
 
 						return TriggerAction.CLOSE_PICKER;
-					}
+					},
+					accept: async (keyMods, event) => this.openSymbol(provider, symbol, token, { keyMods, preserveFocus: event.inBackground }),
 				});
 			}
 		}
 
-		// Sort picks
-		symbolPicks.sort((symbolA, symbolB) => this.compareSymbols(symbolA, symbolB));
+		// Sort picks (unless disabled)
+		if (!options?.skipSorting) {
+			symbolPicks.sort((symbolA, symbolB) => this.compareSymbols(symbolA, symbolB));
+		}
 
 		return symbolPicks;
 	}
 
-	private async openSymbol(provider: IWorkspaceSymbolProvider, symbol: IWorkspaceSymbol, token: CancellationToken, keyMods: IKeyMods, options: { forceOpenSideBySide?: boolean, preserveFocus?: boolean }): Promise<void> {
+	private async openSymbol(provider: IWorkspaceSymbolProvider, symbol: IWorkspaceSymbol, token: CancellationToken, options: { keyMods: IKeyMods, forceOpenSideBySide?: boolean, preserveFocus?: boolean }): Promise<void> {
 
 		// Resolve actual symbol to open for providers that can resolve
 		let symbolToOpen = symbol;
@@ -195,14 +201,14 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 				resource: symbolToOpen.location.uri,
 				options: {
 					preserveFocus: options?.preserveFocus,
-					pinned: keyMods.alt || this.configuration.openEditorPinned,
+					pinned: options.keyMods.alt || this.configuration.openEditorPinned,
 					selection: symbolToOpen.location.range ? Range.collapseToStart(symbolToOpen.location.range) : undefined
 				}
-			}, keyMods.ctrlCmd || options?.forceOpenSideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+			}, options.keyMods.ctrlCmd || options?.forceOpenSideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 		}
 	}
 
-	private compareSymbols(symbolA: ISymbolsQuickPickItem, symbolB: ISymbolsQuickPickItem): number {
+	private compareSymbols(symbolA: ISymbolQuickPickItem, symbolB: ISymbolQuickPickItem): number {
 
 		// By score
 		if (symbolA.score && symbolB.score) {
