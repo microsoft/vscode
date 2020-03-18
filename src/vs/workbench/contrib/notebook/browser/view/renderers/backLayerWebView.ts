@@ -312,10 +312,8 @@ export class BackLayerWebView extends Disposable {
 			let outputIndex = item.cell.outputs.indexOf(item.output);
 
 			let outputOffsetInOutputContainer = item.cell.getOutputOffset(outputIndex);
-			let outputOffset = item.cellTop + item.cell.editorHeight + 16 /* editor padding */ + 8 + outputOffsetInOutputContainer;
+			let outputOffset = item.cellTop + item.cell.editorHeight + 16 /* editor padding */ + 16 + outputOffsetInOutputContainer;
 			outputCache.cacheOffset = outputOffset;
-
-			// console.log('trigger output offset change', outputOffset);
 
 			return {
 				id: id,

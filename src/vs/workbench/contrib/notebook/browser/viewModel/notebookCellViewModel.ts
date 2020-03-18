@@ -31,6 +31,9 @@ export class CellViewModel extends Disposable implements ICellViewModel {
 	readonly onDidChangeFocusMode = this._onDidChangeFocusMode.event;
 	protected readonly _onDidChangeOutputs = new Emitter<NotebookCellOutputsSplice[]>();
 	readonly onDidChangeOutputs = this._onDidChangeOutputs.event;
+
+	protected readonly _onDidChangeTotalHeight = new Emitter<void>();
+	readonly onDidChangeTotalHeight = this._onDidChangeTotalHeight.event;
 	private _outputCollection: number[] = [];
 	protected _outputsTop: PrefixSumComputer | null = null;
 
@@ -91,6 +94,7 @@ export class CellViewModel extends Disposable implements ICellViewModel {
 	private _editorHeight = 0;
 	set editorHeight(height: number) {
 		this._editorHeight = height;
+		this._onDidChangeTotalHeight.fire();
 	}
 
 	get editorHeight(): number {
@@ -444,6 +448,7 @@ export class CellViewModel extends Disposable implements ICellViewModel {
 		this._outputCollection[index] = height;
 		this._ensureOutputsTop();
 		this._outputsTop!.changeValue(index, height);
+		this._onDidChangeTotalHeight.fire();
 	}
 
 	getOutputOffset(index: number): number {
@@ -488,6 +493,8 @@ export class CellViewModel extends Disposable implements ICellViewModel {
 
 			this._outputsTop!.insertValues(start, values);
 		}
+
+		this._onDidChangeTotalHeight.fire();
 	}
 
 	getCellTotalHeight(): number {
@@ -496,6 +503,10 @@ export class CellViewModel extends Disposable implements ICellViewModel {
 		} else {
 			return EDITOR_TOOLBAR_HEIGHT + this.editorHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING + this.getOutputTotalHeight();
 		}
+	}
+
+	getIndicatorHeight(): number {
+		return this.getCellTotalHeight() - EDITOR_TOOLBAR_HEIGHT;
 	}
 
 	protected _ensureOutputsTop(): void {

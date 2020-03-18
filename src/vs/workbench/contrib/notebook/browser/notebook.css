@@ -108,13 +108,14 @@
 	visibility: visible;
 }
 
-/* .monaco-workbench .part.editor > .content .notebook-editor .monaco-list .monaco-list-row:hover {
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list .monaco-list-row:hover {
 	outline: none !important;
-} */
+}
 
-/* .monaco-workbench .part.editor > .content .notebook-editor .monaco-list .monaco-list-row.focused {
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list .monaco-list-row.selected,
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list .monaco-list-row.focused {
 	outline: none !important;
-} */
+}
 
 .monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row .menu.mouseover,
 .monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row .menu:hover {
@@ -134,6 +135,24 @@
 .monaco-workbench .part.editor > .content .notebook-editor .monaco-tree.focused.no-focused-item:focus:before,
 .monaco-workbench .part.editor > .content .notebook-editor .monaco-list:not(.element-focused):focus:before {
 	outline: none !important;
+}
+
+
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list .monaco-list-row .notebook-cell-focus-indicator {
+	display: block;
+	content: ' ';
+	position: absolute;
+	width: 6px;
+	border-left-width: 2px;
+	border-left-style: solid;
+	left: 2px;
+	top: 22px;
+	bottom: 8px;
+	visibility: hidden;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list .monaco-list-row.focused .notebook-cell-focus-indicator {
+	visibility: visible;
 }
 
 .notebook-webview {

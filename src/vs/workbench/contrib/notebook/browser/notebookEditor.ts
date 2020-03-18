@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import { getZoomLevel } from 'vs/base/browser/browser';
 import * as DOM from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
@@ -17,7 +18,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { contrastBorder, editorBackground, focusBorder, foreground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground, textPreformatForeground } from 'vs/platform/theme/common/colorRegistry';
+import { contrastBorder, editorBackground, focusBorder, foreground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground, textPreformatForeground, registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions, IEditorMemento, IEditorCloseEvent } from 'vs/workbench/common/editor';
@@ -42,6 +43,7 @@ import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
 import { Range } from 'vs/editor/common/core/range';
 import { CELL_MARGIN } from 'vs/workbench/contrib/notebook/browser/constants';
+import { Color, RGBA } from 'vs/base/common/color';
 
 const $ = DOM.$;
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
@@ -700,6 +702,13 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 const embeddedEditorBackground = 'walkThrough.embeddedEditorBackground';
 
+export const focusedCellIndicator = registerColor('notebook.focusedCellIndicator', {
+	light: new Color(new RGBA(102, 175, 224)),
+	dark: new Color(new RGBA(12, 125, 157)),
+	hc: new Color(new RGBA(0, 73, 122))
+}, nls.localize('notebook.focusedCellIndicator', "The color of the focused notebook cell indicator."));
+
+
 registerThemingParticipant((theme, collector) => {
 	const color = getExtraColor(theme, embeddedEditorBackground, { dark: 'rgba(0, 0, 0, .4)', extra_dark: 'rgba(200, 235, 255, .064)', light: '#f4f4f4', hc: null });
 	if (color) {
@@ -737,6 +746,12 @@ registerThemingParticipant((theme, collector) => {
 
 	if (inactiveListItem) {
 		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .output { background-color: ${inactiveListItem}; }`);
+	}
+
+	const focusedCellIndicatorColor = theme.getColor(focusedCellIndicator);
+	if (focusedCellIndicatorColor) {
+		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row.focused .notebook-cell-focus-indicator { border-color: ${focusedCellIndicatorColor}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row.selected .notebook-cell-focus-indicator { border-color: ${focusedCellIndicatorColor}; }`);
 	}
 
 	// Cell Margin

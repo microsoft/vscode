@@ -35,11 +35,6 @@ export class CodeCell extends Disposable {
 		let width: number;
 		const listDimension = notebookEditor.getLayoutInfo();
 		width = listDimension.width - CELL_MARGIN * 2;
-		// if (listDimension) {
-		// } else {
-		// 	width = templateData.container.clientWidth - 24 /** for scrollbar and margin right */;
-		// }
-
 		const lineNum = viewCell.lineCount;
 		const lineHeight = notebookEditor.getLayoutInfo().fontInfo.lineHeight;
 		const totalHeight = lineNum * lineHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING;
@@ -65,10 +60,6 @@ export class CodeCell extends Disposable {
 				let width: number;
 				const listDimension = notebookEditor.getLayoutInfo();
 				width = listDimension.width - CELL_MARGIN * 2;
-				// if (listDimension) {
-				// } else {
-				// 	width = templateData.container.clientWidth - 24 /** for scrollbar and margin right */;
-				// }
 
 				if (realContentHeight !== undefined && realContentHeight !== totalHeight) {
 					templateData.editor?.layout(
@@ -125,8 +116,7 @@ export class CodeCell extends Disposable {
 					);
 
 					this.viewCell.editorHeight = e.contentHeight;
-
-					notebookEditor.layoutNotebookCell(this.viewCell, viewCell.getCellTotalHeight());
+					this.relayoutCell();
 				}
 
 			}
@@ -193,7 +183,7 @@ export class CodeCell extends Disposable {
 
 			let editorHeight = templateData.editor!.getContentHeight();
 			viewCell.editorHeight = editorHeight;
-			notebookEditor.layoutNotebookCell(viewCell, viewCell.getCellTotalHeight());
+			this.relayoutCell();
 		}));
 
 		if (viewCell.outputs.length > 0) {
@@ -208,7 +198,7 @@ export class CodeCell extends Disposable {
 			}
 
 			viewCell.editorHeight = totalHeight;
-			this.notebookEditor.layoutNotebookCell(viewCell, viewCell.getCellTotalHeight());
+			this.relayoutCell();
 		} else {
 			// noop
 			this.templateData.outputContainer!.style.display = 'none';
@@ -295,7 +285,7 @@ export class CodeCell extends Disposable {
 					}
 
 					this.viewCell.updateOutputHeight(currIndex, height);
-					this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.getCellTotalHeight());
+					this.relayoutCell();
 				}
 			});
 			elementSizeObserver.startObserving();
@@ -373,8 +363,12 @@ export class CodeCell extends Disposable {
 			output.pickedMimeTypeIndex = pick;
 
 			this.renderOutput(output, index, nextElement);
-			this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.getCellTotalHeight());
+			this.relayoutCell();
 		}
+	}
+
+	relayoutCell() {
+		this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.getCellTotalHeight());
 	}
 
 	dispose() {
@@ -382,6 +376,8 @@ export class CodeCell extends Disposable {
 		this.outputResizeListeners.forEach((value) => {
 			value.dispose();
 		});
+
+		this.templateData.focusIndicator!.style.height = 'initial';
 
 		super.dispose();
 	}

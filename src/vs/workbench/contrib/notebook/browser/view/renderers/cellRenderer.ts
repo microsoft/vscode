@@ -185,6 +185,8 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		DOM.addClasses(action, 'menu', 'codicon-settings-gear', 'codicon');
 		container.appendChild(action);
 
+		DOM.append(container, DOM.$('.notebook-cell-focus-indicator'));
+
 		return {
 			container: container,
 			cellContainer: innerContent,
@@ -303,6 +305,8 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		DOM.addClasses(menuContainer, 'menu', 'codicon-settings-gear', 'codicon');
 		container.appendChild(menuContainer);
 
+		const focusIndicator = DOM.append(container, DOM.$('.notebook-cell-focus-indicator'));
+
 		const outputContainer = document.createElement('div');
 		DOM.addClasses(outputContainer, 'output');
 		container.appendChild(outputContainer);
@@ -311,6 +315,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			container,
 			cellContainer,
 			menuContainer,
+			focusIndicator,
 			toolbar,
 			outputContainer,
 			editor,
@@ -355,6 +360,10 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		elementDisposable?.add(this.instantiationService.createInstance(CodeCell, this.notebookEditor, element, templateData));
 		this.renderedEditors.set(element, templateData.editor);
 
+		elementDisposable?.add(element.onDidChangeTotalHeight(() => {
+			templateData.focusIndicator!.style.height = `${element.getIndicatorHeight()}px`;
+		}));
+
 		templateData.toolbar!.context = <INotebookCellActionContext>{
 			cell: element,
 			notebookEditor: this.notebookEditor
@@ -372,5 +381,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	disposeElement(element: ICellViewModel, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
 		this.disposables.get(element)?.clear();
 		this.renderedEditors.delete(element);
+		templateData.focusIndicator!.style.height = 'initial';
 	}
 }
