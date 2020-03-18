@@ -303,8 +303,7 @@ export class ProgressService extends Disposable implements IProgressService {
 			// Remove that window based progress once the notification
 			// shows again.
 			let windowProgressDisposable: IDisposable | undefined = undefined;
-			notificationDisposables.add(notification.onDidChangeVisibility(visible => {
-
+			const onVisibilityChange = (visible: boolean) => {
 				// Clear any previous running window progress
 				dispose(windowProgressDisposable);
 
@@ -312,7 +311,11 @@ export class ProgressService extends Disposable implements IProgressService {
 				if (!visible && !progressStateModel.done) {
 					windowProgressDisposable = createWindowProgress();
 				}
-			}));
+			};
+			notificationDisposables.add(notification.onDidChangeVisibility(onVisibilityChange));
+			if (silent) {
+				onVisibilityChange(false);
+			}
 
 			// Clear upon dispose
 			Event.once(notification.onDidClose)(() => notificationDisposables.dispose());
