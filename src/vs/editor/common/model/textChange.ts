@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as buffer from 'vs/base/common/buffer';
+import { decodeUTF16LE } from 'vs/editor/common/core/stringBuilder';
+
 export class TextChange {
 
 	public get oldLength(): number {
@@ -27,6 +30,52 @@ export class TextChange {
 		public readonly newPosition: number,
 		public readonly newText: string
 	) { }
+
+	private static _writeStringSize(str: string): number {
+		return (
+			4 + 2 * str.length
+		);
+	}
+
+	private static _writeString(b: Uint8Array, str: string, offset: number): number {
+		const len = str.length;
+		buffer.writeUInt32BE(b, len, offset); offset += 4;
+		for (let i = 0; i < len; i++) {
+			buffer.writeUInt16LE(b, str.charCodeAt(i), offset); offset += 2;
+		}
+		return offset;
+	}
+
+	private static _readString(b: Uint8Array, offset: number): string {
+		const len = buffer.readUInt32BE(b, offset); offset += 4;
+		return decodeUTF16LE(b, offset, len);
+	}
+
+	public writeSize(): number {
+		return (
+			+ 4 // oldPosition
+			+ 4 // newPosition
+			+ TextChange._writeStringSize(this.oldText)
+			+ TextChange._writeStringSize(this.newText)
+		);
+	}
+
+	public write(b: Uint8Array, offset: number): number {
+		buffer.writeUInt32BE(b, this.oldPosition, offset); offset += 4;
+		buffer.writeUInt32BE(b, this.newPosition, offset); offset += 4;
+		offset = TextChange._writeString(b, this.oldText, offset);
+		offset = TextChange._writeString(b, this.newText, offset);
+		return offset;
+	}
+
+	public static read(b: Uint8Array, offset: number, dest: TextChange[]): number {
+		const oldPosition = buffer.readUInt32BE(b, offset); offset += 4;
+		const newPosition = buffer.readUInt32BE(b, offset); offset += 4;
+		const oldText = TextChange._readString(b, offset); offset += TextChange._writeStringSize(oldText);
+		const newText = TextChange._readString(b, offset); offset += TextChange._writeStringSize(newText);
+		dest.push(new TextChange(oldPosition, oldText, newPosition, newText));
+		return offset;
+	}
 }
 
 export function compressConsecutiveTextChanges(prevEdits: TextChange[] | null, currEdits: TextChange[]): TextChange[] {
