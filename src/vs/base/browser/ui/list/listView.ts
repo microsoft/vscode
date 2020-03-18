@@ -279,18 +279,32 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		this.scrollableElement.triggerScrollFromMouseWheelEvent(browserEvent);
 	}
 
-	updateElementHeight(index: number, size: number): void {
+	updateElementHeight(index: number, size: number, anchorIndex: number | null): void {
 		if (this.items[index].size === size) {
 			return;
 		}
 
 		const lastRenderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
 
-		const heightDiff = index < lastRenderRange.start ? size - this.items[index].size : 0;
+		let heightDiff = 0;
+
+		if (index < lastRenderRange.start) {
+			// do not scroll the viewport if resized element is out of viewport
+			heightDiff = size - this.items[index].size;
+		} else {
+			if (anchorIndex !== null && anchorIndex > index && anchorIndex <= lastRenderRange.end) {
+				// anchor in viewport
+				// resized elemnet in viewport and above the anchor
+				heightDiff = size - this.items[index].size;
+			} else {
+				heightDiff = 0;
+			}
+		}
+
 		this.rangeMap.splice(index, 1, [{ size: size }]);
 		this.items[index].size = size;
 
-		this.render(lastRenderRange, this.lastRenderTop + heightDiff, this.lastRenderHeight, undefined, undefined, true);
+		this.render(lastRenderRange, Math.max(0, this.lastRenderTop + heightDiff), this.lastRenderHeight, undefined, undefined, true);
 
 		this.eventuallyUpdateScrollDimensions();
 
@@ -1131,6 +1145,10 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		const item = this.items[index];
 
 		if (!item.hasDynamicHeight || item.lastDynamicHeightWidth === this.renderWidth) {
+			return 0;
+		}
+
+		if (!!this.virtualDelegate.hasDynamicHeight && !this.virtualDelegate.hasDynamicHeight(item.element)) {
 			return 0;
 		}
 

@@ -1016,6 +1016,16 @@ export function isDiffEditor(thing: any): thing is IDiffEditor {
 /**
  *@internal
  */
+export function isCompositeEditor(thing: any): thing is editorCommon.ICompositeCodeEditor {
+	return thing
+		&& typeof thing === 'object'
+		&& typeof (<editorCommon.ICompositeCodeEditor>thing).onDidChangeActiveEditor === 'function';
+
+}
+
+/**
+ *@internal
+ */
 export function getCodeEditor(thing: any): ICodeEditor | null {
 	if (isCodeEditor(thing)) {
 		return thing;
