@@ -12,7 +12,7 @@ import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { ICellModelDeltaDecorations, ICellModelDecorations } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { SimpleFindReplaceWidget } from 'vs/workbench/contrib/codeEditor/browser/find/simpleFindReplaceWidget';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
@@ -39,12 +39,15 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget {
 	private _onFindInputKeyDown(e: IKeyboardEvent): void {
 		if (e.equals(KeyCode.Enter)) {
 			if (this._findMatches.length) {
-				this.set(this._findMatches);
-
-				if (this._currentMatch !== -1) {
-					const nextIndex = this._findMatchesStarts!.getIndexOf(this._currentMatch);
-					this.revealCellRange(nextIndex.index, nextIndex.remainder);
-				}
+				this.find(false);
+			} else {
+				this.set(null);
+			}
+			e.preventDefault();
+			return;
+		} else if (e.equals(KeyMod.Shift | KeyCode.Enter)) {
+			if (this._findMatches.length) {
+				this.find(true);
 			} else {
 				this.set(null);
 			}
@@ -74,13 +77,14 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget {
 
 		if (!this._findMatchesStarts) {
 			this.set(this._findMatches);
+		} else {
+			const totalVal = this._findMatchesStarts!.getTotalValue();
+			const nextVal = (this._currentMatch + (previous ? -1 : 1) + totalVal) % totalVal;
+			this._currentMatch = nextVal;
 		}
 
-		const totalVal = this._findMatchesStarts!.getTotalValue();
-		const nextVal = (this._currentMatch + (previous ? -1 : 1) + totalVal) % totalVal;
-		this._currentMatch = nextVal;
 
-		const nextIndex = this._findMatchesStarts!.getIndexOf(nextVal);
+		const nextIndex = this._findMatchesStarts!.getIndexOf(this._currentMatch);
 		this.setCurrentFindMatchDecoration(nextIndex.index, nextIndex.remainder);
 		this.revealCellRange(nextIndex.index, nextIndex.remainder);
 	}
