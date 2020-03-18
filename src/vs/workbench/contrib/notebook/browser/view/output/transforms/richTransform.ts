@@ -8,16 +8,16 @@ import { registerOutputTransform } from 'vs/workbench/contrib/notebook/browser/n
 import * as DOM from 'vs/base/browser/dom';
 import { INotebookEditor, IOutputTransformContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { isArray } from 'vs/base/common/types';
-import * as marked from 'vs/base/common/marked/marked';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { URI } from 'vs/base/common/uri';
+import { MarkdownRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/mdRenderer';
 
 class RichRenderer implements IOutputTransformContribution {
-	private _mdRenderer: marked.Renderer = new marked.Renderer({ gfm: true });;
+	private _mdRenderer: MarkdownRenderer;
 	private _richMimeTypeRenderers = new Map<string, (output: any, container: HTMLElement) => IRenderOutput>();
 
 	constructor(
@@ -26,6 +26,7 @@ class RichRenderer implements IOutputTransformContribution {
 		@IModelService private readonly modelService: IModelService,
 		@IModeService private readonly modeService: IModeService
 	) {
+		this._mdRenderer = instantiationService.createInstance(MarkdownRenderer);
 		this._richMimeTypeRenderers.set('application/json', this.renderJSON.bind(this));
 		this._richMimeTypeRenderers.set('application/javascript', this.renderJavaScript.bind(this));
 		this._richMimeTypeRenderers.set('text/html', this.renderHTML.bind(this));
@@ -172,7 +173,7 @@ class RichRenderer implements IOutputTransformContribution {
 		let data = output.data['text/markdown'];
 		const str = isArray(data) ? data.join('') : data;
 		const mdOutput = document.createElement('div');
-		mdOutput.innerHTML = marked(str, { renderer: this._mdRenderer });
+		mdOutput.appendChild(this._mdRenderer.render({ value: str, isTrusted: false, supportThemeIcons: true }).element);
 		container.appendChild(mdOutput);
 
 		return {
