@@ -91,8 +91,10 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 				progressListener = session.onDidProgressStart(async progressStartEvent => {
 					// Update title area to show the cancel progress action
 					this.progressEvents.push({ session: session, event: progressStartEvent });
-					this.cancelAction.tooltip = nls.localize('cancelProgress', "Cancel {0}", progressStartEvent.body.title);
-					this.updateTitleArea();
+					if (progressStartEvent.body.cancellable) {
+						this.cancelAction.tooltip = nls.localize('cancelProgress', "Cancel {0}", progressStartEvent.body.title);
+						this.updateTitleArea();
+					}
 					await this.progressService.withProgress({ location: VIEWLET_ID }, () => {
 						return new Promise(r => {
 							// Show progress until a progress end event comes or the session ends
@@ -103,9 +105,11 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 								});
 						});
 					});
-					this.cancelAction.tooltip = nls.localize('cancel', "Cancel");
 					this.progressEvents = this.progressEvents.filter(pe => pe.event.body.progressId !== progressStartEvent.body.progressId);
-					this.updateTitleArea();
+					if (progressStartEvent.body.cancellable) {
+						this.cancelAction.tooltip = nls.localize('cancel', "Cancel");
+						this.updateTitleArea();
+					}
 				});
 			}
 		}));
@@ -144,8 +148,10 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 	@memoize
 	private get cancelAction(): Action {
 		return this._register(new Action('debug.cancelProgress', nls.localize('cancel', "Cancel"), 'debug-action codicon codicon-stop', true, async () => {
-			let { event, session } = this.progressEvents[this.progressEvents.length - 1];
-			await session.cancel(event.body.progressId);
+			const progressEvent = this.progressEvents.filter(e => e.event.body.cancellable).pop();
+			if (progressEvent) {
+				await progressEvent.session.cancel(progressEvent.event.body.progressId);
+			}
 		}));
 	}
 
@@ -180,7 +186,7 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 			result = [this.startAction, this.configureAction, this.toggleReplAction];
 		}
 
-		if (this.progressEvents.length) {
+		if (this.progressEvents.filter(e => e.event.body.cancellable).length) {
 			result.unshift(this.cancelAction);
 		}
 
