@@ -16,6 +16,7 @@ import { parse } from 'vs/base/common/json';
 import { AbstractSynchroniser, IRemoteUserData } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { URI } from 'vs/base/common/uri';
 
 const argvProperties: string[] = ['locale'];
 
@@ -131,7 +132,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		return null;
 	}
 
-	accept(content: string): Promise<void> {
+	async acceptConflict(conflict: URI, content: string): Promise<void> {
 		throw new Error(`${this.syncResourceLogLabel}: Conflicts should not occur`);
 	}
 

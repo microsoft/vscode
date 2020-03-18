@@ -480,7 +480,7 @@ suite('UserDataSyncService', () => {
 		await testObject.sync();
 
 		assert.deepEqual(testObject.status, SyncStatus.HasConflicts);
-		assert.deepEqual(testObject.conflictsSources, [SyncResource.Settings]);
+		assert.deepEqual(testObject.conflicts.map(({ syncResource }) => syncResource), [SyncResource.Settings]);
 	});
 
 	test('test sync will sync other non conflicted areas', async () => {
@@ -549,7 +549,7 @@ suite('UserDataSyncService', () => {
 		await testObject.stop();
 
 		assert.deepEqual(testObject.status, SyncStatus.Idle);
-		assert.deepEqual(testObject.conflictsSources, []);
+		assert.deepEqual(testObject.conflicts, []);
 	});
 
 });
