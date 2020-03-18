@@ -8,6 +8,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { IQuickPickSeparator, IKeyMods, IQuickPickAcceptEvent } from 'vs/base/parts/quickinput/common/quickInput';
 import { IQuickAccessProvider } from 'vs/platform/quickinput/common/quickAccess';
 import { IDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
+import { timeout } from 'vs/base/common/async';
 
 export enum TriggerAction {
 
@@ -67,6 +68,8 @@ function isFastAndSlowPicksType<T>(obj: unknown): obj is FastAndSlowPicksType<T>
 
 export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem> extends Disposable implements IQuickAccessProvider {
 
+	private static FAST_PICKS_RACE_DELAY = 200; // timeout before we accept fast results before slow results are present
+
 	constructor(private prefix: string, protected options?: IPickerQuickAccessProviderOptions) {
 		super();
 	}
@@ -95,32 +98,63 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 			const picksToken = picksCts.token;
 			const res = this.getPicks(picker.value.substr(this.prefix.length).trim(), disposables.add(new DisposableStore()), picksToken);
 			if (isFastAndSlowPicksType(res)) {
-				if (res.picks.length > 0) {
-					// Optimization: if there are no fast results
-					// we do nto simply unset all the existing items
-					// to reduce the flickering.
-					picker.items = res.picks;
-				}
-				picker.busy = true;
-				try {
-					const additionalPicks = await res.additionalPicks;
-					if (picksToken.isCancellationRequested) {
-						return;
-					}
+				let fastPicksHandlerDone = false;
+				let slowPicksHandlerDone = false;
 
-					if (res.picks.length === 0 || additionalPicks.length > 0) {
-						// Optimization: we only update the picker items if we either
-						// did not update them earlier, or we actually got new results
-						picker.items = [...res.picks, ...additionalPicks];
-					}
-				} finally {
-					if (!picksToken.isCancellationRequested) {
-						picker.busy = false;
-					}
-				}
-			} else if (Array.isArray(res)) {
+				await Promise.all([
+
+					// Fast Picks: to reduce amount of flicker, we race against
+					// the slow picks over 500ms and then set the fast picks.
+					// If the slow picks are faster, we reduce the flicker by
+					// only setting the items once.
+					(async () => {
+						try {
+							await timeout(PickerQuickAccessProvider.FAST_PICKS_RACE_DELAY);
+							if (picksToken.isCancellationRequested) {
+								return;
+							}
+
+							if (!slowPicksHandlerDone) {
+								picker.items = res.picks;
+							}
+						} finally {
+							fastPicksHandlerDone = true;
+						}
+					})(),
+
+
+					// Slow Picks: we await the slow picks and then set them at
+					// once together with the fast picks, but only if we actually
+					// have additional results.
+					(async () => {
+						picker.busy = true;
+						try {
+							const additionalPicks = await res.additionalPicks;
+							if (picksToken.isCancellationRequested) {
+								return;
+							}
+
+							if (additionalPicks.length > 0 || !fastPicksHandlerDone) {
+								picker.items = [...res.picks, ...additionalPicks];
+							}
+						} finally {
+							if (!picksToken.isCancellationRequested) {
+								picker.busy = false;
+							}
+
+							slowPicksHandlerDone = true;
+						}
+					})()
+				]);
+			}
+
+			// Fast Picks
+			else if (Array.isArray(res)) {
 				picker.items = res;
-			} else {
+			}
+
+			// Slow Picks
+			else {
 				picker.busy = true;
 				try {
 					const items = await res;
