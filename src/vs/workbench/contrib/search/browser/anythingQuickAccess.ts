@@ -105,7 +105,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		return super.provide(picker, token);
 	}
 
-	protected getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): FastAndSlowPicksType<IAnythingQuickPickItem | IQuickPickSeparator> {
+	protected getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): FastAndSlowPicksType<IAnythingQuickPickItem> {
 
 		// Find a suitable range from the pattern looking for ":", "#" or ","
 		let range: IRange | undefined = undefined;
