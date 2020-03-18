@@ -220,9 +220,18 @@
 
 .quick-input-list .quick-input-list-entry-action-bar {
 	display: flex;
-	visibility: hidden; /* not using display: none here to not flicker too much */
 	flex: 0;
 	overflow: visible;
+}
+
+.quick-input-list .quick-input-list-entry-action-bar .action-label {
+	/*
+	 * By default, actions in the quick input action bar are hidden
+	 * until hovered over them or selected. We do not use display:none
+	 * so that the amount of visual flickering is little by reserving the
+	 * space the button needs still.
+	 */
+	visibility: hidden;
 }
 
 .quick-input-list .quick-input-list-entry-action-bar .action-label.codicon {
@@ -244,8 +253,8 @@
 	margin-right: 4px; /* separate actions */
 }
 
-.quick-input-list .quick-input-list-entry.always-visible-actions .quick-input-list-entry-action-bar,
-.quick-input-list .quick-input-list-entry:hover .quick-input-list-entry-action-bar,
-.quick-input-list .monaco-list-row.focused .quick-input-list-entry-action-bar {
+.quick-input-list .quick-input-list-entry .quick-input-list-entry-action-bar .action-label.always-visible,
+.quick-input-list .quick-input-list-entry:hover .quick-input-list-entry-action-bar .action-label,
+.quick-input-list .monaco-list-row.focused .quick-input-list-entry-action-bar .action-label {
 	visibility: visible;
 }

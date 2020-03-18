@@ -99,11 +99,11 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 				description: editor.getDescription(),
 				iconClasses: getIconClasses(this.modelService, this.modeService, resource),
 				italic: !this.editorGroupService.getGroup(groupId)?.isPinned(editor),
-				buttonsAlwaysVisible: isDirty,
 				buttons: [
 					{
 						iconClass: isDirty ? 'dirty-editor codicon-circle-filled' : 'codicon-close',
-						tooltip: localize('closeEditor', "Close Editor")
+						tooltip: localize('closeEditor', "Close Editor"),
+						alwaysVisible: isDirty
 					}
 				],
 				trigger: async () => {

@@ -181,7 +181,11 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 		const buttons = element.item.buttons;
 		if (buttons && buttons.length) {
 			data.actionBar.push(buttons.map((button, index) => {
-				const action = new Action(`id-${index}`, '', button.iconClass || (button.iconPath ? getIconClass(button.iconPath) : undefined), true, () => {
+				let cssClasses = button.iconClass || (button.iconPath ? getIconClass(button.iconPath) : undefined);
+				if (button.alwaysVisible) {
+					cssClasses = cssClasses ? `${cssClasses} always-visible` : 'always-visible';
+				}
+				const action = new Action(`id-${index}`, '', cssClasses, true, () => {
 					element.fireButtonTriggered({
 						button,
 						item: element.item
@@ -194,12 +198,6 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 			dom.addClass(data.entry, 'has-actions');
 		} else {
 			dom.removeClass(data.entry, 'has-actions');
-		}
-
-		if (element.item.buttonsAlwaysVisible) {
-			dom.addClass(data.entry, 'always-visible-actions');
-		} else {
-			dom.removeClass(data.entry, 'always-visible-actions');
 		}
 	}
 
