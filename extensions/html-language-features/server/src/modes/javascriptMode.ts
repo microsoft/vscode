@@ -37,6 +37,7 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 	function updateCurrentTextDocument(doc: TextDocument) {
 		if (!currentTextDocument || doc.uri !== currentTextDocument.uri || doc.version !== currentTextDocument.version) {
 			currentTextDocument = jsDocuments.get(doc);
+
 			let s = documentRegions.get(doc).getImportedScripts();
 			importedScripts = [];
 			s.forEach(el => {
@@ -44,6 +45,7 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 				let p = join(dirname(x.fsPath), el);
 				importedScripts.push(p);
 			});
+
 			scriptFileVersion++;
 		}
 	}
