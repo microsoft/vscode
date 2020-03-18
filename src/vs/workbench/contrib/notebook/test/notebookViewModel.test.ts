@@ -9,9 +9,10 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { TestNotebook, withTestNotebook, TestCell } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
+import { withTestNotebook, TestCell } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
+import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 
 suite('NotebookViewModel', () => {
 	const instantiationService = new TestInstantiationService();
@@ -20,7 +21,7 @@ suite('NotebookViewModel', () => {
 	instantiationService.spy(IUndoRedoService, 'pushElement');
 
 	test('ctor', function () {
-		const notebook = new TestNotebook(0, 'notebook', URI.parse('test'));
+		const notebook = new NotebookTextModel(0, 'notebook', URI.parse('test'));
 		const model = new NotebookEditorModel(notebook);
 		const viewModel = new NotebookViewModel('notebook', model, instantiationService, blukEditService, undoRedoService);
 		assert.equal(viewModel.viewType, 'notebook');

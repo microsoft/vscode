@@ -123,8 +123,9 @@ export interface ICell {
 	cellKind: CellKind;
 	outputs: IOutput[];
 	onDidChangeOutputs?: Event<NotebookCellOutputsSplice[]>;
-	isDirty: boolean;
 	resolveTextBufferFactory(): PieceTreeTextBufferFactory;
+	// TODO@rebornix it should be later on replaced by moving textmodel resolution into CellTextModel
+	contentChange(): void;
 }
 
 export interface LanguageInfo {
@@ -135,7 +136,7 @@ export interface IMetadata {
 	language_info: LanguageInfo;
 }
 
-export interface INotebook {
+export interface INotebookTextModel {
 	handle: number;
 	viewType: string;
 	// metadata: IMetadata;
@@ -144,9 +145,8 @@ export interface INotebook {
 	cells: ICell[];
 	renderers: Set<number>;
 	onDidChangeCells?: Event<NotebookCellsSplice[]>;
-	onDidChangeDirtyState: Event<boolean>;
+	onDidChangeContent: Event<void>;
 	onWillDispose(listener: () => void): IDisposable;
-	save(): Promise<boolean>;
 }
 
 export interface IRenderOutput {

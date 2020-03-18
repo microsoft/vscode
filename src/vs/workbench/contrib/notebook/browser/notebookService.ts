@@ -10,10 +10,12 @@ import { notebookProviderExtensionPoint, notebookRendererExtensionPoint } from '
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
 import { Emitter, Event } from 'vs/base/common/event';
-import { INotebook, ICell, INotebookMimeTypeSelector, INotebookRendererInfo, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel, ICell, INotebookMimeTypeSelector, INotebookRendererInfo, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
 import { Iterable } from 'vs/base/common/iterator';
+import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
+import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -22,13 +24,15 @@ function MODEL_ID(resource: URI): string {
 export const INotebookService = createDecorator<INotebookService>('notebookService');
 
 export interface IMainNotebookController {
-	resolveNotebook(viewType: string, uri: URI): Promise<INotebook | undefined>;
+	resolveNotebook(viewType: string, uri: URI): Promise<NotebookTextModel | undefined>;
 	executeNotebook(viewType: string, uri: URI): Promise<void>;
 	updateNotebookActiveCell(uri: URI, cellHandle: number): void;
 	createRawCell(uri: URI, index: number, language: string, type: CellKind): Promise<ICell | undefined>;
+	createRawCell2(uri: URI, index: number, language: string, type: CellKind): Promise<NotebookCellTextModel | undefined>;
 	deleteCell(uri: URI, index: number): Promise<boolean>
 	executeNotebookActiveCell(uri: URI): void;
-	destoryNotebookDocument(notebook: INotebook): Promise<void>;
+	destoryNotebookDocument(notebook: INotebookTextModel): Promise<void>;
+	save(uri: URI): Promise<boolean>;
 }
 
 export interface INotebookService {
@@ -40,7 +44,7 @@ export interface INotebookService {
 	registerNotebookRenderer(handle: number, extensionData: NotebookExtensionDescription, type: string, selectors: INotebookMimeTypeSelector, preloads: URI[]): void;
 	unregisterNotebookRenderer(handle: number): void;
 	getRendererInfo(handle: number): INotebookRendererInfo | undefined;
-	resolveNotebook(viewType: string, uri: URI): Promise<INotebook | undefined>;
+	resolveNotebook(viewType: string, uri: URI): Promise<NotebookTextModel | undefined>;
 	executeNotebook(viewType: string, uri: URI): Promise<void>;
 	executeNotebookActiveCell(viewType: string, uri: URI): Promise<void>;
 	getContributedNotebookProviders(resource: URI): readonly NotebookProviderInfo[];
@@ -48,8 +52,9 @@ export interface INotebookService {
 	updateNotebookActiveCell(viewType: string, resource: URI, cellHandle: number): void;
 	createNotebookCell(viewType: string, resource: URI, index: number, language: string, type: CellKind): Promise<ICell | undefined>;
 	deleteNotebookCell(viewType: string, resource: URI, index: number): Promise<boolean>;
-	destoryNotebookDocument(viewType: string, notebook: INotebook): void;
+	destoryNotebookDocument(viewType: string, notebook: INotebookTextModel): void;
 	updateActiveNotebookDocument(viewType: string, resource: URI): void;
+	save(viewType: string, resource: URI): Promise<boolean>;
 }
 
 export class NotebookProviderInfoStore {
@@ -105,8 +110,8 @@ class ModelData implements IDisposable {
 	private readonly _modelEventListeners = new DisposableStore();
 
 	constructor(
-		public model: INotebook,
-		onWillDispose: (model: INotebook) => void
+		public model: NotebookTextModel,
+		onWillDispose: (model: INotebookTextModel) => void
 	) {
 		this._modelEventListeners.add(model.onWillDispose(() => onWillDispose(model)));
 	}
@@ -215,7 +220,7 @@ export class NotebookService extends Disposable implements INotebookService {
 		return;
 	}
 
-	async resolveNotebook(viewType: string, uri: URI): Promise<INotebook | undefined> {
+	async resolveNotebook(viewType: string, uri: URI): Promise<NotebookTextModel | undefined> {
 		const provider = this._notebookProviders.get(viewType);
 		if (!provider) {
 			return undefined;
@@ -249,6 +254,16 @@ export class NotebookService extends Disposable implements INotebookService {
 
 		if (provider) {
 			return provider.controller.createRawCell(resource, index, language, type);
+		}
+
+		return;
+	}
+
+	async createNotebookCell2(viewType: string, resource: URI, index: number, language: string, type: CellKind): Promise<NotebookCellTextModel | undefined> {
+		let provider = this._notebookProviders.get(viewType);
+
+		if (provider) {
+			return provider.controller.createRawCell2(resource, index, language, type);
 		}
 
 		return;
@@ -299,7 +314,7 @@ export class NotebookService extends Disposable implements INotebookService {
 		return ret;
 	}
 
-	destoryNotebookDocument(viewType: string, notebook: INotebook): void {
+	destoryNotebookDocument(viewType: string, notebook: INotebookTextModel): void {
 		let provider = this._notebookProviders.get(viewType);
 
 		if (provider) {
@@ -311,7 +326,17 @@ export class NotebookService extends Disposable implements INotebookService {
 		this._onDidChangeActiveEditor.fire({ viewType, uri: resource });
 	}
 
-	private _onWillDispose(model: INotebook): void {
+	async save(viewType: string, resource: URI): Promise<boolean> {
+		let provider = this._notebookProviders.get(viewType);
+
+		if (provider) {
+			return provider.controller.save(resource);
+		}
+
+		return false;
+	}
+
+	private _onWillDispose(model: INotebookTextModel): void {
 		let modelId = MODEL_ID(model.uri);
 		let modelData = this._models[modelId];
 

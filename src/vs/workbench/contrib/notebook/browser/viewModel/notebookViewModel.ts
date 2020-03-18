@@ -143,7 +143,7 @@ export class NotebookViewModel extends Disposable {
 
 	private _deleteCellDelegate(deleteIndex: number, cell: ICell) {
 		this._viewCells.splice(deleteIndex, 1);
-		this._model.deleteCell(cell);
+		this._model.deleteCell(deleteIndex);
 		this._onDidChangeViewCells.fire({ synchronous: true, splices: [[deleteIndex, 1, []]] });
 	}
 
@@ -164,7 +164,7 @@ export class NotebookViewModel extends Disposable {
 	deleteCell(index: number, synchronous: boolean) {
 		let viewCell = this._viewCells[index];
 		this._viewCells.splice(index, 1);
-		this._model.deleteCell(viewCell.cell);
+		this._model.deleteCell(index);
 
 		this.undoService.pushElement(new DeleteCellEdit(this.uri, index, viewCell, {
 			insertCell: this._insertCellDelegate.bind(this),
@@ -182,7 +182,7 @@ export class NotebookViewModel extends Disposable {
 		}
 
 		this.viewCells.splice(index, 1);
-		this._model.deleteCell(viewCell.cell);
+		this._model.deleteCell(index);
 
 		this.viewCells!.splice(newIdx, 0, viewCell);
 		this._model.insertCell(viewCell.cell, newIdx);

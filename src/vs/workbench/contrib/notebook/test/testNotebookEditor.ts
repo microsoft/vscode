@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { PieceTreeTextBufferFactory } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
-import { CellKind, ICell, INotebook, IOutput, NotebookCellOutputsSplice, NotebookCellsSplice, CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, ICell, IOutput, NotebookCellOutputsSplice, CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookViewModel, IModelDecorationsChangeAccessor } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
@@ -19,6 +18,8 @@ import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { Range } from 'vs/editor/common/core/range';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
+import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
+import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 
 export class TestCell implements ICell {
 	uri: URI;
@@ -50,36 +51,11 @@ export class TestCell implements ICell {
 		this._outputs = outputs;
 		this.uri = CellUri.generate(URI.parse('test:///fake/notebook'), handle);
 	}
+	contentChange(): void {
+		// throw new Error('Method not implemented.');
+	}
 
 	resolveTextBufferFactory(): PieceTreeTextBufferFactory {
-		throw new Error('Method not implemented.');
-	}
-}
-
-export class TestNotebook extends Disposable implements INotebook {
-	private readonly _onDidChangeCells = new Emitter<NotebookCellsSplice[]>();
-	get onDidChangeCells(): Event<NotebookCellsSplice[]> { return this._onDidChangeCells.event; }
-	private _onDidChangeDirtyState = new Emitter<boolean>();
-	onDidChangeDirtyState: Event<boolean> = this._onDidChangeDirtyState.event;
-	private readonly _onWillDispose: Emitter<void> = this._register(new Emitter<void>());
-	readonly onWillDispose: Event<void> = this._onWillDispose.event;
-	cells: TestCell[];
-	activeCell: TestCell | undefined;
-	languages: string[] = [];
-	renderers = new Set<number>();
-
-
-	constructor(
-		public handle: number,
-		public viewType: string,
-		public uri: URI
-	) {
-		super();
-
-		this.cells = [];
-	}
-
-	save(): Promise<boolean> {
 		throw new Error('Method not implemented.');
 	}
 }
@@ -205,9 +181,9 @@ export function createTestCellViewModel(instantiationService: IInstantiationServ
 export function withTestNotebook(instantiationService: IInstantiationService, blukEditService: IBulkEditService, undoRedoService: IUndoRedoService, cells: [string[], string, CellKind, IOutput[]][], callback: (editor: TestNotebookEditor, viewModel: NotebookViewModel) => void) {
 	const viewType = 'notebook';
 	const editor = new TestNotebookEditor();
-	const notebook = new TestNotebook(0, viewType, URI.parse('test'));
+	const notebook = new NotebookTextModel(0, viewType, URI.parse('test'));
 	notebook.cells = cells.map((cell, index) => {
-		return new TestCell(viewType, index, cell[0], cell[1], cell[2], cell[3]);
+		return new NotebookCellTextModel(notebook.uri, index, cell[0], cell[1], cell[2], cell[3]);
 	});
 	const model = new NotebookEditorModel(notebook);
 	const viewModel = new NotebookViewModel(viewType, model, instantiationService, blukEditService, undoRedoService);

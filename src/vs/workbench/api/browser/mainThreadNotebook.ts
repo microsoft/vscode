@@ -4,108 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { MainContext, MainThreadNotebookShape, NotebookExtensionDescription, IExtHostContext, ExtHostNotebookShape, ExtHostContext } from '../common/extHost.protocol';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { MainContext, MainThreadNotebookShape, NotebookExtensionDescription, IExtHostContext, ExtHostNotebookShape, ExtHostContext, ICellDto } from '../common/extHost.protocol';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { INotebookService, IMainNotebookController } from 'vs/workbench/contrib/notebook/browser/notebookService';
-import { Emitter, Event } from 'vs/base/common/event';
-import { ICell, IOutput, INotebook, INotebookMimeTypeSelector, NOTEBOOK_DISPLAY_ORDER, NotebookCellsSplice, NotebookCellOutputsSplice, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICell, INotebookTextModel, INotebookMimeTypeSelector, NOTEBOOK_DISPLAY_ORDER, NotebookCellsSplice, NotebookCellOutputsSplice, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { PieceTreeTextBufferFactory, PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
+import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
+import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 
-export class MainThreadCell implements ICell {
-	private _onDidChangeOutputs = new Emitter<NotebookCellOutputsSplice[]>();
-	onDidChangeOutputs: Event<NotebookCellOutputsSplice[]> = this._onDidChangeOutputs.event;
+export class MainThreadNotebookDocument extends Disposable {
+	private _textModel: NotebookTextModel;
 
-	private _onDidChangeDirtyState = new Emitter<boolean>();
-	onDidChangeDirtyState: Event<boolean> = this._onDidChangeDirtyState.event;
-
-	private _outputs: IOutput[];
-
-	get outputs(): IOutput[] {
-		return this._outputs;
-	}
-
-	private _isDirty: boolean = false;
-
-	get isDirty() {
-		return this._isDirty;
-	}
-
-	set isDirty(newState: boolean) {
-		this._isDirty = newState;
-		this._onDidChangeDirtyState.fire(newState);
-	}
-
-	get source() {
-		return this._source;
-	}
-
-	set source(newValue: string[]) {
-		this._source = newValue;
-		this._buffer = null;
-	}
-
-	private _buffer: PieceTreeTextBufferFactory | null = null;
-
-	constructor(
-		readonly uri: URI,
-		public handle: number,
-		private _source: string[],
-		public language: string,
-		public cellKind: CellKind,
-		outputs: IOutput[]
-	) {
-		this._outputs = outputs;
-	}
-
-	spliceNotebookCellOutputs(splices: NotebookCellOutputsSplice[]): void {
-		splices.reverse().forEach(splice => {
-			this.outputs.splice(splice[0], splice[1], ...splice[2]);
-		});
-
-		this._onDidChangeOutputs.fire(splices);
-	}
-
-	save() {
-		this._isDirty = false;
-	}
-
-	resolveTextBufferFactory(): PieceTreeTextBufferFactory {
-		if (this._buffer) {
-			return this._buffer;
-		}
-
-		let builder = new PieceTreeTextBufferBuilder();
-		builder.acceptChunk(this.source.join('\n'));
-		this._buffer = builder.finish(true);
-		return this._buffer;
-	}
-}
-
-export class MainThreadNotebookDocument extends Disposable implements INotebook {
-	private readonly _onWillDispose: Emitter<void> = this._register(new Emitter<void>());
-	readonly onWillDispose: Event<void> = this._onWillDispose.event;
-	private readonly _onDidChangeCells = new Emitter<NotebookCellsSplice[]>();
-	get onDidChangeCells(): Event<NotebookCellsSplice[]> { return this._onDidChangeCells.event; }
-	private _onDidChangeDirtyState = new Emitter<boolean>();
-	onDidChangeDirtyState: Event<boolean> = this._onDidChangeDirtyState.event;
-	private _mapping: Map<number, MainThreadCell> = new Map();
-	private _cellListeners: Map<number, IDisposable> = new Map();
-	cells: MainThreadCell[];
-	activeCell: MainThreadCell | undefined;
-	languages: string[] = [];
-	renderers = new Set<number>();
-
-	private _isDirty: boolean = false;
-
-	get isDirty() {
-		return this._isDirty;
-	}
-
-	set isDirty(newState: boolean) {
-		this._isDirty = newState;
-		this._onDidChangeDirtyState.fire(newState);
+	get textModel() {
+		return this._textModel;
 	}
 
 	constructor(
@@ -115,35 +27,13 @@ export class MainThreadNotebookDocument extends Disposable implements INotebook 
 		public uri: URI
 	) {
 		super();
-		this.cells = [];
+		this._textModel = new NotebookTextModel(handle, viewType, uri);
 	}
 
-	updateLanguages(languages: string[]) {
-		this.languages = languages;
-	}
-
-	updateRenderers(renderers: number[]) {
-		renderers.forEach(render => {
-			this.renderers.add(render);
-		});
-	}
-
-	updateActiveCell(handle: number) {
-		this.activeCell = this._mapping.get(handle);
-	}
-
-	async createRawCell(viewType: string, uri: URI, index: number, language: string, type: CellKind): Promise<MainThreadCell | undefined> {
-		let cell = await this._proxy.$createEmptyCell(viewType, uri, index, language, type);
+	async createRawCell(cell: ICellDto | undefined, index: number): Promise<NotebookCellTextModel | undefined> {
 		if (cell) {
-			let mainCell = new MainThreadCell(URI.revive(cell.uri), cell.handle, cell.source, cell.language, cell.cellKind, cell.outputs);
-			this._mapping.set(cell.handle, mainCell);
-			this.cells.splice(index, 0, mainCell);
-
-			let dirtyStateListener = mainCell.onDidChangeDirtyState((cellState) => {
-				this.isDirty = this.isDirty || cellState;
-			});
-
-			this._cellListeners.set(cell.handle, dirtyStateListener);
+			let mainCell = new NotebookCellTextModel(URI.revive(cell.uri), cell.handle, cell.source, cell.language, cell.cellKind, cell.outputs);
+			this._textModel.insertNewCell(index, mainCell);
 			return mainCell;
 		}
 
@@ -153,55 +43,15 @@ export class MainThreadNotebookDocument extends Disposable implements INotebook 
 	async deleteCell(uri: URI, index: number): Promise<boolean> {
 		let deleteExtHostCell = await this._proxy.$deleteCell(this.viewType, uri, index);
 		if (deleteExtHostCell) {
-			let cell = this.cells[index];
-			this._cellListeners.get(cell.handle)?.dispose();
-			this._cellListeners.delete(cell.handle);
-			this.cells.splice(index, 1);
+			this._textModel.removeCell(index);
 			return true;
 		}
 
 		return false;
 	}
 
-	async save(): Promise<boolean> {
-		let ret = await this._proxy.$saveNotebook(this.viewType, this.uri);
-
-		if (ret) {
-			this.cells.forEach((cell) => {
-				cell.save();
-			});
-		}
-
-		return ret;
-	}
-
-	spliceNotebookCells(splices: NotebookCellsSplice[]): void {
-		splices.reverse().forEach(splice => {
-			let cellDtos = splice[2];
-			let newCells = cellDtos.map(cell => {
-				let mainCell = new MainThreadCell(URI.revive(cell.uri), cell.handle, cell.source, cell.language, cell.cellKind, cell.outputs || []);
-				this._mapping.set(cell.handle, mainCell);
-				let dirtyStateListener = mainCell.onDidChangeDirtyState((cellState) => {
-					this.isDirty = this.isDirty || cellState;
-				});
-				this._cellListeners.set(cell.handle, dirtyStateListener);
-				return mainCell;
-			});
-
-			this.cells.splice(splice[0], splice[1], ...newCells);
-		});
-
-		this._onDidChangeCells.fire(splices);
-	}
-
-	spliceNotebookCellOutputs(cellHandle: number, splices: NotebookCellOutputsSplice[]): void {
-		let cell = this._mapping.get(cellHandle);
-		cell?.spliceNotebookCellOutputs(splices);
-	}
-
 	dispose() {
-		this._onWillDispose.fire();
-		this._cellListeners.forEach(val => val.dispose());
+		this._textModel.dispose();
 		super.dispose();
 	}
 }
@@ -313,18 +163,18 @@ export class MainThreadNotebookController implements IMainNotebookController {
 	) {
 	}
 
-	async resolveNotebook(viewType: string, uri: URI): Promise<INotebook | undefined> {
+	async resolveNotebook(viewType: string, uri: URI): Promise<NotebookTextModel | undefined> {
 		// TODO: resolve notebook should wait for all notebook document destory operations to finish.
 		let mainthreadNotebook = this._mapping.get(URI.from(uri).toString());
 
 		if (mainthreadNotebook) {
-			return mainthreadNotebook;
+			return mainthreadNotebook.textModel;
 		}
 
 		let notebookHandle = await this._mainThreadNotebook.resolveNotebook(viewType, uri);
 		if (notebookHandle !== undefined) {
 			mainthreadNotebook = this._mapping.get(URI.from(uri).toString());
-			return mainthreadNotebook;
+			return mainthreadNotebook?.textModel;
 		}
 
 		return undefined;
@@ -332,14 +182,14 @@ export class MainThreadNotebookController implements IMainNotebookController {
 
 	spliceNotebookCells(resource: UriComponents, splices: NotebookCellsSplice[], renderers: number[]): void {
 		let mainthreadNotebook = this._mapping.get(URI.from(resource).toString());
-		mainthreadNotebook?.updateRenderers(renderers);
-		mainthreadNotebook?.spliceNotebookCells(splices);
+		mainthreadNotebook?.textModel.updateRenderers(renderers);
+		mainthreadNotebook?.textModel.$spliceNotebookCells(splices);
 	}
 
 	spliceNotebookCellOutputs(resource: UriComponents, cellHandle: number, splices: NotebookCellOutputsSplice[], renderers: number[]): void {
 		let mainthreadNotebook = this._mapping.get(URI.from(resource).toString());
-		mainthreadNotebook?.updateRenderers(renderers);
-		mainthreadNotebook?.spliceNotebookCellOutputs(cellHandle, splices);
+		mainthreadNotebook?.textModel.updateRenderers(renderers);
+		mainthreadNotebook?.textModel.$spliceNotebookCellOutputs(cellHandle, splices);
 	}
 
 	async executeNotebook(viewType: string, uri: URI): Promise<void> {
@@ -354,22 +204,33 @@ export class MainThreadNotebookController implements IMainNotebookController {
 
 	updateLanguages(resource: UriComponents, languages: string[]) {
 		let document = this._mapping.get(URI.from(resource).toString());
-		document?.updateLanguages(languages);
+		document?.textModel.updateLanguages(languages);
 	}
 
 	updateNotebookRenderers(resource: UriComponents, renderers: number[]): void {
 		let document = this._mapping.get(URI.from(resource).toString());
-		document?.updateRenderers(renderers);
+		document?.textModel.updateRenderers(renderers);
 	}
 
 	updateNotebookActiveCell(uri: URI, cellHandle: number): void {
 		let mainthreadNotebook = this._mapping.get(URI.from(uri).toString());
-		mainthreadNotebook?.updateActiveCell(cellHandle);
+		mainthreadNotebook?.textModel.updateActiveCell(cellHandle);
+	}
+
+	async createRawCell2(uri: URI, index: number, language: string, type: CellKind): Promise<NotebookCellTextModel | undefined> {
+		let cell = await this._proxy.$createEmptyCell(this._viewType, uri, index, language, type);
+		if (cell) {
+			let mainCell = new NotebookCellTextModel(URI.revive(cell.uri), cell.handle, cell.source, cell.language, cell.cellKind, cell.outputs);
+			return mainCell;
+		}
+
+		return undefined;
 	}
 
 	async createRawCell(uri: URI, index: number, language: string, type: CellKind): Promise<ICell | undefined> {
 		let mainthreadNotebook = this._mapping.get(URI.from(uri).toString());
-		return mainthreadNotebook?.createRawCell(this._viewType, uri, index, language, type);
+		let cell = await this._proxy.$createEmptyCell(this._viewType, uri, index, language, type);
+		return mainthreadNotebook?.createRawCell(cell, index);
 	}
 
 	async deleteCell(uri: URI, index: number): Promise<boolean> {
@@ -385,12 +246,12 @@ export class MainThreadNotebookController implements IMainNotebookController {
 	executeNotebookActiveCell(uri: URI): void {
 		let mainthreadNotebook = this._mapping.get(URI.from(uri).toString());
 
-		if (mainthreadNotebook && mainthreadNotebook.activeCell) {
-			this._proxy.$executeNotebook(this._viewType, uri, mainthreadNotebook.activeCell.handle);
+		if (mainthreadNotebook && mainthreadNotebook.textModel.activeCell) {
+			this._proxy.$executeNotebook(this._viewType, uri, mainthreadNotebook.textModel.activeCell.handle);
 		}
 	}
 
-	async destoryNotebookDocument(notebook: INotebook): Promise<void> {
+	async destoryNotebookDocument(notebook: INotebookTextModel): Promise<void> {
 		let document = this._mapping.get(URI.from(notebook.uri).toString());
 
 		if (!document) {
@@ -402,5 +263,9 @@ export class MainThreadNotebookController implements IMainNotebookController {
 			document.dispose();
 			this._mapping.delete(URI.from(notebook.uri).toString());
 		}
+	}
+
+	async save(uri: URI): Promise<boolean> {
+		return this._proxy.$saveNotebook(this._viewType, uri);
 	}
 }

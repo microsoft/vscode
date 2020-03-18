@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorInput, EditorModel, IEditorInput, GroupIdentifier, ISaveOptions } from 'vs/workbench/common/editor';
+import { EditorInput, EditorModel, IEditorInput, GroupIdentifier, ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
 import { Emitter, Event } from 'vs/base/common/event';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
-import { INotebook, ICell, NotebookCellsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICell, NotebookCellsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { URI } from 'vs/base/common/uri';
+import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
+import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 
 export class NotebookEditorModel extends EditorModel {
 	private _dirty = false;
@@ -24,16 +26,14 @@ export class NotebookEditorModel extends EditorModel {
 	}
 
 	constructor(
-		private _notebook: INotebook
+		private _notebook: NotebookTextModel
 	) {
 		super();
 
 		if (_notebook && _notebook.onDidChangeCells) {
-			this._register(_notebook.onDidChangeDirtyState((newState) => {
-				if (this._dirty !== newState) {
-					this._dirty = newState;
-					this._onDidChangeDirty.fire();
-				}
+			this._register(_notebook.onDidChangeContent(() => {
+				this._dirty = true;
+				this._onDidChangeDirty.fire();
 			}));
 			this._register(_notebook.onDidChangeCells((e) => {
 				this._onDidChangeCells.fire(e);
@@ -45,7 +45,7 @@ export class NotebookEditorModel extends EditorModel {
 		return this._dirty;
 	}
 
-	getNotebook(): INotebook {
+	getNotebook(): NotebookTextModel {
 		return this._notebook;
 	}
 
@@ -53,33 +53,28 @@ export class NotebookEditorModel extends EditorModel {
 		let notebook = this.getNotebook();
 
 		if (notebook) {
-			notebook.cells.splice(index, 0, cell);
+			let mainCell = new NotebookCellTextModel(URI.revive(cell.uri), cell.handle, cell.source, cell.language, cell.cellKind, cell.outputs);
+			this.notebook.insertNewCell(index, mainCell);
 			this._dirty = true;
 			this._onDidChangeDirty.fire();
+
 		}
 	}
 
-	deleteCell(cell: ICell) {
+	deleteCell(index: number) {
 		let notebook = this.getNotebook();
 
 		if (notebook) {
-			let index = notebook.cells.indexOf(cell);
-			notebook.cells.splice(index, 1);
-			this._dirty = true;
-			this._onDidChangeDirty.fire();
+			this.notebook.removeCell(index);
 		}
 	}
 
 	async save(): Promise<boolean> {
 		if (this._notebook) {
-			let ret = await this._notebook.save();
-
-			if (ret) {
-				this._dirty = false;
-				this._onDidChangeDirty.fire();
-				// todo, flush all states
-				return true;
-			}
+			this._dirty = false;
+			this._onDidChangeDirty.fire();
+			// todo, flush all states
+			return true;
 		}
 
 		return false;
@@ -114,12 +109,19 @@ export class NotebookEditorInput extends EditorInput {
 
 	async save(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
 		if (this.textModel) {
-			if (await this.textModel.save()) {
-				return this;
-			}
+			await this.notebookService.save(this.textModel.notebook.viewType, this.textModel.notebook.uri);
+			await this.textModel.save();
+			return this;
 		}
 
 		return undefined;
+	}
+
+	async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
+		if (this.textModel) {
+			// TODO@rebornix we need hashing
+			await this.textModel.save();
+		}
 	}
 
 	async resolve(): Promise<NotebookEditorModel> {

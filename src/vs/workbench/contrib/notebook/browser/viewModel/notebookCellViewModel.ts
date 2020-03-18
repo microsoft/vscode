@@ -243,8 +243,9 @@ export class CellViewModel extends Disposable implements ICellViewModel {
 		this.cell.source = strs;
 		this._html = null;
 	}
+
 	save() {
-		if (this._textModel && !this._textModel.isDisposed() && (this.cell.isDirty || this.state === CellState.Editing)) {
+		if (this._textModel && !this._textModel.isDisposed() && this.state === CellState.Editing) {
 			let cnt = this._textModel.getLineCount();
 			this.cell.source = this._textModel.getLinesContent().map((str, index) => str + (index !== cnt - 1 ? '\n' : ''));
 		}
@@ -276,7 +277,7 @@ export class CellViewModel extends Disposable implements ICellViewModel {
 			this._buffer = this._textModel.getTextBuffer();
 			this._register(ref);
 			this._register(this._textModel.onDidChangeContent(() => {
-				this.cell.isDirty = true;
+				this.cell.contentChange();
 				this._html = null;
 				this._onDidChangeContent.fire();
 			}));
