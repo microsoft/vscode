@@ -295,7 +295,7 @@ configurationRegistry.registerConfiguration({
 			default: true
 		},
 		'terminal.integrated.allowMnemonics': {
-			markdownDescription: nls.localize('terminal.integrated.allowMnemonics', "Whether to allow menubar mnemonics (eg. alt+f) to trigger the open the menubar. Note that this will cause all alt keystrokes will skip the shell when true."),
+			markdownDescription: nls.localize('terminal.integrated.allowMnemonics', "Whether to allow menubar mnemonics (eg. alt+f) to trigger the open the menubar. Note that this will cause all alt keystrokes will skip the shell when true. This does nothing on macOS."),
 			type: 'boolean',
 			default: false
 		},
