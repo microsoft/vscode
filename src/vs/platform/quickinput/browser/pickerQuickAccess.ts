@@ -92,13 +92,14 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 			picksCts = new CancellationTokenSource(token);
 
 			// Collect picks and support both long running and short or combined
-			const res = this.getPicks(picker.value.substr(this.prefix.length).trim(), disposables.add(new DisposableStore()), picksCts.token);
+			const picksToken = picksCts.token;
+			const res = this.getPicks(picker.value.substr(this.prefix.length).trim(), disposables.add(new DisposableStore()), picksToken);
 			if (isFastAndSlowPicksType(res)) {
 				picker.items = res.picks;
 				picker.busy = true;
 				try {
 					const additionalPicks = await res.additionalPicks;
-					if (token.isCancellationRequested) {
+					if (picksToken.isCancellationRequested) {
 						return;
 					}
 
@@ -106,7 +107,7 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 						picker.items = [...res.picks, ...additionalPicks];
 					}
 				} finally {
-					if (!token.isCancellationRequested) {
+					if (!picksToken.isCancellationRequested) {
 						picker.busy = false;
 					}
 				}
@@ -116,13 +117,13 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 				picker.busy = true;
 				try {
 					const items = await res;
-					if (token.isCancellationRequested) {
+					if (picksToken.isCancellationRequested) {
 						return;
 					}
 
 					picker.items = items;
 				} finally {
-					if (!token.isCancellationRequested) {
+					if (!picksToken.isCancellationRequested) {
 						picker.busy = false;
 					}
 				}
