@@ -6,9 +6,9 @@
 import 'vs/css!./media/paneviewlet';
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
+import { ColorIdentifier, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { attachStyler, IColorMapping, attachButtonStyler, attachLinkStyler, attachProgressBarStyler } from 'vs/platform/theme/common/styler';
-import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_FOREGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND, SIDE_BAR_SECTION_HEADER_BORDER, PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_FOREGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND, SIDE_BAR_SECTION_HEADER_BORDER, PANEL_BACKGROUND, SIDE_BAR_BACKGROUND, EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 import { append, $, trackFocus, toggleClass, EventType, isAncestor, Dimension, addDisposableListener, removeClass, addClass } from 'vs/base/browser/dom';
 import { IDisposable, combinedDisposable, dispose, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { firstIndex } from 'vs/base/common/arrays';
@@ -20,8 +20,8 @@ import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { PaneView, IPaneViewOptions, IPaneOptions, Pane, DefaultPaneDndController } from 'vs/base/browser/ui/splitview/paneview';
+import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
+import { PaneView, IPaneViewOptions, IPaneOptions, Pane } from 'vs/base/browser/ui/splitview/paneview';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -42,11 +42,12 @@ import { parseLinkedText } from 'vs/base/common/linkedText';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { Link } from 'vs/platform/opener/browser/link';
-import { LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
+import { CompositeDragAndDropObserver, DragAndDropObserver } from 'vs/workbench/browser/dnd';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { CompositeProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
 import { IProgressIndicator } from 'vs/platform/progress/common/progress';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 export interface IPaneColors extends IColorMapping {
 	dropBackground?: ColorIdentifier;
@@ -59,14 +60,6 @@ export interface IViewPaneOptions extends IPaneOptions {
 	id: string;
 	showActionsAlways?: boolean;
 	titleMenuId?: MenuId;
-}
-
-export class DraggedViewIdentifier {
-	constructor(private _viewId: string) { }
-
-	get id(): string {
-		return this._viewId;
-	}
 }
 
 type WelcomeActionClassification = {
@@ -508,14 +501,216 @@ interface IViewPaneItem {
 	disposable: IDisposable;
 }
 
+const enum DropDirection {
+	UP,
+	DOWN,
+	LEFT,
+	RIGHT
+}
+
+class ViewPaneDropOverlay extends Themable {
+
+	private static readonly OVERLAY_ID = 'monaco-workbench-pane-drop-overlay';
+
+	private container!: HTMLElement;
+	private overlay!: HTMLElement;
+
+	private _currentDropOperation: DropDirection | undefined;
+
+	// private currentDropOperation: IDropOperation | undefined;
+	private _disposed: boolean | undefined;
+
+	private cleanupOverlayScheduler: RunOnceScheduler;
+
+	get currentDropOperation(): DropDirection | undefined {
+		return this._currentDropOperation;
+	}
+
+	constructor(
+		private paneElement: HTMLElement,
+		private orientation: Orientation,
+		protected themeService: IThemeService
+	) {
+		super(themeService);
+		this.cleanupOverlayScheduler = this._register(new RunOnceScheduler(() => this.dispose(), 300));
+
+		this.create();
+	}
+
+	get disposed(): boolean {
+		return !!this._disposed;
+	}
+
+	private create(): void {
+		// Container
+		this.container = document.createElement('div');
+		this.container.id = ViewPaneDropOverlay.OVERLAY_ID;
+
+		// Parent
+		this.paneElement.appendChild(this.container);
+		addClass(this.paneElement, 'dragged-over');
+		this._register(toDisposable(() => {
+			this.paneElement.removeChild(this.container);
+			removeClass(this.paneElement, 'dragged-over');
+		}));
+
+		// Overlay
+		this.overlay = document.createElement('div');
+		addClass(this.overlay, 'pane-overlay-indicator');
+		this.container.appendChild(this.overlay);
+
+		// Overlay Event Handling
+		this.registerListeners();
+
+		// Styles
+		this.updateStyles();
+	}
+
+	protected updateStyles(): void {
+
+		// Overlay drop background
+		this.overlay.style.backgroundColor = this.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND) || '';
+
+		// Overlay contrast border (if any)
+		const activeContrastBorderColor = this.getColor(activeContrastBorder);
+		this.overlay.style.outlineColor = activeContrastBorderColor || '';
+		this.overlay.style.outlineOffset = activeContrastBorderColor ? '-2px' : '';
+		this.overlay.style.outlineStyle = activeContrastBorderColor ? 'dashed' : '';
+		this.overlay.style.outlineWidth = activeContrastBorderColor ? '2px' : '';
+
+		this.overlay.style.borderColor = activeContrastBorderColor || '';
+		this.overlay.style.borderStyle = 'solid' || '';
+	}
+
+	private registerListeners(): void {
+		this._register(new DragAndDropObserver(this.container, {
+			onDragEnter: e => undefined,
+			onDragOver: e => {
+
+				// Position overlay
+				this.positionOverlay(e.offsetX, e.offsetY);
+
+				// Make sure to stop any running cleanup scheduler to remove the overlay
+				if (this.cleanupOverlayScheduler.isScheduled()) {
+					this.cleanupOverlayScheduler.cancel();
+				}
+			},
+
+			onDragLeave: e => this.dispose(),
+			onDragEnd: e => this.dispose(),
+
+			onDrop: e => {
+				// Dispose overlay
+				this.dispose();
+			}
+		}));
+
+		this._register(addDisposableListener(this.container, EventType.MOUSE_OVER, () => {
+			// Under some circumstances we have seen reports where the drop overlay is not being
+			// cleaned up and as such the editor area remains under the overlay so that you cannot
+			// type into the editor anymore. This seems related to using VMs and DND via host and
+			// guest OS, though some users also saw it without VMs.
+			// To protect against this issue we always destroy the overlay as soon as we detect a
+			// mouse event over it. The delay is used to guarantee we are not interfering with the
+			// actual DROP event that can also trigger a mouse over event.
+			if (!this.cleanupOverlayScheduler.isScheduled()) {
+				this.cleanupOverlayScheduler.schedule();
+			}
+		}));
+	}
+
+	private positionOverlay(mousePosX: number, mousePosY: number): void {
+		const paneWidth = this.paneElement.clientWidth;
+		const paneHeight = this.paneElement.clientHeight;
+
+		const splitWidthThreshold = paneWidth / 2;
+		const splitHeightThreshold = paneHeight / 2;
+
+		let dropDirection: DropDirection | undefined;
+
+		if (this.orientation === Orientation.VERTICAL) {
+			if (mousePosY < splitHeightThreshold) {
+				dropDirection = DropDirection.UP;
+			} else if (mousePosY >= splitHeightThreshold) {
+				dropDirection = DropDirection.DOWN;
+			}
+		} else {
+			if (mousePosX < splitWidthThreshold) {
+				dropDirection = DropDirection.LEFT;
+			} else if (mousePosX >= splitWidthThreshold) {
+				dropDirection = DropDirection.RIGHT;
+			}
+		}
+
+		// Draw overlay based on split direction
+		switch (dropDirection) {
+			case DropDirection.UP:
+				this.doPositionOverlay({ top: '0', left: '0', width: '100%', height: '50%' });
+				break;
+			case DropDirection.DOWN:
+				this.doPositionOverlay({ bottom: '0', left: '0', width: '100%', height: '50%' });
+				break;
+			case DropDirection.LEFT:
+				this.doPositionOverlay({ top: '0', left: '0', width: '50%', height: '100%' });
+				break;
+			case DropDirection.RIGHT:
+				this.doPositionOverlay({ top: '0', right: '0', width: '50%', height: '100%' });
+				break;
+			default:
+				this.doPositionOverlay({ top: '0', left: '0', width: '100%', height: '100%' });
+		}
+
+		this.doUpdateOverlayBorder(dropDirection);
+
+		// Make sure the overlay is visible now
+		this.overlay.style.opacity = '1';
+
+		// Enable transition after a timeout to prevent initial animation
+		setTimeout(() => addClass(this.overlay, 'overlay-move-transition'), 0);
+
+		// Remember as current split direction
+		this._currentDropOperation = dropDirection;
+	}
+
+	private doUpdateOverlayBorder(direction: DropDirection | undefined): void {
+		this.overlay.style.borderTopWidth = direction === DropDirection.UP ? '2px' : '0px';
+		this.overlay.style.borderLeftWidth = direction === DropDirection.LEFT ? '2px' : '0px';
+		this.overlay.style.borderBottomWidth = direction === DropDirection.DOWN ? '2px' : '0px';
+		this.overlay.style.borderRightWidth = direction === DropDirection.RIGHT ? '2px' : '0px';
+	}
+
+	private doPositionOverlay(options: { top?: string, bottom?: string, left?: string, right?: string, width: string, height: string }): void {
+
+		// Container
+		this.container.style.height = '100%';
+
+		// Overlay
+		this.overlay.style.top = options.top || '';
+		this.overlay.style.left = options.left || '';
+		this.overlay.style.bottom = options.bottom || '';
+		this.overlay.style.right = options.right || '';
+		this.overlay.style.width = options.width;
+		this.overlay.style.height = options.height;
+	}
+
+
+	contains(element: HTMLElement): boolean {
+		return element === this.container || element === this.overlay;
+	}
+
+	dispose(): void {
+		super.dispose();
+
+		this._disposed = true;
+	}
+}
+
 export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 	readonly viewContainer: ViewContainer;
 	private lastFocusedPane: ViewPane | undefined;
 	private paneItems: IViewPaneItem[] = [];
 	private paneview?: PaneView;
-
-	private static viewTransfer = LocalSelectionTransfer.getInstance<DraggedViewIdentifier>();
 
 	private visible: boolean = false;
 
@@ -583,10 +778,6 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			throw new Error('Could not find container');
 		}
 
-		// Use default pane dnd controller if not specified
-		if (!this.options.dnd) {
-			this.options.dnd = new DefaultPaneDndController();
-		}
 
 		this.viewContainer = container;
 		this.visibleViewsStorageId = `${id}.numberOfVisibleViews`;
@@ -949,19 +1140,104 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		this.paneItems.splice(index, 0, paneItem);
 		assertIsDefined(this.paneview).addPane(pane, size, index);
 
-		this._register(addDisposableListener(pane.draggableElement, EventType.DRAG_START, (e: DragEvent) => {
-			if (e.dataTransfer) {
-				e.dataTransfer.effectAllowed = 'move';
-			}
+		let overlay: ViewPaneDropOverlay | undefined;
 
-			// Register as dragged to local transfer
-			ViewPaneContainer.viewTransfer.setData([new DraggedViewIdentifier(pane.id)], DraggedViewIdentifier.prototype);
-		}));
+		this._register(CompositeDragAndDropObserver.INSTANCE.registerDraggable(pane.draggableElement, 'view', pane.id, {}));
 
+		this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(pane.dropTargetElement, {
+			onDragEnter: (e) => {
+				if (!overlay) {
+					const dropData = e.dragAndDropData.getData();
+					if (dropData.type === 'view' && dropData.id !== pane.id) {
 
-		this._register(addDisposableListener(pane.draggableElement, EventType.DRAG_END, (e: DragEvent) => {
-			if (ViewPaneContainer.viewTransfer.hasData(DraggedViewIdentifier.prototype)) {
-				ViewPaneContainer.viewTransfer.clearData(DraggedViewIdentifier.prototype);
+						const oldViewContainer = this.viewDescriptorService.getViewContainer(dropData.id);
+						const viewDescriptor = this.viewDescriptorService.getViewDescriptor(dropData.id);
+
+						if (oldViewContainer !== this.viewContainer && (!viewDescriptor || !viewDescriptor.canMoveView)) {
+							return;
+						}
+
+						overlay = new ViewPaneDropOverlay(pane.dropTargetElement, this.options.orientation ?? Orientation.VERTICAL, this.themeService);
+					}
+
+					if (dropData.type === 'composite' && dropData.id !== this.viewContainer.id) {
+						const viewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
+
+						const container = viewContainerRegistry.get(dropData.id)!;
+						const viewsToMove = this.viewDescriptorService.getViewDescriptors(container).allViewDescriptors;
+
+						if (viewsToMove.length === 1 && viewsToMove[0].canMoveView) {
+							overlay = new ViewPaneDropOverlay(pane.dropTargetElement, this.options.orientation ?? Orientation.VERTICAL, this.themeService);
+						}
+					}
+
+				}
+			},
+			onDragLeave: (e) => {
+				overlay?.dispose();
+				overlay = undefined;
+			},
+			onDrop: (e) => {
+				if (overlay) {
+					const dropData = e.dragAndDropData.getData();
+
+					if (dropData.type === 'composite' && dropData.id !== this.viewContainer.id) {
+						const viewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
+
+						const container = viewContainerRegistry.get(dropData.id)!;
+						const viewsToMove = this.viewDescriptorService.getViewDescriptors(container).allViewDescriptors;
+
+						if (viewsToMove.length === 1 && viewsToMove[0].canMoveView) {
+							dropData.type = 'view';
+							dropData.id = viewsToMove[0].id;
+						}
+					}
+
+					if (dropData.type === 'view') {
+
+						const oldViewContainer = this.viewDescriptorService.getViewContainer(dropData.id);
+						const viewDescriptor = this.viewDescriptorService.getViewDescriptor(dropData.id);
+						if (oldViewContainer !== this.viewContainer && viewDescriptor && viewDescriptor.canMoveView) {
+							this.viewDescriptorService.moveViewsToContainer([viewDescriptor], this.viewContainer);
+						}
+
+						if (overlay.currentDropOperation === DropDirection.DOWN ||
+							overlay.currentDropOperation === DropDirection.RIGHT) {
+
+							const fromIndex = this.panes.findIndex(p => p.id === dropData.id);
+							let toIndex = this.panes.findIndex(p => p.id === pane.id);
+
+							if (fromIndex >= 0 && toIndex >= 0) {
+								if (fromIndex > toIndex) {
+									toIndex++;
+								}
+
+								if (toIndex < this.panes.length && toIndex !== fromIndex) {
+									this.movePane(this.panes[fromIndex], this.panes[toIndex]);
+								}
+							}
+						}
+
+						if (overlay.currentDropOperation === DropDirection.UP ||
+							overlay.currentDropOperation === DropDirection.LEFT) {
+							const fromIndex = this.panes.findIndex(p => p.id === dropData.id);
+							let toIndex = this.panes.findIndex(p => p.id === pane.id);
+
+							if (fromIndex >= 0 && toIndex >= 0) {
+								if (fromIndex < toIndex) {
+									toIndex--;
+								}
+
+								if (toIndex >= 0 && toIndex !== fromIndex) {
+									this.movePane(this.panes[fromIndex], this.panes[toIndex]);
+								}
+							}
+						}
+					}
+				}
+
+				overlay?.dispose();
+				overlay = undefined;
 			}
 		}));
 	}
