@@ -288,8 +288,8 @@ export class UndoRedoService implements IUndoRedoService {
 			Severity.Info,
 			nls.localize('confirmWorkspace', "Would you like to undo '{0}' across all files?", element.label),
 			[
-				nls.localize('ok', "Undo In {0} Files", affectedEditStacks.length),
-				nls.localize('nok', "Undo This File"),
+				nls.localize('ok', "Undo in {0} Files", affectedEditStacks.length),
+				nls.localize('nok', "Undo this File"),
 				nls.localize('cancel', "Cancel"),
 			],
 			{
