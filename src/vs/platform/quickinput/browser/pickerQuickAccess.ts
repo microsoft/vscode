@@ -95,7 +95,12 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 			const picksToken = picksCts.token;
 			const res = this.getPicks(picker.value.substr(this.prefix.length).trim(), disposables.add(new DisposableStore()), picksToken);
 			if (isFastAndSlowPicksType(res)) {
-				picker.items = res.picks;
+				if (res.picks.length > 0) {
+					// Optimization: if there are no fast results
+					// we do nto simply unset all the existing items
+					// to reduce the flickering.
+					picker.items = res.picks;
+				}
 				picker.busy = true;
 				try {
 					const additionalPicks = await res.additionalPicks;
@@ -103,7 +108,9 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 						return;
 					}
 
-					if (additionalPicks.length > 0) {
+					if (res.picks.length === 0 || additionalPicks.length > 0) {
+						// Optimization: we only update the picker items if we either
+						// did not update them earlier, or we actually got new results
 						picker.items = [...res.picks, ...additionalPicks];
 					}
 				} finally {
@@ -187,5 +194,5 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 	 * through this token.
 	 * @returns the picks either directly, as promise or combined fast and slow results.
 	 */
-	protected abstract getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Array<T | IQuickPickSeparator> | Promise<Array<T | IQuickPickSeparator>> | { picks: Array<T | IQuickPickSeparator>, additionalPicks: Promise<Array<T | IQuickPickSeparator>> };
+	protected abstract getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Array<T | IQuickPickSeparator> | Promise<Array<T | IQuickPickSeparator>> | FastAndSlowPicksType<T>;
 }
