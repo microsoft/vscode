@@ -190,19 +190,12 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 
 	element.innerHTML = insane(renderedMarkdown, {
 		allowedSchemes,
-		allowedTags: [
-			'a', 'abbr', 'article', 'b', 'blockquote', 'br', 'caption', 'code', 'del', 'details', 'div', 'em',
-			'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'i', 'img', 'ins', 'kbd', 'li', 'main', 'mark',
-			'ol', 'p', 'pre', 'section', 'span', 'strike', 'strong', 'sub', 'summary', 'sup', 'table',
-			'tbody', 'td', 'th', 'thead', 'tr', 'u', 'ul', 'input'
-		],
 		allowedAttributes: {
 			'a': ['href', 'name', 'target', 'data-href'],
 			'iframe': ['allowfullscreen', 'frameborder', 'src'],
 			'img': ['src', 'title', 'alt', 'width', 'height'],
 			'div': ['class', 'data-code'],
-			'span': ['class', 'data-latex'],
-			'input': ['type', 'disabled', 'checked']
+			'span': ['class']
 		}
 	});
 
