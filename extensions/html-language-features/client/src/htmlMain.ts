@@ -29,9 +29,6 @@ namespace TagCloseRequest {
 namespace MatchingTagPositionRequest {
 	export const type: RequestType<TextDocumentPositionParams, Position | null, any, any> = new RequestType('html/matchingTagPosition');
 }
-namespace SyncedRegionsRequest {
-	export const type: RequestType<TextDocumentPositionParams, Range[] | null, any, any> = new RequestType('html/syncedRegions');
-}
 
 // experimental: semantic tokens
 interface SemanticTokenParams {
@@ -290,15 +287,6 @@ export function activate(context: ExtensionContext) {
 				results.push(snippetProposal);
 			}
 			return results;
-		}
-	});
-
-	languages.registerOnTypeRenameProvider(documentSelector, {
-		async provideOnTypeRenameRanges(document, position) {
-			const param = client.code2ProtocolConverter.asTextDocumentPositionParams(document, position);
-			const response = await client.sendRequest(SyncedRegionsRequest.type, param);
-
-			return response || [];
 		}
 	});
 }
