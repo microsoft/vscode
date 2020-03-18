@@ -27,8 +27,7 @@ export interface IMainNotebookController {
 	resolveNotebook(viewType: string, uri: URI): Promise<NotebookTextModel | undefined>;
 	executeNotebook(viewType: string, uri: URI): Promise<void>;
 	updateNotebookActiveCell(uri: URI, cellHandle: number): void;
-	createRawCell(uri: URI, index: number, language: string, type: CellKind): Promise<ICell | undefined>;
-	createRawCell2(uri: URI, index: number, language: string, type: CellKind): Promise<NotebookCellTextModel | undefined>;
+	createRawCell(uri: URI, index: number, language: string, type: CellKind): Promise<NotebookCellTextModel | undefined>;
 	deleteCell(uri: URI, index: number): Promise<boolean>
 	executeNotebookActiveCell(uri: URI): void;
 	destoryNotebookDocument(notebook: INotebookTextModel): Promise<void>;
@@ -249,21 +248,11 @@ export class NotebookService extends Disposable implements INotebookService {
 		}
 	}
 
-	async createNotebookCell(viewType: string, resource: URI, index: number, language: string, type: CellKind): Promise<ICell | undefined> {
+	async createNotebookCell(viewType: string, resource: URI, index: number, language: string, type: CellKind): Promise<NotebookCellTextModel | undefined> {
 		let provider = this._notebookProviders.get(viewType);
 
 		if (provider) {
 			return provider.controller.createRawCell(resource, index, language, type);
-		}
-
-		return;
-	}
-
-	async createNotebookCell2(viewType: string, resource: URI, index: number, language: string, type: CellKind): Promise<NotebookCellTextModel | undefined> {
-		let provider = this._notebookProviders.get(viewType);
-
-		if (provider) {
-			return provider.controller.createRawCell2(resource, index, language, type);
 		}
 
 		return;

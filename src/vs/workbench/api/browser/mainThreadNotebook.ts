@@ -217,7 +217,7 @@ export class MainThreadNotebookController implements IMainNotebookController {
 		mainthreadNotebook?.textModel.updateActiveCell(cellHandle);
 	}
 
-	async createRawCell2(uri: URI, index: number, language: string, type: CellKind): Promise<NotebookCellTextModel | undefined> {
+	async createRawCell(uri: URI, index: number, language: string, type: CellKind): Promise<NotebookCellTextModel | undefined> {
 		let cell = await this._proxy.$createEmptyCell(this._viewType, uri, index, language, type);
 		if (cell) {
 			let mainCell = new NotebookCellTextModel(URI.revive(cell.uri), cell.handle, cell.source, cell.language, cell.cellKind, cell.outputs);
@@ -225,12 +225,6 @@ export class MainThreadNotebookController implements IMainNotebookController {
 		}
 
 		return undefined;
-	}
-
-	async createRawCell(uri: URI, index: number, language: string, type: CellKind): Promise<ICell | undefined> {
-		let mainthreadNotebook = this._mapping.get(URI.from(uri).toString());
-		let cell = await this._proxy.$createEmptyCell(this._viewType, uri, index, language, type);
-		return mainthreadNotebook?.createRawCell(cell, index);
 	}
 
 	async deleteCell(uri: URI, index: number): Promise<boolean> {
