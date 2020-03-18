@@ -30,16 +30,6 @@ export class MainThreadNotebookDocument extends Disposable {
 		this._textModel = new NotebookTextModel(handle, viewType, uri);
 	}
 
-	async createRawCell(cell: ICellDto | undefined, index: number): Promise<NotebookCellTextModel | undefined> {
-		if (cell) {
-			let mainCell = new NotebookCellTextModel(URI.revive(cell.uri), cell.handle, cell.source, cell.language, cell.cellKind, cell.outputs);
-			this._textModel.insertNewCell(index, mainCell);
-			return mainCell;
-		}
-
-		return;
-	}
-
 	async deleteCell(uri: URI, index: number): Promise<boolean> {
 		let deleteExtHostCell = await this._proxy.$deleteCell(this.viewType, uri, index);
 		if (deleteExtHostCell) {
