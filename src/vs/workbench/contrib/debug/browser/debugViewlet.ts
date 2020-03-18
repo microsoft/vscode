@@ -5,10 +5,11 @@
 
 import 'vs/css!./media/debugViewlet';
 import * as nls from 'vs/nls';
-import { IAction } from 'vs/base/common/actions';
+import { IAction, Action } from 'vs/base/common/actions';
 import * as DOM from 'vs/base/browser/dom';
+import { Event } from 'vs/base/common/event';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IDebugService, VIEWLET_ID, State, BREAKPOINTS_VIEW_ID, IDebugConfiguration, DEBUG_PANEL_ID, CONTEXT_DEBUG_UX, CONTEXT_DEBUG_UX_KEY } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, VIEWLET_ID, State, BREAKPOINTS_VIEW_ID, IDebugConfiguration, DEBUG_PANEL_ID, CONTEXT_DEBUG_UX, CONTEXT_DEBUG_UX_KEY, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
 import { StartAction, ConfigureAction, SelectAndStartAction, FocusSessionAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { StartDebugActionViewItem, FocusSessionActionViewItem } from 'vs/workbench/contrib/debug/browser/debugActionViewItems';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -43,6 +44,7 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 	private paneListeners = new Map<string, IDisposable>();
 	private debugToolBarMenu: IMenu | undefined;
 	private disposeOnTitleUpdate: IDisposable | undefined;
+	private progressEvents: { event: DebugProtocol.ProgressStartEvent, session: IDebugSession }[] = [];
 
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
@@ -79,6 +81,34 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 				this.updateTitleArea();
 			}
 		}));
+
+		let progressListener: IDisposable;
+		this._register(this.debugService.getViewModel().onDidFocusSession(session => {
+			if (progressListener) {
+				progressListener.dispose();
+			}
+			if (session) {
+				progressListener = session.onDidProgressStart(async progressStartEvent => {
+					// Update title area to show the cancel progress action
+					this.progressEvents.push({ session: session, event: progressStartEvent });
+					this.cancelAction.tooltip = nls.localize('cancelProgress', "Cancel {0}", progressStartEvent.body.title);
+					this.updateTitleArea();
+					await this.progressService.withProgress({ location: VIEWLET_ID }, () => {
+						return new Promise(r => {
+							// Show progress until a progress end event comes or the session ends
+							const listener = Event.any(Event.filter(session.onDidProgressEnd, e => e.body.progressId === progressStartEvent.body.progressId),
+								session.onDidEndAdapter)(() => {
+									listener.dispose();
+									r();
+								});
+						});
+					});
+					this.cancelAction.tooltip = nls.localize('cancel', "Cancel");
+					this.progressEvents = this.progressEvents.filter(pe => pe.event.body.progressId !== progressStartEvent.body.progressId);
+					this.updateTitleArea();
+				});
+			}
+		}));
 	}
 
 	create(parent: HTMLElement): void {
@@ -112,6 +142,14 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 	}
 
 	@memoize
+	private get cancelAction(): Action {
+		return this._register(new Action('debug.cancelProgress', nls.localize('cancel', "Cancel"), 'debug-action codicon codicon-stop', true, async () => {
+			let { event, session } = this.progressEvents[this.progressEvents.length - 1];
+			await session.cancel(event.body.progressId);
+		}));
+	}
+
+	@memoize
 	private get selectAndStartAction(): SelectAndStartAction {
 		return this._register(this.instantiationService.createInstance(SelectAndStartAction, SelectAndStartAction.ID, nls.localize('startAdditionalSession', "Start Additional Session")));
 	}
@@ -120,6 +158,8 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 		if (CONTEXT_DEBUG_UX.getValue(this.contextKeyService) === 'simple') {
 			return [];
 		}
+
+		let result: IAction[];
 		if (!this.showInitialDebugActions) {
 
 			if (!this.debugToolBarMenu) {
@@ -133,14 +173,18 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 			}
 			this.disposeOnTitleUpdate = disposable;
 
-			return actions;
+			result = actions;
+		} else if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
+			result = [this.toggleReplAction];
+		} else {
+			result = [this.startAction, this.configureAction, this.toggleReplAction];
 		}
 
-		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			return [this.toggleReplAction];
+		if (this.progressEvents.length) {
+			result.unshift(this.cancelAction);
 		}
 
-		return [this.startAction, this.configureAction, this.toggleReplAction];
+		return result;
 	}
 
 	get showInitialDebugActions(): boolean {

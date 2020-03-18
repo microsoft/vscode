@@ -223,6 +223,7 @@ export interface IDebugSession extends ITreeElement {
 	variables(variablesReference: number, threadId: number | undefined, filter: 'indexed' | 'named' | undefined, start: number | undefined, count: number | undefined): Promise<DebugProtocol.VariablesResponse>;
 	evaluate(expression: string, frameId?: number, context?: string): Promise<DebugProtocol.EvaluateResponse>;
 	customRequest(request: string, args: any): Promise<DebugProtocol.Response>;
+	cancel(progressId: string): Promise<DebugProtocol.CancelResponse>;
 
 	restartFrame(frameId: number, threadId: number): Promise<void>;
 	next(threadId: number): Promise<void>;
