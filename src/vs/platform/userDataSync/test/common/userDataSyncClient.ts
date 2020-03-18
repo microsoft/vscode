@@ -52,9 +52,7 @@ export class UserDataSyncClient extends Disposable {
 		const environmentService = this.instantiationService.stub(IEnvironmentService, <Partial<IEnvironmentService>>{
 			userDataSyncHome,
 			settingsResource: joinPath(userDataDirectory, 'settings.json'),
-			settingsSyncPreviewResource: joinPath(userDataSyncHome, 'settings.json'),
 			keybindingsResource: joinPath(userDataDirectory, 'keybindings.json'),
-			keybindingsSyncPreviewResource: joinPath(userDataSyncHome, 'keybindings.json'),
 			argvResource: joinPath(userDataDirectory, 'argv.json'),
 			args: {}
 		});

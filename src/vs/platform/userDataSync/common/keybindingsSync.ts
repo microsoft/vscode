@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IFileService, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { UserDataSyncError, UserDataSyncErrorCode, SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IUserDataSyncUtilService, SyncResource, IUserDataSynchroniser, IUserDataSyncEnablementService, IUserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSync';
+import { UserDataSyncError, UserDataSyncErrorCode, SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IUserDataSyncUtilService, SyncResource, IUserDataSynchroniser, IUserDataSyncEnablementService, IUserDataSyncBackupStoreService, USER_DATA_SYNC_SCHEME, PREVIEW_DIR_NAME } from 'vs/platform/userDataSync/common/userDataSync';
 import { merge } from 'vs/platform/userDataSync/common/keybindingsMerge';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { parse } from 'vs/base/common/json';
@@ -19,6 +19,7 @@ import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { IFileSyncPreviewResult, AbstractJsonFileSynchroniser, IRemoteUserData } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { URI } from 'vs/base/common/uri';
+import { joinPath, isEqual } from 'vs/base/common/resources';
 
 interface ISyncContent {
 	mac?: string;
@@ -29,8 +30,9 @@ interface ISyncContent {
 
 export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implements IUserDataSynchroniser {
 
-	protected get conflictsPreviewResource(): URI { return this.environmentService.keybindingsSyncPreviewResource; }
 	protected readonly version: number = 1;
+	protected readonly localPreviewResource: URI = joinPath(this.syncFolder, PREVIEW_DIR_NAME, 'keybindings.json');
+	protected readonly remotePreviewResource: URI = this.localPreviewResource.with({ scheme: USER_DATA_SYNC_SCHEME });
 
 	constructor(
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
@@ -39,7 +41,7 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 		@IConfigurationService configurationService: IConfigurationService,
 		@IUserDataSyncEnablementService userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@IFileService fileService: IFileService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IEnvironmentService environmentService: IEnvironmentService,
 		@IUserDataSyncUtilService userDataSyncUtilService: IUserDataSyncUtilService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
@@ -129,8 +131,10 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 
 	}
 
-	async accept(content: string): Promise<void> {
-		if (this.status === SyncStatus.HasConflicts) {
+	async acceptConflict(conflict: URI, content: string): Promise<void> {
+		if (this.status === SyncStatus.HasConflicts
+			&& (isEqual(this.localPreviewResource, conflict) || isEqual(this.remotePreviewResource, conflict))
+		) {
 			const preview = await this.syncPreviewResultPromise!;
 			this.cancel();
 			this.syncPreviewResultPromise = createCancelablePromise(async () => ({ ...preview, content }));
@@ -156,8 +160,8 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 		return false;
 	}
 
-	async getRemoteContentFromPreview(): Promise<string | null> {
-		const content = await super.getRemoteContentFromPreview();
+	async getConflictContent(conflictResource: URI): Promise<string | null> {
+		const content = await super.getConflictContent(conflictResource);
 		return content !== null ? this.getKeybindingsContentFromSyncContent(content) : null;
 	}
 
@@ -224,7 +228,9 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 
 			if (hasLocalChanged) {
 				this.logService.trace(`${this.syncResourceLogLabel}: Updating local keybindings...`);
-				await this.backupLocal(this.toSyncContent(content, null));
+				if (fileContent) {
+					await this.backupLocal(this.toSyncContent(fileContent.value.toString(), null));
+				}
 				await this.updateLocalFileContent(content, fileContent);
 				this.logService.info(`${this.syncResourceLogLabel}: Updated local keybindings`);
 			}
@@ -238,7 +244,7 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 
 			// Delete the preview
 			try {
-				await this.fileService.del(this.conflictsPreviewResource);
+				await this.fileService.del(this.localPreviewResource);
 			} catch (e) { /* ignore */ }
 		} else {
 			this.logService.info(`${this.syncResourceLogLabel}: No changes found during synchronizing keybindings.`);
@@ -303,8 +309,10 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 		}
 
 		if (content && !token.isCancellationRequested) {
-			await this.fileService.writeFile(this.environmentService.keybindingsSyncPreviewResource, VSBuffer.fromString(content));
+			await this.fileService.writeFile(this.localPreviewResource, VSBuffer.fromString(content));
 		}
+
+		this.setConflicts(hasConflicts && !token.isCancellationRequested ? [{ local: this.localPreviewResource, remote: this.remotePreviewResource }] : []);
 
 		return { fileContent, remoteUserData, lastSyncUserData, content, hasLocalChanged, hasRemoteChanged, hasConflicts };
 	}
