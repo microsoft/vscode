@@ -404,7 +404,6 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 				localize('filePickAriaLabel', "{0}, file picker", label),
 			description,
 			iconClasses: getIconClasses(this.modelService, this.modeService, resource),
-			buttonsAlwaysVisible: isDirty,
 			buttons: (() => {
 				const openSideBySideDirection = this.configuration.openSideBySideDirection;
 				const buttons: IQuickInputButton[] = [];
@@ -419,15 +418,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 				if (isEditorHistoryEntry) {
 					buttons.push({
 						iconClass: isDirty ? 'dirty-anything codicon-circle-filled' : 'codicon-close',
-						tooltip: localize('closeEditor', "Remove from Recently Opened")
-					});
-				}
-
-				// Dirty indicator
-				else if (isDirty) {
-					buttons.push({
-						iconClass: 'codicon-circle-filled',
-						tooltip: localize('dirtyFile', "Dirty File")
+						tooltip: localize('closeEditor', "Remove from Recently Opened"),
+						alwaysVisible: isDirty
 					});
 				}
 
@@ -441,7 +433,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 						this.openAnything(resourceOrEditor, { keyMods, range, forceOpenSideBySide: true });
 						return TriggerAction.CLOSE_PICKER;
 
-					// Remove from History / Dirty Indicator
+					// Remove from History
 					case 1:
 						if (!URI.isUri(resourceOrEditor)) {
 							this.historyService.remove(resourceOrEditor);
