@@ -17,7 +17,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IDisposable, toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { ToggleActivityBarVisibilityAction, ToggleMenuBarAction } from 'vs/workbench/browser/actions/layoutActions';
 import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
-import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
+import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_ACTIVE_BACKGROUND, EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { CompositeBar, ICompositeBarItem, CompositeDragAndDrop } from 'vs/workbench/browser/parts/compositeBar';
 import { Dimension, addClass, removeNode } from 'vs/base/browser/dom';
@@ -39,6 +39,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { getMenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { isWeb } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { CompositeDragAndDropObserver } from 'vs/workbench/browser/dnd';
 
 interface ICachedViewlet {
 	id: string;
@@ -130,8 +131,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			hidePart: () => this.layoutService.setSideBarHidden(true),
 			dndHandler: new CompositeDragAndDrop(this.viewDescriptorService, ViewContainerLocation.Sidebar,
 				(id: string, focus?: boolean) => this.viewletService.openViewlet(id, focus),
-				(from: string, to: string) => this.compositeBar.move(from, to),
-				() => this.getPinnedViewletIds()
+				(from: string, to: string, before?: boolean) => this.compositeBar.move(from, to, before)
 			),
 			compositeSize: 50,
 			colors: (theme: IColorTheme) => this.getActivitybarItemColors(theme),
@@ -298,6 +298,10 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
 
+		const overlay = document.createElement('div');
+		addClass(overlay, 'drag-overlay');
+		parent.appendChild(overlay);
+
 		this.content = document.createElement('div');
 		addClass(this.content, 'content');
 		parent.appendChild(this.content);
@@ -316,6 +320,23 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		this.content.appendChild(globalActivities);
 
 		this.createGlobalActivityActionBar(globalActivities);
+
+		CompositeDragAndDropObserver.INSTANCE.registerTarget(this.element, {
+			onDragStart: e => {
+				overlay.style.backgroundColor = this.theme.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND, true)?.toString() || '';
+				overlay.style.opacity = '.8';
+			},
+			onDragEnd: e => {
+				overlay.style.opacity = '';
+			},
+			onDragEnter: e => {
+				overlay.style.opacity = '';
+			},
+			onDragLeave: e => {
+				overlay.style.backgroundColor = this.theme.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND, true)?.toString() || '';
+				overlay.style.opacity = '.8';
+			}
+		});
 
 		return this.content;
 	}
@@ -337,6 +358,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		container.style.borderLeftWidth = borderColor && !isPositionLeft ? '1px' : '';
 		container.style.borderLeftStyle = borderColor && !isPositionLeft ? 'solid' : '';
 		container.style.borderLeftColor = !isPositionLeft ? borderColor : '';
+		// container.style.outlineColor = this.getColor(ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND) ?? '';
 	}
 
 	private getActivitybarItemColors(theme: IColorTheme): ICompositeBarColors {

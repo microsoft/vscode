@@ -8,6 +8,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { IQuickPickSeparator, IKeyMods, IQuickPickAcceptEvent } from 'vs/base/parts/quickinput/common/quickInput';
 import { IQuickAccessProvider } from 'vs/platform/quickinput/common/quickAccess';
 import { IDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
+import { timeout } from 'vs/base/common/async';
 
 export enum TriggerAction {
 
@@ -53,17 +54,31 @@ export interface IPickerQuickAccessItem extends IQuickPickItem {
 	trigger?(buttonIndex: number, keyMods: IKeyMods): TriggerAction | Promise<TriggerAction>;
 }
 
+export interface IPickerQuickAccessProviderOptions {
+	canAcceptInBackground?: boolean;
+}
+
+export type FastAndSlowPicksType<T> = { picks: Array<T | IQuickPickSeparator>, additionalPicks: Promise<Array<T | IQuickPickSeparator>> };
+
+function isFastAndSlowPicksType<T>(obj: unknown): obj is FastAndSlowPicksType<T> {
+	const candidate = obj as FastAndSlowPicksType<T>;
+
+	return Array.isArray(candidate.picks) && candidate.additionalPicks instanceof Promise;
+}
+
 export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem> extends Disposable implements IQuickAccessProvider {
 
-	constructor(private prefix: string) {
+	private static FAST_PICKS_RACE_DELAY = 200; // timeout before we accept fast results before slow results are present
+
+	constructor(private prefix: string, protected options?: IPickerQuickAccessProviderOptions) {
 		super();
 	}
 
 	provide(picker: IQuickPick<T>, token: CancellationToken): IDisposable {
 		const disposables = new DisposableStore();
 
-		// Allow subclasses to configure picker
-		this.configure(picker);
+		// Apply options if any
+		picker.canAcceptInBackground = !!this.options?.canAcceptInBackground;
 
 		// Disable filtering & sorting, we control the results
 		picker.matchOnLabel = picker.matchOnDescription = picker.matchOnDetail = picker.sortByLabel = false;
@@ -79,21 +94,77 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 			// Create new cancellation source for this run
 			picksCts = new CancellationTokenSource(token);
 
-			// Collect picks and support both long running and short
-			const res = this.getPicks(picker.value.substr(this.prefix.length).trim(), disposables.add(new DisposableStore()), picksCts.token);
-			if (Array.isArray(res)) {
+			// Collect picks and support both long running and short or combined
+			const picksToken = picksCts.token;
+			const res = this.getPicks(picker.value.substr(this.prefix.length).trim(), disposables.add(new DisposableStore()), picksToken);
+			if (isFastAndSlowPicksType(res)) {
+				let fastPicksHandlerDone = false;
+				let slowPicksHandlerDone = false;
+
+				await Promise.all([
+
+					// Fast Picks: to reduce amount of flicker, we race against
+					// the slow picks over 500ms and then set the fast picks.
+					// If the slow picks are faster, we reduce the flicker by
+					// only setting the items once.
+					(async () => {
+						try {
+							await timeout(PickerQuickAccessProvider.FAST_PICKS_RACE_DELAY);
+							if (picksToken.isCancellationRequested) {
+								return;
+							}
+
+							if (!slowPicksHandlerDone) {
+								picker.items = res.picks;
+							}
+						} finally {
+							fastPicksHandlerDone = true;
+						}
+					})(),
+
+
+					// Slow Picks: we await the slow picks and then set them at
+					// once together with the fast picks, but only if we actually
+					// have additional results.
+					(async () => {
+						picker.busy = true;
+						try {
+							const additionalPicks = await res.additionalPicks;
+							if (picksToken.isCancellationRequested) {
+								return;
+							}
+
+							if (additionalPicks.length > 0 || !fastPicksHandlerDone) {
+								picker.items = [...res.picks, ...additionalPicks];
+							}
+						} finally {
+							if (!picksToken.isCancellationRequested) {
+								picker.busy = false;
+							}
+
+							slowPicksHandlerDone = true;
+						}
+					})()
+				]);
+			}
+
+			// Fast Picks
+			else if (Array.isArray(res)) {
 				picker.items = res;
-			} else {
+			}
+
+			// Slow Picks
+			else {
 				picker.busy = true;
 				try {
 					const items = await res;
-					if (token.isCancellationRequested) {
+					if (picksToken.isCancellationRequested) {
 						return;
 					}
 
 					picker.items = items;
 				} finally {
-					if (!token.isCancellationRequested) {
+					if (!picksToken.isCancellationRequested) {
 						picker.busy = false;
 					}
 				}
@@ -143,13 +214,6 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 	}
 
 	/**
-	 * Subclasses can override this method to configure the picker before showing it.
-	 *
-	 * @param picker the picker instance used for the quick access before it opens.
-	 */
-	protected configure(picker: IQuickPick<T>): void { }
-
-	/**
 	 * Returns an array of picks and separators as needed. If the picks are resolved
 	 * long running, the provided cancellation token should be used to cancel the
 	 * operation when the token signals this.
@@ -162,6 +226,7 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 	 * up when the picker closes.
 	 * @param token for long running tasks, implementors need to check on cancellation
 	 * through this token.
+	 * @returns the picks either directly, as promise or combined fast and slow results.
 	 */
-	protected abstract getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Array<T | IQuickPickSeparator> | Promise<Array<T | IQuickPickSeparator>>;
+	protected abstract getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Array<T | IQuickPickSeparator> | Promise<Array<T | IQuickPickSeparator>> | FastAndSlowPicksType<T>;
 }

@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/editorquickaccess';
 import { localize } from 'vs/nls';
-import { IQuickPickSeparator, quickPickItemScorerAccessor, IQuickPickItemWithResource, IQuickPick } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickPickSeparator, quickPickItemScorerAccessor, IQuickPickItemWithResource } from 'vs/platform/quickinput/common/quickInput';
 import { PickerQuickAccessProvider, IPickerQuickAccessItem, TriggerAction } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { IEditorGroupsService, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorsOrder, IEditorIdentifier, toResource, SideBySideEditor } from 'vs/workbench/common/editor';
@@ -25,18 +26,14 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 		@IModelService private readonly modelService: IModelService,
 		@IModeService private readonly modeService: IModeService
 	) {
-		super(prefix);
-	}
-
-	protected configure(picker: IQuickPick<IEditorQuickPickItem>): void {
-
-		// Allow to open editors in background without closing picker
-		picker.canAcceptInBackground = true;
+		super(prefix, { canAcceptInBackground: true });
 	}
 
 	protected getPicks(filter: string): Array<IEditorQuickPickItem | IQuickPickSeparator> {
 		const query = prepareQuery(filter);
 		const scorerCache = Object.create(null);
+
+		// Filtering
 		const filteredEditorEntries = this.doGetEditorPickItems().filter(entry => {
 			if (!query.value) {
 				return true;
@@ -102,11 +99,11 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 				description: editor.getDescription(),
 				iconClasses: getIconClasses(this.modelService, this.modeService, resource),
 				italic: !this.editorGroupService.getGroup(groupId)?.isPinned(editor),
-				buttonsAlwaysVisible: isDirty,
 				buttons: [
 					{
-						iconClass: isDirty ? 'codicon-circle-filled' : 'codicon-close',
-						tooltip: localize('closeEditor', "Close Editor")
+						iconClass: isDirty ? 'dirty-editor codicon-circle-filled' : 'codicon-close',
+						tooltip: localize('closeEditor', "Close Editor"),
+						alwaysVisible: isDirty
 					}
 				],
 				trigger: async () => {

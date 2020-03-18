@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, SyncStatus, IUserDataSyncStoreService, SyncResource, IUserDataSyncLogService, IUserDataSynchroniser, UserDataSyncStoreError, UserDataSyncErrorCode, UserDataSyncError, resolveSyncResource, PREVIEW_QUERY } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, SyncStatus, IUserDataSyncStoreService, SyncResource, IUserDataSyncLogService, IUserDataSynchroniser, UserDataSyncStoreError, UserDataSyncErrorCode, UserDataSyncError, resolveBackupSyncResource, SyncResourceConflicts } from 'vs/platform/userDataSync/common/userDataSync';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -17,6 +17,7 @@ import { localize } from 'vs/nls';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { URI } from 'vs/base/common/uri';
 import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
+import { isEqual } from 'vs/base/common/resources';
 
 type SyncErrorClassification = {
 	source: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
@@ -38,10 +39,10 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 	readonly onDidChangeLocal: Event<SyncResource>;
 
-	private _conflictsSources: SyncResource[] = [];
-	get conflictsSources(): SyncResource[] { return this._conflictsSources; }
-	private _onDidChangeConflicts: Emitter<SyncResource[]> = this._register(new Emitter<SyncResource[]>());
-	readonly onDidChangeConflicts: Event<SyncResource[]> = this._onDidChangeConflicts.event;
+	private _conflicts: SyncResourceConflicts[] = [];
+	get conflicts(): SyncResourceConflicts[] { return this._conflicts; }
+	private _onDidChangeConflicts: Emitter<SyncResourceConflicts[]> = this._register(new Emitter<SyncResourceConflicts[]>());
+	readonly onDidChangeConflicts: Event<SyncResourceConflicts[]> = this._onDidChangeConflicts.event;
 
 	private _syncErrors: [SyncResource, UserDataSyncError][] = [];
 	private _onSyncErrors: Emitter<[SyncResource, UserDataSyncError][]> = this._register(new Emitter<[SyncResource, UserDataSyncError][]>());
@@ -62,7 +63,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IStorageService private readonly storageService: IStorageService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super();
 		this.settingsSynchroniser = this._register(this.instantiationService.createInstance(SettingsSynchroniser));
@@ -74,6 +75,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 		if (this.userDataSyncStoreService.userDataSyncStore) {
 			this._register(Event.any(...this.synchronisers.map(s => Event.map(s.onDidChangeStatus, () => undefined)))(() => this.updateStatus()));
+			this._register(Event.any(...this.synchronisers.map(s => Event.map(s.onDidChangeConflicts, () => undefined)))(() => this.updateConflicts()));
 		}
 
 		this._lastSyncTime = this.storageService.getNumber(LAST_SYNC_TIME_KEY, StorageScope.GLOBAL, undefined);
@@ -173,23 +175,32 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		}
 	}
 
-	async accept(source: SyncResource, content: string): Promise<void> {
+	async acceptConflict(conflict: URI, content: string): Promise<void> {
 		await this.checkEnablement();
-		const synchroniser = this.getSynchroniser(source);
-		await synchroniser.accept(content);
+		const syncResourceConflict = this.conflicts.filter(({ conflicts }) => conflicts.some(({ local, remote }) => isEqual(conflict, local) || isEqual(conflict, remote)))[0];
+		if (syncResourceConflict) {
+			const synchroniser = this.getSynchroniser(syncResourceConflict.syncResource);
+			await synchroniser.acceptConflict(conflict, content);
+		}
 	}
 
 	async resolveContent(resource: URI): Promise<string | null> {
-		const result = resolveSyncResource(resource);
+		const result = resolveBackupSyncResource(resource);
 		if (result) {
 			const synchronizer = this.synchronisers.filter(s => s.resource === result.resource)[0];
 			if (synchronizer) {
-				if (PREVIEW_QUERY === resource.query) {
-					return result.remote ? synchronizer.getRemoteContentFromPreview() : null;
-				}
-				return result.remote ? synchronizer.getRemoteContent(result.ref, resource.fragment) : synchronizer.getLocalBackupContent(result.ref, resource.fragment);
+				const ref = result.path !== 'latest' ? result.path : undefined;
+				return result.remote ? synchronizer.getRemoteContent(ref, resource.fragment) : synchronizer.getLocalBackupContent(ref, resource.fragment);
 			}
 		}
+
+		for (const synchronizer of this.synchronisers) {
+			const content = await synchronizer.getConflictContent(resource);
+			if (content !== null) {
+				return content;
+			}
+		}
+
 		return null;
 	}
 
@@ -263,13 +274,17 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	}
 
 	private updateStatus(): void {
-		const conflictsSources = this.computeConflictsSources();
-		if (!equals(this._conflictsSources, conflictsSources)) {
-			this._conflictsSources = this.computeConflictsSources();
-			this._onDidChangeConflicts.fire(conflictsSources);
-		}
+		this.updateConflicts();
 		const status = this.computeStatus();
 		this.setStatus(status);
+	}
+
+	private updateConflicts(): void {
+		const conflicts = this.computeConflicts();
+		if (!equals(this._conflicts, conflicts, (a, b) => a.syncResource === b.syncResource && equals(a.conflicts, b.conflicts, (a, b) => isEqual(a.local, b.local) && isEqual(a.remote, b.remote)))) {
+			this._conflicts = this.computeConflicts();
+			this._onDidChangeConflicts.fire(conflicts);
+		}
 	}
 
 	private computeStatus(): SyncStatus {
@@ -305,8 +320,9 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		this.logService.error(`${source}: ${toErrorMessage(e)}`);
 	}
 
-	private computeConflictsSources(): SyncResource[] {
-		return this.synchronisers.filter(s => s.status === SyncStatus.HasConflicts).map(s => s.resource);
+	private computeConflicts(): SyncResourceConflicts[] {
+		return this.synchronisers.filter(s => s.status === SyncStatus.HasConflicts)
+			.map(s => ({ syncResource: s.resource, conflicts: s.conflicts }));
 	}
 
 	getSynchroniser(source: SyncResource): IUserDataSynchroniser {
