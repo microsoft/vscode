@@ -131,8 +131,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			hidePart: () => this.layoutService.setSideBarHidden(true),
 			dndHandler: new CompositeDragAndDrop(this.viewDescriptorService, ViewContainerLocation.Sidebar,
 				(id: string, focus?: boolean) => this.viewletService.openViewlet(id, focus),
-				(from: string, to: string, before?: boolean) => this.compositeBar.move(from, to, before),
-				() => this.getPinnedViewletIds()
+				(from: string, to: string, before?: boolean) => this.compositeBar.move(from, to, before)
 			),
 			compositeSize: 50,
 			colors: (theme: IColorTheme) => this.getActivitybarItemColors(theme),
