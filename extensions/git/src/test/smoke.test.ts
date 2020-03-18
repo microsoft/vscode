@@ -12,7 +12,7 @@ import * as path from 'path';
 import { GitExtension, API, Repository, Status } from '../api/git';
 import { eventToPromise } from '../util';
 
-suite('git smoke test', function () {
+suite.skip('git smoke test', function () {
 	const cwd = fs.realpathSync(workspace.workspaceFolders![0].uri.fsPath);
 
 	function file(relativePath: string) {
