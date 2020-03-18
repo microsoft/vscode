@@ -20,7 +20,7 @@ export const COPY_CELL_DOWN_COMMAND_ID = 'workbench.notebook.cell.copyDown';
 export const EXECUTE_CELL_COMMAND_ID = 'workbench.notebook.cell.execute';
 
 // Cell sizing related
-export const CELL_MARGIN = 24;
+export const CELL_MARGIN = 32;
 export const EDITOR_TOP_PADDING = 8;
 export const EDITOR_BOTTOM_PADDING = 8;
 export const EDITOR_TOOLBAR_HEIGHT = 22;
