@@ -52,6 +52,18 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	private scorerCache: ScorerCache = Object.create(null);
 
+	private readonly pickState = new class {
+		scorerCache: ScorerCache = Object.create(null);
+		fileQueryCache: FileQueryCacheState | undefined;
+
+		constructor(private readonly provider: AnythingQuickAccessProvider) { }
+
+		reset(): void {
+			this.fileQueryCache = this.provider.createFileQueryCache();
+			this.scorerCache = Object.create(null);
+		}
+	}(this);
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ISearchService private readonly searchService: ISearchService,
@@ -86,10 +98,10 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	provide(picker: IQuickPick<IAnythingQuickPickItem>, token: CancellationToken): IDisposable {
 
-		// Prepare caches for the run
-		this.warmUpFileQueryCache();
-		this.scorerCache = Object.create(null);
+		// Reset the pick state for this run
+		this.pickState.reset();
 
+		// Start picker
 		return super.provide(picker, token);
 	}
 
@@ -230,14 +242,13 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 	private fileQueryDelayer = this._register(new ThrottledDelayer<IFileMatch[]>(AnythingQuickAccessProvider.FILE_QUERY_DELAY));
 
 	private fileQueryBuilder = this.instantiationService.createInstance(QueryBuilder);
-	private fileQueryCacheState: FileQueryCacheState | undefined;
 
-	private warmUpFileQueryCache(): void {
-		this.fileQueryCacheState = new FileQueryCacheState(
+	private createFileQueryCache(): FileQueryCacheState {
+		return new FileQueryCacheState(
 			cacheKey => this.fileQueryBuilder.file(this.contextService.getWorkspace().folders, this.getFileQueryOptions({ cacheKey })),
 			query => this.searchService.fileSearch(query),
 			cacheKey => this.searchService.clearCache(cacheKey),
-			this.fileQueryCacheState
+			this.pickState.fileQueryCache
 		).load();
 	}
 
@@ -260,7 +271,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		// Otherwise run the file search (with a delayer if cache is not ready yet)
 		else {
-			if (this.fileQueryCacheState?.isLoaded) {
+			if (this.pickState.fileQueryCache?.isLoaded) {
 				fileMatches = await this.doFileSearch(query, token);
 			} else {
 				fileMatches = await this.fileQueryDelayer.trigger(() => this.doFileSearch(query, token));
@@ -287,7 +298,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 				this.contextService.getWorkspace().folders,
 				this.getFileQueryOptions({
 					filePattern: query.original,
-					cacheKey: this.fileQueryCacheState?.cacheKey,
+					cacheKey: this.pickState.fileQueryCache?.cacheKey,
 					maxResults: AnythingQuickAccessProvider.MAX_RESULTS
 				})
 			), token);
