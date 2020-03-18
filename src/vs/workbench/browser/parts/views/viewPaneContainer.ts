@@ -528,6 +528,7 @@ class ViewPaneDropOverlay extends Themable {
 
 	constructor(
 		private paneElement: HTMLElement,
+		private orientation: Orientation,
 		protected themeService: IThemeService
 	) {
 		super(themeService);
@@ -619,18 +620,26 @@ class ViewPaneDropOverlay extends Themable {
 	}
 
 	private positionOverlay(mousePosX: number, mousePosY: number): void {
-		// const paneWidth = this.paneElement.clientWidth;
+		const paneWidth = this.paneElement.clientWidth;
 		const paneHeight = this.paneElement.clientHeight;
 
-		// const splitWidthThreshold = paneWidth / 3;		// offer to split left/right at 33%
-		const splitHeightThreshold = paneHeight / 2;	// offer to split up/down at 33%
+		const splitWidthThreshold = paneWidth / 2;
+		const splitHeightThreshold = paneHeight / 2;
 
 		let dropDirection: DropDirection | undefined;
 
-		if (mousePosY < splitHeightThreshold) {
-			dropDirection = DropDirection.UP;
-		} else if (mousePosY > splitHeightThreshold) {
-			dropDirection = DropDirection.DOWN;
+		if (this.orientation === Orientation.VERTICAL) {
+			if (mousePosY < splitHeightThreshold) {
+				dropDirection = DropDirection.UP;
+			} else if (mousePosY >= splitHeightThreshold) {
+				dropDirection = DropDirection.DOWN;
+			}
+		} else {
+			if (mousePosX < splitWidthThreshold) {
+				dropDirection = DropDirection.LEFT;
+			} else if (mousePosX >= splitWidthThreshold) {
+				dropDirection = DropDirection.RIGHT;
+			}
 		}
 
 		// Draw overlay based on split direction
@@ -1148,7 +1157,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 							return;
 						}
 
-						overlay = new ViewPaneDropOverlay(pane.dropTargetElement, this.themeService);
+						overlay = new ViewPaneDropOverlay(pane.dropTargetElement, this.options.orientation ?? Orientation.VERTICAL, this.themeService);
 					}
 
 					if (dropData.type === 'composite' && dropData.id !== this.viewContainer.id) {
@@ -1158,7 +1167,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 						const viewsToMove = this.viewDescriptorService.getViewDescriptors(container).allViewDescriptors;
 
 						if (viewsToMove.length === 1 && viewsToMove[0].canMoveView) {
-							overlay = new ViewPaneDropOverlay(pane.dropTargetElement, this.themeService);
+							overlay = new ViewPaneDropOverlay(pane.dropTargetElement, this.options.orientation ?? Orientation.VERTICAL, this.themeService);
 						}
 					}
 
