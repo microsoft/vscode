@@ -40,7 +40,6 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 		private targetContainerLocation: ViewContainerLocation,
 		private openComposite: (id: string, focus?: boolean) => Promise<IPaneComposite | undefined>,
 		private moveComposite: (from: string, to: string, before?: boolean) => void,
-		private getVisibleCompositeIds: () => string[]
 	) { }
 	drop(data: CompositeDragAndDropData, targetCompositeId: string | undefined, originalEvent: DragEvent, before?: boolean): void {
 		const dragData = data.getData();
