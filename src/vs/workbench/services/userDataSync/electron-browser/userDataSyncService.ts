@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SyncStatus, SyncResource, IUserDataSyncService, UserDataSyncError } from 'vs/platform/userDataSync/common/userDataSync';
+import { SyncStatus, SyncResource, IUserDataSyncService, UserDataSyncError, SyncResourceConflicts } from 'vs/platform/userDataSync/common/userDataSync';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -25,10 +25,10 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 	get onDidChangeLocal(): Event<SyncResource> { return this.channel.listen<SyncResource>('onDidChangeLocal'); }
 
-	private _conflictsSources: SyncResource[] = [];
-	get conflictsSources(): SyncResource[] { return this._conflictsSources; }
-	private _onDidChangeConflicts: Emitter<SyncResource[]> = this._register(new Emitter<SyncResource[]>());
-	readonly onDidChangeConflicts: Event<SyncResource[]> = this._onDidChangeConflicts.event;
+	private _conflicts: SyncResourceConflicts[] = [];
+	get conflicts(): SyncResourceConflicts[] { return this._conflicts; }
+	private _onDidChangeConflicts: Emitter<SyncResourceConflicts[]> = this._register(new Emitter<SyncResourceConflicts[]>());
+	readonly onDidChangeConflicts: Event<SyncResourceConflicts[]> = this._onDidChangeConflicts.event;
 
 	private _lastSyncTime: number | undefined = undefined;
 	get lastSyncTime(): number | undefined { return this._lastSyncTime; }
@@ -52,7 +52,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				return userDataSyncChannel.listen(event, arg);
 			}
 		};
-		this.channel.call<[SyncStatus, SyncResource[], number | undefined]>('_getInitialData').then(([status, conflicts, lastSyncTime]) => {
+		this.channel.call<[SyncStatus, SyncResourceConflicts[], number | undefined]>('_getInitialData').then(([status, conflicts, lastSyncTime]) => {
 			this.updateStatus(status);
 			this.updateConflicts(conflicts);
 			if (lastSyncTime) {
@@ -61,7 +61,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			this._register(this.channel.listen<SyncStatus>('onDidChangeStatus')(status => this.updateStatus(status)));
 			this._register(this.channel.listen<number>('onDidChangeLastSyncTime')(lastSyncTime => this.updateLastSyncTime(lastSyncTime)));
 		});
-		this._register(this.channel.listen<SyncResource[]>('onDidChangeConflicts')(conflicts => this.updateConflicts(conflicts)));
+		this._register(this.channel.listen<SyncResourceConflicts[]>('onDidChangeConflicts')(conflicts => this.updateConflicts(conflicts)));
 		this._register(this.channel.listen<[SyncResource, Error][]>('onSyncErrors')(errors => this._onSyncErrors.fire(errors.map(([source, error]) => ([source, UserDataSyncError.toUserDataSyncError(error)])))));
 	}
 
@@ -73,8 +73,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return this.channel.call('sync');
 	}
 
-	accept(source: SyncResource, content: string): Promise<void> {
-		return this.channel.call('accept', [source, content]);
+	acceptConflict(conflict: URI, content: string): Promise<void> {
+		return this.channel.call('acceptConflict', [conflict, content]);
 	}
 
 	reset(): Promise<void> {
@@ -102,8 +102,14 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		this._onDidChangeStatus.fire(status);
 	}
 
-	private async updateConflicts(conflicts: SyncResource[]): Promise<void> {
-		this._conflictsSources = conflicts;
+	private async updateConflicts(conflicts: SyncResourceConflicts[]): Promise<void> {
+		// Revive URIs
+		this._conflicts = conflicts.map(c =>
+			({
+				syncResource: c.syncResource,
+				conflicts: c.conflicts.map(({ local, remote }) =>
+					({ local: URI.revive(local), remote: URI.revive(remote) }))
+			}));
 		this._onDidChangeConflicts.fire(conflicts);
 	}
 

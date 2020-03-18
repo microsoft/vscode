@@ -12,8 +12,8 @@ import { VSBuffer } from 'vs/base/common/buffer';
 export async function getServiceMachineId(environmentService: IEnvironmentService, fileService: IFileService, storageService: {
 	get: (key: string, scope: StorageScope, fallbackValue?: string | undefined) => string | undefined,
 	store: (key: string, value: string, scope: StorageScope) => void
-}): Promise<string> {
-	let uuid: string | null = storageService.get('storage.serviceMachineId', StorageScope.GLOBAL) || null;
+} | undefined): Promise<string | null> {
+	let uuid: string | null = storageService ? storageService.get('storage.serviceMachineId', StorageScope.GLOBAL) || null : null;
 	if (uuid) {
 		return uuid;
 	}
@@ -34,9 +34,9 @@ export async function getServiceMachineId(environmentService: IEnvironmentServic
 				//noop
 			}
 		}
-	} else {
-		uuid = generateUuid();
 	}
-	storageService.store('storage.serviceMachineId', uuid, StorageScope.GLOBAL);
+	if (uuid && storageService) {
+		storageService.store('storage.serviceMachineId', uuid, StorageScope.GLOBAL);
+	}
 	return uuid;
 }

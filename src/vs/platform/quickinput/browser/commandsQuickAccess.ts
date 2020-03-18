@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { PickerQuickAccessProvider, IPickerQuickAccessItem } from 'vs/platform/quickinput/browser/pickerQuickAccess';
+import { PickerQuickAccessProvider, IPickerQuickAccessItem, IPickerQuickAccessProviderOptions } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { distinct } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore, Disposable, IDisposable } from 'vs/base/common/lifecycle';
@@ -30,7 +30,7 @@ export interface ICommandQuickPick extends IPickerQuickAccessItem {
 	commandAlias: string | undefined;
 }
 
-export interface ICommandsQuickAccessOptions {
+export interface ICommandsQuickAccessOptions extends IPickerQuickAccessProviderOptions {
 	showAlias: boolean;
 }
 
@@ -43,14 +43,14 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 	private readonly commandsHistory = this._register(this.instantiationService.createInstance(CommandsHistory));
 
 	constructor(
-		private options: ICommandsQuickAccessOptions,
+		protected options: ICommandsQuickAccessOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@INotificationService private readonly notificationService: INotificationService
 	) {
-		super(AbstractCommandsQuickAccessProvider.PREFIX);
+		super(AbstractCommandsQuickAccessProvider.PREFIX, options);
 	}
 
 	protected async getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Promise<Array<ICommandQuickPick | IQuickPickSeparator>> {

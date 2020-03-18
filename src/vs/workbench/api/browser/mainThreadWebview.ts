@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
@@ -305,16 +306,20 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 			canResolve: (webviewInput) => {
 				return webviewInput instanceof CustomEditorInput && webviewInput.viewType === viewType;
 			},
-			resolveWebview: async (webviewInput: CustomEditorInput) => {
+			resolveWebview: async (webviewInput: CustomEditorInput, cancellation: CancellationToken) => {
 				const handle = webviewInput.id;
-				this._webviewInputs.add(handle, webviewInput);
+				const resource = webviewInput.resource;
 
+				this._webviewInputs.add(handle, webviewInput);
 				this.hookupWebviewEventDelegate(handle, webviewInput);
 				webviewInput.webview.options = options;
 				webviewInput.webview.extension = extension;
 
-				const resource = webviewInput.resource;
-				let modelRef = await this.getOrCreateCustomEditorModel(modelType, resource, viewType);
+				let modelRef = await this.getOrCreateCustomEditorModel(modelType, resource, viewType, cancellation);
+				if (cancellation.isCancellationRequested) {
+					modelRef.dispose();
+					return;
+				}
 
 				webviewInput.webview.onDispose(() => {
 					modelRef.dispose();
@@ -323,14 +328,14 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 				if (capabilities.supportsMove) {
 					webviewInput.onMove(async (newResource: URI) => {
 						const oldModel = modelRef;
-						modelRef = await this.getOrCreateCustomEditorModel(modelType, newResource, viewType);
+						modelRef = await this.getOrCreateCustomEditorModel(modelType, newResource, viewType, CancellationToken.None);
 						this._proxy.$onMoveCustomEditor(handle, newResource, viewType);
 						oldModel.dispose();
 					});
 				}
 
 				try {
-					await this._proxy.$resolveWebviewEditor(resource, handle, viewType, webviewInput.getTitle(), editorGroupToViewColumn(this._editorGroupService, webviewInput.group || 0), webviewInput.webview.options);
+					await this._proxy.$resolveWebviewEditor(resource, handle, viewType, webviewInput.getTitle(), editorGroupToViewColumn(this._editorGroupService, webviewInput.group || 0), webviewInput.webview.options, cancellation);
 				} catch (error) {
 					onUnexpectedError(error);
 					webviewInput.webview.html = MainThreadWebviews.getDeserializationFailedContents(viewType);
@@ -360,6 +365,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		modelType: ModelType,
 		resource: URI,
 		viewType: string,
+		cancellation: CancellationToken,
 	): Promise<IReference<ICustomEditorModel>> {
 		const existingModel = this._customEditorService.models.tryRetain(resource, viewType);
 		if (existingModel) {
@@ -368,7 +374,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 
 		const model = modelType === ModelType.Text
 			? CustomTextEditorModel.create(this._instantiationService, viewType, resource)
-			: MainThreadCustomEditorModel.create(this._instantiationService, this._proxy, viewType, resource);
+			: MainThreadCustomEditorModel.create(this._instantiationService, this._proxy, viewType, resource, cancellation);
 
 		return this._customEditorService.models.add(resource, viewType, model);
 	}
@@ -555,9 +561,10 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 		instantiationService: IInstantiationService,
 		proxy: extHostProtocol.ExtHostWebviewsShape,
 		viewType: string,
-		resource: URI
+		resource: URI,
+		cancellation: CancellationToken,
 	) {
-		const { editable } = await proxy.$createWebviewCustomEditorDocument(resource, viewType);
+		const { editable } = await proxy.$createWebviewCustomEditorDocument(resource, viewType, cancellation);
 		return instantiationService.createInstance(MainThreadCustomEditorModel, proxy, viewType, resource, editable);
 	}
 

@@ -18,7 +18,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IStringDictionary } from 'vs/base/common/collections';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { URI } from 'vs/base/common/uri';
-import { isEqual, joinPath, dirname, basename } from 'vs/base/common/resources';
+import { joinPath, dirname, basename, isEqualOrParent } from 'vs/base/common/resources';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { distinct } from 'vs/base/common/arrays';
@@ -242,11 +242,15 @@ export const enum SyncStatus {
 	HasConflicts = 'hasConflicts',
 }
 
+export type Conflict = { remote: URI, local: URI };
+
 export interface IUserDataSynchroniser {
 
 	readonly resource: SyncResource;
 	readonly status: SyncStatus;
 	readonly onDidChangeStatus: Event<SyncStatus>;
+	readonly conflicts: Conflict[];
+	readonly onDidChangeConflicts: Event<Conflict[]>;
 	readonly onDidChangeLocal: Event<void>;
 
 	pull(): Promise<void>;
@@ -258,10 +262,11 @@ export interface IUserDataSynchroniser {
 	hasLocalData(): Promise<boolean>;
 	resetLocal(): Promise<void>;
 
-	getRemoteContentFromPreview(): Promise<string | null>;
+	getConflictContent(conflictResource: URI): Promise<string | null>;
+	acceptConflict(conflictResource: URI, content: string): Promise<void>;
+
 	getRemoteContent(ref?: string, fragment?: string): Promise<string | null>;
 	getLocalBackupContent(ref?: string, fragment?: string): Promise<string | null>;
-	accept(content: string): Promise<void>;
 }
 
 //#endregion
@@ -282,6 +287,8 @@ export interface IUserDataSyncEnablementService {
 	setResourceEnablement(resource: SyncResource, enabled: boolean): void;
 }
 
+export type SyncResourceConflicts = { syncResource: SyncResource, conflicts: Conflict[] };
+
 export const IUserDataSyncService = createDecorator<IUserDataSyncService>('IUserDataSyncService');
 export interface IUserDataSyncService {
 	_serviceBrand: any;
@@ -289,8 +296,8 @@ export interface IUserDataSyncService {
 	readonly status: SyncStatus;
 	readonly onDidChangeStatus: Event<SyncStatus>;
 
-	readonly conflictsSources: SyncResource[];
-	readonly onDidChangeConflicts: Event<SyncResource[]>;
+	readonly conflicts: SyncResourceConflicts[];
+	readonly onDidChangeConflicts: Event<SyncResourceConflicts[]>;
 
 	readonly onDidChangeLocal: Event<SyncResource>;
 	readonly onSyncErrors: Event<[SyncResource, UserDataSyncError][]>;
@@ -306,7 +313,7 @@ export interface IUserDataSyncService {
 
 	isFirstTimeSyncWithMerge(): Promise<boolean>;
 	resolveContent(resource: URI): Promise<string | null>;
-	accept(source: SyncResource, content: string): Promise<void>;
+	acceptConflict(conflictResource: URI, content: string): Promise<void>;
 }
 
 export const IUserDataAutoSyncService = createDecorator<IUserDataAutoSyncService>('IUserDataAutoSyncService');
@@ -335,36 +342,41 @@ export interface IConflictSetting {
 
 //#endregion
 
+export const USER_DATA_SYNC_SCHEME = 'vscode-userdata-sync';
 export const CONTEXT_SYNC_STATE = new RawContextKey<string>('syncStatus', SyncStatus.Uninitialized);
 export const CONTEXT_SYNC_ENABLEMENT = new RawContextKey<boolean>('syncEnabled', false);
 
-export const USER_DATA_SYNC_SCHEME = 'vscode-userdata-sync';
-export const PREVIEW_QUERY = 'preview=true';
-export function toRemoteSyncResource(resource: SyncResource, ref?: string): URI {
-	return URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote', path: `/${resource}/${ref ? ref : 'latest'}` });
+export function toRemoteBackupSyncResource(resource: SyncResource, ref?: string): URI {
+	return URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote-backup', path: `/${resource}/${ref ? ref : 'latest'}` });
 }
 export function toLocalBackupSyncResource(resource: SyncResource, ref?: string): URI {
 	return URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local-backup', path: `/${resource}/${ref ? ref : 'latest'}` });
 }
-
-export function resolveSyncResource(resource: URI): { remote: boolean, resource: SyncResource, ref?: string } | null {
-	if (resource.scheme === USER_DATA_SYNC_SCHEME) {
-		const remote = resource.authority === 'remote';
+export function resolveBackupSyncResource(resource: URI): { remote: boolean, resource: SyncResource, path: string } | null {
+	if (resource.scheme === USER_DATA_SYNC_SCHEME
+		&& resource.authority === 'remote-backup' || resource.authority === 'local-backup') {
 		const resourceKey: SyncResource = basename(dirname(resource)) as SyncResource;
-		const ref = basename(resource);
-		if (resourceKey && ref) {
-			return { remote, resource: resourceKey, ref: ref !== 'latest' ? ref : undefined };
+		const path = resource.path.substring(resourceKey.length + 1);
+		if (resourceKey && path) {
+			const remote = resource.authority === 'remote-backup';
+			return { remote, resource: resourceKey, path };
 		}
 	}
 	return null;
 }
 
-export function getSyncSourceFromPreviewResource(uri: URI, environmentService: IEnvironmentService): SyncResource | undefined {
-	if (isEqual(uri, environmentService.settingsSyncPreviewResource)) {
-		return SyncResource.Settings;
+export const PREVIEW_DIR_NAME = 'preview';
+export function getSyncResourceFromLocalPreview(localPreview: URI, environmentService: IEnvironmentService): SyncResource | undefined {
+	if (localPreview.scheme === USER_DATA_SYNC_SCHEME) {
+		return undefined;
 	}
-	if (isEqual(uri, environmentService.keybindingsSyncPreviewResource)) {
-		return SyncResource.Keybindings;
+	localPreview = localPreview.with({ scheme: environmentService.userDataSyncHome.scheme });
+	return ALL_SYNC_RESOURCES.filter(syncResource => isEqualOrParent(localPreview, joinPath(environmentService.userDataSyncHome, syncResource, PREVIEW_DIR_NAME)))[0];
+}
+export function getSyncResourceFromRemotePreview(remotePreview: URI, environmentService: IEnvironmentService): SyncResource | undefined {
+	if (remotePreview.scheme !== USER_DATA_SYNC_SCHEME) {
+		return undefined;
 	}
-	return undefined;
+	remotePreview = remotePreview.with({ scheme: environmentService.userDataSyncHome.scheme });
+	return ALL_SYNC_RESOURCES.filter(syncResource => isEqualOrParent(remotePreview, joinPath(environmentService.userDataSyncHome, syncResource, PREVIEW_DIR_NAME)))[0];
 }

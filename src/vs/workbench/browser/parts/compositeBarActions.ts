@@ -18,10 +18,8 @@ import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { IActivity } from 'vs/workbench/common/activity';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Emitter } from 'vs/base/common/event';
-import { DragAndDropObserver, LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
+import { LocalSelectionTransfer, DraggedCompositeIdentifier, DraggedViewIdentifier, CompositeDragAndDropObserver, ICompositeDragAndDrop } from 'vs/workbench/browser/dnd';
 import { Color } from 'vs/base/common/color';
-import { DraggedViewIdentifier } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { ICompositeDragAndDrop, CompositeDragAndDropData } from 'vs/base/parts/composite/browser/compositeDnd';
 
 export interface ICompositeActivity {
 	badge: IBadge;
@@ -167,11 +165,15 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 					// Apply foreground color to activity bar items provided with codicons
 					this.label.style.color = foreground ? foreground.toString() : '';
 				}
+
+				const dragColor = colors.activeBackgroundColor || colors.activeForegroundColor;
+				this.container.style.setProperty('--insert-border-color', dragColor ? dragColor.toString() : '');
 			} else {
 				const foreground = this._action.checked ? colors.activeForegroundColor : colors.inactiveForegroundColor;
 				const borderBottomColor = this._action.checked ? colors.activeBorderBottomColor : null;
 				this.label.style.color = foreground ? foreground.toString() : '';
 				this.label.style.borderBottomColor = borderBottomColor ? borderBottomColor.toString() : '';
+				this.container.style.setProperty('--insert-border-color', colors.activeForegroundColor ? colors.activeForegroundColor.toString() : '');
 			}
 		}
 
@@ -445,14 +447,6 @@ class ManageExtensionAction extends Action {
 	}
 }
 
-export class DraggedCompositeIdentifier {
-	constructor(private _compositeId: string) { }
-
-	get id(): string {
-		return this._compositeId;
-	}
-}
-
 export class CompositeActionViewItem extends ActivityActionViewItem {
 
 	private static manageExtensionAction: ManageExtensionAction;
@@ -522,105 +516,38 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 			this.showContextMenu(container);
 		}));
 
+		let insertDropBefore: boolean | undefined = undefined;
 		// Allow to drag
-		this._register(dom.addDisposableListener(this.container, dom.EventType.DRAG_START, (e: DragEvent) => {
-			if (e.dataTransfer) {
-				e.dataTransfer.effectAllowed = 'move';
-			}
-
-			// Registe as dragged to local transfer
-			this.compositeTransfer.setData([new DraggedCompositeIdentifier(this.activity.id)], DraggedCompositeIdentifier.prototype);
-
-			// Trigger the action even on drag start to prevent clicks from failing that started a drag
-			if (!this.getAction().checked) {
-				this.getAction().run();
-			}
-		}));
-
-		this._register(new DragAndDropObserver(this.container, {
-			onDragEnter: e => {
-				if (this.compositeTransfer.hasData(DraggedCompositeIdentifier.prototype)) {
-					const data = this.compositeTransfer.getData(DraggedCompositeIdentifier.prototype);
-					if (Array.isArray(data) && data[0].id !== this.activity.id) {
-						const validDropTarget = this.dndHandler.onDragEnter(new CompositeDragAndDropData('composite', data[0].id), this.activity.id, e);
-						this.updateFromDragging(container, validDropTarget);
-					}
-				}
-
-				if (this.compositeTransfer.hasData(DraggedViewIdentifier.prototype)) {
-					const data = this.compositeTransfer.getData(DraggedViewIdentifier.prototype);
-					if (Array.isArray(data) && data[0].id !== this.activity.id) {
-						const validDropTarget = this.dndHandler.onDragEnter(new CompositeDragAndDropData('view', data[0].id), this.activity.id, e);
-						this.updateFromDragging(container, validDropTarget);
-					}
-				}
-			},
-
+		this._register(CompositeDragAndDropObserver.INSTANCE.registerDraggable(this.container, 'composite', this.activity.id, {
 			onDragOver: e => {
-				dom.EventHelper.stop(e, true);
-				if (this.compositeTransfer.hasData(DraggedCompositeIdentifier.prototype)) {
-					const data = this.compositeTransfer.getData(DraggedCompositeIdentifier.prototype);
-					if (Array.isArray(data)) {
-						const draggedCompositeId = data[0].id;
-						if (draggedCompositeId !== this.activity.id) {
-							if (e.dataTransfer && !this.dndHandler.onDragOver(new CompositeDragAndDropData('composite', draggedCompositeId), this.activity.id, e)) {
-								e.dataTransfer.dropEffect = 'none';
-							}
-						}
-					}
-				}
-
-				if (this.compositeTransfer.hasData(DraggedViewIdentifier.prototype)) {
-					const data = this.compositeTransfer.getData(DraggedViewIdentifier.prototype);
-					if (Array.isArray(data)) {
-						const draggedViewId = data[0].id;
-						if (e.dataTransfer && !this.dndHandler.onDragOver(new CompositeDragAndDropData('view', draggedViewId), this.activity.id, e)) {
-							e.dataTransfer.dropEffect = 'none';
-						}
-					}
-				}
+				const isValidMove = e.dragAndDropData.getData().id !== this.activity.id && this.dndHandler.onDragOver(e.dragAndDropData, this.activity.id, e.eventData);
+				insertDropBefore = this.updateFromDragging(container, isValidMove, e.eventData);
 			},
 
 			onDragLeave: e => {
-				if (this.compositeTransfer.hasData(DraggedCompositeIdentifier.prototype) ||
-					this.compositeTransfer.hasData(DraggedViewIdentifier.prototype)) {
-					this.updateFromDragging(container, false);
-				}
+				insertDropBefore = this.updateFromDragging(container, false, e.eventData);
 			},
 
 			onDragEnd: e => {
-				if (this.compositeTransfer.hasData(DraggedCompositeIdentifier.prototype)) {
-					this.updateFromDragging(container, false);
-
-					this.compositeTransfer.clearData(DraggedCompositeIdentifier.prototype);
-				}
+				insertDropBefore = this.updateFromDragging(container, false, e.eventData);
 			},
 
 			onDrop: e => {
-				dom.EventHelper.stop(e, true);
-
-				if (this.compositeTransfer.hasData(DraggedCompositeIdentifier.prototype)) {
-					const data = this.compositeTransfer.getData(DraggedCompositeIdentifier.prototype);
-					if (Array.isArray(data)) {
-						const draggedCompositeId = data[0].id;
-						if (draggedCompositeId !== this.activity.id) {
-							this.updateFromDragging(container, false);
-							this.compositeTransfer.clearData(DraggedCompositeIdentifier.prototype);
-
-							this.dndHandler.drop(new CompositeDragAndDropData('composite', draggedCompositeId), this.activity.id, e);
-						}
-					}
+				this.dndHandler.drop(e.dragAndDropData, this.activity.id, e.eventData, !!insertDropBefore);
+				insertDropBefore = this.updateFromDragging(container, false, e.eventData);
+			},
+			onDragStart: e => {
+				if (e.dragAndDropData.getData().id !== this.activity.id) {
+					return;
 				}
 
-				if (this.compositeTransfer.hasData(DraggedViewIdentifier.prototype)) {
-					const data = this.compositeTransfer.getData(DraggedViewIdentifier.prototype);
-					if (Array.isArray(data)) {
-						const draggedViewId = data[0].id;
-						this.updateFromDragging(container, false);
-						this.compositeTransfer.clearData(DraggedViewIdentifier.prototype);
+				if (e.eventData.dataTransfer) {
+					e.eventData.dataTransfer.effectAllowed = 'move';
+				}
 
-						this.dndHandler.drop(new CompositeDragAndDropData('view', draggedViewId), this.activity.id, e);
-					}
+				// Trigger the action even on drag start to prevent clicks from failing that started a drag
+				if (!this.getAction().checked) {
+					this.getAction().run();
 				}
 			}
 		}));
@@ -637,11 +564,42 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 		this.updateStyles();
 	}
 
-	private updateFromDragging(element: HTMLElement, isDragging: boolean): void {
-		const theme = this.themeService.getColorTheme();
-		const dragBackground = this.options.colors(theme).dragAndDropBackground;
+	private updateFromDragging(element: HTMLElement, showFeedback: boolean, event: DragEvent): boolean | undefined {
+		const rect = element.getBoundingClientRect();
+		const posX = event.clientX;
+		const posY = event.clientY;
+		const height = rect.bottom - rect.top;
+		const width = rect.right - rect.left;
 
-		element.style.backgroundColor = isDragging && dragBackground ? dragBackground.toString() : '';
+		const forceTop = posY <= rect.top + height * 0.4;
+		const forceBottom = posY > rect.bottom - height * 0.4;
+		const preferTop = posY <= rect.top + height * 0.5;
+
+		const forceLeft = posX <= rect.left + width * 0.4;
+		const forceRight = posX > rect.right - width * 0.4;
+		const preferLeft = posX <= rect.left + width * 0.5;
+
+		const classes = element.classList;
+		const lastClasses = {
+			vertical: classes.contains('top') ? 'top' : (classes.contains('bottom') ? 'bottom' : undefined),
+			horizontal: classes.contains('left') ? 'left' : (classes.contains('right') ? 'right' : undefined)
+		};
+
+		const top = forceTop || (preferTop && !lastClasses.vertical) || (!forceBottom && lastClasses.vertical === 'top');
+		const bottom = forceBottom || (!preferTop && !lastClasses.vertical) || (!forceTop && lastClasses.vertical === 'bottom');
+		const left = forceLeft || (preferLeft && !lastClasses.horizontal) || (!forceRight && lastClasses.horizontal === 'left');
+		const right = forceRight || (!preferLeft && !lastClasses.horizontal) || (!forceLeft && lastClasses.horizontal === 'right');
+
+		dom.toggleClass(element, 'top', showFeedback && top);
+		dom.toggleClass(element, 'bottom', showFeedback && bottom);
+		dom.toggleClass(element, 'left', showFeedback && left);
+		dom.toggleClass(element, 'right', showFeedback && right);
+
+		if (!showFeedback) {
+			return undefined;
+		}
+
+		return top || left;
 	}
 
 	private showContextMenu(container: HTMLElement): void {

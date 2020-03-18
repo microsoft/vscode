@@ -35,11 +35,6 @@ export interface IQuickPickItem {
 	strikethrough?: boolean;
 	highlights?: IQuickPickItemHighlights;
 	buttons?: IQuickInputButton[];
-	/**
-	 * Wether to always show the buttons. By default buttons
-	 * are only visible when hovering over them with the mouse
-	 */
-	buttonsAlwaysVisible?: boolean;
 	picked?: boolean;
 	alwaysShow?: boolean;
 }
@@ -290,6 +285,11 @@ export interface IQuickInputButton {
 	/** iconPath or iconClass required */
 	iconClass?: string;
 	tooltip?: string;
+	/**
+	 * Wether to always show the button. By default buttons
+	 * are only visible when hovering over them with the mouse
+	 */
+	alwaysVisible?: boolean;
 }
 
 export interface IQuickPickItemButtonEvent<T extends IQuickPickItem> {
@@ -308,22 +308,35 @@ export type QuickPickInput<T = IQuickPickItem> = T | IQuickPickSeparator;
 
 export type IQuickPickItemWithResource = IQuickPickItem & { resource: URI | undefined };
 
-export const quickPickItemScorerAccessor = new class implements IItemAccessor<IQuickPickItemWithResource> {
+export class QuickPickItemScorerAccessor implements IItemAccessor<IQuickPickItemWithResource> {
+
+	constructor(private options?: { skipDescription?: boolean, skipPath?: boolean }) { }
+
 	getItemLabel(entry: IQuickPickItemWithResource): string {
 		return entry.label;
 	}
 
 	getItemDescription(entry: IQuickPickItemWithResource): string | undefined {
+		if (this.options?.skipDescription) {
+			return undefined;
+		}
+
 		return entry.description;
 	}
 
 	getItemPath(entry: IQuickPickItemWithResource): string | undefined {
+		if (this.options?.skipPath) {
+			return undefined;
+		}
+
 		if (entry.resource?.scheme === Schemas.file) {
 			return entry.resource.fsPath;
 		}
 
 		return entry.resource?.path;
 	}
-};
+}
+
+export const quickPickItemScorerAccessor = new QuickPickItemScorerAccessor();
 
 //#endregion

@@ -20,13 +20,13 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ClosePanelAction, PanelActivityAction, ToggleMaximizedPanelAction, TogglePanelAction, PlaceHolderPanelActivityAction, PlaceHolderToggleCompositePinnedAction, PositionPanelActionConfigs, SetPanelPositionAction } from 'vs/workbench/browser/parts/panel/panelActions';
 import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_DRAG_AND_DROP_BACKGROUND, PANEL_INPUT_BORDER } from 'vs/workbench/common/theme';
+import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_DRAG_AND_DROP_BACKGROUND, PANEL_INPUT_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 import { activeContrastBorder, focusBorder, contrastBorder, editorBackground, badgeBackground, badgeForeground } from 'vs/platform/theme/common/colorRegistry';
 import { CompositeBar, ICompositeBarItem, CompositeDragAndDrop } from 'vs/workbench/browser/parts/compositeBar';
 import { ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { Dimension, trackFocus } from 'vs/base/browser/dom';
+import { Dimension, trackFocus, addClass } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -37,6 +37,7 @@ import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExte
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { ViewMenuActions } from 'vs/workbench/browser/parts/views/viewMenuActions';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
+import { CompositeDragAndDropObserver } from 'vs/workbench/browser/dnd';
 
 interface ICachedPanel {
 	id: string;
@@ -145,8 +146,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			hidePart: () => this.layoutService.setPanelHidden(true),
 			dndHandler: new CompositeDragAndDrop(this.viewDescriptorService, ViewContainerLocation.Panel,
 				(id: string, focus?: boolean) => this.openPanel(id, focus) as Promise<IPaneComposite | undefined>,
-				(from: string, to: string) => this.compositeBar.move(from, to),
-				() => this.getPinnedPanels().map(p => p.id)
+				(from: string, to: string, before?: boolean) => this.compositeBar.move(from, to, before)
 			),
 			compositeSize: 0,
 			overflowActionSize: 44,
@@ -340,6 +340,31 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		this.element = parent;
 
 		super.create(parent);
+
+		const overlay = document.createElement('div');
+		addClass(overlay, 'drag-overlay');
+		parent.appendChild(overlay);
+
+		CompositeDragAndDropObserver.INSTANCE.registerTarget(this.element, {
+			onDragStart: e => {
+				// this.element.style.outline = `1px solid`;
+				// this.element.style.outlineOffset = '-1px';
+				overlay.style.backgroundColor = this.theme.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND, true)?.toString() || '';
+				overlay.style.opacity = '.8';
+			},
+			onDragEnd: e => {
+				// this.element.style.outline = '';
+				overlay.style.opacity = '';
+			},
+			onDragEnter: e => {
+				overlay.style.opacity = '';
+			},
+			onDragLeave: e => {
+				overlay.style.backgroundColor = this.theme.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND, true)?.toString() || '';
+				overlay.style.opacity = '.8';
+			}
+		});
+
 
 		const focusTracker = this._register(trackFocus(parent));
 		this._register(focusTracker.onDidFocus(() => this.panelFocusContextKey.set(true)));

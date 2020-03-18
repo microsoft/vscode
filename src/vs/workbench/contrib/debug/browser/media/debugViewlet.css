@@ -161,6 +161,11 @@
 	display: initial;
 }
 
+.debug-pane .debug-call-stack .session .codicon {
+	line-height: 22px;
+	margin-right: 2px;
+}
+
 .monaco-workbench  .debug-pane .debug-call-stack .monaco-action-bar .action-item > .action-label {
 	width: 16px;
 	height: 100%;
@@ -234,13 +239,12 @@
 }
 
 .debug-pane .debug-call-stack .load-more {
-	font-style: italic;
 	text-align: center;
 }
 
 .debug-pane .debug-call-stack .show-more {
-	font-style: italic;
 	opacity: 0.35;
+	text-align: center;
 }
 
 .debug-pane .debug-call-stack .error {
