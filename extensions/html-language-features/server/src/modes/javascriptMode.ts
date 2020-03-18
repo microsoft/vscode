@@ -14,7 +14,8 @@ import { getWordAtText, startsWith, isWhitespaceOnly, repeat } from '../utils/st
 import { HTMLDocumentRegions } from './embeddedSupport';
 
 import * as ts from 'typescript';
-import { join } from 'path';
+import { join, dirname } from 'path';
+import { URI } from 'vscode-uri';
 import { getSemanticTokens, getSemanticTokenLegend } from './javascriptSemanticTokens';
 
 const JS_WORD_REGEX = /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g;
@@ -32,15 +33,23 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 	let compilerOptions: ts.CompilerOptions = { allowNonTsExtensions: true, allowJs: true, lib: ['lib.es6.d.ts'], target: ts.ScriptTarget.Latest, moduleResolution: ts.ModuleResolutionKind.Classic };
 	let currentTextDocument: TextDocument;
 	let scriptFileVersion: number = 0;
+	let importedScripts: string[];
 	function updateCurrentTextDocument(doc: TextDocument) {
 		if (!currentTextDocument || doc.uri !== currentTextDocument.uri || doc.version !== currentTextDocument.version) {
 			currentTextDocument = jsDocuments.get(doc);
+			let s = documentRegions.get(doc).getImportedScripts();
+			importedScripts = [];
+			s.forEach(el => {
+				let x = URI.parse(doc.uri);
+				let p = join(dirname(x.fsPath), el);
+				importedScripts.push(p);
+			});
 			scriptFileVersion++;
 		}
 	}
 	const host: ts.LanguageServiceHost = {
 		getCompilationSettings: () => compilerOptions,
-		getScriptFileNames: () => [workingFile, jquery_d_ts],
+		getScriptFileNames: () => [workingFile, jquery_d_ts, ...importedScripts],
 		getScriptKind: (fileName) => fileName.substr(fileName.length - 2) === 'ts' ? ts.ScriptKind.TS : ts.ScriptKind.JS,
 		getScriptVersion: (fileName: string) => {
 			if (fileName === workingFile) {
