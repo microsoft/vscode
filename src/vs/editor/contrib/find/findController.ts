@@ -66,7 +66,6 @@ export interface IFindStartOptions {
 	shouldFocus: FindStartFocusAction;
 	shouldAnimate: boolean;
 	updateSearchScope: boolean;
-	shouldReveal?: boolean;
 }
 
 export class CommonFindController extends Disposable implements IEditorContribution {
@@ -264,10 +263,6 @@ export class CommonFindController extends Disposable implements IEditorContribut
 		let stateChanges: INewFindReplaceState = {
 			isRevealed: true
 		};
-
-		if (opts.shouldReveal !== undefined) {
-			stateChanges.isRevealed = opts.shouldReveal;
-		}
 
 		if (opts.seedSearchStringFromSelection) {
 			let selectionSearchString = getSelectionSearchString(this._editor);
