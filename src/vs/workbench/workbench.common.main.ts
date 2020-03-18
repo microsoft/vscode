@@ -142,6 +142,9 @@ import 'vs/workbench/contrib/preferences/browser/preferences.contribution';
 import 'vs/workbench/contrib/preferences/browser/keybindingsEditorContribution';
 import 'vs/workbench/contrib/preferences/browser/preferencesSearch';
 
+// Notebook
+import 'vs/workbench/contrib/notebook/browser/notebook.contribution';
+
 // Logs
 import 'vs/workbench/contrib/logs/common/logs.contribution';
 

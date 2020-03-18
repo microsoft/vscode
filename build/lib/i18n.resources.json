@@ -123,6 +123,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/notebook",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/quickaccess",
 			"project": "vscode-workbench"
 		},
