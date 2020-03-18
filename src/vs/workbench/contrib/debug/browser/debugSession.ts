@@ -603,6 +603,14 @@ export class DebugSession implements IDebugSession {
 		}, token);
 	}
 
+	async cancel(progressId: string): Promise<DebugProtocol.CancelResponse> {
+		if (!this.raw) {
+			return Promise.reject(new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'cancel')));
+		}
+
+		return this.raw.cancel({ progressId });
+	}
+
 	//---- threads
 
 	getThread(threadId: number): Thread | undefined {

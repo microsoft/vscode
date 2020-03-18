@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { window, Pseudoterminal, EventEmitter, TerminalDimensions, workspace, ConfigurationTarget, Disposable } from 'vscode';
+import { window, Pseudoterminal, EventEmitter, TerminalDimensions, workspace, ConfigurationTarget, Disposable, UIKind, env } from 'vscode';
 import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 
 suite('window namespace tests', () => {
@@ -19,7 +19,8 @@ suite('window namespace tests', () => {
 			disposables.length = 0;
 		});
 
-		test('sendText immediately after createTerminal should not throw', (done) => {
+		// TODO@Daniel flaky test (https://github.com/microsoft/vscode/issues/92826)
+		((env.uiKind === UIKind.Web) ? test.skip : test)('sendText immediately after createTerminal should not throw', (done) => {
 			disposables.push(window.onDidOpenTerminal(term => {
 				try {
 					equal(terminal, term);
@@ -33,7 +34,8 @@ suite('window namespace tests', () => {
 			doesNotThrow(terminal.sendText.bind(terminal, 'echo "foo"'));
 		});
 
-		test('onDidCloseTerminal event fires when terminal is disposed', (done) => {
+		// TODO@Daniel done called multiple times (https://github.com/microsoft/vscode/issues/92826)
+		((env.uiKind === UIKind.Web) ? test.skip : test)('onDidCloseTerminal event fires when terminal is disposed', (done) => {
 			disposables.push(window.onDidOpenTerminal(term => {
 				try {
 					equal(terminal, term);
