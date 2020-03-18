@@ -244,14 +244,9 @@ export class CompositeBar extends Widget implements ICompositeBar {
 
 		// Allow to drop at the end to move composites to the end
 		this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(excessDiv, {
-			onDragOver: (e: IDraggedCompositeData) => {
-				// if (e.eventData.dataTransfer && !this.options.dndHandler.onDragOver(e.dragAndDropData, undefined, e.eventData)) {
-				// 	e.eventData.dataTransfer.dropEffect = 'none';
-				// }
-			},
-
 			onDragEnter: (e: IDraggedCompositeData) => {
-				const validDropTarget = this.options.dndHandler.onDragEnter(e.dragAndDropData, undefined, e.eventData);
+				const pinnedItems = this.getPinnedComposites();
+				const validDropTarget = this.options.dndHandler.onDragEnter(e.dragAndDropData, pinnedItems[pinnedItems.length - 1].id, e.eventData);
 				this.updateFromDragging(excessDiv, validDropTarget);
 			},
 
@@ -259,7 +254,8 @@ export class CompositeBar extends Widget implements ICompositeBar {
 				this.updateFromDragging(excessDiv, false);
 			},
 			onDrop: (e: IDraggedCompositeData) => {
-				this.options.dndHandler.drop(e.dragAndDropData, undefined, e.eventData);
+				const pinnedItems = this.getPinnedComposites();
+				this.options.dndHandler.drop(e.dragAndDropData, pinnedItems[pinnedItems.length - 1].id, e.eventData, false);
 				this.updateFromDragging(excessDiv, false);
 			}
 		}));

@@ -520,10 +520,6 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 		// Allow to drag
 		this._register(CompositeDragAndDropObserver.INSTANCE.registerDraggable(this.container, 'composite', this.activity.id, {
 			onDragOver: e => {
-				// if (e.eventData.dataTransfer && !this.dndHandler.onDragOver(e.dragAndDropData, this.activity.id, e.eventData)) {
-				// 	e.eventData.dataTransfer.dropEffect = 'none';
-				// }
-
 				const isValidMove = e.dragAndDropData.getData().id !== this.activity.id && this.dndHandler.onDragOver(e.dragAndDropData, this.activity.id, e.eventData);
 				insertDropBefore = this.updateFromDragging(container, isValidMove, e.eventData);
 			},
