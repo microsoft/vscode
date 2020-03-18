@@ -5,11 +5,10 @@
 
 import 'vs/css!./media/debugViewlet';
 import * as nls from 'vs/nls';
-import { IAction, Action } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import * as DOM from 'vs/base/browser/dom';
-import { Event } from 'vs/base/common/event';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IDebugService, VIEWLET_ID, State, BREAKPOINTS_VIEW_ID, IDebugConfiguration, DEBUG_PANEL_ID, CONTEXT_DEBUG_UX, CONTEXT_DEBUG_UX_KEY, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, VIEWLET_ID, State, BREAKPOINTS_VIEW_ID, IDebugConfiguration, DEBUG_PANEL_ID, CONTEXT_DEBUG_UX, CONTEXT_DEBUG_UX_KEY } from 'vs/workbench/contrib/debug/common/debug';
 import { StartAction, ConfigureAction, SelectAndStartAction, FocusSessionAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { StartDebugActionViewItem, FocusSessionActionViewItem } from 'vs/workbench/contrib/debug/browser/debugActionViewItems';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -44,7 +43,6 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 	private paneListeners = new Map<string, IDisposable>();
 	private debugToolBarMenu: IMenu | undefined;
 	private disposeOnTitleUpdate: IDisposable | undefined;
-	private progressEvents: { event: DebugProtocol.ProgressStartEvent, session: IDebugSession }[] = [];
 
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
@@ -81,38 +79,6 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 				this.updateTitleArea();
 			}
 		}));
-
-		let progressListener: IDisposable;
-		this._register(this.debugService.getViewModel().onDidFocusSession(session => {
-			if (progressListener) {
-				progressListener.dispose();
-			}
-			if (session) {
-				progressListener = session.onDidProgressStart(async progressStartEvent => {
-					// Update title area to show the cancel progress action
-					this.progressEvents.push({ session: session, event: progressStartEvent });
-					if (progressStartEvent.body.cancellable) {
-						this.cancelAction.tooltip = nls.localize('cancelProgress', "Cancel {0}", progressStartEvent.body.title);
-						this.updateTitleArea();
-					}
-					await this.progressService.withProgress({ location: VIEWLET_ID }, () => {
-						return new Promise(r => {
-							// Show progress until a progress end event comes or the session ends
-							const listener = Event.any(Event.filter(session.onDidProgressEnd, e => e.body.progressId === progressStartEvent.body.progressId),
-								session.onDidEndAdapter)(() => {
-									listener.dispose();
-									r();
-								});
-						});
-					});
-					this.progressEvents = this.progressEvents.filter(pe => pe.event.body.progressId !== progressStartEvent.body.progressId);
-					if (progressStartEvent.body.cancellable) {
-						this.cancelAction.tooltip = nls.localize('cancel', "Cancel");
-						this.updateTitleArea();
-					}
-				});
-			}
-		}));
 	}
 
 	create(parent: HTMLElement): void {
@@ -146,16 +112,6 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 	}
 
 	@memoize
-	private get cancelAction(): Action {
-		return this._register(new Action('debug.cancelProgress', nls.localize('cancel', "Cancel"), 'debug-action codicon codicon-stop', true, async () => {
-			const progressEvent = this.progressEvents.filter(e => e.event.body.cancellable).pop();
-			if (progressEvent) {
-				await progressEvent.session.cancel(progressEvent.event.body.progressId);
-			}
-		}));
-	}
-
-	@memoize
 	private get selectAndStartAction(): SelectAndStartAction {
 		return this._register(this.instantiationService.createInstance(SelectAndStartAction, SelectAndStartAction.ID, nls.localize('startAdditionalSession', "Start Additional Session")));
 	}
@@ -165,7 +121,6 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 			return [];
 		}
 
-		let result: IAction[];
 		if (!this.showInitialDebugActions) {
 
 			if (!this.debugToolBarMenu) {
@@ -179,18 +134,14 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 			}
 			this.disposeOnTitleUpdate = disposable;
 
-			result = actions;
-		} else if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			result = [this.toggleReplAction];
-		} else {
-			result = [this.startAction, this.configureAction, this.toggleReplAction];
+			return actions;
 		}
 
-		if (this.progressEvents.filter(e => e.event.body.cancellable).length) {
-			result.unshift(this.cancelAction);
+		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
+			return [this.toggleReplAction];
 		}
 
-		return result;
+		return [this.startAction, this.configureAction, this.toggleReplAction];
 	}
 
 	get showInitialDebugActions(): boolean {
@@ -235,7 +186,7 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 		}
 
 		if (state === State.Initializing) {
-			this.progressService.withProgress({ location: VIEWLET_ID }, _progress => {
+			this.progressService.withProgress({ location: VIEWLET_ID, }, _progress => {
 				return new Promise(resolve => this.progressResolve = resolve);
 			});
 		}
