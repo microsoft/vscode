@@ -36,8 +36,8 @@ export function testApplyEditsWithSyncedModels(original: string[], edits: IIdent
 					identifier: edit.identifier,
 					range: edit.range,
 					text: edit.text,
-					forceMoveMarkers: edit.forceMoveMarkers,
-					isAutoWhitespaceEdit: edit.isAutoWhitespaceEdit
+					forceMoveMarkers: edit.forceMoveMarkers || false,
+					isAutoWhitespaceEdit: edit.isAutoWhitespaceEdit || false
 				};
 			};
 			// Assert the inverse of the inverse edits are the original edits

@@ -6,11 +6,12 @@
 import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Selection } from 'vs/editor/common/core/selection';
-import { EndOfLineSequence, ICursorStateComputer, IIdentifiedSingleEditOperation, IValidEditOperation, ITextModel, IValidEditOperations } from 'vs/editor/common/model';
+import { EndOfLineSequence, ICursorStateComputer, IIdentifiedSingleEditOperation, IValidEditOperation, ITextModel } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { IUndoRedoService, IResourceUndoRedoElement, UndoRedoElementType, IWorkspaceUndoRedoElement } from 'vs/platform/undoRedo/common/undoRedo';
 import { URI } from 'vs/base/common/uri';
 import { getComparisonKey as uriGetComparisonKey } from 'vs/base/common/resources';
+import { TextChange, compressConsecutiveTextChanges } from 'vs/editor/common/model/textChange';
 
 export class SingleModelEditStackElement implements IResourceUndoRedoElement {
 
@@ -24,7 +25,7 @@ export class SingleModelEditStackElement implements IResourceUndoRedoElement {
 	private _afterVersionId: number;
 	private _afterEOL: EndOfLineSequence;
 	private _afterCursorState: Selection[] | null;
-	private _edits: IValidEditOperations[];
+	private _changes: TextChange[];
 
 	public get resource(): URI {
 		return this.model.uri;
@@ -40,7 +41,7 @@ export class SingleModelEditStackElement implements IResourceUndoRedoElement {
 		this._afterVersionId = this._beforeVersionId;
 		this._afterEOL = this._beforeEOL;
 		this._afterCursorState = this._beforeCursorState;
-		this._edits = [];
+		this._changes = [];
 	}
 
 	public setModel(model: ITextModel): void {
@@ -53,7 +54,7 @@ export class SingleModelEditStackElement implements IResourceUndoRedoElement {
 
 	public append(model: ITextModel, operations: IValidEditOperation[], afterEOL: EndOfLineSequence, afterVersionId: number, afterCursorState: Selection[] | null): void {
 		if (operations.length > 0) {
-			this._edits.push({ operations: operations });
+			this._changes = compressConsecutiveTextChanges(this._changes, operations.map(op => op.textChange));
 		}
 		this._afterEOL = afterEOL;
 		this._afterVersionId = afterVersionId;
@@ -66,13 +67,11 @@ export class SingleModelEditStackElement implements IResourceUndoRedoElement {
 
 	public undo(): void {
 		this._isOpen = false;
-		this._edits.reverse();
-		this._edits = this.model._applyUndoRedoEdits(this._edits, this._beforeEOL, true, false, this._beforeVersionId, this._beforeCursorState);
+		this.model._applyUndo(this._changes, this._beforeEOL, this._beforeVersionId, this._beforeCursorState);
 	}
 
 	public redo(): void {
-		this._edits.reverse();
-		this._edits = this.model._applyUndoRedoEdits(this._edits, this._afterEOL, false, true, this._afterVersionId, this._afterCursorState);
+		this.model._applyRedo(this._changes, this._afterEOL, this._afterVersionId, this._afterCursorState);
 	}
 }
 

@@ -4,35 +4,33 @@
  *--------------------------------------------------------------------------------------------*/
 
 export class TextChange {
-	public readonly oldPosition: number;
-	public readonly oldLength: number;
-	public readonly oldEnd: number;
-	public readonly oldText: string;
-	public readonly newPosition: number;
-	public readonly newLength: number;
-	public readonly newEnd: number;
-	public readonly newText: string;
+
+	public get oldLength(): number {
+		return this.oldText.length;
+	}
+
+	public get oldEnd(): number {
+		return this.oldPosition + this.oldText.length;
+	}
+
+	public get newLength(): number {
+		return this.newText.length;
+	}
+
+	public get newEnd(): number {
+		return this.newPosition + this.newText.length;
+	}
 
 	constructor(
-		oldPosition: number,
-		oldText: string,
-		newPosition: number,
-		newText: string
-	) {
-		this.oldPosition = oldPosition;
-		this.oldLength = oldText.length;
-		this.oldEnd = this.oldPosition + this.oldLength;
-		this.oldText = oldText;
-
-		this.newPosition = newPosition;
-		this.newLength = newText.length;
-		this.newEnd = this.newPosition + this.newLength;
-		this.newText = newText;
-	}
+		public readonly oldPosition: number,
+		public readonly oldText: string,
+		public readonly newPosition: number,
+		public readonly newText: string
+	) { }
 }
 
 export function compressConsecutiveTextChanges(prevEdits: TextChange[] | null, currEdits: TextChange[]): TextChange[] {
-	if (prevEdits === null) {
+	if (prevEdits === null || prevEdits.length === 0) {
 		return currEdits;
 	}
 	const compressor = new TextChangeCompressor(prevEdits, currEdits);

@@ -10,6 +10,7 @@ import { ApplyEditsResult, EndOfLinePreference, FindMatch, IInternalModelContent
 import { PieceTreeBase, StringBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase';
 import { SearchData } from 'vs/editor/common/model/textModelSearch';
 import { countEOL, StringEOL } from 'vs/editor/common/model/tokensStore';
+import { TextChange } from 'vs/editor/common/model/textChange';
 
 export interface IValidatedEditOperation {
 	sortIndex: number;
@@ -17,7 +18,7 @@ export interface IValidatedEditOperation {
 	range: Range;
 	rangeOffset: number;
 	rangeLength: number;
-	text: string | null;
+	text: string;
 	eolCount: number;
 	firstLineLength: number;
 	lastLineLength: number;
@@ -205,7 +206,7 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 		this._pieceTree.setEOL(newEOL);
 	}
 
-	public applyEdits(rawOperations: ValidAnnotatedEditOperation[], recordTrimAutoWhitespace: boolean): ApplyEditsResult {
+	public applyEdits(rawOperations: ValidAnnotatedEditOperation[], recordTrimAutoWhitespace: boolean, computeUndoEdits: boolean): ApplyEditsResult {
 		let mightContainRTL = this._mightContainRTL;
 		let mightContainNonBasicASCII = this._mightContainNonBasicASCII;
 		let canReduceOperations = true;
@@ -225,7 +226,7 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 				mightContainNonBasicASCII = !strings.isBasicASCII(op.text);
 			}
 
-			let validText: string | null = null;
+			let validText = '';
 			let eolCount = 0;
 			let firstLineLength = 0;
 			let lastLineLength = 0;
@@ -260,65 +261,74 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 		// Sort operations ascending
 		operations.sort(PieceTreeTextBuffer._sortOpsAscending);
 
-		let hasTouchingRanges = false;
-		for (let i = 0, count = operations.length - 1; i < count; i++) {
-			let rangeEnd = operations[i].range.getEndPosition();
-			let nextRangeStart = operations[i + 1].range.getStartPosition();
-
-			if (nextRangeStart.isBeforeOrEqual(rangeEnd)) {
-				if (nextRangeStart.isBefore(rangeEnd)) {
-					// overlapping ranges
-					throw new Error('Overlapping ranges are not allowed!');
-				}
-				hasTouchingRanges = true;
-			}
-		}
-
 		if (canReduceOperations) {
 			operations = this._reduceOperations(operations);
 		}
 
 		// Delta encode operations
-		let reverseRanges = PieceTreeTextBuffer._getInverseEditRanges(operations);
+		let reverseRanges = (computeUndoEdits || recordTrimAutoWhitespace ? PieceTreeTextBuffer._getInverseEditRanges(operations) : []);
 		let newTrimAutoWhitespaceCandidates: { lineNumber: number, oldContent: string }[] = [];
+		if (recordTrimAutoWhitespace) {
+			for (let i = 0; i < operations.length; i++) {
+				let op = operations[i];
+				let reverseRange = reverseRanges[i];
 
-		for (let i = 0; i < operations.length; i++) {
-			let op = operations[i];
-			let reverseRange = reverseRanges[i];
-
-			if (recordTrimAutoWhitespace && op.isAutoWhitespaceEdit && op.range.isEmpty()) {
-				// Record already the future line numbers that might be auto whitespace removal candidates on next edit
-				for (let lineNumber = reverseRange.startLineNumber; lineNumber <= reverseRange.endLineNumber; lineNumber++) {
-					let currentLineContent = '';
-					if (lineNumber === reverseRange.startLineNumber) {
-						currentLineContent = this.getLineContent(op.range.startLineNumber);
-						if (strings.firstNonWhitespaceIndex(currentLineContent) !== -1) {
-							continue;
+				if (op.isAutoWhitespaceEdit && op.range.isEmpty()) {
+					// Record already the future line numbers that might be auto whitespace removal candidates on next edit
+					for (let lineNumber = reverseRange.startLineNumber; lineNumber <= reverseRange.endLineNumber; lineNumber++) {
+						let currentLineContent = '';
+						if (lineNumber === reverseRange.startLineNumber) {
+							currentLineContent = this.getLineContent(op.range.startLineNumber);
+							if (strings.firstNonWhitespaceIndex(currentLineContent) !== -1) {
+								continue;
+							}
 						}
+						newTrimAutoWhitespaceCandidates.push({ lineNumber: lineNumber, oldContent: currentLineContent });
 					}
-					newTrimAutoWhitespaceCandidates.push({ lineNumber: lineNumber, oldContent: currentLineContent });
 				}
 			}
 		}
 
 		let reverseOperations: IReverseSingleEditOperation[] = [];
-		for (let i = 0; i < operations.length; i++) {
-			let op = operations[i];
-			let reverseRange = reverseRanges[i];
+		if (computeUndoEdits) {
 
-			reverseOperations[i] = {
-				sortIndex: op.sortIndex,
-				identifier: op.identifier,
-				range: reverseRange,
-				text: this.getValueInRange(op.range),
-				forceMoveMarkers: op.forceMoveMarkers
-			};
+			let hasTouchingRanges = false;
+			for (let i = 0, count = operations.length - 1; i < count; i++) {
+				let rangeEnd = operations[i].range.getEndPosition();
+				let nextRangeStart = operations[i + 1].range.getStartPosition();
+
+				if (nextRangeStart.isBeforeOrEqual(rangeEnd)) {
+					if (nextRangeStart.isBefore(rangeEnd)) {
+						// overlapping ranges
+						throw new Error('Overlapping ranges are not allowed!');
+					}
+					hasTouchingRanges = true;
+				}
+			}
+
+			let reverseRangeDeltaOffset = 0;
+			for (let i = 0; i < operations.length; i++) {
+				const op = operations[i];
+				const reverseRange = reverseRanges[i];
+				const bufferText = this.getValueInRange(op.range);
+				const reverseRangeOffset = op.rangeOffset + reverseRangeDeltaOffset;
+				reverseRangeDeltaOffset += (op.text.length - bufferText.length);
+
+				reverseOperations[i] = {
+					sortIndex: op.sortIndex,
+					identifier: op.identifier,
+					range: reverseRange,
+					text: bufferText,
+					textChange: new TextChange(op.rangeOffset, bufferText, reverseRangeOffset, op.text)
+				};
+			}
+
+			// Can only sort reverse operations when the order is not significant
+			if (!hasTouchingRanges) {
+				reverseOperations.sort((a, b) => a.sortIndex - b.sortIndex);
+			}
 		}
 
-		// Can only sort reverse operations when the order is not significant
-		if (!hasTouchingRanges) {
-			reverseOperations.sort((a, b) => a.sortIndex - b.sortIndex);
-		}
 
 		this._mightContainRTL = mightContainRTL;
 		this._mightContainNonBasicASCII = mightContainNonBasicASCII;
@@ -393,7 +403,7 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 			result.push(this.getValueInRange(new Range(lastEndLineNumber, lastEndColumn, range.startLineNumber, range.startColumn)));
 
 			// (2) -- Push new text
-			if (operation.text) {
+			if (operation.text.length > 0) {
 				result.push(operation.text);
 			}
 
@@ -433,17 +443,15 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 			const endLineNumber = op.range.endLineNumber;
 			const endColumn = op.range.endColumn;
 
-			if (startLineNumber === endLineNumber && startColumn === endColumn && (!op.text || op.text.length === 0)) {
+			if (startLineNumber === endLineNumber && startColumn === endColumn && op.text.length === 0) {
 				// no-op
 				continue;
 			}
 
-			const text = op.text ? op.text : '';
-
-			if (text) {
+			if (op.text) {
 				// replacement
 				this._pieceTree.delete(op.rangeOffset, op.rangeLength);
-				this._pieceTree.insert(op.rangeOffset, text, true);
+				this._pieceTree.insert(op.rangeOffset, op.text, true);
 
 			} else {
 				// deletion
@@ -454,7 +462,7 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 			contentChanges.push({
 				range: contentChangeRange,
 				rangeLength: op.rangeLength,
-				text: text,
+				text: op.text,
 				rangeOffset: op.rangeOffset,
 				forceMoveMarkers: op.forceMoveMarkers
 			});
@@ -503,7 +511,7 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 
 			let resultRange: Range;
 
-			if (op.text && op.text.length > 0) {
+			if (op.text.length > 0) {
 				// the operation inserts something
 				const lineCount = op.eolCount + 1;
 

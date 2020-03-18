@@ -15,6 +15,7 @@ import { SearchData } from 'vs/editor/common/model/textModelSearch';
 import { LanguageId, LanguageIdentifier, FormattingOptions } from 'vs/editor/common/modes';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { MultilineTokens, MultilineTokens2 } from 'vs/editor/common/model/tokensStore';
+import { TextChange } from 'vs/editor/common/model/textChange';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -373,21 +374,13 @@ export interface IValidEditOperation {
 	 */
 	range: Range;
 	/**
-	 * The text to replace with. This can be null to emulate a simple delete.
+	 * The text to replace with. This can be empty to emulate a simple delete.
 	 */
-	text: string | null;
+	text: string;
 	/**
-	 * This indicates that this operation has "insert" semantics.
-	 * i.e. forceMoveMarkers = true => if `range` is collapsed, all markers at the position will be moved.
+	 * @internal
 	 */
-	forceMoveMarkers: boolean;
-}
-
-/**
- * @internal
- */
-export interface IValidEditOperations {
-	operations: IValidEditOperation[];
+	textChange: TextChange;
 }
 
 /**
@@ -1106,7 +1099,12 @@ export interface ITextModel {
 	/**
 	 * @internal
 	 */
-	_applyUndoRedoEdits(edits: IValidEditOperations[], eol: EndOfLineSequence, isUndoing: boolean, isRedoing: boolean, resultingAlternativeVersionId: number, resultingSelection: Selection[] | null): IValidEditOperations[];
+	_applyUndo(changes: TextChange[], eol: EndOfLineSequence, resultingAlternativeVersionId: number, resultingSelection: Selection[] | null): void;
+
+	/**
+	 * @internal
+	 */
+	_applyRedo(changes: TextChange[], eol: EndOfLineSequence, resultingAlternativeVersionId: number, resultingSelection: Selection[] | null): void;
 
 	/**
 	 * Undo edit operations until the first previous stop point created by `pushStackElement`.
@@ -1285,7 +1283,7 @@ export interface ITextBuffer {
 	getLineLastNonWhitespaceColumn(lineNumber: number): number;
 
 	setEOL(newEOL: '\r\n' | '\n'): void;
-	applyEdits(rawOperations: ValidAnnotatedEditOperation[], recordTrimAutoWhitespace: boolean): ApplyEditsResult;
+	applyEdits(rawOperations: ValidAnnotatedEditOperation[], recordTrimAutoWhitespace: boolean, computeUndoEdits: boolean): ApplyEditsResult;
 	findMatchesLineByLine(searchRange: Range, searchData: SearchData, captureMatches: boolean, limitResultCount: number): FindMatch[];
 }
 

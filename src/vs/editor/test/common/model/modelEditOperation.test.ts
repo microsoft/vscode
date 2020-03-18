@@ -71,8 +71,8 @@ suite('Editor Model - Model Edit Operation', () => {
 				identifier: edit.identifier,
 				range: edit.range,
 				text: edit.text,
-				forceMoveMarkers: edit.forceMoveMarkers,
-				isAutoWhitespaceEdit: edit.isAutoWhitespaceEdit
+				forceMoveMarkers: edit.forceMoveMarkers || false,
+				isAutoWhitespaceEdit: edit.isAutoWhitespaceEdit || false
 			};
 		};
 		assert.deepEqual(originalOp.map(simplifyEdit), editOp.map(simplifyEdit));
