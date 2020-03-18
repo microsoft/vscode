@@ -281,7 +281,7 @@ export class OnTypeRenameAction extends EditorAction {
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasRenameProvider),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.F2,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F2,
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
