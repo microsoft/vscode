@@ -15,8 +15,6 @@ import { TextChange, compressConsecutiveTextChanges } from 'vs/editor/common/mod
 
 export class SingleModelEditStackElement implements IResourceUndoRedoElement {
 
-	public readonly type = UndoRedoElementType.Resource;
-	public readonly label: string;
 	private _isOpen: boolean;
 	public model: ITextModel;
 	private readonly _beforeVersionId: number;
@@ -27,12 +25,19 @@ export class SingleModelEditStackElement implements IResourceUndoRedoElement {
 	private _afterCursorState: Selection[] | null;
 	private _changes: TextChange[];
 
+	public get type(): UndoRedoElementType.Resource {
+		return UndoRedoElementType.Resource;
+	}
+
 	public get resource(): URI {
 		return this.model.uri;
 	}
 
+	public get label(): string {
+		return nls.localize('edit', "Typing");
+	}
+
 	constructor(model: ITextModel, beforeCursorState: Selection[] | null) {
-		this.label = nls.localize('edit', "Typing");
 		this._isOpen = true;
 		this.model = model;
 		this._beforeVersionId = this.model.getAlternativeVersionId();
