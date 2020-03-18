@@ -61,16 +61,20 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 	}
 
 	protected getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Promise<Array<ISymbolQuickPickItem>> {
+		return this.getSymbolPicks(filter, undefined, token);
+	}
+
+	async getSymbolPicks(filter: string, options: { skipLocal: boolean, skipSorting: boolean, delay: number } | undefined, token: CancellationToken): Promise<Array<ISymbolQuickPickItem>> {
 		return this.delayer.trigger(async () => {
 			if (token.isCancellationRequested) {
 				return [];
 			}
 
-			return this.getSymbolPicks(filter, token);
-		});
+			return this.doGetSymbolPicks(filter, options, token);
+		}, options?.delay);
 	}
 
-	async getSymbolPicks(filter: string, token: CancellationToken, options?: { skipLocal: boolean, skipSorting: boolean }): Promise<Array<ISymbolQuickPickItem>> {
+	private async doGetSymbolPicks(filter: string, options: { skipLocal: boolean, skipSorting: boolean } | undefined, token: CancellationToken): Promise<Array<ISymbolQuickPickItem>> {
 		const workspaceSymbols = await getWorkspaceSymbols(filter, token);
 		if (token.isCancellationRequested) {
 			return [];
@@ -140,7 +144,7 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 
 				symbolPicks.push({
 					symbol,
-					resource: symbol.location.uri,
+					resource: symbolUri,
 					score: symbolScore,
 					label: symbolLabelWithIcon,
 					ariaLabel: localize('symbolAriaLabel', "{0}, symbols picker", symbolLabel),

@@ -50,7 +50,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	private static readonly MAX_RESULTS = 512;
 
-	private scorerCache: ScorerCache = Object.create(null);
+	private static readonly TYPING_SEARCH_DELAY = 200; // this delay accommodates for the user typing a word and then stops typing to start searching
 
 	private readonly pickState = new class {
 		scorerCache: ScorerCache = Object.create(null);
@@ -167,7 +167,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		// Sort top 512 items by score
 		const sortedAnythingPicks = top(
 			[...filePicks, ...symbolPicks],
-			(anyPickA, anyPickB) => compareItemsByScore(anyPickA, anyPickB, query, true, quickPickItemScorerAccessor, this.scorerCache),
+			(anyPickA, anyPickB) => compareItemsByScore(anyPickA, anyPickB, query, true, quickPickItemScorerAccessor, this.pickState.scorerCache),
 			AnythingQuickAccessProvider.MAX_RESULTS
 		);
 
@@ -177,7 +177,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 				continue; // preserve any highlights we got already (e.g. symbols)
 			}
 
-			const { labelMatch, descriptionMatch } = scoreItem(anythingPick, query, true, quickPickItemScorerAccessor, this.scorerCache);
+			const { labelMatch, descriptionMatch } = scoreItem(anythingPick, query, true, quickPickItemScorerAccessor, this.pickState.scorerCache);
 
 			anythingPick.highlights = {
 				label: labelMatch,
@@ -216,7 +216,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 			const editorHistoryPick = this.createAnythingPick(editor, range);
 
-			const { score, labelMatch, descriptionMatch } = scoreItem(editorHistoryPick, query, false, editorHistoryScorerAccessor, this.scorerCache);
+			const { score, labelMatch, descriptionMatch } = scoreItem(editorHistoryPick, query, false, editorHistoryScorerAccessor, this.pickState.scorerCache);
 			if (!score) {
 				continue; // exclude editors not matching query
 			}
@@ -229,7 +229,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			editorHistoryPicks.push(editorHistoryPick);
 		}
 
-		return editorHistoryPicks.sort((editorA, editorB) => compareItemsByScore(editorA, editorB, query, false, editorHistoryScorerAccessor, this.scorerCache, () => -1));
+		return editorHistoryPicks.sort((editorA, editorB) => compareItemsByScore(editorA, editorB, query, false, editorHistoryScorerAccessor, this.pickState.scorerCache, () => -1));
 	}
 
 	//#endregion
@@ -237,9 +237,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	//#region File Search
 
-	private static readonly FILE_QUERY_DELAY = 200; // this delay accommodates for the user typing a word and then stops typing to start searching
-
-	private fileQueryDelayer = this._register(new ThrottledDelayer<IFileMatch[]>(AnythingQuickAccessProvider.FILE_QUERY_DELAY));
+	private fileQueryDelayer = this._register(new ThrottledDelayer<IFileMatch[]>(AnythingQuickAccessProvider.TYPING_SEARCH_DELAY));
 
 	private fileQueryBuilder = this.instantiationService.createInstance(QueryBuilder);
 
@@ -274,7 +272,13 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			if (this.pickState.fileQueryCache?.isLoaded) {
 				fileMatches = await this.doFileSearch(query, token);
 			} else {
-				fileMatches = await this.fileQueryDelayer.trigger(() => this.doFileSearch(query, token));
+				fileMatches = await this.fileQueryDelayer.trigger(async () => {
+					if (token.isCancellationRequested) {
+						return [];
+					}
+
+					return this.doFileSearch(query, token);
+				});
 			}
 		}
 
@@ -289,10 +293,6 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 	}
 
 	private async doFileSearch(query: IPreparedQuery, token: CancellationToken): Promise<IFileMatch[]> {
-		if (token.isCancellationRequested) {
-			return [];
-		}
-
 		const { results } = await this.searchService.fileSearch(
 			this.fileQueryBuilder.file(
 				this.contextService.getWorkspace().folders,
@@ -308,7 +308,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	private getFileQueryOptions(input: { filePattern?: string, cacheKey?: string, maxResults?: number }): IFileQueryBuilderOptions {
 		const fileQueryOptions: IFileQueryBuilderOptions = {
-			_reason: 'openFileHandler',
+			_reason: 'openFileHandler', // used for telemetry - do not change
 			extraFileResources: this.instantiationService.invokeFunction(getOutOfWorkspaceEditorResources),
 			filePattern: input.filePattern || '',
 			cacheKey: input.cacheKey,
@@ -367,7 +367,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		}
 
 		// Delegate to the existing symbols quick access
-		return this.symbolsQuickAccess.getSymbolPicks(query.value, token, { skipLocal: true, skipSorting: true });
+		// but skip local results and also do not sort
+		return this.symbolsQuickAccess.getSymbolPicks(query.value, { skipLocal: true, skipSorting: true, delay: AnythingQuickAccessProvider.TYPING_SEARCH_DELAY }, token);
 	}
 
 	//#endregion
