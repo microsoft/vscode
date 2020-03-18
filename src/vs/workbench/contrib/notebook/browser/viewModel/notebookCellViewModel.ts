@@ -291,6 +291,10 @@ export class CellViewModel extends Disposable implements ICellViewModel {
 		}
 
 		if (this._textEditor === editor) {
+			if (this._cursorChangeListener === null) {
+				this._cursorChangeListener = this._textEditor.onDidChangeCursorSelection(() => this._onDidChangeCursorSelection.fire());
+				this._onDidChangeCursorSelection.fire();
+			}
 			return;
 		}
 
@@ -330,6 +334,7 @@ export class CellViewModel extends Disposable implements ICellViewModel {
 		});
 		this._textEditor = undefined;
 		this._cursorChangeListener?.dispose();
+		this._cursorChangeListener = null;
 		this._onDidChangeEditorAttachState.fire(false);
 	}
 
@@ -346,7 +351,7 @@ export class CellViewModel extends Disposable implements ICellViewModel {
 			return 0;
 		}
 
-		return this._textEditor.getTopForLineNumber(line);
+		return this._textEditor.getTopForLineNumber(line) + EDITOR_TOP_PADDING + EDITOR_TOOLBAR_HEIGHT;
 	}
 
 	addDecoration(decoration: model.IModelDeltaDecoration): string {

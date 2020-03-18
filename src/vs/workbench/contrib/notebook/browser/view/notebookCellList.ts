@@ -19,7 +19,6 @@ import { Range } from 'vs/editor/common/core/range';
 import { CellRevealType, CellRevealPosition, CursorAtBoundary } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
-import { EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 
 export class NotebookCellList extends WorkbenchList<CellViewModel> implements IDisposable {
 	get onWillScroll(): Event<ScrollEvent> { return this.view.onWillScroll; }
@@ -58,7 +57,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const notebookEditorCursorAtBoundaryContext = NOTEBOOK_EDITOR_CURSOR_BOUNDARY.bindTo(contextKeyService);
 		notebookEditorCursorAtBoundaryContext.set('none');
 
-		let cursorSelectionLisener: IDisposable | null = null;
+		let cursorSelectionListener: IDisposable | null = null;
+		let textEditorAttachListener: IDisposable | null = null;
 
 		const recomputeContext = (element: CellViewModel) => {
 			switch (element.cursorAtBoundary()) {
@@ -79,15 +79,23 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		};
 
 		// Cursor Boundary context
-		this._localDisposableStore.add(this.onDidChangeFocus((e) => {
-			cursorSelectionLisener?.dispose();
+		this._localDisposableStore.add(this.onDidChangeSelection((e) => {
 			if (e.elements.length) {
+				cursorSelectionListener?.dispose();
+				textEditorAttachListener?.dispose();
 				// we only validate the first focused element
 				const focusedElement = e.elements[0];
 
-				cursorSelectionLisener = focusedElement.onDidChangeCursorSelection(() => {
+				cursorSelectionListener = focusedElement.onDidChangeCursorSelection(() => {
 					recomputeContext(focusedElement);
 				});
+
+				textEditorAttachListener = focusedElement.onDidChangeEditorAttachState(() => {
+					if (focusedElement.editorAttached) {
+						recomputeContext(focusedElement);
+					}
+				});
+
 				recomputeContext(focusedElement);
 				return;
 			}
@@ -145,7 +153,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const startLineNumber = range.startLineNumber;
 		const lineOffset = element.getLineScrollTopOffset(startLineNumber);
 		const elementTop = this.view.elementTop(index);
-		const lineTop = elementTop + lineOffset + EDITOR_TOP_PADDING;
+		const lineTop = elementTop + lineOffset;
 
 		// TODO@rebornix 30 ---> line height * 1.5
 		if (lineTop < scrollTop) {

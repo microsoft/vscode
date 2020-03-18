@@ -622,6 +622,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 			cell.state = CellState.Editing;
 			cell.focusMode = CellFocusMode.Editor;
+			this.revealInCenterIfOutsideViewport(cell);
 		} else {
 			let itemDOM = this.list?.domElementAtIndex(index);
 			if (document.activeElement && itemDOM && itemDOM.contains(document.activeElement)) {
@@ -633,6 +634,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 			this.list?.setFocus([index]);
 			this.list?.setSelection([index]);
+			this.revealInCenterIfOutsideViewport(cell);
 			this.list?.focusView();
 		}
 	}
