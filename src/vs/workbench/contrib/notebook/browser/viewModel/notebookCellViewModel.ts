@@ -506,7 +506,7 @@ export class CellViewModel extends Disposable implements ICellViewModel {
 	}
 
 	getIndicatorHeight(): number {
-		return this.getCellTotalHeight() - EDITOR_TOOLBAR_HEIGHT;
+		return this.getCellTotalHeight() - EDITOR_TOOLBAR_HEIGHT - 16;
 	}
 
 	protected _ensureOutputsTop(): void {

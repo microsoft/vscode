@@ -60,7 +60,7 @@
 .monaco-workbench .part.editor > .content .notebook-editor .output .multi-mimetype-output {
 	position: absolute;
 	top: 4px;
-	left: -24px;
+	left: -28px;
 	width: 16px;
 	height: 16px;
 	cursor: pointer;
@@ -95,7 +95,7 @@
 .monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row .menu {
 	position: absolute;
 	left: 0;
-	top: 8px;
+	top: 28px;
 	visibility: hidden;
 	width: 16px;
 	margin: auto;
@@ -145,7 +145,7 @@
 	width: 6px;
 	border-left-width: 2px;
 	border-left-style: solid;
-	left: 2px;
+	left: 20px;
 	top: 22px;
 	bottom: 8px;
 	visibility: hidden;
