@@ -194,13 +194,14 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 	private readonly labelOnlyEditorHistoryPickAccessor = new QuickPickItemScorerAccessor({ skipDescription: true });
 
 	protected getEditorHistoryPicks(query: IPreparedQuery, range: IRange | undefined): Array<IAnythingQuickPickItem> {
-		if (!this.configuration.includeHistory) {
-			return []; // disabled
-		}
 
 		// Just return all history entries if not searching
 		if (!query.value) {
 			return this.historyService.getHistory().map(editor => this.createAnythingPick(editor, range));
+		}
+
+		if (!this.configuration.includeHistory) {
+			return []; // disabled when searching
 		}
 
 		// Only match on label of the editor unless the search includes path separators
