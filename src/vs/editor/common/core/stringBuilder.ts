@@ -9,7 +9,7 @@ import * as buffer from 'vs/base/common/buffer';
 
 declare const TextDecoder: {
 	prototype: TextDecoder;
-	new(label?: string, options?: TextDecoderOptions): TextDecoder;
+	new(label?: string): TextDecoder;
 };
 interface TextDecoder {
 	decode(view: Uint16Array): string;
