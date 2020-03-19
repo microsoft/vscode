@@ -10,7 +10,7 @@ import { prepareQuery, IPreparedQuery, compareItemsByScore, scoreItem, ScorerCac
 import { IFileQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { getOutOfWorkspaceEditorResources, extractRangeFromFilter, IWorkbenchSearchConfiguration } from 'vs/workbench/contrib/search/common/search';
-import { ISearchService, IFileMatch } from 'vs/workbench/services/search/common/search';
+import { ISearchService } from 'vs/workbench/services/search/common/search';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { untildify } from 'vs/base/common/labels';
 import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
@@ -258,7 +258,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	//#region File Search
 
-	private fileQueryDelayer = this._register(new ThrottledDelayer<IFileMatch[]>(AnythingQuickAccessProvider.TYPING_SEARCH_DELAY));
+	private fileQueryDelayer = this._register(new ThrottledDelayer<URI[]>(AnythingQuickAccessProvider.TYPING_SEARCH_DELAY));
 
 	private fileQueryBuilder = this.instantiationService.createInstance(QueryBuilder);
 
@@ -283,9 +283,9 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		}
 
 		// Use absolute path result as only results if present
-		let fileMatches: Array<IFileMatch<URI>>;
+		let fileMatches: Array<URI>;
 		if (absolutePathResult) {
-			fileMatches = [{ resource: absolutePathResult }];
+			fileMatches = [absolutePathResult];
 		}
 
 		// Otherwise run the file search (with a delayer if cache is not ready yet)
@@ -309,22 +309,35 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		// Filter excludes & convert to picks
 		return fileMatches
-			.filter(fileMatch => !excludes.has(fileMatch.resource))
-			.map(fileMatch => this.createAnythingPick(fileMatch.resource));
+			.filter(resource => !excludes.has(resource))
+			.map(resource => this.createAnythingPick(resource));
 	}
 
-	private async doFileSearch(query: IPreparedQuery, token: CancellationToken): Promise<IFileMatch[]> {
-		const { results } = await this.searchService.fileSearch(
-			this.fileQueryBuilder.file(
-				this.contextService.getWorkspace().folders,
-				this.getFileQueryOptions({
-					filePattern: query.original,
-					cacheKey: this.pickState.fileQueryCache?.cacheKey,
-					maxResults: AnythingQuickAccessProvider.MAX_RESULTS
-				})
-			), token);
+	private async doFileSearch(query: IPreparedQuery, token: CancellationToken): Promise<URI[]> {
+		const [fileSearchResults, relativePathFileResults] = await Promise.all([
 
-		return results;
+			// File search: this is a search over all files of the workspace using the provided pattern
+			this.searchService.fileSearch(
+				this.fileQueryBuilder.file(
+					this.contextService.getWorkspace().folders,
+					this.getFileQueryOptions({
+						filePattern: query.original,
+						cacheKey: this.pickState.fileQueryCache?.cacheKey,
+						maxResults: AnythingQuickAccessProvider.MAX_RESULTS
+					})
+				), token),
+
+			// Relative path search: we also want to consider results that match files inside the workspace
+			// by looking for relative paths that the user typed as query. This allows to return even excluded
+			// results into the picker if found (e.g. helps for opening compilation results that are otherwise
+			// excluded)
+			this.getRelativePathFileResults(query, token)
+		]);
+
+		return [
+			...fileSearchResults.results.map(result => result.resource),
+			...(relativePathFileResults || [])
+		];
 	}
 
 	private getFileQueryOptions(input: { filePattern?: string, cacheKey?: string, maxResults?: number }): IFileQueryBuilderOptions {
@@ -341,7 +354,11 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 	}
 
 	private async getAbsolutePathFileResult(query: IPreparedQuery, token: CancellationToken): Promise<URI | undefined> {
-		const detildifiedQuery = untildify(query.original, (await this.remotePathService.userHome).path);
+		if (!query.containsPathSeparator) {
+			return;
+		}
+
+		const detildifiedQuery = untildify(query.value, (await this.remotePathService.userHome).path);
 		if (token.isCancellationRequested) {
 			return;
 		}
@@ -362,10 +379,47 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			}
 
 			try {
-				return (await this.fileService.resolve(resource)).isDirectory ? undefined : resource;
+				if ((await this.fileService.resolve(resource)).isFile) {
+					return resource;
+				}
 			} catch (error) {
-				// ignore
+				// ignore if file does not exist
 			}
+		}
+
+		return;
+	}
+
+	private async getRelativePathFileResults(query: IPreparedQuery, token: CancellationToken): Promise<URI[] | undefined> {
+		if (!query.containsPathSeparator) {
+			return;
+		}
+
+		// Convert relative paths to absolute paths over all folders of the workspace
+		// and return them as results if the absolute paths exist
+		const isAbsolutePathQuery = (await this.remotePathService.path).isAbsolute(query.value);
+		if (!isAbsolutePathQuery) {
+			const resources: URI[] = [];
+			for (const folder of this.contextService.getWorkspace().folders) {
+				if (token.isCancellationRequested) {
+					break;
+				}
+
+				const resource = toLocalResource(
+					folder.toResource(query.value),
+					this.environmentService.configuration.remoteAuthority
+				);
+
+				try {
+					if ((await this.fileService.resolve(resource)).isFile) {
+						resources.push(resource);
+					}
+				} catch (error) {
+					// ignore if file does not exist
+				}
+			}
+
+			return resources;
 		}
 
 		return;
