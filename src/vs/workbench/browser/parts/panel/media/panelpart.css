@@ -85,24 +85,38 @@
 	display: flex;
 }
 
-.monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item.left::before {
+.monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item::before,
+.monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item::after {
 	content: '';
 	width: 2px;
-	height: 35px;
 	display: block;
 	background-color: var(--insert-border-color);
+	opacity: 0;
+	transition-property: opacity;
+	transition-duration: 0ms;
+	transition-delay: 100ms;
+}
+
+.monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item::before {
 	margin-left: -11px;
 	margin-right: 9px;
 }
 
-.monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item.right::after {
-	content: '';
-	width: 2px;
-	height: 35px;
-	display: block;
-	background-color: var(--insert-border-color);
+.monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item::after {
 	margin-right: -11px;
 	margin-left: 9px;
+}
+
+.monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item.right::before,
+.monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item.left::after,
+.monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item.left::before,
+.monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item.right::after {
+	transition-delay: 0s;
+}
+
+.monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item.left::before,
+.monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item.right::after {
+	opacity: 1;
 }
 
 .monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item .action-label{

@@ -9,24 +9,40 @@
 	margin-bottom: 4px;
 }
 
-.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.top::before {
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item::before,
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item::after {
+	position: absolute;
 	content: '';
 	width: 48px;
 	height: 2px;
 	display: block;
 	background-color: var(--insert-border-color);
+	opacity: 0;
+	transition-property: opacity;
+	transition-duration: 0ms;
+	transition-delay: 100ms;
+}
+
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item::before {
 	margin-top: -3px;
 	margin-bottom: 1px;
 }
 
-.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.bottom::after {
-	content: '';
-	width: 48px;
-	height: 2px;
-	display: block;
-	background-color: var(--insert-border-color);
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item::after {
 	margin-top: 1px;
 	margin-bottom: -3px;
+}
+
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.top::before,
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.top::after,
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.bottom::before,
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.bottom::after {
+	transition-delay: 0s;
+}
+
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.top::before,
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.bottom::after {
+	opacity: 1;
 }
 
 .monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-label {
