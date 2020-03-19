@@ -331,11 +331,14 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 export class ExtHostNotebookEditor extends Disposable implements vscode.NotebookEditor {
 	private _viewColumn: vscode.ViewColumn | undefined;
 	private static _cellhandlePool: number = 0;
+	onDidReceiveMessage: vscode.Event<any> = this._onDidReceiveMessage.event;
 
 	constructor(
 		viewType: string,
 		readonly id: string,
 		public uri: URI,
+		private _proxy: MainThreadNotebookShape,
+		private _onDidReceiveMessage: Emitter<any>,
 		public document: ExtHostNotebookDocument,
 		private _documentsAndEditors: ExtHostDocumentsAndEditors
 	) {
@@ -377,6 +380,11 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 	set viewColumn(value) {
 		throw readonly('viewColumn');
 	}
+
+	async postMessage(message: any): Promise<boolean> {
+		return this._proxy.$postMessage(this.document.handle, message);
+	}
+
 }
 
 export class ExtHostNotebookOutputRenderer {
@@ -418,7 +426,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	private readonly _proxy: MainThreadNotebookShape;
 	private readonly _notebookProviders = new Map<string, { readonly provider: vscode.NotebookProvider, readonly extension: IExtensionDescription; }>();
 	private readonly _documents = new Map<string, ExtHostNotebookDocument>();
-	private readonly _editors = new Map<string, ExtHostNotebookEditor>();
+	private readonly _editors = new Map<string, { editor: ExtHostNotebookEditor, onDidReceiveMessage: Emitter<any> }>();
 	private readonly _notebookOutputRenderers = new Map<number, ExtHostNotebookOutputRenderer>();
 	private _outputDisplayOrder: INotebookDisplayOrder | undefined;
 
@@ -442,8 +450,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 					const cellHandle = arg.cell.handle;
 
 					for (let value of this._editors) {
-						if (value[1].document.handle === documentHandle) {
-							const cell = value[1].document.getCell(cellHandle);
+						if (value[1].editor.document.handle === documentHandle) {
+							const cell = value[1].editor.document.getCell(cellHandle);
 							if (cell) {
 								return cell;
 							}
@@ -515,15 +523,19 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 				this._documents.set(URI.revive(uri).toString(), document);
 			}
 
+			const onDidReceiveMessage = new Emitter<any>();
+
 			let editor = new ExtHostNotebookEditor(
 				viewType,
 				`${ExtHostNotebookController._handlePool++}`,
 				URI.revive(uri),
+				this._proxy,
+				onDidReceiveMessage,
 				this._documents.get(URI.revive(uri).toString())!,
 				this._documentsAndEditors
 			);
 
-			this._editors.set(URI.revive(uri).toString(), editor);
+			this._editors.set(URI.revive(uri).toString(), { editor, onDidReceiveMessage });
 			await provider.provider.resolveNotebook(editor);
 			// await editor.document.$updateCells();
 			return editor.document.handle;
@@ -556,7 +568,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 			let editor = this._editors.get(URI.revive(uri).toString());
 			let document = this._documents.get(URI.revive(uri).toString());
 
-			let rawCell = editor?.createCell('', language, type, []) as ExtHostCell;
+			let rawCell = editor?.editor.createCell('', language, type, []) as ExtHostCell;
 			document?.insertCell(index, rawCell!);
 
 			let allDocuments = this._documentsAndEditors.allDocuments();
@@ -629,7 +641,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		let editor = this._editors.get(URI.revive(uri).toString());
 
 		if (editor) {
-			editor.dispose();
+			editor.editor.dispose();
+			editor.onDidReceiveMessage.dispose();
 			this._editors.delete(URI.revive(uri).toString());
 		}
 
@@ -638,5 +651,13 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 	$acceptDisplayOrder(displayOrder: INotebookDisplayOrder): void {
 		this._outputDisplayOrder = displayOrder;
+	}
+
+	$onDidReceiveMessage(uri: UriComponents, message: any): void {
+		let editor = this._editors.get(URI.revive(uri).toString());
+
+		if (editor) {
+			editor.onDidReceiveMessage.fire(message);
+		}
 	}
 }

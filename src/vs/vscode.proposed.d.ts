@@ -1657,6 +1657,19 @@ declare module 'vscode' {
 		readonly document: NotebookDocument;
 		viewColumn?: ViewColumn;
 		/**
+		 * Fired when the output hosting webview posts a message.
+		 */
+		readonly onDidReceiveMessage: Event<any>;
+		/**
+		 * Post a message to the output hosting webview.
+		 *
+		 * Messages are only delivered if the editor is live.
+		 *
+		 * @param message Body of the message. This must be a string or other json serilizable object.
+		 */
+		postMessage(message: any): Thenable<boolean>;
+
+		/**
 		 * Create a notebook cell. The cell is not inserted into current document when created. Extensions should insert the cell into the document by [TextDocument.cells](#TextDocument.cells)
 		 */
 		createCell(content: string, language: string, type: CellKind, outputs: CellOutput[]): NotebookCell;

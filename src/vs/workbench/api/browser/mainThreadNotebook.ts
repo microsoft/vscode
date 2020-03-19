@@ -12,6 +12,8 @@ import { INotebookTextModel, INotebookMimeTypeSelector, NOTEBOOK_DISPLAY_ORDER, 
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 export class MainThreadNotebookDocument extends Disposable {
 	private _textModel: NotebookTextModel;
@@ -54,7 +56,9 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 	constructor(
 		extHostContext: IExtHostContext,
 		@INotebookService private _notebookService: INotebookService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IEditorService private readonly editorService: IEditorService,
+
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostNotebook);
@@ -141,6 +145,21 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 	async executeNotebook(viewType: string, uri: URI): Promise<void> {
 		return this._proxy.$executeNotebook(viewType, uri, undefined);
 	}
+
+	async $postMessage(handle: number, value: any): Promise<boolean> {
+
+		const activeEditorPane = this.editorService.activeEditorPane as any | undefined;
+		if (activeEditorPane?.isNotebookEditor) {
+			const notebookEditor = (activeEditorPane as INotebookEditor);
+
+			if (notebookEditor.viewModel?.handle === handle) {
+				notebookEditor.postMessage(value);
+				return true;
+			}
+		}
+
+		return false;
+	}
 }
 
 export class MainThreadNotebookController implements IMainNotebookController {
@@ -184,6 +203,10 @@ export class MainThreadNotebookController implements IMainNotebookController {
 
 	async executeNotebook(viewType: string, uri: URI): Promise<void> {
 		this._mainThreadNotebook.executeNotebook(viewType, uri);
+	}
+
+	onDidReceiveMessage(uri: UriComponents, message: any): void {
+		this._proxy.$onDidReceiveMessage(uri, message);
 	}
 
 	// Methods for ExtHost

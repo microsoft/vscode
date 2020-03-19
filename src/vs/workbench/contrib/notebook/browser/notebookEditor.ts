@@ -219,6 +219,11 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 		this.control = new NotebookCodeEditors(this.list, this.renderedEditors);
 		this.webview = new BackLayerWebView(this.webviewService, this.notebookService, this, this.environmentSerice);
+		this._register(this.webview.onMessage(message => {
+			if (this.viewModel) {
+				this.notebookService.onDidReceiveMessage(this.viewModel.viewType, this.viewModel.uri, message);
+			}
+		}));
 		this.list.rowsContainer.appendChild(this.webview.element);
 		this._register(this.list);
 	}
@@ -695,6 +700,10 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 	getOutputRenderer(): OutputRenderer {
 		return this.outputRenderer;
+	}
+
+	postMessage(message: any) {
+		this.webview?.webview.sendMessage(message);
 	}
 
 	//#endregion
