@@ -1230,6 +1230,43 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region OnTypeRename: https://github.com/microsoft/vscode/issues/88424
+
+	/**
+	 * The rename provider interface defines the contract between extensions and
+	 * the live-rename feature.
+	 */
+	export interface OnTypeRenameProvider {
+		/**
+		 * Provide a list of ranges that can be live renamed together.
+		 *
+		 * @param document The document in which the command was invoked.
+		 * @param position The position at which the command was invoked.
+		 * @param token A cancellation token.
+		 * @return A list of ranges that can be live-renamed togehter. The ranges must have
+		 * identical length and contain identical text content. The ranges cannot overlap.
+		 */
+		provideOnTypeRenameRanges(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Range[]>;
+	}
+
+	namespace languages {
+		/**
+		 * Register a rename provider that works on type.
+		 *
+		 * Multiple providers can be registered for a language. In that case providers are sorted
+		 * by their [score](#languages.match) and the best-matching provider is used. Failure
+		 * of the selected provider will cause a failure of the whole operation.
+		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider An on type rename provider.
+		 * @param stopPattern Stop on type renaming when input text matches the regular expression. Defaults to `^\s`.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerOnTypeRenameProvider(selector: DocumentSelector, provider: OnTypeRenameProvider, stopPattern?: RegExp): Disposable;
+	}
+
+	//#endregion
+
 	//#region Custom editors: https://github.com/microsoft/vscode/issues/77131
 
 	// TODO:
@@ -1536,6 +1573,125 @@ declare module 'vscode' {
 		 * Indicates that this markdown string can contain [ThemeIcons](#ThemeIcon), e.g. `$(zap)`.
 		 */
 		readonly supportThemeIcons?: boolean;
+	}
+
+	//#endregion
+
+	//#region Peng: Notebook
+
+	export enum CellKind {
+		Markdown = 1,
+		Code = 2
+	}
+
+	export enum CellOutputKind {
+		Text = 1,
+		Error = 2,
+		Rich = 3
+	}
+
+	export interface CellStreamOutput {
+		outputKind: CellOutputKind.Text;
+		text: string;
+	}
+
+	export interface CellErrorOutput {
+		outputKind: CellOutputKind.Error;
+		/**
+		 * Exception Name
+		 */
+		ename: string;
+		/**
+		 * Exception Value
+		 */
+		evalue: string;
+		/**
+		 * Exception call stack
+		 */
+		traceback: string[];
+	}
+
+	export interface CellDisplayOutput {
+		outputKind: CellOutputKind.Rich;
+		/**
+		 * { mime_type: value }
+		 *
+		 * Example:
+		 * ```json
+		 * {
+		 *   "outputKind": vscode.CellOutputKind.Rich,
+		 *   "data": {
+		 *      "text/html": [
+		 *          "<h1>Hello</h1>"
+		 *       ],
+		 *      "text/plain": [
+		 *        "<IPython.lib.display.IFrame at 0x11dee3e80>"
+		 *      ]
+		 *   }
+		 * }
+		 */
+		data: { [key: string]: any };
+	}
+
+	export type CellOutput = CellStreamOutput | CellErrorOutput | CellDisplayOutput;
+
+	export interface NotebookCell {
+		readonly uri: Uri;
+		handle: number;
+		language: string;
+		cellKind: CellKind;
+		outputs: CellOutput[];
+		getContent(): string;
+	}
+
+	export interface NotebookDocument {
+		readonly uri: Uri;
+		readonly fileName: string;
+		readonly isDirty: boolean;
+		languages: string[];
+		cells: NotebookCell[];
+		displayOrder?: GlobPattern[];
+	}
+
+	export interface NotebookEditor {
+		readonly document: NotebookDocument;
+		viewColumn?: ViewColumn;
+		/**
+		 * Create a notebook cell. The cell is not inserted into current document when created. Extensions should insert the cell into the document by [TextDocument.cells](#TextDocument.cells)
+		 */
+		createCell(content: string, language: string, type: CellKind, outputs: CellOutput[]): NotebookCell;
+	}
+
+	export interface NotebookProvider {
+		resolveNotebook(editor: NotebookEditor): Promise<void>;
+		executeCell(document: NotebookDocument, cell: NotebookCell | undefined): Promise<void>;
+		save(document: NotebookDocument): Promise<boolean>;
+	}
+
+	export interface NotebookOutputSelector {
+		type: string;
+		subTypes?: string[];
+	}
+
+	export interface NotebookOutputRenderer {
+		/**
+		 *
+		 * @returns HTML fragment. We can probably return `CellOutput` instead of string ?
+		 *
+		 */
+		render(document: NotebookDocument, cell: NotebookCell, output: CellOutput, mimeType: string): string;
+		preloads?: Uri[];
+	}
+
+	namespace window {
+		export function registerNotebookProvider(
+			notebookType: string,
+			provider: NotebookProvider
+		): Disposable;
+
+		export function registerNotebookOutputRenderer(type: string, outputSelector: NotebookOutputSelector, renderer: NotebookOutputRenderer): Disposable;
+
+		export let activeNotebookDocument: NotebookDocument | undefined;
 	}
 
 	//#endregion
@@ -1866,21 +2022,6 @@ declare module 'vscode' {
 	}
 
 	//#endregion
-
-	//#region https://github.com/microsoft/vscode/issues/90517
-
-	export interface FileSystemError {
-		/**
-		 * A code that identifies this error.
-		 *
-		 * Possible values are names of errors, like [`FileNotFound`](#FileSystemError.FileNotFound),
-		 * or `Unknown` for an unspecified error.
-		 */
-		readonly code: string;
-	}
-
-	//#endregion
-
 
 	//#region https://github.com/microsoft/vscode/issues/90208
 

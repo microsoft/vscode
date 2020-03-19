@@ -10,7 +10,7 @@ import { prepareQuery, IPreparedQuery, compareItemsByScore, scoreItem, ScorerCac
 import { IFileQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { getOutOfWorkspaceEditorResources, extractRangeFromFilter, IWorkbenchSearchConfiguration } from 'vs/workbench/contrib/search/common/search';
-import { ISearchService, IFileMatch } from 'vs/workbench/services/search/common/search';
+import { ISearchService } from 'vs/workbench/services/search/common/search';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { untildify } from 'vs/base/common/labels';
 import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
@@ -54,15 +54,40 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	private readonly pickState = new class {
 		scorerCache: ScorerCache = Object.create(null);
-		fileQueryCache: FileQueryCacheState | undefined;
+		fileQueryCache: FileQueryCacheState | undefined = undefined;
+
+		lastOriginalFilter: string | undefined = undefined;
+		lastFilter: string | undefined = undefined;
+		lastRange: IRange | undefined = undefined;
 
 		constructor(private readonly provider: AnythingQuickAccessProvider) { }
 
 		reset(): void {
+
+			// Caches
 			this.fileQueryCache = this.provider.createFileQueryCache();
 			this.scorerCache = Object.create(null);
+
+			// Other
+			this.lastOriginalFilter = undefined;
+			this.lastFilter = undefined;
+			this.lastRange = undefined;
 		}
 	}(this);
+
+	private readonly configuration = (() => {
+		const editorConfig = this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor;
+		const searchConfig = this.configurationService.getValue<IWorkbenchSearchConfiguration>();
+
+		return {
+			openEditorPinned: !editorConfig.enablePreviewFromQuickOpen,
+			openSideBySideDirection: editorConfig.openSideBySideDirection,
+			includeSymbols: searchConfig.search.quickOpen.includeSymbols,
+			workspaceSymbolsFilter: searchConfig.search.quickOpen.workspaceSymbolsFilter,
+			includeHistory: searchConfig.search.quickOpen.includeHistory,
+			shortAutoSaveDelay: this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY
+		};
+	})();
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -83,19 +108,6 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		super(AnythingQuickAccessProvider.PREFIX, { canAcceptInBackground: true });
 	}
 
-	private get configuration() {
-		const editorConfig = this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor;
-		const searchConfig = this.configurationService.getValue<IWorkbenchSearchConfiguration>();
-
-		return {
-			openEditorPinned: !editorConfig.enablePreviewFromQuickOpen,
-			openSideBySideDirection: editorConfig.openSideBySideDirection,
-			includeSymbols: searchConfig.search.quickOpen.includeSymbols,
-			includeHistory: searchConfig.search.quickOpen.includeHistory,
-			shortAutoSaveDelay: this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY
-		};
-	}
-
 	provide(picker: IQuickPick<IAnythingQuickPickItem>, token: CancellationToken): IDisposable {
 
 		// Reset the pick state for this run
@@ -105,19 +117,37 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		return super.provide(picker, token);
 	}
 
-	protected getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): FastAndSlowPicksType<IAnythingQuickPickItem | IQuickPickSeparator> {
+	protected getPicks(originalFilter: string, disposables: DisposableStore, token: CancellationToken): FastAndSlowPicksType<IAnythingQuickPickItem> | null {
 
 		// Find a suitable range from the pattern looking for ":", "#" or ","
-		let range: IRange | undefined = undefined;
-		const filterWithRange = extractRangeFromFilter(filter);
+		const filterWithRange = extractRangeFromFilter(originalFilter);
+
+		// Update filter with normalized values
+		let filter: string;
 		if (filterWithRange) {
 			filter = filterWithRange.filter;
-			range = filterWithRange.range;
+		} else {
+			filter = originalFilter;
 		}
+
+		// Remember as last range
+		this.pickState.lastRange = filterWithRange?.range;
+
+		// If the original filter value has changed but the normalized
+		// one has not, we return early with a `null` result indicating
+		// that the results should preserve because the range information
+		// (:<line>:<column>) does not need to trigger any re-sorting.
+		if (originalFilter !== this.pickState.lastOriginalFilter && filter === this.pickState.lastFilter) {
+			return null;
+		}
+
+		// Remember as last filter
+		this.pickState.lastOriginalFilter = originalFilter;
+		this.pickState.lastFilter = filter;
 
 		const query = prepareQuery(filter);
 
-		const historyEditorPicks = this.getEditorHistoryPicks(query, range);
+		const historyEditorPicks = this.getEditorHistoryPicks(query);
 
 		return {
 
@@ -139,7 +169,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 					}
 				}
 
-				const additionalPicks = await this.getAdditionalPicks(query, range, additionalPicksExcludes, token);
+				const additionalPicks = await this.getAdditionalPicks(query, additionalPicksExcludes, token);
 				if (token.isCancellationRequested) {
 					return [];
 				}
@@ -152,12 +182,12 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		};
 	}
 
-	private async getAdditionalPicks(query: IPreparedQuery, range: IRange | undefined, excludes: ResourceMap<boolean>, token: CancellationToken): Promise<Array<IAnythingQuickPickItem>> {
+	private async getAdditionalPicks(query: IPreparedQuery, excludes: ResourceMap<boolean>, token: CancellationToken): Promise<Array<IAnythingQuickPickItem>> {
 
 		// Resolve file and symbol picks (if enabled)
 		const [filePicks, symbolPicks] = await Promise.all([
-			this.getFilePicks(query, range, excludes, token),
-			this.getSymbolPicks(query, range, token)
+			this.getFilePicks(query, excludes, token),
+			this.getSymbolPicks(query, token)
 		]);
 
 		if (token.isCancellationRequested) {
@@ -193,11 +223,11 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	private readonly labelOnlyEditorHistoryPickAccessor = new QuickPickItemScorerAccessor({ skipDescription: true });
 
-	protected getEditorHistoryPicks(query: IPreparedQuery, range: IRange | undefined): Array<IAnythingQuickPickItem> {
+	protected getEditorHistoryPicks(query: IPreparedQuery): Array<IAnythingQuickPickItem> {
 
 		// Just return all history entries if not searching
 		if (!query.value) {
-			return this.historyService.getHistory().map(editor => this.createAnythingPick(editor, range));
+			return this.historyService.getHistory().map(editor => this.createAnythingPick(editor));
 		}
 
 		if (!this.configuration.includeHistory) {
@@ -215,7 +245,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 				continue; // exclude editors without file resource if we are searching by pattern
 			}
 
-			const editorHistoryPick = this.createAnythingPick(editor, range);
+			const editorHistoryPick = this.createAnythingPick(editor);
 
 			const { score, labelMatch, descriptionMatch } = scoreItem(editorHistoryPick, query, false, editorHistoryScorerAccessor, this.pickState.scorerCache);
 			if (!score) {
@@ -238,7 +268,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	//#region File Search
 
-	private fileQueryDelayer = this._register(new ThrottledDelayer<IFileMatch[]>(AnythingQuickAccessProvider.TYPING_SEARCH_DELAY));
+	private fileQueryDelayer = this._register(new ThrottledDelayer<URI[]>(AnythingQuickAccessProvider.TYPING_SEARCH_DELAY));
 
 	private fileQueryBuilder = this.instantiationService.createInstance(QueryBuilder);
 
@@ -251,7 +281,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		).load();
 	}
 
-	protected async getFilePicks(query: IPreparedQuery, range: IRange | undefined, excludes: ResourceMap<boolean>, token: CancellationToken): Promise<Array<IAnythingQuickPickItem>> {
+	protected async getFilePicks(query: IPreparedQuery, excludes: ResourceMap<boolean>, token: CancellationToken): Promise<Array<IAnythingQuickPickItem>> {
 		if (!query.value) {
 			return [];
 		}
@@ -263,9 +293,9 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		}
 
 		// Use absolute path result as only results if present
-		let fileMatches: Array<IFileMatch<URI>>;
+		let fileMatches: Array<URI>;
 		if (absolutePathResult) {
-			fileMatches = [{ resource: absolutePathResult }];
+			fileMatches = [absolutePathResult];
 		}
 
 		// Otherwise run the file search (with a delayer if cache is not ready yet)
@@ -289,22 +319,35 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		// Filter excludes & convert to picks
 		return fileMatches
-			.filter(fileMatch => !excludes.has(fileMatch.resource))
-			.map(fileMatch => this.createAnythingPick(fileMatch.resource, range));
+			.filter(resource => !excludes.has(resource))
+			.map(resource => this.createAnythingPick(resource));
 	}
 
-	private async doFileSearch(query: IPreparedQuery, token: CancellationToken): Promise<IFileMatch[]> {
-		const { results } = await this.searchService.fileSearch(
-			this.fileQueryBuilder.file(
-				this.contextService.getWorkspace().folders,
-				this.getFileQueryOptions({
-					filePattern: query.original,
-					cacheKey: this.pickState.fileQueryCache?.cacheKey,
-					maxResults: AnythingQuickAccessProvider.MAX_RESULTS
-				})
-			), token);
+	private async doFileSearch(query: IPreparedQuery, token: CancellationToken): Promise<URI[]> {
+		const [fileSearchResults, relativePathFileResults] = await Promise.all([
 
-		return results;
+			// File search: this is a search over all files of the workspace using the provided pattern
+			this.searchService.fileSearch(
+				this.fileQueryBuilder.file(
+					this.contextService.getWorkspace().folders,
+					this.getFileQueryOptions({
+						filePattern: query.original,
+						cacheKey: this.pickState.fileQueryCache?.cacheKey,
+						maxResults: AnythingQuickAccessProvider.MAX_RESULTS
+					})
+				), token),
+
+			// Relative path search: we also want to consider results that match files inside the workspace
+			// by looking for relative paths that the user typed as query. This allows to return even excluded
+			// results into the picker if found (e.g. helps for opening compilation results that are otherwise
+			// excluded)
+			this.getRelativePathFileResults(query, token)
+		]);
+
+		return [
+			...fileSearchResults.results.map(result => result.resource),
+			...(relativePathFileResults || [])
+		];
 	}
 
 	private getFileQueryOptions(input: { filePattern?: string, cacheKey?: string, maxResults?: number }): IFileQueryBuilderOptions {
@@ -321,7 +364,11 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 	}
 
 	private async getAbsolutePathFileResult(query: IPreparedQuery, token: CancellationToken): Promise<URI | undefined> {
-		const detildifiedQuery = untildify(query.original, (await this.remotePathService.userHome).path);
+		if (!query.containsPathSeparator) {
+			return;
+		}
+
+		const detildifiedQuery = untildify(query.value, (await this.remotePathService.userHome).path);
 		if (token.isCancellationRequested) {
 			return;
 		}
@@ -342,10 +389,47 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			}
 
 			try {
-				return (await this.fileService.resolve(resource)).isDirectory ? undefined : resource;
+				if ((await this.fileService.resolve(resource)).isFile) {
+					return resource;
+				}
 			} catch (error) {
-				// ignore
+				// ignore if file does not exist
 			}
+		}
+
+		return;
+	}
+
+	private async getRelativePathFileResults(query: IPreparedQuery, token: CancellationToken): Promise<URI[] | undefined> {
+		if (!query.containsPathSeparator) {
+			return;
+		}
+
+		// Convert relative paths to absolute paths over all folders of the workspace
+		// and return them as results if the absolute paths exist
+		const isAbsolutePathQuery = (await this.remotePathService.path).isAbsolute(query.value);
+		if (!isAbsolutePathQuery) {
+			const resources: URI[] = [];
+			for (const folder of this.contextService.getWorkspace().folders) {
+				if (token.isCancellationRequested) {
+					break;
+				}
+
+				const resource = toLocalResource(
+					folder.toResource(query.value),
+					this.environmentService.configuration.remoteAuthority
+				);
+
+				try {
+					if ((await this.fileService.resolve(resource)).isFile) {
+						resources.push(resource);
+					}
+				} catch (error) {
+					// ignore if file does not exist
+				}
+			}
+
+			return resources;
 		}
 
 		return;
@@ -358,18 +442,23 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	private symbolsQuickAccess = this._register(this.instantiationService.createInstance(SymbolsQuickAccessProvider));
 
-	protected async getSymbolPicks(query: IPreparedQuery, range: IRange | undefined, token: CancellationToken): Promise<Array<IAnythingQuickPickItem>> {
+	protected async getSymbolPicks(query: IPreparedQuery, token: CancellationToken): Promise<Array<IAnythingQuickPickItem>> {
+		const configuration = this.configuration;
 		if (
-			!query.value ||							// we need a value for search for
-			!this.configuration.includeSymbols ||	// we need to enable symbols in search
-			range									// a range is an indicator for just searching for files
+			!query.value ||						// we need a value for search for
+			!configuration.includeSymbols ||	// we need to enable symbols in search
+			this.pickState.lastRange			// a range is an indicator for just searching for files
 		) {
 			return [];
 		}
 
 		// Delegate to the existing symbols quick access
 		// but skip local results and also do not sort
-		return this.symbolsQuickAccess.getSymbolPicks(query.value, { skipLocal: true, skipSorting: true, delay: AnythingQuickAccessProvider.TYPING_SEARCH_DELAY }, token);
+		return this.symbolsQuickAccess.getSymbolPicks(query.value, {
+			skipLocal: configuration.workspaceSymbolsFilter !== 'all',
+			skipSorting: true,
+			delay: AnythingQuickAccessProvider.TYPING_SEARCH_DELAY
+		}, token);
 	}
 
 	//#endregion
@@ -377,7 +466,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	//#region Helpers
 
-	private createAnythingPick(resourceOrEditor: URI | IEditorInput | IResourceEditorInput, range: IRange | undefined): IAnythingQuickPickItem {
+	private createAnythingPick(resourceOrEditor: URI | IEditorInput | IResourceEditorInput): IAnythingQuickPickItem {
 		const isEditorHistoryEntry = !URI.isUri(resourceOrEditor);
 
 		let resource: URI | undefined;
@@ -431,7 +520,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 					// Open to side / below
 					case 0:
-						this.openAnything(resourceOrEditor, { keyMods, range, forceOpenSideBySide: true });
+						this.openAnything(resourceOrEditor, { keyMods, range: this.pickState.lastRange, forceOpenSideBySide: true });
 						return TriggerAction.CLOSE_PICKER;
 
 					// Remove from History
@@ -445,7 +534,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 				return TriggerAction.NO_ACTION;
 			},
-			accept: (keyMods, event) => this.openAnything(resourceOrEditor, { keyMods, range, preserveFocus: event.inBackground })
+			accept: (keyMods, event) => this.openAnything(resourceOrEditor, { keyMods, range: this.pickState.lastRange, preserveFocus: event.inBackground })
 		};
 	}
 

@@ -5,7 +5,7 @@
 
 @font-face {
 	font-family: "codicon";
-	src: url("./codicon.ttf?5490083fcec741c6a0a08a366d2f9c98") format("truetype");
+	src: url("./codicon.ttf?fb4c14f317e1decb0289895ecc9356f0") format("truetype");
 }
 
 .codicon[class*='codicon-'] {
@@ -416,7 +416,8 @@
 .codicon-feedback:before { content: "\eb96" }
 .codicon-group-by-ref-type:before { content: "\eb97" }
 .codicon-ungroup-by-ref-type:before { content: "\eb98" }
-.codicon-bell-dot:before { content: "\f101" }
-.codicon-debug-alt-2:before { content: "\f102" }
-.codicon-debug-alt:before { content: "\f103" }
-.codicon-run-all:before { content: "\f104" }
+.codicon-account:before { content: "\f101" }
+.codicon-bell-dot:before { content: "\f102" }
+.codicon-debug-alt-2:before { content: "\f103" }
+.codicon-debug-alt:before { content: "\f104" }
+.codicon-run-all:before { content: "\f105" }

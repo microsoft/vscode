@@ -21,7 +21,7 @@ import { IResourceEditorInputType, SIDE_GROUP, IResourceEditorReplacement, IOpen
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { coalesce, distinct } from 'vs/base/common/arrays';
-import { isCodeEditor, isDiffEditor, ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { isCodeEditor, isDiffEditor, ICodeEditor, IDiffEditor, isCompositeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorGroupView, IEditorOpeningEvent, EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -399,6 +399,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			const activeControl = activeEditorPane.getControl();
 			if (isCodeEditor(activeControl) || isDiffEditor(activeControl)) {
 				return activeControl;
+			}
+			if (isCompositeEditor(activeControl) && isCodeEditor(activeControl.activeCodeEditor)) {
+				return activeControl.activeCodeEditor;
 			}
 		}
 

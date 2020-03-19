@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, isCodeEditor, isDiffEditor, isCompositeEditor } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServiceImpl';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
@@ -32,10 +32,15 @@ export class CodeEditorService extends CodeEditorServiceImpl {
 			return activeTextEditorControl.getModifiedEditor();
 		}
 
+		const activeControl = this.editorService.activeEditorPane?.getControl();
+		if (isCompositeEditor(activeControl) && isCodeEditor(activeControl.activeCodeEditor)) {
+			return activeControl.activeCodeEditor;
+		}
+
 		return null;
 	}
 
-	openCodeEditor(input: IResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
+	async openCodeEditor(input: IResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
 
 		// Special case: If the active editor is a diff editor and the request to open originates and
 		// targets the modified side of it, we just apply the request there to prevent opening the modified
@@ -55,7 +60,7 @@ export class CodeEditorService extends CodeEditorServiceImpl {
 			const textOptions = TextEditorOptions.create(input.options);
 			textOptions.apply(targetEditor, ScrollType.Smooth);
 
-			return Promise.resolve(targetEditor);
+			return targetEditor;
 		}
 
 		// Open using our normal editor service

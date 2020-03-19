@@ -384,6 +384,11 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return this._buffer.equals(other);
 	}
 
+	public getTextBuffer(): model.ITextBuffer {
+		this._assertNotDisposed();
+		return this._buffer;
+	}
+
 	private _emitContentChangedEvent(rawChange: ModelRawContentChangedEvent, change: IModelContentChangedEvent): void {
 		if (this._isDisposing) {
 			// Do not confuse listeners by emitting any event after disposing

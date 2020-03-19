@@ -437,14 +437,14 @@ export function registerAction2(ctor: { new(): Action2 }): IDisposable {
 			KeybindingsRegistry.registerKeybindingRule({
 				...item,
 				id: command.id,
-				when: ContextKeyExpr.and(command.precondition, item.when)
+				when: command.precondition ? ContextKeyExpr.and(command.precondition, item.when) : item.when
 			});
 		}
 	} else if (keybinding) {
 		KeybindingsRegistry.registerKeybindingRule({
 			...keybinding,
 			id: command.id,
-			when: ContextKeyExpr.and(command.precondition, keybinding.when)
+			when: command.precondition ? ContextKeyExpr.and(command.precondition, keybinding.when) : keybinding.when
 		});
 	}
 

@@ -51,6 +51,7 @@ import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import { TunnelOptions } from 'vs/platform/remote/common/tunnel';
 import { Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor, InternalTimelineOptions } from 'vs/workbench/contrib/timeline/common/timeline';
 import { revive } from 'vs/base/common/marshalling';
+import { INotebookMimeTypeSelector, IOutput, INotebookDisplayOrder } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { Dto } from 'vs/base/common/types';
 
@@ -361,6 +362,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerHoverProvider(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerEvaluatableExpressionProvider(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerDocumentHighlightProvider(handle: number, selector: IDocumentFilterDto[]): void;
+	$registerOnTypeRenameProvider(handle: number, selector: IDocumentFilterDto[], stopPattern: IRegExpDto | undefined): void;
 	$registerReferenceSupport(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerQuickFixSupport(handle: number, selector: IDocumentFilterDto[], metadata: ICodeActionProviderMetadataDto, displayName: string): void;
 	$registerDocumentFormattingSupport(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, displayName: string): void;
@@ -576,6 +578,16 @@ export interface WebviewExtensionDescription {
 	readonly location: UriComponents;
 }
 
+export interface NotebookExtensionDescription {
+	readonly id: ExtensionIdentifier;
+	readonly location: UriComponents;
+}
+
+export enum WebviewEditorCapabilities {
+	Editable,
+	SupportsHotExit,
+}
+
 export interface CustomTextEditorCapabilities {
 	readonly supportsMove?: boolean;
 }
@@ -633,6 +645,49 @@ export interface ExtHostWebviewsShape {
 	$backup(resource: UriComponents, viewType: string, cancellation: CancellationToken): Promise<void>;
 
 	$onMoveCustomEditor(handle: WebviewPanelHandle, newResource: UriComponents, viewType: string): Promise<void>;
+}
+
+export enum CellKind {
+	Markdown = 1,
+	Code = 2
+}
+
+export enum CellOutputKind {
+	Text = 1,
+	Error = 2,
+	Rich = 3
+}
+
+export interface ICellDto {
+	handle: number;
+	uri: UriComponents,
+	source: string[];
+	language: string;
+	cellKind: CellKind;
+	outputs: IOutput[];
+}
+
+export type NotebookCellsSplice = [
+	number /* start */,
+	number /* delete count */,
+	ICellDto[]
+];
+
+export type NotebookCellOutputsSplice = [
+	number /* start */,
+	number /* delete count */,
+	IOutput[]
+];
+
+export interface MainThreadNotebookShape extends IDisposable {
+	$registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string): Promise<void>;
+	$unregisterNotebookProvider(viewType: string): Promise<void>;
+	$registerNotebookRenderer(extension: NotebookExtensionDescription, type: string, selectors: INotebookMimeTypeSelector, handle: number, preloads: UriComponents[]): Promise<void>;
+	$unregisterNotebookRenderer(handle: number): Promise<void>;
+	$createNotebookDocument(handle: number, viewType: string, resource: UriComponents): Promise<void>;
+	$updateNotebookLanguages(viewType: string, resource: UriComponents, languages: string[]): Promise<void>;
+	$spliceNotebookCells(viewType: string, resource: UriComponents, splices: NotebookCellsSplice[], renderers: number[]): Promise<void>;
+	$spliceNotebookCellOutputs(viewType: string, resource: UriComponents, cellHandle: number, splices: NotebookCellOutputsSplice[], renderers: number[]): Promise<void>;
 }
 
 export interface MainThreadUrlsShape extends IDisposable {
@@ -1232,6 +1287,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideHover(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.Hover | undefined>;
 	$provideEvaluatableExpression(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.EvaluatableExpression | undefined>;
 	$provideDocumentHighlights(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.DocumentHighlight[] | undefined>;
+	$provideOnTypeRenameRanges(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<IRange[] | undefined>;
 	$provideReferences(handle: number, resource: UriComponents, position: IPosition, context: modes.ReferenceContext, token: CancellationToken): Promise<ILocationDto[] | undefined>;
 	$provideCodeActions(handle: number, resource: UriComponents, rangeOrSelection: IRange | ISelection, context: modes.CodeActionContext, token: CancellationToken): Promise<ICodeActionListDto | undefined>;
 	$releaseCodeActions(handle: number, cacheId: number): void;
@@ -1462,6 +1518,17 @@ export interface ExtHostCommentsShape {
 	$toggleReaction(commentControllerHandle: number, threadHandle: number, uri: UriComponents, comment: modes.Comment, reaction: modes.CommentReaction): Promise<void>;
 }
 
+export interface ExtHostNotebookShape {
+	$resolveNotebook(viewType: string, uri: UriComponents): Promise<number | undefined>;
+	$executeNotebook(viewType: string, uri: UriComponents, cellHandle: number | undefined): Promise<void>;
+	$createEmptyCell(viewType: string, uri: UriComponents, index: number, language: string, type: CellKind): Promise<ICellDto | undefined>;
+	$deleteCell(viewType: string, uri: UriComponents, index: number): Promise<boolean>;
+	$saveNotebook(viewType: string, uri: UriComponents): Promise<boolean>;
+	$updateActiveEditor(viewType: string, uri: UriComponents): Promise<void>;
+	$destoryNotebookDocument(viewType: string, uri: UriComponents): Promise<boolean>;
+	$acceptDisplayOrder(displayOrder: INotebookDisplayOrder): void;
+}
+
 export interface ExtHostStorageShape {
 	$acceptValue(shared: boolean, key: string, value: object | undefined): void;
 }
@@ -1527,6 +1594,7 @@ export const MainContext = {
 	MainThreadTask: createMainId<MainThreadTaskShape>('MainThreadTask'),
 	MainThreadWindow: createMainId<MainThreadWindowShape>('MainThreadWindow'),
 	MainThreadLabelService: createMainId<MainThreadLabelServiceShape>('MainThreadLabelService'),
+	MainThreadNotebook: createMainId<MainThreadNotebookShape>('MainThreadNotebook'),
 	MainThreadTheming: createMainId<MainThreadThemingShape>('MainThreadTheming'),
 	MainThreadTunnelService: createMainId<MainThreadTunnelServiceShape>('MainThreadTunnelService'),
 	MainThreadTimeline: createMainId<MainThreadTimelineShape>('MainThreadTimeline')
@@ -1563,7 +1631,8 @@ export const ExtHostContext = {
 	ExtHostStorage: createMainId<ExtHostStorageShape>('ExtHostStorage'),
 	ExtHostUrls: createExtId<ExtHostUrlsShape>('ExtHostUrls'),
 	ExtHostOutputService: createMainId<ExtHostOutputServiceShape>('ExtHostOutputService'),
-	ExtHostLabelService: createMainId<ExtHostLabelServiceShape>('ExtHostLabelService'),
+	ExtHosLabelService: createMainId<ExtHostLabelServiceShape>('ExtHostLabelService'),
+	ExtHostNotebook: createMainId<ExtHostNotebookShape>('ExtHostNotebook'),
 	ExtHostTheming: createMainId<ExtHostThemingShape>('ExtHostTheming'),
 	ExtHostTunnelService: createMainId<ExtHostTunnelServiceShape>('ExtHostTunnelService'),
 	ExtHostAuthentication: createMainId<ExtHostAuthenticationShape>('ExtHostAuthentication'),

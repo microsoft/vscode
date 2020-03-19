@@ -6,7 +6,8 @@
 import { window, Pseudoterminal, EventEmitter, TerminalDimensions, workspace, ConfigurationTarget, Disposable, UIKind, env } from 'vscode';
 import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 
-suite('window namespace tests', () => {
+// TODO@Daniel flaky tests (https://github.com/microsoft/vscode/issues/92826)
+((env.uiKind === UIKind.Web) ? suite.skip : suite)('vscode API - terminal', () => {
 	suiteSetup(async () => {
 		// Disable conpty in integration tests because of https://github.com/microsoft/vscode/issues/76548
 		await workspace.getConfiguration('terminal.integrated').update('windowsEnableConpty', false, ConfigurationTarget.Global);
@@ -19,8 +20,8 @@ suite('window namespace tests', () => {
 			disposables.length = 0;
 		});
 
-		// TODO@Daniel flaky test (https://github.com/microsoft/vscode/issues/92826)
-		((env.uiKind === UIKind.Web) ? test.skip : test)('sendText immediately after createTerminal should not throw', (done) => {
+
+		test('sendText immediately after createTerminal should not throw', (done) => {
 			disposables.push(window.onDidOpenTerminal(term => {
 				try {
 					equal(terminal, term);
@@ -34,8 +35,7 @@ suite('window namespace tests', () => {
 			doesNotThrow(terminal.sendText.bind(terminal, 'echo "foo"'));
 		});
 
-		// TODO@Daniel done called multiple times (https://github.com/microsoft/vscode/issues/92826)
-		((env.uiKind === UIKind.Web) ? test.skip : test)('onDidCloseTerminal event fires when terminal is disposed', (done) => {
+		test('onDidCloseTerminal event fires when terminal is disposed', (done) => {
 			disposables.push(window.onDidOpenTerminal(term => {
 				try {
 					equal(terminal, term);

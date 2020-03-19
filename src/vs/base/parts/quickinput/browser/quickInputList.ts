@@ -498,10 +498,10 @@ export class QuickInputList {
 		this.list.layout();
 	}
 
-	filter(query: string) {
+	filter(query: string): boolean {
 		if (!(this.sortByLabel || this.matchOnLabel || this.matchOnDescription || this.matchOnDetail)) {
 			this.list.layout();
-			return;
+			return false;
 		}
 		query = query.trim();
 
@@ -559,6 +559,8 @@ export class QuickInputList {
 
 		this._onChangedAllVisibleChecked.fire(this.getAllVisibleChecked());
 		this._onChangedVisibleCount.fire(shownElements.length);
+
+		return true;
 	}
 
 	toggleCheckbox() {

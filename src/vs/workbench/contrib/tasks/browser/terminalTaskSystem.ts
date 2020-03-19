@@ -368,11 +368,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		});
 	}
 
-	private removeFromActiveTasks(task: Task): void {
-		if (!this.activeTasks[task.getMapKey()]) {
-			return;
-		}
-		delete this.activeTasks[task.getMapKey()];
+	private removeInstances(task: Task) {
 		let commonKey = task._id.split('|')[0];
 		if (this.instances[commonKey]) {
 			this.instances[commonKey].removeInstance();
@@ -380,6 +376,14 @@ export class TerminalTaskSystem implements ITaskSystem {
 				delete this.instances[commonKey];
 			}
 		}
+	}
+
+	private removeFromActiveTasks(task: Task): void {
+		if (!this.activeTasks[task.getMapKey()]) {
+			return;
+		}
+		delete this.activeTasks[task.getMapKey()];
+		this.removeInstances(task);
 	}
 
 	public terminate(task: Task): Promise<TaskTerminateResponse> {
@@ -466,6 +470,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			return Promise.all(promises).then((summaries): Promise<ITaskSummary> | ITaskSummary => {
 				for (let summary of summaries) {
 					if (summary.exitCode !== 0) {
+						this.removeInstances(task);
 						return { exitCode: summary.exitCode };
 					}
 				}

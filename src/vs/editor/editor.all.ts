@@ -32,6 +32,7 @@ import 'vs/editor/contrib/linesOperations/linesOperations';
 import 'vs/editor/contrib/links/links';
 import 'vs/editor/contrib/multicursor/multicursor';
 import 'vs/editor/contrib/parameterHints/parameterHints';
+import 'vs/editor/contrib/rename/onTypeRename';
 import 'vs/editor/contrib/rename/rename';
 import 'vs/editor/contrib/smartSelect/smartSelect';
 import 'vs/editor/contrib/snippet/snippetController2';

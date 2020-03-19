@@ -14,8 +14,8 @@ jobs:
         with:
           repository: 'JacksonKearl/vscode-triage-github-actions'
           ref: v2
-      # - name: Run Commands
-      #   uses: ./commands
-      #   with:
-      #     token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
-      #     config-path: commands
+      - name: Run Commands
+        uses: ./commands
+        with:
+          token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
+          config-path: commands
