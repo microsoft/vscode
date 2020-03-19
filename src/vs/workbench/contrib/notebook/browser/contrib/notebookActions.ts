@@ -413,7 +413,7 @@ registerAction2(class extends InsertCellCommand {
 	constructor() {
 		super(
 			{
-				id: INSERT_MARKDOWN_CELL_BELOW_COMMAND_ID,
+				id: INSERT_MARKDOWN_CELL_ABOVE_COMMAND_ID,
 				title: localize('notebookActions.insertMarkdownCellAbove', "Insert Markdown Cell Above"),
 			},
 			CellKind.Markdown,
@@ -428,7 +428,7 @@ registerAction2(class extends InsertCellCommand {
 				id: INSERT_MARKDOWN_CELL_BELOW_COMMAND_ID,
 				title: localize('notebookActions.insertMarkdownCellBelow', "Insert Markdown Cell Below"),
 			},
-			CellKind.Code,
+			CellKind.Markdown,
 			'below');
 	}
 });
