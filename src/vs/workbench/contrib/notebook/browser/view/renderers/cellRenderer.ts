@@ -29,6 +29,7 @@ import { CodeCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/c
 import { StatefullMarkdownCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/markdownCell';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellViewModel } from '../../viewModel/notebookCellViewModel';
+import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 
 const $ = DOM.$;
 
@@ -263,10 +264,15 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		DOM.addClasses(outputContainer, 'output');
 		container.appendChild(outputContainer);
 
+		const progressBar = new ProgressBar(editorContainer);
+		progressBar.hide();
+		disposables.add(progressBar);
+
 		return {
 			container,
 			cellContainer,
 			editorContainer,
+			progressBar,
 			focusIndicator,
 			toolbar,
 			runToolbar,
@@ -301,6 +307,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		const toolbarContext = <INotebookCellActionContext>{
 			cell: element,
+			cellTemplate: templateData,
 			notebookEditor: this.notebookEditor
 		};
 		templateData.toolbar!.context = toolbarContext;

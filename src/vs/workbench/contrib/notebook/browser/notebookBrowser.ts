@@ -16,6 +16,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 
 export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('notebookFindWidgetFocused', false);
 
@@ -202,6 +203,7 @@ export interface CellRenderTemplate {
 	editingContainer?: HTMLElement;
 	outputContainer?: HTMLElement;
 	editor?: CodeEditorWidget;
+	progressBar?: ProgressBar;
 	disposables: DisposableStore;
 }
 

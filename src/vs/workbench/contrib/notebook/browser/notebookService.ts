@@ -29,7 +29,7 @@ export interface IMainNotebookController {
 	updateNotebookActiveCell(uri: URI, cellHandle: number): void;
 	createRawCell(uri: URI, index: number, language: string, type: CellKind): Promise<NotebookCellTextModel | undefined>;
 	deleteCell(uri: URI, index: number): Promise<boolean>
-	executeNotebookActiveCell(uri: URI): void;
+	executeNotebookActiveCell(uri: URI): Promise<void>;
 	destoryNotebookDocument(notebook: INotebookTextModel): Promise<void>;
 	save(uri: URI): Promise<boolean>;
 }

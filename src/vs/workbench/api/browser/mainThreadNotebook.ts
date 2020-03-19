@@ -227,11 +227,11 @@ export class MainThreadNotebookController implements IMainNotebookController {
 		return false;
 	}
 
-	executeNotebookActiveCell(uri: URI): void {
+	async executeNotebookActiveCell(uri: URI): Promise<void> {
 		let mainthreadNotebook = this._mapping.get(URI.from(uri).toString());
 
 		if (mainthreadNotebook && mainthreadNotebook.textModel.activeCell) {
-			this._proxy.$executeNotebook(this._viewType, uri, mainthreadNotebook.textModel.activeCell.handle);
+			return this._proxy.$executeNotebook(this._viewType, uri, mainthreadNotebook.textModel.activeCell.handle);
 		}
 	}
 
