@@ -108,7 +108,9 @@ export class BreadcrumbsWidget {
 	}
 
 	setHorizontalScrollbarSize(size: number) {
-		this._scrollable.setHorizontalScrollbarSize(size);
+		this._scrollable.updateOptions({
+			horizontalScrollbarSize: size
+		});
 	}
 
 	dispose(): void {

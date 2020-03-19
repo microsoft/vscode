@@ -172,7 +172,9 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private updateTabsScrollbarSizing(): void {
-		this.tabsScrollbar?.setHorizontalScrollbarSize(this.getTabsScrollbarSizing());
+		this.tabsScrollbar?.updateOptions({
+			horizontalScrollbarSize: this.getTabsScrollbarSizing()
+		});
 	}
 
 	private getTabsScrollbarSizing(): number {

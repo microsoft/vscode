@@ -93,7 +93,7 @@ export class VerticalScrollbar extends AbstractScrollbar {
 		return e.posx;
 	}
 
-	protected _updateSize(size: number): void {
+	protected _updateScrollbarSize(size: number): void {
 		this.slider.setWidth(size);
 	}
 

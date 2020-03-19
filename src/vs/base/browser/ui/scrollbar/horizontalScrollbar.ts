@@ -92,7 +92,7 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 		return e.posy;
 	}
 
-	protected _updateSize(size: number): void {
+	protected _updateScrollbarSize(size: number): void {
 		this.slider.setHeight(size);
 	}
 

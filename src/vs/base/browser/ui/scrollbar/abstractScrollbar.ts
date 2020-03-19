@@ -259,11 +259,13 @@ export abstract class AbstractScrollbar extends Widget {
 		this._scrollable.setScrollPositionNow(desiredScrollPosition);
 	}
 
-	public updateSize(size: number): void {
-		this._updateSize(size);
-		this._scrollbarState.setScrollbarSize(size);
+	public updateScrollbarSize(scrollbarSize: number): void {
+		this._updateScrollbarSize(scrollbarSize);
+		this._scrollbarState.setScrollbarSize(scrollbarSize);
 		this._shouldRender = true;
-		this.render();
+		if (!this._lazyRender) {
+			this.render();
+		}
 	}
 
 	// ----------------- Overwrite these
@@ -274,7 +276,7 @@ export abstract class AbstractScrollbar extends Widget {
 	protected abstract _mouseDownRelativePosition(offsetX: number, offsetY: number): number;
 	protected abstract _sliderMousePosition(e: ISimplifiedMouseEvent): number;
 	protected abstract _sliderOrthogonalMousePosition(e: ISimplifiedMouseEvent): number;
-	protected abstract _updateSize(size: number): void;
+	protected abstract _updateScrollbarSize(size: number): void;
 
 	public abstract writeScrollPosition(target: INewScrollPosition, scrollPosition: number): void;
 }
