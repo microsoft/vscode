@@ -7,12 +7,6 @@
 	width: 48px;
 }
 
-.monaco-workbench .part > .drop-block-overlay.visible {
-	visibility: visible;
-	backdrop-filter: brightness(97%) blur(2px);
-	opacity: 1;
-}
-
 .monaco-workbench .activitybar > .content {
 	height: 100%;
 	display: flex;
