@@ -49,6 +49,8 @@ export interface IKeyMods {
 	readonly alt: boolean;
 }
 
+export const NO_KEY_MODS: IKeyMods = { ctrlCmd: false, alt: false };
+
 export interface IQuickNavigateConfiguration {
 	keybindings: ResolvedKeybinding[];
 }

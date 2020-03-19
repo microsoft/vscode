@@ -110,9 +110,9 @@ export abstract class AbstractEditorNavigationQuickAccessProvider implements IQu
 	 */
 	protected abstract provideWithoutTextEditor(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable;
 
-	protected gotoLocation(editor: IEditor, range: IRange, keyMods: IKeyMods, forceSideBySide?: boolean): void {
-		editor.setSelection(range);
-		editor.revealRangeInCenter(range, ScrollType.Smooth);
+	protected gotoLocation(editor: IEditor, options: { range: IRange, keyMods: IKeyMods, forceSideBySide?: boolean }): void {
+		editor.setSelection(options.range);
+		editor.revealRangeInCenter(options.range, ScrollType.Smooth);
 		editor.focus();
 	}
 

@@ -95,7 +95,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 		disposables.add(picker.onDidAccept(() => {
 			const [item] = picker.selectedItems;
 			if (item && item.range) {
-				this.gotoLocation(editor, item.range.selection, picker.keyMods);
+				this.gotoLocation(editor, { range: item.range.selection, keyMods: picker.keyMods });
 
 				picker.hide();
 			}
@@ -104,7 +104,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 		// Goto symbol side by side if enabled
 		disposables.add(picker.onDidTriggerItemButton(({ item }) => {
 			if (item && item.range) {
-				this.gotoLocation(editor, item.range.selection, picker.keyMods, true);
+				this.gotoLocation(editor, { range: item.range.selection, keyMods: picker.keyMods, forceSideBySide: true });
 
 				picker.hide();
 			}
