@@ -143,6 +143,9 @@ export class EnvironmentService implements IEnvironmentService {
 	}
 
 	@memoize
+	get snippetsHome(): URI { return resources.joinPath(this.userRoamingDataHome, 'snippets'); }
+
+	@memoize
 	get isExtensionDevelopment(): boolean { return !!this._args.extensionDevelopmentPath; }
 
 	@memoize
