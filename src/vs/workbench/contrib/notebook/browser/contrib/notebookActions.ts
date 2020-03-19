@@ -11,7 +11,7 @@ import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/commo
 import { InputFocusedContext, InputFocusedContextKey, IsDevelopmentContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { DELETE_CELL_COMMAND_ID, EDIT_CELL_COMMAND_ID, INSERT_CODE_CELL_ABOVE_COMMAND_ID, INSERT_CODE_CELL_BELOW_COMMAND_ID, INSERT_MARKDOWN_CELL_ABOVE_COMMAND_ID, INSERT_MARKDOWN_CELL_BELOW_COMMAND_ID, MOVE_CELL_DOWN_COMMAND_ID, MOVE_CELL_UP_COMMAND_ID, SAVE_CELL_COMMAND_ID, COPY_CELL_UP_COMMAND_ID, COPY_CELL_DOWN_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/constants';
+import { DELETE_CELL_COMMAND_ID, EDIT_CELL_COMMAND_ID, INSERT_CODE_CELL_ABOVE_COMMAND_ID, INSERT_CODE_CELL_BELOW_COMMAND_ID, INSERT_MARKDOWN_CELL_ABOVE_COMMAND_ID, INSERT_MARKDOWN_CELL_BELOW_COMMAND_ID, MOVE_CELL_DOWN_COMMAND_ID, MOVE_CELL_UP_COMMAND_ID, SAVE_CELL_COMMAND_ID, COPY_CELL_UP_COMMAND_ID, COPY_CELL_DOWN_COMMAND_ID, EXECUTE_CELL_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/constants';
 import { INotebookEditor, KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, NOTEBOOK_EDITOR_FOCUSED, ICellViewModel, CellState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
 import { CellKind, NOTEBOOK_EDITOR_CURSOR_BOUNDARY } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -20,7 +20,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.executeNotebookCell',
+			id: EXECUTE_CELL_COMMAND_ID,
 			title: localize('notebookActions.execute', "Execute Notebook Cell"),
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext),
@@ -33,10 +33,35 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		runActiveCell(accessor);
+	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext): Promise<void> {
+		if (!context) {
+			context = getActiveCellContext(accessor);
+			if (!context) {
+				return;
+			}
+		}
+
+		runCell(accessor, context);
 	}
 });
+
+export class ExecuteCellAction extends MenuItemAction {
+	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ICommandService commandService: ICommandService
+	) {
+		super(
+			{
+				id: EXECUTE_CELL_COMMAND_ID,
+				title: localize('notebookActions.executeCell', "Execute Cell"),
+				icon: { id: 'codicon/play' }
+			},
+			undefined,
+			{ shouldForwardArgs: true },
+			contextKeyService,
+			commandService);
+	}
+}
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -306,6 +331,32 @@ function runActiveCell(accessor: ServicesAccessor): ICellViewModel | undefined {
 	notebookService.executeNotebookActiveCell(viewType, resource);
 
 	return activeCell;
+}
+
+function runCell(accessor: ServicesAccessor, context: INotebookCellActionContext): void {
+	const editorService = accessor.get(IEditorService);
+	const notebookService = accessor.get(INotebookService);
+
+	const resource = editorService.activeEditor?.resource;
+	if (!resource) {
+		return;
+	}
+
+	const editor = getActiveNotebookEditor(editorService);
+	if (!editor) {
+		return;
+	}
+
+	const notebookProviders = notebookService.getContributedNotebookProviders(resource);
+	if (!notebookProviders.length) {
+		return;
+	}
+
+	// Need to make active, maybe TODO
+	editor.focusNotebookCell(context.cell, false);
+
+	const viewType = notebookProviders[0].id;
+	notebookService.executeNotebookActiveCell(viewType, resource);
 }
 
 async function changeActiveCellToKind(kind: CellKind, accessor: ServicesAccessor): Promise<void> {

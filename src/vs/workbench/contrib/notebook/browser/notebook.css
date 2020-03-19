@@ -30,6 +30,10 @@
 	position: relative;
 }
 
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row .cell {
+	display: flex;
+}
+
 .monaco-workbench .part.editor > .content .notebook-editor .notebook-content-widgets {
 	position: absolute;
 	top: 0;
@@ -122,9 +126,18 @@
 	cursor: pointer;
 }
 
-.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row .monaco-toolbar {
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row > .monaco-toolbar {
 	visibility: hidden;
 	margin-right: 24px;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row .cell .run-button-container .monaco-toolbar {
+	margin-top: 8px;
+	visibility: hidden;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row:hover .cell .run-button-container .monaco-toolbar {
+	visibility: visible;
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row.focused .monaco-toolbar,

@@ -18,7 +18,7 @@ import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { InsertCodeCellAboveAction, INotebookCellActionContext, InsertCodeCellBelowAction, InsertMarkdownCellAboveAction, InsertMarkdownCellBelowAction, EditCellAction, SaveCellAction, DeleteCellAction, MoveCellUpAction, MoveCellDownAction } from 'vs/workbench/contrib/notebook/browser/contrib/notebookActions';
+import { InsertCodeCellAboveAction, INotebookCellActionContext, InsertCodeCellBelowAction, InsertMarkdownCellAboveAction, InsertMarkdownCellBelowAction, EditCellAction, SaveCellAction, DeleteCellAction, MoveCellUpAction, MoveCellDownAction, ExecuteCellAction } from 'vs/workbench/contrib/notebook/browser/contrib/notebookActions';
 import { CellRenderTemplate, INotebookEditor, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodeCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/codeCell';
 import { StatefullMarkdownCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/markdownCell';
@@ -30,7 +30,9 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_PADDING, EDITOR_BOTTOM_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 
-export class NotebookCellListDelegate implements IListVirtualDelegate<ICellViewModel> {
+const $ = DOM.$;
+
+export class NotebookCellListDelegate implements IListVirtualDelegate<CellViewModel> {
 	private _lineHeight: number;
 	private _toolbarHeight = EDITOR_TOOLBAR_HEIGHT;
 
@@ -291,10 +293,16 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		])();
 		disposables.add(toolbar);
 
-		const cellContainer = document.createElement('div');
-		DOM.addClasses(cellContainer, 'cell', 'code');
-		container.appendChild(cellContainer);
-		const editor = this.instantiationService.createInstance(CodeEditorWidget, cellContainer, {
+		const cellContainer = DOM.append(container, $('.cell.code'));
+		const runButtonContainer = DOM.append(cellContainer, $('.run-button-container'));
+		const runToolbar = this.createToolbar(runButtonContainer);
+		runToolbar.setActions([
+			this.instantiationService.createInstance(ExecuteCellAction)
+		])();
+		disposables.add(runToolbar);
+
+		const editorContainer = DOM.append(cellContainer, $('.cell-editor-container'));
+		const editor = this.instantiationService.createInstance(CodeEditorWidget, editorContainer, {
 			...this.editorOptions,
 			dimension: {
 				width: 0,
@@ -314,9 +322,11 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		return {
 			container,
 			cellContainer,
+			editorContainer,
 			menuContainer,
 			focusIndicator,
 			toolbar,
+			runToolbar,
 			outputContainer,
 			editor,
 			disposables
@@ -364,10 +374,12 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			templateData.focusIndicator!.style.height = `${element.getIndicatorHeight()}px`;
 		}));
 
-		templateData.toolbar!.context = <INotebookCellActionContext>{
+		const toolbarContext = <INotebookCellActionContext>{
 			cell: element,
 			notebookEditor: this.notebookEditor
 		};
+		templateData.toolbar!.context = toolbarContext;
+		templateData.runToolbar!.context = toolbarContext;
 	}
 
 	getAdditionalContextMenuActions(): IAction[] {
