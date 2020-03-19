@@ -628,6 +628,12 @@ export interface ITextModel {
 	equalsTextBuffer(other: ITextBuffer): boolean;
 
 	/**
+	 * Get the underling text buffer.
+	 * @internal
+	 */
+	getTextBuffer(): ITextBuffer;
+
+	/**
 	 * Get the text in a certain range.
 	 * @param range The range describing what text to get.
 	 * @param eol The end of line character preference. This will only be used for multiline ranges. Defaults to `EndOfLinePreference.TextDefined`.

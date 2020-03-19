@@ -16,7 +16,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchSearchConfiguration } from 'vs/workbench/contrib/search/common/search';
 import { IRange } from 'vs/editor/common/core/range';
-import { compareItemsByScore, scoreItem, ScorerCache, prepareQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
+import { compareItemsByScore, scoreItem, ScorerCache, prepareQuery } from 'vs/base/common/fuzzyScorer';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { CancellationToken } from 'vs/base/common/cancellation';

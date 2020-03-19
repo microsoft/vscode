@@ -120,6 +120,7 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 		if (CONTEXT_DEBUG_UX.getValue(this.contextKeyService) === 'simple') {
 			return [];
 		}
+
 		if (!this.showInitialDebugActions) {
 
 			if (!this.debugToolBarMenu) {
@@ -185,7 +186,7 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 		}
 
 		if (state === State.Initializing) {
-			this.progressService.withProgress({ location: VIEWLET_ID }, _progress => {
+			this.progressService.withProgress({ location: VIEWLET_ID, }, _progress => {
 				return new Promise(resolve => this.progressResolve = resolve);
 			});
 		}

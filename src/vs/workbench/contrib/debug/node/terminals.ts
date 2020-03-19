@@ -12,7 +12,7 @@ import { ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfigurat
 
 let externalTerminalService: IExternalTerminalService | undefined = undefined;
 
-export function runInExternalTerminal(args: DebugProtocol.RunInTerminalRequestArguments, configProvider: ExtHostConfigProvider): void {
+export function runInExternalTerminal(args: DebugProtocol.RunInTerminalRequestArguments, configProvider: ExtHostConfigProvider): Promise<number | undefined> {
 	if (!externalTerminalService) {
 		if (env.isWindows) {
 			externalTerminalService = new WindowsExternalTerminalService(<IConfigurationService><unknown>undefined);
@@ -20,12 +20,12 @@ export function runInExternalTerminal(args: DebugProtocol.RunInTerminalRequestAr
 			externalTerminalService = new MacExternalTerminalService(<IConfigurationService><unknown>undefined);
 		} else if (env.isLinux) {
 			externalTerminalService = new LinuxExternalTerminalService(<IConfigurationService><unknown>undefined);
+		} else {
+			throw new Error('external terminals not supported on this platform');
 		}
 	}
-	if (externalTerminalService) {
-		const config = configProvider.getConfiguration('terminal');
-		externalTerminalService.runInTerminal(args.title!, args.cwd, args.args, args.env || {}, config.external || {});
-	}
+	const config = configProvider.getConfiguration('terminal');
+	return externalTerminalService.runInTerminal(args.title!, args.cwd, args.args, args.env || {}, config.external || {});
 }
 
 function spawnAsPromised(command: string, args: string[]): Promise<string> {

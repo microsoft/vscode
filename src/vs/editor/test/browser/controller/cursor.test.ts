@@ -397,6 +397,25 @@ suite('Editor Controller - Cursor', () => {
 		assertCursor(thisCursor, new Position(1, LINE1.length + 1));
 	});
 
+	test('issue #44465: cursor position not correct when move', () => {
+		thisCursor.setSelections('test', [new Selection(1, 5, 1, 5)]);
+		// going once up on the first line remembers the offset visual columns
+		moveUp(thisCursor);
+		assertCursor(thisCursor, new Position(1, 1));
+		moveDown(thisCursor);
+		assertCursor(thisCursor, new Position(2, 2));
+		moveUp(thisCursor);
+		assertCursor(thisCursor, new Position(1, 5));
+
+		// going twice up on the first line discards the offset visual columns
+		moveUp(thisCursor);
+		assertCursor(thisCursor, new Position(1, 1));
+		moveUp(thisCursor);
+		assertCursor(thisCursor, new Position(1, 1));
+		moveDown(thisCursor);
+		assertCursor(thisCursor, new Position(2, 1));
+	});
+
 	// --------- move to beginning of line
 
 	test('move to beginning of line', () => {

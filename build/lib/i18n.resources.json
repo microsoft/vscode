@@ -123,6 +123,14 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/notebook",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/quickaccess",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/quickopen",
 			"project": "vscode-workbench"
 		},
@@ -260,6 +268,10 @@
 		},
 		{
 			"name": "vs/workbench/services/files",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/log",
 			"project": "vscode-workbench"
 		},
 		{

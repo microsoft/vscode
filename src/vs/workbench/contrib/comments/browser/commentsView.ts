@@ -55,7 +55,7 @@ export class CommentsPanel extends ViewPane {
 		@ICommentService private readonly commentService: ICommentService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super({ ...(options as IViewPaneOptions), id: COMMENTS_VIEW_ID, ariaHeaderLabel: COMMENTS_VIEW_TITLE }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 	}
 
 	public renderBody(container: HTMLElement): void {

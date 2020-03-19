@@ -10,8 +10,8 @@ import { ITextBufferFactory, ITextSnapshot } from 'vs/editor/common/model';
 export const IBackupFileService = createDecorator<IBackupFileService>('backupFileService');
 
 export interface IResolvedBackup<T extends object> {
-	value: ITextBufferFactory;
-	meta?: T;
+	readonly value: ITextBufferFactory;
+	readonly meta?: T;
 }
 
 /**

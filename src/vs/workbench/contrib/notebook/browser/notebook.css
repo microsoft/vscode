@@ -1,0 +1,318 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .part.editor > .content .notebook-editor {
+	box-sizing: border-box;
+	line-height: 22px;
+	user-select: initial;
+	-webkit-user-select: initial;
+	position: relative;
+}
+
+.cell.markdown {
+	user-select: text;
+	-webkit-user-select: text;
+	white-space: initial;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .cell-list-container .monaco-scrollable-element {
+	overflow: visible !important;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .cell-list-container .monaco-list-rows {
+	min-height: 100%;
+	overflow: visible !important;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .cell-list-container {
+	position: relative;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .notebook-content-widgets {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .output {
+	padding-left: 8px;
+	padding-right: 8px;
+	user-select: text;
+	transform: translate3d(0px, 0px, 0px);
+	cursor: auto;
+	box-sizing: border-box;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .output p {
+	white-space: initial;
+	overflow-x: auto;
+	margin: 0px;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .output > div.foreground {
+	padding: 8px;
+	box-sizing: border-box;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .output .multi-mimetype-output {
+	position: absolute;
+	top: 4px;
+	left: -28px;
+	width: 16px;
+	height: 16px;
+	cursor: pointer;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .output .error_message {
+	color: red;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .output pre.traceback {
+	margin: 8px 0;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .output .traceback > span {
+	display: block;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .output .display img {
+	max-width: 100%;
+}
+
+
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row {
+	overflow: visible !important;
+}
+
+
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row:focus-within {
+	z-index: 10;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row .menu {
+	position: absolute;
+	left: 0;
+	top: 28px;
+	visibility: hidden;
+	width: 16px;
+	margin: auto;
+	padding-left: 4px;
+}
+
+
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row .menu.mouseover,
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row:hover .menu {
+	visibility: visible;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list .monaco-list-row:hover {
+	outline: none !important;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list .monaco-list-row.selected,
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list .monaco-list-row.focused {
+	outline: none !important;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row .menu.mouseover,
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row .menu:hover {
+	cursor: pointer;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row .monaco-toolbar {
+	visibility: hidden;
+	margin-right: 24px;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row.focused .monaco-toolbar,
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row:hover .monaco-toolbar {
+	visibility: visible;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-tree.focused.no-focused-item:focus:before,
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list:not(.element-focused):focus:before {
+	outline: none !important;
+}
+
+
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list .monaco-list-row .notebook-cell-focus-indicator {
+	display: block;
+	content: ' ';
+	position: absolute;
+	width: 6px;
+	border-left-width: 2px;
+	border-left-style: solid;
+	left: 28px;
+	top: 22px;
+	bottom: 8px;
+	visibility: hidden;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list .monaco-list-row.focused .notebook-cell-focus-indicator {
+	visibility: visible;
+}
+
+.notebook-webview {
+	position: absolute;
+	z-index: 1000000;
+	left: 373px;
+	top: 0px;
+}
+
+/* markdown */
+
+
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown  img {
+	max-width: 100%;
+	max-height: 100%;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown a {
+	text-decoration: none;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown a:hover {
+	text-decoration: underline;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown a:focus,
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown input:focus,
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown select:focus,
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown textarea:focus {
+	outline: 1px solid -webkit-focus-ring-color;
+	outline-offset: -1px;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown hr {
+	border: 0;
+	height: 2px;
+	border-bottom: 2px solid;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown h1 {
+	padding-bottom: 0.3em;
+	line-height: 1.2;
+	border-bottom-width: 1px;
+	border-bottom-style: solid;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown h1,
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown h2,
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown h3 {
+	font-weight: normal;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown table {
+	border-collapse: collapse;
+	border-spacing: 0;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown table th,
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown table td {
+	border: 1px solid ;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown table > thead > tr > th {
+	text-align: left;
+	border-bottom: 1px solid;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown table > thead > tr > th,
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown table > thead > tr > td,
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown table > tbody > tr > th,
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown table > tbody > tr > td {
+	padding: 5px 10px;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown table > tbody > tr + tr > td {
+	border-top: 1px solid;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown blockquote {
+	margin: 0 7px 0 5px;
+	padding: 0 16px 0 10px;
+	border-left-width: 5px;
+	border-left-style: solid;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown code {
+	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+	font-size: 1em;
+	line-height: 1.357em;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown body.wordWrap pre {
+	white-space: pre-wrap;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown pre:not(.hljs),
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown pre.hljs code > div {
+	padding: 16px;
+	border-radius: 3px;
+	overflow: auto;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown pre code {
+	color: var(--vscode-editor-foreground);
+	tab-size: 4;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown .latex-block {
+	display: block;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown .latex {
+	vertical-align: middle;
+	display: inline-block;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown .latex img,
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown .latex-block img {
+	filter: brightness(0) invert(0)
+}
+
+.vs-dark .monaco-workbench .part.editor > .content .notebook-editor .cell.markdown .latex img,
+.vs-dark .monaco-workbench .part.editor > .content .notebook-editor .cell.markdown .latex-block img {
+	filter: brightness(0) invert(1)
+}
+
+/** Theming */
+
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown pre {
+	background-color: rgba(220, 220, 220, 0.4);
+}
+
+.vs-dark .monaco-workbench .part.editor > .content .notebook-editor .cell.markdown pre {
+	background-color: rgba(10, 10, 10, 0.4);
+}
+
+.hc-black .monaco-workbench .part.editor > .content .notebook-editor .cell.markdown pre {
+	background-color: rgb(0, 0, 0);
+}
+
+.hc-black .monaco-workbench .part.editor > .content .notebook-editor .cell.markdown h1 {
+	border-color: rgb(0, 0, 0);
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown table > thead > tr > th {
+	border-color: rgba(0, 0, 0, 0.18);
+}
+
+.vs-dark .monaco-workbench .part.editor > .content .notebook-editor .cell.markdown table > thead > tr > th {
+	border-color: rgba(255, 255, 255, 0.18);
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown h1,
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown hr,
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown table > tbody > tr > td {
+	border-color: rgba(0, 0, 0, 0.18);
+}
+
+.vs-dark .monaco-workbench .part.editor > .content .notebook-editor .cell.markdown h1,
+.vs-dark .monaco-workbench .part.editor > .content .notebook-editor .cell.markdown hr,
+.vs-dark .monaco-workbench .part.editor > .content .notebook-editor .cell.markdown table > tbody > tr > td {
+	border-color: rgba(255, 255, 255, 0.18);
+}

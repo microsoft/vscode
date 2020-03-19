@@ -138,6 +138,8 @@ class StandaloneTheme implements IStandaloneTheme {
 	public get tokenColorMap(): string[] {
 		return [];
 	}
+
+	public readonly semanticHighlighting = false;
 }
 
 function isBuiltinTheme(themeName: string): themeName is BuiltinTheme {

@@ -484,5 +484,6 @@
 
 		// Interactive Playground
 		"walkThrough.embeddedEditorBackground": "#00000014"
-	}
+	},
+	"semanticHighlighting": true
 }

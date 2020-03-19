@@ -5,7 +5,6 @@
 
 import * as fs from 'fs';
 import * as gracefulFs from 'graceful-fs';
-import { createHash } from 'crypto';
 import { webFrame } from 'electron';
 import { importEntries, mark } from 'vs/base/common/performance';
 import { Workbench } from 'vs/workbench/browser/workbench';
@@ -13,13 +12,11 @@ import { NativeWindow } from 'vs/workbench/electron-browser/window';
 import { setZoomLevel, setZoomFactor, setFullscreen } from 'vs/base/browser/browser';
 import { domContentLoaded, addDisposableListener, EventType, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
 import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { stat } from 'vs/base/node/pfs';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/nativeKeymapService';
 import { INativeWindowConfiguration } from 'vs/platform/windows/node/window';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
@@ -51,6 +48,8 @@ import { FileUserDataProvider } from 'vs/workbench/services/userData/common/file
 import { basename } from 'vs/base/common/resources';
 import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
+import { NativeResourceIdentityService } from 'vs/platform/resource/node/resourceIdentityServiceImpl';
+import { IResourceIdentityService } from 'vs/platform/resource/common/resourceIdentityService';
 
 class DesktopMain extends Disposable {
 
@@ -214,7 +213,10 @@ class DesktopMain extends Disposable {
 			fileService.registerProvider(Schemas.vscodeRemote, remoteFileSystemProvider);
 		}
 
-		const payload = await this.resolveWorkspaceInitializationPayload();
+		const resourceIdentityService = this._register(new NativeResourceIdentityService());
+		serviceCollection.set(IResourceIdentityService, resourceIdentityService);
+
+		const payload = await this.resolveWorkspaceInitializationPayload(resourceIdentityService);
 
 		const services = await Promise.all([
 			this.createWorkspaceService(payload, fileService, remoteAgentService, logService).then(service => {
@@ -240,7 +242,7 @@ class DesktopMain extends Disposable {
 		return { serviceCollection, logService, storageService: services[1] };
 	}
 
-	private async resolveWorkspaceInitializationPayload(): Promise<IWorkspaceInitializationPayload> {
+	private async resolveWorkspaceInitializationPayload(resourceIdentityService: IResourceIdentityService): Promise<IWorkspaceInitializationPayload> {
 
 		// Multi-root workspace
 		if (this.environmentService.configuration.workspace) {
@@ -250,7 +252,7 @@ class DesktopMain extends Disposable {
 		// Single-folder workspace
 		let workspaceInitializationPayload: IWorkspaceInitializationPayload | undefined;
 		if (this.environmentService.configuration.folderUri) {
-			workspaceInitializationPayload = await this.resolveSingleFolderWorkspaceInitializationPayload(this.environmentService.configuration.folderUri);
+			workspaceInitializationPayload = await this.resolveSingleFolderWorkspaceInitializationPayload(this.environmentService.configuration.folderUri, resourceIdentityService);
 		}
 
 		// Fallback to empty workspace if we have no payload yet.
@@ -270,46 +272,16 @@ class DesktopMain extends Disposable {
 		return workspaceInitializationPayload;
 	}
 
-	private async resolveSingleFolderWorkspaceInitializationPayload(folderUri: ISingleFolderWorkspaceIdentifier): Promise<ISingleFolderWorkspaceInitializationPayload | undefined> {
-
-		// Return early the folder is not local
-		if (folderUri.scheme !== Schemas.file) {
-			return { id: createHash('md5').update(folderUri.toString()).digest('hex'), folder: folderUri };
-		}
-
-		function computeLocalDiskFolderId(folder: URI, stat: fs.Stats): string {
-			let ctime: number | undefined;
-			if (isLinux) {
-				ctime = stat.ino; // Linux: birthtime is ctime, so we cannot use it! We use the ino instead!
-			} else if (isMacintosh) {
-				ctime = stat.birthtime.getTime(); // macOS: birthtime is fine to use as is
-			} else if (isWindows) {
-				if (typeof stat.birthtimeMs === 'number') {
-					ctime = Math.floor(stat.birthtimeMs); // Windows: fix precision issue in node.js 8.x to get 7.x results (see https://github.com/nodejs/node/issues/19897)
-				} else {
-					ctime = stat.birthtime.getTime();
-				}
-			}
-
-			// we use the ctime as extra salt to the ID so that we catch the case of a folder getting
-			// deleted and recreated. in that case we do not want to carry over previous state
-			return createHash('md5').update(folder.fsPath).update(ctime ? String(ctime) : '').digest('hex');
-		}
-
-		// For local: ensure path is absolute and exists
+	private async resolveSingleFolderWorkspaceInitializationPayload(folderUri: ISingleFolderWorkspaceIdentifier, resourceIdentityService: IResourceIdentityService): Promise<ISingleFolderWorkspaceInitializationPayload | undefined> {
 		try {
-			const sanitizedFolderPath = sanitizeFilePath(folderUri.fsPath, process.env['VSCODE_CWD'] || process.cwd());
-			const fileStat = await stat(sanitizedFolderPath);
-
-			const sanitizedFolderUri = URI.file(sanitizedFolderPath);
-			return {
-				id: computeLocalDiskFolderId(sanitizedFolderUri, fileStat),
-				folder: sanitizedFolderUri
-			};
+			const folder = folderUri.scheme === Schemas.file
+				? URI.file(sanitizeFilePath(folderUri.fsPath, process.env['VSCODE_CWD'] || process.cwd())) // For local: ensure path is absolute
+				: folderUri;
+			const id = await resourceIdentityService.resolveResourceIdentity(folderUri);
+			return { id, folder };
 		} catch (error) {
 			onUnexpectedError(error);
 		}
-
 		return;
 	}
 

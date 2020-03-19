@@ -213,7 +213,7 @@ class CommandPaletteEditorAction extends EditorAction {
 		super({
 			id: ShowAllCommandsAction.ID,
 			label: localize('showCommands.label', "Command Palette..."),
-			alias: 'Command Palette',
+			alias: 'Command Palette...',
 			precondition: EditorContextKeys.editorSimpleInput.toNegated(),
 			contextMenuOpts: {
 				group: 'z_commands',

@@ -790,6 +790,20 @@ export interface DocumentHighlightProvider {
 }
 
 /**
+ * The rename provider interface defines the contract between extensions and
+ * the live-rename feature.
+ */
+export interface OnTypeRenameProvider {
+
+	stopPattern?: RegExp;
+
+	/**
+	 * Provide a list of ranges that can be live-renamed together.
+	 */
+	provideOnTypeRenameRanges(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<IRange[]>;
+}
+
+/**
  * Value-object that contains additional information when
  * requesting references.
  */
@@ -1641,6 +1655,11 @@ export const DocumentSymbolProviderRegistry = new LanguageFeatureRegistry<Docume
  * @internal
  */
 export const DocumentHighlightProviderRegistry = new LanguageFeatureRegistry<DocumentHighlightProvider>();
+
+/**
+ * @internal
+ */
+export const OnTypeRenameProviderRegistry = new LanguageFeatureRegistry<OnTypeRenameProvider>();
 
 /**
  * @internal
