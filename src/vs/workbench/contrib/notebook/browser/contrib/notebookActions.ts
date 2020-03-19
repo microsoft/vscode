@@ -73,7 +73,7 @@ registerAction2(class extends Action2 {
 		if (nextCell) {
 			editor.focusNotebookCell(nextCell, false);
 		} else {
-			editor.insertNotebookCell(activeCell, CellKind.Code, 'below');
+			await editor.insertNotebookCell(activeCell, CellKind.Code, 'below');
 		}
 	}
 });
@@ -103,7 +103,7 @@ registerAction2(class extends Action2 {
 			return;
 		}
 
-		editor.insertNotebookCell(activeCell, CellKind.Code, 'below');
+		await editor.insertNotebookCell(activeCell, CellKind.Code, 'below');
 	}
 });
 
@@ -308,7 +308,7 @@ function runActiveCell(accessor: ServicesAccessor): ICellViewModel | undefined {
 	return activeCell;
 }
 
-function changeActiveCellToKind(kind: CellKind, accessor: ServicesAccessor): void {
+async function changeActiveCellToKind(kind: CellKind, accessor: ServicesAccessor): Promise<void> {
 	const editorService = accessor.get(IEditorService);
 	const editor = getActiveNotebookEditor(editorService);
 	if (!editor) {
@@ -325,7 +325,7 @@ function changeActiveCellToKind(kind: CellKind, accessor: ServicesAccessor): voi
 	}
 
 	const text = activeCell.getText();
-	editor.insertNotebookCell(activeCell, kind, 'below', text);
+	await editor.insertNotebookCell(activeCell, kind, 'below', text);
 	const idx = editor.viewModel?.getViewCellIndex(activeCell);
 	if (typeof idx !== 'number') {
 		return;
@@ -381,7 +381,7 @@ abstract class InsertCellCommand extends Action2 {
 			}
 		}
 
-		context.notebookEditor.insertNotebookCell(context.cell, this.kind, this.direction);
+		await context.notebookEditor.insertNotebookCell(context.cell, this.kind, this.direction);
 	}
 }
 
@@ -642,7 +642,7 @@ async function moveCell(context: INotebookCellActionContext, direction: 'up' | '
 async function copyCell(context: INotebookCellActionContext, direction: 'up' | 'down'): Promise<void> {
 	const text = context.cell.getText();
 	const newCellDirection = direction === 'up' ? 'above' : 'below';
-	return context.notebookEditor.insertNotebookCell(context.cell, context.cell.cellKind, newCellDirection, text);
+	await context.notebookEditor.insertNotebookCell(context.cell, context.cell.cellKind, newCellDirection, text);
 }
 
 registerAction2(class extends Action2 {
