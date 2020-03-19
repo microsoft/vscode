@@ -125,6 +125,7 @@
 	}`;
 
 	/**
+	 * @param {boolean} allowMultipleAPIAcquire
 	 * @param {*} [state]
 	 * @return {string}
 	 */
