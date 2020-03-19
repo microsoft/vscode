@@ -4,15 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { spawnSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { disposeAll, closeAllEditors, delay, randomFilePath } from '../utils';
 import { Testing } from '../abcEditor';
+import { closeAllEditors, delay, disposeAll, randomFilePath } from '../utils';
 
 assert.ok(vscode.workspace.rootPath);
-const testWorkspaceRoot = vscode.Uri.file(vscode.workspace.rootPath!);
+const testWorkspaceRoot = vscode.Uri.file(path.join(vscode.workspace.rootPath!, 'customEditors'));
 
 const commands = Object.freeze({
 	open: 'vscode.open',
@@ -21,8 +20,8 @@ const commands = Object.freeze({
 	undo: 'editor.action.customEditor.undo',
 });
 
-async function writeRandomFile(options: { root?: vscode.Uri; ext: string; contents: string; }): Promise<vscode.Uri> {
-	const fakeFile = randomFilePath({ root: options.root, ext: options.ext });
+async function writeRandomFile(options: { ext: string; contents: string; }): Promise<vscode.Uri> {
+	const fakeFile = randomFilePath({ root: testWorkspaceRoot, ext: options.ext });
 	await fs.promises.writeFile(fakeFile.fsPath, Buffer.from(options.contents));
 	return fakeFile;
 }
@@ -73,15 +72,14 @@ class CustomEditorUpdateListener {
 
 suite('CustomEditor tests', () => {
 	setup(async () => {
-		resetTestWorkspace();
+		await closeAllEditors();
+		await resetTestWorkspace();
 	});
 
 	teardown(async () => {
 		await closeAllEditors();
-
 		disposeAll(disposables);
-
-		resetTestWorkspace();
+		await resetTestWorkspace();
 	});
 
 	test('Should load basic content from disk', async () => {
@@ -305,8 +303,11 @@ suite('CustomEditor tests', () => {
 	});
 });
 
-function resetTestWorkspace() {
-	const root = testWorkspaceRoot.fsPath;
-	spawnSync(`git checkout -- "${root}"`, { shell: true, cwd: root });
-	spawnSync(`git clean -f "${root}"`, { shell: true, cwd: root });
+async function resetTestWorkspace() {
+	try {
+		await vscode.workspace.fs.delete(testWorkspaceRoot, { recursive: true });
+	} catch {
+		// ok if file doesn't exist
+	}
+	await vscode.workspace.fs.createDirectory(testWorkspaceRoot);
 }
