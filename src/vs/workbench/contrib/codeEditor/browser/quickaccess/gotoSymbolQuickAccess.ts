@@ -18,15 +18,6 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 
 	protected readonly onDidActiveTextEditorControlChange = this.editorService.onDidActiveEditorChange;
 
-	private readonly configuration = (() => {
-		const editorConfig = this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor;
-
-		return {
-			openEditorPinned: !editorConfig.enablePreviewFromQuickOpen,
-			openSideBySideDirection: editorConfig.openSideBySideDirection
-		};
-	})();
-
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
@@ -34,6 +25,15 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 		super({
 			openSideBySideDirection: () => this.configuration.openSideBySideDirection
 		});
+	}
+
+	private get configuration() {
+		const editorConfig = this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor;
+
+		return {
+			openEditorPinned: !editorConfig.enablePreviewFromQuickOpen,
+			openSideBySideDirection: editorConfig.openSideBySideDirection
+		};
 	}
 
 	protected get activeTextEditorControl() {
