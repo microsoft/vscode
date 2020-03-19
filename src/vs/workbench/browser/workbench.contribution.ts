@@ -24,7 +24,7 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 					nls.localize('workbench.editor.titleScrollbarSizing.default', "The default size."),
 					nls.localize('workbench.editor.titleScrollbarSizing.large', "Increases the size, so it can be grabed more easily with the mouse")
 				],
-				description: nls.localize('tabScrollbarHeight', "Controls the height of all scrollbars visible in the title area (Tabs &Breadcrumbs)"),
+				description: nls.localize('tabScrollbarHeight', "Controls the height of the scrollbars used for tabs and breadcrumbs in the editor title area."),
 				default: 'default',
 			},
 			'workbench.editor.showTabs': {

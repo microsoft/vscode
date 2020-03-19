@@ -6,7 +6,7 @@
 import 'vs/css!./media/tabstitlecontrol';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { shorten } from 'vs/base/common/labels';
-import { toResource, GroupIdentifier, IEditorInput, Verbosity, EditorCommandsContextActionRunner, IEditorPartOptions, SideBySideEditor, IEditorPartOptionsChangeEvent } from 'vs/workbench/common/editor';
+import { toResource, GroupIdentifier, IEditorInput, Verbosity, EditorCommandsContextActionRunner, IEditorPartOptions, SideBySideEditor } from 'vs/workbench/common/editor';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -55,9 +55,10 @@ interface IEditorInputLabel {
 type AugmentedLabel = IEditorInputLabel & { editor: IEditorInput };
 
 export class TabsTitleControl extends TitleControl {
+
 	private static readonly SCROLLBAR_SIZES = {
 		default: 3,
-		large: 10,
+		large: 10
 	};
 
 	private titleContainer: HTMLElement | undefined;
@@ -105,14 +106,16 @@ export class TabsTitleControl extends TitleControl {
 		// If we are connected to remote, this accounts for the
 		// remote OS.
 		(async () => this.path = await this.remotePathService.path)();
-		this._register(this.accessor.onDidEditorPartOptionsChange(e => this.onDidEditorPartOptionsChange(e)));
 	}
 
-	protected onDidEditorPartOptionsChange(e: IEditorPartOptionsChangeEvent) {
-		if (e.newPartOptions.titleScrollbarSizing !== undefined) {
-			const size = BreadcrumbsControl.SCROLLBAR_SIZES[e.newPartOptions.titleScrollbarSizing ?? 'default'];
-			this.tabsScrollbar?.setHorizontalScrollbarSize(size);
-		}
+	protected registerListeners(): void {
+		super.registerListeners();
+
+		this._register(this.accessor.onDidEditorPartOptionsChange(e => {
+			if (e.oldPartOptions.titleScrollbarSizing !== e.newPartOptions.titleScrollbarSizing) {
+				this.updateTabsScrollbarSizing();
+			}
+		}));
 	}
 
 	protected create(parent: HTMLElement): void {
@@ -153,15 +156,12 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private createTabsScrollbar(scrollable: HTMLElement): ScrollableElement {
-		const scrollbarSizing = this.configurationService
-			.getValue<IEditorPartOptions['titleScrollbarSizing']>('workbench.editor.titleScrollbarSizing') ?? 'default';
-
 		const tabsScrollbar = new ScrollableElement(scrollable, {
 			horizontal: ScrollbarVisibility.Auto,
+			horizontalScrollbarSize: this.getTabsScrollbarSizing(),
 			vertical: ScrollbarVisibility.Hidden,
 			scrollYToX: true,
-			useShadows: false,
-			horizontalScrollbarSize: TabsTitleControl.SCROLLBAR_SIZES[scrollbarSizing],
+			useShadows: false
 		});
 
 		tabsScrollbar.onScroll(e => {
@@ -169,6 +169,18 @@ export class TabsTitleControl extends TitleControl {
 		});
 
 		return tabsScrollbar;
+	}
+
+	private updateTabsScrollbarSizing(): void {
+		this.tabsScrollbar?.setHorizontalScrollbarSize(this.getTabsScrollbarSizing());
+	}
+
+	private getTabsScrollbarSizing(): number {
+		if (this.accessor.partOptions.titleScrollbarSizing !== 'large') {
+			return TabsTitleControl.SCROLLBAR_SIZES.default;
+		}
+
+		return TabsTitleControl.SCROLLBAR_SIZES.large;
 	}
 
 	private updateBreadcrumbsControl(): void {

@@ -133,9 +133,10 @@ export interface IBreadcrumbsControlOptions {
 export class BreadcrumbsControl {
 
 	static readonly HEIGHT = 22;
-	static readonly SCROLLBAR_SIZES = {
+
+	private static readonly SCROLLBAR_SIZES = {
 		default: 3,
-		large: 8,
+		large: 8
 	};
 
 	static readonly Payload_Reveal = {};

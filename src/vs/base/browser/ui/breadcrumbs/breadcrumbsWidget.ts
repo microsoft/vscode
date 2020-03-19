@@ -91,7 +91,7 @@ export class BreadcrumbsWidget {
 		this._scrollable = new DomScrollableElement(this._domNode, {
 			vertical: ScrollbarVisibility.Hidden,
 			horizontal: ScrollbarVisibility.Auto,
-			horizontalScrollbarSize: horizontalScrollbarSize,
+			horizontalScrollbarSize,
 			useShadows: false,
 			scrollYToX: true
 		});
