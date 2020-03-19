@@ -66,6 +66,7 @@ export class RawDebugSession implements IDisposable {
 	private readonly _onDidBreakpoint = new Emitter<DebugProtocol.BreakpointEvent>();
 	private readonly _onDidLoadedSource = new Emitter<DebugProtocol.LoadedSourceEvent>();
 	private readonly _onDidProgressStart = new Emitter<DebugProtocol.ProgressStartEvent>();
+	private readonly _onDidProgressUpdate = new Emitter<DebugProtocol.ProgressUpdateEvent>();
 	private readonly _onDidProgressEnd = new Emitter<DebugProtocol.ProgressEndEvent>();
 	private readonly _onDidCustomEvent = new Emitter<DebugProtocol.Event>();
 	private readonly _onDidEvent = new Emitter<DebugProtocol.Event>();
@@ -142,6 +143,9 @@ export class RawDebugSession implements IDisposable {
 				case 'progressStart':
 					this._onDidProgressStart.fire(event as DebugProtocol.ProgressStartEvent);
 					break;
+				case 'progressUpdate':
+					this._onDidProgressUpdate.fire(event as DebugProtocol.ProgressUpdateEvent);
+					break;
 				case 'progressEnd':
 					this._onDidProgressEnd.fire(event as DebugProtocol.ProgressEndEvent);
 					break;
@@ -215,6 +219,10 @@ export class RawDebugSession implements IDisposable {
 
 	get onDidProgressStart(): Event<DebugProtocol.ProgressStartEvent> {
 		return this._onDidProgressStart.event;
+	}
+
+	get onDidProgressUpdate(): Event<DebugProtocol.ProgressUpdateEvent> {
+		return this._onDidProgressUpdate.event;
 	}
 
 	get onDidProgressEnd(): Event<DebugProtocol.ProgressEndEvent> {

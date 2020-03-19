@@ -28,6 +28,7 @@
 	height: calc(100% - 41px);
 }
 
+.extensions-viewlet > .extensions .extension-view-header .count-badge-wrapper,
 .extensions-viewlet > .extensions .extension-view-header .monaco-action-bar {
 	margin-right: 4px;
 }

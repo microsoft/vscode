@@ -40,19 +40,19 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 		return this.editorService.activeTextEditorControl;
 	}
 
-	protected gotoLocation(editor: IEditor, range: IRange, keyMods: IKeyMods, forceSideBySide?: boolean): void {
+	protected gotoLocation(editor: IEditor, options: { range: IRange, keyMods: IKeyMods, forceSideBySide?: boolean }): void {
 
 		// Check for sideBySide use
-		if ((keyMods.ctrlCmd || forceSideBySide) && this.editorService.activeEditor) {
+		if ((options.keyMods.ctrlCmd || options.forceSideBySide) && this.editorService.activeEditor) {
 			this.editorService.openEditor(this.editorService.activeEditor, {
-				selection: range,
-				pinned: keyMods.alt || this.configuration.openEditorPinned
+				selection: options.range,
+				pinned: options.keyMods.alt || this.configuration.openEditorPinned
 			}, SIDE_GROUP);
 		}
 
 		// Otherwise let parent handle it
 		else {
-			super.gotoLocation(editor, range, keyMods);
+			super.gotoLocation(editor, options);
 		}
 	}
 }

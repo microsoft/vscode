@@ -357,7 +357,6 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		// Match quickOpen outline styles - ignore for disabled options
 		if (this.styles.listFocusOutline) {
 			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.focused { outline: 1.6px dotted ${this.styles.listFocusOutline} !important; outline-offset: -1.6px !important; }`);
-
 		}
 
 		if (this.styles.listHoverOutline) {

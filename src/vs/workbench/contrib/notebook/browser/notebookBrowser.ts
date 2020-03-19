@@ -45,6 +45,8 @@ export interface INotebookEditor {
 	 */
 	viewModel: NotebookViewModel | undefined;
 
+	isNotebookEditor: boolean;
+
 	/**
 	 * Focus the notebook editor cell list
 	 */
@@ -121,6 +123,11 @@ export interface INotebookEditor {
 	 * Remove the output from the webview layer
 	 */
 	removeInset(output: IOutput): void;
+
+	/**
+	 * Send message to the webview for outputs.
+	 */
+	postMessage(message: any): void;
 
 	/**
 	 * Trigger the editor to scroll from scroll event programmatically

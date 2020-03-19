@@ -26,7 +26,7 @@ import { EditorInput, IWorkbenchEditorConfiguration, IEditorInput } from 'vs/wor
 import { Component } from 'vs/workbench/common/component';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { QuickOpenHandler, QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions, EditorQuickOpenEntry, CLOSE_ON_FOCUS_LOST_CONFIG, SEARCH_EDITOR_HISTORY, PRESERVE_INPUT_CONFIG } from 'vs/workbench/browser/quickopen';
+import { QuickOpenHandler, QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions, EditorQuickOpenEntry, CLOSE_ON_FOCUS_LOST_CONFIG, SEARCH_EDITOR_HISTORY, PRESERVE_INPUT_CONFIG, ENABLE_EXPERIMENTAL_VERSION_CONFIG } from 'vs/workbench/browser/quickopen';
 import * as errors from 'vs/base/common/errors';
 import { IQuickOpenService, IShowOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -86,6 +86,10 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	private editorHistoryHandler: EditorHistoryHandler;
 	private pendingGetResultsInvocation: CancellationTokenSource | null = null;
 
+	private get useNewExperimentalVersion() {
+		return this.configurationService.getValue(ENABLE_EXPERIMENTAL_VERSION_CONFIG) === true;
+	}
+
 	constructor(
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -95,7 +99,8 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService
+		@IStorageService storageService: IStorageService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
 		super(QuickOpenController.ID, themeService, storageService);
 
@@ -125,26 +130,42 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	}
 
 	navigate(next: boolean, quickNavigate?: IQuickNavigateConfiguration): void {
-		if (this.quickOpenWidget) {
-			this.quickOpenWidget.navigate(next, quickNavigate);
+		if (this.useNewExperimentalVersion) {
+			// already handled
+		} else {
+			if (this.quickOpenWidget) {
+				this.quickOpenWidget.navigate(next, quickNavigate);
+			}
 		}
 	}
 
 	accept(): void {
-		if (this.quickOpenWidget && this.quickOpenWidget.isVisible()) {
-			this.quickOpenWidget.accept();
+		if (this.useNewExperimentalVersion) {
+			// already handled
+		} else {
+			if (this.quickOpenWidget && this.quickOpenWidget.isVisible()) {
+				this.quickOpenWidget.accept();
+			}
 		}
 	}
 
 	focus(): void {
-		if (this.quickOpenWidget && this.quickOpenWidget.isVisible()) {
-			this.quickOpenWidget.focus();
+		if (this.useNewExperimentalVersion) {
+			// already handled
+		} else {
+			if (this.quickOpenWidget && this.quickOpenWidget.isVisible()) {
+				this.quickOpenWidget.focus();
+			}
 		}
 	}
 
 	close(): void {
-		if (this.quickOpenWidget && this.quickOpenWidget.isVisible()) {
-			this.quickOpenWidget.hide(HideReason.CANCELED);
+		if (this.useNewExperimentalVersion) {
+			// already handled
+		} else {
+			if (this.quickOpenWidget && this.quickOpenWidget.isVisible()) {
+				this.quickOpenWidget.hide(HideReason.CANCELED);
+			}
 		}
 	}
 
@@ -157,6 +178,12 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	}
 
 	show(prefix?: string, options?: IShowOptions): Promise<void> {
+		if (this.useNewExperimentalVersion) {
+			this.quickInputService.quickAccess.show(prefix, options);
+
+			return Promise.resolve();
+		}
+
 		let quickNavigateConfiguration = options ? options.quickNavigateConfiguration : undefined;
 		let inputSelection = options ? options.inputSelection : undefined;
 		let autoFocus = options ? options.autoFocus : undefined;

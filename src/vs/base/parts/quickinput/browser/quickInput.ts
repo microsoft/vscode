@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/quickInput';
-import { IQuickPickItem, IPickOptions, IInputOptions, IQuickNavigateConfiguration, IQuickPick, IQuickInput, IQuickInputButton, IInputBox, IQuickPickItemButtonEvent, QuickPickInput, IQuickPickSeparator, IKeyMods, IQuickPickAcceptEvent } from 'vs/base/parts/quickinput/common/quickInput';
+import { IQuickPickItem, IPickOptions, IInputOptions, IQuickNavigateConfiguration, IQuickPick, IQuickInput, IQuickInputButton, IInputBox, IQuickPickItemButtonEvent, QuickPickInput, IQuickPickSeparator, IKeyMods, IQuickPickAcceptEvent, NO_KEY_MODS } from 'vs/base/parts/quickinput/common/quickInput';
 import * as dom from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { QuickInputList } from './quickInputList';
@@ -125,6 +125,7 @@ type Visibilities = {
 	list?: boolean;
 	ok?: boolean;
 	customButton?: boolean;
+	progressBar?: boolean;
 };
 
 class QuickInput extends Disposable implements IQuickInput {
@@ -406,8 +407,16 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private _customButton = false;
 	private _customButtonLabel: string | undefined;
 	private _customButtonHover: string | undefined;
+	private _quickNavigate: IQuickNavigateConfiguration | undefined;
 
-	quickNavigate: IQuickNavigateConfiguration | undefined;
+	get quickNavigate() {
+		return this._quickNavigate;
+	}
+
+	set quickNavigate(quickNavigate: IQuickNavigateConfiguration | undefined) {
+		this._quickNavigate = quickNavigate;
+		this.update();
+	}
 
 	get value() {
 		return this._value;
@@ -451,6 +460,10 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	set items(items: Array<T | IQuickPickSeparator>) {
 		this._items = items;
 		this.itemsUpdated = true;
+		if (this._items.length === 0) {
+			// quick-navigate requires at least 1 item
+			this._quickNavigate = undefined;
+		}
 		this.update();
 	}
 
@@ -540,6 +553,13 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	}
 
 	get keyMods() {
+		if (this._quickNavigate) {
+			// Disable keyMods when quick navigate is enabled
+			// because in this model the interaction is purely
+			// keyboard driven and Ctrl/Alt are typically
+			// pressed and hold during this interaction.
+			return NO_KEY_MODS;
+		}
 		return this.ui.keyMods;
 	}
 
@@ -622,8 +642,10 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 						return;
 					}
 					this._value = value;
-					this.ui.list.filter(this.filterValue(this.ui.inputBox.value));
-					this.trySelectFirst();
+					const didFilter = this.ui.list.filter(this.filterValue(this.ui.inputBox.value));
+					if (didFilter) {
+						this.trySelectFirst();
+					}
 					this.onDidChangeValueEmitter.fire(value);
 				}));
 			this.visibleDisposables.add(this.ui.inputBox.onMouseDown(event => {
@@ -796,8 +818,12 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		if (!this.visible) {
 			return;
 		}
+		dom.toggleClass(this.ui.container, 'quick-navigate-mode', !!this._quickNavigate);
 		const ok = this.ok === 'default' ? this.canSelectMany : this.ok;
-		this.ui.setVisibilities(this.canSelectMany ? { title: !!this.title || !!this.step, description: !!this.description, checkAll: true, inputBox: true, visibleCount: true, count: true, ok, list: true, message: !!this.validationMessage, customButton: this.customButton } : { title: !!this.title || !!this.step, description: !!this.description, inputBox: true, visibleCount: true, list: true, message: !!this.validationMessage, customButton: this.customButton, ok });
+		const visibilities: Visibilities = this.canSelectMany ?
+			{ title: !!this.title || !!this.step, description: !!this.description, checkAll: true, inputBox: !this._quickNavigate, progressBar: !this._quickNavigate, visibleCount: true, count: true, ok, list: true, message: !!this.validationMessage, customButton: this.customButton } :
+			{ title: !!this.title || !!this.step, description: !!this.description, inputBox: !this._quickNavigate, progressBar: !this._quickNavigate, visibleCount: true, list: true, message: !!this.validationMessage, customButton: this.customButton, ok };
+		this.ui.setVisibilities(visibilities);
 		super.update();
 		if (this.ui.inputBox.value !== this.value) {
 			this.ui.inputBox.value = this.value;
@@ -818,12 +844,18 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		this.ui.list.sortByLabel = this.sortByLabel;
 		if (this.itemsUpdated) {
 			this.itemsUpdated = false;
+			const previousItemCount = this.ui.list.getElementsCount();
 			this.ui.list.setElements(this.items);
 			this.ui.list.filter(this.filterValue(this.ui.inputBox.value));
 			this.ui.checkAll.checked = this.ui.list.getAllVisibleChecked();
 			this.ui.visibleCount.setCount(this.ui.list.getVisibleCount());
 			this.ui.count.setCount(this.ui.list.getCheckedCount());
 			this.trySelectFirst();
+			if (this._quickNavigate && previousItemCount === 0 && this.items.length > 1) {
+				// quick navigate: automatically focus the second entry
+				// so that upon release the item is picked directly
+				this.ui.list.focus('Next');
+			}
 		}
 		if (this.ui.container.classList.contains('show-checkboxes') !== !!this.canSelectMany) {
 			if (this.canSelectMany) {
@@ -862,6 +894,11 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		this.ui.customButton.label = this.customLabel || '';
 		this.ui.customButton.element.title = this.customHover || '';
 		this.ui.setComboboxAccessibility(true);
+		if (!visibilities.inputBox) {
+			// we need to move focus into the tree to detect keybindings
+			// properly when the input box is not visible (quick nav)
+			this.ui.list.domFocus();
+		}
 	}
 }
 
@@ -1440,6 +1477,7 @@ export class QuickInputController extends Disposable {
 		ui.okContainer.style.display = visibilities.ok ? '' : 'none';
 		ui.customButtonContainer.style.display = visibilities.customButton ? '' : 'none';
 		ui.message.style.display = visibilities.message ? '' : 'none';
+		ui.progressBar.getContainer().style.display = visibilities.progressBar ? '' : 'none';
 		ui.list.display(!!visibilities.list);
 		ui.container.classList[visibilities.checkAll ? 'add' : 'remove']('show-checkboxes');
 		this.updateLayout(); // TODO

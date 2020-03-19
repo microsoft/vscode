@@ -416,6 +416,10 @@ export class QuickInputList {
 		this._onChangedVisibleCount.fire(this.elements.length);
 	}
 
+	getElementsCount(): number {
+		return this.inputElements.length;
+	}
+
 	getFocusedElements() {
 		return this.list.getFocusedElements()
 			.map(e => e.item);
@@ -498,10 +502,10 @@ export class QuickInputList {
 		this.list.layout();
 	}
 
-	filter(query: string) {
+	filter(query: string): boolean {
 		if (!(this.sortByLabel || this.matchOnLabel || this.matchOnDescription || this.matchOnDetail)) {
 			this.list.layout();
-			return;
+			return false;
 		}
 		query = query.trim();
 
@@ -559,6 +563,8 @@ export class QuickInputList {
 
 		this._onChangedAllVisibleChecked.fire(this.getAllVisibleChecked());
 		this._onChangedVisibleCount.fire(shownElements.length);
+
+		return true;
 	}
 
 	toggleCheckbox() {

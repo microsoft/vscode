@@ -14,16 +14,20 @@ import { isSafari, isStandalone } from 'vs/base/browser/browser';
 
 registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 
-	// Icon defaults
-	const iconForegroundColor = theme.getColor(iconForeground);
-	if (iconForegroundColor) {
-		collector.addRule(`.monaco-workbench .codicon { color: ${iconForegroundColor}; }`);
-	}
-
 	// Foreground
 	const windowForeground = theme.getColor(foreground);
 	if (windowForeground) {
 		collector.addRule(`.monaco-workbench { color: ${windowForeground}; }`);
+	}
+
+	// Background (We need to set the workbench background color so that on Windows we get subpixel-antialiasing)
+	const workbenchBackground = WORKBENCH_BACKGROUND(theme);
+	collector.addRule(`.monaco-workbench { background-color: ${workbenchBackground}; }`);
+
+	// Icon defaults
+	const iconForegroundColor = theme.getColor(iconForeground);
+	if (iconForegroundColor) {
+		collector.addRule(`.monaco-workbench .codicon { color: ${iconForegroundColor}; }`);
 	}
 
 	// Selection
@@ -57,10 +61,6 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 			}
 		`);
 	}
-
-	// We need to set the workbench background color so that on Windows we get subpixel-antialiasing.
-	const workbenchBackground = WORKBENCH_BACKGROUND(theme);
-	collector.addRule(`.monaco-workbench { background-color: ${workbenchBackground}; }`);
 
 	// Scrollbars
 	const scrollbarShadowColor = theme.getColor(scrollbarShadow);

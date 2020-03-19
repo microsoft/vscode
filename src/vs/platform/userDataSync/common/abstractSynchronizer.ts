@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IFileService, IFileContent, FileChangesEvent, FileSystemProviderError, FileSystemProviderErrorCode, FileOperationResult, FileOperationError } from 'vs/platform/files/common/files';
+import { IFileService, IFileContent, FileChangesEvent, FileOperationResult, FileOperationError } from 'vs/platform/files/common/files';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { URI } from 'vs/base/common/uri';
 import { SyncResource, SyncStatus, IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, UserDataSyncError, IUserDataSyncLogService, IUserDataSyncUtilService, IUserDataSyncEnablementService, IUserDataSyncBackupStoreService, Conflict } from 'vs/platform/userDataSync/common/userDataSync';
@@ -110,6 +110,9 @@ export abstract class AbstractSynchroniser extends Disposable {
 
 	async sync(ref?: string): Promise<void> {
 		if (!this.isEnabled()) {
+			if (this.status !== SyncStatus.Idle) {
+				await this.stop();
+			}
 			this.logService.info(`${this.syncResourceLogLabel}: Skipped synchronizing ${this.resource.toLowerCase()} as it is disabled.`);
 			return;
 		}
@@ -264,6 +267,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 
 	protected abstract readonly version: number;
 	protected abstract performSync(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<SyncStatus>;
+	abstract stop(): Promise<void>;
 }
 
 export interface IFileSyncPreviewResult {
@@ -299,7 +303,7 @@ export abstract class AbstractFileSynchroniser extends AbstractSynchroniser {
 
 	async stop(): Promise<void> {
 		this.cancel();
-		this.logService.trace(`${this.syncResourceLogLabel}: Stopped synchronizing ${this.resource.toLowerCase()}.`);
+		this.logService.info(`${this.syncResourceLogLabel}: Stopped synchronizing ${this.resource.toLowerCase()}.`);
 		try {
 			await this.fileService.del(this.localPreviewResource);
 		} catch (e) { /* ignore */ }
@@ -339,7 +343,7 @@ export abstract class AbstractFileSynchroniser extends AbstractSynchroniser {
 				await this.fileService.createFile(this.file, VSBuffer.fromString(newContent), { overwrite: false });
 			}
 		} catch (e) {
-			if ((e instanceof FileSystemProviderError && e.code === FileSystemProviderErrorCode.FileExists) ||
+			if ((e instanceof FileOperationError && e.fileOperationResult === FileOperationResult.FILE_NOT_FOUND) ||
 				(e instanceof FileOperationError && e.fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE)) {
 				throw new UserDataSyncError(e.message, UserDataSyncErrorCode.LocalPreconditionFailed);
 			} else {

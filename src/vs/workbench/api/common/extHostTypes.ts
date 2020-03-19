@@ -1348,7 +1348,9 @@ export enum CompletionItemKind {
 	Struct = 21,
 	Event = 22,
 	Operator = 23,
-	TypeParameter = 24
+	TypeParameter = 24,
+	User = 25,
+	Issue = 26
 }
 
 export enum CompletionItemTag {

@@ -3768,6 +3768,14 @@ declare namespace monaco.editor {
 		 */
 		showTypeParameters?: boolean;
 		/**
+		 * Show issue-suggestions.
+		 */
+		showIssues?: boolean;
+		/**
+		 * Show user-suggestions.
+		 */
+		showUsers?: boolean;
+		/**
 		 * Show snippet-suggestions.
 		 */
 		showSnippets?: boolean;
@@ -5389,7 +5397,9 @@ declare namespace monaco.languages {
 		Customcolor = 22,
 		Folder = 23,
 		TypeParameter = 24,
-		Snippet = 25
+		User = 25,
+		Issue = 26,
+		Snippet = 27
 	}
 
 	export interface CompletionItemLabel {

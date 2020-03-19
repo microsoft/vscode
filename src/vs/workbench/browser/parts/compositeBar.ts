@@ -241,6 +241,9 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		// Contextmenu for composites
 		this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, e => this.showContextMenu(e)));
 
+		// Register a drop target on the whole bar to prevent forbidden feedback
+		this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(parent, {}));
+
 		// Allow to drop at the end to move composites to the end
 		this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(excessDiv, {
 			onDragEnter: (e: IDraggedCompositeData) => {

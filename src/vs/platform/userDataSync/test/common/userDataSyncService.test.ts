@@ -10,6 +10,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { joinPath } from 'vs/base/common/resources';
 
 suite('UserDataSyncService', () => {
 
@@ -36,6 +37,9 @@ suite('UserDataSyncService', () => {
 			// Keybindings
 			{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/keybindings`, headers: { 'If-Match': '0' } },
+			// Snippets
+			{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: {} },
+			{ type: 'POST', url: `${target.url}/v1/resource/snippets`, headers: { 'If-Match': '0' } },
 			// Global state
 			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/globalState`, headers: { 'If-Match': '0' } },
@@ -65,6 +69,9 @@ suite('UserDataSyncService', () => {
 			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
 			// Keybindings
 			{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: {} },
+			// Snippets
+			{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: {} },
+			{ type: 'POST', url: `${target.url}/v1/resource/snippets`, headers: { 'If-Match': '0' } },
 			// Global state
 			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/globalState`, headers: { 'If-Match': '0' } },
@@ -102,6 +109,8 @@ suite('UserDataSyncService', () => {
 			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
 			// Keybindings
 			{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: {} },
+			// Snippets
+			{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: {} },
 			// Global state
 			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: {} },
 			// Extensions
@@ -140,6 +149,8 @@ suite('UserDataSyncService', () => {
 			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
 			// Keybindings
 			{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: {} },
+			// Snippets
+			{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: {} },
 			// Global state
 			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: {} },
 			// Extensions
@@ -174,6 +185,8 @@ suite('UserDataSyncService', () => {
 			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
 			// Keybindings
 			{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: {} },
+			// Snippets
+			{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: {} },
 			// Global state
 			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: {} },
 			// Extensions
@@ -198,6 +211,7 @@ suite('UserDataSyncService', () => {
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 14 })));
 		await fileService.writeFile(environmentService.keybindingsResource, VSBuffer.fromString(JSON.stringify([{ 'command': 'abcd', 'key': 'cmd+c' }])));
 		await fileService.writeFile(environmentService.argvResource, VSBuffer.fromString(JSON.stringify({ 'locale': 'de' })));
+		await fileService.writeFile(joinPath(environmentService.snippetsHome, 'html.json'), VSBuffer.fromString(`{}`));
 		const testObject = testClient.instantiationService.get(IUserDataSyncService);
 
 		// Sync (merge) from the test client
@@ -215,6 +229,9 @@ suite('UserDataSyncService', () => {
 			// Keybindings
 			{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/keybindings`, headers: { 'If-Match': '1' } },
+			// Snippets
+			{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: {} },
+			{ type: 'POST', url: `${target.url}/v1/resource/snippets`, headers: { 'If-Match': '1' } },
 			// Global state
 			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/globalState`, headers: { 'If-Match': '1' } },
@@ -258,6 +275,7 @@ suite('UserDataSyncService', () => {
 		const environmentService = client.instantiationService.get(IEnvironmentService);
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 14 })));
 		await fileService.writeFile(environmentService.keybindingsResource, VSBuffer.fromString(JSON.stringify([{ 'command': 'abcd', 'key': 'cmd+c' }])));
+		await fileService.writeFile(joinPath(environmentService.snippetsHome, 'html.json'), VSBuffer.fromString(`{}`));
 		await fileService.writeFile(environmentService.argvResource, VSBuffer.fromString(JSON.stringify({ 'locale': 'de' })));
 
 		// Sync from the client
@@ -270,6 +288,8 @@ suite('UserDataSyncService', () => {
 			{ type: 'POST', url: `${target.url}/v1/resource/settings`, headers: { 'If-Match': '1' } },
 			// Keybindings
 			{ type: 'POST', url: `${target.url}/v1/resource/keybindings`, headers: { 'If-Match': '1' } },
+			// Snippets
+			{ type: 'POST', url: `${target.url}/v1/resource/snippets`, headers: { 'If-Match': '1' } },
 			// Global state
 			{ type: 'POST', url: `${target.url}/v1/resource/globalState`, headers: { 'If-Match': '1' } },
 		]);
@@ -294,6 +314,7 @@ suite('UserDataSyncService', () => {
 		const environmentService = client.instantiationService.get(IEnvironmentService);
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 14 })));
 		await fileService.writeFile(environmentService.keybindingsResource, VSBuffer.fromString(JSON.stringify([{ 'command': 'abcd', 'key': 'cmd+c' }])));
+		await fileService.writeFile(joinPath(environmentService.snippetsHome, 'html.json'), VSBuffer.fromString(`{ "a": "changed" }`));
 		await fileService.writeFile(environmentService.argvResource, VSBuffer.fromString(JSON.stringify({ 'locale': 'de' })));
 		await client.instantiationService.get(IUserDataSyncService).sync();
 
@@ -308,6 +329,8 @@ suite('UserDataSyncService', () => {
 			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: { 'If-None-Match': '1' } },
 			// Keybindings
 			{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: { 'If-None-Match': '1' } },
+			// Snippets
+			{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: { 'If-None-Match': '1' } },
 			// Global state
 			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: { 'If-None-Match': '1' } },
 		]);
@@ -359,6 +382,9 @@ suite('UserDataSyncService', () => {
 			// Keybindings
 			{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/keybindings`, headers: { 'If-Match': '0' } },
+			// Snippets
+			{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: {} },
+			{ type: 'POST', url: `${target.url}/v1/resource/snippets`, headers: { 'If-Match': '0' } },
 			// Global state
 			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/globalState`, headers: { 'If-Match': '0' } },
@@ -454,7 +480,7 @@ suite('UserDataSyncService', () => {
 		await testObject.sync();
 
 		disposable.dispose();
-		assert.deepEqual(actualStatuses, [SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle]);
+		assert.deepEqual(actualStatuses, [SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle]);
 	});
 
 	test('test sync conflicts status', async () => {

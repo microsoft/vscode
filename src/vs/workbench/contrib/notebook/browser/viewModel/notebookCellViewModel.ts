@@ -519,4 +519,10 @@ export class CellViewModel extends Disposable implements ICellViewModel {
 			this._outputsTop = new PrefixSumComputer(values);
 		}
 	}
+
+	toJSON(): any {
+		return {
+			handle: this.handle
+		};
+	}
 }

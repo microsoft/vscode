@@ -162,6 +162,15 @@ export class ConfigurationManager implements IConfigurationManager {
 		return Promise.resolve(undefined);
 	}
 
+	getDebuggerLabel(session: IDebugSession): string | undefined {
+		const dbgr = this.getDebugger(session.configuration.type);
+		if (dbgr) {
+			return dbgr.label;
+		}
+
+		return undefined;
+	}
+
 	get onDidRegisterDebugger(): Event<void> {
 		return this._onDidRegisterDebugger.event;
 	}

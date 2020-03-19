@@ -38,7 +38,7 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 					return;
 				}
 
-				this.gotoLocation(editor, this.toRange(item.lineNumber, item.column), picker.keyMods);
+				this.gotoLocation(editor, { range: this.toRange(item.lineNumber, item.column), keyMods: picker.keyMods });
 
 				picker.hide();
 			}

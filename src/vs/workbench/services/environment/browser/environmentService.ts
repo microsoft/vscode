@@ -103,6 +103,9 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	get argvResource(): URI { return joinPath(this.userRoamingDataHome, 'argv.json'); }
 
 	@memoize
+	get snippetsHome(): URI { return joinPath(this.userRoamingDataHome, 'snippets'); }
+
+	@memoize
 	get userDataSyncHome(): URI { return joinPath(this.userRoamingDataHome, 'sync'); }
 
 	@memoize

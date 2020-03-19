@@ -1657,6 +1657,19 @@ declare module 'vscode' {
 		readonly document: NotebookDocument;
 		viewColumn?: ViewColumn;
 		/**
+		 * Fired when the output hosting webview posts a message.
+		 */
+		readonly onDidReceiveMessage: Event<any>;
+		/**
+		 * Post a message to the output hosting webview.
+		 *
+		 * Messages are only delivered if the editor is live.
+		 *
+		 * @param message Body of the message. This must be a string or other json serilizable object.
+		 */
+		postMessage(message: any): Thenable<boolean>;
+
+		/**
 		 * Create a notebook cell. The cell is not inserted into current document when created. Extensions should insert the cell into the document by [TextDocument.cells](#TextDocument.cells)
 		 */
 		createCell(content: string, language: string, type: CellKind, outputs: CellOutput[]): NotebookCell;
@@ -2023,21 +2036,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region https://github.com/microsoft/vscode/issues/90517
-
-	export interface FileSystemError {
-		/**
-		 * A code that identifies this error.
-		 *
-		 * Possible values are names of errors, like [`FileNotFound`](#FileSystemError.FileNotFound),
-		 * or `Unknown` for an unspecified error.
-		 */
-		readonly code: string;
-	}
-
-	//#endregion
-
-
 	//#region https://github.com/microsoft/vscode/issues/90208
 
 	export namespace Uri {
@@ -2049,6 +2047,15 @@ declare module 'vscode' {
 		 * @returns A new uri
 		 */
 		export function joinPaths(base: Uri, ...pathFragments: string[]): Uri;
+	}
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/91541
+
+	export enum CompletionItemKind {
+		User = 25,
+		Issue = 26,
 	}
 
 	//#endregion

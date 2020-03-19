@@ -195,7 +195,6 @@ class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTemplateD
 		const textLabel = typeof suggestion.label === 'string' ? suggestion.label : suggestion.label.name;
 
 		data.root.id = getAriaId(index);
-		data.icon.className = 'icon ' + completionKindToCssClass(suggestion.kind);
 		data.colorspan.style.backgroundColor = '';
 
 		const labelOptions: IIconLabelValueOptions = {
@@ -230,7 +229,7 @@ class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTemplateD
 			// normal icon
 			data.icon.className = 'icon hide';
 			data.iconContainer.className = '';
-			addClasses(data.iconContainer, `suggest-icon codicon codicon-symbol-${completionKindToCssClass(suggestion.kind)}`);
+			addClasses(data.iconContainer, `suggest-icon codicon codicon-${completionKindToCssClass(suggestion.kind)}`);
 		}
 
 		if (suggestion.tags && suggestion.tags.indexOf(CompletionItemTag.Deprecated) >= 0) {
