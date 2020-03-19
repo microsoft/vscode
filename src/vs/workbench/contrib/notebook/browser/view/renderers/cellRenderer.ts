@@ -15,20 +15,20 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
+import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { InsertCodeCellAboveAction, INotebookCellActionContext, InsertCodeCellBelowAction, InsertMarkdownCellAboveAction, InsertMarkdownCellBelowAction, EditCellAction, SaveCellAction, DeleteCellAction, MoveCellUpAction, MoveCellDownAction, ExecuteCellAction } from 'vs/workbench/contrib/notebook/browser/contrib/notebookActions';
-import { CellRenderTemplate, INotebookEditor, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
+import { DeleteCellAction, EditCellAction, ExecuteCellAction, INotebookCellActionContext, InsertCodeCellBelowAction, MoveCellDownAction, MoveCellUpAction, SaveCellAction } from 'vs/workbench/contrib/notebook/browser/contrib/notebookActions';
+import { CellRenderTemplate, ICellViewModel, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodeCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/codeCell';
 import { StatefullMarkdownCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/markdownCell';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellViewModel } from '../../viewModel/notebookCellViewModel';
-import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { MenuItemAction } from 'vs/platform/actions/common/actions';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_PADDING, EDITOR_BOTTOM_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 
 const $ = DOM.$;
 
@@ -110,34 +110,6 @@ abstract class AbstractCellRenderer {
 		return toolbar;
 	}
 
-	showContextMenu(listIndex: number | undefined, element: CellViewModel, x: number, y: number) {
-		const actions: IAction[] = [
-			this.instantiationService.createInstance(InsertCodeCellAboveAction),
-			this.instantiationService.createInstance(InsertCodeCellBelowAction),
-			this.instantiationService.createInstance(InsertMarkdownCellAboveAction),
-			this.instantiationService.createInstance(InsertMarkdownCellBelowAction),
-		];
-		actions.push(...this.getAdditionalContextMenuActions());
-		actions.push(...[
-			this.instantiationService.createInstance(DeleteCellAction)
-		]);
-
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => {
-				return {
-					x,
-					y
-				};
-			},
-			getActions: () => actions,
-			getActionsContext: () => <INotebookCellActionContext>{
-				cell: element,
-				notebookEditor: this.notebookEditor
-			},
-			autoSelectFirstItem: false
-		});
-	}
-
 	abstract getAdditionalContextMenuActions(): IAction[];
 }
 
@@ -183,16 +155,11 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		DOM.addClasses(innerContent, 'cell', 'markdown');
 		container.appendChild(innerContent);
 
-		const action = document.createElement('div');
-		DOM.addClasses(action, 'menu', 'codicon-settings-gear', 'codicon');
-		container.appendChild(action);
-
 		DOM.append(container, DOM.$('.notebook-cell-focus-indicator'));
 
 		return {
 			container: container,
 			cellContainer: innerContent,
-			menuContainer: action,
 			editingContainer: codeInnerContent,
 			disposables,
 			toolbar
@@ -213,23 +180,6 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 				this.disposables.set(element, new DisposableStore());
 			}
 			let elementDisposable = this.disposables.get(element);
-
-			elementDisposable!.add(DOM.addStandardDisposableListener(templateData.menuContainer!, 'mousedown', e => {
-				const { top, height } = DOM.getDomNodePagePosition(templateData.menuContainer!);
-				e.preventDefault();
-
-				const listIndexAttr = templateData.menuContainer?.parentElement?.getAttribute('data-index');
-				const listIndex = listIndexAttr ? Number(listIndexAttr) : undefined;
-				this.showContextMenu(listIndex, element, e.posx, top + height);
-			}));
-
-			elementDisposable!.add(DOM.addStandardDisposableListener(templateData.menuContainer!, DOM.EventType.MOUSE_LEAVE, e => {
-				templateData.menuContainer?.classList.remove('mouseover');
-			}));
-
-			elementDisposable!.add(DOM.addStandardDisposableListener(templateData.menuContainer!, DOM.EventType.MOUSE_ENTER, e => {
-				templateData.menuContainer?.classList.add('mouseover');
-			}));
 
 			elementDisposable!.add(new StatefullMarkdownCell(this.notebookEditor, element, templateData, this.editorOptions, this.instantiationService));
 		}
@@ -281,9 +231,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 	renderTemplate(container: HTMLElement): CellRenderTemplate {
 		const disposables = new DisposableStore();
-		const toolbarContainer = document.createElement('div');
-		container.appendChild(toolbarContainer);
-		DOM.addClasses(toolbarContainer, 'menu', 'codicon-settings-gear', 'codicon');
 		const toolbar = this.createToolbar(container);
 		toolbar.setActions([
 			this.instantiationService.createInstance(MoveCellUpAction),
@@ -309,9 +256,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 				height: 0
 			}
 		}, {});
-		const menuContainer = document.createElement('div');
-		DOM.addClasses(menuContainer, 'menu', 'codicon-settings-gear', 'codicon');
-		container.appendChild(menuContainer);
 
 		const focusIndicator = DOM.append(container, DOM.$('.notebook-cell-focus-indicator'));
 
@@ -323,7 +267,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			container,
 			cellContainer,
 			editorContainer,
-			menuContainer,
 			focusIndicator,
 			toolbar,
 			runToolbar,
@@ -348,24 +291,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		}
 
 		const elementDisposable = this.disposables.get(element);
-
-		elementDisposable?.add(DOM.addStandardDisposableListener(templateData.menuContainer!, 'mousedown', e => {
-			let { top, height } = DOM.getDomNodePagePosition(templateData.menuContainer!);
-			e.preventDefault();
-
-			const listIndexAttr = templateData.menuContainer?.parentElement?.getAttribute('data-index');
-			const listIndex = listIndexAttr ? Number(listIndexAttr) : undefined;
-
-			this.showContextMenu(listIndex, element, e.posx, top + height);
-		}));
-
-		elementDisposable!.add(DOM.addStandardDisposableListener(templateData.menuContainer!, DOM.EventType.MOUSE_LEAVE, e => {
-			templateData.menuContainer?.classList.remove('mouseover');
-		}));
-
-		elementDisposable!.add(DOM.addStandardDisposableListener(templateData.menuContainer!, DOM.EventType.MOUSE_ENTER, e => {
-			templateData.menuContainer?.classList.add('mouseover');
-		}));
 
 		elementDisposable?.add(this.instantiationService.createInstance(CodeCell, this.notebookEditor, element, templateData));
 		this.renderedEditors.set(element, templateData.editor);

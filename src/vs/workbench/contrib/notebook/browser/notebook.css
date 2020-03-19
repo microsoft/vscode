@@ -136,7 +136,8 @@
 	visibility: hidden;
 }
 
-.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row:hover .cell .run-button-container .monaco-toolbar {
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row:hover .cell .run-button-container .monaco-toolbar,
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row.focused .cell .run-button-container .monaco-toolbar {
 	visibility: visible;
 }
 

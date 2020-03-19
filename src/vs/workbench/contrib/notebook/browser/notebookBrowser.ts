@@ -196,7 +196,6 @@ export interface CellRenderTemplate {
 	container: HTMLElement;
 	cellContainer: HTMLElement;
 	editorContainer?: HTMLElement;
-	menuContainer?: HTMLElement;
 	toolbar: ToolBar;
 	focusIndicator?: HTMLElement;
 	runToolbar?: ToolBar;
