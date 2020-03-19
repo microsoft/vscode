@@ -5,7 +5,7 @@
 
 import { IQuickInputService, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { IQuickAccessController, IQuickAccessProvider, IQuickAccessRegistry, Extensions, IQuickAccessProviderDescriptor } from 'vs/platform/quickinput/common/quickAccess';
+import { IQuickAccessController, IQuickAccessProvider, IQuickAccessRegistry, Extensions, IQuickAccessProviderDescriptor, IQuickAccessOptions } from 'vs/platform/quickinput/common/quickAccess';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -25,7 +25,7 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 		super();
 	}
 
-	show(value = ''): void {
+	show(value = '', options?: IQuickAccessOptions): void {
 		const disposables = new DisposableStore();
 
 		// Hide any previous picker if any
@@ -39,7 +39,8 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 		const picker = disposables.add(this.quickInputService.createQuickPick());
 		picker.placeholder = descriptor?.placeholder;
 		picker.value = value;
-		picker.valueSelection = [value.length, value.length];
+		picker.quickNavigate = options?.quickNavigateConfiguration;
+		picker.valueSelection = options?.inputSelection ? [options.inputSelection.start, options.inputSelection.end] : [value.length, value.length];
 		picker.contextKey = descriptor?.contextKey;
 		picker.filterValue = (value: string) => value.substring(descriptor ? descriptor.prefix.length : 0);
 
