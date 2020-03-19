@@ -39,7 +39,19 @@ export class DebugProgressContribution implements IWorkbenchContribution {
 						title: progressStartEvent.body.title,
 						cancellable: progressStartEvent.body.cancellable,
 						silent: true
-					}, () => promise, () => session.cancel(progressStartEvent.body.progressId));
+					}, progressStep => {
+						const progressUpdateListener = session.onDidProgressUpdate(e => {
+							if (e.body.progressId === progressStartEvent.body.progressId) {
+								progressStep.report({
+									message: e.body.message,
+									increment: e.body.percentage,
+									total: e.body.percentage ? 100 : undefined
+								});
+							}
+						});
+
+						return promise.then(() => progressUpdateListener.dispose());
+					}, () => session.cancel(progressStartEvent.body.progressId));
 				});
 			}
 		};
