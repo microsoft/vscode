@@ -235,7 +235,8 @@ suite('window namespace tests', () => {
 		});
 
 		suite('window.onDidWriteTerminalData', () => {
-			test('should listen to all future terminal data events', (done) => {
+			// TODO@Daniel done called multiple times (https://github.com/microsoft/vscode/issues/92826)
+			((env.uiKind === UIKind.Web) ? test.skip : test)('should listen to all future terminal data events', (done) => {
 				const openEvents: string[] = [];
 				const dataEvents: { name: string, data: string }[] = [];
 				const closeEvents: string[] = [];
