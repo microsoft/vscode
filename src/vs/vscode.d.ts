@@ -6020,6 +6020,14 @@ declare module 'vscode' {
 		 * @param messageOrUri Message or uri.
 		 */
 		constructor(messageOrUri?: string | Uri);
+
+		/**
+		 * A code that identifies this error.
+		 *
+		 * Possible values are names of errors, like [`FileNotFound`](#FileSystemError.FileNotFound),
+		 * or `Unknown` for unspecified errors.
+		 */
+		readonly code: string;
 	}
 
 	/**
