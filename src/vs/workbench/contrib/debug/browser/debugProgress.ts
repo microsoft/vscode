@@ -40,7 +40,8 @@ export class DebugProgressContribution implements IWorkbenchContribution {
 						title: progressStartEvent.body.title,
 						cancellable: progressStartEvent.body.cancellable,
 						silent: true,
-						source
+						source,
+						delay: 500
 					}, progressStep => {
 						let increment = 0;
 						const progressUpdateListener = session.onDidProgressUpdate(e => {
