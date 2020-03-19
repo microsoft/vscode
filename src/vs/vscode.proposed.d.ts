@@ -1874,12 +1874,9 @@ declare module 'vscode' {
 	export interface Timeline {
 		readonly paging?: {
 			/**
-			 * A set of provider-defined cursors specifing the range of timeline items returned.
+			 * A provider-defined cursor specifing the starting point of timeline items which are after the ones returned.
 			 */
-			readonly cursors: {
-				readonly before: string;
-				readonly after?: string
-			};
+			readonly cursor?: string
 
 			/**
 			 * A flag which indicates whether there are more items that weren't returned.
@@ -1895,19 +1892,15 @@ declare module 'vscode' {
 
 	export interface TimelineOptions {
 		/**
-		 * A provider-defined cursor specifing the range of timeline items that should be returned.
+		 * A provider-defined cursor specifing the starting point of the timeline items that should be returned.
 		 */
 		cursor?: string;
 
 		/**
-		 * A flag to specify whether the timeline items being requested should be before or after (default) the provided cursor.
+		 * An optional maximum number timeline items or the all timeline items newer (inclusive) than the timestamp or id that should be returned.
+		 * If `undefined` all timeline items should be returned.
 		 */
-		before?: boolean;
-
-		/**
-		 * The maximum number or the ending cursor of timeline items that should be returned.
-		 */
-		limit?: number | { cursor: string };
+		limit?: number | { timestamp: number; id?: string };
 	}
 
 	export interface TimelineProvider {

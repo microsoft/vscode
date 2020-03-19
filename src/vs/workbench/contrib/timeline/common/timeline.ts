@@ -34,15 +34,14 @@ export interface TimelineItem {
 }
 
 export interface TimelineChangeEvent {
-	id?: string;
+	id: string;
 	uri?: URI;
 	reset?: boolean
 }
 
 export interface TimelineOptions {
 	cursor?: string;
-	before?: boolean;
-	limit?: number | { cursor: string };
+	limit?: number | { timestamp: number; id?: string };
 }
 
 export interface InternalTimelineOptions {
@@ -55,10 +54,7 @@ export interface Timeline {
 	items: TimelineItem[];
 
 	paging?: {
-		cursors: {
-			before: string;
-			after?: string
-		};
+		cursor?: string
 		more?: boolean;
 	}
 }
