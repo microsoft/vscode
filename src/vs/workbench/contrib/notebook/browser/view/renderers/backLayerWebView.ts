@@ -297,6 +297,7 @@ export class BackLayerWebView extends Disposable {
 		const webview = webviewService.createWebviewElement('' + UUID.generateUuid(), {
 			enableFindWidget: false,
 		}, {
+			allowMultipleAPIAcquire: true,
 			allowScripts: true,
 			localResourceRoots: this.localResourceRootsCache
 		});
@@ -409,6 +410,7 @@ export class BackLayerWebView extends Disposable {
 		const mixedResourceRoots = [...(this.localResourceRootsCache || []), ...this.rendererRootsCache];
 
 		this.webview.contentOptions = {
+			allowMultipleAPIAcquire: true,
 			allowScripts: true,
 			enableCommandUris: true,
 			localResourceRoots: mixedResourceRoots
