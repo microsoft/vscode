@@ -44,7 +44,7 @@ class TestSynchroniser extends AbstractSynchroniser {
 		await this.updateLastSyncUserData({ ref, syncData: { content: '', version: this.version } });
 	}
 
-	stop(): void {
+	async stop(): Promise<void> {
 		this.cancelled = true;
 		this.syncBarrier.open();
 	}
