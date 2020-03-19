@@ -54,10 +54,11 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	private readonly pickState = new class {
 		scorerCache: ScorerCache = Object.create(null);
-		fileQueryCache: FileQueryCacheState | undefined;
+		fileQueryCache: FileQueryCacheState | undefined = undefined;
 
-		lastFilter: string | undefined;
-		lastRange: IRange | undefined;
+		lastOriginalFilter: string | undefined = undefined;
+		lastFilter: string | undefined = undefined;
+		lastRange: IRange | undefined = undefined;
 
 		constructor(private readonly provider: AnythingQuickAccessProvider) { }
 
@@ -68,6 +69,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			this.scorerCache = Object.create(null);
 
 			// Other
+			this.lastOriginalFilter = undefined;
 			this.lastFilter = undefined;
 			this.lastRange = undefined;
 		}
@@ -114,25 +116,32 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		return super.provide(picker, token);
 	}
 
-	protected getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): FastAndSlowPicksType<IAnythingQuickPickItem> | null {
+	protected getPicks(originalFilter: string, disposables: DisposableStore, token: CancellationToken): FastAndSlowPicksType<IAnythingQuickPickItem> | null {
 
 		// Find a suitable range from the pattern looking for ":", "#" or ","
-		const filterWithRange = extractRangeFromFilter(filter);
+		const filterWithRange = extractRangeFromFilter(originalFilter);
+
+		// Update filter with normalized values
+		let filter: string;
 		if (filterWithRange) {
 			filter = filterWithRange.filter;
+		} else {
+			filter = originalFilter;
 		}
 
 		// Remember as last range
 		this.pickState.lastRange = filterWithRange?.range;
 
-		// If the filter has not changed, return early and signal this
-		// with a `null` result. This allows to keep the picker stable
-		// when the user types a range pattern after the filter (:<line>)
-		if (this.pickState.lastFilter === filter) {
+		// If the original filter value has changed but the normalized
+		// one has not, we return early with a `null` result indicating
+		// that the results should preserve because the range information
+		// (:<line>:<column>) does not need to trigger any re-sorting.
+		if (originalFilter !== this.pickState.lastOriginalFilter && filter === this.pickState.lastFilter) {
 			return null;
 		}
 
 		// Remember as last filter
+		this.pickState.lastOriginalFilter = originalFilter;
 		this.pickState.lastFilter = filter;
 
 		const query = prepareQuery(filter);
