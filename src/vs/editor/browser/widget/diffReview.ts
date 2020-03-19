@@ -747,13 +747,13 @@ export class DiffReview extends Disposable {
 			let ariaLabel: string = '';
 			switch (type) {
 				case DiffEntryType.Equal:
-					ariaLabel = nls.localize('equalLine', "original {0}, modified {1}: {2}", originalLine, modifiedLine, lineContent);
+					ariaLabel = nls.localize('equalLine', "{0} original line {1} modified line {2}", lineContent, originalLine, modifiedLine);
 					break;
 				case DiffEntryType.Insert:
-					ariaLabel = nls.localize('insertLine', "+ modified {0}: {1}", modifiedLine, lineContent);
+					ariaLabel = nls.localize('insertLine', "+ {0} modified line {1}", lineContent, modifiedLine);
 					break;
 				case DiffEntryType.Delete:
-					ariaLabel = nls.localize('deleteLine', "- original {0}: {1}", originalLine, lineContent);
+					ariaLabel = nls.localize('deleteLine', "- {0} original line {1}", lineContent, originalLine);
 					break;
 			}
 			row.setAttribute('aria-label', ariaLabel);
