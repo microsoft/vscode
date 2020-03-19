@@ -341,7 +341,8 @@ export class AzureActiveDirectoryService {
 					const query = parseQuery(uri);
 					const code = query.code;
 
-					if (query.state !== state) {
+					// Workaround double encoding issues of state in web
+					if (query.state !== state && decodeURIComponent(query.state) !== state) {
 						throw new Error('State does not match.');
 					}
 
