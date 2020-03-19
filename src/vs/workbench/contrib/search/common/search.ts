@@ -102,7 +102,12 @@ export function getOutOfWorkspaceEditorResources(accessor: ServicesAccessor): UR
 // Supports patterns of <path><#|:|(><line><#|:|,><col?>
 const LINE_COLON_PATTERN = /\s?[#:\(](\d*)([#:,](\d*))?\)?\s*$/;
 
-export function extractRangeFromFilter(filter: string): { filter: string, range: IRange } | undefined {
+export interface IFilterAndRange {
+	filter: string;
+	range: IRange;
+}
+
+export function extractRangeFromFilter(filter: string): IFilterAndRange | undefined {
 	if (!filter) {
 		return undefined;
 	}

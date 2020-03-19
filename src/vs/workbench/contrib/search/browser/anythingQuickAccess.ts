@@ -56,11 +56,20 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		scorerCache: ScorerCache = Object.create(null);
 		fileQueryCache: FileQueryCacheState | undefined;
 
+		lastFilter: string | undefined;
+		lastRange: IRange | undefined;
+
 		constructor(private readonly provider: AnythingQuickAccessProvider) { }
 
 		reset(): void {
+
+			// Caches
 			this.fileQueryCache = this.provider.createFileQueryCache();
 			this.scorerCache = Object.create(null);
+
+			// Other
+			this.lastFilter = undefined;
+			this.lastRange = undefined;
 		}
 	}(this);
 
@@ -105,19 +114,30 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		return super.provide(picker, token);
 	}
 
-	protected getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): FastAndSlowPicksType<IAnythingQuickPickItem> {
+	protected getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): FastAndSlowPicksType<IAnythingQuickPickItem> | null {
 
 		// Find a suitable range from the pattern looking for ":", "#" or ","
-		let range: IRange | undefined = undefined;
 		const filterWithRange = extractRangeFromFilter(filter);
 		if (filterWithRange) {
 			filter = filterWithRange.filter;
-			range = filterWithRange.range;
 		}
+
+		// Remember as last range
+		this.pickState.lastRange = filterWithRange?.range;
+
+		// If the filter has not changed, return early and signal this
+		// with a `null` result. This allows to keep the picker stable
+		// when the user types a range pattern after the filter (:<line>)
+		if (this.pickState.lastFilter === filter) {
+			return null;
+		}
+
+		// Remember as last filter
+		this.pickState.lastFilter = filter;
 
 		const query = prepareQuery(filter);
 
-		const historyEditorPicks = this.getEditorHistoryPicks(query, range);
+		const historyEditorPicks = this.getEditorHistoryPicks(query);
 
 		return {
 
@@ -139,7 +159,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 					}
 				}
 
-				const additionalPicks = await this.getAdditionalPicks(query, range, additionalPicksExcludes, token);
+				const additionalPicks = await this.getAdditionalPicks(query, additionalPicksExcludes, token);
 				if (token.isCancellationRequested) {
 					return [];
 				}
@@ -152,12 +172,12 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		};
 	}
 
-	private async getAdditionalPicks(query: IPreparedQuery, range: IRange | undefined, excludes: ResourceMap<boolean>, token: CancellationToken): Promise<Array<IAnythingQuickPickItem>> {
+	private async getAdditionalPicks(query: IPreparedQuery, excludes: ResourceMap<boolean>, token: CancellationToken): Promise<Array<IAnythingQuickPickItem>> {
 
 		// Resolve file and symbol picks (if enabled)
 		const [filePicks, symbolPicks] = await Promise.all([
-			this.getFilePicks(query, range, excludes, token),
-			this.getSymbolPicks(query, range, token)
+			this.getFilePicks(query, excludes, token),
+			this.getSymbolPicks(query, token)
 		]);
 
 		if (token.isCancellationRequested) {
@@ -193,11 +213,11 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	private readonly labelOnlyEditorHistoryPickAccessor = new QuickPickItemScorerAccessor({ skipDescription: true });
 
-	protected getEditorHistoryPicks(query: IPreparedQuery, range: IRange | undefined): Array<IAnythingQuickPickItem> {
+	protected getEditorHistoryPicks(query: IPreparedQuery): Array<IAnythingQuickPickItem> {
 
 		// Just return all history entries if not searching
 		if (!query.value) {
-			return this.historyService.getHistory().map(editor => this.createAnythingPick(editor, range));
+			return this.historyService.getHistory().map(editor => this.createAnythingPick(editor));
 		}
 
 		if (!this.configuration.includeHistory) {
@@ -215,7 +235,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 				continue; // exclude editors without file resource if we are searching by pattern
 			}
 
-			const editorHistoryPick = this.createAnythingPick(editor, range);
+			const editorHistoryPick = this.createAnythingPick(editor);
 
 			const { score, labelMatch, descriptionMatch } = scoreItem(editorHistoryPick, query, false, editorHistoryScorerAccessor, this.pickState.scorerCache);
 			if (!score) {
@@ -251,7 +271,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		).load();
 	}
 
-	protected async getFilePicks(query: IPreparedQuery, range: IRange | undefined, excludes: ResourceMap<boolean>, token: CancellationToken): Promise<Array<IAnythingQuickPickItem>> {
+	protected async getFilePicks(query: IPreparedQuery, excludes: ResourceMap<boolean>, token: CancellationToken): Promise<Array<IAnythingQuickPickItem>> {
 		if (!query.value) {
 			return [];
 		}
@@ -290,7 +310,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		// Filter excludes & convert to picks
 		return fileMatches
 			.filter(fileMatch => !excludes.has(fileMatch.resource))
-			.map(fileMatch => this.createAnythingPick(fileMatch.resource, range));
+			.map(fileMatch => this.createAnythingPick(fileMatch.resource));
 	}
 
 	private async doFileSearch(query: IPreparedQuery, token: CancellationToken): Promise<IFileMatch[]> {
@@ -358,11 +378,11 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	private symbolsQuickAccess = this._register(this.instantiationService.createInstance(SymbolsQuickAccessProvider));
 
-	protected async getSymbolPicks(query: IPreparedQuery, range: IRange | undefined, token: CancellationToken): Promise<Array<IAnythingQuickPickItem>> {
+	protected async getSymbolPicks(query: IPreparedQuery, token: CancellationToken): Promise<Array<IAnythingQuickPickItem>> {
 		if (
 			!query.value ||							// we need a value for search for
 			!this.configuration.includeSymbols ||	// we need to enable symbols in search
-			range									// a range is an indicator for just searching for files
+			this.pickState.lastRange				// a range is an indicator for just searching for files
 		) {
 			return [];
 		}
@@ -377,7 +397,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	//#region Helpers
 
-	private createAnythingPick(resourceOrEditor: URI | IEditorInput | IResourceEditorInput, range: IRange | undefined): IAnythingQuickPickItem {
+	private createAnythingPick(resourceOrEditor: URI | IEditorInput | IResourceEditorInput): IAnythingQuickPickItem {
 		const isEditorHistoryEntry = !URI.isUri(resourceOrEditor);
 
 		let resource: URI | undefined;
@@ -431,7 +451,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 					// Open to side / below
 					case 0:
-						this.openAnything(resourceOrEditor, { keyMods, range, forceOpenSideBySide: true });
+						this.openAnything(resourceOrEditor, { keyMods, range: this.pickState.lastRange, forceOpenSideBySide: true });
 						return TriggerAction.CLOSE_PICKER;
 
 					// Remove from History
@@ -445,7 +465,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 				return TriggerAction.NO_ACTION;
 			},
-			accept: (keyMods, event) => this.openAnything(resourceOrEditor, { keyMods, range, preserveFocus: event.inBackground })
+			accept: (keyMods, event) => this.openAnything(resourceOrEditor, { keyMods, range: this.pickState.lastRange, preserveFocus: event.inBackground })
 		};
 	}
 
