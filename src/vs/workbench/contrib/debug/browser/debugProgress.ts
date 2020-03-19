@@ -40,12 +40,16 @@ export class DebugProgressContribution implements IWorkbenchContribution {
 						cancellable: progressStartEvent.body.cancellable,
 						silent: true
 					}, progressStep => {
+						let increment = 0;
 						const progressUpdateListener = session.onDidProgressUpdate(e => {
 							if (e.body.progressId === progressStartEvent.body.progressId) {
+								if (typeof e.body.percentage === 'number') {
+									increment = e.body.percentage - increment;
+								}
 								progressStep.report({
 									message: e.body.message,
-									increment: e.body.percentage,
-									total: e.body.percentage ? 100 : undefined
+									increment: typeof e.body.percentage === 'number' ? increment : undefined,
+									total: typeof e.body.percentage === 'number' ? 100 : undefined
 								});
 							}
 						});
