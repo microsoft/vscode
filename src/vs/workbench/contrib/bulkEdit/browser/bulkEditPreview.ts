@@ -399,7 +399,7 @@ export class BulkEditPreviewProvider implements ITextModelContentProvider {
 		}
 		// apply new edits and keep (future) undo edits
 		const newEdits = this._operations.getFileEdits(uri);
-		const newUndoEdits = model.applyEdits(newEdits);
+		const newUndoEdits = model.applyEdits(newEdits, true);
 		this._modelPreviewEdits.set(model.id, newUndoEdits);
 	}
 

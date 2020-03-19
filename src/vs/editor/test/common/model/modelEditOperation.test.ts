@@ -50,14 +50,14 @@ suite('Editor Model - Model Edit Operation', () => {
 	function assertSingleEditOp(singleEditOp: IIdentifiedSingleEditOperation, editedLines: string[]) {
 		let editOp = [singleEditOp];
 
-		let inverseEditOp = model.applyEdits(editOp);
+		let inverseEditOp = model.applyEdits(editOp, true);
 
 		assert.equal(model.getLineCount(), editedLines.length);
 		for (let i = 0; i < editedLines.length; i++) {
 			assert.equal(model.getLineContent(i + 1), editedLines[i]);
 		}
 
-		let originalOp = model.applyEdits(inverseEditOp);
+		let originalOp = model.applyEdits(inverseEditOp, true);
 
 		assert.equal(model.getLineCount(), 5);
 		assert.equal(model.getLineContent(1), LINE1);

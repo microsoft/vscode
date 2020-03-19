@@ -261,6 +261,20 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 		// Sort operations ascending
 		operations.sort(PieceTreeTextBuffer._sortOpsAscending);
 
+		let hasTouchingRanges = false;
+		for (let i = 0, count = operations.length - 1; i < count; i++) {
+			let rangeEnd = operations[i].range.getEndPosition();
+			let nextRangeStart = operations[i + 1].range.getStartPosition();
+
+			if (nextRangeStart.isBeforeOrEqual(rangeEnd)) {
+				if (nextRangeStart.isBefore(rangeEnd)) {
+					// overlapping ranges
+					throw new Error('Overlapping ranges are not allowed!');
+				}
+				hasTouchingRanges = true;
+			}
+		}
+
 		if (canReduceOperations) {
 			operations = this._reduceOperations(operations);
 		}
@@ -289,24 +303,11 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 			}
 		}
 
-		let reverseOperations: IReverseSingleEditOperation[] = [];
+		let reverseOperations: IReverseSingleEditOperation[] | null = null;
 		if (computeUndoEdits) {
 
-			let hasTouchingRanges = false;
-			for (let i = 0, count = operations.length - 1; i < count; i++) {
-				let rangeEnd = operations[i].range.getEndPosition();
-				let nextRangeStart = operations[i + 1].range.getStartPosition();
-
-				if (nextRangeStart.isBeforeOrEqual(rangeEnd)) {
-					if (nextRangeStart.isBefore(rangeEnd)) {
-						// overlapping ranges
-						throw new Error('Overlapping ranges are not allowed!');
-					}
-					hasTouchingRanges = true;
-				}
-			}
-
 			let reverseRangeDeltaOffset = 0;
+			reverseOperations = [];
 			for (let i = 0; i < operations.length; i++) {
 				const op = operations[i];
 				const reverseRange = reverseRanges[i];
