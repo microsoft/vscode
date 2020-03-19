@@ -416,6 +416,10 @@ export class QuickInputList {
 		this._onChangedVisibleCount.fire(this.elements.length);
 	}
 
+	getElementsCount(): number {
+		return this.inputElements.length;
+	}
+
 	getFocusedElements() {
 		return this.list.getFocusedElements()
 			.map(e => e.item);

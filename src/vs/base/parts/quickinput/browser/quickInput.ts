@@ -460,6 +460,10 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	set items(items: Array<T | IQuickPickSeparator>) {
 		this._items = items;
 		this.itemsUpdated = true;
+		if (this._items.length === 0) {
+			// quick-navigate requires at least 1 item
+			this._quickNavigate = undefined;
+		}
 		this.update();
 	}
 
@@ -840,12 +844,18 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		this.ui.list.sortByLabel = this.sortByLabel;
 		if (this.itemsUpdated) {
 			this.itemsUpdated = false;
+			const previousItemCount = this.ui.list.getElementsCount();
 			this.ui.list.setElements(this.items);
 			this.ui.list.filter(this.filterValue(this.ui.inputBox.value));
 			this.ui.checkAll.checked = this.ui.list.getAllVisibleChecked();
 			this.ui.visibleCount.setCount(this.ui.list.getVisibleCount());
 			this.ui.count.setCount(this.ui.list.getCheckedCount());
 			this.trySelectFirst();
+			if (this._quickNavigate && previousItemCount === 0 && this.items.length > 1) {
+				// quick navigate: automatically focus the second entry
+				// so that upon release the item is picked directly
+				this.ui.list.focus('Next');
+			}
 		}
 		if (this.ui.container.classList.contains('show-checkboxes') !== !!this.canSelectMany) {
 			if (this.canSelectMany) {
