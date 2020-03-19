@@ -18,19 +18,19 @@ export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProv
 
 	protected readonly onDidActiveTextEditorControlChange = this.editorService.onDidActiveEditorChange;
 
+	private readonly configuration = (() => {
+		const editorConfig = this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor;
+
+		return {
+			openEditorPinned: !editorConfig.enablePreviewFromQuickOpen
+		};
+	})();
+
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
-	}
-
-	private get configuration() {
-		const editorConfig = this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor;
-
-		return {
-			openEditorPinned: !editorConfig.enablePreviewFromQuickOpen,
-		};
 	}
 
 	protected get activeTextEditorControl() {
