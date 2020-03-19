@@ -17,9 +17,9 @@
 	white-space: initial;
 }
 
-.monaco-workbench .part.editor > .content .notebook-editor .cell-list-container .monaco-scrollable-element {
+/* .monaco-workbench .part.editor > .content .notebook-editor .cell-list-container .monaco-scrollable-element {
 	overflow: visible !important;
-}
+} */
 
 .monaco-workbench .part.editor > .content .notebook-editor .cell-list-container .monaco-list-rows {
 	min-height: 100%;
