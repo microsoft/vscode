@@ -36,6 +36,7 @@ export function areWebviewInputOptionsEqual(a: WebviewInputOptions, b: WebviewIn
 	return a.enableCommandUris === b.enableCommandUris
 		&& a.enableFindWidget === b.enableFindWidget
 		&& a.allowScripts === b.allowScripts
+		&& a.allowMultipleAPIAcquire === b.allowMultipleAPIAcquire
 		&& a.retainContextWhenHidden === b.retainContextWhenHidden
 		&& a.tryRestoreScrollPosition === b.tryRestoreScrollPosition
 		&& equals(a.localResourceRoots, b.localResourceRoots, isEqual)
