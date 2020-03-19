@@ -17,6 +17,7 @@ import * as ts from 'typescript';
 import { join, dirname } from 'path';
 import { URI } from 'vscode-uri';
 import { getSemanticTokens, getSemanticTokenLegend } from './javascriptSemanticTokens';
+import * as fs from 'fs';
 
 const JS_WORD_REGEX = /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g;
 
@@ -24,8 +25,11 @@ let jquery_d_ts = join(__dirname, '../lib/jquery.d.ts'); // when packaged
 if (!ts.sys.fileExists(jquery_d_ts)) {
 	jquery_d_ts = join(__dirname, '../../lib/jquery.d.ts'); // from source
 }
-
-export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocumentRegions>, languageId: 'javascript' | 'typescript'): LanguageMode {
+interface IimportScripts {
+	files: string[];
+	status: { [key: string]: { mdt: Date, ver: number } };
+}
+export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocumentRegions>, languageId: 'javascript' | 'typescript', libDefinitionFiles?: string[]): LanguageMode {
 	let jsDocuments = getLanguageModelCache<TextDocument>(10, 60, document => documentRegions.get(document).getEmbeddedDocument(languageId));
 
 	const workingFile = languageId === 'javascript' ? 'vscode://javascript/1.js' : 'vscode://javascript/2.ts'; // the same 'file' is used for all contents
@@ -33,17 +37,25 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 	let compilerOptions: ts.CompilerOptions = { allowNonTsExtensions: true, allowJs: true, lib: ['lib.es6.d.ts'], target: ts.ScriptTarget.Latest, moduleResolution: ts.ModuleResolutionKind.Classic };
 	let currentTextDocument: TextDocument;
 	let scriptFileVersion: number = 0;
-	let importedScripts: string[];
+	let importedScripts: IimportScripts = {
+		files: [],
+		status: {}
+	};
+	const definitionFiles: string[] = libDefinitionFiles || [];
 	function updateCurrentTextDocument(doc: TextDocument) {
 		if (!currentTextDocument || doc.uri !== currentTextDocument.uri || doc.version !== currentTextDocument.version) {
 			currentTextDocument = jsDocuments.get(doc);
 
 			let s = documentRegions.get(doc).getImportedScripts();
-			importedScripts = [];
+			importedScripts.files = [];
 			s.forEach(el => {
 				let x = URI.parse(doc.uri);
 				let p = join(dirname(x.fsPath), el);
-				importedScripts.push(p);
+				importedScripts.files.push(p);
+				let stat = fs.statSync(p);
+				if (importedScripts.status[p] === undefined) {
+					importedScripts.status[p] = { mdt: stat.mtime, ver: 0 };
+				}
 			});
 
 			scriptFileVersion++;
@@ -51,11 +63,23 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 	}
 	const host: ts.LanguageServiceHost = {
 		getCompilationSettings: () => compilerOptions,
-		getScriptFileNames: () => [workingFile, jquery_d_ts, ...importedScripts],
+		getScriptFileNames: () => [workingFile, jquery_d_ts, ...definitionFiles, ...importedScripts.files],
 		getScriptKind: (fileName) => fileName.substr(fileName.length - 2) === 'ts' ? ts.ScriptKind.TS : ts.ScriptKind.JS,
 		getScriptVersion: (fileName: string) => {
 			if (fileName === workingFile) {
 				return String(scriptFileVersion);
+			}
+			let status = importedScripts.status[fileName];
+			if (status) {
+				let stat = fs.statSync(fileName);
+				if (status.mdt < stat.mtime) {
+					//I Don't Know why It must has to be twice.
+					if (status.ver % 2) {
+						status.mdt = stat.mtime;
+					}
+					status.ver += 1;
+					return String(status.ver);
+				}
 			}
 			return '1'; // default lib an jquery.d.ts are static
 		},

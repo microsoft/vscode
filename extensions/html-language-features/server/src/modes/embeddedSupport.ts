@@ -52,7 +52,7 @@ export function getDocumentRegions(languageService: LanguageService, document: T
 				if (lastAttributeName === 'src' && lastTagName.toLowerCase() === 'script') {
 					let value = scanner.getTokenText();
 					if (value[0] === '\'' || value[0] === '"') {
-						value = value.substr(1, value.length - 1);
+						value = value.substr(1, value.length - 2);
 					}
 					importedScripts.push(value);
 				} else if (lastAttributeName === 'type' && lastTagName.toLowerCase() === 'script') {

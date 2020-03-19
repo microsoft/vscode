@@ -108,6 +108,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	}
 
 	const dataPaths: string[] = params.initializationOptions.dataPaths;
+	const libDefinitionFiles: string[] = params.initializationOptions.libDefinitionFiles;
 	const providers = getDataProviders(dataPaths);
 
 	const workspace = {
@@ -115,7 +116,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 		get folders() { return workspaceFolders; }
 	};
 
-	languageModes = getLanguageModes(initializationOptions ? initializationOptions.embeddedLanguages : { css: true, javascript: true }, workspace, params.capabilities, providers);
+	languageModes = getLanguageModes(initializationOptions ? initializationOptions.embeddedLanguages : { css: true, javascript: true }, workspace, params.capabilities, providers, libDefinitionFiles);
 
 	documents.onDidClose(e => {
 		languageModes.onDocumentRemoved(e.document);
