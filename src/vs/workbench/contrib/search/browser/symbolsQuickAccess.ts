@@ -10,8 +10,8 @@ import { stripWildcards } from 'vs/base/common/strings';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ThrottledDelayer } from 'vs/base/common/async';
-import { getWorkspaceSymbols, IWorkspaceSymbol, IWorkspaceSymbolProvider } from 'vs/workbench/contrib/search/common/search';
-import { SymbolKinds, SymbolTag } from 'vs/editor/common/modes';
+import { getWorkspaceSymbols, IWorkspaceSymbol, IWorkspaceSymbolProvider, IWorkbenchSearchConfiguration } from 'vs/workbench/contrib/search/common/search';
+import { SymbolKinds, SymbolTag, SymbolKind } from 'vs/editor/common/modes';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Schemas } from 'vs/base/common/network';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -37,6 +37,16 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 
 	private static readonly TYPING_SEARCH_DELAY = 200; // this delay accommodates for the user typing a word and then stops typing to start searching
 
+	private static TREAT_AS_GLOBAL_SYMBOL_TYPES = new Set<SymbolKind>([
+		SymbolKind.Class,
+		SymbolKind.Enum,
+		SymbolKind.File,
+		SymbolKind.Interface,
+		SymbolKind.Namespace,
+		SymbolKind.Package,
+		SymbolKind.Module
+	]);
+
 	private delayer = this._register(new ThrottledDelayer<ISymbolQuickPickItem[]>(SymbolsQuickAccessProvider.TYPING_SEARCH_DELAY));
 
 	private readonly resourceExcludeMatcher = this._register(createResourceExcludeMatcher(this.instantiationService, this.configurationService));
@@ -53,18 +63,20 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 
 	private get configuration() {
 		const editorConfig = this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor;
+		const searchConfig = this.configurationService.getValue<IWorkbenchSearchConfiguration>();
 
 		return {
 			openEditorPinned: !editorConfig.enablePreviewFromQuickOpen,
-			openSideBySideDirection: editorConfig.openSideBySideDirection
+			openSideBySideDirection: editorConfig.openSideBySideDirection,
+			workspaceSymbolsFilter: searchConfig.search.quickOpen.workspaceSymbolsFilter
 		};
 	}
 
 	protected getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Promise<Array<ISymbolQuickPickItem>> {
-		return this.getSymbolPicks(filter, undefined, token);
+		return this.getSymbolPicks(filter, { skipLocal: this.configuration.workspaceSymbolsFilter === 'reduced' }, token);
 	}
 
-	async getSymbolPicks(filter: string, options: { skipLocal: boolean, skipSorting: boolean, delay: number } | undefined, token: CancellationToken): Promise<Array<ISymbolQuickPickItem>> {
+	async getSymbolPicks(filter: string, options: { skipLocal?: boolean, skipSorting?: boolean, delay?: number } | undefined, token: CancellationToken): Promise<Array<ISymbolQuickPickItem>> {
 		return this.delayer.trigger(async () => {
 			if (token.isCancellationRequested) {
 				return [];
@@ -74,7 +86,7 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 		}, options?.delay);
 	}
 
-	private async doGetSymbolPicks(filter: string, options: { skipLocal: boolean, skipSorting: boolean } | undefined, token: CancellationToken): Promise<Array<ISymbolQuickPickItem>> {
+	private async doGetSymbolPicks(filter: string, options: { skipLocal?: boolean, skipSorting?: boolean } | undefined, token: CancellationToken): Promise<Array<ISymbolQuickPickItem>> {
 		const workspaceSymbols = await getWorkspaceSymbols(filter, token);
 		if (token.isCancellationRequested) {
 			return [];
@@ -92,8 +104,12 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 		const symbolsExcludedByResource = new ResourceMap<boolean>();
 		for (const [provider, symbols] of workspaceSymbols) {
 			for (const symbol of symbols) {
-				if (options?.skipLocal && !!symbol.containerName) {
-					continue; // ignore local symbols if we are told so
+
+				// Depending on the workspace symbols filter setting, skip over symbols that:
+				// - do not have a container
+				// - and are not treated explicitly as global symbols (e.g. classes)
+				if (options?.skipLocal && !SymbolsQuickAccessProvider.TREAT_AS_GLOBAL_SYMBOL_TYPES.has(symbol.kind) && !!symbol.containerName) {
+					continue;
 				}
 
 				// Score by symbol label

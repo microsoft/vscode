@@ -102,6 +102,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			openEditorPinned: !editorConfig.enablePreviewFromQuickOpen,
 			openSideBySideDirection: editorConfig.openSideBySideDirection,
 			includeSymbols: searchConfig.search.quickOpen.includeSymbols,
+			workspaceSymbolsFilter: searchConfig.search.quickOpen.workspaceSymbolsFilter,
 			includeHistory: searchConfig.search.quickOpen.includeHistory,
 			shortAutoSaveDelay: this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY
 		};
@@ -442,17 +443,22 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 	private symbolsQuickAccess = this._register(this.instantiationService.createInstance(SymbolsQuickAccessProvider));
 
 	protected async getSymbolPicks(query: IPreparedQuery, token: CancellationToken): Promise<Array<IAnythingQuickPickItem>> {
+		const configuration = this.configuration;
 		if (
-			!query.value ||							// we need a value for search for
-			!this.configuration.includeSymbols ||	// we need to enable symbols in search
-			this.pickState.lastRange				// a range is an indicator for just searching for files
+			!query.value ||						// we need a value for search for
+			!configuration.includeSymbols ||	// we need to enable symbols in search
+			this.pickState.lastRange			// a range is an indicator for just searching for files
 		) {
 			return [];
 		}
 
 		// Delegate to the existing symbols quick access
 		// but skip local results and also do not sort
-		return this.symbolsQuickAccess.getSymbolPicks(query.value, { skipLocal: true, skipSorting: true, delay: AnythingQuickAccessProvider.TYPING_SEARCH_DELAY }, token);
+		return this.symbolsQuickAccess.getSymbolPicks(query.value, {
+			skipLocal: configuration.workspaceSymbolsFilter !== 'all',
+			skipSorting: true,
+			delay: AnythingQuickAccessProvider.TYPING_SEARCH_DELAY
+		}, token);
 	}
 
 	//#endregion
