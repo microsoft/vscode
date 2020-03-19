@@ -34,11 +34,13 @@ export class DebugProgressContribution implements IWorkbenchContribution {
 					});
 
 					this.progressService.withProgress({ location: VIEWLET_ID }, () => promise);
+					const source = this.debugService.getConfigurationManager().getDebuggerLabel(session);
 					this.progressService.withProgress({
 						location: ProgressLocation.Notification,
 						title: progressStartEvent.body.title,
 						cancellable: progressStartEvent.body.cancellable,
-						silent: true
+						silent: true,
+						source
 					}, progressStep => {
 						let increment = 0;
 						const progressUpdateListener = session.onDidProgressUpdate(e => {
@@ -49,7 +51,7 @@ export class DebugProgressContribution implements IWorkbenchContribution {
 								progressStep.report({
 									message: e.body.message,
 									increment: typeof e.body.percentage === 'number' ? increment : undefined,
-									total: typeof e.body.percentage === 'number' ? 100 : undefined
+									total: typeof e.body.percentage === 'number' ? 100 : undefined,
 								});
 							}
 						});
