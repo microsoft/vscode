@@ -47,7 +47,8 @@ class CustomEditorUpdateListener {
 		this.commandSubscription = vscode.commands.registerCommand(Testing.abcEditorContentChangeCommand, (data: Testing.CustomEditorContentChangeEvent) => {
 			if (this.callbackQueue.length) {
 				const callback = this.callbackQueue.shift();
-				callback?.(data);
+				assert.ok(callback);
+				callback!(data);
 			} else {
 				this.unconsumedResponses.push(data);
 			}

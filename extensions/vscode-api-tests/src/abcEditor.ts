@@ -35,7 +35,7 @@ export class AbcEditorProvider implements vscode.CustomTextEditorProvider {
 
 		const commands: vscode.Disposable[] = [];
 		commands.push(vscode.commands.registerCommand(Testing.abcEditorTypeCommand, (content: string) => {
-			this.activeEditor?.testing_fakeInput(content);
+			this.activeEditor!.testing_fakeInput(content);
 		}));
 
 		return vscode.Disposable.from(provider, ...commands);
