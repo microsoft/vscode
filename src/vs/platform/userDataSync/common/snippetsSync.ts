@@ -25,6 +25,7 @@ interface ISyncPreviewResult {
 	readonly updated: IStringDictionary<string>;
 	readonly removed: string[];
 	readonly conflicts: Conflict[];
+	readonly resolvedConflicts: IStringDictionary<string | null>;
 	readonly remote: IStringDictionary<string> | null;
 }
 
@@ -94,7 +95,7 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 				const remoteSnippets = this.parseSnippets(remoteUserData.syncData);
 				const { added, updated, remote, removed } = merge(localSnippets, remoteSnippets, localSnippets);
 				this.syncPreviewResultPromise = createCancelablePromise(() => Promise.resolve<ISyncPreviewResult>({
-					added, removed, updated, remote, remoteUserData, local, lastSyncUserData, conflicts: []
+					added, removed, updated, remote, remoteUserData, local, lastSyncUserData, conflicts: [], resolvedConflicts: {}
 				}));
 				await this.apply();
 			}
@@ -128,7 +129,7 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 			const lastSyncUserData = await this.getLastSyncUserData();
 			const remoteUserData = await this.getRemoteUserData(lastSyncUserData);
 			this.syncPreviewResultPromise = createCancelablePromise(() => Promise.resolve<ISyncPreviewResult>({
-				added, removed, updated, remote, remoteUserData, local, lastSyncUserData, conflicts: []
+				added, removed, updated, remote, remoteUserData, local, lastSyncUserData, conflicts: [], resolvedConflicts: {}
 			}));
 
 			await this.apply(true);
@@ -196,12 +197,11 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 		const conflict = this.conflicts.filter(({ local, remote }) => isEqual(local, conflictResource) || isEqual(remote, conflictResource))[0];
 		if (this.status === SyncStatus.HasConflicts && conflict) {
 			const key = relativePath(this.snippetsPreviewFolder, conflict.local)!;
-			const previewResult = await this.syncPreviewResultPromise!;
+			let previewResult = await this.syncPreviewResultPromise!;
 			this.cancel();
-			const resolvedConflicts: IStringDictionary<string | null> = {};
-			resolvedConflicts[key] = content || null;
-			this.syncPreviewResultPromise = createCancelablePromise(token => this.generatePreview(previewResult.local, previewResult.remoteUserData, previewResult.lastSyncUserData, resolvedConflicts, token));
-			await this.syncPreviewResultPromise;
+			previewResult.resolvedConflicts[key] = content || null;
+			this.syncPreviewResultPromise = createCancelablePromise(token => this.generatePreview(previewResult.local, previewResult.remoteUserData, previewResult.lastSyncUserData, previewResult.resolvedConflicts, token));
+			previewResult = await this.syncPreviewResultPromise;
 			this.setConflicts(previewResult.conflicts);
 			if (!this.conflicts.length) {
 				await this.apply();
@@ -302,7 +302,7 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 			}
 		}
 
-		return { remoteUserData, local, lastSyncUserData, added: mergeResult.added, removed: mergeResult.removed, updated: mergeResult.updated, conflicts, remote: mergeResult.remote };
+		return { remoteUserData, local, lastSyncUserData, added: mergeResult.added, removed: mergeResult.removed, updated: mergeResult.updated, conflicts, remote: mergeResult.remote, resolvedConflicts };
 	}
 
 	private async apply(forcePush?: boolean): Promise<void> {

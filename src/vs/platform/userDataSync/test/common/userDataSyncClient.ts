@@ -53,6 +53,7 @@ export class UserDataSyncClient extends Disposable {
 			userDataSyncHome,
 			settingsResource: joinPath(userDataDirectory, 'settings.json'),
 			keybindingsResource: joinPath(userDataDirectory, 'keybindings.json'),
+			snippetsHome: joinPath(userDataDirectory, 'snippets'),
 			argvResource: joinPath(userDataDirectory, 'argv.json'),
 			args: {}
 		});
@@ -201,16 +202,13 @@ export class UserDataSyncTestServer implements IRequestService {
 	}
 
 	private async writeData(resource: string, content: string = '', headers: IHeaders = {}): Promise<IRequestContext> {
-		if (!headers['If-Match']) {
-			return this.toResponse(428);
-		}
 		if (!this.session) {
 			this.session = generateUuid();
 		}
 		const resourceKey = ALL_SYNC_RESOURCES.find(key => key === resource);
 		if (resourceKey) {
 			const data = this.data.get(resourceKey);
-			if (headers['If-Match'] !== (data ? data.ref : '0')) {
+			if (headers['If-Match'] !== undefined && headers['If-Match'] !== (data ? data.ref : '0')) {
 				return this.toResponse(412);
 			}
 			const ref = `${parseInt(data?.ref || '0') + 1}`;
