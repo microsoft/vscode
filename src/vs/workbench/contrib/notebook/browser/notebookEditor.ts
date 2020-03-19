@@ -698,6 +698,12 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	}
 
 	//#endregion
+
+	toJSON(): any {
+		return {
+			notebookHandle: this.viewModel?.handle
+		};
+	}
 }
 
 const embeddedEditorBackground = 'walkThrough.embeddedEditorBackground';

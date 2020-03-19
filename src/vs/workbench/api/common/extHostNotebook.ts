@@ -14,6 +14,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { INotebookDisplayOrder, ITransformedDisplayOutputDto, IOrderedMimeType, IStreamOutput, IErrorOutput, mimeTypeSupportedByCore, IOutput, sortMimeTypes, diff, CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ISplice } from 'vs/base/common/sequence';
+import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 
 export class ExtHostCell implements vscode.NotebookCell {
 
@@ -415,7 +416,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	private static _handlePool: number = 0;
 
 	private readonly _proxy: MainThreadNotebookShape;
-	private readonly _notebookProviders = new Map<string, { readonly provider: vscode.NotebookProvider, readonly extension: IExtensionDescription }>();
+	private readonly _notebookProviders = new Map<string, { readonly provider: vscode.NotebookProvider, readonly extension: IExtensionDescription; }>();
 	private readonly _documents = new Map<string, ExtHostNotebookDocument>();
 	private readonly _editors = new Map<string, ExtHostNotebookEditor>();
 	private readonly _notebookOutputRenderers = new Map<number, ExtHostNotebookOutputRenderer>();
@@ -431,8 +432,28 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		return this._activeNotebookDocument;
 	}
 
-	constructor(mainContext: IMainContext, private _documentsAndEditors: ExtHostDocumentsAndEditors) {
+	constructor(mainContext: IMainContext, commands: ExtHostCommands, private _documentsAndEditors: ExtHostDocumentsAndEditors) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadNotebook);
+
+		commands.registerArgumentProcessor({
+			processArgument: arg => {
+				if (arg && arg.$mid === 12) {
+					const documentHandle = arg.notebookEditor?.notebookHandle;
+					const cellHandle = arg.cell.handle;
+
+					for (let value of this._editors) {
+						if (value[1].document.handle === documentHandle) {
+							const cell = value[1].document.getCell(cellHandle);
+							if (cell) {
+								return cell;
+							}
+						}
+					}
+
+					return arg;
+				}
+			}
+		});
 	}
 
 	registerNotebookOutputRenderer(

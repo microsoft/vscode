@@ -28,7 +28,9 @@ import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser
 import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_PADDING, EDITOR_BOTTOM_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
+import { EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_PADDING, EDITOR_BOTTOM_PADDING, NOTEBOOK_CELL_TYPE_CONTEXT_KEY } from 'vs/workbench/contrib/notebook/browser/constants';
+import { CellMenus } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellMenus';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export class NotebookCellListDelegate implements IListVirtualDelegate<ICellViewModel> {
 	private _lineHeight: number;
@@ -68,6 +70,7 @@ abstract class AbstractCellRenderer {
 		private readonly configurationService: IConfigurationService,
 		private readonly keybindingService: IKeybindingService,
 		private readonly notificationService: INotificationService,
+		protected readonly contextKeyService: IContextKeyService,
 		language: string,
 	) {
 		const editorOptions = deepClone(this.configurationService.getValue<IEditorOptions>('editor', { overrideIdentifier: language }));
@@ -106,6 +109,11 @@ abstract class AbstractCellRenderer {
 		});
 
 		return toolbar;
+	}
+
+	protected createMenu(): CellMenus {
+		const menu = this.instantiationService.createInstance(CellMenus);
+		return menu;
 	}
 
 	showContextMenu(listIndex: number | undefined, element: CellViewModel, x: number, y: number) {
@@ -150,8 +158,9 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@INotificationService notificationService: INotificationService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super(instantiationService, notehookEditor, contextMenuService, configurationService, keybindingService, notificationService, 'markdown');
+		super(instantiationService, notehookEditor, contextMenuService, configurationService, keybindingService, notificationService, contextKeyService, 'markdown');
 	}
 
 	get templateId() {
@@ -165,14 +174,6 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 
 		const disposables = new DisposableStore();
 		const toolbar = this.createToolbar(container);
-		toolbar.setActions([
-			this.instantiationService.createInstance(MoveCellUpAction),
-			this.instantiationService.createInstance(MoveCellDownAction),
-			this.instantiationService.createInstance(InsertCodeCellBelowAction),
-			this.instantiationService.createInstance(EditCellAction),
-			this.instantiationService.createInstance(SaveCellAction),
-			this.instantiationService.createInstance(DeleteCellAction)
-		])();
 		disposables.add(toolbar);
 
 		container.appendChild(codeInnerContent);
@@ -230,11 +231,30 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 			}));
 
 			elementDisposable!.add(new StatefullMarkdownCell(this.notebookEditor, element, templateData, this.editorOptions, this.instantiationService));
+
+			const contextKeyService = this.contextKeyService.createScoped(templateData.container);
+			contextKeyService.createKey(NOTEBOOK_CELL_TYPE_CONTEXT_KEY, 'markdown');
+			const menu = this.createMenu().getCellTitleActions(this.contextKeyService);
+			const actions: IAction[] = [];
+			for (let [, actions] of menu.getActions({ shouldForwardArgs: true })) {
+				actions.push(...actions);
+			}
+
+			templateData.toolbar!.setActions([
+				...actions,
+				this.instantiationService.createInstance(MoveCellUpAction),
+				this.instantiationService.createInstance(MoveCellDownAction),
+				this.instantiationService.createInstance(InsertCodeCellBelowAction),
+				this.instantiationService.createInstance(EditCellAction),
+				this.instantiationService.createInstance(SaveCellAction),
+				this.instantiationService.createInstance(DeleteCellAction)
+			])();
 		}
 
 		templateData.toolbar!.context = <INotebookCellActionContext>{
 			cell: element,
-			notebookEditor: this.notebookEditor
+			notebookEditor: this.notebookEditor,
+			$mid: 12
 		};
 	}
 
@@ -269,8 +289,9 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@INotificationService notificationService: INotificationService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super(instantiationService, notebookEditor, contextMenuService, configurationService, keybindingService, notificationService, 'python');
+		super(instantiationService, notebookEditor, contextMenuService, configurationService, keybindingService, notificationService, contextKeyService, 'python');
 	}
 
 	get templateId() {
@@ -364,9 +385,26 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			templateData.focusIndicator!.style.height = `${element.getIndicatorHeight()}px`;
 		}));
 
+		const contextKeyService = this.contextKeyService.createScoped(templateData.container);
+		contextKeyService.createKey(NOTEBOOK_CELL_TYPE_CONTEXT_KEY, 'code');
+		const menu = this.createMenu().getCellTitleActions(contextKeyService);
+		const actions: IAction[] = [];
+		for (let [, items] of menu.getActions({ shouldForwardArgs: true })) {
+			actions.push(...items);
+		}
+
+		templateData.toolbar!.setActions([
+			...actions,
+			this.instantiationService.createInstance(MoveCellUpAction),
+			this.instantiationService.createInstance(MoveCellDownAction),
+			this.instantiationService.createInstance(InsertCodeCellBelowAction),
+			this.instantiationService.createInstance(DeleteCellAction)
+		])();
+
 		templateData.toolbar!.context = <INotebookCellActionContext>{
 			cell: element,
-			notebookEditor: this.notebookEditor
+			notebookEditor: this.notebookEditor,
+			$mid: 12
 		};
 	}
 
