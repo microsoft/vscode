@@ -138,12 +138,12 @@ suite('SnippetsSync', () => {
 
 	setup(async () => {
 		testClient = disposableStore.add(new UserDataSyncClient(server));
-		await testClient.setUp();
+		await testClient.setUp(true);
 		testObject = (testClient.instantiationService.get(IUserDataSyncService) as UserDataSyncService).getSynchroniser(SyncResource.Snippets) as SnippetsSynchroniser;
 		disposableStore.add(toDisposable(() => testClient.instantiationService.get(IUserDataSyncStoreService).clear()));
 
 		client2 = disposableStore.add(new UserDataSyncClient(server));
-		await client2.setUp();
+		await client2.setUp(true);
 	});
 
 	teardown(() => disposableStore.clear());
