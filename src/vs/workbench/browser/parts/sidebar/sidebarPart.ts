@@ -23,9 +23,9 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { Event, Emitter } from 'vs/base/common/event';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { SIDE_BAR_TITLE_FOREGROUND, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND, SIDE_BAR_BORDER, SIDE_BAR_DRAG_AND_DROP_BACKGROUND, EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
+import { SIDE_BAR_TITLE_FOREGROUND, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND, SIDE_BAR_BORDER, SIDE_BAR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { EventType, addDisposableListener, trackFocus, addClass } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, trackFocus } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
@@ -33,7 +33,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { LayoutPriority } from 'vs/base/browser/ui/grid/grid';
 import { assertIsDefined } from 'vs/base/common/types';
-import { LocalSelectionTransfer, CompositeDragAndDropObserver, DraggedViewIdentifier, DraggedCompositeIdentifier } from 'vs/workbench/browser/dnd';
+import { LocalSelectionTransfer, DraggedViewIdentifier, DraggedCompositeIdentifier } from 'vs/workbench/browser/dnd';
 
 export class SidebarPart extends CompositePart<Viewlet> implements IViewletService {
 
@@ -151,28 +151,6 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		this.element = parent;
 
 		super.create(parent);
-
-		const overlay = document.createElement('div');
-		addClass(overlay, 'drag-overlay');
-		parent.appendChild(overlay);
-
-		CompositeDragAndDropObserver.INSTANCE.registerTarget(this.element, {
-			onDragStart: e => {
-				overlay.style.backgroundColor = this.theme.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND, true)?.toString() || '';
-				overlay.style.opacity = '.8';
-			},
-			onDragEnd: e => {
-				// this.element.style.outline = '';
-				overlay.style.opacity = '';
-			},
-			onDragEnter: e => {
-				overlay.style.opacity = '';
-			},
-			onDragLeave: e => {
-				overlay.style.backgroundColor = this.theme.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND, true)?.toString() || '';
-				overlay.style.opacity = '.8';
-			}
-		});
 
 		const focusTracker = this._register(trackFocus(parent));
 		this._register(focusTracker.onDidFocus(() => this.sideBarFocusContextKey.set(true)));
