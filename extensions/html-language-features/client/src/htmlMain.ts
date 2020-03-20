@@ -21,8 +21,8 @@ import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
 import { activateTagClosing } from './tagClosing';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import { getCustomDataPathsInAllWorkspaces, getCustomDataPathsFromAllExtensions } from './customData';
-import { getLibDefinitionFilesInAllWorkspaces } from './libDefinitionFiles';
 import { activateMirrorCursor } from './mirrorCursor';
+import { getLibDefinitionFilesInAllWorkspaces } from './libDefinitionFiles';
 
 namespace TagCloseRequest {
 	export const type: RequestType<TextDocumentPositionParams, string, any, any> = new RequestType('html/tag');
