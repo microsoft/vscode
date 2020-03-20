@@ -492,8 +492,13 @@ export class QuickInputList {
 		if ((what === QuickInputListFocus.Next || what === QuickInputListFocus.NextPage) && this.list.getFocus()[0] === this.list.length - 1) {
 			what = QuickInputListFocus.First;
 		}
+
 		if ((what === QuickInputListFocus.Previous || what === QuickInputListFocus.PreviousPage) && this.list.getFocus()[0] === 0) {
 			what = QuickInputListFocus.Last;
+		}
+
+		if (what === QuickInputListFocus.Second && this.list.length < 2) {
+			what = QuickInputListFocus.First;
 		}
 
 		switch (what) {
@@ -520,7 +525,10 @@ export class QuickInputList {
 				break;
 		}
 
-		this.list.reveal(this.list.getFocus()[0]);
+		const focused = this.list.getFocus()[0];
+		if (focused) {
+			this.list.reveal(focused);
+		}
 	}
 
 	clearFocus() {

@@ -460,7 +460,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	set items(items: Array<T | IQuickPickSeparator>) {
 		this._items = items;
 		this.itemsUpdated = true;
-		if (this._items.length === 0) {
+		if (items.length === 0) {
 			// quick-navigate requires at least 1 item
 			this._quickNavigate = undefined;
 		}
@@ -818,11 +818,12 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		if (!this.visible) {
 			return;
 		}
-		dom.toggleClass(this.ui.container, 'quick-navigate-mode', !!this._quickNavigate);
+		const isQuickNavigating = !!this._quickNavigate && this._items.length > 0; // quick nav requires at least 1 item
+		dom.toggleClass(this.ui.container, 'quick-navigate-mode', isQuickNavigating);
 		const ok = this.ok === 'default' ? this.canSelectMany : this.ok;
 		const visibilities: Visibilities = this.canSelectMany ?
-			{ title: !!this.title || !!this.step, description: !!this.description, checkAll: true, inputBox: !this._quickNavigate, progressBar: !this._quickNavigate, visibleCount: true, count: true, ok, list: true, message: !!this.validationMessage, customButton: this.customButton } :
-			{ title: !!this.title || !!this.step, description: !!this.description, inputBox: !this._quickNavigate, progressBar: !this._quickNavigate, visibleCount: true, list: true, message: !!this.validationMessage, customButton: this.customButton, ok };
+			{ title: !!this.title || !!this.step, description: !!this.description, checkAll: true, inputBox: !isQuickNavigating, progressBar: !isQuickNavigating, visibleCount: true, count: true, ok, list: true, message: !!this.validationMessage, customButton: this.customButton } :
+			{ title: !!this.title || !!this.step, description: !!this.description, inputBox: !isQuickNavigating, progressBar: !isQuickNavigating, visibleCount: true, list: true, message: !!this.validationMessage, customButton: this.customButton, ok };
 		this.ui.setVisibilities(visibilities);
 		super.update();
 		if (this.ui.inputBox.value !== this.value) {
@@ -850,7 +851,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 			this.ui.checkAll.checked = this.ui.list.getAllVisibleChecked();
 			this.ui.visibleCount.setCount(this.ui.list.getVisibleCount());
 			this.ui.count.setCount(this.ui.list.getCheckedCount());
-			if (this._quickNavigate && previousItemCount === 0 && this.items.length > 1) {
+			if (isQuickNavigating && previousItemCount === 0) {
 				// quick navigate: automatically focus the second entry
 				// so that upon release the item is picked directly
 				this.ui.list.focus(QuickInputListFocus.Second);

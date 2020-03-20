@@ -325,7 +325,7 @@ export class QuickOpenAction extends Action {
 		id: string,
 		label: string,
 		prefix: string,
-		@IQuickOpenService private readonly quickOpenService: IQuickOpenService
+		@IQuickOpenService protected readonly quickOpenService: IQuickOpenService
 	) {
 		super(id, label);
 

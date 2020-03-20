@@ -53,6 +53,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 	private static readonly TYPING_SEARCH_DELAY = 200; // this delay accommodates for the user typing a word and then stops typing to start searching
 
 	private readonly pickState = new class {
+
 		scorerCache: ScorerCache = Object.create(null);
 		fileQueryCache: FileQueryCacheState | undefined = undefined;
 
@@ -60,17 +61,20 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		lastFilter: string | undefined = undefined;
 		lastRange: IRange | undefined = undefined;
 
+		isQuickNavigating: boolean | undefined = undefined;
+
 		constructor(private readonly provider: AnythingQuickAccessProvider) { }
 
-		reset(prepareForSearching: boolean): void {
+		reset(isQuickNavigating: boolean): void {
 
 			// Caches
-			if (prepareForSearching) {
+			if (!isQuickNavigating) {
 				this.fileQueryCache = this.provider.createFileQueryCache();
 				this.scorerCache = Object.create(null);
 			}
 
 			// Other
+			this.isQuickNavigating = isQuickNavigating;
 			this.lastOriginalFilter = undefined;
 			this.lastFilter = undefined;
 			this.lastRange = undefined;
@@ -113,7 +117,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 	provide(picker: IQuickPick<IAnythingQuickPickItem>, token: CancellationToken): IDisposable {
 
 		// Reset the pick state for this run
-		this.pickState.reset(!picker.quickNavigate);
+		this.pickState.reset(!!picker.quickNavigate);
 
 		// Start picker
 		return super.provide(picker, token);
@@ -154,11 +158,13 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		return {
 
 			// Fast picks: editor history
-			picks: historyEditorPicks.length > 0 ?
-				[
-					{ type: 'separator', label: localize('recentlyOpenedSeparator', "recently opened") },
-					...historyEditorPicks
-				] : [],
+			picks:
+				(this.pickState.isQuickNavigating || historyEditorPicks.length === 0) ?
+					historyEditorPicks :
+					[
+						{ type: 'separator', label: localize('recentlyOpenedSeparator', "recently opened") },
+						...historyEditorPicks
+					],
 
 			// Slow picks: files and symbols
 			additionalPicks: (async (): Promise<Array<IAnythingQuickPickItem | IQuickPickSeparator>> => {
@@ -499,6 +505,10 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			description,
 			iconClasses: getIconClasses(this.modelService, this.modeService, resource),
 			buttons: (() => {
+				if (this.pickState.isQuickNavigating) {
+					return undefined; // no actions when quick navigating
+				}
+
 				const openSideBySideDirection = configuration.openSideBySideDirection;
 				const buttons: IQuickInputButton[] = [];
 

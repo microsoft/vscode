@@ -31,22 +31,18 @@ export class GotoLineAction extends QuickOpenAction {
 	static readonly LABEL = nls.localize('gotoLine', "Go to Line...");
 
 	constructor(actionId: string, actionLabel: string,
-		@IQuickOpenService private readonly _quickOpenService: IQuickOpenService,
+		@IQuickOpenService quickOpenService: IQuickOpenService,
 		@IEditorService private readonly editorService: IEditorService
 	) {
-		super(actionId, actionLabel, GOTO_LINE_PREFIX, _quickOpenService);
+		super(actionId, actionLabel, GOTO_LINE_PREFIX, quickOpenService);
 	}
 
-	run(): Promise<void> {
-
+	async run(): Promise<void> {
 		let activeTextEditorControl = this.editorService.activeTextEditorControl;
-		if (!activeTextEditorControl) {
-			return Promise.resolve();
-		}
-
 		if (isDiffEditor(activeTextEditorControl)) {
 			activeTextEditorControl = activeTextEditorControl.getModifiedEditor();
 		}
+
 		let restoreOptions: IEditorOptions | null = null;
 
 		if (isCodeEditor(activeTextEditorControl)) {
@@ -65,7 +61,7 @@ export class GotoLineAction extends QuickOpenAction {
 		const result = super.run();
 
 		if (restoreOptions) {
-			Event.once(this._quickOpenService.onHide)(() => {
+			Event.once(this.quickOpenService.onHide)(() => {
 				activeTextEditorControl!.updateOptions(restoreOptions!);
 			});
 		}
