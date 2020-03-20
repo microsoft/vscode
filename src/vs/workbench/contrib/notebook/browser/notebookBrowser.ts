@@ -6,11 +6,10 @@
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { IOutput, CellKind, IRenderOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { NotebookViewModel, IModelDecorationsChangeAccessor } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
+import { NotebookViewModel, IModelDecorationsChangeAccessor, CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { FindMatch } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';

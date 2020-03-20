@@ -11,7 +11,7 @@ import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/r
 import { INotebookEditor, CellRenderTemplate, CellFocusMode, CellState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { raceCancellation } from 'vs/base/common/async';
-import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
+import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { CELL_MARGIN, EDITOR_TOP_PADDING, EDITOR_BOTTOM_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 
 export class StatefullMarkdownCell extends Disposable {
@@ -23,7 +23,7 @@ export class StatefullMarkdownCell extends Disposable {
 
 	constructor(
 		notebookEditor: INotebookEditor,
-		public viewCell: CellViewModel,
+		public viewCell: MarkdownCellViewModel,
 		templateData: CellRenderTemplate,
 		editorOptions: IEditorOptions,
 		instantiationService: IInstantiationService

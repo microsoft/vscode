@@ -13,7 +13,7 @@ import { raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
-import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
+import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { CELL_MARGIN, EDITOR_TOP_PADDING, EDITOR_BOTTOM_PADDING, RUN_BUTTON_WIDTH } from 'vs/workbench/contrib/notebook/browser/constants';
 
 interface IMimeTypeRenderer extends IQuickPickItem {
@@ -25,7 +25,7 @@ export class CodeCell extends Disposable {
 	private outputElements = new Map<IOutput, HTMLElement>();
 	constructor(
 		private notebookEditor: INotebookEditor,
-		private viewCell: CellViewModel,
+		private viewCell: CodeCellViewModel,
 		private templateData: CellRenderTemplate,
 		@INotebookService private notebookService: INotebookService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService
