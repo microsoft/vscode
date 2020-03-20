@@ -201,6 +201,7 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 					language: cell.language,
 					cellKind: cell.cellKind,
 					outputs: outputs,
+					metadata: cell.metadata,
 					isDirty: false
 				};
 			});
