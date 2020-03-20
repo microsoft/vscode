@@ -271,6 +271,10 @@ export class MainThreadNotebookController implements IMainNotebookController {
 		}
 	}
 
+	async executeNotebookCell(uri: URI, handle: number): Promise<void> {
+		return this._proxy.$executeNotebook(this._viewType, uri, handle);
+	}
+
 	async destoryNotebookDocument(notebook: INotebookTextModel): Promise<void> {
 		let document = this._mapping.get(URI.from(notebook.uri).toString());
 

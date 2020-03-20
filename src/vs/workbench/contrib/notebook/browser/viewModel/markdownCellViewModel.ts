@@ -8,7 +8,7 @@ import * as UUID from 'vs/base/common/uuid';
 import * as model from 'vs/editor/common/model';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CellState, ICellViewModel, CellFindMatch, NotebookViewLayoutAccessor, MarkdownCellLayoutInfo, MarkdownCellLayoutChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICellViewModel, CellFindMatch, NotebookViewLayoutAccessor, MarkdownCellLayoutInfo, MarkdownCellLayoutChangeEvent, CellEditState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { MarkdownRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/mdRenderer';
 import { BaseCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/baseCellViewModel';
 import { CellKind, ICell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -77,7 +77,7 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 	}
 
 	save() {
-		if (this._textModel && !this._textModel.isDisposed() && this.state === CellState.Editing) {
+		if (this._textModel && !this._textModel.isDisposed() && this.editState === CellEditState.Editing) {
 			let cnt = this._textModel.getLineCount();
 			this.cell.source = this._textModel.getLinesContent().map((str, index) => str + (index !== cnt - 1 ? '\n' : ''));
 		}
@@ -118,7 +118,7 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 	}
 
 	onDeselect() {
-		this.state = CellState.Preview;
+		this.editState = CellEditState.Preview;
 	}
 
 	getMarkdownRenderer() {

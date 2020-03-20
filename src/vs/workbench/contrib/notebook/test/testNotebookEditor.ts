@@ -10,7 +10,7 @@ import { CellKind, ICell, IOutput, NotebookCellOutputsSplice, CellUri } from 'vs
 import { NotebookViewModel, IModelDecorationsChangeAccessor, CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
-import { INotebookEditor, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor, NotebookLayoutInfo, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
@@ -67,6 +67,10 @@ export class TestNotebookEditor implements INotebookEditor {
 
 	constructor(
 	) { }
+
+	executeNotebookCell(cell: ICellViewModel): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
 
 	isNotebookEditor = true;
 

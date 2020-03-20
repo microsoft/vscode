@@ -24,7 +24,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_PADDING, NOTEBOOK_CELL_TYPE_CONTEXT_KEY } from 'vs/workbench/contrib/notebook/browser/constants';
 import { DeleteCellAction, EditCellAction, ExecuteCellAction, INotebookCellActionContext, InsertCodeCellBelowAction, MoveCellDownAction, MoveCellUpAction, SaveCellAction, InsertCodeCellAboveAction, InsertMarkdownCellAboveAction, InsertMarkdownCellBelowAction } from 'vs/workbench/contrib/notebook/browser/contrib/notebookActions';
-import { CellRenderTemplate, ICellViewModel, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellRenderTemplate, ICellViewModel, INotebookEditor, CellRunState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodeCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/codeCell';
 import { StatefullMarkdownCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/markdownCell';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -389,6 +389,14 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		elementDisposable?.add(element.onDidChangeLayout(() => {
 			templateData.focusIndicator!.style.height = `${element.layoutInfo.indicatorHeight}px`;
+		}));
+
+		elementDisposable?.add(element.onDidChangeCellRunState(() => {
+			if (element.runState === CellRunState.Running) {
+				templateData.progressBar?.infinite().show();
+			} else {
+				templateData.progressBar?.hide();
+			}
 		}));
 
 		const toolbarContext = <INotebookCellActionContext>{

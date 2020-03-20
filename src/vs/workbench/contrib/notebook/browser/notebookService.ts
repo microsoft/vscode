@@ -31,6 +31,7 @@ export interface IMainNotebookController {
 	deleteCell(uri: URI, index: number): Promise<boolean>
 	executeNotebookActiveCell(uri: URI): Promise<void>;
 	onDidReceiveMessage(uri: URI, message: any): void;
+	executeNotebookCell(uri: URI, handle: number): Promise<void>;
 	destoryNotebookDocument(notebook: INotebookTextModel): Promise<void>;
 	save(uri: URI): Promise<boolean>;
 }
@@ -47,6 +48,8 @@ export interface INotebookService {
 	resolveNotebook(viewType: string, uri: URI): Promise<NotebookTextModel | undefined>;
 	executeNotebook(viewType: string, uri: URI): Promise<void>;
 	executeNotebookActiveCell(viewType: string, uri: URI): Promise<void>;
+	executeNotebookCell(viewType: string, uri: URI, handle: number): Promise<void>;
+
 	getContributedNotebookProviders(resource: URI): readonly NotebookProviderInfo[];
 	getNotebookProviderResourceRoots(): URI[];
 	updateNotebookActiveCell(viewType: string, resource: URI, cellHandle: number): void;
@@ -285,6 +288,13 @@ export class NotebookService extends Disposable implements INotebookService {
 
 		if (provider) {
 			await provider.controller.executeNotebookActiveCell(uri);
+		}
+	}
+
+	async executeNotebookCell(viewType: string, uri: URI, handle: number): Promise<void> {
+		const provider = this._notebookProviders.get(viewType);
+		if (provider) {
+			await provider.controller.executeNotebookCell(uri, handle);
 		}
 	}
 

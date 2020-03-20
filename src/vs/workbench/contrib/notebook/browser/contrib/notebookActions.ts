@@ -12,7 +12,7 @@ import { InputFocusedContext, InputFocusedContextKey, IsDevelopmentContext } fro
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { COPY_CELL_DOWN_COMMAND_ID, COPY_CELL_UP_COMMAND_ID, DELETE_CELL_COMMAND_ID, EDIT_CELL_COMMAND_ID, EXECUTE_CELL_COMMAND_ID, INSERT_CODE_CELL_ABOVE_COMMAND_ID, INSERT_CODE_CELL_BELOW_COMMAND_ID, INSERT_MARKDOWN_CELL_ABOVE_COMMAND_ID, INSERT_MARKDOWN_CELL_BELOW_COMMAND_ID, MOVE_CELL_DOWN_COMMAND_ID, MOVE_CELL_UP_COMMAND_ID, SAVE_CELL_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/constants';
-import { CellRenderTemplate, CellState, ICellViewModel, INotebookEditor, KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellRenderTemplate, CellEditState, ICellViewModel, INotebookEditor, KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, NOTEBOOK_EDITOR_FOCUSED, CellRunState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
 import { CellKind, NOTEBOOK_EDITOR_CURSOR_BOUNDARY } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -41,7 +41,7 @@ registerAction2(class extends Action2 {
 			}
 		}
 
-		runCell(accessor, context);
+		runCell(context);
 	}
 });
 
@@ -183,7 +183,7 @@ registerAction2(class extends Action2 {
 		let activeCell = editor.getActiveCell();
 		if (activeCell) {
 			if (activeCell.cellKind === CellKind.Markdown) {
-				activeCell.state = CellState.Preview;
+				activeCell.editState = CellEditState.Preview;
 			}
 
 			editor.focusNotebookCell(activeCell, false);
@@ -300,20 +300,8 @@ function getActiveNotebookEditor(editorService: IEditorService): INotebookEditor
 
 async function runActiveCell(accessor: ServicesAccessor): Promise<ICellViewModel | undefined> {
 	const editorService = accessor.get(IEditorService);
-	const notebookService = accessor.get(INotebookService);
-
-	const resource = editorService.activeEditor?.resource;
-	if (!resource) {
-		return;
-	}
-
 	const editor = getActiveNotebookEditor(editorService);
 	if (!editor) {
-		return;
-	}
-
-	const notebookProviders = notebookService.getContributedNotebookProviders(resource);
-	if (!notebookProviders.length) {
 		return;
 	}
 
@@ -322,51 +310,16 @@ async function runActiveCell(accessor: ServicesAccessor): Promise<ICellViewModel
 		return;
 	}
 
-	const idx = editor.viewModel?.getViewCellIndex(activeCell);
-	if (typeof idx !== 'number') {
-		return;
-	}
-
-	const viewType = notebookProviders[0].id;
-	await notebookService.executeNotebookActiveCell(viewType, resource);
-
+	editor.executeNotebookCell(activeCell);
 	return activeCell;
 }
 
-async function runCell(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-	const progress = context.cellTemplate?.progressBar;
-	if (progress) {
-		progress.infinite().show(500);
+async function runCell(context: INotebookCellActionContext): Promise<void> {
+	if (context.cell.runState === CellRunState.Running) {
+		return;
 	}
-	try {
-		const editorService = accessor.get(IEditorService);
-		const notebookService = accessor.get(INotebookService);
 
-		const resource = editorService.activeEditor?.resource;
-		if (!resource) {
-			return;
-		}
-
-		const editor = getActiveNotebookEditor(editorService);
-		if (!editor) {
-			return;
-		}
-
-		const notebookProviders = notebookService.getContributedNotebookProviders(resource);
-		if (!notebookProviders.length) {
-			return;
-		}
-
-		// Need to make active, maybe TODO
-		editor.focusNotebookCell(context.cell, false);
-
-		const viewType = notebookProviders[0].id;
-		await notebookService.executeNotebookActiveCell(viewType, resource);
-	} finally {
-		if (progress) {
-			progress.hide();
-		}
-	}
+	return context.notebookEditor.executeNotebookCell(context.cell);
 }
 
 async function changeActiveCellToKind(kind: CellKind, accessor: ServicesAccessor): Promise<void> {
