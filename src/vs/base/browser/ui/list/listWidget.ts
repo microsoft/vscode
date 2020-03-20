@@ -1501,9 +1501,13 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	focusFirst(browserEvent?: UIEvent, filter?: (element: T) => boolean): void {
+		this.focusNth(0, browserEvent, filter);
+	}
+
+	focusNth(n: number, browserEvent?: UIEvent, filter?: (element: T) => boolean): void {
 		if (this.length === 0) { return; }
 
-		const index = this.findNextIndex(0, false, filter);
+		const index = this.findNextIndex(n, false, filter);
 
 		if (index > -1) {
 			this.setFocus([index], browserEvent);

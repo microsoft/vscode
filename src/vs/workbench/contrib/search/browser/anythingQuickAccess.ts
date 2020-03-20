@@ -62,11 +62,13 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		constructor(private readonly provider: AnythingQuickAccessProvider) { }
 
-		reset(): void {
+		reset(prepareForSearching: boolean): void {
 
 			// Caches
-			this.fileQueryCache = this.provider.createFileQueryCache();
-			this.scorerCache = Object.create(null);
+			if (prepareForSearching) {
+				this.fileQueryCache = this.provider.createFileQueryCache();
+				this.scorerCache = Object.create(null);
+			}
 
 			// Other
 			this.lastOriginalFilter = undefined;
@@ -111,7 +113,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 	provide(picker: IQuickPick<IAnythingQuickPickItem>, token: CancellationToken): IDisposable {
 
 		// Reset the pick state for this run
-		this.pickState.reset();
+		this.pickState.reset(!picker.quickNavigate);
 
 		// Start picker
 		return super.provide(picker, token);
@@ -223,7 +225,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	private readonly labelOnlyEditorHistoryPickAccessor = new QuickPickItemScorerAccessor({ skipDescription: true });
 
-	protected getEditorHistoryPicks(query: IPreparedQuery): Array<IAnythingQuickPickItem> {
+	private getEditorHistoryPicks(query: IPreparedQuery): Array<IAnythingQuickPickItem> {
 		const configuration = this.configuration;
 
 		// Just return all history entries if not searching
@@ -282,7 +284,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		).load();
 	}
 
-	protected async getFilePicks(query: IPreparedQuery, excludes: ResourceMap<boolean>, token: CancellationToken): Promise<Array<IAnythingQuickPickItem>> {
+	private async getFilePicks(query: IPreparedQuery, excludes: ResourceMap<boolean>, token: CancellationToken): Promise<Array<IAnythingQuickPickItem>> {
 		if (!query.value) {
 			return [];
 		}
@@ -444,7 +446,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	private symbolsQuickAccess = this._register(this.instantiationService.createInstance(SymbolsQuickAccessProvider));
 
-	protected async getSymbolPicks(query: IPreparedQuery, token: CancellationToken): Promise<Array<IAnythingQuickPickItem>> {
+	private async getSymbolPicks(query: IPreparedQuery, token: CancellationToken): Promise<Array<IAnythingQuickPickItem>> {
 		const configuration = this.configuration;
 		if (
 			!query.value ||						// we need a value for search for

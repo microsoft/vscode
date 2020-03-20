@@ -222,6 +222,16 @@ class ListElementDelegate implements IListVirtualDelegate<ListElement> {
 	}
 }
 
+export enum QuickInputListFocus {
+	First = 1,
+	Second,
+	Last,
+	Next,
+	Previous,
+	NextPage,
+	PreviousPage
+}
+
 export class QuickInputList {
 
 	readonly id: string;
@@ -474,18 +484,42 @@ export class QuickInputList {
 		this.list.getHTMLElement().style.pointerEvents = value ? null : 'none';
 	}
 
-	focus(what: 'First' | 'Last' | 'Next' | 'Previous' | 'NextPage' | 'PreviousPage'): void {
+	focus(what: QuickInputListFocus): void {
 		if (!this.list.length) {
 			return;
 		}
 
-		if ((what === 'Next' || what === 'NextPage') && this.list.getFocus()[0] === this.list.length - 1) {
-			what = 'First';
+		if ((what === QuickInputListFocus.Next || what === QuickInputListFocus.NextPage) && this.list.getFocus()[0] === this.list.length - 1) {
+			what = QuickInputListFocus.First;
 		}
-		if ((what === 'Previous' || what === 'PreviousPage') && this.list.getFocus()[0] === 0) {
-			what = 'Last';
+		if ((what === QuickInputListFocus.Previous || what === QuickInputListFocus.PreviousPage) && this.list.getFocus()[0] === 0) {
+			what = QuickInputListFocus.Last;
 		}
-		this.list['focus' + what as 'focusFirst' | 'focusLast' | 'focusNext' | 'focusPrevious' | 'focusNextPage' | 'focusPreviousPage']();
+
+		switch (what) {
+			case QuickInputListFocus.First:
+				this.list.focusFirst();
+				break;
+			case QuickInputListFocus.Second:
+				this.list.focusNth(1);
+				break;
+			case QuickInputListFocus.Last:
+				this.list.focusLast();
+				break;
+			case QuickInputListFocus.Next:
+				this.list.focusNext();
+				break;
+			case QuickInputListFocus.Previous:
+				this.list.focusPrevious();
+				break;
+			case QuickInputListFocus.NextPage:
+				this.list.focusNextPage();
+				break;
+			case QuickInputListFocus.PreviousPage:
+				this.list.focusPreviousPage();
+				break;
+		}
+
 		this.list.reveal(this.list.getFocus()[0]);
 	}
 
