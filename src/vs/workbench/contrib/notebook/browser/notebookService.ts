@@ -26,10 +26,8 @@ export const INotebookService = createDecorator<INotebookService>('notebookServi
 export interface IMainNotebookController {
 	resolveNotebook(viewType: string, uri: URI): Promise<NotebookTextModel | undefined>;
 	executeNotebook(viewType: string, uri: URI): Promise<void>;
-	updateNotebookActiveCell(uri: URI, cellHandle: number): void;
 	createRawCell(uri: URI, index: number, language: string, type: CellKind): Promise<NotebookCellTextModel | undefined>;
 	deleteCell(uri: URI, index: number): Promise<boolean>
-	executeNotebookActiveCell(uri: URI): Promise<void>;
 	onDidReceiveMessage(uri: URI, message: any): void;
 	executeNotebookCell(uri: URI, handle: number): Promise<void>;
 	destoryNotebookDocument(notebook: INotebookTextModel): Promise<void>;
@@ -47,12 +45,10 @@ export interface INotebookService {
 	getRendererInfo(handle: number): INotebookRendererInfo | undefined;
 	resolveNotebook(viewType: string, uri: URI): Promise<NotebookTextModel | undefined>;
 	executeNotebook(viewType: string, uri: URI): Promise<void>;
-	executeNotebookActiveCell(viewType: string, uri: URI): Promise<void>;
 	executeNotebookCell(viewType: string, uri: URI, handle: number): Promise<void>;
 
 	getContributedNotebookProviders(resource: URI): readonly NotebookProviderInfo[];
 	getNotebookProviderResourceRoots(): URI[];
-	updateNotebookActiveCell(viewType: string, resource: URI, cellHandle: number): void;
 	createNotebookCell(viewType: string, resource: URI, index: number, language: string, type: CellKind): Promise<ICell | undefined>;
 	deleteNotebookCell(viewType: string, resource: URI, index: number): Promise<boolean>;
 	destoryNotebookDocument(viewType: string, notebook: INotebookTextModel): void;
@@ -245,14 +241,6 @@ export class NotebookService extends Disposable implements INotebookService {
 		return modelData.model;
 	}
 
-	updateNotebookActiveCell(viewType: string, resource: URI, cellHandle: number): void {
-		let provider = this._notebookProviders.get(viewType);
-
-		if (provider) {
-			provider.controller.updateNotebookActiveCell(resource, cellHandle);
-		}
-	}
-
 	async createNotebookCell(viewType: string, resource: URI, index: number, language: string, type: CellKind): Promise<NotebookCellTextModel | undefined> {
 		let provider = this._notebookProviders.get(viewType);
 
@@ -281,14 +269,6 @@ export class NotebookService extends Disposable implements INotebookService {
 		}
 
 		return;
-	}
-
-	async executeNotebookActiveCell(viewType: string, uri: URI): Promise<void> {
-		let provider = this._notebookProviders.get(viewType);
-
-		if (provider) {
-			await provider.controller.executeNotebookActiveCell(uri);
-		}
 	}
 
 	async executeNotebookCell(viewType: string, uri: URI, handle: number): Promise<void> {

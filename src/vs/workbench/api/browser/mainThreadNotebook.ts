@@ -238,11 +238,6 @@ export class MainThreadNotebookController implements IMainNotebookController {
 		document?.textModel.updateRenderers(renderers);
 	}
 
-	updateNotebookActiveCell(uri: URI, cellHandle: number): void {
-		let mainthreadNotebook = this._mapping.get(URI.from(uri).toString());
-		mainthreadNotebook?.textModel.updateActiveCell(cellHandle);
-	}
-
 	async createRawCell(uri: URI, index: number, language: string, type: CellKind): Promise<NotebookCellTextModel | undefined> {
 		let cell = await this._proxy.$createEmptyCell(this._viewType, uri, index, language, type);
 		if (cell) {
@@ -261,14 +256,6 @@ export class MainThreadNotebookController implements IMainNotebookController {
 		}
 
 		return false;
-	}
-
-	async executeNotebookActiveCell(uri: URI): Promise<void> {
-		let mainthreadNotebook = this._mapping.get(URI.from(uri).toString());
-
-		if (mainthreadNotebook && mainthreadNotebook.textModel.activeCell) {
-			return this._proxy.$executeNotebook(this._viewType, uri, mainthreadNotebook.textModel.activeCell.handle);
-		}
 	}
 
 	async executeNotebookCell(uri: URI, handle: number): Promise<void> {

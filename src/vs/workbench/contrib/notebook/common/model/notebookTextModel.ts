@@ -19,7 +19,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	private _mapping: Map<number, NotebookCellTextModel> = new Map();
 	private _cellListeners: Map<number, IDisposable> = new Map();
 	cells: NotebookCellTextModel[];
-	activeCell: NotebookCellTextModel | undefined;
 	languages: string[] = [];
 	metadata: NotebookDocumentMetadata | undefined = undefined;
 	renderers = new Set<number>();
@@ -45,10 +44,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		renderers.forEach(render => {
 			this.renderers.add(render);
 		});
-	}
-
-	updateActiveCell(handle: number) {
-		this.activeCell = this._mapping.get(handle);
 	}
 
 	insertNewCell(index: number, cell: NotebookCellTextModel): void {

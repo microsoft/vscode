@@ -382,12 +382,6 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			}
 		}));
 
-		this.localStore.add(this.list!.onDidChangeFocus((e) => {
-			if (e.elements.length > 0) {
-				this.notebookService.updateNotebookActiveCell(input.viewType!, input.resource!, e.elements[0].handle);
-			}
-		}));
-
 		this.list?.splice(0, this.list?.length || 0);
 		this.list?.splice(0, 0, this.notebookViewModel!.viewCells as CellViewModel[]);
 		this.list?.layout();
