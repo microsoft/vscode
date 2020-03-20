@@ -14,6 +14,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { INotebookDisplayOrder, ITransformedDisplayOutputDto, IOrderedMimeType, IStreamOutput, IErrorOutput, mimeTypeSupportedByCore, IOutput, sortMimeTypes, diff, CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ISplice } from 'vs/base/common/sequence';
+import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 
 export class ExtHostCell implements vscode.NotebookCell {
 
@@ -31,7 +32,8 @@ export class ExtHostCell implements vscode.NotebookCell {
 		private _content: string,
 		public cellKind: CellKind,
 		public language: string,
-		outputs: any[]
+		outputs: any[],
+		public metadata: vscode.NotebookCellMetadata | undefined,
 	) {
 		this.source = this._content.split(/\r|\n|\r\n/g);
 		this._outputs = outputs;
@@ -127,6 +129,17 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 	set languages(newLanguages: string[]) {
 		this._languages = newLanguages;
 		this._proxy.$updateNotebookLanguages(this.viewType, this.uri, this._languages);
+	}
+
+	private _metadata: vscode.NotebookDocumentMetadata | undefined = undefined;
+
+	get metadata() {
+		return this._metadata;
+	}
+
+	set metadata(newMetadata: vscode.NotebookDocumentMetadata | undefined) {
+		this._metadata = newMetadata;
+		this._proxy.$updateNotebookMetadata(this.viewType, this.uri, this._metadata);
 	}
 
 	private _displayOrder: string[] = [];
@@ -330,11 +343,14 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 export class ExtHostNotebookEditor extends Disposable implements vscode.NotebookEditor {
 	private _viewColumn: vscode.ViewColumn | undefined;
 	private static _cellhandlePool: number = 0;
+	onDidReceiveMessage: vscode.Event<any> = this._onDidReceiveMessage.event;
 
 	constructor(
 		viewType: string,
 		readonly id: string,
 		public uri: URI,
+		private _proxy: MainThreadNotebookShape,
+		private _onDidReceiveMessage: Emitter<any>,
 		public document: ExtHostNotebookDocument,
 		private _documentsAndEditors: ExtHostDocumentsAndEditors
 	) {
@@ -362,10 +378,10 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 		}));
 	}
 
-	createCell(content: string, language: string, type: CellKind, outputs: vscode.CellOutput[]): vscode.NotebookCell {
+	createCell(content: string, language: string, type: CellKind, outputs: vscode.CellOutput[], metadata: vscode.NotebookCellMetadata | undefined): vscode.NotebookCell {
 		const handle = ExtHostNotebookEditor._cellhandlePool++;
 		const uri = CellUri.generate(this.document.uri, handle);
-		const cell = new ExtHostCell(handle, uri, content, type, language, outputs);
+		const cell = new ExtHostCell(handle, uri, content, type, language, outputs, metadata);
 		return cell;
 	}
 
@@ -376,6 +392,11 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 	set viewColumn(value) {
 		throw readonly('viewColumn');
 	}
+
+	async postMessage(message: any): Promise<boolean> {
+		return this._proxy.$postMessage(this.document.handle, message);
+	}
+
 }
 
 export class ExtHostNotebookOutputRenderer {
@@ -415,9 +436,9 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	private static _handlePool: number = 0;
 
 	private readonly _proxy: MainThreadNotebookShape;
-	private readonly _notebookProviders = new Map<string, { readonly provider: vscode.NotebookProvider, readonly extension: IExtensionDescription }>();
+	private readonly _notebookProviders = new Map<string, { readonly provider: vscode.NotebookProvider, readonly extension: IExtensionDescription; }>();
 	private readonly _documents = new Map<string, ExtHostNotebookDocument>();
-	private readonly _editors = new Map<string, ExtHostNotebookEditor>();
+	private readonly _editors = new Map<string, { editor: ExtHostNotebookEditor, onDidReceiveMessage: Emitter<any> }>();
 	private readonly _notebookOutputRenderers = new Map<number, ExtHostNotebookOutputRenderer>();
 	private _outputDisplayOrder: INotebookDisplayOrder | undefined;
 
@@ -431,8 +452,27 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		return this._activeNotebookDocument;
 	}
 
-	constructor(mainContext: IMainContext, private _documentsAndEditors: ExtHostDocumentsAndEditors) {
+	constructor(mainContext: IMainContext, commands: ExtHostCommands, private _documentsAndEditors: ExtHostDocumentsAndEditors) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadNotebook);
+
+		commands.registerArgumentProcessor({
+			processArgument: arg => {
+				if (arg && arg.$mid === 12) {
+					const documentHandle = arg.notebookEditor?.notebookHandle;
+					const cellHandle = arg.cell.handle;
+
+					for (let value of this._editors) {
+						if (value[1].editor.document.handle === documentHandle) {
+							const cell = value[1].editor.document.getCell(cellHandle);
+							if (cell) {
+								return cell;
+							}
+						}
+					}
+				}
+				return arg;
+			}
+		});
 	}
 
 	registerNotebookOutputRenderer(
@@ -494,15 +534,19 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 				this._documents.set(URI.revive(uri).toString(), document);
 			}
 
+			const onDidReceiveMessage = new Emitter<any>();
+
 			let editor = new ExtHostNotebookEditor(
 				viewType,
 				`${ExtHostNotebookController._handlePool++}`,
 				URI.revive(uri),
+				this._proxy,
+				onDidReceiveMessage,
 				this._documents.get(URI.revive(uri).toString())!,
 				this._documentsAndEditors
 			);
 
-			this._editors.set(URI.revive(uri).toString(), editor);
+			this._editors.set(URI.revive(uri).toString(), { editor, onDidReceiveMessage });
 			await provider.provider.resolveNotebook(editor);
 			// await editor.document.$updateCells();
 			return editor.document.handle;
@@ -535,7 +579,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 			let editor = this._editors.get(URI.revive(uri).toString());
 			let document = this._documents.get(URI.revive(uri).toString());
 
-			let rawCell = editor?.createCell('', language, type, []) as ExtHostCell;
+			let rawCell = editor?.editor.createCell('', language, type, [], undefined) as ExtHostCell;
 			document?.insertCell(index, rawCell!);
 
 			let allDocuments = this._documentsAndEditors.allDocuments();
@@ -553,6 +597,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 				source: rawCell.source,
 				language: rawCell.language,
 				cellKind: rawCell.cellKind,
+				metadata: rawCell.metadata,
 				outputs: []
 			};
 		}
@@ -608,7 +653,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		let editor = this._editors.get(URI.revive(uri).toString());
 
 		if (editor) {
-			editor.dispose();
+			editor.editor.dispose();
+			editor.onDidReceiveMessage.dispose();
 			this._editors.delete(URI.revive(uri).toString());
 		}
 
@@ -617,5 +663,13 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 	$acceptDisplayOrder(displayOrder: INotebookDisplayOrder): void {
 		this._outputDisplayOrder = displayOrder;
+	}
+
+	$onDidReceiveMessage(uri: UriComponents, message: any): void {
+		let editor = this._editors.get(URI.revive(uri).toString());
+
+		if (editor) {
+			editor.onDidReceiveMessage.fire(message);
+		}
 	}
 }

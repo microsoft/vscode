@@ -8,10 +8,12 @@ import { MainContext, MainThreadNotebookShape, NotebookExtensionDescription, IEx
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { INotebookService, IMainNotebookController } from 'vs/workbench/contrib/notebook/browser/notebookService';
-import { INotebookTextModel, INotebookMimeTypeSelector, NOTEBOOK_DISPLAY_ORDER, NotebookCellsSplice, NotebookCellOutputsSplice, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel, INotebookMimeTypeSelector, NOTEBOOK_DISPLAY_ORDER, NotebookCellsSplice, NotebookCellOutputsSplice, CellKind, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 export class MainThreadNotebookDocument extends Disposable {
 	private _textModel: NotebookTextModel;
@@ -54,7 +56,9 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 	constructor(
 		extHostContext: IExtHostContext,
 		@INotebookService private _notebookService: INotebookService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IEditorService private readonly editorService: IEditorService,
+
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostNotebook);
@@ -123,6 +127,14 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		}
 	}
 
+	async $updateNotebookMetadata(viewType: string, resource: UriComponents, metadata: NotebookDocumentMetadata | undefined): Promise<void> {
+		let controller = this._notebookProviders.get(viewType);
+
+		if (controller) {
+			controller.updateNotebookMetadata(resource, metadata);
+		}
+	}
+
 	async resolveNotebook(viewType: string, uri: URI): Promise<number | undefined> {
 		let handle = await this._proxy.$resolveNotebook(viewType, uri);
 		return handle;
@@ -140,6 +152,21 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 
 	async executeNotebook(viewType: string, uri: URI): Promise<void> {
 		return this._proxy.$executeNotebook(viewType, uri, undefined);
+	}
+
+	async $postMessage(handle: number, value: any): Promise<boolean> {
+
+		const activeEditorPane = this.editorService.activeEditorPane as any | undefined;
+		if (activeEditorPane?.isNotebookEditor) {
+			const notebookEditor = (activeEditorPane as INotebookEditor);
+
+			if (notebookEditor.viewModel?.handle === handle) {
+				notebookEditor.postMessage(value);
+				return true;
+			}
+		}
+
+		return false;
 	}
 }
 
@@ -186,6 +213,10 @@ export class MainThreadNotebookController implements IMainNotebookController {
 		this._mainThreadNotebook.executeNotebook(viewType, uri);
 	}
 
+	onDidReceiveMessage(uri: UriComponents, message: any): void {
+		this._proxy.$onDidReceiveMessage(uri, message);
+	}
+
 	// Methods for ExtHost
 	async createNotebookDocument(handle: number, viewType: string, resource: UriComponents): Promise<void> {
 		let document = new MainThreadNotebookDocument(this._proxy, handle, viewType, URI.revive(resource));
@@ -195,6 +226,11 @@ export class MainThreadNotebookController implements IMainNotebookController {
 	updateLanguages(resource: UriComponents, languages: string[]) {
 		let document = this._mapping.get(URI.from(resource).toString());
 		document?.textModel.updateLanguages(languages);
+	}
+
+	updateNotebookMetadata(resource: UriComponents, metadata: NotebookDocumentMetadata | undefined) {
+		let document = this._mapping.get(URI.from(resource).toString());
+		document?.textModel.updateNotebookMetadata(metadata);
 	}
 
 	updateNotebookRenderers(resource: UriComponents, renderers: number[]): void {
@@ -227,11 +263,11 @@ export class MainThreadNotebookController implements IMainNotebookController {
 		return false;
 	}
 
-	executeNotebookActiveCell(uri: URI): void {
+	async executeNotebookActiveCell(uri: URI): Promise<void> {
 		let mainthreadNotebook = this._mapping.get(URI.from(uri).toString());
 
 		if (mainthreadNotebook && mainthreadNotebook.textModel.activeCell) {
-			this._proxy.$executeNotebook(this._viewType, uri, mainthreadNotebook.textModel.activeCell.handle);
+			return this._proxy.$executeNotebook(this._viewType, uri, mainthreadNotebook.textModel.activeCell.handle);
 		}
 	}
 

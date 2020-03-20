@@ -8,16 +8,20 @@
 	overflow: hidden;
 }
 
+
+.monaco-workbench .part > .drop-block-overlay.visible {
+	display: block;
+	backdrop-filter: brightness(97%) blur(2px);
+	opacity: 1;
+	z-index: 10;
+}
+
 .monaco-workbench .part > .drop-block-overlay {
-	visibility: hidden; /* use visibility to ensure transitions */
-	transition-property: opacity;
-	transition-timing-function: linear;
-	transition-duration: 250ms;
+	display: none;
 	width: 100%;
 	height: 100%;
 	position: absolute;
 	top: 0;
-	opacity: 0;
 	pointer-events: none;
 }
 

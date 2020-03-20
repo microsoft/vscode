@@ -124,6 +124,7 @@ export interface IEnvironmentService extends IUserHomeProvider {
 	keybindingsResource: URI;
 	keyboardLayoutResource: URI;
 	argvResource: URI;
+	snippetsHome: URI;
 
 	// sync resources
 	userDataSyncLogResource: URI;

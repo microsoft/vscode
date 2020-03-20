@@ -230,6 +230,10 @@ export class MockSession implements IDebugSession {
 		throw new Error('not implemented');
 	}
 
+	get onDidProgressUpdate(): Event<DebugProtocol.ProgressUpdateEvent> {
+		throw new Error('not implemented');
+	}
+
 	get onDidProgressEnd(): Event<DebugProtocol.ProgressEndEvent> {
 		throw new Error('not implemented');
 	}

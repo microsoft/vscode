@@ -55,6 +55,10 @@ export class CellViewModel extends Disposable implements ICellViewModel {
 		return this.cell.outputs;
 	}
 
+	get metadata() {
+		return this.cell.metadata;
+	}
+
 	private _state: CellState = CellState.Preview;
 
 	get state(): CellState {
@@ -518,5 +522,11 @@ export class CellViewModel extends Disposable implements ICellViewModel {
 
 			this._outputsTop = new PrefixSumComputer(values);
 		}
+	}
+
+	toJSON(): any {
+		return {
+			handle: this.handle
+		};
 	}
 }

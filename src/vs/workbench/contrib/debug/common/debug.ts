@@ -200,6 +200,7 @@ export interface IDebugSession extends ITreeElement {
 	readonly onDidLoadedSource: Event<LoadedSourceEvent>;
 	readonly onDidCustomEvent: Event<DebugProtocol.Event>;
 	readonly onDidProgressStart: Event<DebugProtocol.ProgressStartEvent>;
+	readonly onDidProgressUpdate: Event<DebugProtocol.ProgressUpdateEvent>;
 	readonly onDidProgressEnd: Event<DebugProtocol.ProgressEndEvent>;
 
 	// DAP request
@@ -662,6 +663,7 @@ export interface IConfigurationManager {
 
 	resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: any, token: CancellationToken): Promise<any>;
 	getDebugAdapterDescriptor(session: IDebugSession): Promise<IAdapterDescriptor | undefined>;
+	getDebuggerLabel(session: IDebugSession): string | undefined;
 
 	registerDebugAdapterFactory(debugTypes: string[], debugAdapterFactory: IDebugAdapterFactory): IDisposable;
 	createDebugAdapter(session: IDebugSession): IDebugAdapter | undefined;

@@ -1635,6 +1635,10 @@ declare module 'vscode' {
 
 	export type CellOutput = CellStreamOutput | CellErrorOutput | CellDisplayOutput;
 
+	export interface NotebookCellMetadata {
+		editable: boolean;
+	}
+
 	export interface NotebookCell {
 		readonly uri: Uri;
 		handle: number;
@@ -1642,6 +1646,11 @@ declare module 'vscode' {
 		cellKind: CellKind;
 		outputs: CellOutput[];
 		getContent(): string;
+		metadata?: NotebookCellMetadata;
+	}
+
+	export interface NotebookDocumentMetadata {
+		editable: boolean;
 	}
 
 	export interface NotebookDocument {
@@ -1651,15 +1660,29 @@ declare module 'vscode' {
 		languages: string[];
 		cells: NotebookCell[];
 		displayOrder?: GlobPattern[];
+		metadata?: NotebookDocumentMetadata;
 	}
 
 	export interface NotebookEditor {
 		readonly document: NotebookDocument;
 		viewColumn?: ViewColumn;
 		/**
+		 * Fired when the output hosting webview posts a message.
+		 */
+		readonly onDidReceiveMessage: Event<any>;
+		/**
+		 * Post a message to the output hosting webview.
+		 *
+		 * Messages are only delivered if the editor is live.
+		 *
+		 * @param message Body of the message. This must be a string or other json serilizable object.
+		 */
+		postMessage(message: any): Thenable<boolean>;
+
+		/**
 		 * Create a notebook cell. The cell is not inserted into current document when created. Extensions should insert the cell into the document by [TextDocument.cells](#TextDocument.cells)
 		 */
-		createCell(content: string, language: string, type: CellKind, outputs: CellOutput[]): NotebookCell;
+		createCell(content: string, language: string, type: CellKind, outputs: CellOutput[], metadata: NotebookCellMetadata): NotebookCell;
 	}
 
 	export interface NotebookProvider {
@@ -1851,12 +1874,9 @@ declare module 'vscode' {
 	export interface Timeline {
 		readonly paging?: {
 			/**
-			 * A set of provider-defined cursors specifing the range of timeline items returned.
+			 * A provider-defined cursor specifing the starting point of timeline items which are after the ones returned.
 			 */
-			readonly cursors: {
-				readonly before: string;
-				readonly after?: string
-			};
+			readonly cursor?: string
 
 			/**
 			 * A flag which indicates whether there are more items that weren't returned.
@@ -1872,19 +1892,15 @@ declare module 'vscode' {
 
 	export interface TimelineOptions {
 		/**
-		 * A provider-defined cursor specifing the range of timeline items that should be returned.
+		 * A provider-defined cursor specifing the starting point of the timeline items that should be returned.
 		 */
 		cursor?: string;
 
 		/**
-		 * A flag to specify whether the timeline items being requested should be before or after (default) the provided cursor.
+		 * An optional maximum number timeline items or the all timeline items newer (inclusive) than the timestamp or id that should be returned.
+		 * If `undefined` all timeline items should be returned.
 		 */
-		before?: boolean;
-
-		/**
-		 * The maximum number or the ending cursor of timeline items that should be returned.
-		 */
-		limit?: number | { cursor: string };
+		limit?: number | { timestamp: number; id?: string };
 	}
 
 	export interface TimelineProvider {
@@ -2034,6 +2050,15 @@ declare module 'vscode' {
 		 * @returns A new uri
 		 */
 		export function joinPaths(base: Uri, ...pathFragments: string[]): Uri;
+	}
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/91541
+
+	export enum CompletionItemKind {
+		User = 25,
+		Issue = 26,
 	}
 
 	//#endregion

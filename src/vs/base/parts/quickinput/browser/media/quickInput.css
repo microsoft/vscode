@@ -55,6 +55,12 @@
 	margin-bottom: -2px;
 }
 
+.quick-input-widget.quick-navigate-mode .quick-input-header {
+	/* reduce margins and paddings in quick navigate mode */
+	padding: 0;
+	margin-bottom: 0;
+}
+
 .quick-input-and-message {
 	display: flex;
 	flex-direction: column;
@@ -124,6 +130,10 @@
 .quick-input-list {
 	line-height: 22px;
 	margin-top: 6px;
+}
+
+.quick-input-widget.quick-navigate-mode .quick-input-list {
+	margin-top: 0; /* reduce margins in quick navigate mode */
 }
 
 .quick-input-list .monaco-list {

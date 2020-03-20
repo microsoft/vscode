@@ -590,11 +590,11 @@ export class DiffReview extends Disposable {
 
 		const getAriaLines = (lines: number) => {
 			if (lines === 0) {
-				return nls.localize('no_lines', "no lines");
+				return nls.localize('no_lines_changed', "no lines changed");
 			} else if (lines === 1) {
-				return nls.localize('one_line', "1 line");
+				return nls.localize('one_line_changed', "1 line changed");
 			} else {
-				return nls.localize('more_lines', "{0} lines", lines);
+				return nls.localize('more_lines_changed', "{0} lines changed", lines);
 			}
 		};
 
@@ -608,9 +608,9 @@ export class DiffReview extends Disposable {
 				'That encodes that at original line 154 (which is now line 159), 12 lines were removed/changed with 39 lines.',
 				'Variables 0 and 1 refer to the diff index out of total number of diffs.',
 				'Variables 2 and 4 will be numbers (a line number).',
-				'Variables 3 and 5 will be "no lines", "1 line" or "X lines", localized separately.'
+				'Variables 3 and 5 will be "no lines changed", "1 line changed" or "X lines changed", localized separately.'
 			]
-		}, "Difference {0} of {1}: original {2}, {3}, modified {4}, {5}", (diffIndex + 1), this._diffs.length, minOriginalLine, originalChangedLinesCntAria, minModifiedLine, modifiedChangedLinesCntAria));
+		}, "Difference {0} of {1}: original line {2}, {3}, modified line {4}, {5}", (diffIndex + 1), this._diffs.length, minOriginalLine, originalChangedLinesCntAria, minModifiedLine, modifiedChangedLinesCntAria));
 		header.appendChild(cell);
 
 		// @@ -504,7 +517,7 @@
@@ -747,13 +747,13 @@ export class DiffReview extends Disposable {
 			let ariaLabel: string = '';
 			switch (type) {
 				case DiffEntryType.Equal:
-					ariaLabel = nls.localize('equalLine', "original {0}, modified {1}: {2}", originalLine, modifiedLine, lineContent);
+					ariaLabel = nls.localize('equalLine', "{0} original line {1} modified line {2}", lineContent, originalLine, modifiedLine);
 					break;
 				case DiffEntryType.Insert:
-					ariaLabel = nls.localize('insertLine', "+ modified {0}: {1}", modifiedLine, lineContent);
+					ariaLabel = nls.localize('insertLine', "+ {0} modified line {1}", lineContent, modifiedLine);
 					break;
 				case DiffEntryType.Delete:
-					ariaLabel = nls.localize('deleteLine', "- original {0}: {1}", originalLine, lineContent);
+					ariaLabel = nls.localize('deleteLine', "- {0} original line {1}", lineContent, originalLine);
 					break;
 			}
 			row.setAttribute('aria-label', ariaLabel);
@@ -869,9 +869,14 @@ class DiffReviewPrev extends EditorAction {
 function findFocusedDiffEditor(accessor: ServicesAccessor): DiffEditorWidget | null {
 	const codeEditorService = accessor.get(ICodeEditorService);
 	const diffEditors = codeEditorService.listDiffEditors();
+	const activeCodeEditor = codeEditorService.getActiveCodeEditor();
+	if (!activeCodeEditor) {
+		return null;
+	}
+
 	for (let i = 0, len = diffEditors.length; i < len; i++) {
 		const diffEditor = <DiffEditorWidget>diffEditors[i];
-		if (diffEditor.hasWidgetFocus()) {
+		if (diffEditor.getModifiedEditor().getId() === activeCodeEditor.getId() || diffEditor.getOriginalEditor().getId() === activeCodeEditor.getId()) {
 			return diffEditor;
 		}
 	}

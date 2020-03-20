@@ -69,6 +69,12 @@ export class TestNotebookEditor implements INotebookEditor {
 	constructor(
 	) { }
 
+	isNotebookEditor = true;
+
+	postMessage(message: any): void {
+		throw new Error('Method not implemented.');
+	}
+
 	setCellSelection(cell: CellViewModel, selection: Range): void {
 		throw new Error('Method not implemented.');
 	}

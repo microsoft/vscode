@@ -81,6 +81,10 @@ export class NotebookViewModel extends Disposable {
 		return this._model.notebook.uri;
 	}
 
+	get metadata() {
+		return this._model.notebook.metadata;
+	}
+
 	private readonly _onDidChangeViewCells = new Emitter<INotebookViewCellsUpdateEvent>();
 	get onDidChangeViewCells(): Event<INotebookViewCellsUpdateEvent> { return this._onDidChangeViewCells.event; }
 

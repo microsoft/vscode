@@ -42,7 +42,7 @@ import { NotebookViewModel, INotebookEditorViewState, IModelDecorationsChangeAcc
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
 import { Range } from 'vs/editor/common/core/range';
-import { CELL_MARGIN } from 'vs/workbench/contrib/notebook/browser/constants';
+import { CELL_MARGIN, RUN_BUTTON_WIDTH } from 'vs/workbench/contrib/notebook/browser/constants';
 import { Color, RGBA } from 'vs/base/common/color';
 
 const $ = DOM.$;
@@ -219,6 +219,11 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 		this.control = new NotebookCodeEditors(this.list, this.renderedEditors);
 		this.webview = new BackLayerWebView(this.webviewService, this.notebookService, this, this.environmentSerice);
+		this._register(this.webview.onMessage(message => {
+			if (this.viewModel) {
+				this.notebookService.onDidReceiveMessage(this.viewModel.viewType, this.viewModel.uri, message);
+			}
+		}));
 		this.list.rowsContainer.appendChild(this.webview.element);
 		this._register(this.list);
 	}
@@ -697,7 +702,17 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		return this.outputRenderer;
 	}
 
+	postMessage(message: any) {
+		this.webview?.webview.sendMessage(message);
+	}
+
 	//#endregion
+
+	toJSON(): any {
+		return {
+			notebookHandle: this.viewModel?.handle
+		};
+	}
 }
 
 const embeddedEditorBackground = 'walkThrough.embeddedEditorBackground';
@@ -717,12 +732,12 @@ registerThemingParticipant((theme, collector) => {
 	}
 	const link = theme.getColor(textLinkForeground);
 	if (link) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell a { color: ${link}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell .output a { color: ${link}; }`);
 	}
 	const activeLink = theme.getColor(textLinkActiveForeground);
 	if (activeLink) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell a:hover,
-			.monaco-workbench .part.editor > .content .notebook-editor .cell a:active { color: ${activeLink}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell .output a:hover,
+			.monaco-workbench .part.editor > .content .notebook-editor .cell .output a:active { color: ${activeLink}; }`);
 	}
 	const shortcut = theme.getColor(textPreformatForeground);
 	if (shortcut) {
@@ -756,5 +771,7 @@ registerThemingParticipant((theme, collector) => {
 
 	// Cell Margin
 	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row > div.cell { padding: 8px ${CELL_MARGIN}px 8px ${CELL_MARGIN}px; }`);
-	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .output { margin: 8px ${CELL_MARGIN}px; }`);
+	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .output { margin: 8px ${CELL_MARGIN}px 8px ${CELL_MARGIN + RUN_BUTTON_WIDTH}px }`);
+
+	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell .cell-editor-container { width: calc(100% - ${RUN_BUTTON_WIDTH}px); }`);
 });

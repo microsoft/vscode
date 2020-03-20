@@ -138,10 +138,11 @@ export function getUserDataSyncStore(productService: IProductService, configurat
 export const enum SyncResource {
 	Settings = 'settings',
 	Keybindings = 'keybindings',
+	Snippets = 'snippets',
 	Extensions = 'extensions',
 	GlobalState = 'globalState'
 }
-export const ALL_SYNC_RESOURCES: SyncResource[] = [SyncResource.Settings, SyncResource.Keybindings, SyncResource.Extensions, SyncResource.GlobalState];
+export const ALL_SYNC_RESOURCES: SyncResource[] = [SyncResource.Settings, SyncResource.Keybindings, SyncResource.Snippets, SyncResource.Extensions, SyncResource.GlobalState];
 
 export interface IUserDataManifest {
 	latest?: Record<SyncResource, string>
@@ -372,11 +373,4 @@ export function getSyncResourceFromLocalPreview(localPreview: URI, environmentSe
 	}
 	localPreview = localPreview.with({ scheme: environmentService.userDataSyncHome.scheme });
 	return ALL_SYNC_RESOURCES.filter(syncResource => isEqualOrParent(localPreview, joinPath(environmentService.userDataSyncHome, syncResource, PREVIEW_DIR_NAME)))[0];
-}
-export function getSyncResourceFromRemotePreview(remotePreview: URI, environmentService: IEnvironmentService): SyncResource | undefined {
-	if (remotePreview.scheme !== USER_DATA_SYNC_SCHEME) {
-		return undefined;
-	}
-	remotePreview = remotePreview.with({ scheme: environmentService.userDataSyncHome.scheme });
-	return ALL_SYNC_RESOURCES.filter(syncResource => isEqualOrParent(remotePreview, joinPath(environmentService.userDataSyncHome, syncResource, PREVIEW_DIR_NAME)))[0];
 }

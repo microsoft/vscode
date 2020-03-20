@@ -16,6 +16,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 
 export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('notebookFindWidgetFocused', false);
 
@@ -43,6 +44,8 @@ export interface INotebookEditor {
 	 * Notebook view model attached to the current editor
 	 */
 	viewModel: NotebookViewModel | undefined;
+
+	isNotebookEditor: boolean;
 
 	/**
 	 * Focus the notebook editor cell list
@@ -122,6 +125,11 @@ export interface INotebookEditor {
 	removeInset(output: IOutput): void;
 
 	/**
+	 * Send message to the webview for outputs.
+	 */
+	postMessage(message: any): void;
+
+	/**
 	 * Trigger the editor to scroll from scroll event programmatically
 	 */
 	triggerScroll(event: IMouseWheelEvent): void;
@@ -195,12 +203,14 @@ export interface INotebookEditor {
 export interface CellRenderTemplate {
 	container: HTMLElement;
 	cellContainer: HTMLElement;
-	menuContainer?: HTMLElement;
+	editorContainer?: HTMLElement;
 	toolbar: ToolBar;
 	focusIndicator?: HTMLElement;
+	runToolbar?: ToolBar;
 	editingContainer?: HTMLElement;
 	outputContainer?: HTMLElement;
 	editor?: CodeEditorWidget;
+	progressBar?: ProgressBar;
 	disposables: DisposableStore;
 }
 

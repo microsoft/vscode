@@ -47,18 +47,7 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 		SymbolKind.Module
 	]);
 
-	private readonly configuration = (() => {
-		const editorConfig = this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor;
-		const searchConfig = this.configurationService.getValue<IWorkbenchSearchConfiguration>();
-
-		return {
-			openEditorPinned: !editorConfig.enablePreviewFromQuickOpen,
-			openSideBySideDirection: editorConfig.openSideBySideDirection,
-			workspaceSymbolsFilter: searchConfig.search.quickOpen.workspaceSymbolsFilter
-		};
-	})();
-
-	private readonly delayer = this._register(new ThrottledDelayer<ISymbolQuickPickItem[]>(SymbolsQuickAccessProvider.TYPING_SEARCH_DELAY));
+	private delayer = this._register(new ThrottledDelayer<ISymbolQuickPickItem[]>(SymbolsQuickAccessProvider.TYPING_SEARCH_DELAY));
 
 	private readonly resourceExcludeMatcher = this._register(createResourceExcludeMatcher(this.instantiationService, this.configurationService));
 
@@ -70,6 +59,17 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super(SymbolsQuickAccessProvider.PREFIX, { canAcceptInBackground: true });
+	}
+
+	private get configuration() {
+		const editorConfig = this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor;
+		const searchConfig = this.configurationService.getValue<IWorkbenchSearchConfiguration>();
+
+		return {
+			openEditorPinned: !editorConfig.enablePreviewFromQuickOpen,
+			openSideBySideDirection: editorConfig.openSideBySideDirection,
+			workspaceSymbolsFilter: searchConfig.search.quickOpen.workspaceSymbolsFilter
+		};
 	}
 
 	protected getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Promise<Array<ISymbolQuickPickItem>> {

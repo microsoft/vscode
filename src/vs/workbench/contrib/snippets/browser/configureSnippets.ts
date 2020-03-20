@@ -87,7 +87,7 @@ async function computePicks(snippetService: ISnippetsService, envService: IEnvir
 		}
 	}
 
-	const dir = joinPath(envService.userRoamingDataHome, 'snippets');
+	const dir = envService.snippetsHome;
 	for (const mode of modeService.getRegisteredModes()) {
 		const label = modeService.getLanguageName(mode);
 		if (label && !seen.has(mode)) {
@@ -219,7 +219,7 @@ CommandsRegistry.registerCommand(id, async (accessor): Promise<any> => {
 	const globalSnippetPicks: SnippetPick[] = [{
 		scope: nls.localize('new.global_scope', 'global'),
 		label: nls.localize('new.global', "New Global Snippets file..."),
-		uri: joinPath(envService.userRoamingDataHome, 'snippets')
+		uri: envService.snippetsHome
 	}];
 
 	const workspaceSnippetPicks: SnippetPick[] = [];

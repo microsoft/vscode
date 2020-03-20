@@ -6,7 +6,7 @@
 export const INSERT_CODE_CELL_ABOVE_COMMAND_ID = 'workbench.notebook.code.insertCellAbove';
 export const INSERT_CODE_CELL_BELOW_COMMAND_ID = 'workbench.notebook.code.insertCellBelow';
 export const INSERT_MARKDOWN_CELL_ABOVE_COMMAND_ID = 'workbench.notebook.markdown.insertCellAbove';
-export const INSERT_MARKDOWN_CELL_BELOW_COMMAND_ID = 'workbench.notebook.markdown.insertCellAbove';
+export const INSERT_MARKDOWN_CELL_BELOW_COMMAND_ID = 'workbench.notebook.markdown.insertCellBelow';
 
 export const EDIT_CELL_COMMAND_ID = 'workbench.notebook.cell.edit';
 export const SAVE_CELL_COMMAND_ID = 'workbench.notebook.cell.save';
@@ -24,3 +24,7 @@ export const CELL_MARGIN = 32;
 export const EDITOR_TOP_PADDING = 8;
 export const EDITOR_BOTTOM_PADDING = 8;
 export const EDITOR_TOOLBAR_HEIGHT = 22;
+export const RUN_BUTTON_WIDTH = 20;
+
+// Context Keys
+export const NOTEBOOK_CELL_TYPE_CONTEXT_KEY = 'notebookCellType';

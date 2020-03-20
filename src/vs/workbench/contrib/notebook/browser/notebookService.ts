@@ -29,7 +29,8 @@ export interface IMainNotebookController {
 	updateNotebookActiveCell(uri: URI, cellHandle: number): void;
 	createRawCell(uri: URI, index: number, language: string, type: CellKind): Promise<NotebookCellTextModel | undefined>;
 	deleteCell(uri: URI, index: number): Promise<boolean>
-	executeNotebookActiveCell(uri: URI): void;
+	executeNotebookActiveCell(uri: URI): Promise<void>;
+	onDidReceiveMessage(uri: URI, message: any): void;
 	destoryNotebookDocument(notebook: INotebookTextModel): Promise<void>;
 	save(uri: URI): Promise<boolean>;
 }
@@ -54,6 +55,7 @@ export interface INotebookService {
 	destoryNotebookDocument(viewType: string, notebook: INotebookTextModel): void;
 	updateActiveNotebookDocument(viewType: string, resource: URI): void;
 	save(viewType: string, resource: URI): Promise<boolean>;
+	onDidReceiveMessage(viewType: string, uri: URI, message: any): void;
 }
 
 export class NotebookProviderInfoStore {
@@ -323,6 +325,14 @@ export class NotebookService extends Disposable implements INotebookService {
 		}
 
 		return false;
+	}
+
+	onDidReceiveMessage(viewType: string, uri: URI, message: any): void {
+		let provider = this._notebookProviders.get(viewType);
+
+		if (provider) {
+			return provider.controller.onDidReceiveMessage(uri, message);
+		}
 	}
 
 	private _onWillDispose(model: INotebookTextModel): void {

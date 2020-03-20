@@ -3,19 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickPick, IQuickPickItem, IQuickNavigateConfiguration } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { first, coalesce } from 'vs/base/common/arrays';
 import { startsWith } from 'vs/base/common/strings';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 
+export interface IQuickAccessOptions {
+
+	/**
+	 * Allows to control the part of text in the input field that should be selected.
+	 */
+	inputSelection?: { start: number; end: number; };
+
+	/**
+	 * Allows to enable quick navigate support in quick input.
+	 */
+	quickNavigateConfiguration?: IQuickNavigateConfiguration;
+}
+
 export interface IQuickAccessController {
 
 	/**
 	 * Open the quick access picker with the optional value prefilled.
 	 */
-	show(value?: string): void;
+	show(value?: string, options?: IQuickAccessOptions): void;
 }
 
 export interface IQuickAccessProvider {

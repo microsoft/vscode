@@ -18,6 +18,10 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 
 	static PREFIX = ':';
 
+	constructor() {
+		super({ canAcceptInBackground: true });
+	}
+
 	protected provideWithoutTextEditor(picker: IQuickPick<IGotoLineQuickPickItem>): IDisposable {
 		const label = localize('cannotRunGotoLine', "Open a text editor first to go to a line.");
 
@@ -31,16 +35,18 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 		const disposables = new DisposableStore();
 
 		// Goto line once picked
-		disposables.add(picker.onDidAccept(() => {
+		disposables.add(picker.onDidAccept(event => {
 			const [item] = picker.selectedItems;
 			if (item) {
 				if (!this.isValidLineNumber(editor, item.lineNumber)) {
 					return;
 				}
 
-				this.gotoLocation(editor, this.toRange(item.lineNumber, item.column), picker.keyMods);
+				this.gotoLocation(editor, { range: this.toRange(item.lineNumber, item.column), keyMods: picker.keyMods, preserveFocus: event.inBackground });
 
-				picker.hide();
+				if (!event.inBackground) {
+					picker.hide();
+				}
 			}
 		}));
 

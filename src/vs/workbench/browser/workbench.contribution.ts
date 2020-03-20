@@ -179,6 +179,11 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 				'description': nls.localize('workbench.quickOpen.preserveInput', "Controls whether the last typed input to Quick Open should be restored when opening it the next time."),
 				'default': false
 			},
+			'workbench.quickOpen.enableExperimentalNewVersion': {
+				'type': 'boolean',
+				'description': nls.localize('workbench.quickOpen.enableExperimentalNewVersion', "Will use the new quick open implementation for testing purposes."),
+				'default': false
+			},
 			'workbench.settings.openDefaultSettings': {
 				'type': 'boolean',
 				'description': nls.localize('openDefaultSettings', "Controls whether opening settings also opens an editor showing all default settings."),
