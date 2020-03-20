@@ -666,19 +666,95 @@ suite('Editor Contrib - Line Comment Command', () => {
 		);
 	});
 
-	test('includeEmptyLines false', () => {
-		testLineCommentCommand(
-			[
-				'',
-				'f'
-			],
-			new Selection(1, 1, 2, 2),
-			[
-				'',
-				'!@# f'
-			],
-			new Selection(1, 1, 2, 6)
-		);
+	suite('includeEmptyLines true', () => {
+		function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
+			let mode = new CommentMode({ lineComment: '!@#', blockComment: ['<!@#', '#@!>'] });
+			testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle, true, true), expectedLines, expectedSelection);
+			mode.dispose();
+		}
+
+		test('does not ignore whitespace lines', () => {
+			testLineCommentCommand(
+				[
+					'\tsome text',
+					'\t   ',
+					'',
+					'\tsome more text'
+				],
+				new Selection(4, 2, 1, 1),
+				[
+					'!@# \tsome text',
+					'!@# \t   ',
+					'!@# ',
+					'!@# \tsome more text'
+				],
+				new Selection(4, 6, 1, 5)
+			);
+		});
+
+		test('removes its own', function () {
+			testLineCommentCommand(
+				[
+					'\t!@# some text',
+					'\t   ',
+					'\t\t!@# some more text'
+				],
+				new Selection(3, 2, 1, 1),
+				[
+					'\tsome text',
+					'\t   ',
+					'\t\tsome more text'
+				],
+				new Selection(3, 2, 1, 1)
+			);
+		});
+
+		test('works in only whitespace', function () {
+			testLineCommentCommand(
+				[
+					'\t    ',
+					'\t',
+					'\t\tsome more text'
+				],
+				new Selection(3, 1, 1, 1),
+				[
+					'\t!@#     ',
+					'\t!@# ',
+					'\t\tsome more text'
+				],
+				new Selection(3, 1, 1, 1)
+			);
+		});
+
+		test('comments single line', function () {
+			testLineCommentCommand(
+				[
+					'some text',
+					'\tsome more text'
+				],
+				new Selection(1, 1, 1, 1),
+				[
+					'!@# some text',
+					'\tsome more text'
+				],
+				new Selection(1, 5, 1, 5)
+			);
+		});
+
+		test('detects indentation', function () {
+			testLineCommentCommand(
+				[
+					'\tsome text',
+					'\tsome more text'
+				],
+				new Selection(2, 2, 1, 1),
+				[
+					'\t!@# some text',
+					'\t!@# some more text'
+				],
+				new Selection(2, 2, 1, 1)
+			);
+		});
 	});
 });
 
