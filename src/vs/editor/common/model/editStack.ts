@@ -192,6 +192,13 @@ export class SingleModelEditStackElement implements IResourceUndoRedoElement {
 		const data = SingleModelEditStackData.deserialize(this._data);
 		this.model._applyRedo(data.changes, data.afterEOL, data.afterVersionId, data.afterCursorState);
 	}
+
+	public heapSize(): number {
+		if (this._data instanceof SingleModelEditStackData) {
+			this._data = this._data.serialize();
+		}
+		return this._data.byteLength + 168/*heap overhead*/;
+	}
 }
 
 export class MultiModelEditStackElement implements IWorkspaceUndoRedoElement {
@@ -262,6 +269,15 @@ export class MultiModelEditStackElement implements IWorkspaceUndoRedoElement {
 		for (const editStackElement of this._editStackElementsArr) {
 			editStackElement.redo();
 		}
+	}
+
+	public heapSize(resource: URI): number {
+		const key = uriGetComparisonKey(resource);
+		if (this._editStackElementsMap.has(key)) {
+			const editStackElement = this._editStackElementsMap.get(key)!;
+			return editStackElement.heapSize();
+		}
+		return 0;
 	}
 
 	public split(): IResourceUndoRedoElement[] {
