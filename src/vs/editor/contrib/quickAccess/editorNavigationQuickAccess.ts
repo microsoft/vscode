@@ -22,6 +22,10 @@ interface IEditorLineDecoration {
 	overviewRulerDecorationId: string;
 }
 
+export interface IEditorNavigationQuickAccessOptions {
+	canAcceptInBackground?: boolean;
+}
+
 /**
  * A reusable quick access provider for the editor with support
  * for adding decorations for navigating in the currently active file
@@ -29,10 +33,15 @@ interface IEditorLineDecoration {
  */
 export abstract class AbstractEditorNavigationQuickAccessProvider implements IQuickAccessProvider {
 
+	constructor(protected options?: IEditorNavigationQuickAccessOptions) { }
+
 	//#region Provider methods
 
 	provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable {
 		const disposables = new DisposableStore();
+
+		// Apply options if any
+		picker.canAcceptInBackground = !!this.options?.canAcceptInBackground;
 
 		// Disable filtering & sorting, we control the results
 		picker.matchOnLabel = picker.matchOnDescription = picker.matchOnDetail = picker.sortByLabel = false;
@@ -110,10 +119,12 @@ export abstract class AbstractEditorNavigationQuickAccessProvider implements IQu
 	 */
 	protected abstract provideWithoutTextEditor(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable;
 
-	protected gotoLocation(editor: IEditor, options: { range: IRange, keyMods: IKeyMods, forceSideBySide?: boolean }): void {
+	protected gotoLocation(editor: IEditor, options: { range: IRange, keyMods: IKeyMods, forceSideBySide?: boolean, preserveFocus?: boolean }): void {
 		editor.setSelection(options.range);
 		editor.revealRangeInCenter(options.range, ScrollType.Smooth);
-		editor.focus();
+		if (!options.preserveFocus) {
+			editor.focus();
+		}
 	}
 
 	protected getModel(editor: IEditor | IDiffEditor): ITextModel | undefined {

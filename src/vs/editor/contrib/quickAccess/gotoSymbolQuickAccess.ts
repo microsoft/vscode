@@ -10,12 +10,13 @@ import { DisposableStore, IDisposable, Disposable } from 'vs/base/common/lifecyc
 import { IEditor, ScrollType } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { AbstractEditorNavigationQuickAccessProvider } from 'vs/editor/contrib/quickAccess/editorNavigationQuickAccess';
+import { AbstractEditorNavigationQuickAccessProvider, IEditorNavigationQuickAccessOptions } from 'vs/editor/contrib/quickAccess/editorNavigationQuickAccess';
 import { DocumentSymbol, SymbolKinds, SymbolTag, DocumentSymbolProviderRegistry, SymbolKind } from 'vs/editor/common/modes';
 import { OutlineModel, OutlineElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { values } from 'vs/base/common/collections';
 import { trim, format } from 'vs/base/common/strings';
 import { fuzzyScore, FuzzyScore, createMatches } from 'vs/base/common/filters';
+import { assign } from 'vs/base/common/objects';
 
 interface IGotoSymbolQuickPickItem extends IQuickPickItem {
 	kind: SymbolKind,
@@ -24,7 +25,7 @@ interface IGotoSymbolQuickPickItem extends IQuickPickItem {
 	range?: { decoration: IRange, selection: IRange },
 }
 
-export interface IGotoSymbolQuickAccessProviderOptions {
+export interface IGotoSymbolQuickAccessProviderOptions extends IEditorNavigationQuickAccessOptions {
 	openSideBySideDirection: () => undefined | 'right' | 'down'
 }
 
@@ -34,8 +35,8 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 	static SCOPE_PREFIX = ':';
 	static PREFIX_BY_CATEGORY = `${AbstractGotoSymbolQuickAccessProvider.PREFIX}${AbstractGotoSymbolQuickAccessProvider.SCOPE_PREFIX}`;
 
-	constructor(private options?: IGotoSymbolQuickAccessProviderOptions) {
-		super();
+	constructor(protected options?: IGotoSymbolQuickAccessProviderOptions) {
+		super(assign(options, { canAcceptInBackground: true }));
 	}
 
 	protected provideWithoutTextEditor(picker: IQuickPick<IGotoSymbolQuickPickItem>): IDisposable {
@@ -92,12 +93,14 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 		const disposables = new DisposableStore();
 
 		// Goto symbol once picked
-		disposables.add(picker.onDidAccept(() => {
+		disposables.add(picker.onDidAccept(event => {
 			const [item] = picker.selectedItems;
 			if (item && item.range) {
-				this.gotoLocation(editor, { range: item.range.selection, keyMods: picker.keyMods });
+				this.gotoLocation(editor, { range: item.range.selection, keyMods: picker.keyMods, preserveFocus: event.inBackground });
 
-				picker.hide();
+				if (!event.inBackground) {
+					picker.hide();
+				}
 			}
 		}));
 

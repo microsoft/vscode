@@ -37,13 +37,14 @@ export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProv
 		return this.editorService.activeTextEditorControl;
 	}
 
-	protected gotoLocation(editor: IEditor, options: { range: IRange, keyMods: IKeyMods, forceSideBySide?: boolean }): void {
+	protected gotoLocation(editor: IEditor, options: { range: IRange, keyMods: IKeyMods, forceSideBySide?: boolean, preserveFocus?: boolean }): void {
 
 		// Check for sideBySide use
 		if ((options.keyMods.ctrlCmd || options.forceSideBySide) && this.editorService.activeEditor) {
 			this.editorService.openEditor(this.editorService.activeEditor, {
 				selection: options.range,
-				pinned: options.keyMods.alt || this.configuration.openEditorPinned
+				pinned: options.keyMods.alt || this.configuration.openEditorPinned,
+				preserveFocus: options.preserveFocus
 			}, SIDE_GROUP);
 		}
 
