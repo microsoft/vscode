@@ -106,7 +106,7 @@ export class CodeCell extends Disposable {
 
 		this._register(templateData.editor!.onDidContentSizeChange((e) => {
 			if (e.contentHeightChanged) {
-				if (this.viewCell.editorHeight !== e.contentHeight) {
+				if (this.viewCell.layoutInfo.editorHeight !== e.contentHeight) {
 					let viewLayout = templateData.editor!.getLayoutInfo();
 
 					templateData.editor?.layout(
@@ -256,7 +256,7 @@ export class CodeCell extends Disposable {
 
 		if (result.shadowContent) {
 			this.viewCell.selfSizeMonitoring = true;
-			let editorHeight = this.viewCell.editorHeight;
+			let editorHeight = this.viewCell.layoutInfo.editorHeight;
 			this.notebookEditor.createInset(this.viewCell, currOutput, result.shadowContent, editorHeight + 8 + this.viewCell.getOutputOffset(index));
 		} else {
 			DOM.addClass(outputItemDiv, 'foreground');
@@ -369,7 +369,7 @@ export class CodeCell extends Disposable {
 	}
 
 	relayoutCell() {
-		this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.getCellTotalHeight());
+		this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
 	}
 
 	dispose() {

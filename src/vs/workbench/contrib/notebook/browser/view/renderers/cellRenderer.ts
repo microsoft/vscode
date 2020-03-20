@@ -387,8 +387,8 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		elementDisposable?.add(this.instantiationService.createInstance(CodeCell, this.notebookEditor, element, templateData));
 		this.renderedEditors.set(element, templateData.editor);
 
-		elementDisposable?.add(element.onDidChangeTotalHeight(() => {
-			templateData.focusIndicator!.style.height = `${element.getIndicatorHeight()}px`;
+		elementDisposable?.add(element.onDidChangeLayout(() => {
+			templateData.focusIndicator!.style.height = `${element.layoutInfo.indicatorHeight}px`;
 		}));
 
 		const toolbarContext = <INotebookCellActionContext>{

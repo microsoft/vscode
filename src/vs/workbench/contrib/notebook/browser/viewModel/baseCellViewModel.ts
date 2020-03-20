@@ -21,8 +21,6 @@ export abstract class BaseCellViewModel extends Disposable {
 	readonly onDidChangeCellState = this._onDidChangeCellState.event;
 	protected readonly _onDidChangeFocusMode = new Emitter<void>();
 	readonly onDidChangeFocusMode = this._onDidChangeFocusMode.event;
-	protected readonly _onDidChangeTotalHeight = new Emitter<void>();
-	readonly onDidChangeTotalHeight = this._onDidChangeTotalHeight.event;
 	protected readonly _onDidChangeEditorAttachState = new Emitter<boolean>();
 	readonly onDidChangeEditorAttachState = this._onDidChangeEditorAttachState.event;
 	protected readonly _onDidChangeCursorSelection: Emitter<void> = this._register(new Emitter<void>());
@@ -58,14 +56,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		this._focusMode = newMode;
 		this._onDidChangeFocusMode.fire();
 	}
-	private _editorHeight = 0;
-	set editorHeight(height: number) {
-		this._editorHeight = height;
-		this._onDidChangeTotalHeight.fire();
-	}
-	get editorHeight(): number {
-		return this._editorHeight;
-	}
+
 	protected _textEditor?: ICodeEditor;
 	get editorAttached(): boolean {
 		return !!this._textEditor;

@@ -13,6 +13,19 @@ import { CellState, ICellViewModel, CellFindMatch } from 'vs/workbench/contrib/n
 import { CellKind, ICell, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { BaseCellViewModel } from './baseCellViewModel';
 
+export interface CodeCellLayoutInfo {
+	readonly editorHeight: number;
+	readonly totalHeight: number;
+	readonly outputTotalHeight: number;
+	readonly indicatorHeight: number;
+}
+
+export interface CodeCellLayoutChangeEvent {
+	editorHeight?: boolean;
+	outputHeight?: boolean;
+	totalHeight?: boolean;
+}
+
 export class CodeCellViewModel extends BaseCellViewModel implements ICellViewModel {
 	cellKind: CellKind.Code = CellKind.Code;
 	protected readonly _onDidChangeOutputs = new Emitter<NotebookCellOutputsSplice[]>();
@@ -35,6 +48,22 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	private readonly _onDidChangeContent: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 
+	protected readonly _onDidChangeLayout = new Emitter<CodeCellLayoutChangeEvent>();
+	readonly onDidChangeLayout = this._onDidChangeLayout.event;
+
+	private _editorHeight = 0;
+	set editorHeight(height: number) {
+		this._editorHeight = height;
+
+		this.layoutChange({ editorHeight: true });
+	}
+
+	private _layoutInfo: CodeCellLayoutInfo;
+
+	get layoutInfo() {
+		return this._layoutInfo;
+	}
+
 	constructor(
 		readonly viewType: string,
 		readonly notebookHandle: number,
@@ -52,6 +81,36 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 
 		this._outputCollection = new Array(this.cell.outputs.length);
 		this._buffer = null;
+
+		this._layoutInfo = {
+			editorHeight: 0,
+			outputTotalHeight: 0,
+			totalHeight: 0,
+			indicatorHeight: 0
+		};
+	}
+
+	layoutChange(state: CodeCellLayoutChangeEvent) {
+		// recompute
+		this._ensureOutputsTop();
+		const outputTotalHeight = this._outputsTop!.getTotalValue();
+		const totalHeight = this.outputs.length
+			? EDITOR_TOOLBAR_HEIGHT + this.editorHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING + 16 + outputTotalHeight
+			: EDITOR_TOOLBAR_HEIGHT + this.editorHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING + outputTotalHeight;
+		const indicatorHeight = totalHeight - EDITOR_TOOLBAR_HEIGHT - 16;
+
+		this._layoutInfo = {
+			editorHeight: this._editorHeight,
+			outputTotalHeight,
+			totalHeight,
+			indicatorHeight
+		};
+
+		if (state.editorHeight || state.outputHeight) {
+			state.totalHeight = true;
+		}
+
+		this._onDidChangeLayout.fire(state);
 	}
 
 	hasDynamicHeight() {
@@ -117,7 +176,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		this._outputCollection[index] = height;
 		this._ensureOutputsTop();
 		this._outputsTop!.changeValue(index, height);
-		this._onDidChangeTotalHeight.fire();
+		this.layoutChange({ outputHeight: true });
 	}
 
 	getOutputOffset(index: number): number {
@@ -128,12 +187,6 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		this._ensureOutputsTop();
 
 		return this._outputsTop!.getAccumulatedValue(index - 1);
-	}
-
-	private getOutputTotalHeight(): number {
-		this._ensureOutputsTop();
-
-		return this._outputsTop!.getTotalValue();
 	}
 
 	spliceOutputHeights(start: number, deleteCnt: number, heights: number[]) {
@@ -149,22 +202,10 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			this._outputsTop!.insertValues(start, values);
 		}
 
-		this._onDidChangeTotalHeight.fire();
+		this.layoutChange({ outputHeight: true });
 	}
 
-	getCellTotalHeight(): number {
-		if (this.outputs.length) {
-			return EDITOR_TOOLBAR_HEIGHT + this.editorHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING + 16 + this.getOutputTotalHeight();
-		} else {
-			return EDITOR_TOOLBAR_HEIGHT + this.editorHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING + this.getOutputTotalHeight();
-		}
-	}
-
-	getIndicatorHeight(): number {
-		return this.getCellTotalHeight() - EDITOR_TOOLBAR_HEIGHT - 16;
-	}
-
-	protected _ensureOutputsTop(): void {
+	private _ensureOutputsTop(): void {
 		if (!this._outputsTop) {
 			const values = new Uint32Array(this._outputCollection.length);
 			for (let i = 0; i < this._outputCollection.length; i++) {

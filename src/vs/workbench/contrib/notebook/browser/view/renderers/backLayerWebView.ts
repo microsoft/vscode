@@ -278,7 +278,7 @@ export class BackLayerWebView extends Disposable {
 					if (cell) {
 						let outputIndex = cell.outputs.indexOf(output);
 						cell.updateOutputHeight(outputIndex, outputHeight);
-						this.notebookEditor.layoutNotebookCell(cell, cell.getCellTotalHeight());
+						this.notebookEditor.layoutNotebookCell(cell, cell.layoutInfo.totalHeight);
 					}
 				} else if (data.type === 'scroll-ack') {
 					// const date = new Date();
@@ -310,7 +310,7 @@ export class BackLayerWebView extends Disposable {
 		let outputIndex = cell.outputs.indexOf(output);
 
 		let outputOffsetInOutputContainer = cell.getOutputOffset(outputIndex);
-		let outputOffset = cellTop + cell.editorHeight + 16 /* editor padding */ + 8 + outputOffsetInOutputContainer;
+		let outputOffset = cellTop + cell.layoutInfo.editorHeight + 16 /* editor padding */ + 8 + outputOffsetInOutputContainer;
 
 		if (outputOffset === outputCache.cacheOffset) {
 			return false;
@@ -326,7 +326,7 @@ export class BackLayerWebView extends Disposable {
 			let outputIndex = item.cell.outputs.indexOf(item.output);
 
 			let outputOffsetInOutputContainer = item.cell.getOutputOffset(outputIndex);
-			let outputOffset = item.cellTop + item.cell.editorHeight + 16 /* editor padding */ + 16 + outputOffsetInOutputContainer;
+			let outputOffset = item.cellTop + item.cell.layoutInfo.editorHeight + 16 /* editor padding */ + 16 + outputOffsetInOutputContainer;
 			outputCache.cacheOffset = outputOffset;
 
 			return {
