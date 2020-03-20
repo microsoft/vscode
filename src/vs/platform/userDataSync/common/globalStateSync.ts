@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IGlobalState, SyncResource, IUserDataSynchroniser, IUserDataSyncEnablementService, IUserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSync';
+import { SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IGlobalState, SyncResource, IUserDataSynchroniser, IUserDataSyncEnablementService, IUserDataSyncBackupStoreService, IStorageValue } from 'vs/platform/userDataSync/common/userDataSync';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Event } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -17,6 +17,8 @@ import { AbstractSynchroniser, IRemoteUserData } from 'vs/platform/userDataSync/
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { URI } from 'vs/base/common/uri';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
 const argvProperties: string[] = ['locale'];
 
@@ -41,10 +43,13 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		@IUserDataSyncEnablementService userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IStorageKeysSyncRegistryService private readonly storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
 	) {
 		super(SyncResource.GlobalState, fileService, environmentService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService);
 		this._register(this.fileService.watch(dirname(this.environmentService.argvResource)));
 		this._register(Event.filter(this.fileService.onDidFilesChange, e => e.contains(this.environmentService.argvResource))(() => this._onDidChangeLocal.fire()));
+		this._register(Event.filter(this.storageService.onDidChangeStorage, e => storageKeysSyncRegistryService.storageKeys.some(({ key }) => e.key === key))(() => this._onDidChangeLocal.fire()));
 	}
 
 	async pull(): Promise<void> {
@@ -205,12 +210,18 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 
 	private async getLocalGlobalState(): Promise<IGlobalState> {
 		const argv: IStringDictionary<any> = {};
-		const storage: IStringDictionary<any> = {};
+		const storage: IStringDictionary<IStorageValue> = {};
 		const argvContent: string = await this.getLocalArgvContent();
 		const argvValue: IStringDictionary<any> = parse(argvContent);
 		for (const argvProperty of argvProperties) {
 			if (argvValue[argvProperty] !== undefined) {
 				argv[argvProperty] = argvValue[argvProperty];
+			}
+		}
+		for (const { key, version } of this.storageKeysSyncRegistryService.storageKeys) {
+			const value = this.storageService.get(key, StorageScope.GLOBAL);
+			if (value) {
+				storage[key] = { version, value };
 			}
 		}
 		return { argv, storage };
@@ -231,7 +242,25 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			content = edit(content, [argvProperty], globalState.argv[argvProperty], {});
 		}
 		if (argvContent !== content) {
+			this.logService.trace(`${this.syncResourceLogLabel}: Updating locale...`);
 			await this.fileService.writeFile(this.environmentService.argvResource, VSBuffer.fromString(content));
+			this.logService.info(`${this.syncResourceLogLabel}: Updated locale.`);
+		}
+		const updatedStorage: IStringDictionary<any> = {};
+		for (const key of Object.keys(globalState.storage)) {
+			const { version, value } = globalState.storage[key];
+			const storageKey = this.storageKeysSyncRegistryService.storageKeys.filter(storageKey => storageKey.key === key)[0];
+			if (storageKey && storageKey.version === version && String(value) !== String(this.storageService.get(key, StorageScope.GLOBAL))) {
+				updatedStorage[key] = value;
+			}
+		}
+		const updatedStorageKeys: string[] = Object.keys(updatedStorage);
+		if (updatedStorageKeys.length) {
+			this.logService.trace(`${this.syncResourceLogLabel}: Updating global state...`);
+			for (const key of Object.keys(updatedStorage)) {
+				this.storageService.store(key, updatedStorage[key], StorageScope.GLOBAL);
+			}
+			this.logService.info(`${this.syncResourceLogLabel}: Updated global state`, Object.keys(updatedStorage));
 		}
 	}
 
