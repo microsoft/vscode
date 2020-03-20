@@ -55,7 +55,6 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			if (Date.now() - status.lastuse > 300000) {
 				delete importedScripts.status[key];
 			}
-			console.log('Clean:' + key);
 		})
 		setTimeout(clearbuffer, 300000)
 	}
