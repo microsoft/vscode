@@ -22,6 +22,7 @@ import { isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Event } from 'vs/base/common/event';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
 export const GOTO_LINE_PREFIX = ':';
 
@@ -32,6 +33,7 @@ export class GotoLineAction extends QuickOpenAction {
 
 	constructor(actionId: string, actionLabel: string,
 		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IEditorService private readonly editorService: IEditorService
 	) {
 		super(actionId, actionLabel, GOTO_LINE_PREFIX, quickOpenService);
@@ -61,7 +63,7 @@ export class GotoLineAction extends QuickOpenAction {
 		const result = super.run();
 
 		if (restoreOptions) {
-			Event.once(this.quickOpenService.onHide)(() => {
+			Event.once(Event.any(this.quickOpenService.onHide, this.quickInputService.onHide))(() => {
 				activeTextEditorControl!.updateOptions(restoreOptions!);
 			});
 		}

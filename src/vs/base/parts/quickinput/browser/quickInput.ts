@@ -391,6 +391,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private _matchOnLabel = true;
 	private _sortByLabel = true;
 	private _autoFocusOnList = true;
+	private _autoFocusSecondEntry = false;
 	private _activeItems: T[] = [];
 	private activeItemsUpdated = false;
 	private activeItemsToConfirm: T[] | null = [];
@@ -520,7 +521,6 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		this.update();
 	}
 
-
 	get autoFocusOnList() {
 		return this._autoFocusOnList;
 	}
@@ -528,6 +528,14 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	set autoFocusOnList(autoFocusOnList: boolean) {
 		this._autoFocusOnList = autoFocusOnList;
 		this.update();
+	}
+
+	get autoFocusSecondEntry() {
+		return this._autoFocusSecondEntry;
+	}
+
+	set autoFocusSecondEntry(autoFocusSecondEntry: boolean) {
+		this._autoFocusSecondEntry = autoFocusSecondEntry;
 	}
 
 	get activeItems() {
@@ -851,10 +859,9 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 			this.ui.checkAll.checked = this.ui.list.getAllVisibleChecked();
 			this.ui.visibleCount.setCount(this.ui.list.getVisibleCount());
 			this.ui.count.setCount(this.ui.list.getCheckedCount());
-			if (isQuickNavigating && previousItemCount === 0) {
-				// quick navigate: automatically focus the second entry
-				// so that upon release the item is picked directly
+			if (this._autoFocusSecondEntry && previousItemCount === 0) {
 				this.ui.list.focus(QuickInputListFocus.Second);
+				this._autoFocusSecondEntry = false;
 			} else {
 				this.trySelectFirst();
 			}

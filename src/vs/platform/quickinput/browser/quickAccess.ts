@@ -40,6 +40,7 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 		picker.placeholder = descriptor?.placeholder;
 		picker.value = value;
 		picker.quickNavigate = options?.quickNavigateConfiguration;
+		picker.autoFocusSecondEntry = !!options?.quickNavigateConfiguration || !!options?.autoFocus?.autoFocusSecondEntry;
 		picker.valueSelection = options?.inputSelection ? [options.inputSelection.start, options.inputSelection.end] : [value.length, value.length];
 		picker.contextKey = descriptor?.contextKey;
 		picker.filterValue = (value: string) => value.substring(descriptor ? descriptor.prefix.length : 0);

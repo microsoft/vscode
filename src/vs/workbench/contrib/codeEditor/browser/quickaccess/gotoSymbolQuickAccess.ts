@@ -61,6 +61,7 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessProvider({
 	ctor: GotoSymbolQuickAccessProvider,
 	prefix: AbstractGotoSymbolQuickAccessProvider.PREFIX,
+	contextKey: 'inFileSymbolsPicker',
 	placeholder: localize('gotoSymbolQuickAccessPlaceholder', "Type the name of a symbol to go to."),
 	helpEntries: [
 		{ description: localize('gotoSymbolQuickAccess', "Go to Symbol in Editor"), prefix: AbstractGotoSymbolQuickAccessProvider.PREFIX, needsEditor: true },

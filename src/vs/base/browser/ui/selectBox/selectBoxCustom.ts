@@ -354,7 +354,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.option-disabled:hover { background-color: ${this.styles.selectBackground} !important; }`);
 		}
 
-		// Match quickOpen outline styles - ignore for disabled options
+		// Match quick input outline styles - ignore for disabled options
 		if (this.styles.listFocusOutline) {
 			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.focused { outline: 1.6px dotted ${this.styles.listFocusOutline} !important; outline-offset: -1.6px !important; }`);
 		}

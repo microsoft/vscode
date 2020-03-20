@@ -22,6 +22,7 @@ registry.registerQuickAccessProvider({
 registry.registerQuickAccessProvider({
 	ctor: ViewQuickAccessProvider,
 	prefix: ViewQuickAccessProvider.PREFIX,
+	contextKey: 'inViewsPicker',
 	placeholder: localize('viewQuickAccessPlaceholder', "Type the name of a view, output channel or terminal to open."),
 	helpEntries: [{ description: localize('viewQuickAccess', "Open View"), needsEditor: false }]
 });
@@ -29,6 +30,7 @@ registry.registerQuickAccessProvider({
 registry.registerQuickAccessProvider({
 	ctor: CommandsQuickAccessProvider,
 	prefix: CommandsQuickAccessProvider.PREFIX,
+	contextKey: 'inCommandsPicker',
 	placeholder: localize('commandsQuickAccessPlaceholder', "Type the name of a command to run."),
 	helpEntries: [{ description: localize('commandsQuickAccess', "Show and Run Commands"), needsEditor: false }]
 });

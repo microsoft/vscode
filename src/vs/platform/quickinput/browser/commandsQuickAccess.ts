@@ -178,7 +178,7 @@ interface ICommandsQuickAccessConfiguration {
 	};
 }
 
-class CommandsHistory extends Disposable {
+export class CommandsHistory extends Disposable {
 
 	static readonly DEFAULT_COMMANDS_HISTORY_LENGTH = 50;
 
