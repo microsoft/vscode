@@ -58,6 +58,10 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		this.layoutChange({ editorHeight: true });
 	}
 
+	get editorHeight() {
+		return this._editorHeight;
+	}
+
 	private _layoutInfo: CodeCellLayoutInfo;
 
 	get layoutInfo() {
