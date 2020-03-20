@@ -125,16 +125,6 @@ export class DiffReview extends Disposable {
 			}
 			this._render();
 		}));
-		this._register(diffEditor.getOriginalEditor().onDidFocusEditorWidget(() => {
-			if (this._isVisible) {
-				this.hide();
-			}
-		}));
-		this._register(diffEditor.getModifiedEditor().onDidFocusEditorWidget(() => {
-			if (this._isVisible) {
-				this.hide();
-			}
-		}));
 		this._register(dom.addStandardDisposableListener(this.domNode.domNode, 'click', (e) => {
 			e.preventDefault();
 
