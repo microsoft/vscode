@@ -63,6 +63,7 @@ import { TunnelService } from 'vs/workbench/services/remote/common/tunnelService
 import { ILoggerService } from 'vs/platform/log/common/log';
 import { FileLoggerService } from 'vs/platform/log/common/fileLogService';
 import { IUserDataSyncStoreService, IUserDataSyncService, IUserDataSyncLogService, IUserDataAutoSyncService, IUserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSync';
+import { StorageKeysSyncRegistryService, IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { AuthenticationService, IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
 import { UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
@@ -84,6 +85,7 @@ registerSingleton(IAuthenticationService, AuthenticationService);
 registerSingleton(IUserDataSyncLogService, UserDataSyncLogService);
 registerSingleton(IUserDataSyncStoreService, UserDataSyncStoreService);
 registerSingleton(IUserDataSyncBackupStoreService, UserDataSyncBackupStoreService);
+registerSingleton(IStorageKeysSyncRegistryService, StorageKeysSyncRegistryService);
 registerSingleton(IAuthenticationTokenService, AuthenticationTokenService);
 registerSingleton(IUserDataAutoSyncService, UserDataAutoSyncService);
 registerSingleton(IUserDataSyncService, UserDataSyncService);

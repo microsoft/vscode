@@ -77,6 +77,8 @@ import { IDialogMainService, DialogMainService } from 'vs/platform/dialogs/elect
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { coalesce } from 'vs/base/common/arrays';
+import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
+import { StorageKeysSyncRegistryChannel } from 'vs/platform/userDataSync/common/userDataSyncIpc';
 
 export class CodeApplication extends Disposable {
 	private windowsMainService: IWindowsMainService | undefined;
@@ -566,6 +568,11 @@ export class CodeApplication extends Disposable {
 		const storageChannel = this._register(new GlobalStorageDatabaseChannel(this.logService, storageMainService));
 		electronIpcServer.registerChannel('storage', storageChannel);
 		sharedProcessClient.then(client => client.registerChannel('storage', storageChannel));
+
+		const storageKeysSyncRegistryService = accessor.get(IStorageKeysSyncRegistryService);
+		const storageKeysSyncChannel = new StorageKeysSyncRegistryChannel(storageKeysSyncRegistryService);
+		electronIpcServer.registerChannel('storageKeysSyncRegistryService', storageKeysSyncChannel);
+		sharedProcessClient.then(client => client.registerChannel('storageKeysSyncRegistryService', storageKeysSyncChannel));
 
 		const loggerChannel = new LoggerChannel(accessor.get(ILogService));
 		electronIpcServer.registerChannel('logger', loggerChannel);
