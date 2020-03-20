@@ -554,9 +554,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 
 		// Activate on drag over to reveal targets
 		[this.badge, this.label].forEach(b => this._register(new DelayedDragHandler(b, () => {
-			if (!(this.compositeTransfer.hasData(DraggedCompositeIdentifier.prototype) ||
-				this.compositeTransfer.hasData(DraggedViewIdentifier.prototype)) &&
-				!this.getAction().checked) {
+			if (!this.getAction().checked) {
 				this.getAction().run();
 			}
 		})));
