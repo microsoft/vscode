@@ -8,7 +8,7 @@ import { MainContext, MainThreadNotebookShape, NotebookExtensionDescription, IEx
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { INotebookService, IMainNotebookController } from 'vs/workbench/contrib/notebook/browser/notebookService';
-import { INotebookTextModel, INotebookMimeTypeSelector, NOTEBOOK_DISPLAY_ORDER, NotebookCellsSplice, NotebookCellOutputsSplice, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel, INotebookMimeTypeSelector, NOTEBOOK_DISPLAY_ORDER, NotebookCellsSplice, NotebookCellOutputsSplice, CellKind, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -127,6 +127,14 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		}
 	}
 
+	async $updateNotebookMetadata(viewType: string, resource: UriComponents, metadata: NotebookDocumentMetadata | undefined): Promise<void> {
+		let controller = this._notebookProviders.get(viewType);
+
+		if (controller) {
+			controller.updateNotebookMetadata(resource, metadata);
+		}
+	}
+
 	async resolveNotebook(viewType: string, uri: URI): Promise<number | undefined> {
 		let handle = await this._proxy.$resolveNotebook(viewType, uri);
 		return handle;
@@ -218,6 +226,11 @@ export class MainThreadNotebookController implements IMainNotebookController {
 	updateLanguages(resource: UriComponents, languages: string[]) {
 		let document = this._mapping.get(URI.from(resource).toString());
 		document?.textModel.updateLanguages(languages);
+	}
+
+	updateNotebookMetadata(resource: UriComponents, metadata: NotebookDocumentMetadata | undefined) {
+		let document = this._mapping.get(URI.from(resource).toString());
+		document?.textModel.updateNotebookMetadata(metadata);
 	}
 
 	updateNotebookRenderers(resource: UriComponents, renderers: number[]): void {

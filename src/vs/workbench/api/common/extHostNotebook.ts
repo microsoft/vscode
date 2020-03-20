@@ -32,7 +32,8 @@ export class ExtHostCell implements vscode.NotebookCell {
 		private _content: string,
 		public cellKind: CellKind,
 		public language: string,
-		outputs: any[]
+		outputs: any[],
+		public metadata: vscode.NotebookCellMetadata | undefined,
 	) {
 		this.source = this._content.split(/\r|\n|\r\n/g);
 		this._outputs = outputs;
@@ -128,6 +129,17 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 	set languages(newLanguages: string[]) {
 		this._languages = newLanguages;
 		this._proxy.$updateNotebookLanguages(this.viewType, this.uri, this._languages);
+	}
+
+	private _metadata: vscode.NotebookDocumentMetadata | undefined = undefined;
+
+	get metadata() {
+		return this._metadata;
+	}
+
+	set metadata(newMetadata: vscode.NotebookDocumentMetadata | undefined) {
+		this._metadata = newMetadata;
+		this._proxy.$updateNotebookMetadata(this.viewType, this.uri, this._metadata);
 	}
 
 	private _displayOrder: string[] = [];
@@ -366,10 +378,10 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 		}));
 	}
 
-	createCell(content: string, language: string, type: CellKind, outputs: vscode.CellOutput[]): vscode.NotebookCell {
+	createCell(content: string, language: string, type: CellKind, outputs: vscode.CellOutput[], metadata: vscode.NotebookCellMetadata | undefined): vscode.NotebookCell {
 		const handle = ExtHostNotebookEditor._cellhandlePool++;
 		const uri = CellUri.generate(this.document.uri, handle);
-		const cell = new ExtHostCell(handle, uri, content, type, language, outputs);
+		const cell = new ExtHostCell(handle, uri, content, type, language, outputs, metadata);
 		return cell;
 	}
 
@@ -568,7 +580,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 			let editor = this._editors.get(URI.revive(uri).toString());
 			let document = this._documents.get(URI.revive(uri).toString());
 
-			let rawCell = editor?.editor.createCell('', language, type, []) as ExtHostCell;
+			let rawCell = editor?.editor.createCell('', language, type, [], undefined) as ExtHostCell;
 			document?.insertCell(index, rawCell!);
 
 			let allDocuments = this._documentsAndEditors.allDocuments();
@@ -586,6 +598,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 				source: rawCell.source,
 				language: rawCell.language,
 				cellKind: rawCell.cellKind,
+				metadata: rawCell.metadata,
 				outputs: []
 			};
 		}

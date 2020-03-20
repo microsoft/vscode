@@ -7,7 +7,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { INotebookTextModel, NotebookCellOutputsSplice, NotebookCellsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel, NotebookCellOutputsSplice, NotebookCellsSplice, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class NotebookTextModel extends Disposable implements INotebookTextModel {
 	private readonly _onWillDispose: Emitter<void> = this._register(new Emitter<void>());
@@ -21,6 +21,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	cells: NotebookCellTextModel[];
 	activeCell: NotebookCellTextModel | undefined;
 	languages: string[] = [];
+	metadata: NotebookDocumentMetadata | undefined = undefined;
 	renderers = new Set<number>();
 
 	constructor(
@@ -34,6 +35,10 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 	updateLanguages(languages: string[]) {
 		this.languages = languages;
+	}
+
+	updateNotebookMetadata(metadata: NotebookDocumentMetadata | undefined) {
+		this.metadata = metadata;
 	}
 
 	updateRenderers(renderers: number[]) {

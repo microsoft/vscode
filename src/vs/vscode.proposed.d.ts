@@ -1635,6 +1635,10 @@ declare module 'vscode' {
 
 	export type CellOutput = CellStreamOutput | CellErrorOutput | CellDisplayOutput;
 
+	export interface NotebookCellMetadata {
+		editable: boolean;
+	}
+
 	export interface NotebookCell {
 		readonly uri: Uri;
 		handle: number;
@@ -1642,6 +1646,11 @@ declare module 'vscode' {
 		cellKind: CellKind;
 		outputs: CellOutput[];
 		getContent(): string;
+		metadata?: NotebookCellMetadata;
+	}
+
+	export interface NotebookDocumentMetadata {
+		editable: boolean;
 	}
 
 	export interface NotebookDocument {
@@ -1651,6 +1660,7 @@ declare module 'vscode' {
 		languages: string[];
 		cells: NotebookCell[];
 		displayOrder?: GlobPattern[];
+		metadata?: NotebookDocumentMetadata;
 	}
 
 	export interface NotebookEditor {
@@ -1672,7 +1682,7 @@ declare module 'vscode' {
 		/**
 		 * Create a notebook cell. The cell is not inserted into current document when created. Extensions should insert the cell into the document by [TextDocument.cells](#TextDocument.cells)
 		 */
-		createCell(content: string, language: string, type: CellKind, outputs: CellOutput[]): NotebookCell;
+		createCell(content: string, language: string, type: CellKind, outputs: CellOutput[], metadata: NotebookCellMetadata): NotebookCell;
 	}
 
 	export interface NotebookProvider {

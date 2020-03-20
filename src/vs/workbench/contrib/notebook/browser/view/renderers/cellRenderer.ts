@@ -119,6 +119,8 @@ abstract class AbstractCellRenderer {
 		return menu;
 	}
 
+	abstract getCellToolbarActions(element: CellViewModel): IAction[];
+
 	showContextMenu(listIndex: number | undefined, element: CellViewModel, x: number, y: number) {
 		const actions: IAction[] = [
 			this.instantiationService.createInstance(InsertCodeCellAboveAction),
@@ -215,21 +217,16 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 
 			const contextKeyService = this.contextKeyService.createScoped(templateData.container);
 			contextKeyService.createKey(NOTEBOOK_CELL_TYPE_CONTEXT_KEY, 'markdown');
-			const menu = this.createMenu().getCellTitleActions(this.contextKeyService);
-			const actions: IAction[] = [];
-			for (let [, actions] of menu.getActions({ shouldForwardArgs: true })) {
-				actions.push(...actions);
-			}
+			const toolbarActions = this.getCellToolbarActions(element);
+			templateData.toolbar!.setActions(toolbarActions)();
 
-			templateData.toolbar!.setActions([
-				...actions,
-				this.instantiationService.createInstance(MoveCellUpAction),
-				this.instantiationService.createInstance(MoveCellDownAction),
-				this.instantiationService.createInstance(InsertCodeCellBelowAction),
-				this.instantiationService.createInstance(EditCellAction),
-				this.instantiationService.createInstance(SaveCellAction),
-				this.instantiationService.createInstance(DeleteCellAction)
-			])();
+			if (templateData.focusIndicator) {
+				if (!toolbarActions.length) {
+					templateData.focusIndicator.style.top = `8px`;
+				} else {
+					templateData.focusIndicator.style.top = `24px`;
+				}
+			}
 		}
 
 		templateData.toolbar!.context = <INotebookCellActionContext>{
@@ -237,6 +234,44 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 			notebookEditor: this.notebookEditor,
 			$mid: 12
 		};
+	}
+
+	getCellToolbarActions(element: CellViewModel): IAction[] {
+		const viewModel = this.notebookEditor.viewModel;
+
+		if (!viewModel) {
+			return [];
+		}
+
+		const menu = this.createMenu().getCellTitleActions(this.contextKeyService);
+		const actions: IAction[] = [];
+		for (let [, actions] of menu.getActions({ shouldForwardArgs: true })) {
+			actions.push(...actions);
+		}
+
+		const metadata = viewModel.metadata;
+
+		if (!metadata || metadata.editable) {
+			actions.push(
+				this.instantiationService.createInstance(MoveCellUpAction),
+				this.instantiationService.createInstance(MoveCellDownAction),
+				this.instantiationService.createInstance(InsertCodeCellBelowAction)
+			);
+		}
+
+		const cellMetadata = element.metadata;
+		if (!cellMetadata || cellMetadata.editable) {
+			actions.push(
+				this.instantiationService.createInstance(EditCellAction),
+				this.instantiationService.createInstance(SaveCellAction)
+			);
+		}
+
+		if (!metadata || metadata.editable) {
+			this.instantiationService.createInstance(DeleteCellAction);
+		}
+
+		return actions;
 	}
 
 	getAdditionalContextMenuActions(): IAction[] {
@@ -363,23 +398,48 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		const contextKeyService = this.contextKeyService.createScoped(templateData.container);
 		contextKeyService.createKey(NOTEBOOK_CELL_TYPE_CONTEXT_KEY, 'code');
-		const menu = this.createMenu().getCellTitleActions(contextKeyService);
-		const actions: IAction[] = [];
-		for (let [, items] of menu.getActions({ shouldForwardArgs: true })) {
-			actions.push(...items);
-		}
-
-		templateData.toolbar!.setActions([
-			...actions,
-			this.instantiationService.createInstance(MoveCellUpAction),
-			this.instantiationService.createInstance(MoveCellDownAction),
-			this.instantiationService.createInstance(InsertCodeCellBelowAction),
-			this.instantiationService.createInstance(DeleteCellAction)
-		])();
-
+		const toolbarActions = this.getCellToolbarActions(element);
+		templateData.toolbar!.setActions(toolbarActions)();
 		templateData.toolbar!.context = toolbarContext;
 		templateData.runToolbar!.context = toolbarContext;
+
+		if (templateData.focusIndicator) {
+			if (!toolbarActions.length) {
+				templateData.focusIndicator.style.top = `8px`;
+			} else {
+				templateData.focusIndicator.style.top = `24px`;
+			}
+		}
 	}
+
+
+	getCellToolbarActions(element: CellViewModel): IAction[] {
+		const viewModel = this.notebookEditor.viewModel;
+
+		if (!viewModel) {
+			return [];
+		}
+
+		const menu = this.createMenu().getCellTitleActions(this.contextKeyService);
+		const actions: IAction[] = [];
+		for (let [, actions] of menu.getActions({ shouldForwardArgs: true })) {
+			actions.push(...actions);
+		}
+
+		const metadata = viewModel.metadata;
+
+		if (!metadata || metadata.editable) {
+			actions.push(
+				this.instantiationService.createInstance(MoveCellUpAction),
+				this.instantiationService.createInstance(MoveCellDownAction),
+				this.instantiationService.createInstance(InsertCodeCellBelowAction),
+				this.instantiationService.createInstance(DeleteCellAction)
+			);
+		}
+
+		return actions;
+	}
+
 
 	getAdditionalContextMenuActions(): IAction[] {
 		return [];
