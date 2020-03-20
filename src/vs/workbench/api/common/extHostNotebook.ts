@@ -469,9 +469,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 							}
 						}
 					}
-
-					return arg;
 				}
+				return arg;
 			}
 		});
 	}
