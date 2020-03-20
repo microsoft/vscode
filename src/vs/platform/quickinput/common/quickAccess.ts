@@ -18,6 +18,11 @@ export interface IQuickAccessOptions {
 	inputSelection?: { start: number; end: number; };
 
 	/**
+	 * Allows to seed the input with the value that was previously used.
+	 */
+	inputUseLastValue?: boolean;
+
+	/**
 	 * Allows to enable quick navigate support in quick input.
 	 */
 	quickNavigateConfiguration?: IQuickNavigateConfiguration;

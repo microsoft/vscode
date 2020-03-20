@@ -179,7 +179,10 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 
 	show(prefix?: string, options?: IShowOptions): Promise<void> {
 		if (this.useNewExperimentalVersion) {
-			this.quickInputService.quickAccess.show(prefix, options);
+			this.quickInputService.quickAccess.show(prefix, {
+				...options,
+				inputUseLastValue: !prefix && this.preserveInput
+			});
 
 			return Promise.resolve();
 		}

@@ -17,6 +17,7 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 	private readonly mapProviderToDescriptor = new Map<IQuickAccessProviderDescriptor, IQuickAccessProvider>();
 
 	private lastActivePicker: IQuickPick<IQuickPickItem> | undefined = undefined;
+	private lastPickerInputs = new Map<IQuickAccessProviderDescriptor, string>();
 
 	constructor(
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -33,6 +34,19 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 
 		// Find provider for the value to show
 		const [provider, descriptor] = this.getOrInstantiateProvider(value);
+
+		// Rewrite the value to the last input of the provider if told so
+		// Also adjust the `inputSelection` so that the user can type over
+		if (descriptor && options?.inputUseLastValue) {
+			const lastInput = this.lastPickerInputs.get(descriptor);
+			if (lastInput) {
+				value = lastInput;
+				options = {
+					...options,
+					inputSelection: { start: descriptor.prefix.length, end: value.length }
+				};
+			}
+		}
 
 		// Create a picker for the provider to use with the initial value
 		// and adjust the filtering to exclude the prefix from filtering
@@ -73,6 +87,13 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 				this.show(value);
 			}
 		}));
+
+		// Remember picker input for future use when accepting
+		if (descriptor) {
+			disposables.add(picker.onDidAccept(() => {
+				this.lastPickerInputs.set(descriptor, picker.value);
+			}));
+		}
 
 		// Ask provider to fill the picker as needed if we have one
 		if (provider) {

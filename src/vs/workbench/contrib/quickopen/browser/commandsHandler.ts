@@ -12,7 +12,7 @@ import { Mode, IEntryRunContext, IAutoFocus, IModel, IQuickNavigateConfiguration
 import { QuickOpenEntryGroup, IHighlight, QuickOpenModel, QuickOpenEntry } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { QuickOpenHandler, IWorkbenchQuickOpenConfiguration } from 'vs/workbench/browser/quickopen';
+import { QuickOpenHandler, IWorkbenchQuickOpenConfiguration, ENABLE_EXPERIMENTAL_VERSION_CONFIG } from 'vs/workbench/browser/quickopen';
 import { IEditorAction } from 'vs/editor/common/editorCommon';
 import { matchesWords, matchesPrefix, matchesContiguousSubString, or } from 'vs/base/common/filters';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -35,6 +35,7 @@ import { timeout } from 'vs/base/common/async';
 import { isFirefox } from 'vs/base/browser/browser';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CommandsHistory } from 'vs/platform/quickinput/browser/commandsQuickAccess';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
 export const ALL_COMMANDS_PREFIX = '>';
 
@@ -163,6 +164,7 @@ export class ShowAllCommandsAction extends Action {
 		id: string,
 		label: string,
 		@IQuickOpenService private readonly quickOpenService: IQuickOpenService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(id, label);
@@ -172,13 +174,18 @@ export class ShowAllCommandsAction extends Action {
 		const config = <IWorkbenchQuickOpenConfiguration>this.configurationService.getValue();
 		const restoreInput = config.workbench?.commandPalette?.preserveInput === true;
 
-		// Show with last command palette input if any and configured
-		let value = ALL_COMMANDS_PREFIX;
-		if (restoreInput && lastCommandPaletteInput) {
-			value = `${value}${lastCommandPaletteInput}`;
-		}
+		if (this.configurationService.getValue(ENABLE_EXPERIMENTAL_VERSION_CONFIG) === true) {
+			this.quickInputService.quickAccess.show(ALL_COMMANDS_PREFIX, { inputUseLastValue: restoreInput });
+		} else {
 
-		this.quickOpenService.show(value, { inputSelection: lastCommandPaletteInput ? { start: 1 /* after prefix */, end: value.length } : undefined });
+			// Show with last command palette input if any and configured
+			let value = ALL_COMMANDS_PREFIX;
+			if (restoreInput && lastCommandPaletteInput) {
+				value = `${value}${lastCommandPaletteInput}`;
+			}
+
+			this.quickOpenService.show(value, { inputSelection: lastCommandPaletteInput ? { start: 1 /* after prefix */, end: value.length } : undefined });
+		}
 
 		return Promise.resolve(undefined);
 	}
