@@ -16,6 +16,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 
 export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('notebookFindWidgetFocused', false);
 
@@ -202,12 +203,14 @@ export interface INotebookEditor {
 export interface CellRenderTemplate {
 	container: HTMLElement;
 	cellContainer: HTMLElement;
-	menuContainer?: HTMLElement;
+	editorContainer?: HTMLElement;
 	toolbar: ToolBar;
 	focusIndicator?: HTMLElement;
+	runToolbar?: ToolBar;
 	editingContainer?: HTMLElement;
 	outputContainer?: HTMLElement;
 	editor?: CodeEditorWidget;
+	progressBar?: ProgressBar;
 	disposables: DisposableStore;
 }
 
