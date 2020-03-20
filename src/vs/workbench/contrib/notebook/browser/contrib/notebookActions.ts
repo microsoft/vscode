@@ -334,33 +334,39 @@ async function runActiveCell(accessor: ServicesAccessor): Promise<ICellViewModel
 }
 
 async function runCell(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-	const progress = context.cellTemplate!.progressBar!;
-	progress.infinite().show(500);
-
-	const editorService = accessor.get(IEditorService);
-	const notebookService = accessor.get(INotebookService);
-
-	const resource = editorService.activeEditor?.resource;
-	if (!resource) {
-		return;
+	const progress = context.cellTemplate?.progressBar;
+	if (progress) {
+		progress.infinite().show(500);
 	}
+	try {
+		const editorService = accessor.get(IEditorService);
+		const notebookService = accessor.get(INotebookService);
 
-	const editor = getActiveNotebookEditor(editorService);
-	if (!editor) {
-		return;
+		const resource = editorService.activeEditor?.resource;
+		if (!resource) {
+			return;
+		}
+
+		const editor = getActiveNotebookEditor(editorService);
+		if (!editor) {
+			return;
+		}
+
+		const notebookProviders = notebookService.getContributedNotebookProviders(resource);
+		if (!notebookProviders.length) {
+			return;
+		}
+
+		// Need to make active, maybe TODO
+		editor.focusNotebookCell(context.cell, false);
+
+		const viewType = notebookProviders[0].id;
+		await notebookService.executeNotebookActiveCell(viewType, resource);
+	} finally {
+		if (progress) {
+			progress.hide();
+		}
 	}
-
-	const notebookProviders = notebookService.getContributedNotebookProviders(resource);
-	if (!notebookProviders.length) {
-		return;
-	}
-
-	// Need to make active, maybe TODO
-	editor.focusNotebookCell(context.cell, false);
-
-	const viewType = notebookProviders[0].id;
-	await notebookService.executeNotebookActiveCell(viewType, resource);
-	progress.hide();
 }
 
 async function changeActiveCellToKind(kind: CellKind, accessor: ServicesAccessor): Promise<void> {
