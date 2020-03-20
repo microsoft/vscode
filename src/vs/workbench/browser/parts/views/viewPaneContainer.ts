@@ -1142,7 +1142,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 		let overlay: ViewPaneDropOverlay | undefined;
 
-		this._register(CompositeDragAndDropObserver.INSTANCE.registerDraggable(pane.draggableElement, 'view', pane.id, {}));
+		this._register(CompositeDragAndDropObserver.INSTANCE.registerDraggable(pane.draggableElement, () => { return { type: 'view', id: pane.id }; }, {}));
 
 		this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(pane.dropTargetElement, {
 			onDragEnter: (e) => {

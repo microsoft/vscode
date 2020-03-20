@@ -645,15 +645,19 @@ export class CompositeDragAndDropObserver extends Disposable {
 		}
 		return this._register(disposableStore);
 	}
-	registerDraggable(element: HTMLElement, type: ViewType, id: string, callbacks: ICompositeDragAndDropObserverCallbacks): IDisposable {
+
+	registerDraggable(element: HTMLElement, draggedItemProvider: () => { type: ViewType, id: string }, callbacks: ICompositeDragAndDropObserverCallbacks): IDisposable {
 		element.draggable = true;
 		const disposableStore = new DisposableStore();
 		disposableStore.add(addDisposableListener(element, EventType.DRAG_START, e => {
+			const { id, type } = draggedItemProvider();
 			this.writeDragData(id, type);
 			this._onDragStart.fire({ eventData: e, dragAndDropData: this.readDragData(type)! });
 		}));
 		disposableStore.add(new DragAndDropObserver(element, {
 			onDragEnd: e => {
+				const { id, type } = draggedItemProvider();
+
 				const data = this.readDragData(type);
 				if (data && data.getData().id === id) {
 					this.transferData.clearData(type === 'view' ? DraggedViewIdentifier.prototype : DraggedCompositeIdentifier.prototype);
@@ -666,6 +670,7 @@ export class CompositeDragAndDropObserver extends Disposable {
 				this._onDragEnd.fire({ eventData: e, dragAndDropData: data! });
 			},
 			onDragEnter: e => {
+
 				if (callbacks.onDragEnter) {
 					const data = this.readDragData('composite') || this.readDragData('view');
 					if (!data) {

@@ -33,7 +33,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { LayoutPriority } from 'vs/base/browser/ui/grid/grid';
 import { assertIsDefined } from 'vs/base/common/types';
-import { LocalSelectionTransfer, DraggedViewIdentifier, DraggedCompositeIdentifier } from 'vs/workbench/browser/dnd';
+import { CompositeDragAndDropObserver } from 'vs/workbench/browser/dnd';
 
 export class SidebarPart extends CompositePart<Viewlet> implements IViewletService {
 
@@ -165,28 +165,18 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		}));
 
 		this.titleLabelElement!.draggable = true;
-		this._register(addDisposableListener(this.titleLabelElement!, EventType.DRAG_START, e => {
-			const activeViewlet = this.getActiveViewlet();
-			if (activeViewlet) {
-				const visibleViews = activeViewlet.getViewPaneContainer().views.filter(v => v.isVisible());
-				if (visibleViews.length === 1) {
-					LocalSelectionTransfer.getInstance<DraggedViewIdentifier>().setData([new DraggedViewIdentifier(visibleViews[0].id)], DraggedViewIdentifier.prototype);
-				} else {
-					LocalSelectionTransfer.getInstance<DraggedCompositeIdentifier>().setData([new DraggedCompositeIdentifier(activeViewlet.getId())], DraggedCompositeIdentifier.prototype);
-				}
-			}
-		}));
 
-		this._register(addDisposableListener(this.titleLabelElement!, EventType.DRAG_END, e => {
-			if (LocalSelectionTransfer.getInstance<DraggedViewIdentifier>().hasData(DraggedViewIdentifier.prototype)) {
-				LocalSelectionTransfer.getInstance<DraggedViewIdentifier>().clearData(DraggedViewIdentifier.prototype);
+		const draggedItemProvider = (): { type: 'view' | 'composite', id: string } => {
+			const activeViewlet = this.getActiveViewlet()!;
+			const visibleViews = activeViewlet.getViewPaneContainer().views.filter(v => v.isVisible());
+			if (visibleViews.length === 1) {
+				return { type: 'view', id: visibleViews[0].id };
+			} else {
+				return { type: 'composite', id: activeViewlet.getId() };
 			}
+		};
 
-			if (LocalSelectionTransfer.getInstance<DraggedCompositeIdentifier>().hasData(DraggedCompositeIdentifier.prototype)) {
-				LocalSelectionTransfer.getInstance<DraggedCompositeIdentifier>().clearData(DraggedCompositeIdentifier.prototype);
-			}
-		}));
-
+		this._register(CompositeDragAndDropObserver.INSTANCE.registerDraggable(this.titleLabelElement!, draggedItemProvider, {}));
 		return titleArea;
 	}
 
