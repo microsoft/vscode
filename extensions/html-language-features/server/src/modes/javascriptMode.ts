@@ -14,20 +14,27 @@ import { getWordAtText, startsWith, isWhitespaceOnly, repeat } from '../utils/st
 import { HTMLDocumentRegions } from './embeddedSupport';
 
 import * as ts from 'typescript';
-import { join, dirname } from 'path';
+import { join, resolve, dirname } from 'path';
 import { URI } from 'vscode-uri';
 import { getSemanticTokens, getSemanticTokenLegend } from './javascriptSemanticTokens';
 import * as fs from 'fs';
 
 const JS_WORD_REGEX = /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g;
 
-let jquery_d_ts = join(__dirname, '../lib/jquery.d.ts'); // when packaged
+let jquery_d_ts = join(__dirname, '../lib/jquery.d.ts').replace(/\\/g, '/'); // when packaged
 if (!ts.sys.fileExists(jquery_d_ts)) {
-	jquery_d_ts = join(__dirname, '../../lib/jquery.d.ts'); // from source
+	jquery_d_ts = join(__dirname, '../../lib/jquery.d.ts').replace(/\\/g, '/'); // from source
 }
 interface IimportScripts {
 	files: string[];
-	status: { [key: string]: { mdt: Date, ver: number } };
+	status: {
+		[key: string]: {
+			mdt: Date,
+			txt: string,
+			doc: TextDocument,
+			lastuse: number
+		}
+	};
 }
 export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocumentRegions>, languageId: 'javascript' | 'typescript', libDefinitionFiles?: string[]): LanguageMode {
 	let jsDocuments = getLanguageModelCache<TextDocument>(10, 60, document => documentRegions.get(document).getEmbeddedDocument(languageId));
@@ -42,6 +49,17 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		status: {}
 	};
 	const definitionFiles: string[] = libDefinitionFiles || [];
+	function clearbuffer() {
+		Object.keys(importedScripts.status).forEach((key) => {
+			let status = importedScripts.status[key];
+			if (Date.now() - status.lastuse > 300000) {
+				delete importedScripts.status[key];
+			}
+			console.log('Clean:' + key);
+		})
+		setTimeout(clearbuffer, 300000)
+	}
+	setTimeout(clearbuffer, 300000);
 	function updateCurrentTextDocument(doc: TextDocument) {
 		if (!currentTextDocument || doc.uri !== currentTextDocument.uri || doc.version !== currentTextDocument.version) {
 			currentTextDocument = jsDocuments.get(doc);
@@ -49,8 +67,8 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			let s = documentRegions.get(doc).getImportedScripts();
 			importedScripts.files = [];
 			s.forEach(el => {
-				let x = URI.parse(doc.uri).fsPath;
-				let p = join(dirname(x), el);
+				let dp = URI.parse(doc.uri).fsPath;
+				let p = resolve(dirname(dp), el).replace(/\\/g, '/');
 				if (ts.sys.fileExists(p))
 					importedScripts.files.push(p);
 			});
@@ -67,17 +85,9 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 				return String(scriptFileVersion);
 			}
 			let status = importedScripts.status[fileName];
-			if (status) {
-				let stat = fs.statSync(fileName);
-				if (status.mdt < stat.mtime) {
-					//I Don't Know why It must has to be twice.
-					if (status.ver % 2) {
-						status.mdt = stat.mtime;
-					}
-					status.ver += 1;
-					return String(status.ver);
-				}
-			}
+			if (status)
+				return String(status.doc.version);
+
 			return '1'; // default lib an jquery.d.ts are static
 		},
 		getScriptSnapshot: (fileName: string) => {
@@ -87,7 +97,28 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 					text = currentTextDocument.getText();
 				}
 			} else {
-				text = ts.sys.readFile(fileName) || '';
+				let mtime = fs.statSync(fileName).mtime;
+				let url = URI.file(fileName).toString();
+				if (!importedScripts.status[fileName]) {
+					text = ts.sys.readFile(fileName) || '';
+					importedScripts.status[fileName] = {
+						txt: text,
+						mdt: mtime,
+						doc: TextDocument.create(url, languageId, 0, text),
+						lastuse: Date.now()
+					};
+				} else if (importedScripts.status[fileName].mdt < mtime) {
+					let stat = importedScripts.status[fileName];
+					text = ts.sys.readFile(fileName) || '';
+					let ver = stat.doc.version + 1;
+					stat.txt = text;
+					stat.mdt = mtime;
+					stat.doc = TextDocument.create(url, languageId, ver, text);
+					stat.lastuse = Date.now();
+				} else {
+					text = importedScripts.status[fileName].txt;
+					importedScripts.status[fileName].lastuse = Date.now();
+				}
 			}
 			return {
 				getText: (start, end) => text.substring(start, end),
@@ -259,10 +290,20 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			updateCurrentTextDocument(document);
 			let definition = jsLanguageService.getDefinitionAtPosition(workingFile, currentTextDocument.offsetAt(position));
 			if (definition) {
-				return definition.filter(d => d.fileName === workingFile).map(d => {
+				return definition.map(d => {
+					let fileName;
+					let range;
+					if (d.fileName == workingFile) {
+						fileName = document.uri;
+						range = convertRange(currentTextDocument, d.textSpan)
+					} else {
+						let status = importedScripts.status[d.fileName];
+						fileName = status.doc.uri;
+						range = convertRange(status.doc, d.textSpan);
+					}
 					return {
-						uri: document.uri,
-						range: convertRange(currentTextDocument, d.textSpan)
+						uri: fileName,
+						range: range
 					};
 				});
 			}
