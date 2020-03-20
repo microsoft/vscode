@@ -49,13 +49,10 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			let s = documentRegions.get(doc).getImportedScripts();
 			importedScripts.files = [];
 			s.forEach(el => {
-				let x = URI.parse(doc.uri);
-				let p = join(dirname(x.fsPath), el);
-				importedScripts.files.push(p);
-				let stat = fs.statSync(p);
-				if (importedScripts.status[p] === undefined) {
-					importedScripts.status[p] = { mdt: stat.mtime, ver: 0 };
-				}
+				let x = URI.parse(doc.uri).fsPath;
+				let p = join(dirname(x), el);
+				if (ts.sys.fileExists(p))
+					importedScripts.files.push(p);
 			});
 
 			scriptFileVersion++;
