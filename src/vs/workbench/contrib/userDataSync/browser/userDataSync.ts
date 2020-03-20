@@ -750,14 +750,14 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	private getConflictsEditorInputs(syncResource: SyncResource): DiffEditorInput[] {
 		return this.editorService.editors.filter(input => {
 			const resource = input instanceof DiffEditorInput ? input.master.resource : input.resource;
-			return getSyncResourceFromLocalPreview(resource!, this.workbenchEnvironmentService) === syncResource;
+			return resource && getSyncResourceFromLocalPreview(resource!, this.workbenchEnvironmentService) === syncResource;
 		}) as DiffEditorInput[];
 	}
 
 	private getAllConflictsEditorInputs(): IEditorInput[] {
 		return this.editorService.editors.filter(input => {
 			const resource = input instanceof DiffEditorInput ? input.master.resource : input.resource;
-			return getSyncResourceFromLocalPreview(resource!, this.workbenchEnvironmentService) !== undefined;
+			return resource && getSyncResourceFromLocalPreview(resource!, this.workbenchEnvironmentService) !== undefined;
 		});
 	}
 

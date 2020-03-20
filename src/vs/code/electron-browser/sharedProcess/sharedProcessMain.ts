@@ -52,7 +52,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IUserDataSyncService, IUserDataSyncStoreService, registerConfiguration, IUserDataSyncLogService, IUserDataSyncUtilService, IUserDataSyncEnablementService, IUserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
 import { UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
-import { UserDataSyncChannel, UserDataSyncUtilServiceClient, UserDataAutoSyncChannel, UserDataSyncStoreServiceChannel, UserDataSyncBackupStoreServiceChannel } from 'vs/platform/userDataSync/common/userDataSyncIpc';
+import { UserDataSyncChannel, UserDataSyncUtilServiceClient, UserDataAutoSyncChannel } from 'vs/platform/userDataSync/common/userDataSyncIpc';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { LoggerService } from 'vs/platform/log/node/loggerService';
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
@@ -218,14 +218,6 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 			const authTokenService = accessor.get(IAuthenticationTokenService);
 			const authTokenChannel = new AuthenticationTokenServiceChannel(authTokenService);
 			server.registerChannel('authToken', authTokenChannel);
-
-			const userDataSyncStoreService = accessor.get(IUserDataSyncStoreService);
-			const userDataSyncStoreServiceChannel = new UserDataSyncStoreServiceChannel(userDataSyncStoreService);
-			server.registerChannel('userDataSyncStoreService', userDataSyncStoreServiceChannel);
-
-			const userDataSyncBackupStoreService = accessor.get(IUserDataSyncBackupStoreService);
-			const userDataSyncBackupStoreServiceChannel = new UserDataSyncBackupStoreServiceChannel(userDataSyncBackupStoreService);
-			server.registerChannel('userDataSyncBackupStoreService', userDataSyncBackupStoreServiceChannel);
 
 			const userDataSyncService = accessor.get(IUserDataSyncService);
 			const userDataSyncChannel = new UserDataSyncChannel(userDataSyncService);
