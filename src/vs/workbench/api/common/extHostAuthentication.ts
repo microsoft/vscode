@@ -17,8 +17,8 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 	private _onDidChangeAuthenticationProviders = new Emitter<vscode.AuthenticationProvidersChangeEvent>();
 	readonly onDidChangeAuthenticationProviders: Event<vscode.AuthenticationProvidersChangeEvent> = this._onDidChangeAuthenticationProviders.event;
 
-	private _onDidChangeSessions = new Emitter<string[]>();
-	readonly onDidChangeSessions: Event<string[]> = this._onDidChangeSessions.event;
+	private _onDidChangeSessions = new Emitter<{ [providerId: string]: vscode.AuthenticationSessionsChangeEvent }>();
+	readonly onDidChangeSessions: Event<{ [providerId: string]: vscode.AuthenticationSessionsChangeEvent }> = this._onDidChangeSessions.event;
 
 	constructor(mainContext: IMainContext) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadAuthentication);
@@ -85,9 +85,9 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 
 		this._authenticationProviders.set(provider.id, provider);
 
-		const listener = provider.onDidChangeSessions(_ => {
-			this._proxy.$onDidChangeSessions(provider.id);
-			this._onDidChangeSessions.fire([provider.id]);
+		const listener = provider.onDidChangeSessions(e => {
+			this._proxy.$onDidChangeSessions(provider.id, e);
+			this._onDidChangeSessions.fire({ [provider.id]: e });
 		});
 
 		this._proxy.$registerAuthenticationProvider(provider.id, provider.displayName);

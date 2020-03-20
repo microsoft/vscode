@@ -8,7 +8,7 @@ import { keychain } from './common/keychain';
 import { GitHubServer } from './githubServer';
 import Logger from './common/logger';
 
-export const onDidChangeSessions = new vscode.EventEmitter<void>();
+export const onDidChangeSessions = new vscode.EventEmitter<vscode.AuthenticationSessionsChangeEvent>();
 
 interface SessionData {
 	id: string;
@@ -29,14 +29,16 @@ export class GitHubAuthenticationProvider {
 	private pollForChange() {
 		setTimeout(async () => {
 			const storedSessions = await this.readSessions();
-			let didChange = false;
+
+			const added: string[] = [];
+			const removed: string[] = [];
 
 			storedSessions.forEach(session => {
 				const matchesExisting = this._sessions.some(s => s.id === session.id);
 				// Another window added a session to the keychain, add it to our state as well
 				if (!matchesExisting) {
 					this._sessions.push(session);
-					didChange = true;
+					added.push(session.id);
 				}
 			});
 
@@ -49,12 +51,12 @@ export class GitHubAuthenticationProvider {
 						this._sessions.splice(sessionIndex, 1);
 					}
 
-					didChange = true;
+					removed.push(session.id);
 				}
 			});
 
-			if (didChange) {
-				onDidChangeSessions.fire();
+			if (added.length || removed.length) {
+				onDidChangeSessions.fire({ added, removed, changed: [] });
 			}
 
 			this.pollForChange();
