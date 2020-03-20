@@ -14,6 +14,7 @@ import { IWorkingCopyService, IWorkingCopy } from 'vs/workbench/services/working
 import { isEqualOrParent, isEqual } from 'vs/base/common/resources';
 import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
 import { WorkingCopyFileOperationParticipant } from 'vs/workbench/services/workingCopy/common/workingCopyFileOperationParticipant';
+import { flatten } from 'vs/base/common/arrays';
 
 export const IWorkingCopyFileService = createDecorator<IWorkingCopyFileService>('workingCopyFileService');
 
@@ -56,6 +57,8 @@ export interface IWorkingCopyFileOperationParticipant {
 		token: CancellationToken
 	): Promise<void>;
 }
+
+type WorkingCopyProvider = (resourceOrFolder: URI) => IWorkingCopy[];
 
 /**
  * A service that allows to perform file operations with working copy support.
@@ -142,8 +145,9 @@ export interface IWorkingCopyFileService {
 
 	//#endregion
 
-
 	//#region Path related
+
+	registerWorkingCopyProvider(provider: WorkingCopyProvider): void;
 
 	/**
 	 * Will return all working copies that are dirty matching the provided resource.
@@ -275,7 +279,18 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 
 	//#region Path related
 
+	private readonly workingCopyProviders: WorkingCopyProvider[] = [];
+
+	registerWorkingCopyProvider(provider: WorkingCopyProvider): void {
+		this.workingCopyProviders.push(provider);
+	}
+
 	getDirty(resource: URI): IWorkingCopy[] {
+		const providerResources = flatten(this.workingCopyProviders.map(provider => provider(resource)));
+		if (providerResources.length) {
+			return providerResources;
+		}
+
 		return this.workingCopyService.dirtyWorkingCopies.filter(dirty => {
 			if (this.fileService.canHandleResource(resource)) {
 				// only check for parents if the resource can be handled
