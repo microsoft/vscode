@@ -10,7 +10,7 @@ import { stripWildcards } from 'vs/base/common/strings';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ThrottledDelayer } from 'vs/base/common/async';
-import { getWorkspaceSymbols, IWorkspaceSymbol, IWorkspaceSymbolProvider, IWorkbenchSearchConfiguration } from 'vs/workbench/contrib/search/common/search';
+import { getWorkspaceSymbols, IWorkspaceSymbol, IWorkspaceSymbolProvider } from 'vs/workbench/contrib/search/common/search';
 import { SymbolKinds, SymbolTag, SymbolKind } from 'vs/editor/common/modes';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Schemas } from 'vs/base/common/network';
@@ -63,17 +63,15 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 
 	private get configuration() {
 		const editorConfig = this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor;
-		const searchConfig = this.configurationService.getValue<IWorkbenchSearchConfiguration>();
 
 		return {
 			openEditorPinned: !editorConfig.enablePreviewFromQuickOpen,
-			openSideBySideDirection: editorConfig.openSideBySideDirection,
-			workspaceSymbolsFilter: searchConfig.search.quickOpen.workspaceSymbolsFilter
+			openSideBySideDirection: editorConfig.openSideBySideDirection
 		};
 	}
 
 	protected getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Promise<Array<ISymbolQuickPickItem>> {
-		return this.getSymbolPicks(filter, { skipLocal: this.configuration.workspaceSymbolsFilter === 'reduced' }, token);
+		return this.getSymbolPicks(filter, undefined, token);
 	}
 
 	async getSymbolPicks(filter: string, options: { skipLocal?: boolean, skipSorting?: boolean, delay?: number } | undefined, token: CancellationToken): Promise<Array<ISymbolQuickPickItem>> {

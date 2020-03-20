@@ -108,7 +108,6 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			openEditorPinned: !editorConfig.enablePreviewFromQuickOpen,
 			openSideBySideDirection: editorConfig.openSideBySideDirection,
 			includeSymbols: searchConfig.search.quickOpen.includeSymbols,
-			workspaceSymbolsFilter: searchConfig.search.quickOpen.workspaceSymbolsFilter,
 			includeHistory: searchConfig.search.quickOpen.includeHistory,
 			shortAutoSaveDelay: this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY
 		};
@@ -465,7 +464,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		// Delegate to the existing symbols quick access
 		// but skip local results and also do not sort
 		return this.symbolsQuickAccess.getSymbolPicks(query.value, {
-			skipLocal: configuration.workspaceSymbolsFilter !== 'all',
+			skipLocal: true,
 			skipSorting: true,
 			delay: AnythingQuickAccessProvider.TYPING_SEARCH_DELAY
 		}, token);

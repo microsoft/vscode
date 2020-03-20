@@ -77,7 +77,6 @@ export interface IWorkbenchSearchConfigurationProperties extends ISearchConfigur
 	quickOpen: {
 		includeSymbols: boolean;
 		includeHistory: boolean;
-		workspaceSymbolsFilter: 'default' | 'reduced' | 'all';
 	};
 }
 
