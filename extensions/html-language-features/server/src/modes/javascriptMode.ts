@@ -14,17 +14,28 @@ import { getWordAtText, startsWith, isWhitespaceOnly, repeat } from '../utils/st
 import { HTMLDocumentRegions } from './embeddedSupport';
 
 import * as ts from 'typescript';
-import { join } from 'path';
+import { join, resolve, dirname } from 'path';
+import { URI } from 'vscode-uri';
 import { getSemanticTokens, getSemanticTokenLegend } from './javascriptSemanticTokens';
+import * as fs from 'fs';
 
 const JS_WORD_REGEX = /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g;
 
-let jquery_d_ts = join(__dirname, '../lib/jquery.d.ts'); // when packaged
+let jquery_d_ts = join(__dirname, '../lib/jquery.d.ts').replace(/\\/g, '/'); // when packaged
 if (!ts.sys.fileExists(jquery_d_ts)) {
-	jquery_d_ts = join(__dirname, '../../lib/jquery.d.ts'); // from source
+	jquery_d_ts = join(__dirname, '../../lib/jquery.d.ts').replace(/\\/g, '/'); // from source
 }
-
-export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocumentRegions>, languageId: 'javascript' | 'typescript'): LanguageMode {
+interface IImportScripts {
+	files: string[];
+	buffer: {
+		[key: string]: {
+			mdt: Date,
+			doc: TextDocument,
+			lastuse: number
+		}
+	};
+}
+export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocumentRegions>, languageId: 'javascript' | 'typescript', libDefinitionFiles?: string[]): LanguageMode {
 	let jsDocuments = getLanguageModelCache<TextDocument>(10, 60, document => documentRegions.get(document).getEmbeddedDocument(languageId));
 
 	const workingFile = languageId === 'javascript' ? 'vscode://javascript/1.js' : 'vscode://javascript/2.ts'; // the same 'file' is used for all contents
@@ -32,34 +43,87 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 	let compilerOptions: ts.CompilerOptions = { allowNonTsExtensions: true, allowJs: true, lib: ['lib.es6.d.ts'], target: ts.ScriptTarget.Latest, moduleResolution: ts.ModuleResolutionKind.Classic };
 	let currentTextDocument: TextDocument;
 	let scriptFileVersion: number = 0;
+	let importedScripts: IImportScripts = {
+		files: [],
+		buffer: {}
+	};
+	const definitionFiles: string[] = libDefinitionFiles || [];
+
+	let bufferCleaner = setInterval(() => {
+		Object.keys(importedScripts.buffer).forEach((key) => {
+			let status = importedScripts.buffer[key];
+			if (Date.now() - status.lastuse > 300000) {
+				delete importedScripts.buffer[key];
+				let ndt = (new Date()).toLocaleTimeString();
+				console.log(`Time:${ndt}  Buffer cleared. Filename is:${key}`);
+			}
+		});
+	}, 60000);
 	function updateCurrentTextDocument(doc: TextDocument) {
 		if (!currentTextDocument || doc.uri !== currentTextDocument.uri || doc.version !== currentTextDocument.version) {
 			currentTextDocument = jsDocuments.get(doc);
+
+			let s = documentRegions.get(doc).getImportedScripts();
+			importedScripts.files.length = 0;
+			s.forEach(el => {
+				let dp = URI.parse(doc.uri).fsPath;
+				let p = resolve(dirname(dp), el).replace(/\\/g, '/');
+				if (ts.sys.fileExists(p)) {
+					importedScripts.files.push(p);
+				}
+			});
+
 			scriptFileVersion++;
 		}
 	}
 	const host: ts.LanguageServiceHost = {
 		getCompilationSettings: () => compilerOptions,
-		getScriptFileNames: () => [workingFile, jquery_d_ts],
+		getScriptFileNames: () => [workingFile, jquery_d_ts, ...definitionFiles, ...importedScripts.files],
 		getScriptKind: (fileName) => fileName.substr(fileName.length - 2) === 'ts' ? ts.ScriptKind.TS : ts.ScriptKind.JS,
 		getScriptVersion: (fileName: string) => {
 			if (fileName === workingFile) {
 				return String(scriptFileVersion);
 			}
+			let status = importedScripts.buffer[fileName];
+			if (status) {
+				return String(status.doc.version);
+			}
 			return '1'; // default lib an jquery.d.ts are static
 		},
 		getScriptSnapshot: (fileName: string) => {
-			let text = '';
+			let doc: TextDocument;
 			if (startsWith(fileName, 'vscode:')) {
 				if (fileName === workingFile) {
-					text = currentTextDocument.getText();
+					doc = currentTextDocument;
+				} else {
+					return {
+						getText: (start, end) => ''.substr(start, end),
+						getLength: () => 0,
+						getChangeRange: () => undefined
+					};
 				}
 			} else {
-				text = ts.sys.readFile(fileName) || '';
+				let mtime = fs.statSync(fileName).mtime;
+				let url = URI.file(fileName).toString();
+				if (!importedScripts.buffer[fileName]) {
+					importedScripts.buffer[fileName] = {
+						mdt: mtime,
+						doc: TextDocument.create(url, languageId, 0, ts.sys.readFile(fileName) || ''),
+						lastuse: 0
+					};
+				} else if (importedScripts.buffer[fileName].mdt < mtime) {
+					let stat = importedScripts.buffer[fileName];
+					let ver = stat.doc.version + 1;
+					stat.mdt = mtime;
+					stat.doc = TextDocument.create(url, languageId, ver, ts.sys.readFile(fileName) || '');
+					stat.lastuse = Date.now();
+				}
+				importedScripts.buffer[fileName].lastuse = Date.now();
+				doc = importedScripts.buffer[fileName].doc;
 			}
 			return {
-				getText: (start, end) => text.substring(start, end),
-				getLength: () => text.length,
+				getText: (start, end) => doc.getText().substring(start, end),
+				getLength: () => doc.getText().length,
 				getChangeRange: () => undefined
 			};
 		},
@@ -227,10 +291,20 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			updateCurrentTextDocument(document);
 			let definition = jsLanguageService.getDefinitionAtPosition(workingFile, currentTextDocument.offsetAt(position));
 			if (definition) {
-				return definition.filter(d => d.fileName === workingFile).map(d => {
+				return definition.map(d => {
+					let uri;
+					let range;
+					if (d.fileName === workingFile) {
+						uri = document.uri;
+						range = convertRange(currentTextDocument, d.textSpan);
+					} else {
+						let status = importedScripts.buffer[d.fileName];
+						uri = status.doc.uri;
+						range = convertRange(status.doc, d.textSpan);
+					}
 					return {
-						uri: document.uri,
-						range: convertRange(currentTextDocument, d.textSpan)
+						uri: uri,
+						range: range
 					};
 				});
 			}
@@ -240,10 +314,11 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			updateCurrentTextDocument(document);
 			let references = jsLanguageService.getReferencesAtPosition(workingFile, currentTextDocument.offsetAt(position));
 			if (references) {
-				return references.filter(d => d.fileName === workingFile).map(d => {
+				return references.map(d => {
+					let doc = d.fileName === workingFile ? currentTextDocument : importedScripts.buffer[d.fileName].doc;
 					return {
-						uri: document.uri,
-						range: convertRange(currentTextDocument, d.textSpan)
+						uri: doc.uri,
+						range: convertRange(doc, d.textSpan)
 					};
 				});
 			}
@@ -324,6 +399,7 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			return getSemanticTokenLegend();
 		},
 		dispose() {
+			clearInterval(bufferCleaner);
 			jsLanguageService.dispose();
 			jsDocuments.dispose();
 		}

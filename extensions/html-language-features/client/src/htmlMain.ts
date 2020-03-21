@@ -21,6 +21,7 @@ import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
 import { activateTagClosing } from './tagClosing';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import { getCustomDataPathsInAllWorkspaces, getCustomDataPathsFromAllExtensions } from './customData';
+import { getLibDefinitionFilesInAllWorkspaces } from './libDefinitionFiles';
 
 namespace TagCloseRequest {
 	export const type: RequestType<TextDocumentPositionParams, string, any, any> = new RequestType('html/tag');
@@ -78,7 +79,7 @@ export function activate(context: ExtensionContext) {
 		...getCustomDataPathsInAllWorkspaces(workspace.workspaceFolders),
 		...getCustomDataPathsFromAllExtensions()
 	];
-
+	let libDefinitionFiles = getLibDefinitionFilesInAllWorkspaces(workspace.workspaceFolders);
 	// Options to control the language client
 	let clientOptions: LanguageClientOptions = {
 		documentSelector,
@@ -88,6 +89,7 @@ export function activate(context: ExtensionContext) {
 		initializationOptions: {
 			embeddedLanguages,
 			dataPaths,
+			libDefinitionFiles,
 			provideFormatter: false, // tell the server to not provide formatting capability and ignore the `html.format.enable` setting.
 		},
 		middleware: {
