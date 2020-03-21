@@ -580,7 +580,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 			let editor = this._editors.get(URI.revive(uri).toString());
 			let document = this._documents.get(URI.revive(uri).toString());
 
-			let rawCell = editor?.editor.createCell('', language, type, [], undefined) as ExtHostCell;
+			let rawCell = editor?.editor.createCell('', language, type, [], { editable: true }) as ExtHostCell;
 			document?.insertCell(index, rawCell!);
 
 			let allDocuments = this._documentsAndEditors.allDocuments();

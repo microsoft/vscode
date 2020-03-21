@@ -72,7 +72,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		splices.reverse().forEach(splice => {
 			let cellDtos = splice[2];
 			let newCells = cellDtos.map(cell => {
-				let mainCell = new NotebookCellTextModel(URI.revive(cell.uri), cell.handle, cell.source, cell.language, cell.cellKind, cell.outputs || []);
+				let mainCell = new NotebookCellTextModel(URI.revive(cell.uri), cell.handle, cell.source, cell.language, cell.cellKind, cell.outputs || [], cell.metadata);
 				this._mapping.set(cell.handle, mainCell);
 				let dirtyStateListener = mainCell.onDidChangeContent(() => {
 					this._onDidChangeContent.fire();

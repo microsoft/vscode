@@ -33,14 +33,16 @@ suite('NotebookViewModel', () => {
 			blukEditService,
 			undoRedoService,
 			[
-				[['var a = 1;'], 'javascript', CellKind.Code, []],
-				[['var b = 2;'], 'javascript', CellKind.Code, []]
+				[['var a = 1;'], 'javascript', CellKind.Code, [], { editable: true }],
+				[['var b = 2;'], 'javascript', CellKind.Code, [], { editable: false }]
 			],
 			(editor, viewModel) => {
 				const cell = viewModel.insertCell(1, new TestCell(viewModel.viewType, 0, ['var c = 3;'], 'javascript', CellKind.Code, []), true);
 				assert.equal(viewModel.viewCells.length, 3);
 				assert.equal(viewModel.notebookDocument.cells.length, 3);
 				assert.equal(viewModel.getViewCellIndex(cell), 1);
+				assert.equal(viewModel.viewCells[0].metadata?.editable, true);
+				assert.equal(viewModel.viewCells[0].metadata?.editable, false);
 
 				viewModel.deleteCell(1, true);
 				assert.equal(viewModel.viewCells.length, 2);
@@ -56,8 +58,8 @@ suite('NotebookViewModel', () => {
 			blukEditService,
 			undoRedoService,
 			[
-				[['var a = 1;'], 'javascript', CellKind.Code, []],
-				[['var b = 2;'], 'javascript', CellKind.Code, []]
+				[['var a = 1;'], 'javascript', CellKind.Code, [], { editable: true }],
+				[['var b = 2;'], 'javascript', CellKind.Code, [], { editable: true }]
 			],
 			(editor, viewModel) => {
 				const firstViewCell = viewModel.viewCells[0];

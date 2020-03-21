@@ -26,5 +26,10 @@ export const EDITOR_BOTTOM_PADDING = 8;
 export const EDITOR_TOOLBAR_HEIGHT = 22;
 export const RUN_BUTTON_WIDTH = 20;
 
-// Context Keys
+// Cell context keys
 export const NOTEBOOK_CELL_TYPE_CONTEXT_KEY = 'notebookCellType';
+export const NOTEBOOK_CELL_EDITABLE_CONTEXT_KEY = 'notebookCellEditable';
+export const NOTEBOOK_CELL_MARKDOWN_EDIT_MODE_CONTEXT_KEY = 'notebookCellMarkdownEditMode';
+
+// Notebook context keys
+export const NOTEBOOK_EDITABLE_CONTEXT_KEY = 'notebookEditable';

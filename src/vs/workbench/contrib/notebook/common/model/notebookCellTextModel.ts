@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { ICell, IOutput, NotebookCellOutputsSplice, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICell, IOutput, NotebookCellOutputsSplice, CellKind, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { PieceTreeTextBufferFactory, PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { URI } from 'vs/base/common/uri';
 
@@ -38,7 +38,8 @@ export class NotebookCellTextModel implements ICell {
 		private _source: string[],
 		public language: string,
 		public cellKind: CellKind,
-		outputs: IOutput[]
+		outputs: IOutput[],
+		public readonly metadata: NotebookCellMetadata | undefined
 	) {
 		this._outputs = outputs;
 	}

@@ -241,7 +241,7 @@ export class MainThreadNotebookController implements IMainNotebookController {
 	async createRawCell(uri: URI, index: number, language: string, type: CellKind): Promise<NotebookCellTextModel | undefined> {
 		let cell = await this._proxy.$createEmptyCell(this._viewType, uri, index, language, type);
 		if (cell) {
-			let mainCell = new NotebookCellTextModel(URI.revive(cell.uri), cell.handle, cell.source, cell.language, cell.cellKind, cell.outputs);
+			let mainCell = new NotebookCellTextModel(URI.revive(cell.uri), cell.handle, cell.source, cell.language, cell.cellKind, cell.outputs, cell.metadata);
 			return mainCell;
 		}
 

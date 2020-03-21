@@ -16,7 +16,7 @@ import { FindMatch } from 'vs/editor/common/model';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { IModelDecorationsChangeAccessor, NotebookViewModel, CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { CellKind, IOutput, IRenderOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, IOutput, IRenderOutput, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('notebookFindWidgetFocused', false);
 
@@ -73,6 +73,7 @@ export interface ICellViewModel {
 	runState: CellRunState;
 	focusMode: CellFocusMode;
 	getText(): string;
+	metadata: NotebookCellMetadata | undefined;
 }
 
 export interface INotebookEditor {

@@ -6,7 +6,7 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { PieceTreeTextBufferFactory } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
-import { CellKind, ICell, IOutput, NotebookCellOutputsSplice, CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, ICell, IOutput, NotebookCellOutputsSplice, CellUri, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookViewModel, IModelDecorationsChangeAccessor, CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
@@ -187,12 +187,12 @@ export class TestNotebookEditor implements INotebookEditor {
 // 	return createCellViewModel(instantiationService, viewType, notebookHandle, mockCell);
 // }
 
-export function withTestNotebook(instantiationService: IInstantiationService, blukEditService: IBulkEditService, undoRedoService: IUndoRedoService, cells: [string[], string, CellKind, IOutput[]][], callback: (editor: TestNotebookEditor, viewModel: NotebookViewModel) => void) {
+export function withTestNotebook(instantiationService: IInstantiationService, blukEditService: IBulkEditService, undoRedoService: IUndoRedoService, cells: [string[], string, CellKind, IOutput[], NotebookCellMetadata][], callback: (editor: TestNotebookEditor, viewModel: NotebookViewModel) => void) {
 	const viewType = 'notebook';
 	const editor = new TestNotebookEditor();
 	const notebook = new NotebookTextModel(0, viewType, URI.parse('test'));
 	notebook.cells = cells.map((cell, index) => {
-		return new NotebookCellTextModel(notebook.uri, index, cell[0], cell[1], cell[2], cell[3]);
+		return new NotebookCellTextModel(notebook.uri, index, cell[0], cell[1], cell[2], cell[3], cell[4]);
 	});
 	const model = new NotebookEditorModel(notebook);
 	const viewModel = new NotebookViewModel(viewType, model, instantiationService, blukEditService, undoRedoService);
