@@ -33,7 +33,7 @@ export class ExtHostCell implements vscode.NotebookCell {
 		public cellKind: CellKind,
 		public language: string,
 		outputs: any[],
-		public metadata: vscode.NotebookCellMetadata | undefined,
+		public metadata: vscode.NotebookCellMetadata,
 	) {
 		this.source = this._content.split(/\r|\n|\r\n/g);
 		this._outputs = outputs;
@@ -341,6 +341,10 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 	}
 }
 
+const notebookCellMetadataDefaults: vscode.NotebookCellMetadata = {
+	editable: true
+};
+
 export class ExtHostNotebookEditor extends Disposable implements vscode.NotebookEditor {
 	private _viewColumn: vscode.ViewColumn | undefined;
 	private static _cellhandlePool: number = 0;
@@ -382,6 +386,10 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 	createCell(content: string, language: string, type: CellKind, outputs: vscode.CellOutput[], metadata: vscode.NotebookCellMetadata | undefined): vscode.NotebookCell {
 		const handle = ExtHostNotebookEditor._cellhandlePool++;
 		const uri = CellUri.generate(this.document.uri, handle);
+		metadata = {
+			...notebookCellMetadataDefaults,
+			...(metadata || {})
+		};
 		const cell = new ExtHostCell(handle, uri, content, type, language, outputs, metadata);
 		return cell;
 	}

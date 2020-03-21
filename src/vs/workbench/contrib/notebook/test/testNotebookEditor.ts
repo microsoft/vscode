@@ -26,6 +26,11 @@ export class TestCell implements ICell {
 	onDidChangeOutputs: Event<NotebookCellOutputsSplice[]> = this._onDidChangeOutputs.event;
 	private _isDirty: boolean = false;
 	private _outputs: IOutput[];
+
+	get metadata(): NotebookCellMetadata {
+		return { editable: true };
+	}
+
 	get outputs(): IOutput[] {
 		return this._outputs;
 	}

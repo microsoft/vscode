@@ -39,7 +39,7 @@ export class NotebookCellTextModel implements ICell {
 		public language: string,
 		public cellKind: CellKind,
 		outputs: IOutput[],
-		public readonly metadata: NotebookCellMetadata | undefined
+		public readonly metadata: NotebookCellMetadata
 	) {
 		this._outputs = outputs;
 	}

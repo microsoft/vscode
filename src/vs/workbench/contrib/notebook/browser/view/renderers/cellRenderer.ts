@@ -203,7 +203,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 
 			const contextKeyService = this.contextKeyService.createScoped(templateData.container);
 			contextKeyService.createKey(NOTEBOOK_CELL_TYPE_CONTEXT_KEY, 'markdown');
-			contextKeyService.createKey(NOTEBOOK_CELL_EDITABLE_CONTEXT_KEY, element.metadata?.editable);
+			contextKeyService.createKey(NOTEBOOK_CELL_EDITABLE_CONTEXT_KEY, element.metadata.editable);
 			contextKeyService.createKey(NOTEBOOK_EDITABLE_CONTEXT_KEY, this.notebookEditor.viewModel?.metadata?.editable);
 
 			const toolbarActions = this.getCellToolbarActions(contextKeyService);
@@ -344,7 +344,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		const contextKeyService = this.contextKeyService.createScoped(templateData.container);
 		contextKeyService.createKey(NOTEBOOK_CELL_TYPE_CONTEXT_KEY, 'code');
-		contextKeyService.createKey(NOTEBOOK_CELL_EDITABLE_CONTEXT_KEY, element.metadata?.editable);
+		contextKeyService.createKey(NOTEBOOK_CELL_EDITABLE_CONTEXT_KEY, element.metadata.editable);
 		contextKeyService.createKey(NOTEBOOK_EDITABLE_CONTEXT_KEY, this.notebookEditor.viewModel?.metadata?.editable);
 
 		const toolbarActions = this.getCellToolbarActions(contextKeyService);

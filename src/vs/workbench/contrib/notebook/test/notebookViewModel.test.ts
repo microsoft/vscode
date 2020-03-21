@@ -41,8 +41,8 @@ suite('NotebookViewModel', () => {
 				assert.equal(viewModel.viewCells.length, 3);
 				assert.equal(viewModel.notebookDocument.cells.length, 3);
 				assert.equal(viewModel.getViewCellIndex(cell), 1);
-				assert.equal(viewModel.viewCells[0].metadata?.editable, true);
-				assert.equal(viewModel.viewCells[0].metadata?.editable, false);
+				assert.equal(viewModel.viewCells[0].metadata.editable, true);
+				assert.equal(viewModel.viewCells[1].metadata.editable, false);
 
 				viewModel.deleteCell(1, true);
 				assert.equal(viewModel.viewCells.length, 2);
