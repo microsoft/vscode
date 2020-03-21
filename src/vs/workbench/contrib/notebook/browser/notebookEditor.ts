@@ -332,6 +332,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		}
 
 		this.notebookViewModel = this.instantiationService.createInstance(NotebookViewModel, input.viewType!, model);
+		this.notebookViewModel?.updateLayoutInfo(this.getLayoutInfo());
 		const viewState = this.loadTextEditorViewState(input);
 		this.notebookViewModel.restoreEditorViewState(viewState);
 
@@ -413,6 +414,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		DOM.toggleClass(this.rootElement, 'narrow-width', dimension.width < 600);
 		DOM.size(this.body, dimension.width, dimension.height);
 		this.list?.layout(dimension.height, dimension.width);
+		this.notebookViewModel?.updateLayoutInfo(this.getLayoutInfo());
 	}
 
 	protected saveState(): void {
@@ -658,9 +660,6 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			height: this.dimension!.height,
 			fontInfo: this.fontInfo!
 		};
-	}
-	getFontInfo(): BareFontInfo | undefined {
-		return this.fontInfo;
 	}
 
 	triggerScroll(event: IMouseWheelEvent) {

@@ -12,7 +12,7 @@ import { INotebookEditor, CellRenderTemplate, CellFocusMode, CellState } from 'v
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { raceCancellation } from 'vs/base/common/async';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
-import { CELL_MARGIN, EDITOR_TOP_PADDING, EDITOR_BOTTOM_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
+import { EDITOR_TOP_PADDING, EDITOR_BOTTOM_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 
 export class StatefullMarkdownCell extends Disposable {
 	private editor: CodeEditorWidget | null = null;
@@ -38,16 +38,9 @@ export class StatefullMarkdownCell extends Disposable {
 		const viewUpdate = () => {
 			if (viewCell.state === CellState.Editing) {
 				// switch to editing mode
-				let width: number;
-				const listDimension = notebookEditor.getLayoutInfo();
-				width = listDimension.width - CELL_MARGIN * 2;
-				// if (listDimension) {
-				// } else {
-				// 	width = this.cellContainer.clientWidth - 24 /** for scrollbar and margin right */;
-				// }
-
+				let width = viewCell.layoutInfo.editorWidth;
 				const lineNum = viewCell.lineCount;
-				const lineHeight = notebookEditor.getLayoutInfo().fontInfo.lineHeight;
+				const lineHeight = viewCell.layoutInfo.fontInfo?.lineHeight || 17;
 				const totalHeight = Math.max(lineNum, 1) * lineHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING;
 
 				if (this.editor) {

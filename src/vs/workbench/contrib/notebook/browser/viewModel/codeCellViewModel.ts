@@ -8,23 +8,10 @@ import * as UUID from 'vs/base/common/uuid';
 import * as model from 'vs/editor/common/model';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
-import { CellState, ICellViewModel, CellFindMatch } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_PADDING, CELL_MARGIN, RUN_BUTTON_WIDTH } from 'vs/workbench/contrib/notebook/browser/constants';
+import { CellState, ICellViewModel, CellFindMatch, NotebookViewLayoutAccessor, CodeCellLayoutChangeEvent, CodeCellLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind, ICell, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { BaseCellViewModel } from './baseCellViewModel';
-
-export interface CodeCellLayoutInfo {
-	readonly editorHeight: number;
-	readonly totalHeight: number;
-	readonly outputTotalHeight: number;
-	readonly indicatorHeight: number;
-}
-
-export interface CodeCellLayoutChangeEvent {
-	editorHeight?: boolean;
-	outputHeight?: boolean;
-	totalHeight?: boolean;
-}
 
 export class CodeCellViewModel extends BaseCellViewModel implements ICellViewModel {
 	cellKind: CellKind.Code = CellKind.Code;
@@ -72,6 +59,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		readonly viewType: string,
 		readonly notebookHandle: number,
 		readonly cell: ICell,
+		private _layoutAccessor: NotebookViewLayoutAccessor,
 		@ITextModelService private readonly _modelService: ITextModelService,
 	) {
 		super(viewType, notebookHandle, cell, UUID.generateUuid());
@@ -87,11 +75,19 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		this._buffer = null;
 
 		this._layoutInfo = {
+			fontInfo: _layoutAccessor.layoutInfo?.fontInfo || null,
 			editorHeight: 0,
+			editorWidth: 0,
 			outputTotalHeight: 0,
 			totalHeight: 0,
 			indicatorHeight: 0
 		};
+
+		this._register(_layoutAccessor.onDidChangeLayout((e) => {
+			if (e.width) {
+				this.layoutChange({ outerWidth: true });
+			}
+		}));
 	}
 
 	layoutChange(state: CodeCellLayoutChangeEvent) {
@@ -102,9 +98,11 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			? EDITOR_TOOLBAR_HEIGHT + this.editorHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING + 16 + outputTotalHeight
 			: EDITOR_TOOLBAR_HEIGHT + this.editorHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING + outputTotalHeight;
 		const indicatorHeight = totalHeight - EDITOR_TOOLBAR_HEIGHT - 16;
-
+		const editorWidth = this._layoutAccessor.layoutInfo ? this._layoutAccessor.layoutInfo.width - CELL_MARGIN * 2 - RUN_BUTTON_WIDTH : 0;
 		this._layoutInfo = {
+			fontInfo: this._layoutAccessor.layoutInfo?.fontInfo || null,
 			editorHeight: this._editorHeight,
+			editorWidth,
 			outputTotalHeight,
 			totalHeight,
 			indicatorHeight

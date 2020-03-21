@@ -70,7 +70,7 @@ export class DeleteCellEdit implements IResourceUndoRedoElement {
 			throw new Error('Notebook Insert Cell not implemented for Undo/Redo');
 		}
 
-		const cell = createCellViewModel(this.instantiationService, this.notebookViewModel.viewType, this.notebookViewModel.handle, this._rawCell);
+		const cell = createCellViewModel(this.instantiationService, this.notebookViewModel, this._rawCell);
 		this.editingDelegate.insertCell(this.insertIndex, cell);
 	}
 

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from 'vs/base/common/event';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -25,6 +26,42 @@ export interface NotebookLayoutInfo {
 	width: number;
 	height: number;
 	fontInfo: BareFontInfo;
+}
+
+export interface NotebookLayoutChangeEvent {
+	width?: boolean;
+	height?: boolean;
+	fontInfo?: boolean;
+}
+
+export interface NotebookViewLayoutAccessor {
+	layoutInfo: NotebookLayoutInfo | null;
+	onDidChangeLayout: Event<NotebookLayoutChangeEvent>;
+}
+
+export interface CodeCellLayoutInfo {
+	readonly fontInfo: BareFontInfo | null;
+	readonly editorHeight: number;
+	readonly editorWidth: number;
+	readonly totalHeight: number;
+	readonly outputTotalHeight: number;
+	readonly indicatorHeight: number;
+}
+
+export interface CodeCellLayoutChangeEvent {
+	editorHeight?: boolean;
+	outputHeight?: boolean;
+	totalHeight?: boolean;
+	outerWidth?: boolean;
+}
+
+export interface MarkdownCellLayoutInfo {
+	readonly fontInfo: BareFontInfo | null;
+	readonly editorWidth: number;
+}
+
+export interface MarkdownCellLayoutChangeEvent {
+	outerWidth?: boolean;
 }
 
 export interface ICellViewModel {

@@ -8,10 +8,11 @@ import * as UUID from 'vs/base/common/uuid';
 import * as model from 'vs/editor/common/model';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CellState, ICellViewModel, CellFindMatch } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellState, ICellViewModel, CellFindMatch, NotebookViewLayoutAccessor, MarkdownCellLayoutInfo, MarkdownCellLayoutChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { MarkdownRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/mdRenderer';
 import { BaseCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/baseCellViewModel';
 import { CellKind, ICell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CELL_MARGIN } from 'vs/workbench/contrib/notebook/browser/constants';
 
 export class MarkdownCellViewModel extends BaseCellViewModel implements ICellViewModel {
 	cellKind: CellKind.Markdown = CellKind.Markdown;
@@ -20,14 +21,46 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 	private readonly _onDidChangeContent: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 
+	private _layoutInfo: MarkdownCellLayoutInfo;
+
+	get layoutInfo() {
+		return this._layoutInfo;
+	}
+
+	protected readonly _onDidChangeLayout = new Emitter<MarkdownCellLayoutChangeEvent>();
+	readonly onDidChangeLayout = this._onDidChangeLayout.event;
 
 	constructor(
 		readonly viewType: string,
 		readonly notebookHandle: number,
 		readonly cell: ICell,
+		private _layoutAccessor: NotebookViewLayoutAccessor,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@ITextModelService private readonly _modelService: ITextModelService) {
 		super(viewType, notebookHandle, cell, UUID.generateUuid());
+
+		this._layoutInfo = {
+			fontInfo: this._layoutAccessor.layoutInfo?.fontInfo || null,
+			editorWidth: 0
+		};
+
+		this._register(_layoutAccessor.onDidChangeLayout((e) => {
+			if (e.width) {
+				this.layoutChange({ outerWidth: true });
+			}
+		}));
+	}
+
+	layoutChange(state: MarkdownCellLayoutChangeEvent) {
+		// recompute
+		const editorWidth = this._layoutAccessor.layoutInfo ? this._layoutAccessor.layoutInfo.width - CELL_MARGIN * 2 : 0;
+
+		this._layoutInfo = {
+			fontInfo: this._layoutAccessor.layoutInfo?.fontInfo || null,
+			editorWidth
+		};
+
+		this._onDidChangeLayout.fire(state);
 	}
 
 	hasDynamicHeight() {

@@ -14,7 +14,7 @@ import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { WorkspaceTextEdit } from 'vs/editor/common/modes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { CellFindMatch, CellState, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellFindMatch, CellState, ICellViewModel, NotebookLayoutInfo, NotebookLayoutChangeEvent, NotebookViewLayoutAccessor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { DeleteCellEdit, InsertCellEdit, MoveCellEdit } from 'vs/workbench/contrib/notebook/browser/viewModel/cellEdit';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
@@ -54,7 +54,7 @@ export interface INotebookViewCellsUpdateEvent {
 	splices: NotebookViewCellsSplice[];
 }
 
-export class NotebookViewModel extends Disposable {
+export class NotebookViewModel extends Disposable implements NotebookViewLayoutAccessor {
 	private _localStore: DisposableStore = this._register(new DisposableStore());
 	private _viewCells: CellViewModel[] = [];
 
@@ -98,6 +98,13 @@ export class NotebookViewModel extends Disposable {
 		return null;
 	}
 
+	protected readonly _onDidChangeLayout = new Emitter<NotebookLayoutChangeEvent>();
+	readonly onDidChangeLayout = this._onDidChangeLayout.event;
+	private _layoutInfo: NotebookLayoutInfo | null = null;
+	get layoutInfo() {
+		return this._layoutInfo;
+	}
+
 	constructor(
 		public viewType: string,
 		private _model: NotebookEditorModel,
@@ -112,14 +119,14 @@ export class NotebookViewModel extends Disposable {
 				synchronous: true,
 				splices: e.map(splice => {
 					return [splice[0], splice[1], splice[2].map(cell => {
-						return createCellViewModel(this.instantiationService, this.viewType, this.handle, cell);
+						return createCellViewModel(this.instantiationService, this, cell);
 					})];
 				})
 			});
 		}));
 
 		this._viewCells = this._model!.notebook!.cells.map(cell => {
-			return createCellViewModel(this.instantiationService, this.viewType, this._model!.notebook!.handle, cell);
+			return createCellViewModel(this.instantiationService, this, cell);
 		});
 	}
 
@@ -153,7 +160,7 @@ export class NotebookViewModel extends Disposable {
 	}
 
 	insertCell(index: number, cell: ICell, synchronous: boolean): CellViewModel {
-		let newCell: CellViewModel = createCellViewModel(this.instantiationService, this.viewType, this.handle, cell);
+		let newCell: CellViewModel = createCellViewModel(this.instantiationService, this, cell);
 		this._viewCells!.splice(index, 0, newCell);
 		this._model.insertCell(newCell.cell, index);
 		this._localStore.add(newCell);
@@ -373,6 +380,24 @@ export class NotebookViewModel extends Disposable {
 		return this._model === model;
 	}
 
+	updateLayoutInfo(layoutInfo: NotebookLayoutInfo | null) {
+		if (layoutInfo === null) {
+			return;
+		}
+
+		if (this._layoutInfo === null) {
+			this._layoutInfo = layoutInfo;
+			this._onDidChangeLayout.fire({ width: true, height: true });
+			return;
+		}
+
+		let widthChanged = layoutInfo.width !== this._layoutInfo.width;
+		let heightChanged = layoutInfo.height !== this._layoutInfo.height;
+
+		this._layoutInfo = layoutInfo;
+		this._onDidChangeLayout.fire({ width: widthChanged, height: heightChanged });
+	}
+
 	dispose() {
 		this._localStore.clear();
 		this._viewCells.forEach(cell => {
@@ -386,10 +411,10 @@ export class NotebookViewModel extends Disposable {
 
 export type CellViewModel = CodeCellViewModel | MarkdownCellViewModel;
 
-export function createCellViewModel(instantiationService: IInstantiationService, viewType: string, notebookHandle: number, cell: ICell) {
+export function createCellViewModel(instantiationService: IInstantiationService, notebookViewModel: NotebookViewModel, cell: ICell) {
 	if (cell.cellKind === CellKind.Code) {
-		return instantiationService.createInstance(CodeCellViewModel, viewType, notebookHandle, cell);
+		return instantiationService.createInstance(CodeCellViewModel, notebookViewModel.viewType, notebookViewModel.handle, cell, notebookViewModel);
 	} else {
-		return instantiationService.createInstance(MarkdownCellViewModel, viewType, notebookHandle, cell);
+		return instantiationService.createInstance(MarkdownCellViewModel, notebookViewModel.viewType, notebookViewModel.handle, cell, notebookViewModel);
 	}
 }
