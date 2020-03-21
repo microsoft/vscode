@@ -218,6 +218,8 @@ suite('Filters', () => {
 		filterOk(matchesWords, 'foo+bar', 'foo-bar');
 		filterOk(matchesWords, 'foo-bar', 'foo bar');
 		filterOk(matchesWords, 'foo:bar', 'foo:bar');
+
+		assert(!matchesWords('foo-bar', 'foo bar', false, false), 'foo-bar matched foo bar');
 	});
 
 	function assertMatches(pattern: string, word: string, decoratedWord: string | undefined, filter: FuzzyScorer, opts: { patternPos?: number, wordPos?: number, firstMatchCanBeWeak?: boolean } = {}) {

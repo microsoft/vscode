@@ -128,8 +128,8 @@ function isWordSeparator(code: number): boolean {
 	return isWhitespace(code) || wordSeparators.has(code);
 }
 
-function charactersMatch(codeA: number, codeB: number): boolean {
-	return (codeA === codeB) || (isWordSeparator(codeA) && isWordSeparator(codeB));
+function charactersMatch(codeA: number, codeB: number, skipWordSeparator: boolean = true): boolean {
+	return (codeA === codeB) || (skipWordSeparator && isWordSeparator(codeA) && isWordSeparator(codeB));
 }
 
 function isAlphanumeric(code: number): boolean {
@@ -280,7 +280,7 @@ export function matchesCamelCase(word: string, camelCaseWord: string): IMatch[] 
 // Otherwise also matches sub string of the word with beginnings of the words in the target. E.g. "gp" or "g p" will match "Git: Pull"
 // Useful in cases where the target is words (e.g. command labels)
 
-export function matchesWords(word: string, target: string, contiguous: boolean = false): IMatch[] | null {
+export function matchesWords(word: string, target: string, contiguous: boolean = false, skipWordSeparator: boolean = true): IMatch[] | null {
 	if (!target || target.length === 0) {
 		return null;
 	}
@@ -290,27 +290,27 @@ export function matchesWords(word: string, target: string, contiguous: boolean =
 
 	word = word.toLowerCase();
 	target = target.toLowerCase();
-	while (i < target.length && (result = _matchesWords(word, target, 0, i, contiguous)) === null) {
+	while (i < target.length && (result = _matchesWords(word, target, 0, i, contiguous, skipWordSeparator)) === null) {
 		i = nextWord(target, i + 1);
 	}
 
 	return result;
 }
 
-function _matchesWords(word: string, target: string, i: number, j: number, contiguous: boolean): IMatch[] | null {
+function _matchesWords(word: string, target: string, i: number, j: number, contiguous: boolean, skipWordSeparator: boolean = true): IMatch[] | null {
 	if (i === word.length) {
 		return [];
 	} else if (j === target.length) {
 		return null;
-	} else if (!charactersMatch(word.charCodeAt(i), target.charCodeAt(j))) {
+	} else if (!charactersMatch(word.charCodeAt(i), target.charCodeAt(j), skipWordSeparator)) {
 		return null;
 	} else {
 		let result: IMatch[] | null = null;
 		let nextWordIndex = j + 1;
-		result = _matchesWords(word, target, i + 1, j + 1, contiguous);
+		result = _matchesWords(word, target, i + 1, j + 1, contiguous, skipWordSeparator);
 		if (!contiguous) {
 			while (!result && (nextWordIndex = nextWord(target, nextWordIndex)) < target.length) {
-				result = _matchesWords(word, target, i + 1, nextWordIndex, contiguous);
+				result = _matchesWords(word, target, i + 1, nextWordIndex, contiguous, skipWordSeparator);
 				nextWordIndex++;
 			}
 		}
@@ -320,8 +320,9 @@ function _matchesWords(word: string, target: string, i: number, j: number, conti
 
 function nextWord(word: string, start: number): number {
 	for (let i = start; i < word.length; i++) {
-		if (isWordSeparator(word.charCodeAt(i)) ||
-			(i > 0 && isWordSeparator(word.charCodeAt(i - 1)))) {
+		const c = word.charCodeAt(i);
+		if (isWhitespace(c) || (i > 0 && isWhitespace(word.charCodeAt(i - 1))) ||
+			isWordSeparator(c) || (i > 0 && isWordSeparator(word.charCodeAt(i - 1)))) {
 			return i;
 		}
 	}

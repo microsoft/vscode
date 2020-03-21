@@ -480,14 +480,14 @@ export class SettingMatches {
 		for (const word of words) {
 			if (this.searchDescription) {
 				for (let lineIndex = 0; lineIndex < setting.description.length; lineIndex++) {
-					const descriptionMatches = matchesWords(word, setting.description[lineIndex], true);
+					const descriptionMatches = matchesWords(word, setting.description[lineIndex], true, false);
 					if (descriptionMatches) {
 						this.descriptionMatchingWords.set(word, descriptionMatches.map(match => this.toDescriptionRange(setting, match, lineIndex)));
 					}
 				}
 			}
 
-			const keyMatches = or(matchesWords, matchesCamelCase)(word, settingKeyAsWords);
+			const keyMatches = matchesWords(word, settingKeyAsWords, false, false) || matchesCamelCase(word, settingKeyAsWords);
 			if (keyMatches) {
 				this.keyMatchingWords.set(word, keyMatches.map(match => this.toKeyRange(setting, match)));
 			}
