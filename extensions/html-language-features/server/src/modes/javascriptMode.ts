@@ -53,6 +53,7 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			let status = importedScripts.buffer[key];
 			if (Date.now() - status.lastuse > 300000) {
 				delete importedScripts.buffer[key];
+				console.log(`Buffer cleared. File name is:${key}`);
 			}
 		})
 		setTimeout(clearbuffer, 300000)
