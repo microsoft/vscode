@@ -25,12 +25,11 @@ let jquery_d_ts = join(__dirname, '../lib/jquery.d.ts').replace(/\\/g, '/'); // 
 if (!ts.sys.fileExists(jquery_d_ts)) {
 	jquery_d_ts = join(__dirname, '../../lib/jquery.d.ts').replace(/\\/g, '/'); // from source
 }
-interface IimportScripts {
+interface IImportScripts {
 	files: string[];
-	status: {
+	buffer: {
 		[key: string]: {
 			mdt: Date,
-			txt: string,
 			doc: TextDocument,
 			lastuse: number
 		}
@@ -44,16 +43,16 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 	let compilerOptions: ts.CompilerOptions = { allowNonTsExtensions: true, allowJs: true, lib: ['lib.es6.d.ts'], target: ts.ScriptTarget.Latest, moduleResolution: ts.ModuleResolutionKind.Classic };
 	let currentTextDocument: TextDocument;
 	let scriptFileVersion: number = 0;
-	let importedScripts: IimportScripts = {
+	let importedScripts: IImportScripts = {
 		files: [],
-		status: {}
+		buffer: {}
 	};
 	const definitionFiles: string[] = libDefinitionFiles || [];
 	function clearbuffer() {
-		Object.keys(importedScripts.status).forEach((key) => {
-			let status = importedScripts.status[key];
+		Object.keys(importedScripts.buffer).forEach((key) => {
+			let status = importedScripts.buffer[key];
 			if (Date.now() - status.lastuse > 300000) {
-				delete importedScripts.status[key];
+				delete importedScripts.buffer[key];
 			}
 		})
 		setTimeout(clearbuffer, 300000)
@@ -83,45 +82,46 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			if (fileName === workingFile) {
 				return String(scriptFileVersion);
 			}
-			let status = importedScripts.status[fileName];
+			let status = importedScripts.buffer[fileName];
 			if (status)
 				return String(status.doc.version);
 
 			return '1'; // default lib an jquery.d.ts are static
 		},
 		getScriptSnapshot: (fileName: string) => {
-			let text = '';
+			let doc: TextDocument;
 			if (startsWith(fileName, 'vscode:')) {
 				if (fileName === workingFile) {
-					text = currentTextDocument.getText();
+					doc = currentTextDocument;
+				} else {
+					return {
+						getText: (start, end) => "".substr(start, end),
+						getLength: () => 0,
+						getChangeRange: () => undefined
+					}
 				}
 			} else {
 				let mtime = fs.statSync(fileName).mtime;
 				let url = URI.file(fileName).toString();
-				if (!importedScripts.status[fileName]) {
-					text = ts.sys.readFile(fileName) || '';
-					importedScripts.status[fileName] = {
-						txt: text,
+				if (!importedScripts.buffer[fileName]) {
+					importedScripts.buffer[fileName] = {
 						mdt: mtime,
-						doc: TextDocument.create(url, languageId, 0, text),
-						lastuse: Date.now()
+						doc: TextDocument.create(url, languageId, 0, ts.sys.readFile(fileName) || ''),
+						lastuse: 0
 					};
-				} else if (importedScripts.status[fileName].mdt < mtime) {
-					let stat = importedScripts.status[fileName];
-					text = ts.sys.readFile(fileName) || '';
+				} else if (importedScripts.buffer[fileName].mdt < mtime) {
+					let stat = importedScripts.buffer[fileName];
 					let ver = stat.doc.version + 1;
-					stat.txt = text;
 					stat.mdt = mtime;
-					stat.doc = TextDocument.create(url, languageId, ver, text);
+					stat.doc = TextDocument.create(url, languageId, ver, ts.sys.readFile(fileName) || '');
 					stat.lastuse = Date.now();
-				} else {
-					text = importedScripts.status[fileName].txt;
-					importedScripts.status[fileName].lastuse = Date.now();
 				}
+				importedScripts.buffer[fileName].lastuse = Date.now();
+				doc = importedScripts.buffer[fileName].doc;
 			}
 			return {
-				getText: (start, end) => text.substring(start, end),
-				getLength: () => text.length,
+				getText: (start, end) => doc.getText().substring(start, end),
+				getLength: () => doc.getText().length,
 				getChangeRange: () => undefined
 			};
 		},
@@ -296,7 +296,7 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 						fileName = document.uri;
 						range = convertRange(currentTextDocument, d.textSpan)
 					} else {
-						let status = importedScripts.status[d.fileName];
+						let status = importedScripts.buffer[d.fileName];
 						fileName = status.doc.uri;
 						range = convertRange(status.doc, d.textSpan);
 					}
