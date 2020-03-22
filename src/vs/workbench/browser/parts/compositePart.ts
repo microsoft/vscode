@@ -19,7 +19,7 @@ import { Part, IPartOptions } from 'vs/workbench/browser/part';
 import { Composite, CompositeRegistry } from 'vs/workbench/browser/composite';
 import { IComposite } from 'vs/workbench/common/composite';
 import { CompositeProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -32,6 +32,7 @@ import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Dimension, append, $, addClass, hide, show, addClasses } from 'vs/base/browser/dom';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
+import * as DOM from 'vs/base/browser/dom';
 import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 
 export interface ICompositeTitleLabel {
@@ -382,6 +383,16 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		// Title Area Container
 		const titleArea = append(parent, $('.composite'));
 		addClass(titleArea, 'title');
+
+		this._register(DOM.addDisposableListener(titleArea, DOM.EventType.DBLCLICK, e => {
+			DOM.EventHelper.stop(e, true);
+			
+			if (!this.layoutService.isVisible(Parts.PANEL_PART)) {
+				this.layoutService.setPanelHidden(false);
+			}
+			
+			this.layoutService.toggleMaximizedPanel();
+		}));
 
 		// Left Title Label
 		this.titleLabel = this.createTitleLabel(titleArea);
