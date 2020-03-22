@@ -5,7 +5,7 @@
 
 import * as path from 'path';
 import { workspace, WorkspaceFolder } from 'vscode';
-import * as ts from 'typescript';
+import * as fs from 'fs';
 
 interface ExperimentalConfig {
 	libDefinitionFiles?: string[];
@@ -30,7 +30,7 @@ export function getLibDefinitionFilesInAllWorkspaces(workspaceFolders: readonly 
 				files.forEach(t => {
 					if (typeof t === 'string') {
 						let definiFile = path.resolve(wf.uri.fsPath, t).replace(/\\/g, '/');
-						if (ts.sys.fileExists(definiFile)) {
+						if (fs.existsSync(definiFile)) {
 							definiFiles.push(definiFile);
 						}
 					}
