@@ -41,6 +41,15 @@
           },
           "scope": "resource"
         },
+        "html.libDefinitionFiles": {
+          "type": "array",
+          "markdownDescription": "%html.libraryDefinitionFiles.desc%",
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "scope": "resource"
+        },
         "html.format.enable": {
           "type": "boolean",
           "scope": "window",
