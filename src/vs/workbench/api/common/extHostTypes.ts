@@ -2538,13 +2538,6 @@ export class Decoration {
 	bubble?: boolean;
 }
 
-export enum WebviewContentState {
-	Readonly = 1,
-	Unchanged = 2,
-	Dirty = 3,
-}
-
-
 //#region Theming
 
 @es5ClassCompat
