@@ -292,11 +292,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			localize('closeGroupAction', "Close"),
 			'codicon-close',
 			true,
-			() => {
-				this.accessor.removeGroup(this);
-
-				return Promise.resolve(true);
-			}));
+			async () => this.accessor.removeGroup(this)));
 
 		const keybinding = this.keybindingService.lookupKeybinding(removeGroupAction.id);
 		containerToolbar.push(removeGroupAction, { icon: true, label: false, keybinding: keybinding ? keybinding.getLabel() : undefined });
@@ -807,7 +803,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Guard against invalid inputs
 		if (!editor) {
-			return Promise.resolve(null);
+			return null;
 		}
 
 		// Editor opening event allows for prevention
@@ -822,13 +818,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return withUndefinedAsNull(await this.doOpenEditor(editor, options));
 	}
 
-	private doOpenEditor(editor: EditorInput, options?: EditorOptions): Promise<IEditorPane | undefined> {
+	private async doOpenEditor(editor: EditorInput, options?: EditorOptions): Promise<IEditorPane | undefined> {
 
 		// Guard against invalid inputs. Disposed inputs
 		// should never open because they emit no events
 		// e.g. to indicate dirty changes.
 		if (editor.isDisposed()) {
-			return Promise.resolve(undefined);
+			return;
 		}
 
 		// Determine options

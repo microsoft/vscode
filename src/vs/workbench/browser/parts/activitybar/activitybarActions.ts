@@ -286,7 +286,7 @@ class SwitchSideBarViewAction extends Action {
 
 		const activeViewlet = this.viewletService.getActiveViewlet();
 		if (!activeViewlet) {
-			return Promise.resolve();
+			return;
 		}
 		let targetViewletId: string | undefined;
 		for (let i = 0; i < pinnedViewletIds.length; i++) {

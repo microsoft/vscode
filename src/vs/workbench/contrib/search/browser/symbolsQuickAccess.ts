@@ -24,6 +24,9 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { createResourceExcludeMatcher } from 'vs/workbench/services/search/common/search';
 import { ResourceMap } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { getSelectionSearchString } from 'vs/editor/contrib/find/findController';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 interface ISymbolQuickPickItem extends IPickerQuickAccessItem {
 	resource: URI | undefined;
@@ -51,12 +54,24 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 
 	private readonly resourceExcludeMatcher = this._register(createResourceExcludeMatcher(this.instantiationService, this.configurationService));
 
+	get defaultFilterValue(): string | undefined {
+
+		// Prefer the word under the cursor in the active editor as default filter
+		const editor = this.codeEditorService.getFocusedCodeEditor();
+		if (editor) {
+			return withNullAsUndefined(getSelectionSearchString(editor));
+		}
+
+		return undefined;
+	}
+
 	constructor(
 		@ILabelService private readonly labelService: ILabelService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService
 	) {
 		super(SymbolsQuickAccessProvider.PREFIX, { canAcceptInBackground: true });
 	}

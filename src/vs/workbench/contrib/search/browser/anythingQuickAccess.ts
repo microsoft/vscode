@@ -39,6 +39,8 @@ import { Schemas } from 'vs/base/common/network';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ResourceMap } from 'vs/base/common/map';
 import { SymbolsQuickAccessProvider } from 'vs/workbench/contrib/search/browser/symbolsQuickAccess';
+import { DefaultQuickAccessFilterValue } from 'vs/platform/quickinput/common/quickAccess';
+import { IWorkbenchQuickOpenConfiguration } from 'vs/workbench/browser/quickopen';
 
 interface IAnythingQuickPickItem extends IPickerQuickAccessItem {
 	resource: URI | undefined;
@@ -81,6 +83,14 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		}
 	}(this);
 
+	get defaultFilterValue(): DefaultQuickAccessFilterValue | undefined {
+		if (this.configuration.preserveInput) {
+			return DefaultQuickAccessFilterValue.LAST;
+		}
+
+		return undefined;
+	}
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ISearchService private readonly searchService: ISearchService,
@@ -102,14 +112,17 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	private get configuration() {
 		const editorConfig = this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor;
-		const searchConfig = this.configurationService.getValue<IWorkbenchSearchConfiguration>();
+		const searchConfig = this.configurationService.getValue<IWorkbenchSearchConfiguration>().search;
+		const quickOpenConfig = this.configurationService.getValue<IWorkbenchQuickOpenConfiguration>().workbench.quickOpen;
 
 		return {
 			openEditorPinned: !editorConfig.enablePreviewFromQuickOpen,
 			openSideBySideDirection: editorConfig.openSideBySideDirection,
-			includeSymbols: searchConfig.search.quickOpen.includeSymbols,
-			includeHistory: searchConfig.search.quickOpen.includeHistory,
-			shortAutoSaveDelay: this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY
+			includeSymbols: searchConfig.quickOpen.includeSymbols,
+			includeHistory: searchConfig.quickOpen.includeHistory,
+			historyFilterSortOrder: searchConfig.quickOpen.history.filterSortOrder,
+			shortAutoSaveDelay: this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY,
+			preserveInput: quickOpenConfig.preserveInput
 		};
 	}
 
@@ -268,7 +281,12 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			editorHistoryPicks.push(editorHistoryPick);
 		}
 
-		return editorHistoryPicks.sort((editorA, editorB) => compareItemsByScore(editorA, editorB, query, false, editorHistoryScorerAccessor, this.pickState.scorerCache, () => -1));
+		// Return without sorting if settings tell to sort by recency
+		if (this.configuration.historyFilterSortOrder === 'recency') {
+			return editorHistoryPicks;
+		}
+
+		return editorHistoryPicks.sort((editorA, editorB) => compareItemsByScore(editorA, editorB, query, false, editorHistoryScorerAccessor, this.pickState.scorerCache));
 	}
 
 	//#endregion
@@ -353,9 +371,21 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			this.getRelativePathFileResults(query, token)
 		]);
 
+		// Return quickly if no relative results are present
+		if (!relativePathFileResults) {
+			return fileSearchResults.results.map(result => result.resource);
+		}
+
+		// Otherwise, make sure to filter relative path results from
+		// the search results to prevent duplicates
+		const relativePathFileResultsMap = new ResourceMap<boolean>();
+		for (const relativePathFileResult of relativePathFileResults) {
+			relativePathFileResultsMap.set(relativePathFileResult, true);
+		}
+
 		return [
-			...fileSearchResults.results.map(result => result.resource),
-			...(relativePathFileResults || [])
+			...fileSearchResults.results.filter(result => !relativePathFileResultsMap.has(result.resource)).map(result => result.resource),
+			...relativePathFileResults
 		];
 	}
 
@@ -541,7 +571,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 						if (!URI.isUri(resourceOrEditor)) {
 							this.historyService.remove(resourceOrEditor);
 
-							return TriggerAction.REFRESH_PICKER;
+							return TriggerAction.REMOVE_ITEM;
 						}
 				}
 

@@ -77,6 +77,9 @@ export interface IWorkbenchSearchConfigurationProperties extends ISearchConfigur
 	quickOpen: {
 		includeSymbols: boolean;
 		includeHistory: boolean;
+		history: {
+			filterSortOrder: 'default' | 'recency'
+		}
 	};
 }
 

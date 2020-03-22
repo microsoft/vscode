@@ -34,10 +34,8 @@ export class CloseCurrentWindowAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<boolean> {
+	async run(): Promise<void> {
 		this.electronService.closeWindow();
-
-		return Promise.resolve(true);
 	}
 }
 
@@ -91,10 +89,8 @@ export class ZoomInAction extends BaseZoomAction {
 		super(id, label, configurationService);
 	}
 
-	run(): Promise<boolean> {
+	async run(): Promise<void> {
 		this.setConfiguredZoomLevel(webFrame.getZoomLevel() + 1);
-
-		return Promise.resolve(true);
 	}
 }
 
@@ -111,10 +107,8 @@ export class ZoomOutAction extends BaseZoomAction {
 		super(id, label, configurationService);
 	}
 
-	run(): Promise<boolean> {
+	async run(): Promise<void> {
 		this.setConfiguredZoomLevel(webFrame.getZoomLevel() - 1);
-
-		return Promise.resolve(true);
 	}
 }
 
@@ -131,10 +125,8 @@ export class ZoomResetAction extends BaseZoomAction {
 		super(id, label, configurationService);
 	}
 
-	run(): Promise<boolean> {
+	async run(): Promise<void> {
 		this.setConfiguredZoomLevel(0);
-
-		return Promise.resolve(true);
 	}
 }
 
@@ -160,8 +152,8 @@ export class ReloadWindowWithExtensionsDisabledAction extends Action {
 
 export abstract class BaseSwitchWindow extends Action {
 
-	private closeWindowAction: IQuickInputButton = {
-		iconClass: 'action-remove-from-recently-opened',
+	private readonly closeWindowAction: IQuickInputButton = {
+		iconClass: 'codicon-close',
 		tooltip: nls.localize('close', "Close Window")
 	};
 
@@ -204,7 +196,7 @@ export abstract class BaseSwitchWindow extends Action {
 			placeHolder,
 			quickNavigate: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : undefined,
 			onDidTriggerItemButton: async context => {
-				await this.electronService.closeWindow();
+				await this.electronService.closeWindowById(context.item.payload);
 				context.removeItem();
 			}
 		});

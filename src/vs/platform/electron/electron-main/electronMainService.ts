@@ -332,7 +332,11 @@ export class ElectronMainService implements IElectronMainService {
 	}
 
 	async closeWindow(windowId: number | undefined): Promise<void> {
-		const window = this.windowById(windowId);
+		this.closeWindowById(windowId, windowId);
+	}
+
+	async closeWindowById(currentWindowId: number | undefined, targetWindowId?: number | undefined): Promise<void> {
+		const window = this.windowById(targetWindowId);
 		if (window) {
 			return window.win.close();
 		}

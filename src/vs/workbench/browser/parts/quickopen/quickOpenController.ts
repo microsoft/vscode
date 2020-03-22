@@ -179,10 +179,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 
 	show(prefix?: string, options?: IShowOptions): Promise<void> {
 		if (this.useNewExperimentalVersion) {
-			this.quickInputService.quickAccess.show(prefix, {
-				...options,
-				inputUseLastValue: !prefix && this.preserveInput
-			});
+			this.quickInputService.quickAccess.show(prefix, options);
 
 			return Promise.resolve();
 		}
@@ -727,7 +724,7 @@ class EditorHistoryHandler {
 
 			// Sort by score and provide a fallback sorter that keeps the
 			// recency of items in case the score for items is the same
-			.sort((e1, e2) => compareItemsByScore(e1, e2, query, false, accessor, this.scorerCache, () => -1));
+			.sort((e1, e2) => compareItemsByScore(e1, e2, query, false, accessor, this.scorerCache));
 	}
 }
 

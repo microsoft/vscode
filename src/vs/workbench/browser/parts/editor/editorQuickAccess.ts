@@ -140,9 +140,16 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 					];
 				})(),
 				trigger: async () => {
-					await this.editorGroupService.getGroup(groupId)?.closeEditor(editor, { preserveFocus: true });
+					const group = this.editorGroupService.getGroup(groupId);
+					if (group) {
+						await group.closeEditor(editor, { preserveFocus: true });
 
-					return TriggerAction.REFRESH_PICKER;
+						if (!group.isOpened(editor)) {
+							return TriggerAction.REMOVE_ITEM;
+						}
+					}
+
+					return TriggerAction.NO_ACTION;
 				},
 				accept: (keyMods, event) => this.editorGroupService.getGroup(groupId)?.openEditor(editor, { preserveFocus: event.inBackground }),
 			};

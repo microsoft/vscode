@@ -55,8 +55,8 @@
 	margin-bottom: -2px;
 }
 
-.quick-input-widget.quick-navigate-mode .quick-input-header {
-	/* reduce margins and paddings in quick navigate mode */
+.quick-input-widget.hidden-input .quick-input-header {
+	/* reduce margins and paddings when input box hidden */
 	padding: 0;
 	margin-bottom: 0;
 }
@@ -132,8 +132,8 @@
 	margin-top: 6px;
 }
 
-.quick-input-widget.quick-navigate-mode .quick-input-list {
-	margin-top: 0; /* reduce margins in quick navigate mode */
+.quick-input-widget.hidden-input .quick-input-list {
+	margin-top: 0; /* reduce margins when input box hidden */
 }
 
 .quick-input-list .monaco-list {
