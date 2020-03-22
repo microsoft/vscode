@@ -176,7 +176,7 @@ export interface IEditorOptions {
 	 * Control the cursor animation style, possible values are 'blink', 'smooth', 'phase', 'expand' and 'solid'.
 	 * Defaults to 'blink'.
 	 */
-	cursorBlinking?: 'blink' | 'smooth' | 'phase' | 'expand' | 'solid';
+	cursorBlinking?: 'blink' | 'smooth' | 'phase' | 'expand' | 'solid' | 'empty';
 	/**
 	 * Zoom the font in the editor when using the mouse wheel in combination with holding Ctrl.
 	 * Defaults to false.
@@ -196,7 +196,7 @@ export interface IEditorOptions {
 	 * Control the cursor style, either 'block' or 'line'.
 	 * Defaults to 'line'.
 	 */
-	cursorStyle?: 'line' | 'block' | 'underline' | 'line-thin' | 'block-outline' | 'underline-thin';
+	cursorStyle?: 'line' | 'block' | 'underline' | 'line-thin' | 'block-outline' | 'underline-thin' | 'empty';
 	/**
 	 * Control the width of the cursor when cursorStyle is set to 'line'
 	 */
@@ -1103,16 +1103,21 @@ export const enum TextEditorCursorBlinkingStyle {
 	/**
 	 * No-Blinking
 	 */
-	Solid = 5
+	Solid = 5,
+	/**
+	 * Provides a class for attaching custom styles.
+	 */
+	Empty = 6
 }
 
-function _cursorBlinkingStyleFromString(cursorBlinkingStyle: 'blink' | 'smooth' | 'phase' | 'expand' | 'solid'): TextEditorCursorBlinkingStyle {
+function _cursorBlinkingStyleFromString(cursorBlinkingStyle: 'blink' | 'smooth' | 'phase' | 'expand' | 'solid' | 'empty'): TextEditorCursorBlinkingStyle {
 	switch (cursorBlinkingStyle) {
 		case 'blink': return TextEditorCursorBlinkingStyle.Blink;
 		case 'smooth': return TextEditorCursorBlinkingStyle.Smooth;
 		case 'phase': return TextEditorCursorBlinkingStyle.Phase;
 		case 'expand': return TextEditorCursorBlinkingStyle.Expand;
 		case 'solid': return TextEditorCursorBlinkingStyle.Solid;
+		case 'empty': return TextEditorCursorBlinkingStyle.Empty;
 	}
 }
 
@@ -1147,13 +1152,17 @@ export enum TextEditorCursorStyle {
 	/**
 	 * As a thin horizontal line (sitting under a character).
 	 */
-	UnderlineThin = 6
+	UnderlineThin = 6,
+	/**
+	 * Provides a class for attaching custom styles.
+	 */
+	Empty = 7
 }
 
 /**
  * @internal
  */
-export function cursorStyleToString(cursorStyle: TextEditorCursorStyle): 'line' | 'block' | 'underline' | 'line-thin' | 'block-outline' | 'underline-thin' {
+export function cursorStyleToString(cursorStyle: TextEditorCursorStyle): 'line' | 'block' | 'underline' | 'line-thin' | 'block-outline' | 'underline-thin' | 'empty' {
 	switch (cursorStyle) {
 		case TextEditorCursorStyle.Line: return 'line';
 		case TextEditorCursorStyle.Block: return 'block';
@@ -1161,10 +1170,11 @@ export function cursorStyleToString(cursorStyle: TextEditorCursorStyle): 'line' 
 		case TextEditorCursorStyle.LineThin: return 'line-thin';
 		case TextEditorCursorStyle.BlockOutline: return 'block-outline';
 		case TextEditorCursorStyle.UnderlineThin: return 'underline-thin';
+		case TextEditorCursorStyle.Empty: return 'empty';
 	}
 }
 
-function _cursorStyleFromString(cursorStyle: 'line' | 'block' | 'underline' | 'line-thin' | 'block-outline' | 'underline-thin'): TextEditorCursorStyle {
+function _cursorStyleFromString(cursorStyle: 'line' | 'block' | 'underline' | 'line-thin' | 'block-outline' | 'underline-thin' | 'empty'): TextEditorCursorStyle {
 	switch (cursorStyle) {
 		case 'line': return TextEditorCursorStyle.Line;
 		case 'block': return TextEditorCursorStyle.Block;
@@ -1172,6 +1182,7 @@ function _cursorStyleFromString(cursorStyle: 'line' | 'block' | 'underline' | 'l
 		case 'line-thin': return TextEditorCursorStyle.LineThin;
 		case 'block-outline': return TextEditorCursorStyle.BlockOutline;
 		case 'underline-thin': return TextEditorCursorStyle.UnderlineThin;
+		case 'empty': return TextEditorCursorStyle.Empty;
 	}
 }
 
@@ -3583,9 +3594,14 @@ export const EditorOptions = {
 	cursorBlinking: register(new EditorEnumOption(
 		EditorOption.cursorBlinking, 'cursorBlinking',
 		TextEditorCursorBlinkingStyle.Blink, 'blink',
-		['blink', 'smooth', 'phase', 'expand', 'solid'],
+		['blink', 'smooth', 'phase', 'expand', 'solid', 'empty'],
 		_cursorBlinkingStyleFromString,
-		{ description: nls.localize('cursorBlinking', "Control the cursor animation style.") }
+		{
+			description: nls.localize('cursorBlinking', "Control the cursor animation style."),
+			enumDescriptions: [
+				nls.localize('cursorBlinking.empty', "Provides an empty class name for attaching custom styles.")
+			]
+		}
 	)),
 	cursorSmoothCaretAnimation: register(new EditorBooleanOption(
 		EditorOption.cursorSmoothCaretAnimation, 'cursorSmoothCaretAnimation', false,
@@ -3594,9 +3610,14 @@ export const EditorOptions = {
 	cursorStyle: register(new EditorEnumOption(
 		EditorOption.cursorStyle, 'cursorStyle',
 		TextEditorCursorStyle.Line, 'line',
-		['line', 'block', 'underline', 'line-thin', 'block-outline', 'underline-thin'],
+		['line', 'block', 'underline', 'line-thin', 'block-outline', 'underline-thin', 'empty'],
 		_cursorStyleFromString,
-		{ description: nls.localize('cursorStyle', "Controls the cursor style.") }
+		{
+			description: nls.localize('cursorStyle', "Controls the cursor style."),
+			enumDescriptions: [
+				nls.localize('cursorStyle.empty', "Provides an empty class name for attaching custom styles.")
+			]
+		}
 	)),
 	cursorSurroundingLines: register(new EditorIntOption(
 		EditorOption.cursorSurroundingLines, 'cursorSurroundingLines',

@@ -271,6 +271,9 @@ export class ViewCursors extends ViewPart {
 			case TextEditorCursorStyle.UnderlineThin:
 				result += ' cursor-underline-thin-style';
 				break;
+			case TextEditorCursorStyle.Empty:
+				result += ' cursor-empty-style';
+				break;
 			default:
 				result += ' cursor-line-style';
 		}
@@ -290,6 +293,9 @@ export class ViewCursors extends ViewPart {
 					break;
 				case TextEditorCursorBlinkingStyle.Solid:
 					result += ' cursor-solid';
+					break;
+				case TextEditorCursorBlinkingStyle.Empty:
+					result += ' cursor-empty';
 					break;
 				default:
 					result += ' cursor-solid';
