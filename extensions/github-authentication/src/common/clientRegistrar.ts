@@ -21,6 +21,8 @@ export interface ClientConfig {
 	VSO: ClientDetails;
 	VSO_PPE: ClientDetails;
 	VSO_DEV: ClientDetails;
+
+	GITHUB_APP: ClientDetails;
 }
 
 export class Registrar {
@@ -38,10 +40,20 @@ export class Registrar {
 				EXPLORATION: {},
 				VSO: {},
 				VSO_PPE: {},
-				VSO_DEV: {}
+				VSO_DEV: {},
+				GITHUB_APP: {}
 			};
 		}
 	}
+
+	getGitHubAppDetails(): ClientDetails {
+		if (!this._config.GITHUB_APP.id || !this._config.GITHUB_APP.secret) {
+			throw new Error(`No GitHub App client configuration available`);
+		}
+
+		return this._config.GITHUB_APP;
+	}
+
 	getClientDetails(callbackUri: Uri): ClientDetails {
 		let details: ClientDetails | undefined;
 		switch (callbackUri.scheme) {

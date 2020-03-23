@@ -92,6 +92,8 @@ steps:
     VSO_PPE_GITHUB_SECRET: $(vso-ppe-github-client-secret)
     VSO_DEV_GITHUB_ID: "84383ebd8a7c5f5efc5c"
     VSO_DEV_GITHUB_SECRET: $(vso-dev-github-client-secret)
+    GITHUB_APP_ID: "Iv1.ae51e546bef24ff1"
+    GITHUB_APP_SECRET: $(github-app-client-secret)
 
 # Mixin must run before optimize, because the CSS loader will
 # inline small SVGs

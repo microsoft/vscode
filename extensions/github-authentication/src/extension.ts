@@ -20,9 +20,9 @@ export async function activate(context: vscode.ExtensionContext) {
 		displayName: 'GitHub',
 		onDidChangeSessions: onDidChangeSessions.event,
 		getSessions: () => Promise.resolve(loginService.sessions),
-		login: async (scopes: string[]) => {
+		login: async (scopeList: string[]) => {
 			try {
-				const session = await loginService.login(scopes.join(' '));
+				const session = await loginService.login(scopeList.join(' '));
 				Logger.info('Login success!');
 				return session;
 			} catch (e) {
