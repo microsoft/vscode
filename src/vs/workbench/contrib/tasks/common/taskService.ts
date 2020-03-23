@@ -33,9 +33,14 @@ export interface CustomizationProperties {
 	isBackground?: boolean;
 }
 
+export enum TaskCategories {
+	Recent = 'Recent',
+	Configured = 'Configured'
+}
+
 export interface TaskFilter {
 	version?: string;
-	type?: string;
+	type?: string | TaskCategories;
 }
 
 interface WorkspaceTaskResult {
@@ -69,6 +74,7 @@ export interface ITaskService {
 	terminate(task: Task): Promise<TaskTerminateResponse>;
 	terminateAll(): Promise<TaskTerminateResponse[]>;
 	tasks(filter?: TaskFilter): Promise<Task[]>;
+	taskTypes(): string[];
 	getWorkspaceTasks(runSource?: TaskRunSource): Promise<Map<string, WorkspaceFolderTaskResult>>;
 	/**
 	 * @param alias The task's name, label or defined identifier.
