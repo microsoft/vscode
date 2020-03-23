@@ -15,6 +15,9 @@ export class NotebookCellTextModel implements ICell {
 	private _onDidChangeContent = new Emitter<void>();
 	onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 
+	private _onDidChangeMetadata = new Emitter<NotebookCellMetadata>();
+	onDidChangeMetadata: Event<NotebookCellMetadata> = this._onDidChangeMetadata.event;
+
 	private _outputs: IOutput[];
 
 	get outputs(): IOutput[] {
@@ -30,6 +33,17 @@ export class NotebookCellTextModel implements ICell {
 		this._buffer = null;
 	}
 
+	private _metadata: NotebookCellMetadata;
+
+	get metadata() {
+		return this._metadata;
+	}
+
+	set metadata(newMetadata: NotebookCellMetadata) {
+		this._metadata = newMetadata;
+		this._onDidChangeMetadata.fire(this._metadata);
+	}
+
 	private _buffer: PieceTreeTextBufferFactory | null = null;
 
 	constructor(
@@ -39,9 +53,10 @@ export class NotebookCellTextModel implements ICell {
 		public language: string,
 		public cellKind: CellKind,
 		outputs: IOutput[],
-		public readonly metadata: NotebookCellMetadata
+		metadata: NotebookCellMetadata
 	) {
 		this._outputs = outputs;
+		this._metadata = metadata;
 	}
 
 	contentChange() {

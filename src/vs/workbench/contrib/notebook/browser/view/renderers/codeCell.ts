@@ -80,6 +80,11 @@ export class CodeCell extends Disposable {
 			}
 		}));
 
+		templateData.editor?.updateOptions({ readOnly: !viewCell.metadata.editable });
+		this._register(viewCell.onDidChangeMetadata((e) => {
+			templateData.editor?.updateOptions({ readOnly: !e.editable });
+		}));
+
 		let cellWidthResizeObserver = getResizesObserver(templateData.editorContainer!, {
 			width: width,
 			height: totalHeight

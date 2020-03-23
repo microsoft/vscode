@@ -7,7 +7,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { INotebookTextModel, NotebookCellOutputsSplice, NotebookCellsSplice, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel, NotebookCellOutputsSplice, NotebookCellsSplice, NotebookDocumentMetadata, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class NotebookTextModel extends Disposable implements INotebookTextModel {
 	private readonly _onWillDispose: Emitter<void> = this._register(new Emitter<void>());
@@ -20,7 +20,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	private _cellListeners: Map<number, IDisposable> = new Map();
 	cells: NotebookCellTextModel[];
 	languages: string[] = [];
-	metadata: NotebookDocumentMetadata | undefined = undefined;
+	metadata: NotebookDocumentMetadata | undefined = { editable: true };
 	renderers = new Set<number>();
 
 	constructor(
@@ -38,6 +38,14 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 	updateNotebookMetadata(metadata: NotebookDocumentMetadata | undefined) {
 		this.metadata = metadata;
+	}
+
+	updateNotebookCellMetadata(handle: number, metadata: NotebookCellMetadata) {
+		const cell = this.cells.find(cell => cell.handle === handle);
+
+		if (cell) {
+			cell.metadata = metadata;
+		}
 	}
 
 	updateRenderers(renderers: number[]) {

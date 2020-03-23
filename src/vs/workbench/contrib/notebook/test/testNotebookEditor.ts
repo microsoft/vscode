@@ -24,6 +24,8 @@ export class TestCell implements ICell {
 	uri: URI;
 	private _onDidChangeOutputs = new Emitter<NotebookCellOutputsSplice[]>();
 	onDidChangeOutputs: Event<NotebookCellOutputsSplice[]> = this._onDidChangeOutputs.event;
+	private _onDidChangeMetadata = new Emitter<NotebookCellMetadata>();
+	onDidChangeMetadata: Event<NotebookCellMetadata> = this._onDidChangeMetadata.event;
 	private _isDirty: boolean = false;
 	private _outputs: IOutput[];
 

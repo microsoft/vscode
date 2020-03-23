@@ -192,7 +192,8 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 			cellContainer: innerContent,
 			editingContainer: codeInnerContent,
 			disposables,
-			toolbar
+			toolbar,
+			toJSON: () => { return {}; }
 		};
 	}
 
@@ -214,9 +215,14 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 			elementDisposable.add(new StatefullMarkdownCell(this.notebookEditor, element, templateData, this.editorOptions, this.instantiationService));
 
 			const contextKeyService = this.contextKeyService.createScoped(templateData.container);
-			contextKeyService.createKey(NOTEBOOK_CELL_TYPE_CONTEXT_KEY, 'markdown');
-			contextKeyService.createKey(NOTEBOOK_CELL_EDITABLE_CONTEXT_KEY, element.metadata.editable);
 			contextKeyService.createKey(NOTEBOOK_EDITABLE_CONTEXT_KEY, this.notebookEditor.viewModel?.metadata?.editable);
+			contextKeyService.createKey(NOTEBOOK_CELL_TYPE_CONTEXT_KEY, 'markdown');
+
+			const cellEditableKey = contextKeyService.createKey(NOTEBOOK_CELL_EDITABLE_CONTEXT_KEY, element.metadata.editable);
+			elementDisposable.add(element.onDidChangeMetadata((e) => {
+				cellEditableKey.set(e.editable);
+			}));
+
 			const editModeKey = contextKeyService.createKey(NOTEBOOK_CELL_MARKDOWN_EDIT_MODE_CONTEXT_KEY, element.editState === CellEditState.Editing);
 			elementDisposable.add(element.onDidChangeCellEditState(() => {
 				editModeKey.set(element.editState === CellEditState.Editing);
@@ -307,7 +313,8 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			runToolbar,
 			outputContainer,
 			editor,
-			disposables
+			disposables,
+			toJSON: () => { return {}; }
 		};
 	}
 
@@ -350,9 +357,13 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		};
 
 		const contextKeyService = this.contextKeyService.createScoped(templateData.container);
-		contextKeyService.createKey(NOTEBOOK_CELL_TYPE_CONTEXT_KEY, 'code');
-		contextKeyService.createKey(NOTEBOOK_CELL_EDITABLE_CONTEXT_KEY, element.metadata.editable);
 		contextKeyService.createKey(NOTEBOOK_EDITABLE_CONTEXT_KEY, this.notebookEditor.viewModel?.metadata?.editable);
+		contextKeyService.createKey(NOTEBOOK_CELL_TYPE_CONTEXT_KEY, 'code');
+
+		const cellEditableKey = contextKeyService.createKey(NOTEBOOK_CELL_EDITABLE_CONTEXT_KEY, element.metadata.editable);
+		elementDisposable.add(element.onDidChangeMetadata((e) => {
+			cellEditableKey.set(e.editable);
+		}));
 
 		this.setupCellToolbarActions(contextKeyService, templateData, elementDisposable);
 		templateData.toolbar.context = toolbarContext;

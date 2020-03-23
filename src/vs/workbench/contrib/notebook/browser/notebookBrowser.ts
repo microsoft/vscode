@@ -255,6 +255,7 @@ export interface CellRenderTemplate {
 	editor?: CodeEditorWidget;
 	progressBar?: ProgressBar;
 	disposables: DisposableStore;
+	toJSON(): void;
 }
 
 export interface IOutputTransformContribution {

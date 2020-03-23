@@ -9,7 +9,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as model from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
-import { ICell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICell, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CursorAtBoundary, CellFocusMode, CellEditState, CellRunState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { EDITOR_TOP_PADDING, EDITOR_TOOLBAR_HEIGHT } from 'vs/workbench/contrib/notebook/browser/constants';
 import { SearchParams } from 'vs/editor/common/model/textModelSearch';
@@ -27,6 +27,8 @@ export abstract class BaseCellViewModel extends Disposable {
 	readonly onDidChangeEditorAttachState = this._onDidChangeEditorAttachState.event;
 	protected readonly _onDidChangeCursorSelection: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidChangeCursorSelection: Event<void> = this._onDidChangeCursorSelection.event;
+	protected readonly _onDidChangeMetadata: Emitter<NotebookCellMetadata> = this._register(new Emitter<NotebookCellMetadata>());
+	public readonly onDidChangeMetadata: Event<NotebookCellMetadata> = this._onDidChangeMetadata.event;
 	get handle() {
 		return this.cell.handle;
 	}
@@ -92,6 +94,10 @@ export abstract class BaseCellViewModel extends Disposable {
 
 	constructor(readonly viewType: string, readonly notebookHandle: number, readonly cell: ICell, public id: string) {
 		super();
+
+		this._register(cell.onDidChangeMetadata((e) => {
+			this._onDidChangeMetadata.fire(e);
+		}));
 	}
 
 	abstract hasDynamicHeight(): boolean;
