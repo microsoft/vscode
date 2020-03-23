@@ -80,10 +80,12 @@ interface TimelineActionContext {
 
 class TimelineAggregate {
 	readonly items: TimelineItem[];
+	readonly source: string;
 
 	lastRenderedIndex: number;
 
 	constructor(timeline: Timeline) {
+		this.source = timeline.source;
 		this.items = timeline.items;
 		this._cursor = timeline.paging?.cursor;
 		this._more = timeline.paging?.more ?? false;
@@ -161,6 +163,21 @@ class TimelineAggregate {
 		}
 
 		return updated;
+	}
+
+	private _stale = false;
+	get stale() {
+		return this._stale;
+	}
+
+	private _requiresReset = false;
+	get requiresReset(): boolean {
+		return this._requiresReset;
+	}
+
+	invalidate(requiresReset: boolean) {
+		this._stale = true;
+		this._requiresReset = requiresReset;
 	}
 }
 
@@ -283,6 +300,25 @@ export class TimelinePane extends ViewPane {
 		if ((uri?.toString(true) === this.uri?.toString(true) && uri !== undefined) ||
 			// Fallback to match on fsPath if we are dealing with files or git schemes
 			(uri?.fsPath === this.uri?.fsPath && (uri?.scheme === 'file' || uri?.scheme === 'git') && (this.uri?.scheme === 'file' || this.uri?.scheme === 'git'))) {
+
+			// If the uri hasn't changed, make sure we have valid caches
+			for (const source of this.timelineService.getSources()) {
+				if (this.excludedSources.has(source.id)) {
+					continue;
+				}
+
+				const timeline = this.timelinesBySource.get(source.id);
+				if (timeline !== undefined && !timeline.stale) {
+					continue;
+				}
+
+				if (timeline !== undefined) {
+					this.updateTimeline(timeline, timeline.requiresReset);
+				} else {
+					this.loadTimelineForSource(source.id, uri, true);
+				}
+			}
+
 			return;
 		}
 
@@ -290,8 +326,6 @@ export class TimelinePane extends ViewPane {
 	}
 
 	private onProvidersChanged(e: TimelineProvidersChangeEvent) {
-		// TODO@eamodio only do work if we are visible
-
 		if (e.removed) {
 			for (const source of e.removed) {
 				this.timelinesBySource.delete(source);
@@ -306,23 +340,16 @@ export class TimelinePane extends ViewPane {
 	}
 
 	private onTimelineChanged(e: TimelineChangeEvent) {
-		// TODO@eamodio only do work if we are visible
-
 		if (e?.uri === undefined || e.uri.toString(true) !== this.uri?.toString(true)) {
 			const timeline = this.timelinesBySource.get(e.id);
 			if (timeline === undefined) {
 				return;
 			}
 
-			if (e.reset) {
-				this.timelinesBySource.delete(e.id);
-				// Override the limit, to re-query for all our existing cached (possibly visible) items to keep visual continuity
-				const { oldest } = timeline;
-				this.loadTimelineForSource(e.id, this.uri!, true, oldest !== undefined ? { limit: { timestamp: oldest.timestamp, id: oldest.id } } : undefined);
+			if (this.isBodyVisible()) {
+				this.updateTimeline(timeline, e.reset ?? false);
 			} else {
-				// Override the limit, to query for any newer items
-				const { newest } = timeline;
-				this.loadTimelineForSource(e.id, this.uri!, false, newest !== undefined ? { limit: { timestamp: newest.timestamp, id: newest.id } } : { limit: PageSize });
+				timeline.invalidate(e.reset ?? false);
 			}
 		}
 	}
@@ -379,29 +406,37 @@ export class TimelinePane extends ViewPane {
 		return this._visibleItemCount > 0;
 	}
 
+	private clear(cancelPending: boolean) {
+		this._visibleItemCount = 0;
+		this._maxItemCount = PageSize;
+		this.timelinesBySource.clear();
+
+		if (cancelPending) {
+			for (const { tokenSource } of this.pendingRequests.values()) {
+				tokenSource.dispose(true);
+			}
+
+			this.pendingRequests.clear();
+
+			if (!this.isBodyVisible()) {
+				this.tree.setChildren(null, undefined);
+				this._isEmpty = true;
+			}
+		}
+	}
+
 	private async loadTimeline(reset: boolean, sources?: string[]) {
 		// If we have no source, we are reseting all sources, so cancel everything in flight and reset caches
 		if (sources === undefined) {
 			if (reset) {
-				this._visibleItemCount = 0;
-				this._maxItemCount = PageSize;
-				this.timelinesBySource.clear();
-
-				for (const { tokenSource } of this.pendingRequests.values()) {
-					tokenSource.dispose(true);
-				}
-
-				this.pendingRequests.clear();
+				this.clear(true);
 			}
 
 			// TODO@eamodio: Are these the right the list of schemes to exclude? Is there a better way?
 			if (this.uri?.scheme === 'vscode-settings' || this.uri?.scheme === 'webview-panel' || this.uri?.scheme === 'walkThrough') {
 				this.uri = undefined;
 
-				this._visibleItemCount = 0;
-				this._maxItemCount = PageSize;
-				this.timelinesBySource.clear();
-
+				this.clear(false);
 				this.refresh();
 
 				return;
@@ -413,12 +448,13 @@ export class TimelinePane extends ViewPane {
 		}
 
 		if (this.uri === undefined) {
-			this._visibleItemCount = 0;
-			this._maxItemCount = PageSize;
-			this.timelinesBySource.clear();
-
+			this.clear(false);
 			this.refresh();
 
+			return;
+		}
+
+		if (!this.isBodyVisible()) {
 			return;
 		}
 
@@ -488,6 +524,19 @@ export class TimelinePane extends ViewPane {
 		this.handleRequest(request);
 
 		return true;
+	}
+
+	private updateTimeline(timeline: TimelineAggregate, reset: boolean) {
+		if (reset) {
+			this.timelinesBySource.delete(timeline.source);
+			// Override the limit, to re-query for all our existing cached (possibly visible) items to keep visual continuity
+			const { oldest } = timeline;
+			this.loadTimelineForSource(timeline.source, this.uri!, true, oldest !== undefined ? { limit: { timestamp: oldest.timestamp, id: oldest.id } } : undefined);
+		} else {
+			// Override the limit, to query for any newer items
+			const { newest } = timeline;
+			this.loadTimelineForSource(timeline.source, this.uri!, false, newest !== undefined ? { limit: { timestamp: newest.timestamp, id: newest.id } } : { limit: PageSize });
+		}
 	}
 
 	private _pendingRefresh = false;
@@ -590,7 +639,7 @@ export class TimelinePane extends ViewPane {
 			for (const [source, timeline] of this.timelinesBySource) {
 				timeline.lastRenderedIndex = -1;
 
-				if (this.excludedSources.has(source)) {
+				if (this.excludedSources.has(source) || timeline.stale) {
 					continue;
 				}
 
@@ -651,6 +700,10 @@ export class TimelinePane extends ViewPane {
 	}
 
 	private refresh() {
+		if (!this.isBodyVisible()) {
+			return;
+		}
+
 		this.tree.setChildren(null, this.getItems() as any);
 		this._isEmpty = !this.hasVisibleItems;
 
@@ -680,6 +733,16 @@ export class TimelinePane extends ViewPane {
 	focus(): void {
 		super.focus();
 		this.tree.domFocus();
+	}
+
+	setExpanded(expanded: boolean): boolean {
+		const changed = super.setExpanded(expanded);
+
+		if (changed && this.isBodyVisible()) {
+			this.onActiveEditorChanged();
+		}
+
+		return changed;
 	}
 
 	setVisible(visible: boolean): void {
