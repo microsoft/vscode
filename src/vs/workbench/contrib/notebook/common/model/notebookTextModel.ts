@@ -16,6 +16,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	get onDidChangeCells(): Event<NotebookCellsSplice[]> { return this._onDidChangeCells.event; }
 	private _onDidChangeContent = new Emitter<void>();
 	onDidChangeContent: Event<void> = this._onDidChangeContent.event;
+	private _onDidChangeMetadata = new Emitter<NotebookDocumentMetadata>();
+	onDidChangeMetadata: Event<NotebookDocumentMetadata> = this._onDidChangeMetadata.event;
 	private _mapping: Map<number, NotebookCellTextModel> = new Map();
 	private _cellListeners: Map<number, IDisposable> = new Map();
 	cells: NotebookCellTextModel[];
@@ -36,8 +38,9 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this.languages = languages;
 	}
 
-	updateNotebookMetadata(metadata: NotebookDocumentMetadata | undefined) {
+	updateNotebookMetadata(metadata: NotebookDocumentMetadata) {
 		this.metadata = metadata;
+		this._onDidChangeMetadata.fire(this.metadata);
 	}
 
 	updateNotebookCellMetadata(handle: number, metadata: NotebookCellMetadata) {

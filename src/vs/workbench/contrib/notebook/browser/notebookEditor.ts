@@ -22,7 +22,7 @@ import { contrastBorder, editorBackground, focusBorder, foreground, textBlockQuo
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions, IEditorMemento, IEditorCloseEvent } from 'vs/workbench/common/editor';
-import { INotebookEditor, NotebookLayoutInfo, CellEditState, NOTEBOOK_EDITOR_FOCUSED, CellFocusMode, ICellViewModel, CellRunState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor, NotebookLayoutInfo, CellEditState, NOTEBOOK_EDITOR_FOCUSED, CellFocusMode, ICellViewModel, CellRunState, NOTEBOOK_EDITOR_EDITABLE } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorInput, NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
@@ -44,6 +44,7 @@ import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { Range } from 'vs/editor/common/core/range';
 import { CELL_MARGIN, RUN_BUTTON_WIDTH } from 'vs/workbench/contrib/notebook/browser/constants';
 import { Color, RGBA } from 'vs/base/common/color';
+import { NotebookEventDispatcher, NotebookLayoutChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 
 const $ = DOM.$;
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
@@ -95,6 +96,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	private list: NotebookCellList | undefined;
 	private control: ICompositeCodeEditor | undefined;
 	private renderedEditors: Map<ICellViewModel, ICodeEditor | undefined> = new Map();
+	private eventDispatcher: NotebookEventDispatcher | undefined;
 	private notebookViewModel: NotebookViewModel | undefined;
 	private localStore: DisposableStore = this._register(new DisposableStore());
 	private editorMemento: IEditorMemento<INotebookEditorViewState>;
@@ -102,6 +104,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	private fontInfo: BareFontInfo | undefined;
 	private dimension: DOM.Dimension | null = null;
 	private editorFocus: IContextKey<boolean> | null = null;
+	private editorEditable: IContextKey<boolean> | null = null;
 	private outputRenderer: OutputRenderer;
 	private findWidget: NotebookFindWidget;
 
@@ -156,6 +159,9 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		this._register(this.onDidBlur(() => {
 			this.editorFocus?.set(false);
 		}));
+
+		this.editorEditable = NOTEBOOK_EDITOR_EDITABLE.bindTo(this.contextKeyService);
+		this.editorEditable.set(true);
 	}
 
 	private generateFontInfo(): void {
@@ -175,8 +181,8 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		DOM.addClass(this.body, 'cell-list-container');
 
 		const renders = [
-			this.instantiationService.createInstance(CodeCellRenderer, this, this.renderedEditors),
-			this.instantiationService.createInstance(MarkdownCellRenderer, this),
+			this.instantiationService.createInstance(CodeCellRenderer, this, this.contextKeyService, this.renderedEditors),
+			this.instantiationService.createInstance(MarkdownCellRenderer, this.contextKeyService, this),
 		];
 
 		this.list = <NotebookCellList>this.instantiationService.createInstance(
@@ -331,10 +337,15 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			this.list?.rowsContainer.insertAdjacentElement('afterbegin', this.webview!.element);
 		}
 
-		this.notebookViewModel = this.instantiationService.createInstance(NotebookViewModel, input.viewType!, model);
-		this.notebookViewModel?.updateLayoutInfo(this.getLayoutInfo());
+		this.eventDispatcher = new NotebookEventDispatcher();
+		this.notebookViewModel = this.instantiationService.createInstance(NotebookViewModel, input.viewType!, model, this.eventDispatcher);
+		this.eventDispatcher.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
 		const viewState = this.loadTextEditorViewState(input);
 		this.notebookViewModel.restoreEditorViewState(viewState);
+
+		this.localStore.add(this.eventDispatcher.onDidChangeMetadata((e) => {
+			this.editorEditable?.set(e.source.editable);
+		}));
 
 		this.localStore.add(this.notebookViewModel.onDidChangeViewCells((e) => {
 			if (e.synchronous) {
@@ -408,7 +419,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		DOM.toggleClass(this.rootElement, 'narrow-width', dimension.width < 600);
 		DOM.size(this.body, dimension.width, dimension.height);
 		this.list?.layout(dimension.height, dimension.width);
-		this.notebookViewModel?.updateLayoutInfo(this.getLayoutInfo());
+		this.eventDispatcher?.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
 	}
 
 	protected saveState(): void {

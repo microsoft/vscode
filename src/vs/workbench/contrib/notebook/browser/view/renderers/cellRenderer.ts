@@ -23,7 +23,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_PADDING, NOTEBOOK_CELL_EDITABLE_CONTEXT_KEY, NOTEBOOK_CELL_TYPE_CONTEXT_KEY, NOTEBOOK_EDITABLE_CONTEXT_KEY, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE_CONTEXT_KEY } from 'vs/workbench/contrib/notebook/browser/constants';
+import { EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_PADDING, NOTEBOOK_CELL_EDITABLE_CONTEXT_KEY, NOTEBOOK_CELL_TYPE_CONTEXT_KEY, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE_CONTEXT_KEY } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CellRenderTemplate, CellRunState, ICellViewModel, INotebookEditor, CellEditState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellMenus } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellMenus';
 import { CodeCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/codeCell';
@@ -155,13 +155,13 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 	private disposables: Map<ICellViewModel, DisposableStore> = new Map();
 
 	constructor(
+		contextKeyService: IContextKeyService,
 		notehookEditor: INotebookEditor,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@INotificationService notificationService: INotificationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super(instantiationService, notehookEditor, contextMenuService, configurationService, keybindingService, notificationService, contextKeyService, 'markdown');
 	}
@@ -215,9 +215,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 			elementDisposable.add(new StatefullMarkdownCell(this.notebookEditor, element, templateData, this.editorOptions, this.instantiationService));
 
 			const contextKeyService = this.contextKeyService.createScoped(templateData.container);
-			contextKeyService.createKey(NOTEBOOK_EDITABLE_CONTEXT_KEY, this.notebookEditor.viewModel?.metadata?.editable);
 			contextKeyService.createKey(NOTEBOOK_CELL_TYPE_CONTEXT_KEY, 'markdown');
-
 			const cellEditableKey = contextKeyService.createKey(NOTEBOOK_CELL_EDITABLE_CONTEXT_KEY, element.metadata.editable);
 			elementDisposable.add(element.onDidChangeMetadata((e) => {
 				cellEditableKey.set(e.editable);
@@ -256,13 +254,13 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 	constructor(
 		protected notebookEditor: INotebookEditor,
+		protected contextKeyService: IContextKeyService,
 		private renderedEditors: Map<ICellViewModel, ICodeEditor | undefined>,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@INotificationService notificationService: INotificationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super(instantiationService, notebookEditor, contextMenuService, configurationService, keybindingService, notificationService, contextKeyService, 'python');
 	}
@@ -357,9 +355,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		};
 
 		const contextKeyService = this.contextKeyService.createScoped(templateData.container);
-		contextKeyService.createKey(NOTEBOOK_EDITABLE_CONTEXT_KEY, this.notebookEditor.viewModel?.metadata?.editable);
 		contextKeyService.createKey(NOTEBOOK_CELL_TYPE_CONTEXT_KEY, 'code');
-
 		const cellEditableKey = contextKeyService.createKey(NOTEBOOK_CELL_EDITABLE_CONTEXT_KEY, element.metadata.editable);
 		elementDisposable.add(element.onDidChangeMetadata((e) => {
 			cellEditableKey.set(e.editable);

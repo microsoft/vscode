@@ -127,7 +127,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		}
 	}
 
-	async $updateNotebookMetadata(viewType: string, resource: UriComponents, metadata: NotebookDocumentMetadata | undefined): Promise<void> {
+	async $updateNotebookMetadata(viewType: string, resource: UriComponents, metadata: NotebookDocumentMetadata): Promise<void> {
 		let controller = this._notebookProviders.get(viewType);
 
 		if (controller) {
@@ -236,7 +236,7 @@ export class MainThreadNotebookController implements IMainNotebookController {
 		document?.textModel.updateLanguages(languages);
 	}
 
-	updateNotebookMetadata(resource: UriComponents, metadata: NotebookDocumentMetadata | undefined) {
+	updateNotebookMetadata(resource: UriComponents, metadata: NotebookDocumentMetadata) {
 		let document = this._mapping.get(URI.from(resource).toString());
 		document?.textModel.updateNotebookMetadata(metadata);
 	}

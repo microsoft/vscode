@@ -19,6 +19,7 @@ import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
+import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 
 export class TestCell implements ICell {
 	uri: URI;
@@ -202,7 +203,8 @@ export function withTestNotebook(instantiationService: IInstantiationService, bl
 		return new NotebookCellTextModel(notebook.uri, index, cell[0], cell[1], cell[2], cell[3], cell[4]);
 	});
 	const model = new NotebookEditorModel(notebook);
-	const viewModel = new NotebookViewModel(viewType, model, instantiationService, blukEditService, undoRedoService);
+	const eventDispatcher = new NotebookEventDispatcher();
+	const viewModel = new NotebookViewModel(viewType, model, eventDispatcher, instantiationService, blukEditService, undoRedoService);
 
 	callback(editor, viewModel);
 

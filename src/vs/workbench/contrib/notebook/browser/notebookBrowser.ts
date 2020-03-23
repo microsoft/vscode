@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
@@ -17,10 +16,12 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { IModelDecorationsChangeAccessor, NotebookViewModel, CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { CellKind, IOutput, IRenderOutput, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NOTEBOOK_EDITABLE_CONTEXT_KEY } from 'vs/workbench/contrib/notebook/browser/constants';
 
 export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('notebookFindWidgetFocused', false);
 
 export const NOTEBOOK_EDITOR_FOCUSED = new RawContextKey<boolean>('notebookEditorFocused', false);
+export const NOTEBOOK_EDITOR_EDITABLE = new RawContextKey<boolean>(NOTEBOOK_EDITABLE_CONTEXT_KEY, true);
 
 export interface NotebookLayoutInfo {
 	width: number;
@@ -32,11 +33,6 @@ export interface NotebookLayoutChangeEvent {
 	width?: boolean;
 	height?: boolean;
 	fontInfo?: boolean;
-}
-
-export interface NotebookViewLayoutAccessor {
-	layoutInfo: NotebookLayoutInfo | null;
-	onDidChangeLayout: Event<NotebookLayoutChangeEvent>;
 }
 
 export interface CodeCellLayoutInfo {
@@ -52,7 +48,8 @@ export interface CodeCellLayoutChangeEvent {
 	editorHeight?: boolean;
 	outputHeight?: boolean;
 	totalHeight?: boolean;
-	outerWidth?: boolean;
+	outerWidth?: number;
+	font?: BareFontInfo;
 }
 
 export interface MarkdownCellLayoutInfo {
@@ -61,7 +58,8 @@ export interface MarkdownCellLayoutInfo {
 }
 
 export interface MarkdownCellLayoutChangeEvent {
-	outerWidth?: boolean;
+	font?: BareFontInfo;
+	outerWidth?: number;
 }
 
 export interface ICellViewModel {
