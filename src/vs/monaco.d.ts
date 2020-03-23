@@ -1552,14 +1552,9 @@ declare namespace monaco.editor {
 		 */
 		range: Range;
 		/**
-		 * The text to replace with. This can be null to emulate a simple delete.
+		 * The text to replace with. This can be empty to emulate a simple delete.
 		 */
-		text: string | null;
-		/**
-		 * This indicates that this operation has "insert" semantics.
-		 * i.e. forceMoveMarkers = true => if `range` is collapsed, all markers at the position will be moved.
-		 */
-		forceMoveMarkers: boolean;
+		text: string;
 	}
 
 	/**
@@ -1907,9 +1902,11 @@ declare namespace monaco.editor {
 		 * Edit the model without adding the edits to the undo stack.
 		 * This can have dire consequences on the undo stack! See @pushEditOperations for the preferred way.
 		 * @param operations The edit operations.
-		 * @return The inverse edit operations, that, when applied, will bring the model back to the previous state.
+		 * @return If desired, the inverse edit operations, that, when applied, will bring the model back to the previous state.
 		 */
-		applyEdits(operations: IIdentifiedSingleEditOperation[]): IValidEditOperation[];
+		applyEdits(operations: IIdentifiedSingleEditOperation[]): void;
+		applyEdits(operations: IIdentifiedSingleEditOperation[], computeUndoEdits: false): void;
+		applyEdits(operations: IIdentifiedSingleEditOperation[], computeUndoEdits: true): IValidEditOperation[];
 		/**
 		 * Change the end of line sequence without recording in the undo stack.
 		 * This can have dire consequences on the undo stack! See @pushEOL for the preferred way.
