@@ -845,10 +845,10 @@ class ModelSemanticColoring extends Disposable {
 	private _isDisposed: boolean;
 	private readonly _model: ITextModel;
 	private readonly _semanticStyling: SemanticStyling;
-	private readonly _fetchSemanticTokens: RunOnceScheduler;
-	private _currentResponse: SemanticTokensResponse | null;
-	private _currentRequestCancellationTokenSource: CancellationTokenSource | null;
-	private _providersChangeListeners: IDisposable[];
+	private readonly _fetchDocumentSemanticTokens: RunOnceScheduler;
+	private _currentDocumentResponse: SemanticTokensResponse | null;
+	private _currentDocumentRequestCancellationTokenSource: CancellationTokenSource | null;
+	private _documentProvidersChangeListeners: IDisposable[];
 
 	constructor(model: ITextModel, themeService: IThemeService, stylingProvider: SemanticStyling) {
 		super();
@@ -856,57 +856,57 @@ class ModelSemanticColoring extends Disposable {
 		this._isDisposed = false;
 		this._model = model;
 		this._semanticStyling = stylingProvider;
-		this._fetchSemanticTokens = this._register(new RunOnceScheduler(() => this._fetchSemanticTokensNow(), 300));
-		this._currentResponse = null;
-		this._currentRequestCancellationTokenSource = null;
-		this._providersChangeListeners = [];
+		this._fetchDocumentSemanticTokens = this._register(new RunOnceScheduler(() => this._fetchDocumentSemanticTokensNow(), 300));
+		this._currentDocumentResponse = null;
+		this._currentDocumentRequestCancellationTokenSource = null;
+		this._documentProvidersChangeListeners = [];
 
 		this._register(this._model.onDidChangeContent(e => {
-			if (!this._fetchSemanticTokens.isScheduled()) {
-				this._fetchSemanticTokens.schedule();
+			if (!this._fetchDocumentSemanticTokens.isScheduled()) {
+				this._fetchDocumentSemanticTokens.schedule();
 			}
 		}));
-		const bindChangeListeners = () => {
-			dispose(this._providersChangeListeners);
-			this._providersChangeListeners = [];
+		const bindDocumentChangeListeners = () => {
+			dispose(this._documentProvidersChangeListeners);
+			this._documentProvidersChangeListeners = [];
 			for (const provider of DocumentSemanticTokensProviderRegistry.all(model)) {
 				if (typeof provider.onDidChange === 'function') {
-					this._providersChangeListeners.push(provider.onDidChange(() => this._fetchSemanticTokens.schedule(0)));
+					this._documentProvidersChangeListeners.push(provider.onDidChange(() => this._fetchDocumentSemanticTokens.schedule(0)));
 				}
 			}
 		};
-		bindChangeListeners();
+		bindDocumentChangeListeners();
 		this._register(DocumentSemanticTokensProviderRegistry.onDidChange(e => {
-			bindChangeListeners();
-			this._fetchSemanticTokens.schedule();
+			bindDocumentChangeListeners();
+			this._fetchDocumentSemanticTokens.schedule();
 		}));
 
 		this._register(themeService.onDidColorThemeChange(_ => {
 			// clear out existing tokens
-			this._setSemanticTokens(null, null, null, []);
-			this._fetchSemanticTokens.schedule();
+			this._setDocumentSemanticTokens(null, null, null, []);
+			this._fetchDocumentSemanticTokens.schedule();
 		}));
 
-		this._fetchSemanticTokens.schedule(0);
+		this._fetchDocumentSemanticTokens.schedule(0);
 	}
 
 	public dispose(): void {
-		if (this._currentResponse) {
-			this._currentResponse.dispose();
-			this._currentResponse = null;
+		if (this._currentDocumentResponse) {
+			this._currentDocumentResponse.dispose();
+			this._currentDocumentResponse = null;
 		}
-		if (this._currentRequestCancellationTokenSource) {
-			this._currentRequestCancellationTokenSource.cancel();
-			this._currentRequestCancellationTokenSource = null;
+		if (this._currentDocumentRequestCancellationTokenSource) {
+			this._currentDocumentRequestCancellationTokenSource.cancel();
+			this._currentDocumentRequestCancellationTokenSource = null;
 		}
-		this._setSemanticTokens(null, null, null, []);
+		this._setDocumentSemanticTokens(null, null, null, []);
 		this._isDisposed = true;
 
 		super.dispose();
 	}
 
-	private _fetchSemanticTokensNow(): void {
-		if (this._currentRequestCancellationTokenSource) {
+	private _fetchDocumentSemanticTokensNow(): void {
+		if (this._currentDocumentRequestCancellationTokenSource) {
 			// there is already a request running, let it finish...
 			return;
 		}
@@ -914,7 +914,7 @@ class ModelSemanticColoring extends Disposable {
 		if (!provider) {
 			return;
 		}
-		this._currentRequestCancellationTokenSource = new CancellationTokenSource();
+		this._currentDocumentRequestCancellationTokenSource = new CancellationTokenSource();
 
 		const pendingChanges: IModelContentChangedEvent[] = [];
 		const contentChangeListener = this._model.onDidChangeContent((e) => {
@@ -923,13 +923,13 @@ class ModelSemanticColoring extends Disposable {
 
 		const styling = this._semanticStyling.get(provider);
 
-		const lastResultId = this._currentResponse ? this._currentResponse.resultId || null : null;
-		const request = Promise.resolve(provider.provideDocumentSemanticTokens(this._model, lastResultId, this._currentRequestCancellationTokenSource.token));
+		const lastResultId = this._currentDocumentResponse ? this._currentDocumentResponse.resultId || null : null;
+		const request = Promise.resolve(provider.provideDocumentSemanticTokens(this._model, lastResultId, this._currentDocumentRequestCancellationTokenSource.token));
 
 		request.then((res) => {
-			this._currentRequestCancellationTokenSource = null;
+			this._currentDocumentRequestCancellationTokenSource = null;
 			contentChangeListener.dispose();
-			this._setSemanticTokens(provider, res || null, styling, pendingChanges);
+			this._setDocumentSemanticTokens(provider, res || null, styling, pendingChanges);
 		}, (err) => {
 			if (!err || typeof err.message !== 'string' || err.message.indexOf('busy') === -1) {
 				errors.onUnexpectedError(err);
@@ -937,13 +937,13 @@ class ModelSemanticColoring extends Disposable {
 
 			// Semantic tokens eats up all errors and considers errors to mean that the result is temporarily not available
 			// The API does not have a special error kind to express this...
-			this._currentRequestCancellationTokenSource = null;
+			this._currentDocumentRequestCancellationTokenSource = null;
 			contentChangeListener.dispose();
 
 			if (pendingChanges.length > 0) {
 				// More changes occurred while the request was running
-				if (!this._fetchSemanticTokens.isScheduled()) {
-					this._fetchSemanticTokens.schedule();
+				if (!this._fetchDocumentSemanticTokens.isScheduled()) {
+					this._fetchDocumentSemanticTokens.schedule();
 				}
 			}
 		});
@@ -963,11 +963,11 @@ class ModelSemanticColoring extends Disposable {
 		}
 	}
 
-	private _setSemanticTokens(provider: DocumentSemanticTokensProvider | null, tokens: SemanticTokens | SemanticTokensEdits | null, styling: SemanticColoringProviderStyling | null, pendingChanges: IModelContentChangedEvent[]): void {
-		const currentResponse = this._currentResponse;
-		if (this._currentResponse) {
-			this._currentResponse.dispose();
-			this._currentResponse = null;
+	private _setDocumentSemanticTokens(provider: DocumentSemanticTokensProvider | null, tokens: SemanticTokens | SemanticTokensEdits | null, styling: SemanticColoringProviderStyling | null, pendingChanges: IModelContentChangedEvent[]): void {
+		const currentResponse = this._currentDocumentResponse;
+		if (this._currentDocumentResponse) {
+			this._currentDocumentResponse.dispose();
+			this._currentDocumentResponse = null;
 		}
 		if (this._isDisposed) {
 			// disposed!
@@ -1034,7 +1034,7 @@ class ModelSemanticColoring extends Disposable {
 
 		if (ModelSemanticColoring._isSemanticTokens(tokens)) {
 
-			this._currentResponse = new SemanticTokensResponse(provider, tokens.resultId, tokens.data);
+			this._currentDocumentResponse = new SemanticTokensResponse(provider, tokens.resultId, tokens.data);
 
 			const srcData = tokens.data;
 			const tokenCount = (tokens.data.length / 5) | 0;
@@ -1121,8 +1121,8 @@ class ModelSemanticColoring extends Disposable {
 					}
 				}
 
-				if (!this._fetchSemanticTokens.isScheduled()) {
-					this._fetchSemanticTokens.schedule();
+				if (!this._fetchDocumentSemanticTokens.isScheduled()) {
+					this._fetchDocumentSemanticTokens.schedule();
 				}
 			}
 
