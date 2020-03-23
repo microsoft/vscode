@@ -306,7 +306,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 
 	private updateContexts() {
 		const activeEditorPane = this.editorService.activeEditorPane;
-		const resource = activeEditorPane?.input.resource;
+		const resource = activeEditorPane?.input?.resource;
 		if (!resource) {
 			this._customEditorContextKey.reset();
 			this._focusedCustomEditorIsEditable.reset();
