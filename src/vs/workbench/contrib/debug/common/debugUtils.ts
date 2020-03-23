@@ -128,10 +128,12 @@ function stringToUri(source: PathContainer): string | undefined {
 function uriToString(source: PathContainer): string | undefined {
 	if (typeof source.path === 'object') {
 		const u = uri.revive(source.path);
-		if (u.scheme === 'file') {
-			return u.fsPath;
-		} else {
-			return u.toString();
+		if (u) {
+			if (u.scheme === 'file') {
+				return u.fsPath;
+			} else {
+				return u.toString();
+			}
 		}
 	}
 	return source.path;
