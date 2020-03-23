@@ -622,6 +622,12 @@ export interface WebviewPanelViewStateData {
 	};
 }
 
+export interface CustomDocumentEditState {
+	readonly allEdits: readonly number[];
+	readonly currentIndex: number;
+	readonly saveIndex: number;
+}
+
 export interface ExtHostWebviewsShape {
 	$onMessage(handle: WebviewPanelHandle, message: any): void;
 	$onMissingCsp(handle: WebviewPanelHandle, extensionId: string): void;
@@ -634,9 +640,9 @@ export interface ExtHostWebviewsShape {
 	$createWebviewCustomEditorDocument(resource: UriComponents, viewType: string, cancellation: CancellationToken): Promise<{ editable: boolean }>;
 	$disposeWebviewCustomEditorDocument(resource: UriComponents, viewType: string): Promise<void>;
 
-	$undo(resource: UriComponents, viewType: string, editId: number): Promise<void>;
-	$redo(resource: UriComponents, viewType: string, editId: number): Promise<void>;
-	$revert(resource: UriComponents, viewType: string, changes: { undoneEdits: number[], redoneEdits: number[] }): Promise<void>;
+	$undo(resource: UriComponents, viewType: string, editId: number, state: CustomDocumentEditState): Promise<void>;
+	$redo(resource: UriComponents, viewType: string, editId: number, state: CustomDocumentEditState): Promise<void>;
+	$revert(resource: UriComponents, viewType: string, changes: { undoneEdits: number[], redoneEdits: number[] }, state: CustomDocumentEditState): Promise<void>;
 	$disposeEdits(resourceComponents: UriComponents, viewType: string, editIds: number[]): void;
 
 	$onSave(resource: UriComponents, viewType: string, cancellation: CancellationToken): Promise<void>;

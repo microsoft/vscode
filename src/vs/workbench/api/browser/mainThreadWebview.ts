@@ -663,11 +663,19 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 		}
 
 		const undoneEdit = this._edits[this._currentEditIndex];
-		await this._proxy.$undo(this._realResource, this.viewType, undoneEdit);
+		await this._proxy.$undo(this._realResource, this.viewType, undoneEdit, this.getEditState());
 
 		this.change(() => {
 			--this._currentEditIndex;
 		});
+	}
+
+	private getEditState(): extHostProtocol.CustomDocumentEditState {
+		return {
+			allEdits: this._edits,
+			currentIndex: this._currentEditIndex,
+			saveIndex: this._savePoint,
+		};
 	}
 
 	private async redo(): Promise<void> {
@@ -681,7 +689,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 		}
 
 		const redoneEdit = this._edits[this._currentEditIndex + 1];
-		await this._proxy.$redo(this._realResource, this.viewType, redoneEdit);
+		await this._proxy.$redo(this._realResource, this.viewType, redoneEdit, this.getEditState());
 		this.change(() => {
 			++this._currentEditIndex;
 		});
@@ -728,7 +736,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 			editsToRedo = this._edits.slice(this._currentEditIndex, this._savePoint);
 		}
 
-		this._proxy.$revert(this._realResource, this.viewType, { undoneEdits: editsToUndo, redoneEdits: editsToRedo });
+		this._proxy.$revert(this._realResource, this.viewType, { undoneEdits: editsToUndo, redoneEdits: editsToRedo }, this.getEditState());
 		this.change(() => {
 			this._currentEditIndex = this._savePoint;
 			this.spliceEdits();

@@ -63,6 +63,8 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 
 	private _activePreview: DynamicMarkdownPreview | undefined = undefined;
 
+	private readonly customEditorViewType = 'vscode.markdown.preview.editor';
+
 	public constructor(
 		private readonly _contentProvider: MarkdownContentProvider,
 		private readonly _logger: Logger,
@@ -70,7 +72,7 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 	) {
 		super();
 		this._register(vscode.window.registerWebviewPanelSerializer(DynamicMarkdownPreview.viewType, this));
-		this._register(vscode.window.registerCustomEditorProvider('vscode.markdown.preview.editor', this));
+		this._register(vscode.window.registerCustomEditorProvider(this.customEditorViewType, this));
 	}
 
 	public refresh() {
@@ -148,8 +150,8 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 		this.registerDynamicPreview(preview);
 	}
 
-	public async resolveCustomDocument(_document: vscode.CustomDocument): Promise<void> {
-		// noop
+	public async openCustomDocument(uri: vscode.Uri) {
+		return new vscode.CustomDocument(this.customEditorViewType, uri);
 	}
 
 	public async resolveCustomTextEditor(
