@@ -42,4 +42,10 @@ suite('extractRangeFromFilter', () => {
 		assert.equal(res?.range.startLineNumber, 19);
 		assert.equal(res?.range.startColumn, 20);
 	});
+
+	test('unless', async function () {
+		let res = extractRangeFromFilter('/some/path/file.txt@ (19,20)', ['@']);
+
+		assert.ok(!res);
+	});
 });
