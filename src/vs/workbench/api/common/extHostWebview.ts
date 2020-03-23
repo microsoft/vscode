@@ -396,7 +396,7 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
 			if (provider.editingDelegate) {
 				disposables.add(provider.editingDelegate.onDidEdit(e => {
 					const document = e.document;
-					const editId = (document as unknown as extHostTypes.CustomDocument)._addEdit(e.edit);
+					const editId = (document as extHostTypes.CustomDocument)._addEdit(e.edit);
 					this._proxy.$onDidEdit(document.uri, document.viewType, editId, e.label);
 				}));
 			}
@@ -499,7 +499,7 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
 
 		const revivedResource = URI.revive(resource);
 		const document = await entry.provider.openCustomDocument(revivedResource, cancellation);
-		this._documents.add(document as unknown as extHostTypes.CustomDocument);
+		this._documents.add(document as extHostTypes.CustomDocument);
 		return {
 			editable: !!entry.provider.editingDelegate,
 		};
@@ -594,14 +594,16 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
 	async $redo(resourceComponents: UriComponents, viewType: string, editId: number, state: extHostProtocol.CustomDocumentEditState): Promise<void> {
 		const delegate = this.getEditingDelegate(viewType);
 		const document = this.getCustomDocument(viewType, resourceComponents);
+		document._updateEditState(state);
 		return delegate.applyEdits(document, [document._getEdit(editId)]);
 	}
 
-	async $revert(resourceComponents: UriComponents, viewType: string, changes: { undoneEdits: number[], redoneEdits: number[] }): Promise<void> {
+	async $revert(resourceComponents: UriComponents, viewType: string, changes: { undoneEdits: number[], redoneEdits: number[] }, state: extHostProtocol.CustomDocumentEditState): Promise<void> {
 		const delegate = this.getEditingDelegate(viewType);
 		const document = this.getCustomDocument(viewType, resourceComponents);
 		const undoneEdits = changes.undoneEdits.map(id => document._getEdit(id));
 		const appliedEdits = changes.redoneEdits.map(id => document._getEdit(id));
+		document._updateEditState(state);
 		return delegate.revert(document, { undoneEdits, appliedEdits });
 	}
 

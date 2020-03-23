@@ -673,11 +673,10 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 		}
 
 		const undoneEdit = this._edits[this._currentEditIndex];
-		await this._proxy.$undo(this._editorResource, this.viewType, undoneEdit, this.getEditState());
-
 		this.change(() => {
 			--this._currentEditIndex;
 		});
+		await this._proxy.$undo(this._editorResource, this.viewType, undoneEdit, this.getEditState());
 	}
 
 	private getEditState(): extHostProtocol.CustomDocumentEditState {
@@ -699,10 +698,10 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 		}
 
 		const redoneEdit = this._edits[this._currentEditIndex + 1];
-		await this._proxy.$redo(this._editorResource, this.viewType, redoneEdit, this.getEditState());
 		this.change(() => {
 			++this._currentEditIndex;
 		});
+		await this._proxy.$redo(this._editorResource, this.viewType, redoneEdit, this.getEditState());
 	}
 
 	private spliceEdits(editToInsert?: number) {

@@ -2619,12 +2619,12 @@ export class CustomDocument<EditType = unknown> implements vscode.CustomDocument
 	public readonly onDidDispose = this.#onDidDispose.event;
 
 	get appliedEdits() {
-		return this.#editState.allEdits.slice(0, this.#editState.currentIndex)
+		return this.#editState.allEdits.slice(0, this.#editState.currentIndex + 1)
 			.map(id => this._getEdit(id));
 	}
 
 	get savedEdits() {
-		return this.#editState.allEdits.slice(0, this.#editState.saveIndex)
+		return this.#editState.allEdits.slice(0, this.#editState.saveIndex + 1)
 			.map(id => this._getEdit(id));
 	}
 
@@ -2650,9 +2650,14 @@ export class CustomDocument<EditType = unknown> implements vscode.CustomDocument
 	}
 
 	/** @internal*/ _addEdit(edit: EditType): number {
-		return this.#edits.add([edit]);
+		const id = this.#edits.add([edit]);
+		this.#editState = {
+			allEdits: [...this.#editState.allEdits.slice(0, this.#editState.currentIndex), id],
+			currentIndex: this.#editState.currentIndex + 1,
+			saveIndex: this.#editState.saveIndex,
+		};
+		return id;
 	}
-
 }
 
 // #endregion
