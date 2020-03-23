@@ -27,20 +27,18 @@ export class HistoryNavigator<T> implements INavigator<T> {
 		this._onChange();
 	}
 
-	public hasNext(): boolean {
-		return this._currentPosition() !== this._elements.length - 1;
-	}
-
 	public next(): T | null {
-		return this._navigator.next();
-	}
-
-	public hasPrevious(): boolean {
-		return this._currentPosition() !== 0;
+		if (this._currentPosition() !== this._elements.length - 1) {
+			return this._navigator.next();
+		}
+		return null;
 	}
 
 	public previous(): T | null {
-		return this._navigator.previous();
+		if (this._currentPosition() !== 0) {
+			return this._navigator.previous();
+		}
+		return null;
 	}
 
 	public current(): T | null {

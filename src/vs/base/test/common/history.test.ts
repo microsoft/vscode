@@ -106,38 +106,38 @@ suite('History Navigator', () => {
 		assert.deepEqual(['2', '3', '1'], toArray(testObject));
 	});
 
-	test('hasPrevious returns false if the current position is the first one', () => {
+	test('previous returns null if the current position is the first one', () => {
 		const testObject = new HistoryNavigator(['1', '2', '3']);
 
 		testObject.first();
 
-		assert.deepEqual(testObject.hasPrevious(), false);
+		assert.deepEqual(testObject.previous(), null);
 	});
 
-	test('hasPrevious returns true if the current position is not the first one', () => {
+	test('previous returns object if the current position is not the first one', () => {
 		const testObject = new HistoryNavigator(['1', '2', '3']);
 
 		testObject.first();
 		testObject.next();
 
-		assert.deepEqual(testObject.hasPrevious(), true);
+		assert.deepEqual(testObject.previous(), '1');
 	});
 
-	test('hasNext returns false if the current position is the last one', () => {
+	test('next returns null if the current position is the last one', () => {
 		const testObject = new HistoryNavigator(['1', '2', '3']);
 
 		testObject.last();
 
-		assert.deepEqual(testObject.hasNext(), false);
+		assert.deepEqual(testObject.next(), null);
 	});
 
-	test('hasNext returns true if the current position is not the last one', () => {
+	test('next returns object if the current position is not the last one', () => {
 		const testObject = new HistoryNavigator(['1', '2', '3']);
 
 		testObject.last();
 		testObject.previous();
 
-		assert.deepEqual(testObject.hasNext(), true);
+		assert.deepEqual(testObject.next(), '3');
 	});
 
 	test('clear', () => {

@@ -228,15 +228,11 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 	}
 
 	showPreviousValue(): void {
-		if (this.history.hasPrevious()) {
-			this.navigateHistory(true);
-		}
+		this.navigateHistory(true);
 	}
 
 	showNextValue(): void {
-		if (this.history.hasNext()) {
-			this.navigateHistory(false);
-		}
+		this.navigateHistory(false);
 	}
 
 	focusRepl(): void {
