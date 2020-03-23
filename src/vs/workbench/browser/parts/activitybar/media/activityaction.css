@@ -41,7 +41,8 @@
 }
 
 .monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.top::before,
-.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.bottom::after {
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.bottom::after,
+.monaco-workbench .activitybar > .content.dragged-over :not(.monaco-menu) > .monaco-action-bar .action-item:last-of-type::after {
 	opacity: 1;
 }
 

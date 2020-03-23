@@ -533,6 +533,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 			},
 
 			onDrop: e => {
+				dom.EventHelper.stop(e.eventData, true);
 				this.dndHandler.drop(e.dragAndDropData, this.activity.id, e.eventData, !!insertDropBefore);
 				insertDropBefore = this.updateFromDragging(container, false, e.eventData);
 			},
