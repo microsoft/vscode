@@ -34,7 +34,8 @@ suite('ModelService', () => {
 		configService.setUserConfiguration('files', { 'eol': '\n' });
 		configService.setUserConfiguration('files', { 'eol': '\r\n' }, URI.file(platform.isWindows ? 'c:\\myroot' : '/myroot'));
 
-		modelService = new ModelServiceImpl(configService, new TestTextResourcePropertiesService(configService), new TestThemeService(), new NullLogService(), new UndoRedoService(new TestDialogService(), new TestNotificationService()));
+		const dialogService = new TestDialogService();
+		modelService = new ModelServiceImpl(configService, new TestTextResourcePropertiesService(configService), new TestThemeService(), new NullLogService(), new UndoRedoService(dialogService, new TestNotificationService()), dialogService);
 	});
 
 	teardown(() => {

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
@@ -28,6 +29,9 @@ import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IUndoRedoService, IUndoRedoElement, IPastFutureElements } from 'vs/platform/undoRedo/common/undoRedo';
 import { StringSHA1 } from 'vs/base/common/hash';
 import { SingleModelEditStackElement, MultiModelEditStackElement, EditStackElement } from 'vs/editor/common/model/editStack';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { Schemas } from 'vs/base/common/network';
+import Severity from 'vs/base/common/severity';
 
 export const MAINTAIN_UNDO_REDO_STACK = true;
 
@@ -146,12 +150,10 @@ class DisposedModelInfo {
 }
 
 export class ModelServiceImpl extends Disposable implements IModelService {
-	public _serviceBrand: undefined;
 
-	private readonly _configurationService: IConfigurationService;
-	private readonly _configurationServiceSubscription: IDisposable;
-	private readonly _resourcePropertiesService: ITextResourcePropertiesService;
-	private readonly _undoRedoService: IUndoRedoService;
+	private static _PROMPT_UNDO_REDO_SIZE_LIMIT = 10 * 1024 * 1024; // 10MB
+
+	public _serviceBrand: undefined;
 
 	private readonly _onModelAdded: Emitter<ITextModel> = this._register(new Emitter<ITextModel>());
 	public readonly onModelAdded: Event<ITextModel> = this._onModelAdded.event;
@@ -171,24 +173,22 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 	private readonly _disposedModels: Map<string, DisposedModelInfo>;
 
 	constructor(
-		@IConfigurationService configurationService: IConfigurationService,
-		@ITextResourcePropertiesService resourcePropertiesService: ITextResourcePropertiesService,
-		@IThemeService themeService: IThemeService,
-		@ILogService logService: ILogService,
-		@IUndoRedoService undoRedoService: IUndoRedoService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITextResourcePropertiesService private readonly _resourcePropertiesService: ITextResourcePropertiesService,
+		@IThemeService private readonly _themeService: IThemeService,
+		@ILogService private readonly _logService: ILogService,
+		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
+		@IDialogService private readonly _dialogService: IDialogService,
 	) {
 		super();
-		this._configurationService = configurationService;
-		this._resourcePropertiesService = resourcePropertiesService;
-		this._undoRedoService = undoRedoService;
 		this._modelCreationOptionsByLanguageAndResource = Object.create(null);
 		this._models = {};
 		this._disposedModels = new Map<string, DisposedModelInfo>();
 
-		this._configurationServiceSubscription = this._configurationService.onDidChangeConfiguration(e => this._updateModelOptions());
+		this._register(this._configurationService.onDidChangeConfiguration(e => this._updateModelOptions()));
 		this._updateModelOptions();
 
-		this._register(new SemanticColoringFeature(this, themeService, configurationService, logService));
+		this._register(new SemanticColoringFeature(this, this._themeService, this._configurationService, this._logService));
 	}
 
 	private static _readModelOptions(config: IRawConfig, isForSimpleWidget: boolean): ITextModelCreationOptions {
@@ -322,11 +322,6 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 				trimAutoWhitespace: newOptions.trimAutoWhitespace
 			});
 		}
-	}
-
-	public dispose(): void {
-		this._configurationServiceSubscription.dispose();
-		super.dispose();
 	}
 
 	// --- begin IModelService
@@ -475,9 +470,20 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		}
 		const model = modelData.model;
 		let maintainUndoRedoStack = false;
-		if (MAINTAIN_UNDO_REDO_STACK) {
+		let heapSize = 0;
+		if (MAINTAIN_UNDO_REDO_STACK && (resource.scheme === Schemas.file || resource.scheme === Schemas.vscodeRemote)) {
 			const elements = this._undoRedoService.getElements(resource);
-			maintainUndoRedoStack = ((elements.past.length > 0 || elements.future.length > 0) && isEditStackPastFutureElements(elements));
+			if ((elements.past.length > 0 || elements.future.length > 0) && isEditStackPastFutureElements(elements)) {
+				maintainUndoRedoStack = true;
+				for (const element of elements.past) {
+					heapSize += element.heapSize(resource);
+				}
+				for (const element of elements.future) {
+					heapSize += element.heapSize(resource);
+				}
+			} else {
+				maintainUndoRedoStack = false;
+			}
 		}
 
 		if (maintainUndoRedoStack) {
@@ -489,6 +495,28 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		}
 
 		modelData.model.dispose();
+
+		// After disposing the model, prompt and ask if we should keep the undo-redo stack
+		if (maintainUndoRedoStack && heapSize > ModelServiceImpl._PROMPT_UNDO_REDO_SIZE_LIMIT) {
+			const mbSize = (heapSize / 1024 / 1024).toFixed(1);
+			this._dialogService.show(
+				Severity.Info,
+				nls.localize('undoRedoConfirm', "Keep the undo-redo stack for {0} in memory ({1} MB)?", (resource.scheme === Schemas.file ? resource.fsPath : resource.path), mbSize),
+				[
+					nls.localize('nok', "Discard"),
+					nls.localize('ok', "Keep"),
+				],
+				{
+					cancelId: 2
+				}
+			).then((result) => {
+				const discard = (result.choice === 2 || result.choice === 0);
+				if (discard) {
+					this._disposedModels.delete(MODEL_ID(resource));
+					this._undoRedoService.removeElements(resource);
+				}
+			});
+		}
 	}
 
 	public getModels(): ITextModel[] {
