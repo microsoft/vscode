@@ -756,8 +756,6 @@ export class TimelinePane extends ViewPane {
 	focus(): void {
 		super.focus();
 		this.tree.domFocus();
-
-		// this.refreshDebounced();
 	}
 
 	setExpanded(expanded: boolean): boolean {
