@@ -205,7 +205,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			if (this.pickState.editorViewState) {
 				this.editorService.openEditor(
 					this.pickState.editorViewState.editor,
-					{ viewState: this.pickState.editorViewState.state },
+					{ viewState: this.pickState.editorViewState.state, preserveFocus: true /* import to not close the picker as a result */ },
 					this.pickState.editorViewState.group
 				);
 			}
