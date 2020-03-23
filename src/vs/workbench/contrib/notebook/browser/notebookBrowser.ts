@@ -71,7 +71,7 @@ export interface ICellViewModel {
 	runState: CellRunState;
 	focusMode: CellFocusMode;
 	getText(): string;
-	metadata: NotebookCellMetadata;
+	metadata: NotebookCellMetadata | undefined;
 }
 
 export interface INotebookEditor {

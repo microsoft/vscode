@@ -80,9 +80,9 @@ export class CodeCell extends Disposable {
 			}
 		}));
 
-		templateData.editor?.updateOptions({ readOnly: !viewCell.metadata.editable });
+		templateData.editor?.updateOptions({ readOnly: !(viewCell.getEvaluatedMetadata(notebookEditor.viewModel?.metadata).editable) });
 		this._register(viewCell.onDidChangeMetadata((e) => {
-			templateData.editor?.updateOptions({ readOnly: !e.editable });
+			templateData.editor?.updateOptions({ readOnly: !(viewCell.getEvaluatedMetadata(notebookEditor.viewModel?.metadata).editable) });
 		}));
 
 		let cellWidthResizeObserver = getResizesObserver(templateData.editorContainer!, {

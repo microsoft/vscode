@@ -339,6 +339,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 		this.eventDispatcher = new NotebookEventDispatcher();
 		this.notebookViewModel = this.instantiationService.createInstance(NotebookViewModel, input.viewType!, model, this.eventDispatcher);
+		this.editorEditable?.set(!!this.notebookViewModel.metadata?.editable);
 		this.eventDispatcher.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
 		const viewState = this.loadTextEditorViewState(input);
 		this.notebookViewModel.restoreEditorViewState(viewState);

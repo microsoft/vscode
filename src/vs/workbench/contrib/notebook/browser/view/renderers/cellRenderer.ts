@@ -216,9 +216,9 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 
 			const contextKeyService = this.contextKeyService.createScoped(templateData.container);
 			contextKeyService.createKey(NOTEBOOK_CELL_TYPE_CONTEXT_KEY, 'markdown');
-			const cellEditableKey = contextKeyService.createKey(NOTEBOOK_CELL_EDITABLE_CONTEXT_KEY, element.metadata.editable);
+			const cellEditableKey = contextKeyService.createKey(NOTEBOOK_CELL_EDITABLE_CONTEXT_KEY, !!(element.metadata?.editable));
 			elementDisposable.add(element.onDidChangeMetadata((e) => {
-				cellEditableKey.set(e.editable);
+				cellEditableKey.set(!!e?.editable);
 			}));
 
 			const editModeKey = contextKeyService.createKey(NOTEBOOK_CELL_MARKDOWN_EDIT_MODE_CONTEXT_KEY, element.editState === CellEditState.Editing);
@@ -356,9 +356,9 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		const contextKeyService = this.contextKeyService.createScoped(templateData.container);
 		contextKeyService.createKey(NOTEBOOK_CELL_TYPE_CONTEXT_KEY, 'code');
-		const cellEditableKey = contextKeyService.createKey(NOTEBOOK_CELL_EDITABLE_CONTEXT_KEY, element.metadata.editable);
+		const cellEditableKey = contextKeyService.createKey(NOTEBOOK_CELL_EDITABLE_CONTEXT_KEY, !!(element.metadata?.editable));
 		elementDisposable.add(element.onDidChangeMetadata((e) => {
-			cellEditableKey.set(e.editable);
+			cellEditableKey.set(!!e?.editable);
 		}));
 
 		this.setupCellToolbarActions(contextKeyService, templateData, elementDisposable);

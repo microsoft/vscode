@@ -671,7 +671,7 @@ export interface ICellDto {
 	language: string;
 	cellKind: CellKind;
 	outputs: IOutput[];
-	metadata: NotebookCellMetadata;
+	metadata?: NotebookCellMetadata;
 }
 
 export type NotebookCellsSplice = [
@@ -694,7 +694,7 @@ export interface MainThreadNotebookShape extends IDisposable {
 	$createNotebookDocument(handle: number, viewType: string, resource: UriComponents): Promise<void>;
 	$updateNotebookLanguages(viewType: string, resource: UriComponents, languages: string[]): Promise<void>;
 	$updateNotebookMetadata(viewType: string, resource: UriComponents, metadata: NotebookDocumentMetadata): Promise<void>;
-	$updateNotebookCellMetadata(viewType: string, resource: UriComponents, handle: number, metadata: NotebookCellMetadata): Promise<void>;
+	$updateNotebookCellMetadata(viewType: string, resource: UriComponents, handle: number, metadata: NotebookCellMetadata | undefined): Promise<void>;
 	$spliceNotebookCells(viewType: string, resource: UriComponents, splices: NotebookCellsSplice[], renderers: number[]): Promise<void>;
 	$spliceNotebookCellOutputs(viewType: string, resource: UriComponents, cellHandle: number, splices: NotebookCellOutputsSplice[], renderers: number[]): Promise<void>;
 	$postMessage(handle: number, value: any): Promise<boolean>;

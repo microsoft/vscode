@@ -21,10 +21,6 @@ const notebookDocumentMetadataDefaults: vscode.NotebookDocumentMetadata = {
 	cellEditable: true
 };
 
-const notebookCellMetadataDefaults: vscode.NotebookCellMetadata = {
-	editable: true
-};
-
 export class ExtHostCell implements vscode.NotebookCell {
 
 	public source: string[];
@@ -44,7 +40,7 @@ export class ExtHostCell implements vscode.NotebookCell {
 		public cellKind: CellKind,
 		public language: string,
 		outputs: any[],
-		private _metadata: vscode.NotebookCellMetadata,
+		private _metadata: vscode.NotebookCellMetadata | undefined,
 		private _proxy: MainThreadNotebookShape
 	) {
 		this.source = this._content.split(/\r|\n|\r\n/g);
@@ -78,11 +74,10 @@ export class ExtHostCell implements vscode.NotebookCell {
 		return this._metadata;
 	}
 
-	set metadata(newMetadata: vscode.NotebookCellMetadata) {
-		let newMetadataWithDefaults = {
-			...notebookCellMetadataDefaults,
-			...(newMetadata || {})
-		};
+	set metadata(newMetadata: vscode.NotebookCellMetadata | undefined) {
+		const newMetadataWithDefaults: vscode.NotebookCellMetadata | undefined = newMetadata ? {
+			editable: newMetadata.editable
+		} : undefined;
 
 		this._metadata = newMetadataWithDefaults;
 		this._proxy.$updateNotebookCellMetadata(this.viewType, this.documentUri, this.handle, newMetadataWithDefaults);
@@ -157,19 +152,14 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 		this._proxy.$updateNotebookLanguages(this.viewType, this.uri, this._languages);
 	}
 
-	private _metadata: vscode.NotebookDocumentMetadata = notebookDocumentMetadataDefaults;
+	private _metadata: vscode.NotebookDocumentMetadata | undefined = notebookDocumentMetadataDefaults;
 
 	get metadata() {
 		return this._metadata;
 	}
 
 	set metadata(newMetadata: vscode.NotebookDocumentMetadata | undefined) {
-		let newMetadataWithDefaults = {
-			...notebookDocumentMetadataDefaults,
-			...(newMetadata || {})
-		};
-
-		this._metadata = newMetadataWithDefaults;
+		this._metadata = newMetadata || notebookDocumentMetadataDefaults;
 		this._proxy.$updateNotebookMetadata(this.viewType, this.uri, this._metadata);
 	}
 
@@ -413,10 +403,6 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 	createCell(content: string, language: string, type: CellKind, outputs: vscode.CellOutput[], metadata: vscode.NotebookCellMetadata | undefined): vscode.NotebookCell {
 		const handle = ExtHostNotebookEditor._cellhandlePool++;
 		const uri = CellUri.generate(this.document.uri, handle);
-		metadata = {
-			...notebookCellMetadataDefaults,
-			...(metadata || {})
-		};
 		const cell = new ExtHostCell(this.viewType, this.uri, handle, uri, content, type, language, outputs, metadata, this._proxy);
 		return cell;
 	}
