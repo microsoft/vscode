@@ -143,14 +143,6 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		}
 	}
 
-	getText(): string {
-		if (this._textModel) {
-			return this._textModel.getValue();
-		}
-
-		return this.cell.source.join('\n');
-	}
-
 	async resolveTextModel(): Promise<model.ITextModel> {
 		if (!this._textModel) {
 			const ref = await this._modelService.createModelReference(this.cell.uri);

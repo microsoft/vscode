@@ -16,7 +16,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { CellFindMatch, CellState, ICellViewModel, NotebookLayoutInfo, NotebookLayoutChangeEvent, NotebookViewLayoutAccessor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
-// import { DeleteCellEdit, InsertCellEdit, MoveCellEdit } from 'vs/workbench/contrib/notebook/browser/viewModel/cellEdit';
+import { DeleteCellEdit, InsertCellEdit, MoveCellEdit } from 'vs/workbench/contrib/notebook/browser/viewModel/cellEdit';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { CellKind, ICell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -146,28 +146,28 @@ export class NotebookViewModel extends Disposable implements NotebookViewLayoutA
 		return this._viewCells.indexOf(cell as CellViewModel);
 	}
 
-	// private _insertCellDelegate(insertIndex: number, insertCell: CellViewModel) {
-	// 	this._viewCells!.splice(insertIndex, 0, insertCell);
-	// 	this._model.insertCell(insertCell.cell, insertIndex);
-	// 	this._localStore.add(insertCell);
-	// 	this._onDidChangeViewCells.fire({ synchronous: true, splices: [[insertIndex, 0, [insertCell]]] });
-	// }
+	private _insertCellDelegate(insertIndex: number, insertCell: CellViewModel) {
+		this._viewCells!.splice(insertIndex, 0, insertCell);
+		this._model.insertCell(insertCell.cell, insertIndex);
+		this._localStore.add(insertCell);
+		this._onDidChangeViewCells.fire({ synchronous: true, splices: [[insertIndex, 0, [insertCell]]] });
+	}
 
-	// private _deleteCellDelegate(deleteIndex: number, cell: ICell) {
-	// 	this._viewCells.splice(deleteIndex, 1);
-	// 	this._model.deleteCell(deleteIndex);
-	// 	this._onDidChangeViewCells.fire({ synchronous: true, splices: [[deleteIndex, 1, []]] });
-	// }
+	private _deleteCellDelegate(deleteIndex: number, cell: ICell) {
+		this._viewCells.splice(deleteIndex, 1);
+		this._model.deleteCell(deleteIndex);
+		this._onDidChangeViewCells.fire({ synchronous: true, splices: [[deleteIndex, 1, []]] });
+	}
 
 	insertCell(index: number, cell: ICell, synchronous: boolean): CellViewModel {
 		let newCell: CellViewModel = createCellViewModel(this.instantiationService, this, cell);
 		this._viewCells!.splice(index, 0, newCell);
 		this._model.insertCell(newCell.cell, index);
 		this._localStore.add(newCell);
-		// this.undoService.pushElement(new InsertCellEdit(this.uri, index, newCell, {
-		// 	insertCell: this._insertCellDelegate.bind(this),
-		// 	deleteCell: this._deleteCellDelegate.bind(this)
-		// }));
+		this.undoService.pushElement(new InsertCellEdit(this.uri, index, newCell, {
+			insertCell: this._insertCellDelegate.bind(this),
+			deleteCell: this._deleteCellDelegate.bind(this)
+		}));
 
 		this._onDidChangeViewCells.fire({ synchronous: synchronous, splices: [[index, 0, [newCell]]] });
 		return newCell;
@@ -178,10 +178,13 @@ export class NotebookViewModel extends Disposable implements NotebookViewLayoutA
 		this._viewCells.splice(index, 1);
 		this._model.deleteCell(index);
 
-		// this.undoService.pushElement(new DeleteCellEdit(this.uri, index, viewCell, {
-		// 	insertCell: this._insertCellDelegate.bind(this),
-		// 	deleteCell: this._deleteCellDelegate.bind(this)
-		// }, this.instantiationService, this));
+		this.undoService.pushElement(new DeleteCellEdit(this.uri, index, viewCell, {
+			insertCell: this._insertCellDelegate.bind(this),
+			deleteCell: this._deleteCellDelegate.bind(this),
+			createCellViewModel: (cell: ICell) => {
+				return createCellViewModel(this.instantiationService, this, cell);
+			}
+		}));
 
 		this._onDidChangeViewCells.fire({ synchronous: synchronous, splices: [[index, 1, []]] });
 		viewCell.dispose();
@@ -200,11 +203,11 @@ export class NotebookViewModel extends Disposable implements NotebookViewLayoutA
 		this._model.insertCell(viewCell.cell, newIdx);
 
 		if (pushedToUndoStack) {
-			// this.undoService.pushElement(new MoveCellEdit(this.uri, index, newIdx, {
-			// 	moveCell: (fromIndex: number, toIndex: number) => {
-			// 		this.moveCellToIdx(fromIndex, toIndex, true, false);
-			// 	}
-			// }));
+			this.undoService.pushElement(new MoveCellEdit(this.uri, index, newIdx, {
+				moveCell: (fromIndex: number, toIndex: number) => {
+					this.moveCellToIdx(fromIndex, toIndex, true, false);
+				}
+			}));
 		}
 
 		this._onDidChangeViewCells.fire({ synchronous: synchronous, splices: [[index, 1, []]] });

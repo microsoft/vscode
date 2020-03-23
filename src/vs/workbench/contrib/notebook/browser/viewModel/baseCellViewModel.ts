@@ -139,6 +139,14 @@ export abstract class BaseCellViewModel extends Disposable {
 		this._onDidChangeEditorAttachState.fire(false);
 	}
 
+	getText(): string {
+		if (this._textModel) {
+			return this._textModel.getValue();
+		}
+
+		return this.cell.source.join('\n');
+	}
+
 	private saveViewState(): editorCommon.ICodeEditorViewState | null {
 		if (!this._textEditor) {
 			return null;
