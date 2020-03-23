@@ -175,7 +175,7 @@ export class ShowAllCommandsAction extends Action {
 		const restoreInput = config.workbench?.commandPalette?.preserveInput === true;
 
 		if (this.configurationService.getValue(ENABLE_EXPERIMENTAL_VERSION_CONFIG) === true) {
-			this.quickInputService.quickAccess.show(ALL_COMMANDS_PREFIX, { inputUseLastValue: restoreInput });
+			this.quickInputService.quickAccess.show(ALL_COMMANDS_PREFIX);
 		} else {
 
 			// Show with last command palette input if any and configured

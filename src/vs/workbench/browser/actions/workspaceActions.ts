@@ -112,11 +112,10 @@ export class CloseWorkspaceAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<void> {
+	async run(): Promise<void> {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			this.notificationService.info(nls.localize('noWorkspaceOpened', "There is currently no workspace opened in this instance to close."));
-
-			return Promise.resolve(undefined);
+			return;
 		}
 
 		return this.hostService.openWindow({ forceReuseWindow: true, remoteAuthority: this.environmentService.configuration.remoteAuthority });

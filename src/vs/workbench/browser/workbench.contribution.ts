@@ -182,7 +182,7 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 			'workbench.quickOpen.enableExperimentalNewVersion': {
 				'type': 'boolean',
 				'description': nls.localize('workbench.quickOpen.enableExperimentalNewVersion', "Will use the new quick open implementation for testing purposes."),
-				'default': false
+				'default': true
 			},
 			'workbench.settings.openDefaultSettings': {
 				'type': 'boolean',

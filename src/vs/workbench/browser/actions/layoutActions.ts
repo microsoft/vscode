@@ -645,9 +645,8 @@ export class IncreaseViewSizeAction extends BaseResizeViewAction {
 		super(id, label, layoutService);
 	}
 
-	run(): Promise<boolean> {
+	async run(): Promise<void> {
 		this.resizePart(BaseResizeViewAction.RESIZE_INCREMENT);
-		return Promise.resolve(true);
 	}
 }
 
@@ -665,9 +664,8 @@ export class DecreaseViewSizeAction extends BaseResizeViewAction {
 		super(id, label, layoutService);
 	}
 
-	run(): Promise<boolean> {
+	async run(): Promise<void> {
 		this.resizePart(-BaseResizeViewAction.RESIZE_INCREMENT);
-		return Promise.resolve(true);
 	}
 }
 

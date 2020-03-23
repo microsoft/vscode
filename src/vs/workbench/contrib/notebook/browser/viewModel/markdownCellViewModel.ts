@@ -83,13 +83,6 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 		}
 	}
 
-	getText(): string {
-		if (this._textModel) {
-			return this._textModel.getValue();
-		}
-		return this.cell.source.join('\n');
-	}
-
 	getHTML(): HTMLElement | null {
 		if (this.cellKind === CellKind.Markdown) {
 			if (this._html) {

@@ -364,7 +364,7 @@ class QuickInput extends Disposable implements IQuickInput {
 
 	readonly onDispose = this.onDisposeEmitter.event;
 
-	public dispose(): void {
+	dispose(): void {
 		this.hide();
 		this.onDisposeEmitter.fire();
 
@@ -409,6 +409,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private _customButtonLabel: string | undefined;
 	private _customButtonHover: string | undefined;
 	private _quickNavigate: IQuickNavigateConfiguration | undefined;
+	private _hideInput: boolean | undefined;
 
 	get quickNavigate() {
 		return this._quickNavigate;
@@ -461,10 +462,6 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	set items(items: Array<T | IQuickPickSeparator>) {
 		this._items = items;
 		this.itemsUpdated = true;
-		if (items.length === 0) {
-			// quick-navigate requires at least 1 item
-			this._quickNavigate = undefined;
-		}
 		this.update();
 	}
 
@@ -622,12 +619,21 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		this.update();
 	}
 
-	public inputHasFocus(): boolean {
+	inputHasFocus(): boolean {
 		return this.visible ? this.ui.inputBox.hasFocus() : false;
 	}
 
-	public focusOnInput() {
+	focusOnInput() {
 		this.ui.inputBox.setFocus();
+	}
+
+	get hideInput() {
+		return !!this._hideInput;
+	}
+
+	set hideInput(hideInput: boolean) {
+		this._hideInput = hideInput;
+		this.update();
 	}
 
 	onDidChangeSelection = this.onDidChangeSelectionEmitter.event;
@@ -729,7 +735,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 				this.onDidAcceptEmitter.fire({ inBackground: false });
 			}));
 			this.visibleDisposables.add(this.ui.onDidCustom(() => {
-				this.onDidCustomEmitter.fire(undefined);
+				this.onDidCustomEmitter.fire();
 			}));
 			this.visibleDisposables.add(this.ui.list.onDidChangeFocus(focusedItems => {
 				if (this.activeItemsUpdated) {
@@ -814,10 +820,16 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 				return false;
 			});
 
-			if (wasTriggerKeyPressed && this.activeItems[0]) {
-				this._selectedItems = [this.activeItems[0]];
-				this.onDidChangeSelectionEmitter.fire(this.selectedItems);
-				this.onDidAcceptEmitter.fire({ inBackground: false });
+			if (wasTriggerKeyPressed) {
+				if (this.activeItems[0]) {
+					this._selectedItems = [this.activeItems[0]];
+					this.onDidChangeSelectionEmitter.fire(this.selectedItems);
+					this.onDidAcceptEmitter.fire({ inBackground: false });
+				}
+				// Unset quick navigate after press. It is only valid once
+				// and should not result in any behaviour change afterwards
+				// if the picker remains open because there was no active item
+				this._quickNavigate = undefined;
 			}
 		});
 	}
@@ -826,12 +838,21 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		if (!this.visible) {
 			return;
 		}
-		const isQuickNavigating = !!this._quickNavigate && this._items.length > 0; // quick nav requires at least 1 item
-		dom.toggleClass(this.ui.container, 'quick-navigate-mode', isQuickNavigating);
-		const ok = this.ok === 'default' ? this.canSelectMany : this.ok;
-		const visibilities: Visibilities = this.canSelectMany ?
-			{ title: !!this.title || !!this.step, description: !!this.description, checkAll: true, inputBox: !isQuickNavigating, progressBar: !isQuickNavigating, visibleCount: true, count: true, ok, list: true, message: !!this.validationMessage, customButton: this.customButton } :
-			{ title: !!this.title || !!this.step, description: !!this.description, inputBox: !isQuickNavigating, progressBar: !isQuickNavigating, visibleCount: true, list: true, message: !!this.validationMessage, customButton: this.customButton, ok };
+		const hideInput = !!this._hideInput && this._items.length > 0; // do not allow to hide input without items
+		dom.toggleClass(this.ui.container, 'hidden-input', hideInput);
+		const visibilities: Visibilities = {
+			title: !!this.title || !!this.step,
+			description: !!this.description,
+			checkAll: this.canSelectMany,
+			inputBox: !hideInput,
+			progressBar: !hideInput,
+			visibleCount: true,
+			count: this.canSelectMany,
+			ok: this.ok === 'default' ? this.canSelectMany : this.ok,
+			list: true,
+			message: !!this.validationMessage,
+			customButton: this.customButton
+		};
 		this.ui.setVisibilities(visibilities);
 		super.update();
 		if (this.ui.inputBox.value !== this.value) {
@@ -853,15 +874,14 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		this.ui.list.sortByLabel = this.sortByLabel;
 		if (this.itemsUpdated) {
 			this.itemsUpdated = false;
-			const previousItemCount = this.ui.list.getElementsCount();
 			this.ui.list.setElements(this.items);
 			this.ui.list.filter(this.filterValue(this.ui.inputBox.value));
 			this.ui.checkAll.checked = this.ui.list.getAllVisibleChecked();
 			this.ui.visibleCount.setCount(this.ui.list.getVisibleCount());
 			this.ui.count.setCount(this.ui.list.getCheckedCount());
-			if (this._autoFocusSecondEntry && previousItemCount === 0) {
+			if (this._autoFocusSecondEntry) {
 				this.ui.list.focus(QuickInputListFocus.Second);
-				this._autoFocusSecondEntry = false;
+				this._autoFocusSecondEntry = false; // only valid once, then unset
 			} else {
 				this.trySelectFirst();
 			}
@@ -994,7 +1014,7 @@ class InputBox extends QuickInput implements IInputBox {
 					this._value = value;
 					this.onDidValueChangeEmitter.fire(value);
 				}));
-			this.visibleDisposables.add(this.ui.onDidAccept(() => this.onDidAcceptEmitter.fire(undefined)));
+			this.visibleDisposables.add(this.ui.onDidAccept(() => this.onDidAcceptEmitter.fire()));
 			this.valueSelectionUpdated = true;
 		}
 		super.show();
@@ -1048,10 +1068,12 @@ export class QuickInputController extends Disposable {
 
 	private parentElement: HTMLElement;
 	private styles: IQuickInputStyles;
+
 	private onShowEmitter = new Emitter<void>();
+	readonly onShow = this.onShowEmitter.event;
+
 	private onHideEmitter = new Emitter<void>();
-	public onShow = this.onShowEmitter.event;
-	public onHide = this.onHideEmitter.event;
+	readonly onHide = this.onHideEmitter.event;
 
 	constructor(private options: IQuickInputOptions) {
 		super();
@@ -1526,7 +1548,7 @@ export class QuickInputController extends Disposable {
 		}
 	}
 
-	public hide(focusLost?: boolean) {
+	hide(focusLost?: boolean) {
 		const controller = this.controller;
 		if (controller) {
 			this.controller = null;
@@ -1560,7 +1582,14 @@ export class QuickInputController extends Disposable {
 		}
 	}
 
-	async accept() {
+	async accept(keyMods: IKeyMods = { alt: false, ctrlCmd: false }) {
+		// When accepting the item programmatically, it is important that
+		// we update `keyMods` either from the provided set or unset it
+		// because the accept did not happen from mouse or keyboard
+		// interaction on the list itself
+		this.keyMods.alt = keyMods.alt;
+		this.keyMods.ctrlCmd = keyMods.ctrlCmd;
+
 		this.onDidAcceptEmitter.fire();
 	}
 
@@ -1592,7 +1621,7 @@ export class QuickInputController extends Disposable {
 		}
 	}
 
-	public applyStyles(styles: IQuickInputStyles) {
+	applyStyles(styles: IQuickInputStyles) {
 		this.styles = styles;
 		this.updateStyles();
 	}

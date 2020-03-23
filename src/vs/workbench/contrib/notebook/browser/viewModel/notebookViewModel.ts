@@ -180,8 +180,11 @@ export class NotebookViewModel extends Disposable implements NotebookViewLayoutA
 
 		this.undoService.pushElement(new DeleteCellEdit(this.uri, index, viewCell, {
 			insertCell: this._insertCellDelegate.bind(this),
-			deleteCell: this._deleteCellDelegate.bind(this)
-		}, this.instantiationService, this));
+			deleteCell: this._deleteCellDelegate.bind(this),
+			createCellViewModel: (cell: ICell) => {
+				return createCellViewModel(this.instantiationService, this, cell);
+			}
+		}));
 
 		this._onDidChangeViewCells.fire({ synchronous: synchronous, splices: [[index, 1, []]] });
 		viewCell.dispose();

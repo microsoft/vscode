@@ -25,7 +25,12 @@ export enum TriggerAction {
 	/**
 	 * Update the results of the picker.
 	 */
-	REFRESH_PICKER
+	REFRESH_PICKER,
+
+	/**
+	 * Remove the item from the picker.
+	 */
+	REMOVE_ITEM
 }
 
 export interface IPickerQuickAccessItem extends IQuickPickItem {
@@ -210,6 +215,14 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 							break;
 						case TriggerAction.REFRESH_PICKER:
 							updatePickerItems();
+							break;
+						case TriggerAction.REMOVE_ITEM:
+							const index = picker.items.indexOf(item);
+							if (index !== -1) {
+								const items = picker.items.slice();
+								items.splice(index, 1);
+								picker.items = items;
+							}
 							break;
 					}
 				}

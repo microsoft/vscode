@@ -23,7 +23,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { PaneView, IPaneViewOptions, IPaneOptions, Pane } from 'vs/base/browser/ui/splitview/paneview';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Extensions as ViewContainerExtensions, IView, FocusedViewContext, IViewContainersRegistry, IViewDescriptor, ViewContainer, IViewDescriptorService, ViewContainerLocation, IViewPaneContainer, IViewsRegistry, IViewContentDescriptor } from 'vs/workbench/common/views';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -209,8 +209,6 @@ export abstract class ViewPane extends Pane implements IView {
 		this.title = options.title;
 		this.showActionsAlways = !!options.showActionsAlways;
 		this.focusedViewContextKey = FocusedViewContext.bindTo(contextKeyService);
-		this._preventCollapse = this.viewDescriptorService.getViewLocation(this.id) === ViewContainerLocation.Panel;
-		this._expanded = this._preventCollapse || this._expanded;
 
 		this.menuActions = this._register(instantiationService.createInstance(ViewMenuActions, this.id, options.titleMenuId || MenuId.ViewTitle, MenuId.ViewTitleContext));
 		this._register(this.menuActions.onDidChangeTitle(() => this.updateActions()));
@@ -275,9 +273,7 @@ export abstract class ViewPane extends Pane implements IView {
 	protected renderHeader(container: HTMLElement): void {
 		this.headerContainer = container;
 
-		if (!this._preventCollapse) {
-			this.renderTwisties(container);
-		}
+		this.renderTwisties(container);
 
 		this.renderHeaderTitle(container, this.title);
 
@@ -788,7 +784,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 	create(parent: HTMLElement): void {
 		const options = this.options as IPaneViewOptions;
-		options.orientation = this.viewDescriptorService.getViewContainerLocation(this.viewContainer) === ViewContainerLocation.Panel ? Orientation.HORIZONTAL : Orientation.VERTICAL;
+		options.orientation = this.orientation;
 		this.paneview = this._register(new PaneView(parent, this.options));
 		this._register(this.paneview.onDidDrop(({ from, to }) => this.movePane(from as ViewPane, to as ViewPane)));
 		this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, (e: MouseEvent) => this.showContextMenu(new StandardMouseEvent(e))));
@@ -919,8 +915,20 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		}
 	}
 
+	private get orientation(): Orientation {
+		if (this.viewDescriptorService.getViewContainerLocation(this.viewContainer) === ViewContainerLocation.Sidebar) {
+			return Orientation.VERTICAL;
+		} else {
+			return this.layoutService.getPanelPosition() === Position.BOTTOM ? Orientation.HORIZONTAL : Orientation.VERTICAL;
+		}
+	}
+
 	layout(dimension: Dimension): void {
 		if (this.paneview) {
+			if (this.paneview.orientation !== this.orientation) {
+				this.paneview.flipOrientation(dimension.height, dimension.width);
+			}
+
 			this.paneview.layout(dimension.height, dimension.width);
 		}
 

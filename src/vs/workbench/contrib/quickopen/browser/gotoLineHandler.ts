@@ -29,7 +29,7 @@ export const GOTO_LINE_PREFIX = ':';
 export class GotoLineAction extends QuickOpenAction {
 
 	static readonly ID = 'workbench.action.gotoLine';
-	static readonly LABEL = nls.localize('gotoLine', "Go to Line...");
+	static readonly LABEL = nls.localize('gotoLine', "Go to Line/Column...");
 
 	constructor(actionId: string, actionLabel: string,
 		@IQuickOpenService quickOpenService: IQuickOpenService,

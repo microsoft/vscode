@@ -32,6 +32,7 @@ export interface IWorkbenchQuickOpenConfiguration {
 		},
 		quickOpen: {
 			enableExperimentalNewVersion: boolean;
+			preserveInput: boolean;
 		}
 	};
 }

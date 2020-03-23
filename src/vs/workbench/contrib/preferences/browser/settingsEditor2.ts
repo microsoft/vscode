@@ -346,6 +346,10 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 	}
 
+	focusTOC(): void {
+		this.tocTree.domFocus();
+	}
+
 	showContextMenu(): void {
 		const activeElement = this.getActiveElementInSettingsTree();
 		if (!activeElement) {

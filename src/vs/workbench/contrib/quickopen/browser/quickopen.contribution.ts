@@ -30,11 +30,11 @@ registry.registerWorkbenchAction(SyncActionDescriptor.create(ShowAllCommandsActi
 registry.registerWorkbenchAction(SyncActionDescriptor.create(GotoLineAction, GotoLineAction.ID, GotoLineAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_G,
 	mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_G }
-}), 'Go to Line...');
+}), 'Go to Line/Column...');
 
 registry.registerWorkbenchAction(SyncActionDescriptor.create(GotoSymbolAction, GotoSymbolAction.ID, GotoSymbolAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_O
-}), 'Go to Symbol in File...');
+}), 'Go to Symbol in Editor...');
 
 const inViewsPickerContextKey = 'inViewsPicker';
 const inViewsPickerContext = ContextKeyExpr.and(inQuickOpenContext, ContextKeyExpr.has(inViewsPickerContextKey));
@@ -91,7 +91,7 @@ Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpen
 			{
 				prefix: GOTO_LINE_PREFIX,
 				needsEditor: true,
-				description: env.isMacintosh ? nls.localize('gotoLineDescriptionMac', "Go to Line") : nls.localize('gotoLineDescriptionWin', "Go to Line")
+				description: env.isMacintosh ? nls.localize('gotoLineDescriptionMac', "Go to Line/Column") : nls.localize('gotoLineDescriptionWin', "Go to Line/Column")
 			},
 		]
 	)
@@ -107,12 +107,12 @@ Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpen
 			{
 				prefix: GOTO_SYMBOL_PREFIX,
 				needsEditor: true,
-				description: nls.localize('gotoSymbolDescription', "Go to Symbol in File")
+				description: nls.localize('gotoSymbolDescription', "Go to Symbol in Editor")
 			},
 			{
 				prefix: GOTO_SYMBOL_PREFIX + SCOPE_PREFIX,
 				needsEditor: true,
-				description: nls.localize('gotoSymbolDescriptionScoped', "Go to Symbol in File by Category")
+				description: nls.localize('gotoSymbolDescriptionScoped', "Go to Symbol in Editor by Category")
 			}
 		]
 	)
@@ -170,7 +170,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
 	group: '4_symbol_nav',
 	command: {
 		id: 'workbench.action.gotoSymbol',
-		title: nls.localize({ key: 'miGotoSymbolInFile', comment: ['&& denotes a mnemonic'] }, "Go to &&Symbol in File...")
+		title: nls.localize({ key: 'miGotoSymbolInEditor', comment: ['&& denotes a mnemonic'] }, "Go to &&Symbol in Editor...")
 	},
 	order: 1
 });

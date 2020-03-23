@@ -55,7 +55,7 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 									return TriggerAction.NO_ACTION;
 								case 1:
 									terminal.dispose(true);
-									return TriggerAction.REFRESH_PICKER;
+									return TriggerAction.REMOVE_ITEM;
 							}
 
 							return TriggerAction.NO_ACTION;

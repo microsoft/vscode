@@ -41,7 +41,7 @@ class InspectContextKeysAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<void> {
+	async run(): Promise<void> {
 		const disposables = new DisposableStore();
 
 		const stylesheet = createStyleSheet();
@@ -85,8 +85,6 @@ class InspectContextKeysAction extends Action {
 
 			dispose(disposables);
 		}, null, disposables);
-
-		return Promise.resolve();
 	}
 }
 

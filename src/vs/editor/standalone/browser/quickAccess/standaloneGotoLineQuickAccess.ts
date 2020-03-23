@@ -41,7 +41,7 @@ export class GotoLineAction extends EditorAction {
 		super({
 			id: 'editor.action.gotoLine',
 			label: GoToLineNLS.gotoLineActionLabel,
-			alias: 'Go to Line...',
+			alias: 'Go to Line/Column...',
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,

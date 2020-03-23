@@ -9,7 +9,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { $, append, addClass, removeClass, toggleClass, trackFocus, EventHelper } from 'vs/base/browser/dom';
+import { $, append, addClass, removeClass, toggleClass, trackFocus, EventHelper, clearNode } from 'vs/base/browser/dom';
 import { firstIndex } from 'vs/base/common/arrays';
 import { Color, RGBA } from 'vs/base/common/color';
 import { SplitView, IView } from './splitview';
@@ -52,7 +52,6 @@ export abstract class Pane extends Disposable implements IView {
 
 	protected _expanded: boolean;
 	protected _orientation: Orientation;
-	protected _preventCollapse?: boolean;
 
 	private expandedSize: number | undefined = undefined;
 	private _headerVisible = true;
@@ -106,7 +105,7 @@ export abstract class Pane extends Disposable implements IView {
 	get minimumSize(): number {
 		const headerSize = this.headerSize;
 		const expanded = !this.headerVisible || this.isExpanded();
-		const minimumBodySize = expanded ? this._minimumBodySize : 0;
+		const minimumBodySize = expanded ? this._minimumBodySize : this._orientation === Orientation.HORIZONTAL ? 50 : 0;
 
 		return headerSize + minimumBodySize;
 	}
@@ -114,7 +113,7 @@ export abstract class Pane extends Disposable implements IView {
 	get maximumSize(): number {
 		const headerSize = this.headerSize;
 		const expanded = !this.headerVisible || this.isExpanded();
-		const maximumBodySize = expanded ? this._maximumBodySize : 0;
+		const maximumBodySize = expanded ? this._maximumBodySize : this._orientation === Orientation.HORIZONTAL ? 50 : 0;
 
 		return headerSize + maximumBodySize;
 	}
@@ -174,6 +173,18 @@ export abstract class Pane extends Disposable implements IView {
 		this._onDidChange.fire(undefined);
 	}
 
+	get orientation(): Orientation {
+		return this._orientation;
+	}
+
+	set orientation(orientation: Orientation) {
+		if (this._orientation === orientation) {
+			return;
+		}
+
+		this._orientation = orientation;
+	}
+
 	render(): void {
 		this.header = $('.pane-header');
 		append(this.element, this.header);
@@ -190,22 +201,20 @@ export abstract class Pane extends Disposable implements IView {
 		this.updateHeader();
 
 
-		if (!this._preventCollapse) {
-			const onHeaderKeyDown = Event.chain(domEvent(this.header, 'keydown'))
-				.map(e => new StandardKeyboardEvent(e));
+		const onHeaderKeyDown = Event.chain(domEvent(this.header, 'keydown'))
+			.map(e => new StandardKeyboardEvent(e));
 
-			this._register(onHeaderKeyDown.filter(e => e.keyCode === KeyCode.Enter || e.keyCode === KeyCode.Space)
-				.event(() => this.setExpanded(!this.isExpanded()), null));
+		this._register(onHeaderKeyDown.filter(e => e.keyCode === KeyCode.Enter || e.keyCode === KeyCode.Space)
+			.event(() => this.setExpanded(!this.isExpanded()), null));
 
-			this._register(onHeaderKeyDown.filter(e => e.keyCode === KeyCode.LeftArrow)
-				.event(() => this.setExpanded(false), null));
+		this._register(onHeaderKeyDown.filter(e => e.keyCode === KeyCode.LeftArrow)
+			.event(() => this.setExpanded(false), null));
 
-			this._register(onHeaderKeyDown.filter(e => e.keyCode === KeyCode.RightArrow)
-				.event(() => this.setExpanded(true), null));
+		this._register(onHeaderKeyDown.filter(e => e.keyCode === KeyCode.RightArrow)
+			.event(() => this.setExpanded(true), null));
 
-			this._register(domEvent(this.header, 'click')
-				(() => this.setExpanded(!this.isExpanded()), null));
-		}
+		this._register(domEvent(this.header, 'click')
+			(() => this.setExpanded(!this.isExpanded()), null));
 
 		this.body = append(this.element, $('.pane-body'));
 		this.renderBody(this.body);
@@ -402,13 +411,14 @@ export class PaneView extends Disposable {
 	private el: HTMLElement;
 	private paneItems: IPaneItem[] = [];
 	private orthogonalSize: number = 0;
+	private size: number = 0;
 	private splitview: SplitView;
-	private orientation: Orientation;
 	private animationTimer: number | undefined = undefined;
 
 	private _onDidDrop = this._register(new Emitter<{ from: Pane, to: Pane }>());
 	readonly onDidDrop: Event<{ from: Pane, to: Pane }> = this._onDidDrop.event;
 
+	orientation: Orientation;
 	readonly onDidSashChange: Event<number>;
 
 	constructor(container: HTMLElement, options: IPaneViewOptions = {}) {
@@ -427,6 +437,7 @@ export class PaneView extends Disposable {
 
 		const paneItem = { pane: pane, disposable: disposables };
 		this.paneItems.splice(index, 0, paneItem);
+		pane.orientation = this.orientation;
 		pane.orthogonalSize = this.orthogonalSize;
 		this.splitview.addView(pane, size, index);
 
@@ -485,12 +496,39 @@ export class PaneView extends Disposable {
 
 	layout(height: number, width: number): void {
 		this.orthogonalSize = this.orientation === Orientation.VERTICAL ? width : height;
+		this.size = this.orientation === Orientation.HORIZONTAL ? width : height;
 
 		for (const paneItem of this.paneItems) {
 			paneItem.pane.orthogonalSize = this.orthogonalSize;
 		}
 
-		this.splitview.layout(this.orientation === Orientation.HORIZONTAL ? width : height);
+		this.splitview.layout(this.size);
+	}
+
+	flipOrientation(height: number, width: number): void {
+		this.orientation = this.orientation === Orientation.VERTICAL ? Orientation.HORIZONTAL : Orientation.VERTICAL;
+		const paneSizes = this.paneItems.map(pane => this.getPaneSize(pane.pane));
+
+		this.splitview.dispose();
+		clearNode(this.el);
+
+		this.splitview = this._register(new SplitView(this.el, { orientation: this.orientation }));
+
+		const newOrthogonalSize = this.orientation === Orientation.VERTICAL ? width : height;
+		const newSize = this.orientation === Orientation.HORIZONTAL ? width : height;
+
+		this.paneItems.forEach((pane, index) => {
+			pane.pane.orthogonalSize = newOrthogonalSize;
+			pane.pane.orientation = this.orientation;
+
+			const viewSize = this.size === 0 ? 0 : (newSize * paneSizes[index]) / this.size;
+			this.splitview.addView(pane.pane, viewSize, index);
+		});
+
+		this.size = newSize;
+		this.orthogonalSize = newOrthogonalSize;
+
+		this.splitview.layout(this.size);
 	}
 
 	private setupAnimation(): void {
