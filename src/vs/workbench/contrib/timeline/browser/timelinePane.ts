@@ -88,7 +88,6 @@ class TimelineAggregate {
 		this.source = timeline.source;
 		this.items = timeline.items;
 		this._cursor = timeline.paging?.cursor;
-		this._more = timeline.paging?.more ?? false;
 		this.lastRenderedIndex = -1;
 	}
 
@@ -97,9 +96,8 @@ class TimelineAggregate {
 		return this._cursor;
 	}
 
-	private _more: boolean;
 	get more(): boolean {
-		return this._more;
+		return this._cursor !== undefined;
 	}
 
 	get newest(): TimelineItem | undefined {
@@ -150,7 +148,6 @@ class TimelineAggregate {
 		}
 
 		this._cursor = timeline.paging?.cursor;
-		this._more = timeline.paging?.more ?? false;
 
 		if (updated) {
 			this.items.sort(

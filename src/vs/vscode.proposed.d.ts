@@ -1895,13 +1895,9 @@ declare module 'vscode' {
 		readonly paging?: {
 			/**
 			 * A provider-defined cursor specifing the starting point of timeline items which are after the ones returned.
+			 * Use `undefined` to signal that there are no more items to be returned.
 			 */
-			readonly cursor?: string
-
-			/**
-			 * A flag which indicates whether there are more items that weren't returned.
-			 */
-			readonly more?: boolean;
+			readonly cursor: string | undefined;
 		}
 
 		/**

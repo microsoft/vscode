@@ -54,8 +54,7 @@ export interface Timeline {
 	items: TimelineItem[];
 
 	paging?: {
-		cursor?: string
-		more?: boolean;
+		cursor: string | undefined;
 	}
 }
 

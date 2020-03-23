@@ -136,10 +136,8 @@ export class GitTimelineProvider implements TimelineProvider {
 			// sortByAuthorDate: true
 		});
 
-		const more = limit === undefined ? false : commits.length >= limit;
 		const paging = commits.length ? {
-			more: more,
-			cursor: more ? commits[commits.length - 1]?.hash : undefined
+			cursor: limit === undefined ? undefined : (commits.length >= limit ? commits[commits.length - 1]?.hash : undefined)
 		} : undefined;
 
 		// If we asked for an extra commit, strip it off
