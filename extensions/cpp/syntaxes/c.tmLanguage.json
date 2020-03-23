@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jeff-hykin/cpp-textmate-grammar/commit/85b9008b406cc9d3b1c9e779e94cc071116c8426",
+	"version": "https://github.com/jeff-hykin/cpp-textmate-grammar/commit/b23ed8d4bc4e1db4e7c7c2e8c4699c542c7c6cdf",
 	"name": "C",
 	"scopeName": "source.c",
 	"patterns": [
@@ -1028,7 +1028,7 @@
 				}
 			]
 		},
-		"evalutation_context": {
+		"evaluation_context": {
 			"patterns": [
 				{
 					"include": "#function-call-innards"
