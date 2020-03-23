@@ -130,7 +130,7 @@ export interface ICell {
 	language: string;
 	cellKind: CellKind;
 	outputs: IOutput[];
-	metadata?: NotebookCellMetadata;
+	metadata: NotebookCellMetadata;
 	onDidChangeOutputs?: Event<NotebookCellOutputsSplice[]>;
 	resolveTextBufferFactory(): PieceTreeTextBufferFactory;
 	// TODO@rebornix it should be later on replaced by moving textmodel resolution into CellTextModel

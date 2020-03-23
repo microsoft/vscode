@@ -14,7 +14,7 @@ import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { WorkspaceTextEdit } from 'vs/editor/common/modes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { CellFindMatch, CellState, ICellViewModel, NotebookLayoutInfo, NotebookLayoutChangeEvent, NotebookViewLayoutAccessor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellFindMatch, CellEditState, ICellViewModel, NotebookLayoutChangeEvent, NotebookViewLayoutAccessor, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { DeleteCellEdit, InsertCellEdit, MoveCellEdit } from 'vs/workbench/contrib/notebook/browser/viewModel/cellEdit';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
@@ -137,7 +137,7 @@ export class NotebookViewModel extends Disposable implements NotebookViewLayoutA
 	hide() {
 		this._viewCells.forEach(cell => {
 			if (cell.getText() !== '') {
-				cell.state = CellState.Preview;
+				cell.editState = CellEditState.Preview;
 			}
 		});
 	}
@@ -218,7 +218,7 @@ export class NotebookViewModel extends Disposable implements NotebookViewLayoutA
 
 	saveEditorViewState(): INotebookEditorViewState {
 		const state: { [key: number]: boolean } = {};
-		this._viewCells.filter(cell => cell.state === CellState.Editing).forEach(cell => state[cell.cell.handle] = true);
+		this._viewCells.filter(cell => cell.editState === CellEditState.Editing).forEach(cell => state[cell.cell.handle] = true);
 		const editorViewStates: { [key: number]: editorCommon.ICodeEditorViewState } = {};
 		this._viewCells.map(cell => ({ handle: cell.cell.handle, state: cell.saveEditorViewState() })).forEach(viewState => {
 			if (viewState.state) {
@@ -241,7 +241,7 @@ export class NotebookViewModel extends Disposable implements NotebookViewLayoutA
 			const isEditing = viewState.editingCells && viewState.editingCells[cell.handle];
 			const editorViewState = viewState.editorViewStates && viewState.editorViewStates[cell.handle];
 
-			cell.state = isEditing ? CellState.Editing : CellState.Preview;
+			cell.editState = isEditing ? CellEditState.Editing : CellEditState.Preview;
 			cell.restoreEditorViewState(editorViewState);
 		});
 	}

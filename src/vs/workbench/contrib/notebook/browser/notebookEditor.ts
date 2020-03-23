@@ -22,13 +22,13 @@ import { contrastBorder, editorBackground, focusBorder, foreground, textBlockQuo
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions, IEditorMemento, IEditorCloseEvent } from 'vs/workbench/common/editor';
-import { INotebookEditor, NotebookLayoutInfo, CellState, NOTEBOOK_EDITOR_FOCUSED, CellFocusMode, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor, NotebookLayoutInfo, CellEditState, NOTEBOOK_EDITOR_FOCUSED, CellFocusMode, ICellViewModel, CellRunState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorInput, NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { BackLayerWebView } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
 import { CodeCellRenderer, MarkdownCellRenderer, NotebookCellListDelegate } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
-import { IOutput, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IOutput, CellKind, CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -382,12 +382,6 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			}
 		}));
 
-		this.localStore.add(this.list!.onDidChangeFocus((e) => {
-			if (e.elements.length > 0) {
-				this.notebookService.updateNotebookActiveCell(input.viewType!, input.resource!, e.elements[0].handle);
-			}
-		}));
-
 		this.list?.splice(0, this.list?.length || 0);
 		this.list?.splice(0, 0, this.notebookViewModel!.viewCells as CellViewModel[]);
 		this.list?.layout();
@@ -562,7 +556,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		this.list?.setFocus([insertIndex]);
 
 		if (type === CellKind.Markdown) {
-			newCell.state = CellState.Editing;
+			newCell.editState = CellEditState.Editing;
 		}
 
 		DOM.scheduleAtNextAnimationFrame(() => {
@@ -600,13 +594,13 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	}
 
 	editNotebookCell(cell: CellViewModel): void {
-		cell.state = CellState.Editing;
+		cell.editState = CellEditState.Editing;
 
 		this.renderedEditors.get(cell)?.focus();
 	}
 
 	saveNotebookCell(cell: ICellViewModel): void {
-		cell.state = CellState.Preview;
+		cell.editState = CellEditState.Preview;
 	}
 
 	getActiveCell() {
@@ -619,6 +613,22 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		return undefined;
 	}
 
+	async executeNotebookCell(cell: ICellViewModel): Promise<void> {
+		try {
+			cell.runState = CellRunState.Running;
+			const provider = this.notebookService.getContributedNotebookProviders(cell.uri)[0];
+			if (provider) {
+				const viewType = provider.id;
+				const notebookUri = CellUri.parse(cell.uri)?.notebook;
+				if (notebookUri) {
+					return await this.notebookService.executeNotebookCell(viewType, notebookUri, cell.handle);
+				}
+			}
+		} finally {
+			cell.runState = CellRunState.Idle;
+		}
+	}
+
 	focusNotebookCell(cell: ICellViewModel, focusEditor: boolean) {
 		const index = this.notebookViewModel!.getViewCellIndex(cell);
 
@@ -627,7 +637,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			this.list?.setSelection([index]);
 			this.list?.focusView();
 
-			cell.state = CellState.Editing;
+			cell.editState = CellEditState.Editing;
 			cell.focusMode = CellFocusMode.Editor;
 			this.revealInCenterIfOutsideViewport(cell);
 		} else {
@@ -636,7 +646,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 				(document.activeElement as HTMLElement).blur();
 			}
 
-			cell.state = CellState.Preview;
+			cell.editState = CellEditState.Preview;
 			cell.focusMode = CellFocusMode.Editor;
 
 			this.list?.setFocus([index]);

@@ -19,7 +19,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	private _mapping: Map<number, NotebookCellTextModel> = new Map();
 	private _cellListeners: Map<number, IDisposable> = new Map();
 	cells: NotebookCellTextModel[];
-	activeCell: NotebookCellTextModel | undefined;
 	languages: string[] = [];
 	metadata: NotebookDocumentMetadata | undefined = undefined;
 	renderers = new Set<number>();
@@ -45,10 +44,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		renderers.forEach(render => {
 			this.renderers.add(render);
 		});
-	}
-
-	updateActiveCell(handle: number) {
-		this.activeCell = this._mapping.get(handle);
 	}
 
 	insertNewCell(index: number, cell: NotebookCellTextModel): void {
@@ -77,7 +72,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		splices.reverse().forEach(splice => {
 			let cellDtos = splice[2];
 			let newCells = cellDtos.map(cell => {
-				let mainCell = new NotebookCellTextModel(URI.revive(cell.uri), cell.handle, cell.source, cell.language, cell.cellKind, cell.outputs || []);
+				let mainCell = new NotebookCellTextModel(URI.revive(cell.uri), cell.handle, cell.source, cell.language, cell.cellKind, cell.outputs || [], cell.metadata);
 				this._mapping.set(cell.handle, mainCell);
 				let dirtyStateListener = mainCell.onDidChangeContent(() => {
 					this._onDidChangeContent.fire();
