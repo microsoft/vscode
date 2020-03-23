@@ -172,6 +172,29 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
+			id: 'workbench.action.executeNotebookCell',
+			title: localize('notebookActions.executeNotebookCell', "Execute Notebook Active Cell")
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		let editorService = accessor.get(IEditorService);
+		let editor = getActiveNotebookEditor(editorService);
+
+		if (!editor) {
+			return;
+		}
+
+		let activeCell = editor.getActiveCell();
+		if (activeCell) {
+			return editor.executeNotebookCell(activeCell);
+		}
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
 			id: 'workbench.action.quitNotebookEdit',
 			title: localize('notebookActions.quitEditing', "Quit Notebook Cell Editing"),
 			keybinding: {
