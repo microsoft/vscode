@@ -13,8 +13,8 @@ import { raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
-import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
-import { CELL_MARGIN, EDITOR_TOP_PADDING, EDITOR_BOTTOM_PADDING, RUN_BUTTON_WIDTH } from 'vs/workbench/contrib/notebook/browser/constants';
+import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
+import { EDITOR_TOP_PADDING, EDITOR_BOTTOM_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 
 interface IMimeTypeRenderer extends IQuickPickItem {
 	index: number;
@@ -25,19 +25,16 @@ export class CodeCell extends Disposable {
 	private outputElements = new Map<IOutput, HTMLElement>();
 	constructor(
 		private notebookEditor: INotebookEditor,
-		private viewCell: CellViewModel,
+		private viewCell: CodeCellViewModel,
 		private templateData: CellRenderTemplate,
 		@INotebookService private notebookService: INotebookService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
 		super();
 
-		let width: number;
-		const listDimension = notebookEditor.getLayoutInfo();
-		width = listDimension.width - CELL_MARGIN * 2 - RUN_BUTTON_WIDTH;
-
-		const lineNum = viewCell.lineCount;
-		const lineHeight = notebookEditor.getLayoutInfo().fontInfo.lineHeight;
+		const width = this.viewCell.layoutInfo.editorWidth;
+		const lineNum = this.viewCell.lineCount;
+		const lineHeight = this.viewCell.layoutInfo.fontInfo?.lineHeight || 17;
 		const totalHeight = lineNum * lineHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING;
 		templateData.editor?.layout(
 			{
@@ -57,10 +54,8 @@ export class CodeCell extends Disposable {
 					templateData.editor?.focus();
 				}
 
-				let realContentHeight = templateData.editor?.getContentHeight();
-				let width: number;
-				const listDimension = notebookEditor.getLayoutInfo();
-				width = listDimension.width - CELL_MARGIN * 2 - RUN_BUTTON_WIDTH;
+				const realContentHeight = templateData.editor?.getContentHeight();
+				const width = this.viewCell.layoutInfo.editorWidth;
 
 				if (realContentHeight !== undefined && realContentHeight !== totalHeight) {
 					templateData.editor?.layout(
@@ -106,7 +101,7 @@ export class CodeCell extends Disposable {
 
 		this._register(templateData.editor!.onDidContentSizeChange((e) => {
 			if (e.contentHeightChanged) {
-				if (this.viewCell.editorHeight !== e.contentHeight) {
+				if (this.viewCell.layoutInfo.editorHeight !== e.contentHeight) {
 					let viewLayout = templateData.editor!.getLayoutInfo();
 
 					templateData.editor?.layout(
@@ -256,7 +251,7 @@ export class CodeCell extends Disposable {
 
 		if (result.shadowContent) {
 			this.viewCell.selfSizeMonitoring = true;
-			let editorHeight = this.viewCell.editorHeight;
+			let editorHeight = this.viewCell.layoutInfo.editorHeight;
 			this.notebookEditor.createInset(this.viewCell, currOutput, result.shadowContent, editorHeight + 8 + this.viewCell.getOutputOffset(index));
 		} else {
 			DOM.addClass(outputItemDiv, 'foreground');
@@ -266,11 +261,10 @@ export class CodeCell extends Disposable {
 
 		if (hasDynamicHeight) {
 			let clientHeight = outputItemDiv.clientHeight;
-			let listDimension = this.notebookEditor.getLayoutInfo();
-			let dimension = listDimension ? {
-				width: listDimension.width - CELL_MARGIN * 2 - RUN_BUTTON_WIDTH,
+			let dimension = {
+				width: this.viewCell.layoutInfo.editorWidth,
 				height: clientHeight
-			} : undefined;
+			};
 			const elementSizeObserver = getResizesObserver(outputItemDiv, dimension, () => {
 				if (this.templateData.outputContainer && document.body.contains(this.templateData.outputContainer!)) {
 					let height = elementSizeObserver.getHeight() + 8 * 2; // include padding
@@ -369,7 +363,7 @@ export class CodeCell extends Disposable {
 	}
 
 	relayoutCell() {
-		this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.getCellTotalHeight());
+		this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
 	}
 
 	dispose() {

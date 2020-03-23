@@ -10,13 +10,12 @@ import { localize } from 'vs/nls';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { TreeViewPane, TreeView } from 'vs/workbench/browser/parts/views/treeView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ALL_SYNC_RESOURCES, CONTEXT_SYNC_ENABLEMENT, IUserDataSyncStoreService, toRemoteBackupSyncResource, resolveBackupSyncResource, IUserDataSyncBackupStoreService, IResourceRefHandle, toLocalBackupSyncResource, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
+import { ALL_SYNC_RESOURCES, CONTEXT_SYNC_ENABLEMENT, SyncResource, IUserDataSyncService, ISyncResourceHandle } from 'vs/platform/userDataSync/common/userDataSync';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService, RawContextKey, ContextKeyExpr, ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { FolderThemeIcon, FileThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { FolderThemeIcon } from 'vs/platform/theme/common/themeService';
 import { fromNow } from 'vs/base/common/date';
 import { pad } from 'vs/base/common/strings';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
@@ -26,8 +25,7 @@ export class UserDataSyncViewContribution implements IWorkbenchContribution {
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
-		@IUserDataSyncBackupStoreService private readonly userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
+		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
 	) {
 		const container = this.registerSyncViewContainer();
 		this.registerBackupView(container, true);
@@ -59,9 +57,7 @@ export class UserDataSyncViewContribution implements IWorkbenchContribution {
 		const disposable = treeView.onDidChangeVisibility(visible => {
 			if (visible && !treeView.dataProvider) {
 				disposable.dispose();
-				treeView.dataProvider = this.instantiationService.createInstance(UserDataSyncHistoryViewDataProvider, id,
-					(resource: SyncResource) => remote ? this.userDataSyncStoreService.getAllRefs(resource) : this.userDataSyncBackupStoreService.getAllRefs(resource),
-					(resource: SyncResource, ref: string) => remote ? toRemoteBackupSyncResource(resource, ref) : toLocalBackupSyncResource(resource, ref));
+				treeView.dataProvider = new UserDataSyncHistoryViewDataProvider(remote, this.userDataSyncService);
 			}
 		});
 		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
@@ -104,28 +100,11 @@ export class UserDataSyncViewContribution implements IWorkbenchContribution {
 		registerAction2(class extends Action2 {
 			constructor() {
 				super({
-					id: `workbench.actions.sync.${viewId}.resolveResourceRef`,
-					title: localize('workbench.actions.sync.resolveResourceRef', "Resolve Resource Ref"),
-				});
-			}
-			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
-				const editorService = accessor.get(IEditorService);
-				let resource = URI.parse(handle.$treeItemHandle);
-				const result = resolveBackupSyncResource(resource);
-				if (result) {
-					resource = resource.with({ fragment: result.resource });
-					await editorService.openEditor({ resource });
-				}
-			}
-		});
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: `workbench.actions.sync.${viewId}.resolveResourceRefCompletely`,
-					title: localize('workbench.actions.sync.resolveResourceRefCompletely', "Show full content"),
+					id: `workbench.actions.sync.resolveResource`,
+					title: localize('workbench.actions.sync.resolveResourceRef', "Show full content"),
 					menu: {
 						id: MenuId.ViewItemContext,
-						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', viewId), ContextKeyExpr.regex('viewItem', /syncref-.*/i))
+						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', viewId), ContextKeyExpr.regex('viewItem', /sync-resource-.*/i))
 					},
 				});
 			}
@@ -134,34 +113,28 @@ export class UserDataSyncViewContribution implements IWorkbenchContribution {
 				await editorService.openEditor({ resource: URI.parse(handle.$treeItemHandle) });
 			}
 		});
+
 		registerAction2(class extends Action2 {
 			constructor() {
 				super({
-					id: `workbench.actions.${viewId}.commpareWithLocal`,
-					title: localize('workbench.action.deleteRef', "Open Changes"),
-					menu: {
-						id: MenuId.ViewItemContext,
-						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', viewId), ContextKeyExpr.regex('viewItem', /syncref-(settings|keybindings).*/i))
-					},
+					id: `workbench.actions.sync.commpareWithLocal`,
+					title: localize('workbench.actions.sync.commpareWithLocal', "Open Changes"),
 				});
 			}
 			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
 				const editorService = accessor.get(IEditorService);
-				const environmentService = accessor.get(IEnvironmentService);
-				const resource = URI.parse(handle.$treeItemHandle);
-				const result = resolveBackupSyncResource(resource);
-				if (result) {
-					const leftResource: URI = resource.with({ fragment: result.resource });
-					const rightResource: URI = result.resource === 'settings' ? environmentService.settingsResource : environmentService.keybindingsResource;
+				const { resource, comparableResource } = <{ resource: string, comparableResource?: string }>JSON.parse(handle.$treeItemHandle);
+				if (comparableResource) {
 					await editorService.openEditor({
-						leftResource,
-						rightResource,
+						leftResource: URI.parse(resource),
+						rightResource: URI.parse(comparableResource),
 						options: {
-							preserveFocus: false,
-							pinned: true,
+							preserveFocus: true,
 							revealIfVisible: true,
 						},
 					});
+				} else {
+					await editorService.openEditor({ resource: URI.parse(resource) });
 				}
 			}
 		});
@@ -169,48 +142,55 @@ export class UserDataSyncViewContribution implements IWorkbenchContribution {
 
 }
 
+interface SyncResourceTreeItem extends ITreeItem {
+	resource: SyncResource;
+	resourceHandle: ISyncResourceHandle;
+}
+
 class UserDataSyncHistoryViewDataProvider implements ITreeViewDataProvider {
 
-	constructor(
-		private readonly viewId: string,
-		private getAllRefs: (resource: SyncResource) => Promise<IResourceRefHandle[]>,
-		private toResource: (resource: SyncResource, ref: string) => URI
-	) {
-	}
+	constructor(private readonly remote: boolean, private userDataSyncService: IUserDataSyncService) { }
 
 	async getChildren(element?: ITreeItem): Promise<ITreeItem[]> {
-		if (element) {
-			return this.getResources(element.handle);
+		if (!element) {
+			return ALL_SYNC_RESOURCES.map(resourceKey => ({
+				handle: resourceKey,
+				collapsibleState: TreeItemCollapsibleState.Collapsed,
+				label: { label: resourceKey },
+				themeIcon: FolderThemeIcon,
+			}));
 		}
-		return ALL_SYNC_RESOURCES.map(resourceKey => ({
-			handle: resourceKey,
-			collapsibleState: TreeItemCollapsibleState.Collapsed,
-			label: { label: resourceKey },
-			themeIcon: FolderThemeIcon,
-			contextValue: `sync-${resourceKey}`
-		}));
-	}
-
-	private async getResources(handle: string): Promise<ITreeItem[]> {
-		const resourceKey = ALL_SYNC_RESOURCES.filter(key => key === handle)[0];
+		const resourceKey = ALL_SYNC_RESOURCES.filter(key => key === element.handle)[0] as SyncResource;
 		if (resourceKey) {
-			const refHandles = await this.getAllRefs(resourceKey);
-			return refHandles.map(({ ref, created }) => {
-				const handle = this.toResource(resourceKey, ref).toString();
+			const refHandles = this.remote ? await this.userDataSyncService.getRemoteSyncResourceHandles(resourceKey) : await this.userDataSyncService.getLocalSyncResourceHandles(resourceKey);
+			return refHandles.map(({ uri, created }) => {
+				return <SyncResourceTreeItem>{
+					handle: uri.toString(),
+					collapsibleState: TreeItemCollapsibleState.Collapsed,
+					label: { label: label(new Date(created)) },
+					description: fromNow(created, true),
+					resourceUri: uri,
+					resource: resourceKey,
+					resourceHandle: { uri, created },
+					contextValue: `sync-resource-${resourceKey}`
+				};
+			});
+		}
+		if ((<SyncResourceTreeItem>element).resourceHandle) {
+			const associatedResources = await this.userDataSyncService.getAssociatedResources((<SyncResourceTreeItem>element).resource, (<SyncResourceTreeItem>element).resourceHandle);
+			return associatedResources.map(({ resource, comparableResource }) => {
+				const handle = JSON.stringify({ resource: resource.toString(), comparableResource: comparableResource?.toString() });
 				return {
 					handle,
 					collapsibleState: TreeItemCollapsibleState.None,
-					label: { label: label(new Date(created)) },
-					description: fromNow(created, true),
-					command: { id: `workbench.actions.sync.${this.viewId}.resolveResourceRef`, title: '', arguments: [<TreeViewItemHandleArg>{ $treeItemHandle: handle, $treeViewId: '' }] },
-					themeIcon: FileThemeIcon,
-					contextValue: `syncref-${resourceKey}`
+					resourceUri: resource,
+					command: { id: `workbench.actions.sync.commpareWithLocal`, title: '', arguments: [<TreeViewItemHandleArg>{ $treeViewId: '', $treeItemHandle: handle }] },
+					contextValue: `sync-associatedResource-${(<SyncResourceTreeItem>element).resource}`
 				};
 			});
 		}
 		return [];
 	}
-
 }
 
 function label(date: Date): string {

@@ -13,14 +13,14 @@ import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 export interface IQuickAccessOptions {
 
 	/**
-	 * Allows to control the part of text in the input field that should be selected.
-	 */
-	inputSelection?: { start: number; end: number; };
-
-	/**
 	 * Allows to enable quick navigate support in quick input.
 	 */
 	quickNavigateConfiguration?: IQuickNavigateConfiguration;
+
+	/**
+	 * Wether to select the second pick item by default instead of the first.
+	 */
+	autoFocus?: { autoFocusSecondEntry?: boolean }
 }
 
 export interface IQuickAccessController {
@@ -31,7 +31,31 @@ export interface IQuickAccessController {
 	show(value?: string, options?: IQuickAccessOptions): void;
 }
 
+export enum DefaultQuickAccessFilterValue {
+
+	/**
+	 * Keep the value as it is given to quick access.
+	 */
+	PRESERVE = 0,
+
+	/**
+	 * Use the value that was used last time something was accepted from the picker.
+	 */
+	LAST = 1
+}
+
 export interface IQuickAccessProvider {
+
+	/**
+	 * Allows to set a default filter value when the provider opens. This can be:
+	 * - `undefined` to not specify any default value
+	 * - `DefaultFilterValues.PRESERVE` to use the value that was last typed
+	 * - `string` for the actual value to use
+	 *
+	 * Note: the default filter will only be used if quick access was opened with
+	 * the exact prefix of the provider. Otherwise the filter value is preserved.
+	 */
+	readonly defaultFilterValue?: string | DefaultQuickAccessFilterValue;
 
 	/**
 	 * Called whenever a prefix was typed into quick pick that matches the provider.

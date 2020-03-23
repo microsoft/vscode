@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from 'vs/base/common/event';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { IOutput, CellKind, IRenderOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { NotebookViewModel, IModelDecorationsChangeAccessor } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
+import { NotebookViewModel, IModelDecorationsChangeAccessor, CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { FindMatch } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
@@ -26,6 +26,42 @@ export interface NotebookLayoutInfo {
 	width: number;
 	height: number;
 	fontInfo: BareFontInfo;
+}
+
+export interface NotebookLayoutChangeEvent {
+	width?: boolean;
+	height?: boolean;
+	fontInfo?: boolean;
+}
+
+export interface NotebookViewLayoutAccessor {
+	layoutInfo: NotebookLayoutInfo | null;
+	onDidChangeLayout: Event<NotebookLayoutChangeEvent>;
+}
+
+export interface CodeCellLayoutInfo {
+	readonly fontInfo: BareFontInfo | null;
+	readonly editorHeight: number;
+	readonly editorWidth: number;
+	readonly totalHeight: number;
+	readonly outputTotalHeight: number;
+	readonly indicatorHeight: number;
+}
+
+export interface CodeCellLayoutChangeEvent {
+	editorHeight?: boolean;
+	outputHeight?: boolean;
+	totalHeight?: boolean;
+	outerWidth?: boolean;
+}
+
+export interface MarkdownCellLayoutInfo {
+	readonly fontInfo: BareFontInfo | null;
+	readonly editorWidth: number;
+}
+
+export interface MarkdownCellLayoutChangeEvent {
+	outerWidth?: boolean;
 }
 
 export interface ICellViewModel {

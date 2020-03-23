@@ -6,11 +6,13 @@
 import { localize } from 'vs/nls';
 import { IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore, IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IEditor, ScrollType } from 'vs/editor/common/editorCommon';
 import { IRange } from 'vs/editor/common/core/range';
 import { AbstractEditorNavigationQuickAccessProvider } from 'vs/editor/contrib/quickAccess/editorNavigationQuickAccess';
 import { IPosition } from 'vs/editor/common/core/position';
+import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorOption, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 
 interface IGotoLineQuickPickItem extends IQuickPickItem, Partial<IPosition> { }
 
@@ -80,6 +82,18 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 		};
 		updatePickerAndEditor();
 		disposables.add(picker.onDidChangeValue(() => updatePickerAndEditor()));
+
+		// Adjust line number visibility as needed
+		const codeEditor = getCodeEditor(editor);
+		if (codeEditor) {
+			const options = codeEditor.getOptions();
+			const lineNumbers = options.get(EditorOption.lineNumbers);
+			if (lineNumbers.renderType === RenderLineNumbersType.Relative) {
+				codeEditor.updateOptions({ lineNumbers: 'on' });
+
+				disposables.add(toDisposable(() => codeEditor.updateOptions({ lineNumbers: 'relative' })));
+			}
+		}
 
 		return disposables;
 	}

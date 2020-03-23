@@ -18,7 +18,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IStringDictionary } from 'vs/base/common/collections';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { URI } from 'vs/base/common/uri';
-import { joinPath, dirname, basename, isEqualOrParent } from 'vs/base/common/resources';
+import { joinPath, isEqualOrParent } from 'vs/base/common/resources';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { distinct } from 'vs/base/common/arrays';
@@ -243,6 +243,11 @@ export const enum SyncStatus {
 	HasConflicts = 'hasConflicts',
 }
 
+export interface ISyncResourceHandle {
+	created: number;
+	uri: URI;
+}
+
 export type Conflict = { remote: URI, local: URI };
 
 export interface IUserDataSynchroniser {
@@ -263,11 +268,12 @@ export interface IUserDataSynchroniser {
 	hasLocalData(): Promise<boolean>;
 	resetLocal(): Promise<void>;
 
-	getConflictContent(conflictResource: URI): Promise<string | null>;
+	resolveContent(resource: URI): Promise<string | null>;
 	acceptConflict(conflictResource: URI, content: string): Promise<void>;
 
-	getRemoteContent(ref?: string, fragment?: string): Promise<string | null>;
-	getLocalBackupContent(ref?: string, fragment?: string): Promise<string | null>;
+	getRemoteSyncResourceHandles(): Promise<ISyncResourceHandle[]>;
+	getLocalSyncResourceHandles(): Promise<ISyncResourceHandle[]>;
+	getAssociatedResources(syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI, comparableResource?: URI }[]>;
 }
 
 //#endregion
@@ -315,6 +321,10 @@ export interface IUserDataSyncService {
 	isFirstTimeSyncWithMerge(): Promise<boolean>;
 	resolveContent(resource: URI): Promise<string | null>;
 	acceptConflict(conflictResource: URI, content: string): Promise<void>;
+
+	getLocalSyncResourceHandles(resource: SyncResource): Promise<ISyncResourceHandle[]>;
+	getRemoteSyncResourceHandles(resource: SyncResource): Promise<ISyncResourceHandle[]>;
+	getAssociatedResources(resource: SyncResource, syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI, comparableResource?: URI }[]>;
 }
 
 export const IUserDataAutoSyncService = createDecorator<IUserDataAutoSyncService>('IUserDataAutoSyncService');
@@ -346,25 +356,6 @@ export interface IConflictSetting {
 export const USER_DATA_SYNC_SCHEME = 'vscode-userdata-sync';
 export const CONTEXT_SYNC_STATE = new RawContextKey<string>('syncStatus', SyncStatus.Uninitialized);
 export const CONTEXT_SYNC_ENABLEMENT = new RawContextKey<boolean>('syncEnabled', false);
-
-export function toRemoteBackupSyncResource(resource: SyncResource, ref?: string): URI {
-	return URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote-backup', path: `/${resource}/${ref ? ref : 'latest'}` });
-}
-export function toLocalBackupSyncResource(resource: SyncResource, ref?: string): URI {
-	return URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local-backup', path: `/${resource}/${ref ? ref : 'latest'}` });
-}
-export function resolveBackupSyncResource(resource: URI): { remote: boolean, resource: SyncResource, path: string } | null {
-	if (resource.scheme === USER_DATA_SYNC_SCHEME
-		&& resource.authority === 'remote-backup' || resource.authority === 'local-backup') {
-		const resourceKey: SyncResource = basename(dirname(resource)) as SyncResource;
-		const path = resource.path.substring(resourceKey.length + 1);
-		if (resourceKey && path) {
-			const remote = resource.authority === 'remote-backup';
-			return { remote, resource: resourceKey, path };
-		}
-	}
-	return null;
-}
 
 export const PREVIEW_DIR_NAME = 'preview';
 export function getSyncResourceFromLocalPreview(localPreview: URI, environmentService: IEnvironmentService): SyncResource | undefined {

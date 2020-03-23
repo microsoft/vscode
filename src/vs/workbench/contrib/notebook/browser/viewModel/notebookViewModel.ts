@@ -3,22 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
-import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
-import { ICell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IModelDeltaDecoration } from 'vs/editor/common/model';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { CellFindMatch, CellState, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { URI } from 'vs/base/common/uri';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { Range } from 'vs/editor/common/core/range';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { WorkspaceTextEdit } from 'vs/editor/common/modes';
-import { URI } from 'vs/base/common/uri';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { InsertCellEdit, DeleteCellEdit, MoveCellEdit } from 'vs/workbench/contrib/notebook/browser/viewModel/cellEdit';
+import { CellFindMatch, CellState, ICellViewModel, NotebookLayoutInfo, NotebookLayoutChangeEvent, NotebookViewLayoutAccessor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
+// import { DeleteCellEdit, InsertCellEdit, MoveCellEdit } from 'vs/workbench/contrib/notebook/browser/viewModel/cellEdit';
+import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
+import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
+import { CellKind, ICell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export interface INotebookEditorViewState {
 	editingCells: { [key: number]: boolean };
@@ -53,7 +54,7 @@ export interface INotebookViewCellsUpdateEvent {
 	splices: NotebookViewCellsSplice[];
 }
 
-export class NotebookViewModel extends Disposable {
+export class NotebookViewModel extends Disposable implements NotebookViewLayoutAccessor {
 	private _localStore: DisposableStore = this._register(new DisposableStore());
 	private _viewCells: CellViewModel[] = [];
 
@@ -97,6 +98,13 @@ export class NotebookViewModel extends Disposable {
 		return null;
 	}
 
+	protected readonly _onDidChangeLayout = new Emitter<NotebookLayoutChangeEvent>();
+	readonly onDidChangeLayout = this._onDidChangeLayout.event;
+	private _layoutInfo: NotebookLayoutInfo | null = null;
+	get layoutInfo() {
+		return this._layoutInfo;
+	}
+
 	constructor(
 		public viewType: string,
 		private _model: NotebookEditorModel,
@@ -110,15 +118,15 @@ export class NotebookViewModel extends Disposable {
 			this._onDidChangeViewCells.fire({
 				synchronous: true,
 				splices: e.map(splice => {
-					return [splice[0], splice[1], splice[2].map(cell => this.instantiationService.createInstance(CellViewModel, this.viewType, this.handle, cell))];
+					return [splice[0], splice[1], splice[2].map(cell => {
+						return createCellViewModel(this.instantiationService, this, cell);
+					})];
 				})
 			});
 		}));
 
 		this._viewCells = this._model!.notebook!.cells.map(cell => {
-			const viewCell = this.instantiationService.createInstance(CellViewModel, this.viewType, this._model!.notebook!.handle, cell);
-			this._localStore.add(viewCell);
-			return viewCell;
+			return createCellViewModel(this.instantiationService, this, cell);
 		});
 	}
 
@@ -138,28 +146,28 @@ export class NotebookViewModel extends Disposable {
 		return this._viewCells.indexOf(cell as CellViewModel);
 	}
 
-	private _insertCellDelegate(insertIndex: number, insertCell: CellViewModel) {
-		this._viewCells!.splice(insertIndex, 0, insertCell);
-		this._model.insertCell(insertCell.cell, insertIndex);
-		this._localStore.add(insertCell);
-		this._onDidChangeViewCells.fire({ synchronous: true, splices: [[insertIndex, 0, [insertCell]]] });
-	}
+	// private _insertCellDelegate(insertIndex: number, insertCell: CellViewModel) {
+	// 	this._viewCells!.splice(insertIndex, 0, insertCell);
+	// 	this._model.insertCell(insertCell.cell, insertIndex);
+	// 	this._localStore.add(insertCell);
+	// 	this._onDidChangeViewCells.fire({ synchronous: true, splices: [[insertIndex, 0, [insertCell]]] });
+	// }
 
-	private _deleteCellDelegate(deleteIndex: number, cell: ICell) {
-		this._viewCells.splice(deleteIndex, 1);
-		this._model.deleteCell(deleteIndex);
-		this._onDidChangeViewCells.fire({ synchronous: true, splices: [[deleteIndex, 1, []]] });
-	}
+	// private _deleteCellDelegate(deleteIndex: number, cell: ICell) {
+	// 	this._viewCells.splice(deleteIndex, 1);
+	// 	this._model.deleteCell(deleteIndex);
+	// 	this._onDidChangeViewCells.fire({ synchronous: true, splices: [[deleteIndex, 1, []]] });
+	// }
 
 	insertCell(index: number, cell: ICell, synchronous: boolean): CellViewModel {
-		const newCell = this.instantiationService.createInstance(CellViewModel, this.viewType, this.handle, cell);
+		let newCell: CellViewModel = createCellViewModel(this.instantiationService, this, cell);
 		this._viewCells!.splice(index, 0, newCell);
 		this._model.insertCell(newCell.cell, index);
 		this._localStore.add(newCell);
-		this.undoService.pushElement(new InsertCellEdit(this.uri, index, newCell, {
-			insertCell: this._insertCellDelegate.bind(this),
-			deleteCell: this._deleteCellDelegate.bind(this)
-		}));
+		// this.undoService.pushElement(new InsertCellEdit(this.uri, index, newCell, {
+		// 	insertCell: this._insertCellDelegate.bind(this),
+		// 	deleteCell: this._deleteCellDelegate.bind(this)
+		// }));
 
 		this._onDidChangeViewCells.fire({ synchronous: synchronous, splices: [[index, 0, [newCell]]] });
 		return newCell;
@@ -170,10 +178,10 @@ export class NotebookViewModel extends Disposable {
 		this._viewCells.splice(index, 1);
 		this._model.deleteCell(index);
 
-		this.undoService.pushElement(new DeleteCellEdit(this.uri, index, viewCell, {
-			insertCell: this._insertCellDelegate.bind(this),
-			deleteCell: this._deleteCellDelegate.bind(this)
-		}, this.instantiationService, this));
+		// this.undoService.pushElement(new DeleteCellEdit(this.uri, index, viewCell, {
+		// 	insertCell: this._insertCellDelegate.bind(this),
+		// 	deleteCell: this._deleteCellDelegate.bind(this)
+		// }, this.instantiationService, this));
 
 		this._onDidChangeViewCells.fire({ synchronous: synchronous, splices: [[index, 1, []]] });
 		viewCell.dispose();
@@ -192,11 +200,11 @@ export class NotebookViewModel extends Disposable {
 		this._model.insertCell(viewCell.cell, newIdx);
 
 		if (pushedToUndoStack) {
-			this.undoService.pushElement(new MoveCellEdit(this.uri, index, newIdx, {
-				moveCell: (fromIndex: number, toIndex: number) => {
-					this.moveCellToIdx(fromIndex, toIndex, true, false);
-				}
-			}));
+			// this.undoService.pushElement(new MoveCellEdit(this.uri, index, newIdx, {
+			// 	moveCell: (fromIndex: number, toIndex: number) => {
+			// 		this.moveCellToIdx(fromIndex, toIndex, true, false);
+			// 	}
+			// }));
 		}
 
 		this._onDidChangeViewCells.fire({ synchronous: synchronous, splices: [[index, 1, []]] });
@@ -372,6 +380,24 @@ export class NotebookViewModel extends Disposable {
 		return this._model === model;
 	}
 
+	updateLayoutInfo(layoutInfo: NotebookLayoutInfo | null) {
+		if (layoutInfo === null) {
+			return;
+		}
+
+		if (this._layoutInfo === null) {
+			this._layoutInfo = layoutInfo;
+			this._onDidChangeLayout.fire({ width: true, height: true });
+			return;
+		}
+
+		let widthChanged = layoutInfo.width !== this._layoutInfo.width;
+		let heightChanged = layoutInfo.height !== this._layoutInfo.height;
+
+		this._layoutInfo = layoutInfo;
+		this._onDidChangeLayout.fire({ width: widthChanged, height: heightChanged });
+	}
+
 	dispose() {
 		this._localStore.clear();
 		this._viewCells.forEach(cell => {
@@ -380,5 +406,15 @@ export class NotebookViewModel extends Disposable {
 		});
 
 		super.dispose();
+	}
+}
+
+export type CellViewModel = CodeCellViewModel | MarkdownCellViewModel;
+
+export function createCellViewModel(instantiationService: IInstantiationService, notebookViewModel: NotebookViewModel, cell: ICell) {
+	if (cell.cellKind === CellKind.Code) {
+		return instantiationService.createInstance(CodeCellViewModel, notebookViewModel.viewType, notebookViewModel.handle, cell, notebookViewModel);
+	} else {
+		return instantiationService.createInstance(MarkdownCellViewModel, notebookViewModel.viewType, notebookViewModel.handle, cell, notebookViewModel);
 	}
 }

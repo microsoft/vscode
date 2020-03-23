@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IFileService, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { UserDataSyncError, UserDataSyncErrorCode, SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IUserDataSyncUtilService, SyncResource, IUserDataSynchroniser, IUserDataSyncEnablementService, IUserDataSyncBackupStoreService, USER_DATA_SYNC_SCHEME, PREVIEW_DIR_NAME } from 'vs/platform/userDataSync/common/userDataSync';
+import { UserDataSyncError, UserDataSyncErrorCode, SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IUserDataSyncUtilService, SyncResource, IUserDataSynchroniser, IUserDataSyncEnablementService, IUserDataSyncBackupStoreService, USER_DATA_SYNC_SCHEME, PREVIEW_DIR_NAME, ISyncResourceHandle } from 'vs/platform/userDataSync/common/userDataSync';
 import { merge } from 'vs/platform/userDataSync/common/keybindingsMerge';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { parse } from 'vs/base/common/json';
@@ -19,7 +19,7 @@ import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { IFileSyncPreviewResult, AbstractJsonFileSynchroniser, IRemoteUserData } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { URI } from 'vs/base/common/uri';
-import { joinPath, isEqual } from 'vs/base/common/resources';
+import { joinPath, isEqual, dirname, basename } from 'vs/base/common/resources';
 
 interface ISyncContent {
 	mac?: string;
@@ -160,36 +160,34 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 		return false;
 	}
 
-	async getConflictContent(conflictResource: URI): Promise<string | null> {
-		const content = await super.getConflictContent(conflictResource);
-		return content !== null ? this.getKeybindingsContentFromSyncContent(content) : null;
+	async getAssociatedResources({ uri }: ISyncResourceHandle): Promise<{ resource: URI, comparableResource?: URI }[]> {
+		return [{ resource: joinPath(uri, 'keybindings.json'), comparableResource: this.file }];
 	}
 
-	async getRemoteContent(ref?: string, fragment?: string): Promise<string | null> {
-		const content = await super.getRemoteContent(ref);
-		if (content !== null && fragment) {
-			return this.getFragment(content, fragment);
+	async resolveContent(uri: URI): Promise<string | null> {
+		if (isEqual(this.remotePreviewResource, uri)) {
+			return this.getConflictContent(uri);
 		}
-		return content;
-	}
-
-	async getLocalBackupContent(ref?: string, fragment?: string): Promise<string | null> {
-		let content = await super.getLocalBackupContent(ref);
-		if (content !== null && fragment) {
-			return this.getFragment(content, fragment);
+		let content = await super.resolveContent(uri);
+		if (content) {
+			return content;
 		}
-		return content;
-	}
-
-	private getFragment(content: string, fragment: string): string | null {
-		const syncData = this.parseSyncData(content);
-		if (syncData) {
-			switch (fragment) {
-				case 'keybindings':
-					return this.getKeybindingsContentFromSyncContent(syncData.content);
+		content = await super.resolveContent(dirname(uri));
+		if (content) {
+			const syncData = this.parseSyncData(content);
+			if (syncData) {
+				switch (basename(uri)) {
+					case 'keybindings.json':
+						return this.getKeybindingsContentFromSyncContent(syncData.content);
+				}
 			}
 		}
 		return null;
+	}
+
+	protected async getConflictContent(conflictResource: URI): Promise<string | null> {
+		const content = await super.getConflictContent(conflictResource);
+		return content !== null ? this.getKeybindingsContentFromSyncContent(content) : null;
 	}
 
 	protected async performSync(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<SyncStatus> {

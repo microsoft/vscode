@@ -28,10 +28,12 @@ import { CellRenderTemplate, ICellViewModel, INotebookEditor } from 'vs/workbenc
 import { CodeCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/codeCell';
 import { StatefullMarkdownCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/markdownCell';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { CellViewModel } from '../../viewModel/notebookCellViewModel';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { CellMenus } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellMenus';
+import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
+import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
+import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 
 const $ = DOM.$;
 
@@ -152,7 +154,7 @@ abstract class AbstractCellRenderer {
 	abstract getAdditionalContextMenuActions(): IAction[];
 }
 
-export class MarkdownCellRenderer extends AbstractCellRenderer implements IListRenderer<ICellViewModel, CellRenderTemplate> {
+export class MarkdownCellRenderer extends AbstractCellRenderer implements IListRenderer<MarkdownCellViewModel, CellRenderTemplate> {
 	static readonly TEMPLATE_ID = 'markdown_cell';
 	private disposables: Map<ICellViewModel, DisposableStore> = new Map();
 
@@ -198,7 +200,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		};
 	}
 
-	renderElement(element: CellViewModel, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
+	renderElement(element: MarkdownCellViewModel, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
 		templateData.editingContainer!.style.display = 'none';
 		templateData.cellContainer.innerHTML = '';
 		let renderedHTML = element.getHTML();
@@ -236,7 +238,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		};
 	}
 
-	getCellToolbarActions(element: CellViewModel): IAction[] {
+	getCellToolbarActions(element: MarkdownCellViewModel): IAction[] {
 		const viewModel = this.notebookEditor.viewModel;
 
 		if (!viewModel) {
@@ -293,7 +295,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 	}
 }
 
-export class CodeCellRenderer extends AbstractCellRenderer implements IListRenderer<ICellViewModel, CellRenderTemplate> {
+export class CodeCellRenderer extends AbstractCellRenderer implements IListRenderer<CodeCellViewModel, CellRenderTemplate> {
 	static readonly TEMPLATE_ID = 'code_cell';
 	private disposables: Map<ICellViewModel, DisposableStore> = new Map();
 
@@ -366,7 +368,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		};
 	}
 
-	renderElement(element: CellViewModel, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
+	renderElement(element: CodeCellViewModel, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
 		if (height === undefined) {
 			return;
 		}
@@ -385,8 +387,8 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		elementDisposable?.add(this.instantiationService.createInstance(CodeCell, this.notebookEditor, element, templateData));
 		this.renderedEditors.set(element, templateData.editor);
 
-		elementDisposable?.add(element.onDidChangeTotalHeight(() => {
-			templateData.focusIndicator!.style.height = `${element.getIndicatorHeight()}px`;
+		elementDisposable?.add(element.onDidChangeLayout(() => {
+			templateData.focusIndicator!.style.height = `${element.layoutInfo.indicatorHeight}px`;
 		}));
 
 		const toolbarContext = <INotebookCellActionContext>{
@@ -413,7 +415,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	}
 
 
-	getCellToolbarActions(element: CellViewModel): IAction[] {
+	getCellToolbarActions(element: CodeCellViewModel): IAction[] {
 		const viewModel = this.notebookEditor.viewModel;
 
 		if (!viewModel) {

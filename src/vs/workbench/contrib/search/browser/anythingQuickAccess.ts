@@ -39,6 +39,8 @@ import { Schemas } from 'vs/base/common/network';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ResourceMap } from 'vs/base/common/map';
 import { SymbolsQuickAccessProvider } from 'vs/workbench/contrib/search/browser/symbolsQuickAccess';
+import { DefaultQuickAccessFilterValue } from 'vs/platform/quickinput/common/quickAccess';
+import { IWorkbenchQuickOpenConfiguration } from 'vs/workbench/browser/quickopen';
 
 interface IAnythingQuickPickItem extends IPickerQuickAccessItem {
 	resource: URI | undefined;
@@ -53,6 +55,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 	private static readonly TYPING_SEARCH_DELAY = 200; // this delay accommodates for the user typing a word and then stops typing to start searching
 
 	private readonly pickState = new class {
+
 		scorerCache: ScorerCache = Object.create(null);
 		fileQueryCache: FileQueryCacheState | undefined = undefined;
 
@@ -60,22 +63,33 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		lastFilter: string | undefined = undefined;
 		lastRange: IRange | undefined = undefined;
 
+		isQuickNavigating: boolean | undefined = undefined;
+
 		constructor(private readonly provider: AnythingQuickAccessProvider) { }
 
-		reset(prepareForSearching: boolean): void {
+		reset(isQuickNavigating: boolean): void {
 
 			// Caches
-			if (prepareForSearching) {
+			if (!isQuickNavigating) {
 				this.fileQueryCache = this.provider.createFileQueryCache();
 				this.scorerCache = Object.create(null);
 			}
 
 			// Other
+			this.isQuickNavigating = isQuickNavigating;
 			this.lastOriginalFilter = undefined;
 			this.lastFilter = undefined;
 			this.lastRange = undefined;
 		}
 	}(this);
+
+	get defaultFilterValue(): DefaultQuickAccessFilterValue | undefined {
+		if (this.configuration.preserveInput) {
+			return DefaultQuickAccessFilterValue.LAST;
+		}
+
+		return undefined;
+	}
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -98,22 +112,24 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	private get configuration() {
 		const editorConfig = this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor;
-		const searchConfig = this.configurationService.getValue<IWorkbenchSearchConfiguration>();
+		const searchConfig = this.configurationService.getValue<IWorkbenchSearchConfiguration>().search;
+		const quickOpenConfig = this.configurationService.getValue<IWorkbenchQuickOpenConfiguration>().workbench.quickOpen;
 
 		return {
 			openEditorPinned: !editorConfig.enablePreviewFromQuickOpen,
 			openSideBySideDirection: editorConfig.openSideBySideDirection,
-			includeSymbols: searchConfig.search.quickOpen.includeSymbols,
-			workspaceSymbolsFilter: searchConfig.search.quickOpen.workspaceSymbolsFilter,
-			includeHistory: searchConfig.search.quickOpen.includeHistory,
-			shortAutoSaveDelay: this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY
+			includeSymbols: searchConfig.quickOpen.includeSymbols,
+			includeHistory: searchConfig.quickOpen.includeHistory,
+			historyFilterSortOrder: searchConfig.quickOpen.history.filterSortOrder,
+			shortAutoSaveDelay: this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY,
+			preserveInput: quickOpenConfig.preserveInput
 		};
 	}
 
 	provide(picker: IQuickPick<IAnythingQuickPickItem>, token: CancellationToken): IDisposable {
 
 		// Reset the pick state for this run
-		this.pickState.reset(!picker.quickNavigate);
+		this.pickState.reset(!!picker.quickNavigate);
 
 		// Start picker
 		return super.provide(picker, token);
@@ -154,11 +170,13 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		return {
 
 			// Fast picks: editor history
-			picks: historyEditorPicks.length > 0 ?
-				[
-					{ type: 'separator', label: localize('recentlyOpenedSeparator', "recently opened") },
-					...historyEditorPicks
-				] : [],
+			picks:
+				(this.pickState.isQuickNavigating || historyEditorPicks.length === 0) ?
+					historyEditorPicks :
+					[
+						{ type: 'separator', label: localize('recentlyOpenedSeparator', "recently opened") },
+						...historyEditorPicks
+					],
 
 			// Slow picks: files and symbols
 			additionalPicks: (async (): Promise<Array<IAnythingQuickPickItem | IQuickPickSeparator>> => {
@@ -263,7 +281,12 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			editorHistoryPicks.push(editorHistoryPick);
 		}
 
-		return editorHistoryPicks.sort((editorA, editorB) => compareItemsByScore(editorA, editorB, query, false, editorHistoryScorerAccessor, this.pickState.scorerCache, () => -1));
+		// Return without sorting if settings tell to sort by recency
+		if (this.configuration.historyFilterSortOrder === 'recency') {
+			return editorHistoryPicks;
+		}
+
+		return editorHistoryPicks.sort((editorA, editorB) => compareItemsByScore(editorA, editorB, query, false, editorHistoryScorerAccessor, this.pickState.scorerCache));
 	}
 
 	//#endregion
@@ -348,9 +371,21 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			this.getRelativePathFileResults(query, token)
 		]);
 
+		// Return quickly if no relative results are present
+		if (!relativePathFileResults) {
+			return fileSearchResults.results.map(result => result.resource);
+		}
+
+		// Otherwise, make sure to filter relative path results from
+		// the search results to prevent duplicates
+		const relativePathFileResultsMap = new ResourceMap<boolean>();
+		for (const relativePathFileResult of relativePathFileResults) {
+			relativePathFileResultsMap.set(relativePathFileResult, true);
+		}
+
 		return [
-			...fileSearchResults.results.map(result => result.resource),
-			...(relativePathFileResults || [])
+			...fileSearchResults.results.filter(result => !relativePathFileResultsMap.has(result.resource)).map(result => result.resource),
+			...relativePathFileResults
 		];
 	}
 
@@ -459,7 +494,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		// Delegate to the existing symbols quick access
 		// but skip local results and also do not sort
 		return this.symbolsQuickAccess.getSymbolPicks(query.value, {
-			skipLocal: configuration.workspaceSymbolsFilter !== 'all',
+			skipLocal: true,
 			skipSorting: true,
 			delay: AnythingQuickAccessProvider.TYPING_SEARCH_DELAY
 		}, token);
@@ -499,6 +534,10 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			description,
 			iconClasses: getIconClasses(this.modelService, this.modeService, resource),
 			buttons: (() => {
+				if (this.pickState.isQuickNavigating) {
+					return undefined; // no actions when quick navigating
+				}
+
 				const openSideBySideDirection = configuration.openSideBySideDirection;
 				const buttons: IQuickInputButton[] = [];
 
@@ -532,7 +571,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 						if (!URI.isUri(resourceOrEditor)) {
 							this.historyService.remove(resourceOrEditor);
 
-							return TriggerAction.REFRESH_PICKER;
+							return TriggerAction.REMOVE_ITEM;
 						}
 				}
 

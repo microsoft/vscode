@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IGlobalState, SyncResource, IUserDataSynchroniser, IUserDataSyncEnablementService, IUserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSync';
+import { SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IGlobalState, SyncResource, IUserDataSynchroniser, IUserDataSyncEnablementService, IUserDataSyncBackupStoreService, ISyncResourceHandle } from 'vs/platform/userDataSync/common/userDataSync';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Event } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { dirname } from 'vs/base/common/resources';
+import { dirname, joinPath, basename } from 'vs/base/common/resources';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { edit } from 'vs/platform/userDataSync/common/content';
@@ -17,6 +17,8 @@ import { AbstractSynchroniser, IRemoteUserData } from 'vs/platform/userDataSync/
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { URI } from 'vs/base/common/uri';
+import { format } from 'vs/base/common/jsonFormatter';
+import { applyEdits } from 'vs/base/common/jsonEdit';
 
 const argvProperties: string[] = ['locale'];
 
@@ -105,28 +107,24 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 
 	async stop(): Promise<void> { }
 
-	async getRemoteContent(ref?: string, fragment?: string): Promise<string | null> {
-		let content = await super.getRemoteContent(ref);
-		if (content !== null && fragment) {
-			return this.getFragment(content, fragment);
-		}
-		return content;
+	async getAssociatedResources({ uri }: ISyncResourceHandle): Promise<{ resource: URI, comparableResource?: URI }[]> {
+		return [{ resource: joinPath(uri, 'globalState.json') }];
 	}
 
-	async getLocalBackupContent(ref?: string, fragment?: string): Promise<string | null> {
-		let content = await super.getLocalBackupContent(ref);
-		if (content !== null && fragment) {
-			return this.getFragment(content, fragment);
+	async resolveContent(uri: URI): Promise<string | null> {
+		let content = await super.resolveContent(uri);
+		if (content) {
+			return content;
 		}
-		return content;
-	}
-
-	private getFragment(content: string, fragment: string): string | null {
-		const syncData = this.parseSyncData(content);
-		if (syncData) {
-			switch (fragment) {
-				case 'globalState':
-					return syncData.content;
+		content = await super.resolveContent(dirname(uri));
+		if (content) {
+			const syncData = this.parseSyncData(content);
+			if (syncData) {
+				switch (basename(uri)) {
+					case 'globalState.json':
+						const edits = format(syncData.content, undefined, {});
+						return applyEdits(syncData.content, edits);
+				}
 			}
 		}
 		return null;

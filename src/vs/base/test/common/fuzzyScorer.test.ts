@@ -8,6 +8,7 @@ import * as scorer from 'vs/base/common/fuzzyScorer';
 import { URI } from 'vs/base/common/uri';
 import { basename, dirname, sep } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
+import { Schemas } from 'vs/base/common/network';
 
 class ResourceAccessorClass implements scorer.IItemAccessor<URI> {
 
@@ -49,8 +50,8 @@ function scoreItem<T>(item: T, query: string, fuzzy: boolean, accessor: scorer.I
 	return scorer.scoreItem(item, scorer.prepareQuery(query), fuzzy, accessor, cache);
 }
 
-function compareItemsByScore<T>(itemA: T, itemB: T, query: string, fuzzy: boolean, accessor: scorer.IItemAccessor<T>, cache: scorer.ScorerCache, fallbackComparer?: (itemA: T, itemB: T, query: scorer.IPreparedQuery, accessor: scorer.IItemAccessor<T>) => number): number {
-	return scorer.compareItemsByScore(itemA, itemB, scorer.prepareQuery(query), fuzzy, accessor, cache, fallbackComparer as any);
+function compareItemsByScore<T>(itemA: T, itemB: T, query: string, fuzzy: boolean, accessor: scorer.IItemAccessor<T>, cache: scorer.ScorerCache): number {
+	return scorer.compareItemsByScore(itemA, itemB, scorer.prepareQuery(query), fuzzy, accessor, cache);
 }
 
 const NullAccessor = new NullAccessorClass();
@@ -277,6 +278,19 @@ suite('Fuzzy Scorer', () => {
 
 		const res = scoreItem(resource, 'edcda', true, ResourceAccessor, cache);
 		assert.ok(!res.score);
+	});
+
+	test('scoreItem - match if using slash or backslash (local, remote resource)', function () {
+		const localResource = URI.file('abcde/super/duper');
+		const remoteResource = URI.from({ scheme: Schemas.vscodeRemote, path: 'abcde/super/duper' });
+
+		for (const resource of [localResource, remoteResource]) {
+			let res = scoreItem(resource, 'abcde\\super\\duper', true, ResourceAccessor, cache);
+			assert.ok(res.score);
+
+			res = scoreItem(resource, 'abcde/super/duper', true, ResourceAccessor, cache);
+			assert.ok(res.score);
+		}
 	});
 
 	test('compareItemsByScore - identity', function () {
@@ -509,33 +523,13 @@ suite('Fuzzy Scorer', () => {
 		assert.equal(res[2], resourceC);
 	});
 
-	test('compareFilesByScore - allow to provide fallback sorter (bug #31591)', function () {
-		const resourceA = URI.file('virtual/vscode.d.ts');
-		const resourceB = URI.file('vscode/src/vs/vscode.d.ts');
+	test('compareFilesByScore - prefer matches in label over description if scores are otherwise equal', function () {
+		const resourceA = URI.file('parts/quick/arrow-left-dark.svg');
+		const resourceB = URI.file('parts/quickopen/quickopen.ts');
 
-		let query = 'vscode';
+		let query = 'partsquick';
 
-		let res = [resourceA, resourceB].sort((r1, r2) => {
-			return compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache, (r1, r2, query, ResourceAccessor) => {
-				if (r1 as any /* TS fail */ === resourceA) {
-					return -1;
-				}
-
-				return 1;
-			});
-		});
-		assert.equal(res[0], resourceA);
-		assert.equal(res[1], resourceB);
-
-		res = [resourceB, resourceA].sort((r1, r2) => {
-			return compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache, (r1, r2, query, ResourceAccessor) => {
-				if (r1 as any /* TS fail */ === resourceB) {
-					return -1;
-				}
-
-				return 1;
-			});
-		});
+		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceB);
 		assert.equal(res[1], resourceA);
 	});

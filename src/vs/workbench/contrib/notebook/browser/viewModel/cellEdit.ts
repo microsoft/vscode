@@ -6,9 +6,8 @@
 import { ICell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IResourceUndoRedoElement, UndoRedoElementType } from 'vs/platform/undoRedo/common/undoRedo';
 import { URI } from 'vs/base/common/uri';
-import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
+import { NotebookViewModel, CellViewModel, createCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 
 
 /**
@@ -71,7 +70,7 @@ export class DeleteCellEdit implements IResourceUndoRedoElement {
 			throw new Error('Notebook Insert Cell not implemented for Undo/Redo');
 		}
 
-		const cell = this.instantiationService.createInstance(CellViewModel, this.notebookViewModel.viewType, this.notebookViewModel.handle, this._rawCell);
+		const cell = createCellViewModel(this.instantiationService, this.notebookViewModel, this._rawCell);
 		this.editingDelegate.insertCell(this.insertIndex, cell);
 	}
 

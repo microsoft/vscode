@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IUserDataSynchroniser, SyncResource, IUserDataSyncEnablementService, IUserDataSyncBackupStoreService, Conflict, USER_DATA_SYNC_SCHEME, PREVIEW_DIR_NAME, UserDataSyncError, UserDataSyncErrorCode } from 'vs/platform/userDataSync/common/userDataSync';
+import { SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IUserDataSynchroniser, SyncResource, IUserDataSyncEnablementService, IUserDataSyncBackupStoreService, Conflict, USER_DATA_SYNC_SCHEME, PREVIEW_DIR_NAME, UserDataSyncError, UserDataSyncErrorCode, ISyncResourceHandle } from 'vs/platform/userDataSync/common/userDataSync';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService, FileChangesEvent, IFileStat, IFileContent, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -11,7 +11,7 @@ import { AbstractSynchroniser, IRemoteUserData, ISyncData } from 'vs/platform/us
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { URI } from 'vs/base/common/uri';
-import { joinPath, extname, relativePath, isEqualOrParent, isEqual, basename } from 'vs/base/common/resources';
+import { joinPath, extname, relativePath, isEqualOrParent, isEqual, basename, dirname } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { merge } from 'vs/platform/userDataSync/common/snippetsMerge';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
@@ -148,8 +148,46 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 		this.setStatus(SyncStatus.Idle);
 	}
 
-	async getConflictContent(conflictResource: URI): Promise<string | null> {
-		if (isEqualOrParent(conflictResource.with({ scheme: this.syncFolder.scheme }), this.snippetsPreviewFolder) && this.syncPreviewResultPromise) {
+	async getAssociatedResources({ uri }: ISyncResourceHandle): Promise<{ resource: URI, comparableResource?: URI }[]> {
+		let content = await super.resolveContent(uri);
+		if (content) {
+			const syncData = this.parseSyncData(content);
+			if (syncData) {
+				const snippets = this.parseSnippets(syncData);
+				const result = [];
+				for (const snippet of Object.keys(snippets)) {
+					const resource = joinPath(uri, snippet);
+					const comparableResource = joinPath(this.snippetsFolder, snippet);
+					const exists = await this.fileService.exists(comparableResource);
+					result.push({ resource, comparableResource: exists ? comparableResource : undefined });
+				}
+				return result;
+			}
+		}
+		return [];
+	}
+
+	async resolveContent(uri: URI): Promise<string | null> {
+		if (isEqualOrParent(uri.with({ scheme: this.syncFolder.scheme }), this.snippetsPreviewFolder)) {
+			return this.getConflictContent(uri);
+		}
+		let content = await super.resolveContent(uri);
+		if (content) {
+			return content;
+		}
+		content = await super.resolveContent(dirname(uri));
+		if (content) {
+			const syncData = this.parseSyncData(content);
+			if (syncData) {
+				const snippets = this.parseSnippets(syncData);
+				return snippets[basename(uri)] || null;
+			}
+		}
+		return null;
+	}
+
+	protected async getConflictContent(conflictResource: URI): Promise<string | null> {
+		if (this.syncPreviewResultPromise) {
 			const result = await this.syncPreviewResultPromise;
 			const key = relativePath(this.snippetsPreviewFolder, conflictResource.with({ scheme: this.snippetsPreviewFolder.scheme }))!;
 			if (conflictResource.scheme === this.snippetsPreviewFolder.scheme) {
@@ -160,37 +198,6 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 			}
 		}
 		return null;
-	}
-
-	async getRemoteContent(ref?: string, fragment?: string): Promise<string | null> {
-		const content = await super.getRemoteContent(ref);
-		if (content !== null && fragment) {
-			return this.getFragment(content, fragment);
-		}
-		return content;
-	}
-
-	async getLocalBackupContent(ref?: string, fragment?: string): Promise<string | null> {
-		let content = await super.getLocalBackupContent(ref);
-		if (content !== null && fragment) {
-			return this.getFragment(content, fragment);
-		}
-		return content;
-	}
-
-	private getFragment(content: string, fragment: string): string | null {
-		const syncData = this.parseSyncData(content);
-		return syncData ? this.getFragmentFromSyncData(syncData, fragment) : null;
-	}
-
-	private getFragmentFromSyncData(syncData: ISyncData, fragment: string): string | null {
-		switch (fragment) {
-			case 'snippets':
-				return syncData.content;
-			default:
-				const remoteSnippets = this.parseSnippets(syncData);
-				return remoteSnippets[fragment] || null;
-		}
 	}
 
 	async acceptConflict(conflictResource: URI, content: string): Promise<void> {

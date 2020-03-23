@@ -38,9 +38,9 @@ import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { Emitter, Event } from 'vs/base/common/event';
 import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
 import { NotebookFindWidget } from 'vs/workbench/contrib/notebook/browser/contrib/notebookFindWidget';
-import { NotebookViewModel, INotebookEditorViewState, IModelDecorationsChangeAccessor } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
+import { NotebookViewModel, INotebookEditorViewState, IModelDecorationsChangeAccessor, CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
-import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
+import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { Range } from 'vs/editor/common/core/range';
 import { CELL_MARGIN, RUN_BUTTON_WIDTH } from 'vs/workbench/contrib/notebook/browser/constants';
 import { Color, RGBA } from 'vs/base/common/color';
@@ -83,9 +83,7 @@ export class NotebookCodeEditors implements ICompositeCodeEditor {
 
 	get activeCodeEditor(): IEditor | undefined {
 		const [focused] = this._list.getFocusedElements();
-		return focused instanceof CellViewModel
-			? this._renderedEditors.get(focused)
-			: undefined;
+		return this._renderedEditors.get(focused);
 	}
 }
 
@@ -334,6 +332,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		}
 
 		this.notebookViewModel = this.instantiationService.createInstance(NotebookViewModel, input.viewType!, model);
+		this.notebookViewModel?.updateLayoutInfo(this.getLayoutInfo());
 		const viewState = this.loadTextEditorViewState(input);
 		this.notebookViewModel.restoreEditorViewState(viewState);
 
@@ -361,7 +360,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			const scrollTop = this.list?.scrollTop || 0;
 			const scrollHeight = this.list?.scrollHeight || 0;
 			this.webview!.element.style.height = `${scrollHeight}px`;
-			let updateItems: { cell: CellViewModel, output: IOutput, cellTop: number }[] = [];
+			let updateItems: { cell: CodeCellViewModel, output: IOutput, cellTop: number }[] = [];
 
 			if (this.webview?.insetMapping) {
 				this.webview?.insetMapping.forEach((value, key) => {
@@ -415,6 +414,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		DOM.toggleClass(this.rootElement, 'narrow-width', dimension.width < 600);
 		DOM.size(this.body, dimension.width, dimension.height);
 		this.list?.layout(dimension.height, dimension.width);
+		this.notebookViewModel?.updateLayoutInfo(this.getLayoutInfo());
 	}
 
 	protected saveState(): void {
@@ -661,15 +661,12 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			fontInfo: this.fontInfo!
 		};
 	}
-	getFontInfo(): BareFontInfo | undefined {
-		return this.fontInfo;
-	}
 
 	triggerScroll(event: IMouseWheelEvent) {
 		this.list?.triggerScrollFromMouseWheelEvent(event);
 	}
 
-	createInset(cell: CellViewModel, output: IOutput, shadowContent: string, offset: number) {
+	createInset(cell: CodeCellViewModel, output: IOutput, shadowContent: string, offset: number) {
 		if (!this.webview) {
 			return;
 		}

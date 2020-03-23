@@ -9638,10 +9638,10 @@ vsce@1.48.0:
     yauzl "^2.3.1"
     yazl "^2.2.2"
 
-vscode-debugprotocol@1.39.0:
-  version "1.39.0"
-  resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.39.0.tgz#0c639178d0d5ea7de7903b6478b53d2bc0d77461"
-  integrity sha512-Wkvgtuz90vjtQBcvw9Z+BYa4dA6W+sHwHMpqvJVNmwWSuT3JZdl0XDhZNLqtMXkVF4okxtAe0MmbupPSt+gnAQ==
+vscode-debugprotocol@1.40.0-pre.1:
+  version "1.40.0-pre.1"
+  resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.40.0-pre.1.tgz#62c066c0520cc5e318dfc9873907574018bc8460"
+  integrity sha512-MLlNUSoJbRPNP/7PpnNLOOubZP/X0ObDEjwC6frrn/GR+bT943S1iIdj9aMjT7i93HSpsIAx8YbwkqId7nxLgw==
 
 vscode-minimist@^1.2.2:
   version "1.2.2"

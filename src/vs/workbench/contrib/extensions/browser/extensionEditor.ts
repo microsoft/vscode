@@ -650,7 +650,7 @@ export class ExtensionEditor extends BaseEditor {
 					body {
 						padding: 10px 20px;
 						line-height: 22px;
-						max-width: 780px;
+						max-width: 882px;
 						margin: 0 auto;
 					}
 

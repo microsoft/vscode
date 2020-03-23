@@ -12,7 +12,7 @@ import { Mode, IEntryRunContext, IAutoFocus, IModel, IQuickNavigateConfiguration
 import { QuickOpenEntryGroup, IHighlight, QuickOpenModel, QuickOpenEntry } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { QuickOpenHandler, IWorkbenchQuickOpenConfiguration } from 'vs/workbench/browser/quickopen';
+import { QuickOpenHandler, IWorkbenchQuickOpenConfiguration, ENABLE_EXPERIMENTAL_VERSION_CONFIG } from 'vs/workbench/browser/quickopen';
 import { IEditorAction } from 'vs/editor/common/editorCommon';
 import { matchesWords, matchesPrefix, matchesContiguousSubString, or } from 'vs/base/common/filters';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -34,6 +34,8 @@ import { Disposable, DisposableStore, IDisposable, toDisposable, dispose } from 
 import { timeout } from 'vs/base/common/async';
 import { isFirefox } from 'vs/base/browser/browser';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { CommandsHistory } from 'vs/platform/quickinput/browser/commandsQuickAccess';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
 export const ALL_COMMANDS_PREFIX = '>';
 
@@ -42,7 +44,7 @@ interface ISerializedCommandHistory {
 	entries: { key: string; value: number }[];
 }
 
-class CommandsHistory extends Disposable {
+class LegacyCommandsHistory extends Disposable {
 
 	static readonly DEFAULT_COMMANDS_HISTORY_LENGTH = 50;
 
@@ -71,17 +73,17 @@ class CommandsHistory extends Disposable {
 	}
 
 	private updateConfiguration(): void {
-		this.configuredCommandsHistoryLength = CommandsHistory.getConfiguredCommandHistoryLength(this.configurationService);
+		this.configuredCommandsHistoryLength = LegacyCommandsHistory.getConfiguredCommandHistoryLength(this.configurationService);
 
-		if (CommandsHistory.cache && CommandsHistory.cache.limit !== this.configuredCommandsHistoryLength) {
-			CommandsHistory.cache.limit = this.configuredCommandsHistoryLength;
+		if (LegacyCommandsHistory.cache && LegacyCommandsHistory.cache.limit !== this.configuredCommandsHistoryLength) {
+			LegacyCommandsHistory.cache.limit = this.configuredCommandsHistoryLength;
 
-			CommandsHistory.saveState(this.storageService);
+			LegacyCommandsHistory.saveState(this.storageService);
 		}
 	}
 
 	private load(): void {
-		const raw = this.storageService.get(CommandsHistory.PREF_KEY_CACHE, StorageScope.GLOBAL);
+		const raw = this.storageService.get(LegacyCommandsHistory.PREF_KEY_CACHE, StorageScope.GLOBAL);
 		let serializedCache: ISerializedCommandHistory | undefined;
 		if (raw) {
 			try {
@@ -91,7 +93,7 @@ class CommandsHistory extends Disposable {
 			}
 		}
 
-		const cache = CommandsHistory.cache = new LRUCache<string, number>(this.configuredCommandsHistoryLength, 1);
+		const cache = LegacyCommandsHistory.cache = new LRUCache<string, number>(this.configuredCommandsHistoryLength, 1);
 		if (serializedCache) {
 			let entries: { key: string; value: number }[];
 			if (serializedCache.usesLRU) {
@@ -102,33 +104,33 @@ class CommandsHistory extends Disposable {
 			entries.forEach(entry => cache.set(entry.key, entry.value));
 		}
 
-		CommandsHistory.counter = this.storageService.getNumber(CommandsHistory.PREF_KEY_COUNTER, StorageScope.GLOBAL, CommandsHistory.counter);
+		LegacyCommandsHistory.counter = this.storageService.getNumber(LegacyCommandsHistory.PREF_KEY_COUNTER, StorageScope.GLOBAL, LegacyCommandsHistory.counter);
 	}
 
 	push(commandId: string): void {
-		if (!CommandsHistory.cache) {
+		if (!LegacyCommandsHistory.cache) {
 			return;
 		}
 
-		CommandsHistory.cache.set(commandId, CommandsHistory.counter++); // set counter to command
+		LegacyCommandsHistory.cache.set(commandId, LegacyCommandsHistory.counter++); // set counter to command
 
-		CommandsHistory.saveState(this.storageService);
+		LegacyCommandsHistory.saveState(this.storageService);
 	}
 
 	peek(commandId: string): number | undefined {
-		return CommandsHistory.cache?.peek(commandId);
+		return LegacyCommandsHistory.cache?.peek(commandId);
 	}
 
 	static saveState(storageService: IStorageService): void {
-		if (!CommandsHistory.cache) {
+		if (!LegacyCommandsHistory.cache) {
 			return;
 		}
 
 		const serializedCache: ISerializedCommandHistory = { usesLRU: true, entries: [] };
-		CommandsHistory.cache.forEach((value, key) => serializedCache.entries.push({ key, value }));
+		LegacyCommandsHistory.cache.forEach((value, key) => serializedCache.entries.push({ key, value }));
 
-		storageService.store(CommandsHistory.PREF_KEY_CACHE, JSON.stringify(serializedCache), StorageScope.GLOBAL);
-		storageService.store(CommandsHistory.PREF_KEY_COUNTER, CommandsHistory.counter, StorageScope.GLOBAL);
+		storageService.store(LegacyCommandsHistory.PREF_KEY_CACHE, JSON.stringify(serializedCache), StorageScope.GLOBAL);
+		storageService.store(LegacyCommandsHistory.PREF_KEY_COUNTER, LegacyCommandsHistory.counter, StorageScope.GLOBAL);
 	}
 
 	static getConfiguredCommandHistoryLength(configurationService: IConfigurationService): number {
@@ -139,15 +141,15 @@ class CommandsHistory extends Disposable {
 			return configuredCommandHistoryLength;
 		}
 
-		return CommandsHistory.DEFAULT_COMMANDS_HISTORY_LENGTH;
+		return LegacyCommandsHistory.DEFAULT_COMMANDS_HISTORY_LENGTH;
 	}
 
 	static clearHistory(configurationService: IConfigurationService, storageService: IStorageService): void {
-		const commandHistoryLength = CommandsHistory.getConfiguredCommandHistoryLength(configurationService);
-		CommandsHistory.cache = new LRUCache<string, number>(commandHistoryLength);
-		CommandsHistory.counter = 1;
+		const commandHistoryLength = LegacyCommandsHistory.getConfiguredCommandHistoryLength(configurationService);
+		LegacyCommandsHistory.cache = new LRUCache<string, number>(commandHistoryLength);
+		LegacyCommandsHistory.counter = 1;
 
-		CommandsHistory.saveState(storageService);
+		LegacyCommandsHistory.saveState(storageService);
 	}
 }
 
@@ -162,6 +164,7 @@ export class ShowAllCommandsAction extends Action {
 		id: string,
 		label: string,
 		@IQuickOpenService private readonly quickOpenService: IQuickOpenService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(id, label);
@@ -171,13 +174,18 @@ export class ShowAllCommandsAction extends Action {
 		const config = <IWorkbenchQuickOpenConfiguration>this.configurationService.getValue();
 		const restoreInput = config.workbench?.commandPalette?.preserveInput === true;
 
-		// Show with last command palette input if any and configured
-		let value = ALL_COMMANDS_PREFIX;
-		if (restoreInput && lastCommandPaletteInput) {
-			value = `${value}${lastCommandPaletteInput}`;
-		}
+		if (this.configurationService.getValue(ENABLE_EXPERIMENTAL_VERSION_CONFIG) === true) {
+			this.quickInputService.quickAccess.show(ALL_COMMANDS_PREFIX);
+		} else {
 
-		this.quickOpenService.show(value, { inputSelection: lastCommandPaletteInput ? { start: 1 /* after prefix */, end: value.length } : undefined });
+			// Show with last command palette input if any and configured
+			let value = ALL_COMMANDS_PREFIX;
+			if (restoreInput && lastCommandPaletteInput) {
+				value = `${value}${lastCommandPaletteInput}`;
+			}
+
+			this.quickOpenService.show(value, { inputSelection: lastCommandPaletteInput ? { start: 1 /* after prefix */, end: value.length } : undefined });
+		}
 
 		return Promise.resolve(undefined);
 	}
@@ -197,13 +205,16 @@ export class ClearCommandHistoryAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<void> {
+	async run(): Promise<void> {
+		const legacyCommandHistoryLength = LegacyCommandsHistory.getConfiguredCommandHistoryLength(this.configurationService);
+		if (legacyCommandHistoryLength > 0) {
+			LegacyCommandsHistory.clearHistory(this.configurationService, this.storageService);
+		}
+
 		const commandHistoryLength = CommandsHistory.getConfiguredCommandHistoryLength(this.configurationService);
 		if (commandHistoryLength > 0) {
 			CommandsHistory.clearHistory(this.configurationService, this.storageService);
 		}
-
-		return Promise.resolve(undefined);
 	}
 }
 
@@ -222,13 +233,11 @@ class CommandPaletteEditorAction extends EditorAction {
 		});
 	}
 
-	run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const quickOpenService = accessor.get(IQuickOpenService);
 
 		// Show with prefix
 		quickOpenService.show(ALL_COMMANDS_PREFIX);
-
-		return Promise.resolve(undefined);
 	}
 }
 
@@ -406,7 +415,7 @@ export class CommandsHandler extends QuickOpenHandler implements IDisposable {
 	static readonly ID = 'workbench.picker.commands';
 
 	private commandHistoryEnabled: boolean | undefined;
-	private readonly commandsHistory: CommandsHistory;
+	private readonly commandsHistory: LegacyCommandsHistory;
 
 	private readonly disposables = new DisposableStore();
 	private readonly disposeOnClose = new DisposableStore();
@@ -423,7 +432,7 @@ export class CommandsHandler extends QuickOpenHandler implements IDisposable {
 	) {
 		super();
 
-		this.commandsHistory = this.disposables.add(this.instantiationService.createInstance(CommandsHistory));
+		this.commandsHistory = this.disposables.add(this.instantiationService.createInstance(LegacyCommandsHistory));
 
 		this.extensionService.whenInstalledExtensionsRegistered().then(() => this.waitedForExtensionsRegistered = true);
 
@@ -432,7 +441,7 @@ export class CommandsHandler extends QuickOpenHandler implements IDisposable {
 	}
 
 	private updateConfiguration(): void {
-		this.commandHistoryEnabled = CommandsHistory.getConfiguredCommandHistoryLength(this.configurationService) > 0;
+		this.commandHistoryEnabled = LegacyCommandsHistory.getConfiguredCommandHistoryLength(this.configurationService) > 0;
 	}
 
 	async getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel> {

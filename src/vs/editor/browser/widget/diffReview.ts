@@ -30,6 +30,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { Constants } from 'vs/base/common/uint';
 
 const DIFF_LINES_PADDING = 3;
 
@@ -124,16 +125,6 @@ export class DiffReview extends Disposable {
 			}
 			this._render();
 		}));
-		this._register(diffEditor.getOriginalEditor().onDidFocusEditorWidget(() => {
-			if (this._isVisible) {
-				this.hide();
-			}
-		}));
-		this._register(diffEditor.getModifiedEditor().onDidFocusEditorWidget(() => {
-			if (this._isVisible) {
-				this.hide();
-			}
-		}));
 		this._register(dom.addStandardDisposableListener(this.domNode.domNode, 'click', (e) => {
 			e.preventDefault();
 
@@ -209,7 +200,9 @@ export class DiffReview extends Disposable {
 		}
 
 		index = index % this._diffs.length;
-		this._diffEditor.setPosition(new Position(this._diffs[index].entries[0].modifiedLineStart, 1));
+		const entries = this._diffs[index].entries;
+		this._diffEditor.setPosition(new Position(entries[0].modifiedLineStart, 1));
+		this._diffEditor.setSelection({ startColumn: 1, startLineNumber: entries[0].modifiedLineStart, endColumn: Constants.MAX_SAFE_SMALL_INTEGER, endLineNumber: entries[entries.length - 1].modifiedLineEnd });
 		this._isVisible = true;
 		this._diffEditor.doLayout();
 		this._render();
@@ -242,7 +235,9 @@ export class DiffReview extends Disposable {
 		}
 
 		index = index % this._diffs.length;
-		this._diffEditor.setPosition(new Position(this._diffs[index].entries[0].modifiedLineStart, 1));
+		const entries = this._diffs[index].entries;
+		this._diffEditor.setPosition(new Position(entries[0].modifiedLineStart, 1));
+		this._diffEditor.setSelection({ startColumn: 1, startLineNumber: entries[0].modifiedLineStart, endColumn: Constants.MAX_SAFE_SMALL_INTEGER, endLineNumber: entries[entries.length - 1].modifiedLineEnd });
 		this._isVisible = true;
 		this._diffEditor.doLayout();
 		this._render();
@@ -551,6 +546,7 @@ export class DiffReview extends Disposable {
 		let container = document.createElement('div');
 		container.className = 'diff-review-table';
 		container.setAttribute('role', 'list');
+		container.setAttribute('aria-label', 'Difference review. Use "Stage | Unstage | Revert Selected Ranges" commands');
 		Configuration.applyFontInfoSlow(container, modifiedOptions.get(EditorOption.fontInfo));
 
 		let minOriginalLine = 0;

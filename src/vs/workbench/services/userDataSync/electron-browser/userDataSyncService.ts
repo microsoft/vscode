@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SyncStatus, SyncResource, IUserDataSyncService, UserDataSyncError, SyncResourceConflicts } from 'vs/platform/userDataSync/common/userDataSync';
+import { SyncStatus, SyncResource, IUserDataSyncService, UserDataSyncError, SyncResourceConflicts, ISyncResourceHandle } from 'vs/platform/userDataSync/common/userDataSync';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -73,8 +73,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return this.channel.call('sync');
 	}
 
-	acceptConflict(conflict: URI, content: string): Promise<void> {
-		return this.channel.call('acceptConflict', [conflict, content]);
+	stop(): Promise<void> {
+		return this.channel.call('stop');
 	}
 
 	reset(): Promise<void> {
@@ -85,16 +85,31 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return this.channel.call('resetLocal');
 	}
 
-	stop(): Promise<void> {
-		return this.channel.call('stop');
+	isFirstTimeSyncWithMerge(): Promise<boolean> {
+		return this.channel.call('isFirstTimeSyncWithMerge');
+	}
+
+	acceptConflict(conflict: URI, content: string): Promise<void> {
+		return this.channel.call('acceptConflict', [conflict, content]);
 	}
 
 	resolveContent(resource: URI): Promise<string | null> {
 		return this.channel.call('resolveContent', [resource]);
 	}
 
-	isFirstTimeSyncWithMerge(): Promise<boolean> {
-		return this.channel.call('isFirstTimeSyncWithMerge');
+	async getLocalSyncResourceHandles(resource: SyncResource): Promise<ISyncResourceHandle[]> {
+		const handles = await this.channel.call<ISyncResourceHandle[]>('getLocalSyncResourceHandles', [resource]);
+		return handles.map(({ created, uri }) => ({ created, uri: URI.revive(uri) }));
+	}
+
+	async getRemoteSyncResourceHandles(resource: SyncResource): Promise<ISyncResourceHandle[]> {
+		const handles = await this.channel.call<ISyncResourceHandle[]>('getRemoteSyncResourceHandles', [resource]);
+		return handles.map(({ created, uri }) => ({ created, uri: URI.revive(uri) }));
+	}
+
+	async getAssociatedResources(resource: SyncResource, syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI, comparableResource?: URI }[]> {
+		const result = await this.channel.call<{ resource: URI, comparableResource?: URI }[]>('getAssociatedResources', [resource, syncResourceHandle]);
+		return result.map(({ resource, comparableResource }) => ({ resource: URI.revive(resource), comparableResource: URI.revive(comparableResource) }));
 	}
 
 	private async updateStatus(status: SyncStatus): Promise<void> {

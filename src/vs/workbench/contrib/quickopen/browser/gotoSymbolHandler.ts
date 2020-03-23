@@ -61,7 +61,7 @@ const NLS_SYMBOL_KIND_CACHE: { [type: number]: string } = {
 export class GotoSymbolAction extends QuickOpenAction {
 
 	static readonly ID = 'workbench.action.gotoSymbol';
-	static readonly LABEL = nls.localize('gotoSymbol', "Go to Symbol in File...");
+	static readonly LABEL = nls.localize('gotoSymbol', "Go to Symbol in Editor...");
 
 	constructor(actionId: string, actionLabel: string, @IQuickOpenService quickOpenService: IQuickOpenService) {
 		super(actionId, actionLabel, GOTO_SYMBOL_PREFIX, quickOpenService);
