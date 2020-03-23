@@ -137,7 +137,7 @@ class SingleModelEditStackData {
 
 export class SingleModelEditStackElement implements IResourceUndoRedoElement {
 
-	public model: ITextModel;
+	public model: ITextModel | URI;
 	private _data: SingleModelEditStackData | ArrayBuffer;
 
 	public get type(): UndoRedoElementType.Resource {
@@ -145,6 +145,9 @@ export class SingleModelEditStackElement implements IResourceUndoRedoElement {
 	}
 
 	public get resource(): URI {
+		if (URI.isUri(this.model)) {
+			return this.model;
+		}
 		return this.model.uri;
 	}
 
@@ -157,7 +160,7 @@ export class SingleModelEditStackElement implements IResourceUndoRedoElement {
 		this._data = SingleModelEditStackData.create(model, beforeCursorState);
 	}
 
-	public setModel(model: ITextModel): void {
+	public setModel(model: ITextModel | URI): void {
 		this.model = model;
 	}
 
@@ -178,6 +181,10 @@ export class SingleModelEditStackElement implements IResourceUndoRedoElement {
 	}
 
 	public undo(): void {
+		if (URI.isUri(this.model)) {
+			// don't have a model
+			throw new Error(`Invalid SingleModelEditStackElement`);
+		}
 		if (this._data instanceof SingleModelEditStackData) {
 			this._data = this._data.serialize();
 		}
@@ -186,6 +193,10 @@ export class SingleModelEditStackElement implements IResourceUndoRedoElement {
 	}
 
 	public redo(): void {
+		if (URI.isUri(this.model)) {
+			// don't have a model
+			throw new Error(`Invalid SingleModelEditStackElement`);
+		}
 		if (this._data instanceof SingleModelEditStackData) {
 			this._data = this._data.serialize();
 		}
@@ -211,7 +222,7 @@ export class MultiModelEditStackElement implements IWorkspaceUndoRedoElement {
 	private readonly _editStackElementsMap: Map<string, SingleModelEditStackElement>;
 
 	public get resources(): readonly URI[] {
-		return this._editStackElementsArr.map(editStackElement => editStackElement.model.uri);
+		return this._editStackElementsArr.map(editStackElement => editStackElement.resource);
 	}
 
 	constructor(
@@ -223,13 +234,13 @@ export class MultiModelEditStackElement implements IWorkspaceUndoRedoElement {
 		this._editStackElementsArr = editStackElements.slice(0);
 		this._editStackElementsMap = new Map<string, SingleModelEditStackElement>();
 		for (const editStackElement of this._editStackElementsArr) {
-			const key = uriGetComparisonKey(editStackElement.model.uri);
+			const key = uriGetComparisonKey(editStackElement.resource);
 			this._editStackElementsMap.set(key, editStackElement);
 		}
 	}
 
-	public setModel(model: ITextModel): void {
-		const key = uriGetComparisonKey(model.uri);
+	public setModel(model: ITextModel | URI): void {
+		const key = uriGetComparisonKey(URI.isUri(model) ? model : model.uri);
 		if (this._editStackElementsMap.has(key)) {
 			this._editStackElementsMap.get(key)!.setModel(model);
 		}

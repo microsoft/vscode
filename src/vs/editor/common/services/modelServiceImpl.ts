@@ -477,9 +477,11 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 				maintainUndoRedoStack = true;
 				for (const element of elements.past) {
 					heapSize += element.heapSize(resource);
+					element.setModel(resource); // remove reference from text buffer instance
 				}
 				for (const element of elements.future) {
 					heapSize += element.heapSize(resource);
+					element.setModel(resource); // remove reference from text buffer instance
 				}
 			} else {
 				maintainUndoRedoStack = false;
