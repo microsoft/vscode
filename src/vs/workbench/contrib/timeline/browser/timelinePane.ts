@@ -38,6 +38,7 @@ import { fromNow } from 'vs/base/common/date';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { Iterable } from 'vs/base/common/iterator';
+import { Schemas } from 'vs/base/common/network';
 
 const PageSize = 20;
 
@@ -430,7 +431,7 @@ export class TimelinePane extends ViewPane {
 			}
 
 			// TODO@eamodio: Are these the right the list of schemes to exclude? Is there a better way?
-			if (this.uri?.scheme === 'vscode-settings' || this.uri?.scheme === 'webview-panel' || this.uri?.scheme === 'walkThrough') {
+			if (this.uri?.scheme === Schemas.vscodeSettings || this.uri?.scheme === Schemas.webviewPanel || this.uri?.scheme === Schemas.walkThrough) {
 				this.uri = undefined;
 
 				this.clear(false);

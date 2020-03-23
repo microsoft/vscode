@@ -55,6 +55,10 @@ export namespace Schemas {
 	export const userData = 'vscode-userdata';
 
 	export const vscodeCustomEditor = 'vscode-custom-editor';
+
+	export const vscodeSettings = 'vscode-settings';
+
+	export const webviewPanel = 'webview-panel';
 }
 
 class RemoteAuthoritiesImpl {
