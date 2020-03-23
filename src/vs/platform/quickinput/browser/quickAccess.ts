@@ -75,7 +75,12 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 		if (descriptor && this.visibleQuickAccess?.descriptor === descriptor) {
 			const picker = this.visibleQuickAccess.picker;
 
-			picker.value = value;
+			if (value !== descriptor.prefix && !options?.preserveFilterValue) {
+				// take over the value only if it is not matching
+				// the existing provider prefix or we are to preserve
+				picker.value = value;
+			}
+
 			this.adjustValueSelection(picker, descriptor, options);
 
 			return;
