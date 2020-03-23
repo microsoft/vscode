@@ -4,15 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IKeyMods } from 'vs/platform/quickinput/common/quickInput';
+import { IKeyMods, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IRange } from 'vs/editor/common/core/range';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IQuickAccessRegistry, Extensions } from 'vs/platform/quickinput/common/quickAccess';
-import { AbstractGotoSymbolQuickAccessProvider } from 'vs/editor/contrib/quickAccess/gotoSymbolQuickAccess';
+import { AbstractGotoSymbolQuickAccessProvider, IGotoSymbolQuickPickItem } from 'vs/editor/contrib/quickAccess/gotoSymbolQuickAccess';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
+import { ITextModel } from 'vs/editor/common/model';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { timeout } from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccessProvider {
 
@@ -56,6 +60,39 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 			super.gotoLocation(editor, options);
 		}
 	}
+
+
+	//#region public methods to use this picker from other pickers
+
+	private static readonly SYMBOL_PICKS_TIMEOUT = 8000;
+
+	async getSymbolPicks(model: ITextModel, filter: string, disposables: DisposableStore, token: CancellationToken): Promise<Array<IGotoSymbolQuickPickItem | IQuickPickSeparator>> {
+
+		// If the registry does not know the model, we wait for as long as
+		// the registry knows it. This helps in cases where a language
+		// registry was not activated yet for providing any symbols.
+		// To not wait forever, we eventually timeout though.
+		const result = await Promise.race([
+			this.waitForLanguageSymbolRegistry(model, disposables),
+			timeout(GotoSymbolQuickAccessProvider.SYMBOL_PICKS_TIMEOUT)
+		]);
+
+		if (!result || token.isCancellationRequested) {
+			return [];
+		}
+
+		return this.doGetSymbolPicks(this.getDocumentSymbols(model, true, token), filter, token);
+	}
+
+	addDecorations(editor: IEditor, range: IRange): void {
+		super.addDecorations(editor, range);
+	}
+
+	clearDecorations(editor: IEditor): void {
+		super.clearDecorations(editor);
+	}
+
+	//#endregion
 }
 
 Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessProvider({

@@ -18,7 +18,7 @@ import { trim, format } from 'vs/base/common/strings';
 import { fuzzyScore, FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { assign } from 'vs/base/common/objects';
 
-interface IGotoSymbolQuickPickItem extends IQuickPickItem {
+export interface IGotoSymbolQuickPickItem extends IQuickPickItem {
 	kind: SymbolKind,
 	index: number,
 	score?: FuzzyScore;
@@ -90,7 +90,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 		return disposables;
 	}
 
-	private async waitForLanguageSymbolRegistry(model: ITextModel, disposables: DisposableStore): Promise<boolean> {
+	protected async waitForLanguageSymbolRegistry(model: ITextModel, disposables: DisposableStore): Promise<boolean> {
 		if (DocumentSymbolProviderRegistry.has(model)) {
 			return true;
 		}
@@ -194,7 +194,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 		return disposables;
 	}
 
-	private async doGetSymbolPicks(symbolsPromise: Promise<DocumentSymbol[]>, filter: string, token: CancellationToken): Promise<Array<IGotoSymbolQuickPickItem | IQuickPickSeparator>> {
+	protected async doGetSymbolPicks(symbolsPromise: Promise<DocumentSymbol[]>, filter: string, token: CancellationToken): Promise<Array<IGotoSymbolQuickPickItem | IQuickPickSeparator>> {
 		const symbols = await symbolsPromise;
 		if (token.isCancellationRequested) {
 			return [];
@@ -367,7 +367,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 		return result;
 	}
 
-	private async getDocumentSymbols(document: ITextModel, flatten: boolean, token: CancellationToken): Promise<DocumentSymbol[]> {
+	protected async getDocumentSymbols(document: ITextModel, flatten: boolean, token: CancellationToken): Promise<DocumentSymbol[]> {
 		const model = await OutlineModel.create(document, token);
 		if (token.isCancellationRequested) {
 			return [];
@@ -411,32 +411,6 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 			}
 		}
 	}
-
-
-	//#region public methods to use this picker from other pickers
-
-	async getSymbolPicks(model: ITextModel, filter: string, disposables: DisposableStore, token: CancellationToken): Promise<Array<IGotoSymbolQuickPickItem | IQuickPickSeparator>> {
-
-		// If the registry does not know the model, we wait for as long as
-		// the registry knows it. This helps in cases where a language
-		// registry was not activated yet for providing any symbols.
-		const result = await this.waitForLanguageSymbolRegistry(model, disposables);
-		if (!result || token.isCancellationRequested) {
-			return [];
-		}
-
-		return this.doGetSymbolPicks(this.getDocumentSymbols(model, true, token), filter, token);
-	}
-
-	addDecorations(editor: IEditor, range: IRange): void {
-		super.addDecorations(editor, range);
-	}
-
-	clearDecorations(editor: IEditor): void {
-		super.clearDecorations(editor);
-	}
-
-	//#endregion
 }
 
 // #region NLS Helpers

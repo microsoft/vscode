@@ -171,7 +171,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			// Add new decoration if editor symbol is active
 			const [item] = picker.activeItems;
 			if (isEditorSymbolQuickPickItem(item)) {
-				editorDecorationsDisposable.value = this.decorateActiveEditorWithEditorSymbolRange(item);
+				editorDecorationsDisposable.value = this.decorateAndRevealSymbolRange(item);
 			}
 		}));
 
@@ -181,7 +181,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		return disposables;
 	}
 
-	private decorateActiveEditorWithEditorSymbolRange(pick: IEditorSymbolAnythingQuickPickItem): IDisposable {
+	private decorateAndRevealSymbolRange(pick: IEditorSymbolAnythingQuickPickItem): IDisposable {
 		const activeEditor = this.editorService.activeEditor;
 		if (!isEqual(pick.resource, activeEditor?.resource)) {
 			return Disposable.None; // active editor needs to be for resource
@@ -236,6 +236,10 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			this.pickState.lastActiveGlobalPick = activePick;
 		}
 
+		return this.doGetPicks(filter, disposables, token);
+	}
+
+	private doGetPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Promise<Array<IAnythingQuickPickItem | IQuickPickSeparator>> | FastAndSlowPicksType<IAnythingQuickPickItem> | null {
 		const query = prepareQuery(filter);
 
 		// Return early if we have editor symbol picks. We support this by:
@@ -610,25 +614,33 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	private async doGetEditorSymbolPicks(activeGlobalPick: IAnythingQuickPickItem, activeGlobalResource: URI, filter: string, disposables: DisposableStore, token: CancellationToken): Promise<Array<IAnythingQuickPickItem | IQuickPickSeparator>> {
 
-		// Obtain model from resource
-		let model = this.modelService.getModel(activeGlobalResource);
-		if (!model) {
-			const modelReference = disposables.add(await this.textModelService.createModelReference(activeGlobalResource));
-			if (token.isCancellationRequested) {
-				return [];
-			}
-
-			model = modelReference.object.textEditorModel;
-		}
-
 		// Bring the editor to front to review symbols to go to
-		await this.editorService.openEditor({
-			resource: activeGlobalResource,
-			options: { preserveFocus: true, revealIfOpened: true }
-		});
+		try {
+			await this.editorService.openEditor({
+				resource: activeGlobalResource,
+				options: { preserveFocus: true, revealIfOpened: true, ignoreError: true }
+			});
+		} catch (error) {
+			return []; // return if resource cannot be opened
+		}
 
 		if (token.isCancellationRequested) {
 			return [];
+		}
+
+		// Obtain model from resource
+		let model = this.modelService.getModel(activeGlobalResource);
+		if (!model) {
+			try {
+				const modelReference = disposables.add(await this.textModelService.createModelReference(activeGlobalResource));
+				if (token.isCancellationRequested) {
+					return [];
+				}
+
+				model = modelReference.object.textEditorModel;
+			} catch (error) {
+				return []; // return if model cannot be resolved
+			}
 		}
 
 		// Ask provider for editor symbols
