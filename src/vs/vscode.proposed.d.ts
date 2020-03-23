@@ -1894,7 +1894,7 @@ declare module 'vscode' {
 	export interface Timeline {
 		readonly paging?: {
 			/**
-			 * A provider-defined cursor specifing the starting point of timeline items which are after the ones returned.
+			 * A provider-defined cursor specifying the starting point of timeline items which are after the ones returned.
 			 * Use `undefined` to signal that there are no more items to be returned.
 			 */
 			readonly cursor: string | undefined;
@@ -1908,7 +1908,7 @@ declare module 'vscode' {
 
 	export interface TimelineOptions {
 		/**
-		 * A provider-defined cursor specifing the starting point of the timeline items that should be returned.
+		 * A provider-defined cursor specifying the starting point of the timeline items that should be returned.
 		 */
 		cursor?: string;
 
