@@ -56,6 +56,8 @@ interface CommandItem {
 	icon: undefined;
 	iconDark: undefined;
 	source: undefined;
+	relativeTime: undefined;
+	hideRelativeTime: undefined;
 }
 
 type TreeElement = TimelineItem | CommandItem;
@@ -72,6 +74,18 @@ function isLoadMoreCommandItem(item: TreeElement | undefined): item is CommandIt
 
 function isTimelineItem(item: TreeElement | undefined): item is TimelineItem {
 	return !item?.handle.startsWith('vscode-command:') ?? false;
+}
+
+function updateRelativeTime(item: TimelineItem, lastRelativeTime: string | undefined): string | undefined {
+	item.relativeTime = isTimelineItem(item) ? fromNow(item.timestamp) : undefined;
+	if (lastRelativeTime === undefined || item.relativeTime !== lastRelativeTime) {
+		lastRelativeTime = item.relativeTime;
+		item.hideRelativeTime = false;
+	} else {
+		item.hideRelativeTime = true;
+	}
+
+	return lastRelativeTime;
 }
 
 interface TimelineActionContext {
@@ -616,13 +630,18 @@ export class TimelinePane extends ViewPane {
 
 			more = timeline.more;
 
+			let lastRelativeTime: string | undefined;
 			for (const item of timeline.items) {
+				item.relativeTime = undefined;
+				item.hideRelativeTime = undefined;
+
 				count++;
 				if (count > maxCount) {
 					more = true;
 					break;
 				}
 
+				lastRelativeTime = updateRelativeTime(item, lastRelativeTime);
 				yield { element: item };
 			}
 
@@ -666,18 +685,24 @@ export class TimelinePane extends ViewPane {
 					.reduce((previous, current) => (previous === undefined || current.nextItem!.value.timestamp >= previous.nextItem!.value.timestamp) ? current : previous, undefined!);
 			}
 
+			let lastRelativeTime: string | undefined;
 			let nextSource;
 			while (nextSource = getNextMostRecentSource()) {
 				nextSource.timeline.lastRenderedIndex++;
 
-				if (nextSource.nextItem.value.timestamp >= mostRecentEnd) {
+				const item = nextSource.nextItem.value;
+				item.relativeTime = undefined;
+				item.hideRelativeTime = undefined;
+
+				if (item.timestamp >= mostRecentEnd) {
 					count++;
 					if (count > maxCount) {
 						more = true;
 						break;
 					}
 
-					yield { element: nextSource.nextItem.value };
+					lastRelativeTime = updateRelativeTime(item, lastRelativeTime);
+					yield { element: item };
 				}
 
 				nextSource.nextItem = nextSource.iterator.next();
@@ -731,6 +756,8 @@ export class TimelinePane extends ViewPane {
 	focus(): void {
 		super.focus();
 		this.tree.domFocus();
+
+		// this.refreshDebounced();
 	}
 
 	setExpanded(expanded: boolean): boolean {
@@ -748,6 +775,8 @@ export class TimelinePane extends ViewPane {
 			this.visibilityDisposables = new DisposableStore();
 
 			this.editorService.onDidActiveEditorChange(this.onActiveEditorChanged, this, this.visibilityDisposables);
+			// Refresh the view on focus to update the relative timestamps
+			this.onDidFocus(() => this.refreshDebounced(), this, this.visibilityDisposables);
 
 			this.onActiveEditorChanged();
 		} else {
@@ -1019,7 +1048,8 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 			matches: createMatches(node.filterData)
 		});
 
-		template.timestamp.textContent = isTimelineItem(item) ? fromNow(item.timestamp) : '';
+		template.timestamp.textContent = item.relativeTime ?? '';
+		DOM.toggleClass(template.timestamp.parentElement!, 'timeline-timestamp--duplicate', isTimelineItem(item) && item.hideRelativeTime);
 
 		template.actionBar.context = { uri: this.uri, item: item } as TimelineActionContext;
 		template.actionBar.actionRunner = new TimelineActionRunner();

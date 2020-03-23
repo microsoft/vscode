@@ -31,6 +31,9 @@ export interface TimelineItem {
 	detail?: string;
 	command?: Command;
 	contextValue?: string;
+
+	relativeTime?: string;
+	hideRelativeTime?: boolean;
 }
 
 export interface TimelineChangeEvent {
