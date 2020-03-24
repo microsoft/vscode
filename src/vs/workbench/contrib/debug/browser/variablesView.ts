@@ -80,8 +80,11 @@ export class VariablesView extends ViewPane {
 				if (stackFrame) {
 					const scopes = await stackFrame.getScopes();
 					// Expand the first scope if it is not expensive and if there is no expansion state (all are collapsed)
-					if (scopes.every(s => this.tree.getNode(s).collapsed) && scopes.length > 0 && !scopes[0].expensive) {
-						this.tree.expand(scopes[0]);
+					if (scopes.every(s => this.tree.getNode(s).collapsed) && scopes.length > 0) {
+						const toExpand = scopes.filter(s => !s.expensive).shift();
+						if (toExpand) {
+							this.tree.expand(toExpand);
+						}
 					}
 				}
 
