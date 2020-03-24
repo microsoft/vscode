@@ -86,7 +86,7 @@ function readManifest(extensionPath: string): Promise<{ manifest: IExtensionMani
 			.then(raw => JSON.parse(raw))
 	];
 
-	return Promise.all<any>(promises).then(([{ manifest, metadata }, translations]) => {
+	return Promise.all(promises).then(([{ manifest, metadata }, translations]) => {
 		return {
 			manifest: localizeManifest(manifest, translations),
 			metadata
