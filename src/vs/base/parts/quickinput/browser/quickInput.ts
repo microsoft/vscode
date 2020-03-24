@@ -20,11 +20,9 @@ import { dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { ActionBar, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
-import { URI } from 'vs/base/common/uri';
 import { equals } from 'vs/base/common/arrays';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { getIconClass } from 'vs/base/parts/quickinput/browser/quickInputUtils';
-import { registerAndGetAmdImageURL } from 'vs/base/common/amd';
 import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
 import { List, IListOptions, IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
@@ -70,10 +68,7 @@ const $ = dom.$;
 type Writeable<T> = { -readonly [P in keyof T]: T[P] };
 
 const backButton = {
-	iconPath: {
-		dark: URI.parse(registerAndGetAmdImageURL('vs/base/parts/quickinput/browser/media/arrow-left-dark.svg')),
-		light: URI.parse(registerAndGetAmdImageURL('vs/base/parts/quickinput/browser/media/arrow-left-light.svg'))
-	},
+	iconClass: 'codicon-arrow-left',
 	tooltip: localize('quickInput.back', "Back"),
 	handle: -1 // TODO
 };
