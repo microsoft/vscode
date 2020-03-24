@@ -1088,7 +1088,7 @@ declare module 'vscode' {
 		readonly dimensions: TerminalDimensions;
 	}
 
-	namespace window {
+	export namespace window {
 		/**
 		 * An event which fires when the [dimensions](#Terminal.dimensions) of the terminal change.
 		 */
@@ -1118,6 +1118,66 @@ declare module 'vscode' {
 		 * other providers including the default), false when the link was not handled.
 		 */
 		handleLink(terminal: Terminal, link: string): ProviderResult<boolean>;
+	}
+
+	//#endregion
+
+	//#region Contribute to terminal environment https://github.com/microsoft/vscode/issues/46696
+
+	export enum EnvironmentVariableMutatorType {
+		/**
+		 * Replace the variable's existing value.
+		 */
+		Replace = 1,
+		/**
+		 * Append to the end of the variable's existing value.
+		 */
+		Append = 2,
+		/**
+		 * Prepend to the start of the variable's existing value.
+		 */
+		Prepend = 3
+	}
+
+	// This could be inlined into get/forEach if preferable
+	export interface EnvironmentVariableMutator {
+		/**
+		 * The type of mutation that will occur to the variable.
+		 */
+		readonly type: EnvironmentVariableMutatorType;
+
+		/**
+		 * The value to use for the variable.
+		 */
+		readonly value: string;
+	}
+
+	export interface EnvironmentVariableCollection {
+		// We should mention in docs that replace/append/prepend all overwrite each other's values
+		replace(variable: string, value: string): void;
+		append(variable: string, value: string): void;
+		prepend(variable: string, value: string): void;
+		get(variable: string): EnvironmentVariableMutator | undefined;
+		forEach(callback: (variable: string, diagnostics: EnvironmentVariableMutator, collection: EnvironmentVariableCollection) => any, thisArg?: any): void;
+		delete(variable: string): void;
+		clear(): void;
+		dispose(): void;
+	}
+
+	export namespace window {
+		/**
+		 * Creates an environment variable collection for this workspace, enabling
+		 * changes to terminal environment variables. Creating an collection will
+		 * replace any existing collections for this workspace. This will fetch the
+		 * cached collection if one exists for this workspace.
+		 * @param persistent Whether the collection is cached for the workspace across
+		 * window reloads. When true the collection will be active immediately such
+		 * that terminal creation does not need to be blocked on extension activation
+		 * on successive reloads, additionally this API will return the cached
+		 * collection from the previous session. The collection will be invalidated
+		 * by uninstalling the extension or by creating a new one. Defaults to false.
+		 */
+		export function getEnvironmentVariableCollection(persistent?: boolean): EnvironmentVariableCollection;
 	}
 
 	//#endregion

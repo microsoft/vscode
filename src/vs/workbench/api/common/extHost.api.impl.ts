@@ -487,6 +487,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostTerminalService.onDidWriteTerminalData(listener, thisArg, disposables);
 			},
+			getEnvironmentVariableCollection(persistent?: boolean): vscode.EnvironmentVariableCollection {
+				return null!;
+			},
 			get state() {
 				return extHostWindow.state;
 			},
