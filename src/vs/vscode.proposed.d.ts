@@ -2100,7 +2100,7 @@ declare module 'vscode' {
 		 * @param pathFragments
 		 * @returns A new uri
 		 */
-		export function joinPaths(base: Uri, ...pathFragments: string[]): Uri;
+		export function joinPath(base: Uri, ...pathFragments: string[]): Uri;
 	}
 
 	//#endregion

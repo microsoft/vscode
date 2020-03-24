@@ -179,11 +179,11 @@ declare namespace monaco {
 		/**
 		 * Join a Uri path with path fragments and normalizes the resulting path.
 		 *
-		 * @param resource The input Uri.
+		 * @param uri The input Uri.
 		 * @param pathFragment The path fragment to add to the Uri path.
 		 * @returns The resulting Uri.
 		 */
-		static joinPaths(resource: Uri, ...pathFragment: string[]): Uri;
+		static joinPath(uri: Uri, ...pathFragment: string[]): Uri;
 		/**
 		 * Creates a string representation for this Uri. It's guaranteed that calling
 		 * `Uri.parse` with the result of this function creates an Uri which is equal
