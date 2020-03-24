@@ -233,11 +233,10 @@ export interface ISyncExtension {
 
 export interface IStorageValue {
 	version: number;
-	value: any;
+	value: string;
 }
 
 export interface IGlobalState {
-	argv: IStringDictionary<any>;
 	storage: IStringDictionary<IStorageValue>;
 }
 

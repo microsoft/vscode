@@ -20,11 +20,12 @@ import { URI } from 'vs/base/common/uri';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
+const argvStoragePrefx = 'globalState.argv.';
 const argvProperties: string[] = ['locale'];
 
 interface ISyncPreviewResult {
-	readonly local: IGlobalState | undefined;
-	readonly remote: IGlobalState | undefined;
+	readonly local: { added: IStringDictionary<IStorageValue>, removed: string[], updated: IStringDictionary<IStorageValue> };
+	readonly remote: IStringDictionary<IStorageValue> | null;
 	readonly localUserData: IGlobalState;
 	readonly remoteUserData: IRemoteUserData;
 	readonly lastSyncUserData: IRemoteUserData | null;
@@ -69,8 +70,9 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 
 			if (remoteUserData.syncData !== null) {
 				const localUserData = await this.getLocalGlobalState();
-				const local: IGlobalState = JSON.parse(remoteUserData.syncData.content);
-				await this.apply({ local, remote: undefined, remoteUserData, localUserData, lastSyncUserData });
+				const localGlobalState: IGlobalState = JSON.parse(remoteUserData.syncData.content);
+				const { local, remote } = merge(localGlobalState.storage, null, null, this.storageKeysSyncRegistryService.storageKeys);
+				await this.apply({ local, remote, remoteUserData, localUserData, lastSyncUserData });
 			}
 
 			// No remote exists to pull
@@ -99,7 +101,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			const localUserData = await this.getLocalGlobalState();
 			const lastSyncUserData = await this.getLastSyncUserData();
 			const remoteUserData = await this.getRemoteUserData(lastSyncUserData);
-			await this.apply({ local: undefined, remote: localUserData, remoteUserData, localUserData, lastSyncUserData }, true);
+			await this.apply({ local: { added: {}, removed: [], updated: {} }, remote: localUserData.storage, remoteUserData, localUserData, lastSyncUserData }, true);
 
 			this.logService.info(`${this.syncResourceLogLabel}: Finished pushing UI State.`);
 		} finally {
@@ -143,8 +145,8 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 
 	async hasLocalData(): Promise<boolean> {
 		try {
-			const localGloablState = await this.getLocalGlobalState();
-			if (localGloablState.argv['locale'] !== 'en') {
+			const { storage } = await this.getLocalGlobalState();
+			if (Object.keys(storage).length > 1 || storage[`${argvStoragePrefx}.locale`]?.value !== 'en') {
 				return true;
 			}
 		} catch (error) {
@@ -171,20 +173,21 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			this.logService.trace(`${this.syncResourceLogLabel}: Remote ui state does not exist. Synchronizing ui state for the first time.`);
 		}
 
-		const { local, remote } = merge(localGloablState, remoteGlobalState, lastSyncGlobalState);
+		const { local, remote } = merge(localGloablState.storage, remoteGlobalState.storage, lastSyncGlobalState, this.storageKeysSyncRegistryService.storageKeys);
 
 		return { local, remote, remoteUserData, localUserData: localGloablState, lastSyncUserData };
 	}
 
 	private async apply({ local, remote, remoteUserData, lastSyncUserData, localUserData }: ISyncPreviewResult, forcePush?: boolean): Promise<void> {
 
-		const hasChanges = local || remote;
+		const hasLocalChanged = Object.keys(local.added).length > 0 || Object.keys(local.updated).length > 0 || local.removed.length > 0;
+		const hasRemoteChanged = remote !== null;
 
-		if (!hasChanges) {
+		if (!hasLocalChanged && !hasRemoteChanged) {
 			this.logService.info(`${this.syncResourceLogLabel}: No changes found during synchronizing ui state.`);
 		}
 
-		if (local) {
+		if (hasLocalChanged) {
 			// update local
 			this.logService.trace(`${this.syncResourceLogLabel}: Updating local ui state...`);
 			await this.backupLocal(JSON.stringify(localUserData));
@@ -192,7 +195,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			this.logService.info(`${this.syncResourceLogLabel}: Updated local ui state`);
 		}
 
-		if (remote) {
+		if (hasRemoteChanged) {
 			// update remote
 			this.logService.trace(`${this.syncResourceLogLabel}: Updating remote ui state...`);
 			const content = JSON.stringify(remote);
@@ -209,13 +212,12 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 	}
 
 	private async getLocalGlobalState(): Promise<IGlobalState> {
-		const argv: IStringDictionary<any> = {};
 		const storage: IStringDictionary<IStorageValue> = {};
 		const argvContent: string = await this.getLocalArgvContent();
 		const argvValue: IStringDictionary<any> = parse(argvContent);
 		for (const argvProperty of argvProperties) {
 			if (argvValue[argvProperty] !== undefined) {
-				argv[argvProperty] = argvValue[argvProperty];
+				storage[`${argvStoragePrefx}${argvProperty}`] = { version: 1, value: argvValue[argvProperty] };
 			}
 		}
 		for (const { key, version } of this.storageKeysSyncRegistryService.storageKeys) {
@@ -224,7 +226,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 				storage[key] = { version, value };
 			}
 		}
-		return { argv, storage };
+		return { storage };
 	}
 
 	private async getLocalArgvContent(): Promise<string> {
@@ -235,24 +237,50 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		return '{}';
 	}
 
-	private async writeLocalGlobalState(globalState: IGlobalState): Promise<void> {
-		const argvContent = await this.getLocalArgvContent();
-		let content = argvContent;
-		for (const argvProperty of Object.keys(globalState.argv)) {
-			content = edit(content, [argvProperty], globalState.argv[argvProperty], {});
-		}
-		if (argvContent !== content) {
-			this.logService.trace(`${this.syncResourceLogLabel}: Updating locale...`);
-			await this.fileService.writeFile(this.environmentService.argvResource, VSBuffer.fromString(content));
-			this.logService.info(`${this.syncResourceLogLabel}: Updated locale.`);
-		}
+	private async writeLocalGlobalState({ added, removed, updated }: { added: IStringDictionary<IStorageValue>, updated: IStringDictionary<IStorageValue>, removed: string[] }): Promise<void> {
+		const argv: IStringDictionary<any> = {};
 		const updatedStorage: IStringDictionary<any> = {};
-		for (const key of Object.keys(globalState.storage)) {
-			const { version, value } = globalState.storage[key];
-			const storageKey = this.storageKeysSyncRegistryService.storageKeys.filter(storageKey => storageKey.key === key)[0];
-			if (storageKey && storageKey.version === version && String(value) !== String(this.storageService.get(key, StorageScope.GLOBAL))) {
-				updatedStorage[key] = value;
+		const handleUpdatedStorage = (storage: IStringDictionary<IStorageValue>): void => {
+			for (const key of Object.keys(storage)) {
+				if (key.startsWith(argvStoragePrefx)) {
+					argv[key.substring(argvStoragePrefx.length)] = storage[key].value;
+					continue;
+				}
+				const { version, value } = storage[key];
+				const storageKey = this.storageKeysSyncRegistryService.storageKeys.filter(storageKey => storageKey.key === key)[0];
+				if (!storageKey) {
+					this.logService.info(`${this.syncResourceLogLabel}: Skipped updating ${key} in storage. It is not registered to sync.`);
+					continue;
+				}
+				if (storageKey.version !== version) {
+					this.logService.info(`${this.syncResourceLogLabel}: Skipped updating ${key} in storage. Local version '${storageKey.version}' and remote version '${version} are not same.`);
+					continue;
+				}
+				if (String(value) !== String(this.storageService.get(key, StorageScope.GLOBAL))) {
+					updatedStorage[key] = value;
+				}
 			}
+		};
+		handleUpdatedStorage(added);
+		handleUpdatedStorage(updated);
+		for (const key of removed) {
+			if (key.startsWith(argvStoragePrefx)) {
+				argv[key.substring(argvStoragePrefx.length)] = undefined;
+				continue;
+			}
+			const storageKey = this.storageKeysSyncRegistryService.storageKeys.filter(storageKey => storageKey.key === key)[0];
+			if (!storageKey) {
+				this.logService.info(`${this.syncResourceLogLabel}: Skipped updating ${key} in storage. It is not registered to sync.`);
+				continue;
+			}
+			if (this.storageService.get(key, StorageScope.GLOBAL) !== undefined) {
+				updatedStorage[key] = undefined;
+			}
+		}
+		if (Object.keys(argv).length) {
+			this.logService.trace(`${this.syncResourceLogLabel}: Updating locale...`);
+			await this.updateArgv(argv);
+			this.logService.info(`${this.syncResourceLogLabel}: Updated locale`);
 		}
 		const updatedStorageKeys: string[] = Object.keys(updatedStorage);
 		if (updatedStorageKeys.length) {
@@ -261,6 +289,19 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 				this.storageService.store(key, updatedStorage[key], StorageScope.GLOBAL);
 			}
 			this.logService.info(`${this.syncResourceLogLabel}: Updated global state`, Object.keys(updatedStorage));
+		}
+	}
+
+	private async updateArgv(argv: IStringDictionary<any>): Promise<void> {
+		const argvContent = await this.getLocalArgvContent();
+		let content = argvContent;
+		for (const argvProperty of Object.keys(argv)) {
+			content = edit(content, [argvProperty], argv[argvProperty], {});
+		}
+		if (argvContent !== content) {
+			this.logService.trace(`${this.syncResourceLogLabel}: Updating locale...`);
+			await this.fileService.writeFile(this.environmentService.argvResource, VSBuffer.fromString(content));
+			this.logService.info(`${this.syncResourceLogLabel}: Updated locale.`);
 		}
 	}
 
