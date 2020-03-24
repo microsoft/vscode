@@ -107,6 +107,7 @@ export function registerProductIconThemeExtensionPoint() {
 export interface ThemeChangeEvent<T> {
 	themes: T[];
 	added: T[];
+	removed: T[];
 }
 
 export interface IThemeData {
@@ -135,10 +136,11 @@ export class ThemeRegistry<T extends IThemeData> {
 
 	private initialize() {
 		this.themesExtPoint.setHandler((extensions, delta) => {
-			const previousIds: { [key: string]: boolean } = {};
+			const previousIds: { [key: string]: T } = {};
+
 			const added: T[] = [];
 			for (const theme of this.extensionThemes) {
-				previousIds[theme.id] = true;
+				previousIds[theme.id] = theme;
 			}
 			this.extensionThemes.length = 0;
 			for (let ext of extensions) {
@@ -154,9 +156,12 @@ export class ThemeRegistry<T extends IThemeData> {
 			for (const theme of this.extensionThemes) {
 				if (!previousIds[theme.id]) {
 					added.push(theme);
+				} else {
+					delete previousIds[theme.id];
 				}
 			}
-			this.onDidChangeEmitter.fire({ themes: this.extensionThemes, added });
+			const removed = Object.values(previousIds);
+			this.onDidChangeEmitter.fire({ themes: this.extensionThemes, added, removed });
 		});
 	}
 
