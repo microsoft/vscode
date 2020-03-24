@@ -234,7 +234,7 @@ export class DebugSession implements IDebugSession {
 
 			this.initialized = true;
 			this._onDidChangeState.fire();
-			this.model.setExceptionBreakpoints(this.raw!.capabilities.exceptionBreakpointFilters || []);
+			this.model.setExceptionBreakpoints((this.raw && this.raw.capabilities.exceptionBreakpointFilters) || []);
 		} catch (err) {
 			this.initialized = true;
 			this._onDidChangeState.fire();
