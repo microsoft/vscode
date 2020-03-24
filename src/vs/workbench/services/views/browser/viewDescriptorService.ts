@@ -14,6 +14,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Event, Emitter } from 'vs/base/common/event';
 import { firstIndex } from 'vs/base/common/arrays';
+import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
 class CounterSet<T> implements IReadableSet<T> {
 
@@ -217,10 +218,12 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	constructor(
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IExtensionService private readonly extensionService: IExtensionService
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService
 	) {
 		super();
 
+		storageKeysSyncRegistryService.registerStorageKey({ key: ViewDescriptorService.CACHED_VIEW_POSITIONS, version: 1 });
 		this.viewDescriptorCollections = new Map<ViewContainer, { viewDescriptorCollection: ViewDescriptorCollection, disposable: IDisposable; }>();
 		this.activeViewContextKeys = new Map<string, IContextKey<boolean>>();
 		this.movableViewContextKeys = new Map<string, IContextKey<boolean>>();
