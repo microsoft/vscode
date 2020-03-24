@@ -10,7 +10,7 @@ import { stripWildcards } from 'vs/base/common/strings';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ThrottledDelayer } from 'vs/base/common/async';
-import { getWorkspaceSymbols, IWorkspaceSymbol, IWorkspaceSymbolProvider, IWorkbenchSearchConfiguration } from 'vs/workbench/contrib/search/common/search';
+import { getWorkspaceSymbols, IWorkspaceSymbol, IWorkspaceSymbolProvider } from 'vs/workbench/contrib/search/common/search';
 import { SymbolKinds, SymbolTag, SymbolKind } from 'vs/editor/common/modes';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Schemas } from 'vs/base/common/network';
@@ -24,6 +24,9 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { createResourceExcludeMatcher } from 'vs/workbench/services/search/common/search';
 import { ResourceMap } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { getSelectionSearchString } from 'vs/editor/contrib/find/findController';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 interface ISymbolQuickPickItem extends IPickerQuickAccessItem {
 	resource: URI | undefined;
@@ -51,29 +54,39 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 
 	private readonly resourceExcludeMatcher = this._register(createResourceExcludeMatcher(this.instantiationService, this.configurationService));
 
+	get defaultFilterValue(): string | undefined {
+
+		// Prefer the word under the cursor in the active editor as default filter
+		const editor = this.codeEditorService.getFocusedCodeEditor();
+		if (editor) {
+			return withNullAsUndefined(getSelectionSearchString(editor));
+		}
+
+		return undefined;
+	}
+
 	constructor(
 		@ILabelService private readonly labelService: ILabelService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService
 	) {
 		super(SymbolsQuickAccessProvider.PREFIX, { canAcceptInBackground: true });
 	}
 
 	private get configuration() {
 		const editorConfig = this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor;
-		const searchConfig = this.configurationService.getValue<IWorkbenchSearchConfiguration>();
 
 		return {
 			openEditorPinned: !editorConfig.enablePreviewFromQuickOpen,
-			openSideBySideDirection: editorConfig.openSideBySideDirection,
-			workspaceSymbolsFilter: searchConfig.search.quickOpen.workspaceSymbolsFilter
+			openSideBySideDirection: editorConfig.openSideBySideDirection
 		};
 	}
 
 	protected getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Promise<Array<ISymbolQuickPickItem>> {
-		return this.getSymbolPicks(filter, { skipLocal: this.configuration.workspaceSymbolsFilter === 'reduced' }, token);
+		return this.getSymbolPicks(filter, undefined, token);
 	}
 
 	async getSymbolPicks(filter: string, options: { skipLocal?: boolean, skipSorting?: boolean, delay?: number } | undefined, token: CancellationToken): Promise<Array<ISymbolQuickPickItem>> {

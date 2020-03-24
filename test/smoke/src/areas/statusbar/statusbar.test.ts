@@ -77,9 +77,9 @@ export function setup(isWeb) {
 			await app.workbench.quickopen.openFile('app.js');
 			await app.workbench.statusbar.clickOn(StatusBarElement.SELECTION_STATUS);
 
-			await app.workbench.quickopen.waitForQuickOpenOpened();
+			await app.workbench.quickinput.waitForQuickInputOpened();
 
-			await app.workbench.quickopen.submit(':15');
+			await app.workbench.quickinput.submit(':15');
 			await app.workbench.editor.waitForHighlightingLine('app.js', 15);
 		});
 

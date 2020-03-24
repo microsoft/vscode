@@ -47,8 +47,8 @@ export function setup() {
 			const app = this.app as Application;
 			await app.workbench.quickopen.openQuickOpen('*.*');
 
-			await app.workbench.quickopen.waitForQuickOpenElements(names => names.length === 6);
-			await app.workbench.quickopen.closeQuickOpen();
+			await app.workbench.quickinput.waitForQuickInputElements(names => names.length === 6);
+			await app.workbench.quickinput.closeQuickInput();
 		});
 
 		it('shows workspace name in title', async function () {

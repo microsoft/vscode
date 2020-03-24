@@ -9,7 +9,7 @@ import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/acti
 import { GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Part } from 'vs/workbench/browser/part';
-import { GlobalActivityActionViewItem, ViewletActivityAction, ToggleViewletAction, PlaceHolderToggleCompositePinnedAction, PlaceHolderViewletActivityAction } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
+import { GlobalActivityActionViewItem, ViewletActivityAction, ToggleViewletAction, PlaceHolderToggleCompositePinnedAction, PlaceHolderViewletActivityAction, AccountsActionViewItem } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IBadge, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IWorkbenchLayoutService, Parts, Position as SideBarPosition } from 'vs/workbench/services/layout/browser/layoutService';
@@ -354,7 +354,17 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private createGlobalActivityActionBar(container: HTMLElement): void {
 		this.globalActivityActionBar = this._register(new ActionBar(container, {
-			actionViewItemProvider: action => this.instantiationService.createInstance(GlobalActivityActionViewItem, action as ActivityAction, (theme: IColorTheme) => this.getActivitybarItemColors(theme)),
+			actionViewItemProvider: action => {
+				if (action.id === 'workbench.actions.manage') {
+					return this.instantiationService.createInstance(GlobalActivityActionViewItem, action as ActivityAction, (theme: IColorTheme) => this.getActivitybarItemColors(theme));
+				}
+
+				if (action.id === 'workbench.actions.accounts') {
+					return this.instantiationService.createInstance(AccountsActionViewItem, action as ActivityAction, (theme: IColorTheme) => this.getActivitybarItemColors(theme));
+				}
+
+				throw new Error(`No view item for action '${action.id}'`);
+			},
 			orientation: ActionsOrientation.VERTICAL,
 			ariaLabel: nls.localize('manage', "Manage"),
 			animated: false
@@ -366,6 +376,13 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			cssClass: 'codicon-settings-gear'
 		});
 
+		const profileAction = new ActivityAction({
+			id: 'workbench.actions.accounts',
+			name: nls.localize('accounts', "Accounts"),
+			cssClass: 'codicon-account'
+		});
+
+		this.globalActivityActionBar.push(profileAction);
 		this.globalActivityActionBar.push(this.globalActivityAction);
 	}
 

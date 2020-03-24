@@ -71,8 +71,53 @@ export class GitHubServer {
 		Logger.info('Logging in...');
 		const state = uuid();
 		const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/did-authenticate`));
-		const clientDetails = ClientRegistrar.getClientDetails(callbackUri);
+		const clientDetails = scopes === 'vso' ? ClientRegistrar.getGitHubAppDetails() : ClientRegistrar.getClientDetails(callbackUri);
 		const uri = vscode.Uri.parse(`https://github.com/login/oauth/authorize?redirect_uri=${encodeURIComponent(callbackUri.toString())}&scope=${scopes}&state=${state}&client_id=${clientDetails.id}`);
+
+		vscode.env.openExternal(uri);
+		return promiseFromEvent(uriHandler.event, exchangeCodeForToken(state, clientDetails));
+	}
+
+	public async hasUserInstallation(token: string): Promise<boolean> {
+		return new Promise((resolve, reject) => {
+			Logger.info('Getting user installations...');
+			const post = https.request({
+				host: 'api.github.com',
+				path: `/user/installations`,
+				method: 'GET',
+				headers: {
+					Accept: 'application/vnd.github.machine-man-preview+json',
+					Authorization: `token ${token}`,
+					'User-Agent': 'Visual-Studio-Code'
+				}
+			}, result => {
+				const buffer: Buffer[] = [];
+				result.on('data', (chunk: Buffer) => {
+					buffer.push(chunk);
+				});
+				result.on('end', () => {
+					if (result.statusCode === 200) {
+						const json = JSON.parse(Buffer.concat(buffer).toString());
+						Logger.info('Got installation info!');
+						const hasInstallation = json.installations.some((installation: { app_slug: string }) => installation.app_slug === 'microsoft-visual-studio-code');
+						resolve(hasInstallation);
+					} else {
+						reject(new Error(result.statusMessage));
+					}
+				});
+			});
+
+			post.end();
+			post.on('error', err => {
+				reject(err);
+			});
+		});
+	}
+
+	public async installApp(): Promise<string> {
+		const clientDetails = ClientRegistrar.getGitHubAppDetails();
+		const state = uuid();
+		const uri = vscode.Uri.parse(`https://github.com/apps/microsoft-visual-studio-code/installations/new?state=${state}`);
 
 		vscode.env.openExternal(uri);
 		return promiseFromEvent(uriHandler.event, exchangeCodeForToken(state, clientDetails));

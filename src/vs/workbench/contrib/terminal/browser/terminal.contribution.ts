@@ -381,7 +381,8 @@ const VIEW_CONTAINER = Registry.as<IViewContainersRegistry>(ViewContainerExtensi
 	id: TERMINAL_VIEW_ID,
 	name: nls.localize('terminal', "Terminal"),
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [TERMINAL_VIEW_ID, TERMINAL_VIEW_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
-	focusCommand: { id: TERMINAL_COMMAND_ID.FOCUS }
+	focusCommand: { id: TERMINAL_COMMAND_ID.FOCUS },
+	hideIfEmpty: true
 }, ViewContainerLocation.Panel);
 Registry.as<panel.PanelRegistry>(panel.Extensions.Panels).setDefaultPanelId(TERMINAL_VIEW_ID);
 
@@ -389,6 +390,7 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 	id: TERMINAL_VIEW_ID,
 	name: nls.localize('terminal', "Terminal"),
 	canToggleVisibility: false,
+	canMoveView: true,
 	ctorDescriptor: new SyncDescriptor(TerminalViewPane)
 }], VIEW_CONTAINER);
 

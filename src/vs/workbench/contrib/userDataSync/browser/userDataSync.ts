@@ -15,7 +15,7 @@ import type { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import type { IEditorContribution } from 'vs/editor/common/editorCommon';
 import type { ITextModel } from 'vs/editor/common/model';
-import { AuthenticationSession } from 'vs/editor/common/modes';
+import { AuthenticationSession, AuthenticationSessionsChangeEvent } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -62,6 +62,8 @@ const enum AuthStatus {
 }
 const CONTEXT_AUTH_TOKEN_STATE = new RawContextKey<string>('authTokenStatus', AuthStatus.Initializing);
 const CONTEXT_CONFLICTS_SOURCES = new RawContextKey<string>('conflictsSources', '');
+
+const USER_DATA_SYNC_ACCOUNT_PREFERENCE_KEY = 'userDataSyncAccountPreference';
 
 type ConfigureSyncQuickPickItem = { id: SyncResource, label: string, description?: string };
 
@@ -195,18 +197,16 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			return;
 		}
 
-		const selectedAccount = await this.quickInputService.pick(sessions.map(session => {
-			return {
-				id: session.id,
-				label: session.accountName
-			};
-		}), { canPickMany: false });
-
-		if (selectedAccount) {
-			const selected = sessions.filter(account => selectedAccount.id === account.id)[0];
-			this.logAuthenticatedEvent(selected);
-			await this.setActiveAccount(selected);
+		const accountPreference = this.storageService.get(USER_DATA_SYNC_ACCOUNT_PREFERENCE_KEY, StorageScope.GLOBAL);
+		if (accountPreference) {
+			const matchingSession = sessions.find(session => session.id === accountPreference);
+			if (matchingSession) {
+				this.setActiveAccount(matchingSession);
+				return;
+			}
 		}
+
+		await this.showSwitchAccountPicker(sessions);
 	}
 
 	private logAuthenticatedEvent(session: AuthenticationSession): void {
@@ -246,15 +246,80 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		this.updateBadge();
 	}
 
-	private async onDidChangeSessions(providerId: string): Promise<void> {
+	private async showSwitchAccountPicker(sessions: readonly AuthenticationSession[]): Promise<void> {
+		return new Promise((resolve, _) => {
+			const quickPick = this.quickInputService.createQuickPick<{ label: string, session: AuthenticationSession }>();
+			quickPick.title = localize('chooseAccountTitle', "Sync: Choose Account");
+			quickPick.placeholder = localize('chooseAccount', "Choose an account you would like to use for settings sync");
+			quickPick.items = sessions.map(session => {
+				return {
+					label: session.accountName,
+					session: session
+				};
+			});
+
+			quickPick.onDidHide(() => {
+				quickPick.dispose();
+				resolve();
+			});
+
+			quickPick.onDidAccept(() => {
+				const selected = quickPick.selectedItems[0];
+				this.setActiveAccount(selected.session);
+				this.storageService.store(USER_DATA_SYNC_ACCOUNT_PREFERENCE_KEY, selected.session.id, StorageScope.GLOBAL);
+				quickPick.dispose();
+				resolve();
+			});
+
+			quickPick.show();
+		});
+	}
+
+	private async onDidChangeSessions(e: { providerId: string, event: AuthenticationSessionsChangeEvent }): Promise<void> {
+		const { providerId, event } = e;
 		if (providerId === this.userDataSyncStore!.authenticationProviderId) {
 			if (this.activeAccount) {
-				// Try to update existing account, case where access token has been refreshed
-				const accounts = (await this.authenticationService.getSessions(this.userDataSyncStore!.authenticationProviderId) || []);
-				const matchingAccount = accounts.filter(a => a.id === this.activeAccount?.id)[0];
-				this.setActiveAccount(matchingAccount);
+				if (event.removed.length) {
+					const activeWasRemoved = !!event.removed.find(removed => removed === this.activeAccount!.id);
+
+					// If the current account was removed, check if another account can be used, otherwise offer to turn off sync
+					if (activeWasRemoved) {
+						const accounts = (await this.authenticationService.getSessions(this.userDataSyncStore!.authenticationProviderId) || []);
+						if (accounts.length) {
+							// Show switch dialog here
+							await this.showSwitchAccountPicker(accounts);
+						} else {
+							await this.turnOff();
+							this.setActiveAccount(undefined);
+							return;
+						}
+
+					}
+				}
+
+				if (event.added.length) {
+					// Offer to switch accounts
+					const accounts = (await this.authenticationService.getSessions(this.userDataSyncStore!.authenticationProviderId) || []);
+					await this.showSwitchAccountPicker(accounts);
+					return;
+				}
+
+				if (event.changed.length) {
+					const activeWasChanged = !!event.changed.find(changed => changed === this.activeAccount!.id);
+					if (activeWasChanged) {
+						// Try to update existing account, case where access token has been refreshed
+						const accounts = (await this.authenticationService.getSessions(this.userDataSyncStore!.authenticationProviderId) || []);
+						const matchingAccount = accounts.filter(a => a.id === this.activeAccount?.id)[0];
+						this.setActiveAccount(matchingAccount);
+					}
+				}
 			} else {
-				this.initializeActiveAccount();
+				await this.initializeActiveAccount();
+
+				// If logged in for the first time from accounts menu, prompt if sync should be turned on
+				if (this.activeAccount) {
+					this.turnOn(true);
+				}
 			}
 		}
 	}
@@ -520,7 +585,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 	}
 
-	private async turnOn(): Promise<void> {
+	private async turnOn(skipAccountPick?: boolean): Promise<void> {
 		if (!this.storageService.getBoolean('sync.donotAskPreviewConfirmation', StorageScope.GLOBAL, false)) {
 			const result = await this.dialogService.show(
 				Severity.Info,
@@ -562,7 +627,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			disposables.add(Event.any(quickPick.onDidAccept, quickPick.onDidCustom)(async () => {
 				if (quickPick.selectedItems.length) {
 					this.updateConfiguration(items, quickPick.selectedItems);
-					this.doTurnOn().then(c, e);
+					this.doTurnOn(skipAccountPick).then(c, e);
 					quickPick.hide();
 				}
 			}));
@@ -571,8 +636,8 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		});
 	}
 
-	private async doTurnOn(): Promise<void> {
-		if (this.authenticationState.get() === AuthStatus.SignedIn) {
+	private async doTurnOn(skipAccountPick?: boolean): Promise<void> {
+		if (this.authenticationState.get() === AuthStatus.SignedIn && !skipAccountPick) {
 			await new Promise((c, e) => {
 				const disposables: DisposableStore = new DisposableStore();
 				const displayName = this.authenticationService.getDisplayName(this.userDataSyncStore!.authenticationProviderId);
@@ -706,7 +771,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	private async turnOff(): Promise<void> {
 		const result = await this.dialogService.confirm({
 			type: 'info',
-			message: localize('turn off sync confirmation', "Turn off Sync"),
+			message: localize('turn off sync confirmation', "Do you want to turn off sync?"),
 			detail: localize('turn off sync detail', "Your settings, keybindings, extensions and UI State will no longer be synced."),
 			primaryButton: localize('turn off', "Turn Off"),
 			checkbox: {
@@ -750,14 +815,14 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	private getConflictsEditorInputs(syncResource: SyncResource): DiffEditorInput[] {
 		return this.editorService.editors.filter(input => {
 			const resource = input instanceof DiffEditorInput ? input.master.resource : input.resource;
-			return getSyncResourceFromLocalPreview(resource!, this.workbenchEnvironmentService) === syncResource;
+			return resource && getSyncResourceFromLocalPreview(resource!, this.workbenchEnvironmentService) === syncResource;
 		}) as DiffEditorInput[];
 	}
 
 	private getAllConflictsEditorInputs(): IEditorInput[] {
 		return this.editorService.editors.filter(input => {
 			const resource = input instanceof DiffEditorInput ? input.master.resource : input.resource;
-			return getSyncResourceFromLocalPreview(resource!, this.workbenchEnvironmentService) !== undefined;
+			return resource && getSyncResourceFromLocalPreview(resource!, this.workbenchEnvironmentService) !== undefined;
 		});
 	}
 

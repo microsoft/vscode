@@ -79,7 +79,7 @@ suite.skip('TextSearch performance (integration)', () => {
 			[IDialogService, dialogService],
 			[INotificationService, notificationService],
 			[IUndoRedoService, undoRedoService],
-			[IModelService, new ModelServiceImpl(configurationService, textResourcePropertiesService, new TestThemeService(), logService, undoRedoService)],
+			[IModelService, new ModelServiceImpl(configurationService, textResourcePropertiesService, new TestThemeService(), logService, undoRedoService, dialogService)],
 			[IWorkspaceContextService, new TestContextService(testWorkspace(URI.file(testWorkspacePath)))],
 			[IEditorService, new TestEditorService()],
 			[IEditorGroupsService, new TestEditorGroupsService()],

@@ -7,7 +7,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { INotebookTextModel, NotebookCellOutputsSplice, NotebookCellsSplice, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel, NotebookCellOutputsSplice, NotebookCellsSplice, NotebookDocumentMetadata, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class NotebookTextModel extends Disposable implements INotebookTextModel {
 	private readonly _onWillDispose: Emitter<void> = this._register(new Emitter<void>());
@@ -16,12 +16,13 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	get onDidChangeCells(): Event<NotebookCellsSplice[]> { return this._onDidChangeCells.event; }
 	private _onDidChangeContent = new Emitter<void>();
 	onDidChangeContent: Event<void> = this._onDidChangeContent.event;
+	private _onDidChangeMetadata = new Emitter<NotebookDocumentMetadata>();
+	onDidChangeMetadata: Event<NotebookDocumentMetadata> = this._onDidChangeMetadata.event;
 	private _mapping: Map<number, NotebookCellTextModel> = new Map();
 	private _cellListeners: Map<number, IDisposable> = new Map();
 	cells: NotebookCellTextModel[];
-	activeCell: NotebookCellTextModel | undefined;
 	languages: string[] = [];
-	metadata: NotebookDocumentMetadata | undefined = undefined;
+	metadata: NotebookDocumentMetadata | undefined = { editable: true };
 	renderers = new Set<number>();
 
 	constructor(
@@ -37,18 +38,23 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this.languages = languages;
 	}
 
-	updateNotebookMetadata(metadata: NotebookDocumentMetadata | undefined) {
+	updateNotebookMetadata(metadata: NotebookDocumentMetadata) {
 		this.metadata = metadata;
+		this._onDidChangeMetadata.fire(this.metadata);
+	}
+
+	updateNotebookCellMetadata(handle: number, metadata: NotebookCellMetadata) {
+		const cell = this.cells.find(cell => cell.handle === handle);
+
+		if (cell) {
+			cell.metadata = metadata;
+		}
 	}
 
 	updateRenderers(renderers: number[]) {
 		renderers.forEach(render => {
 			this.renderers.add(render);
 		});
-	}
-
-	updateActiveCell(handle: number) {
-		this.activeCell = this._mapping.get(handle);
 	}
 
 	insertNewCell(index: number, cell: NotebookCellTextModel): void {
@@ -77,7 +83,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		splices.reverse().forEach(splice => {
 			let cellDtos = splice[2];
 			let newCells = cellDtos.map(cell => {
-				let mainCell = new NotebookCellTextModel(URI.revive(cell.uri), cell.handle, cell.source, cell.language, cell.cellKind, cell.outputs || []);
+				let mainCell = new NotebookCellTextModel(URI.revive(cell.uri), cell.handle, cell.source, cell.language, cell.cellKind, cell.outputs || [], cell.metadata);
 				this._mapping.set(cell.handle, mainCell);
 				let dirtyStateListener = mainCell.onDidChangeContent(() => {
 					this._onDidChangeContent.fire();

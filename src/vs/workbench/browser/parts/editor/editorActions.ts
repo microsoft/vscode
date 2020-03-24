@@ -24,6 +24,7 @@ import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { values } from 'vs/base/common/map';
+import { ItemActivation } from 'vs/platform/quickinput/common/quickInput';
 
 export class ExecuteCommandAction extends Action {
 
@@ -1261,6 +1262,7 @@ export class BaseQuickOpenEditorAction extends Action {
 		id: string,
 		label: string,
 		private prefix: string,
+		private itemActivation: ItemActivation | undefined,
 		@IQuickOpenService private readonly quickOpenService: IQuickOpenService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
@@ -1270,7 +1272,10 @@ export class BaseQuickOpenEditorAction extends Action {
 	async run(): Promise<void> {
 		const keybindings = this.keybindingService.lookupKeybindings(this.id);
 
-		this.quickOpenService.show(this.prefix, { quickNavigateConfiguration: { keybindings } });
+		this.quickOpenService.show(this.prefix, {
+			quickNavigateConfiguration: { keybindings },
+			autoFocus: this.itemActivation === ItemActivation.LAST ? { autoFocusLastEntry: true } : undefined
+		});
 	}
 }
 
@@ -1285,7 +1290,7 @@ export class QuickOpenPreviousRecentlyUsedEditorAction extends BaseQuickOpenEdit
 		@IQuickOpenService quickOpenService: IQuickOpenService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		super(id, label, NAVIGATE_ALL_EDITORS_BY_MOST_RECENTLY_USED_PREFIX, quickOpenService, keybindingService);
+		super(id, label, NAVIGATE_ALL_EDITORS_BY_MOST_RECENTLY_USED_PREFIX, undefined, quickOpenService, keybindingService);
 	}
 }
 
@@ -1300,7 +1305,7 @@ export class QuickOpenNextRecentlyUsedEditorAction extends BaseQuickOpenEditorAc
 		@IQuickOpenService quickOpenService: IQuickOpenService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		super(id, label, NAVIGATE_ALL_EDITORS_BY_MOST_RECENTLY_USED_PREFIX, quickOpenService, keybindingService);
+		super(id, label, NAVIGATE_ALL_EDITORS_BY_MOST_RECENTLY_USED_PREFIX, undefined, quickOpenService, keybindingService);
 	}
 }
 
@@ -1315,7 +1320,7 @@ export class QuickOpenPreviousRecentlyUsedEditorInGroupAction extends BaseQuickO
 		@IQuickOpenService quickOpenService: IQuickOpenService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		super(id, label, NAVIGATE_IN_ACTIVE_GROUP_BY_MOST_RECENTLY_USED_PREFIX, quickOpenService, keybindingService);
+		super(id, label, NAVIGATE_IN_ACTIVE_GROUP_BY_MOST_RECENTLY_USED_PREFIX, undefined, quickOpenService, keybindingService);
 	}
 }
 
@@ -1330,7 +1335,7 @@ export class QuickOpenLeastRecentlyUsedEditorInGroupAction extends BaseQuickOpen
 		@IQuickOpenService quickOpenService: IQuickOpenService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		super(id, label, NAVIGATE_IN_ACTIVE_GROUP_BY_MOST_RECENTLY_USED_PREFIX, quickOpenService, keybindingService);
+		super(id, label, NAVIGATE_IN_ACTIVE_GROUP_BY_MOST_RECENTLY_USED_PREFIX, ItemActivation.LAST, quickOpenService, keybindingService);
 	}
 }
 

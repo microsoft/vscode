@@ -137,7 +137,7 @@ export class QuickKillTerminalAction extends Action {
 			instance.dispose(true);
 		}
 		await timeout(50);
-		return this.quickOpenService.show(TERMINAL_PICKER_PREFIX, undefined);
+		return this.quickOpenService.show(TERMINAL_PICKER_PREFIX);
 	}
 }
 
@@ -1139,7 +1139,7 @@ export class QuickOpenTermAction extends Action {
 	}
 
 	public run(): Promise<void> {
-		return this.quickOpenService.show(TERMINAL_PICKER_PREFIX, undefined);
+		return this.quickOpenService.show(TERMINAL_PICKER_PREFIX);
 	}
 }
 
@@ -1160,7 +1160,7 @@ export class RenameTerminalQuickOpenAction extends RenameTerminalAction {
 		await super.run(this.terminal);
 		// This timeout is needed to make sure the previous quickOpen has time to close before we show the next one
 		await timeout(50);
-		await this.quickOpenService.show(TERMINAL_PICKER_PREFIX, undefined);
+		await this.quickOpenService.show(TERMINAL_PICKER_PREFIX);
 	}
 }
 

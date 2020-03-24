@@ -454,7 +454,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 
 		const props: IStatusbarEntry = {
 			text,
-			tooltip: nls.localize('gotoLine', "Go to Line"),
+			tooltip: nls.localize('gotoLine', "Go to Line/Column"),
 			command: 'workbench.action.gotoLine'
 		};
 

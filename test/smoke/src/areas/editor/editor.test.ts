@@ -12,7 +12,7 @@ export function setup() {
 			await app.workbench.quickopen.openFile('www');
 
 			await app.workbench.quickopen.openQuickOutline();
-			await app.workbench.quickopen.waitForQuickOpenElements(names => names.length >= 6);
+			await app.workbench.quickinput.waitForQuickInputElements(names => names.length >= 6);
 		});
 
 		// it('folds/unfolds the code correctly', async function () {

@@ -107,6 +107,11 @@
 	margin-left: 9px;
 }
 
+.monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item:last-of-type::after {
+	margin-right: -10px;
+	margin-left: 8px;
+}
+
 .monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item.right::before,
 .monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item.left::after,
 .monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item.left::before,
@@ -115,7 +120,8 @@
 }
 
 .monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item.left::before,
-.monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item.right::after {
+.monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item.right::after,
+.monaco-workbench .part.panel > .composite.title.dragged-over > .panel-switcher-container > .monaco-action-bar .action-item:last-of-type::after {
 	opacity: 1;
 }
 

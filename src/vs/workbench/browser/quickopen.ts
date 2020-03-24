@@ -32,6 +32,7 @@ export interface IWorkbenchQuickOpenConfiguration {
 		},
 		quickOpen: {
 			enableExperimentalNewVersion: boolean;
+			preserveInput: boolean;
 		}
 	};
 }
@@ -325,19 +326,14 @@ export class QuickOpenAction extends Action {
 		id: string,
 		label: string,
 		prefix: string,
-		@IQuickOpenService private readonly quickOpenService: IQuickOpenService
+		@IQuickOpenService protected readonly quickOpenService: IQuickOpenService
 	) {
 		super(id, label);
 
 		this.prefix = prefix;
-		this.enabled = !!this.quickOpenService;
 	}
 
-	run(): Promise<void> {
-
-		// Show with prefix
+	async run(): Promise<void> {
 		this.quickOpenService.show(this.prefix);
-
-		return Promise.resolve(undefined);
 	}
 }

@@ -20,6 +20,9 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { DefaultQuickAccessFilterValue } from 'vs/platform/quickinput/common/quickAccess';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IWorkbenchQuickOpenConfiguration } from 'vs/workbench/browser/quickopen';
 
 export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAccessProvider {
 
@@ -34,6 +37,14 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 
 	protected get activeTextEditorControl(): IEditor | undefined { return this.editorService.activeTextEditorControl; }
 
+	get defaultFilterValue(): DefaultQuickAccessFilterValue | undefined {
+		if (this.configuration.preserveInput) {
+			return DefaultQuickAccessFilterValue.LAST;
+		}
+
+		return undefined;
+	}
+
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@IMenuService private readonly menuService: IMenuService,
@@ -42,9 +53,18 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ICommandService commandService: ICommandService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@INotificationService notificationService: INotificationService
+		@INotificationService notificationService: INotificationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super({ showAlias: !Language.isDefaultVariant() }, instantiationService, keybindingService, commandService, telemetryService, notificationService);
+	}
+
+	private get configuration() {
+		const commandPaletteConfig = this.configurationService.getValue<IWorkbenchQuickOpenConfiguration>().workbench.commandPalette;
+
+		return {
+			preserveInput: commandPaletteConfig.preserveInput
+		};
 	}
 
 	protected async getCommandPicks(disposables: DisposableStore, token: CancellationToken): Promise<Array<ICommandQuickPick>> {

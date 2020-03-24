@@ -1396,6 +1396,15 @@ export interface AuthenticationSession {
 	accountName: string;
 }
 
+/**
+ * @internal
+ */
+export interface AuthenticationSessionsChangeEvent {
+	added: string[];
+	removed: string[];
+	changed: string[];
+}
+
 export interface Command {
 	id: string;
 	title: string;

@@ -7,8 +7,7 @@ import { Lazy } from 'vs/base/common/lazy';
 import { URI } from 'vs/base/common/uri';
 import { EditorInput, GroupIdentifier, IEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { IWebviewService, WebviewIcons, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
-
-const WebviewPanelResourceScheme = 'webview-panel';
+import { Schemas } from 'vs/base/common/network';
 
 export class WebviewInput extends EditorInput {
 
@@ -24,7 +23,7 @@ export class WebviewInput extends EditorInput {
 
 	get resource() {
 		return URI.from({
-			scheme: WebviewPanelResourceScheme,
+			scheme: Schemas.webviewPanel,
 			path: `webview-panel/webview-${this.id}`
 		});
 	}

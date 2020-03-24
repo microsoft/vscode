@@ -18,10 +18,8 @@ import { RuntimeExtensionsEditor, ShowRuntimeExtensionsAction, IExtensionHostPro
 import { EditorInput, IEditorInputFactory, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, ActiveEditorContext } from 'vs/workbench/common/editor';
 import { ExtensionHostProfileService } from 'vs/workbench/contrib/extensions/electron-browser/extensionProfileService';
 import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/electron-browser/runtimeExtensionsInput';
-import { URI } from 'vs/base/common/uri';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionsAutoProfiler } from 'vs/workbench/contrib/extensions/electron-browser/extensionsAutoProfiler';
-import { registerAndGetAmdImageURL } from 'vs/base/common/amd';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { OpenExtensionsFolderAction } from 'vs/workbench/contrib/extensions/electron-browser/extensionsActions';
 import { ExtensionsLabel } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -106,8 +104,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		id: DebugExtensionHostAction.ID,
 		title: DebugExtensionHostAction.LABEL,
 		icon: {
-			dark: URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/extensions/browser/media/start-dark.svg`)),
-			light: URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/extensions/browser/media/start-light.svg`)),
+			id: 'codicon/debug-start'
 		}
 	},
 	group: 'navigation',
@@ -119,8 +116,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		id: StartExtensionHostProfileAction.ID,
 		title: StartExtensionHostProfileAction.LABEL,
 		icon: {
-			dark: URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/extensions/browser/media/profile-start-dark.svg`)),
-			light: URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/extensions/browser/media/profile-start-light.svg`)),
+			id: 'codicon/circle-filled'
 		}
 	},
 	group: 'navigation',
@@ -132,8 +128,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		id: StopExtensionHostProfileAction.ID,
 		title: StopExtensionHostProfileAction.LABEL,
 		icon: {
-			dark: URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/extensions/browser/media/profile-stop-dark.svg`)),
-			light: URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/extensions/browser/media/profile-stop-light.svg`)),
+			id: 'codicon/debug-stop'
 		}
 	},
 	group: 'navigation',
@@ -145,8 +140,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		id: SaveExtensionHostProfileAction.ID,
 		title: SaveExtensionHostProfileAction.LABEL,
 		icon: {
-			dark: URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/extensions/browser/media/save-dark.svg`)),
-			light: URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/extensions/browser/media/save-light.svg`)),
+			id: 'codicon/save-all'
 		},
 		precondition: CONTEXT_EXTENSION_HOST_PROFILE_RECORDED
 	},

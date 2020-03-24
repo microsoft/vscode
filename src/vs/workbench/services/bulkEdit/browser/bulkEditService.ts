@@ -28,7 +28,7 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerServ
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { EditStackElement, MultiModelEditStackElement } from 'vs/editor/common/model/editStack';
+import { SingleModelEditStackElement, MultiModelEditStackElement } from 'vs/editor/common/model/editStack';
 
 type ValidationResult = { canApply: true } | { canApply: false, reason: URI };
 
@@ -234,7 +234,7 @@ class BulkEditModel implements IDisposable {
 
 		const multiModelEditStackElement = new MultiModelEditStackElement(
 			this._label || localize('workspaceEdit', "Workspace Edit"),
-			tasks.map(t => new EditStackElement(t.model, t.getBeforeCursorState()))
+			tasks.map(t => new SingleModelEditStackElement(t.model, t.getBeforeCursorState()))
 		);
 		this._undoRedoService.pushElement(multiModelEditStackElement);
 

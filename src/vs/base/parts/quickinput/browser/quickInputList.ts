@@ -317,6 +317,18 @@ export class QuickInputList {
 				this._onLeave.fire();
 			}
 		}));
+		this.disposables.push(this.list.onContextMenu(e => {
+			if (typeof e.index === 'number') {
+				e.browserEvent.preventDefault();
+
+				// we want to treat a context menu event as
+				// a gesture to open the item at the index
+				// since we do not have any context menu
+				// this enables for example macOS to Ctrl-
+				// click on an item to open it.
+				this.list.setSelection([e.index]);
+			}
+		}));
 	}
 
 	@memoize
@@ -440,7 +452,10 @@ export class QuickInputList {
 			.filter(item => this.elementsToIndexes.has(item))
 			.map(item => this.elementsToIndexes.get(item)!));
 		if (items.length > 0) {
-			this.list.reveal(this.list.getFocus()[0]);
+			const focused = this.list.getFocus()[0];
+			if (typeof focused === 'number') {
+				this.list.reveal(focused);
+			}
 		}
 	}
 
@@ -492,8 +507,13 @@ export class QuickInputList {
 		if ((what === QuickInputListFocus.Next || what === QuickInputListFocus.NextPage) && this.list.getFocus()[0] === this.list.length - 1) {
 			what = QuickInputListFocus.First;
 		}
+
 		if ((what === QuickInputListFocus.Previous || what === QuickInputListFocus.PreviousPage) && this.list.getFocus()[0] === 0) {
 			what = QuickInputListFocus.Last;
+		}
+
+		if (what === QuickInputListFocus.Second && this.list.length < 2) {
+			what = QuickInputListFocus.First;
 		}
 
 		switch (what) {
@@ -520,7 +540,10 @@ export class QuickInputList {
 				break;
 		}
 
-		this.list.reveal(this.list.getFocus()[0]);
+		const focused = this.list.getFocus()[0];
+		if (typeof focused === 'number') {
+			this.list.reveal(focused);
+		}
 	}
 
 	clearFocus() {

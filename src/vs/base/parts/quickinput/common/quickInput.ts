@@ -182,6 +182,12 @@ export interface IQuickPickAcceptEvent {
 	inBackground: boolean;
 }
 
+export enum ItemActivation {
+	FIRST = 1,
+	SECOND,
+	LAST
+}
+
 export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 
 	value: string;
@@ -243,6 +249,11 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 
 	readonly onDidChangeActive: Event<T[]>;
 
+	/**
+	 * Allows to control which entry should be activated by default.
+	 */
+	itemActivation: ItemActivation;
+
 	selectedItems: ReadonlyArray<T>;
 
 	readonly onDidChangeSelection: Event<T[]>;
@@ -256,6 +267,13 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	inputHasFocus(): boolean;
 
 	focusOnInput(): void;
+
+	/**
+	 * Hides the input box from the picker UI. This is typically used
+	 * in combination with quick-navigation where no search UI should
+	 * be presented.
+	 */
+	hideInput: boolean;
 }
 
 export interface IInputBox extends IQuickInput {

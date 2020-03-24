@@ -18,7 +18,7 @@ import { NOTEBOOK_EDITOR_CURSOR_BOUNDARY } from 'vs/workbench/contrib/notebook/c
 import { Range } from 'vs/editor/common/core/range';
 import { CellRevealType, CellRevealPosition, CursorAtBoundary } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
+import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 
 export class NotebookCellList extends WorkbenchList<CellViewModel> implements IDisposable {
 	get onWillScroll(): Event<ScrollEvent> { return this.view.onWillScroll; }

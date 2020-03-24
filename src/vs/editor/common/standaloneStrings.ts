@@ -36,7 +36,7 @@ export namespace InspectTokensNLS {
 }
 
 export namespace GoToLineNLS {
-	export const gotoLineActionLabel = nls.localize('gotoLineActionLabel', "Go to Line...");
+	export const gotoLineActionLabel = nls.localize('gotoLineActionLabel', "Go to Line/Column...");
 }
 
 export namespace QuickHelpNLS {

@@ -22,13 +22,13 @@ import { contrastBorder, editorBackground, focusBorder, foreground, textBlockQuo
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions, IEditorMemento, IEditorCloseEvent } from 'vs/workbench/common/editor';
-import { INotebookEditor, NotebookLayoutInfo, CellState, NOTEBOOK_EDITOR_FOCUSED, CellFocusMode, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor, NotebookLayoutInfo, CellEditState, NOTEBOOK_EDITOR_FOCUSED, CellFocusMode, ICellViewModel, CellRunState, NOTEBOOK_EDITOR_EDITABLE } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorInput, NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { BackLayerWebView } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
 import { CodeCellRenderer, MarkdownCellRenderer, NotebookCellListDelegate } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
-import { IOutput, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IOutput, CellKind, CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -38,12 +38,13 @@ import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { Emitter, Event } from 'vs/base/common/event';
 import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
 import { NotebookFindWidget } from 'vs/workbench/contrib/notebook/browser/contrib/notebookFindWidget';
-import { NotebookViewModel, INotebookEditorViewState, IModelDecorationsChangeAccessor } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
+import { NotebookViewModel, INotebookEditorViewState, IModelDecorationsChangeAccessor, CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
-import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookCellViewModel';
+import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { Range } from 'vs/editor/common/core/range';
 import { CELL_MARGIN, RUN_BUTTON_WIDTH } from 'vs/workbench/contrib/notebook/browser/constants';
 import { Color, RGBA } from 'vs/base/common/color';
+import { NotebookEventDispatcher, NotebookLayoutChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 
 const $ = DOM.$;
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
@@ -83,9 +84,7 @@ export class NotebookCodeEditors implements ICompositeCodeEditor {
 
 	get activeCodeEditor(): IEditor | undefined {
 		const [focused] = this._list.getFocusedElements();
-		return focused instanceof CellViewModel
-			? this._renderedEditors.get(focused)
-			: undefined;
+		return this._renderedEditors.get(focused);
 	}
 }
 
@@ -97,6 +96,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	private list: NotebookCellList | undefined;
 	private control: ICompositeCodeEditor | undefined;
 	private renderedEditors: Map<ICellViewModel, ICodeEditor | undefined> = new Map();
+	private eventDispatcher: NotebookEventDispatcher | undefined;
 	private notebookViewModel: NotebookViewModel | undefined;
 	private localStore: DisposableStore = this._register(new DisposableStore());
 	private editorMemento: IEditorMemento<INotebookEditorViewState>;
@@ -104,6 +104,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	private fontInfo: BareFontInfo | undefined;
 	private dimension: DOM.Dimension | null = null;
 	private editorFocus: IContextKey<boolean> | null = null;
+	private editorEditable: IContextKey<boolean> | null = null;
 	private outputRenderer: OutputRenderer;
 	private findWidget: NotebookFindWidget;
 
@@ -158,6 +159,9 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		this._register(this.onDidBlur(() => {
 			this.editorFocus?.set(false);
 		}));
+
+		this.editorEditable = NOTEBOOK_EDITOR_EDITABLE.bindTo(this.contextKeyService);
+		this.editorEditable.set(true);
 	}
 
 	private generateFontInfo(): void {
@@ -177,8 +181,8 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		DOM.addClass(this.body, 'cell-list-container');
 
 		const renders = [
-			this.instantiationService.createInstance(CodeCellRenderer, this, this.renderedEditors),
-			this.instantiationService.createInstance(MarkdownCellRenderer, this),
+			this.instantiationService.createInstance(CodeCellRenderer, this, this.contextKeyService, this.renderedEditors),
+			this.instantiationService.createInstance(MarkdownCellRenderer, this.contextKeyService, this),
 		];
 
 		this.list = <NotebookCellList>this.instantiationService.createInstance(
@@ -333,9 +337,16 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			this.list?.rowsContainer.insertAdjacentElement('afterbegin', this.webview!.element);
 		}
 
-		this.notebookViewModel = this.instantiationService.createInstance(NotebookViewModel, input.viewType!, model);
+		this.eventDispatcher = new NotebookEventDispatcher();
+		this.notebookViewModel = this.instantiationService.createInstance(NotebookViewModel, input.viewType!, model, this.eventDispatcher);
+		this.editorEditable?.set(!!this.notebookViewModel.metadata?.editable);
+		this.eventDispatcher.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
 		const viewState = this.loadTextEditorViewState(input);
 		this.notebookViewModel.restoreEditorViewState(viewState);
+
+		this.localStore.add(this.eventDispatcher.onDidChangeMetadata((e) => {
+			this.editorEditable?.set(e.source.editable);
+		}));
 
 		this.localStore.add(this.notebookViewModel.onDidChangeViewCells((e) => {
 			if (e.synchronous) {
@@ -361,7 +372,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			const scrollTop = this.list?.scrollTop || 0;
 			const scrollHeight = this.list?.scrollHeight || 0;
 			this.webview!.element.style.height = `${scrollHeight}px`;
-			let updateItems: { cell: CellViewModel, output: IOutput, cellTop: number }[] = [];
+			let updateItems: { cell: CodeCellViewModel, output: IOutput, cellTop: number }[] = [];
 
 			if (this.webview?.insetMapping) {
 				this.webview?.insetMapping.forEach((value, key) => {
@@ -380,12 +391,6 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 				if (updateItems.length) {
 					this.webview?.updateViewScrollTop(-scrollTop, updateItems);
 				}
-			}
-		}));
-
-		this.localStore.add(this.list!.onDidChangeFocus((e) => {
-			if (e.elements.length > 0) {
-				this.notebookService.updateNotebookActiveCell(input.viewType!, input.resource!, e.elements[0].handle);
 			}
 		}));
 
@@ -415,6 +420,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		DOM.toggleClass(this.rootElement, 'narrow-width', dimension.width < 600);
 		DOM.size(this.body, dimension.width, dimension.height);
 		this.list?.layout(dimension.height, dimension.width);
+		this.eventDispatcher?.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
 	}
 
 	protected saveState(): void {
@@ -562,7 +568,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		this.list?.setFocus([insertIndex]);
 
 		if (type === CellKind.Markdown) {
-			newCell.state = CellState.Editing;
+			newCell.editState = CellEditState.Editing;
 		}
 
 		DOM.scheduleAtNextAnimationFrame(() => {
@@ -600,13 +606,13 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	}
 
 	editNotebookCell(cell: CellViewModel): void {
-		cell.state = CellState.Editing;
+		cell.editState = CellEditState.Editing;
 
 		this.renderedEditors.get(cell)?.focus();
 	}
 
 	saveNotebookCell(cell: ICellViewModel): void {
-		cell.state = CellState.Preview;
+		cell.editState = CellEditState.Preview;
 	}
 
 	getActiveCell() {
@@ -619,6 +625,22 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		return undefined;
 	}
 
+	async executeNotebookCell(cell: ICellViewModel): Promise<void> {
+		try {
+			cell.runState = CellRunState.Running;
+			const provider = this.notebookService.getContributedNotebookProviders(cell.uri)[0];
+			if (provider) {
+				const viewType = provider.id;
+				const notebookUri = CellUri.parse(cell.uri)?.notebook;
+				if (notebookUri) {
+					return await this.notebookService.executeNotebookCell(viewType, notebookUri, cell.handle);
+				}
+			}
+		} finally {
+			cell.runState = CellRunState.Idle;
+		}
+	}
+
 	focusNotebookCell(cell: ICellViewModel, focusEditor: boolean) {
 		const index = this.notebookViewModel!.getViewCellIndex(cell);
 
@@ -627,7 +649,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			this.list?.setSelection([index]);
 			this.list?.focusView();
 
-			cell.state = CellState.Editing;
+			cell.editState = CellEditState.Editing;
 			cell.focusMode = CellFocusMode.Editor;
 			this.revealInCenterIfOutsideViewport(cell);
 		} else {
@@ -636,7 +658,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 				(document.activeElement as HTMLElement).blur();
 			}
 
-			cell.state = CellState.Preview;
+			cell.editState = CellEditState.Preview;
 			cell.focusMode = CellFocusMode.Editor;
 
 			this.list?.setFocus([index]);
@@ -661,15 +683,12 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			fontInfo: this.fontInfo!
 		};
 	}
-	getFontInfo(): BareFontInfo | undefined {
-		return this.fontInfo;
-	}
 
 	triggerScroll(event: IMouseWheelEvent) {
 		this.list?.triggerScrollFromMouseWheelEvent(event);
 	}
 
-	createInset(cell: CellViewModel, output: IOutput, shadowContent: string, offset: number) {
+	createInset(cell: CodeCellViewModel, output: IOutput, shadowContent: string, offset: number) {
 		if (!this.webview) {
 			return;
 		}

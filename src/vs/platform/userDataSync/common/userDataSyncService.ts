@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, SyncStatus, IUserDataSyncStoreService, SyncResource, IUserDataSyncLogService, IUserDataSynchroniser, UserDataSyncStoreError, UserDataSyncErrorCode, UserDataSyncError, resolveBackupSyncResource, SyncResourceConflicts } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, SyncStatus, IUserDataSyncStoreService, SyncResource, IUserDataSyncLogService, IUserDataSynchroniser, UserDataSyncStoreError, UserDataSyncErrorCode, UserDataSyncError, SyncResourceConflicts, ISyncResourceHandle } from 'vs/platform/userDataSync/common/userDataSync';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -188,23 +188,25 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	}
 
 	async resolveContent(resource: URI): Promise<string | null> {
-		const result = resolveBackupSyncResource(resource);
-		if (result) {
-			const synchronizer = this.synchronisers.filter(s => s.resource === result.resource)[0];
-			if (synchronizer) {
-				const ref = result.path !== 'latest' ? result.path : undefined;
-				return result.remote ? synchronizer.getRemoteContent(ref, resource.fragment) : synchronizer.getLocalBackupContent(ref, resource.fragment);
-			}
-		}
-
-		for (const synchronizer of this.synchronisers) {
-			const content = await synchronizer.getConflictContent(resource);
-			if (content !== null) {
+		for (const synchroniser of this.synchronisers) {
+			const content = await synchroniser.resolveContent(resource);
+			if (content) {
 				return content;
 			}
 		}
-
 		return null;
+	}
+
+	getRemoteSyncResourceHandles(resource: SyncResource): Promise<ISyncResourceHandle[]> {
+		return this.getSynchroniser(resource).getRemoteSyncResourceHandles();
+	}
+
+	getLocalSyncResourceHandles(resource: SyncResource): Promise<ISyncResourceHandle[]> {
+		return this.getSynchroniser(resource).getLocalSyncResourceHandles();
+	}
+
+	getAssociatedResources(resource: SyncResource, syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI, comparableResource?: URI }[]> {
+		return this.getSynchroniser(resource).getAssociatedResources(syncResourceHandle);
 	}
 
 	async isFirstTimeSyncWithMerge(): Promise<boolean> {

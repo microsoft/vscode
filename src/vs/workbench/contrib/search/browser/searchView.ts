@@ -867,11 +867,11 @@ export class SearchView extends ViewPane {
 	focus(): void {
 		super.focus();
 
-		const updatedText = this.updateTextFromSelection();
+		const updatedText = this.updateTextFromSelection({ allowSearchOnType: false });
 		this.searchWidget.focus(undefined, undefined, updatedText);
 	}
 
-	updateTextFromSelection(allowUnselectedWord = true): boolean {
+	updateTextFromSelection({ allowUnselectedWord = true, allowSearchOnType = true }): boolean {
 		let updatedText = false;
 		const seedSearchStringFromSelection = this.configurationService.getValue<IEditorOptions>('editor').find!.seedSearchStringFromSelection;
 		if (seedSearchStringFromSelection) {
@@ -880,9 +880,14 @@ export class SearchView extends ViewPane {
 				if (this.searchWidget.searchInput.getRegex()) {
 					selectedText = strings.escapeRegExpCharacters(selectedText);
 				}
-				this.pauseSearching = true;
-				this.searchWidget.setValue(selectedText);
-				this.pauseSearching = false;
+
+				if (allowSearchOnType && !this.viewModel.searchResult.hasRemovedResults) {
+					this.searchWidget.setValue(selectedText);
+				} else {
+					this.pauseSearching = true;
+					this.searchWidget.setValue(selectedText);
+					this.pauseSearching = false;
+				}
 				updatedText = true;
 			}
 		}
@@ -1891,9 +1896,11 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 		collector.addRule(`.monaco-workbench .search-view .monaco-list.element-focused .monaco-list-row.focused.selected:not(.highlighted) .action-label:focus { outline-color: ${outlineSelectionColor} }`);
 	}
 
-	const foregroundColor = theme.getColor(foreground);
-	if (foregroundColor) {
-		const fgWithOpacity = new Color(new RGBA(foregroundColor.rgba.r, foregroundColor.rgba.g, foregroundColor.rgba.b, 0.65));
-		collector.addRule(`.vs-dark .search-view .message { color: ${fgWithOpacity}; }`);
+	if (theme.type === 'dark') {
+		const foregroundColor = theme.getColor(foreground);
+		if (foregroundColor) {
+			const fgWithOpacity = new Color(new RGBA(foregroundColor.rgba.r, foregroundColor.rgba.g, foregroundColor.rgba.b, 0.65));
+			collector.addRule(`.search-view .message { color: ${fgWithOpacity}; }`);
+		}
 	}
 });

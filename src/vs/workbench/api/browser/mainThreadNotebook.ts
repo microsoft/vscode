@@ -8,7 +8,7 @@ import { MainContext, MainThreadNotebookShape, NotebookExtensionDescription, IEx
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { INotebookService, IMainNotebookController } from 'vs/workbench/contrib/notebook/browser/notebookService';
-import { INotebookTextModel, INotebookMimeTypeSelector, NOTEBOOK_DISPLAY_ORDER, NotebookCellsSplice, NotebookCellOutputsSplice, CellKind, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel, INotebookMimeTypeSelector, NOTEBOOK_DISPLAY_ORDER, NotebookCellsSplice, NotebookCellOutputsSplice, CellKind, NotebookDocumentMetadata, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -127,11 +127,19 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		}
 	}
 
-	async $updateNotebookMetadata(viewType: string, resource: UriComponents, metadata: NotebookDocumentMetadata | undefined): Promise<void> {
+	async $updateNotebookMetadata(viewType: string, resource: UriComponents, metadata: NotebookDocumentMetadata): Promise<void> {
 		let controller = this._notebookProviders.get(viewType);
 
 		if (controller) {
 			controller.updateNotebookMetadata(resource, metadata);
+		}
+	}
+
+	async $updateNotebookCellMetadata(viewType: string, resource: UriComponents, handle: number, metadata: NotebookCellMetadata): Promise<void> {
+		let controller = this._notebookProviders.get(viewType);
+
+		if (controller) {
+			controller.updateNotebookCellMetadata(resource, handle, metadata);
 		}
 	}
 
@@ -228,9 +236,14 @@ export class MainThreadNotebookController implements IMainNotebookController {
 		document?.textModel.updateLanguages(languages);
 	}
 
-	updateNotebookMetadata(resource: UriComponents, metadata: NotebookDocumentMetadata | undefined) {
+	updateNotebookMetadata(resource: UriComponents, metadata: NotebookDocumentMetadata) {
 		let document = this._mapping.get(URI.from(resource).toString());
 		document?.textModel.updateNotebookMetadata(metadata);
+	}
+
+	updateNotebookCellMetadata(resource: UriComponents, handle: number, metadata: NotebookCellMetadata) {
+		let document = this._mapping.get(URI.from(resource).toString());
+		document?.textModel.updateNotebookCellMetadata(handle, metadata);
 	}
 
 	updateNotebookRenderers(resource: UriComponents, renderers: number[]): void {
@@ -238,15 +251,10 @@ export class MainThreadNotebookController implements IMainNotebookController {
 		document?.textModel.updateRenderers(renderers);
 	}
 
-	updateNotebookActiveCell(uri: URI, cellHandle: number): void {
-		let mainthreadNotebook = this._mapping.get(URI.from(uri).toString());
-		mainthreadNotebook?.textModel.updateActiveCell(cellHandle);
-	}
-
 	async createRawCell(uri: URI, index: number, language: string, type: CellKind): Promise<NotebookCellTextModel | undefined> {
 		let cell = await this._proxy.$createEmptyCell(this._viewType, uri, index, language, type);
 		if (cell) {
-			let mainCell = new NotebookCellTextModel(URI.revive(cell.uri), cell.handle, cell.source, cell.language, cell.cellKind, cell.outputs);
+			let mainCell = new NotebookCellTextModel(URI.revive(cell.uri), cell.handle, cell.source, cell.language, cell.cellKind, cell.outputs, cell.metadata);
 			return mainCell;
 		}
 
@@ -263,12 +271,8 @@ export class MainThreadNotebookController implements IMainNotebookController {
 		return false;
 	}
 
-	async executeNotebookActiveCell(uri: URI): Promise<void> {
-		let mainthreadNotebook = this._mapping.get(URI.from(uri).toString());
-
-		if (mainthreadNotebook && mainthreadNotebook.textModel.activeCell) {
-			return this._proxy.$executeNotebook(this._viewType, uri, mainthreadNotebook.textModel.activeCell.handle);
-		}
+	async executeNotebookCell(uri: URI, handle: number): Promise<void> {
+		return this._proxy.$executeNotebook(this._viewType, uri, handle);
 	}
 
 	async destoryNotebookDocument(notebook: INotebookTextModel): Promise<void> {

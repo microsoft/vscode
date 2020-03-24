@@ -53,7 +53,7 @@ export class NotebookEditorModel extends EditorModel {
 		let notebook = this.getNotebook();
 
 		if (notebook) {
-			let mainCell = new NotebookCellTextModel(URI.revive(cell.uri), cell.handle, cell.source, cell.language, cell.cellKind, cell.outputs);
+			let mainCell = new NotebookCellTextModel(URI.revive(cell.uri), cell.handle, cell.source, cell.language, cell.cellKind, cell.outputs, cell.metadata);
 			this.notebook.insertNewCell(index, mainCell);
 			this._dirty = true;
 			this._onDidChangeDirty.fire();

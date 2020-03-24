@@ -703,6 +703,8 @@ export class SearchResult extends Disposable {
 	private _rangeHighlightDecorations: RangeHighlightDecorations;
 	private disposePastResults: () => void = () => { };
 
+	private _hasRemovedResults = false;
+
 	constructor(
 		private _searchModel: SearchModel,
 		@IReplaceService private readonly replaceService: IReplaceService,
@@ -714,6 +716,16 @@ export class SearchResult extends Disposable {
 		this._rangeHighlightDecorations = this.instantiationService.createInstance(RangeHighlightDecorations);
 
 		this._register(this.modelService.onModelAdded(model => this.onModelAdded(model)));
+
+		this._register(this.onChange(e => {
+			if (e.removed) {
+				this._hasRemovedResults = true;
+			}
+		}));
+	}
+
+	get hasRemovedResults(): boolean {
+		return this._hasRemovedResults;
 	}
 
 	get query(): ITextQuery | null {
@@ -725,7 +737,8 @@ export class SearchResult extends Disposable {
 		const oldFolderMatches = this.folderMatches();
 		new Promise(resolve => this.disposePastResults = resolve)
 			.then(() => oldFolderMatches.forEach(match => match.clear()))
-			.then(() => oldFolderMatches.forEach(match => match.dispose()));
+			.then(() => oldFolderMatches.forEach(match => match.dispose()))
+			.then(() => this._hasRemovedResults = false);
 
 		this._rangeHighlightDecorations.removeHighlightRange();
 		this._folderMatchesMap = TernarySearchTree.forPaths<FolderMatchWithResource>();
@@ -1027,7 +1040,6 @@ export class SearchModel extends Disposable {
 
 	search(query: ITextQuery, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
 		this.cancelSearch(true);
-
 
 		this._searchQuery = query;
 		if (!this.searchConfig.searchOnType) {

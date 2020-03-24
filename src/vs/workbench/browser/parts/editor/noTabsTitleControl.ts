@@ -110,7 +110,7 @@ export class NoTabsTitleControl extends TitleControl {
 				}
 			}
 		} else {
-			// @rebornix
+			// TODO@rebornix
 			// gesture tap should open the quick open
 			// editorGroupView will focus on the editor again when there are mouse/pointer/touch down events
 			// we need to wait a bit as `GesureEvent.Tap` is generated from `touchstart` and then `touchend` evnets, which are not an atom event.

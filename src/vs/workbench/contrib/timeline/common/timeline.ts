@@ -31,6 +31,9 @@ export interface TimelineItem {
 	detail?: string;
 	command?: Command;
 	contextValue?: string;
+
+	relativeTime?: string;
+	hideRelativeTime?: boolean;
 }
 
 export interface TimelineChangeEvent {
@@ -54,8 +57,7 @@ export interface Timeline {
 	items: TimelineItem[];
 
 	paging?: {
-		cursor?: string
-		more?: boolean;
+		cursor: string | undefined;
 	}
 }
 

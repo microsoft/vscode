@@ -136,10 +136,8 @@ export class GitTimelineProvider implements TimelineProvider {
 			// sortByAuthorDate: true
 		});
 
-		const more = limit === undefined ? false : commits.length >= limit;
 		const paging = commits.length ? {
-			more: more,
-			cursor: more ? commits[commits.length - 1]?.hash : undefined
+			cursor: limit === undefined ? undefined : (commits.length >= limit ? commits[commits.length - 1]?.hash : undefined)
 		} : undefined;
 
 		// If we asked for an extra commit, strip it off
@@ -148,12 +146,12 @@ export class GitTimelineProvider implements TimelineProvider {
 		}
 
 		let dateFormatter: dayjs.Dayjs;
-		const items = commits.map<GitTimelineItem>(c => {
+		const items = commits.map<GitTimelineItem>((c, i) => {
 			const date = c.commitDate; // c.authorDate
 
 			dateFormatter = dayjs(date);
 
-			const item = new GitTimelineItem(c.hash, `${c.hash}^`, c.message, date?.getTime() ?? 0, c.hash, 'git:file:commit');
+			const item = new GitTimelineItem(c.hash, commits[i + 1]?.hash ?? `${c.hash}^`, c.message, date?.getTime() ?? 0, c.hash, 'git:file:commit');
 			item.iconPath = new (ThemeIcon as any)('git-commit');
 			item.description = c.authorName;
 			item.detail = `${c.authorName} (${c.authorEmail}) \u2014 ${c.hash.substr(0, 8)}\n${dateFormatter.format('MMMM Do, YYYY h:mma')}\n\n${c.message}`;

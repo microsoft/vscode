@@ -36,7 +36,7 @@ export const inRecentFilesPickerContextKey = 'inRecentFilesPicker';
 
 abstract class BaseOpenRecentAction extends Action {
 
-	private removeFromRecentlyOpened: IQuickInputButton = {
+	private readonly removeFromRecentlyOpened: IQuickInputButton = {
 		iconClass: 'codicon-close',
 		tooltip: nls.localize('remove', "Remove from Recently Opened")
 	};
@@ -124,7 +124,7 @@ abstract class BaseOpenRecentAction extends Action {
 		const pick = await this.quickInputService.pick(picks, {
 			contextKey: inRecentFilesPickerContextKey,
 			activeItem: [...workspacePicks, ...filePicks][autoFocusSecondEntry ? 1 : 0],
-			placeHolder: isMacintosh ? nls.localize('openRecentPlaceHolderMac', "Select to open (hold Cmd-key to open in new window)") : nls.localize('openRecentPlaceHolder', "Select to open (hold Ctrl-key to open in new window)"),
+			placeHolder: isMacintosh ? nls.localize('openRecentPlaceHolderMac', "Select to open (hold Cmd-key to force new window or Alt-key for same window)") : nls.localize('openRecentPlaceHolder', "Select to open (hold Ctrl-key to force new window or Alt-key for same window)"),
 			matchOnDescription: true,
 			onKeyMods: mods => keyMods = mods,
 			quickNavigate: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : undefined,
@@ -135,7 +135,7 @@ abstract class BaseOpenRecentAction extends Action {
 		});
 
 		if (pick) {
-			return this.hostService.openWindow([pick.openable], { forceNewWindow: keyMods?.ctrlCmd });
+			return this.hostService.openWindow([pick.openable], { forceNewWindow: keyMods?.ctrlCmd, forceReuseWindow: keyMods?.alt });
 		}
 	}
 }

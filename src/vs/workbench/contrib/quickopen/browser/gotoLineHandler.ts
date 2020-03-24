@@ -22,31 +22,29 @@ import { isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Event } from 'vs/base/common/event';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
 export const GOTO_LINE_PREFIX = ':';
 
 export class GotoLineAction extends QuickOpenAction {
 
 	static readonly ID = 'workbench.action.gotoLine';
-	static readonly LABEL = nls.localize('gotoLine', "Go to Line...");
+	static readonly LABEL = nls.localize('gotoLine', "Go to Line/Column...");
 
 	constructor(actionId: string, actionLabel: string,
-		@IQuickOpenService private readonly _quickOpenService: IQuickOpenService,
+		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IEditorService private readonly editorService: IEditorService
 	) {
-		super(actionId, actionLabel, GOTO_LINE_PREFIX, _quickOpenService);
+		super(actionId, actionLabel, GOTO_LINE_PREFIX, quickOpenService);
 	}
 
-	run(): Promise<void> {
-
+	async run(): Promise<void> {
 		let activeTextEditorControl = this.editorService.activeTextEditorControl;
-		if (!activeTextEditorControl) {
-			return Promise.resolve();
-		}
-
 		if (isDiffEditor(activeTextEditorControl)) {
 			activeTextEditorControl = activeTextEditorControl.getModifiedEditor();
 		}
+
 		let restoreOptions: IEditorOptions | null = null;
 
 		if (isCodeEditor(activeTextEditorControl)) {
@@ -65,7 +63,7 @@ export class GotoLineAction extends QuickOpenAction {
 		const result = super.run();
 
 		if (restoreOptions) {
-			Event.once(this._quickOpenService.onHide)(() => {
+			Event.once(Event.any(this.quickOpenService.onHide, this.quickInputService.onHide))(() => {
 				activeTextEditorControl!.updateOptions(restoreOptions!);
 			});
 		}

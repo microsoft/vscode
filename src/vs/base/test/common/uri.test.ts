@@ -503,4 +503,48 @@ suite('URI', () => {
 		// }
 		// console.profileEnd();
 	});
+
+	test('URI#joinPath', function () {
+
+		function assertJoined(base: string, fragment: string, expected: string, checkWithUrl: boolean = true) {
+			const baseUri = URI.parse(base);
+			const newUri = URI.joinPath(baseUri, fragment);
+			const actual = newUri.toString(true);
+			assert.equal(actual, expected);
+
+			if (checkWithUrl) {
+				const actualUrl = new URL(fragment, base).href;
+				assert.equal(actualUrl, expected);
+			}
+		}
+
+		assertJoined(('file://server/share/c:/'), '../../bazz', 'file://server/bazz');
+		assertJoined(('file://server/share/c:'), '../../bazz', 'file://server/bazz');
+		assertJoined(('file:///foo/'), '../../bazz', 'file:///bazz');
+		assertJoined(('file:///foo'), '../../bazz', 'file:///bazz');
+		assertJoined(('file:///foo'), '../../bazz', 'file:///bazz');
+		assertJoined(('file:///c:/foo/'), '../../bazz', 'file:///bazz', false);
+		assertJoined(('file://ser/foo/'), '../../bazz', 'file://ser/bazz');
+		assertJoined(('file://ser/foo'), '../../bazz', 'file://ser/bazz');
+		assertJoined(('file:///foo/bar/'), './bazz', 'file:///foo/bar/bazz');
+		assertJoined(('file:///foo/bar'), './bazz', 'file:///foo/bar/bazz', false);
+		assertJoined(('file:///foo/bar'), 'bazz', 'file:///foo/bar/bazz', false);
+
+		// "auto-path" scheme
+		assertJoined(('file:'), 'bazz', 'file:///bazz');
+		assertJoined(('http://domain'), 'bazz', 'http://domain/bazz');
+		assertJoined(('https://domain'), 'bazz', 'https://domain/bazz');
+		assertJoined(('http:'), 'bazz', 'http:/bazz', false);
+		assertJoined(('https:'), 'bazz', 'https:/bazz', false);
+
+		// no "auto-path" scheme with and w/o paths
+		assertJoined(('foo:/'), 'bazz', 'foo:/bazz');
+		assertJoined(('foo://bar/'), 'bazz', 'foo://bar/bazz');
+
+		// no "auto-path" + no path -> error
+		assert.throws(() => assertJoined(('foo:'), 'bazz', ''));
+		assert.throws(() => new URL('bazz', 'foo:'));
+		assert.throws(() => assertJoined(('foo://bar'), 'bazz', ''));
+		assert.throws(() => new URL('bazz', 'foo://bar'));
+	});
 });

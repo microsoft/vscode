@@ -54,7 +54,7 @@ function parseQuery(uri: vscode.Uri) {
 	}, {});
 }
 
-export const onDidChangeSessions = new vscode.EventEmitter<void>();
+export const onDidChangeSessions = new vscode.EventEmitter<vscode.AuthenticationSessionsChangeEvent>();
 
 export const REFRESH_NETWORK_FAILURE = 'Network failure';
 
@@ -129,7 +129,8 @@ export class AzureActiveDirectoryService {
 
 	private pollForChange() {
 		setTimeout(async () => {
-			let didChange = false;
+			const addedIds: string[] = [];
+			let removedIds: string[] = [];
 			const storedData = await keychain.getToken();
 			if (storedData) {
 				try {
@@ -139,7 +140,7 @@ export class AzureActiveDirectoryService {
 						if (!matchesExisting) {
 							try {
 								await this.refreshToken(session.refreshToken, session.scope);
-								didChange = true;
+								addedIds.push(session.id);
 							} catch (e) {
 								if (e.message === REFRESH_NETWORK_FAILURE) {
 									// Ignore, will automatically retry on next poll.
@@ -154,7 +155,7 @@ export class AzureActiveDirectoryService {
 						const matchesExisting = sessions.some(session => token.scope === session.scope && token.sessionId === session.id);
 						if (!matchesExisting) {
 							await this.logout(token.sessionId);
-							didChange = true;
+							removedIds.push(token.sessionId);
 						}
 					}));
 
@@ -162,19 +163,19 @@ export class AzureActiveDirectoryService {
 				} catch (e) {
 					Logger.error(e.message);
 					// if data is improperly formatted, remove all of it and send change event
+					removedIds = this._tokens.map(token => token.sessionId);
 					this.clearSessions();
-					didChange = true;
 				}
 			} else {
 				if (this._tokens.length) {
 					// Log out all
+					removedIds = this._tokens.map(token => token.sessionId);
 					await this.clearSessions();
-					didChange = true;
 				}
 			}
 
-			if (didChange) {
-				onDidChangeSessions.fire();
+			if (addedIds.length || removedIds.length) {
+				onDidChangeSessions.fire({ added: addedIds, removed: removedIds, changed: [] });
 			}
 
 			this.pollForChange();
@@ -377,7 +378,7 @@ export class AzureActiveDirectoryService {
 			this._refreshTimeouts.set(token.sessionId, setTimeout(async () => {
 				try {
 					await this.refreshToken(token.refreshToken, scope);
-					onDidChangeSessions.fire();
+					onDidChangeSessions.fire({ added: [], removed: [], changed: [token.sessionId] });
 				} catch (e) {
 					if (e.message === REFRESH_NETWORK_FAILURE) {
 						const didSucceedOnRetry = await this.handleRefreshNetworkError(token.sessionId, token.refreshToken, scope);
@@ -386,7 +387,7 @@ export class AzureActiveDirectoryService {
 						}
 					} else {
 						await this.logout(token.sessionId);
-						onDidChangeSessions.fire();
+						onDidChangeSessions.fire({ added: [], removed: [token.sessionId], changed: [] });
 					}
 				}
 			}, 1000 * (parseInt(token.expiresIn) - 30)));
@@ -548,9 +549,8 @@ export class AzureActiveDirectoryService {
 				const token = this._tokens.find(token => token.sessionId === sessionId);
 				if (token) {
 					token.accessToken = undefined;
+					onDidChangeSessions.fire({ added: [], removed: [], changed: [token.sessionId] });
 				}
-
-				onDidChangeSessions.fire();
 			}
 
 			const delayBeforeRetry = 5 * attempts * attempts;
