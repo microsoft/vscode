@@ -18,7 +18,8 @@ import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 
 const notebookDocumentMetadataDefaults: vscode.NotebookDocumentMetadata = {
 	editable: true,
-	cellEditable: true
+	cellEditable: true,
+	cellRunnable: true
 };
 
 export class ExtHostCell implements vscode.NotebookCell {
@@ -76,7 +77,8 @@ export class ExtHostCell implements vscode.NotebookCell {
 
 	set metadata(newMetadata: vscode.NotebookCellMetadata | undefined) {
 		const newMetadataWithDefaults: vscode.NotebookCellMetadata | undefined = newMetadata ? {
-			editable: newMetadata.editable
+			editable: newMetadata.editable,
+			runnable: newMetadata.runnable
 		} : undefined;
 
 		this._metadata = newMetadataWithDefaults;
@@ -601,7 +603,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 			let editor = this._editors.get(URI.revive(uri).toString());
 			let document = this._documents.get(URI.revive(uri).toString());
 
-			let rawCell = editor?.editor.createCell('', language, type, [], { editable: true }) as ExtHostCell;
+			let rawCell = editor?.editor.createCell('', language, type, [], { editable: true, runnable: true }) as ExtHostCell;
 			document?.insertCell(index, rawCell!);
 
 			let allDocuments = this._documentsAndEditors.allDocuments();

@@ -1670,6 +1670,12 @@ declare module 'vscode' {
 		 * Controls if the content of a cell is editable or not.
 		 */
 		editable: boolean;
+
+		/**
+		 * Controls if the cell is executable.
+		 * This metadata is ignored for markdown cell.
+		 */
+		runnable: boolean;
 	}
 
 	export interface NotebookCell {
@@ -1685,12 +1691,21 @@ declare module 'vscode' {
 	export interface NotebookDocumentMetadata {
 		/**
 		 * Controls if users can add or delete cells
+		 * Default to true
 		 */
 		editable: boolean;
+
 		/**
 		 * Default value for [cell editable metadata](#NotebookCellMetadata.editable).
+		 * Default to true.
 		 */
 		cellEditable: boolean;
+
+		/**
+		 * Default value for [cell runnable metadata](#NotebookCellMetadata.runnable).
+		 * Default to true.
+		 */
+		cellRunnable: boolean;
 	}
 
 	export interface NotebookDocument {

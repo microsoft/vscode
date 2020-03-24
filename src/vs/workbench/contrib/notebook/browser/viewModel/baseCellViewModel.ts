@@ -15,7 +15,8 @@ import { EDITOR_TOP_PADDING, EDITOR_TOOLBAR_HEIGHT } from 'vs/workbench/contrib/
 import { SearchParams } from 'vs/editor/common/model/textModelSearch';
 
 export const NotebookCellMetadataDefaults = {
-	editable: true
+	editable: true,
+	runnable: true
 };
 
 export abstract class BaseCellViewModel extends Disposable {
@@ -320,8 +321,13 @@ export abstract class BaseCellViewModel extends Disposable {
 			? (documentMetadata?.cellEditable === undefined ? NotebookCellMetadataDefaults.editable : documentMetadata?.cellEditable)
 			: this.metadata?.editable;
 
+		const runnable: boolean = this.metadata?.runnable === undefined
+			? (documentMetadata?.cellRunnable === undefined ? NotebookCellMetadataDefaults.runnable : documentMetadata?.cellRunnable)
+			: this.metadata?.runnable;
+
 		return {
-			editable: editable
+			editable,
+			runnable
 		};
 	}
 

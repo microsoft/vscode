@@ -39,10 +39,12 @@ export const NOTEBOOK_DISPLAY_ORDER = [
 export interface NotebookDocumentMetadata {
 	editable: boolean;
 	cellEditable?: boolean;
+	cellRunnable?: boolean;
 }
 
 export interface NotebookCellMetadata {
 	editable?: boolean;
+	runnable?: boolean;
 }
 
 export interface INotebookDisplayOrder {
