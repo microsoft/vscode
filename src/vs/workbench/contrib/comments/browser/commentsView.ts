@@ -149,7 +149,7 @@ export class CommentsPanel extends ViewPane {
 
 	private createTree(): void {
 		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, this));
-		this.tree = this._register(this.instantiationService.createInstance(CommentsList, this.treeLabels, this.treeContainer));
+		this.tree = this._register(this.instantiationService.createInstance(CommentsList, this.treeLabels, this.treeContainer, { overrideStyles: { listBackground: this.getBackgroundColor() } }));
 
 		const commentsNavigator = this._register(ResourceNavigator.createTreeResourceNavigator(this.tree, { openOnFocus: true }));
 		this._register(commentsNavigator.onDidOpenResource(e => {
