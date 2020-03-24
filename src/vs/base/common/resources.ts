@@ -45,7 +45,7 @@ export function getComparisonKey(resource: URI, caseInsensitivePath = hasToIgnor
 	if (caseInsensitivePath) {
 		path = path.toLowerCase();
 	}
-	return `${resource.scheme}://${resource.authority.toLowerCase()}/${path}?${resource.query}`;
+	return resource.with({ authority: resource.authority.toLowerCase(), path: path, fragment: null }).toString();
 }
 
 export function hasToIgnoreCase(resource: URI | undefined): boolean {

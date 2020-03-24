@@ -208,9 +208,20 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('debug.console.lineHeight') || e.affectsConfiguration('debug.console.fontSize') || e.affectsConfiguration('debug.console.fontFamily')) {
-				this.onDidFontChange();
+				this.onDidStyleChange();
 			}
 		}));
+
+		this._register(this.themeService.onDidColorThemeChange(e => {
+			this.onDidStyleChange();
+		}));
+
+		this._register(this.viewDescriptorService.onDidChangeLocation(e => {
+			if (e.views.some(v => v.id === this.id)) {
+				this.onDidStyleChange();
+			}
+		}));
+
 		this._register(this.editorService.onDidActiveEditorChange(() => {
 			this.setMode();
 		}));
@@ -253,14 +264,15 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		}
 	}
 
-	private onDidFontChange(): void {
+	private onDidStyleChange(): void {
 		if (this.styleElement) {
 			const debugConsole = this.configurationService.getValue<IDebugConfiguration>('debug').console;
 			const fontSize = debugConsole.fontSize;
 			const fontFamily = debugConsole.fontFamily === 'default' ? 'var(--monaco-monospace-font)' : debugConsole.fontFamily;
 			const lineHeight = debugConsole.lineHeight ? `${debugConsole.lineHeight}px` : '1.4em';
+			const backgroundColor = this.themeService.getColorTheme().getColor(this.getBackgroundColor());
 
-			// Set the font size, font family, line height and align the twistie to be centered
+			// Set the font size, font family, line height and align the twistie to be centered, and input theme color
 			this.styleElement.innerHTML = `
 				.repl .repl-tree .expression {
 					font-size: ${fontSize}px;
@@ -273,6 +285,10 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 				.repl .repl-tree .monaco-tl-twistie {
 					background-position-y: calc(100% - ${fontSize * 1.4 / 2 - 8}px);
+				}
+
+				.repl .repl-input-wrapper .monaco-editor .lines-content {
+					background-color: ${backgroundColor};
 				}
 			`;
 
@@ -510,7 +526,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		// Make sure to select the session if debugging is already active
 		this.selectSession();
 		this.styleElement = dom.createStyleSheet(this.container);
-		this.onDidFontChange();
+		this.onDidStyleChange();
 	}
 
 	private createReplInput(container: HTMLElement): void {

@@ -205,7 +205,7 @@ export class URI implements UriComponents {
 		// if (this.scheme !== 'file') {
 		// 	console.warn(`[UriError] calling fsPath with scheme ${this.scheme}`);
 		// }
-		return _makeFsPath(this);
+		return _makeFsPath(this, false);
 	}
 
 	// ---- modify to new -------------------------
@@ -347,9 +347,13 @@ export class URI implements UriComponents {
 		if (!uri.path) {
 			throw new Error(`[UriError]: cannot call joinPaths on URI without path`);
 		}
-		return uri.with({
-			path: paths.posix.join(uri.path, ...pathFragment)
-		});
+		let newPath: string;
+		if (isWindows && uri.scheme === 'file') {
+			newPath = URI.file(paths.win32.join(_makeFsPath(uri, true), ...pathFragment)).path;
+		} else {
+			newPath = paths.posix.join(uri.path, ...pathFragment);
+		}
+		return uri.with({ path: newPath });
 	}
 
 	// ---- printing/externalize ---------------------------
@@ -416,7 +420,7 @@ class _URI extends URI {
 
 	get fsPath(): string {
 		if (!this._fsPath) {
-			this._fsPath = _makeFsPath(this);
+			this._fsPath = _makeFsPath(this, false);
 		}
 		return this._fsPath;
 	}
@@ -572,7 +576,7 @@ function encodeURIComponentMinimal(path: string): string {
 /**
  * Compute `fsPath` for the given uri
  */
-function _makeFsPath(uri: URI): string {
+function _makeFsPath(uri: URI, keepDriveLetterCasing: boolean): string {
 
 	let value: string;
 	if (uri.authority && uri.path.length > 1 && uri.scheme === 'file') {
@@ -584,7 +588,11 @@ function _makeFsPath(uri: URI): string {
 		&& uri.path.charCodeAt(2) === CharCode.Colon
 	) {
 		// windows drive letter: file:///c:/far/boo
-		value = uri.path[1].toLowerCase() + uri.path.substr(2);
+		if (!keepDriveLetterCasing) {
+			value = uri.path[1].toLowerCase() + uri.path.substr(2);
+		} else {
+			value = uri.path.substr(1, 2);
+		}
 	} else {
 		// other path
 		value = uri.path;
