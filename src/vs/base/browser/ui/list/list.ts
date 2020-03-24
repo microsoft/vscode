@@ -65,7 +65,7 @@ export interface IIdentityProvider<T> {
 
 export enum ListAriaRootRole {
 	/** default list structure role */
-	LIST = 'listbox',
+	LIST = 'list',
 
 	/** default tree structure role */
 	TREE = 'tree',

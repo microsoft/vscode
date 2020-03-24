@@ -1348,7 +1348,7 @@ suite('Editor Controller - Regression tests', () => {
 
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), 'Hello world ');
-			assertCursor(cursor, new Position(1, 13));
+			assertCursor(cursor, new Selection(1, 12, 1, 13));
 
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), 'Hello world');

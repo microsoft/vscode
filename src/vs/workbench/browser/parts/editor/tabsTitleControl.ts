@@ -202,13 +202,13 @@ export class TabsTitleControl extends TitleControl {
 
 				EventHelper.stop(e);
 
-				this.group.openEditor(this.editorService.createEditorInput({
-					forceUntitled: true,
-					options: {
+				this.group.openEditor(
+					this.editorService.createEditorInput({ forceUntitled: true }),
+					{
 						pinned: true,			// untitled is always pinned
 						index: this.group.count // always at the end
 					}
-				}));
+				);
 			}));
 		});
 

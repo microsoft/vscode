@@ -31,18 +31,20 @@ export interface TimelineItem {
 	detail?: string;
 	command?: Command;
 	contextValue?: string;
+
+	relativeTime?: string;
+	hideRelativeTime?: boolean;
 }
 
 export interface TimelineChangeEvent {
-	id?: string;
+	id: string;
 	uri?: URI;
 	reset?: boolean
 }
 
 export interface TimelineOptions {
 	cursor?: string;
-	before?: boolean;
-	limit?: number | { cursor: string };
+	limit?: number | { timestamp: number; id?: string };
 }
 
 export interface InternalTimelineOptions {
@@ -55,11 +57,7 @@ export interface Timeline {
 	items: TimelineItem[];
 
 	paging?: {
-		cursors: {
-			before: string;
-			after?: string
-		};
-		more?: boolean;
+		cursor: string | undefined;
 	}
 }
 

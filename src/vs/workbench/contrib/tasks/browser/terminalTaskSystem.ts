@@ -33,7 +33,7 @@ import { IOutputService } from 'vs/workbench/contrib/output/common/output';
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEventKind, ProblemHandlingStrategy } from 'vs/workbench/contrib/tasks/common/problemCollectors';
 import {
 	Task, CustomTask, ContributedTask, RevealKind, CommandOptions, ShellConfiguration, RuntimeType, PanelKind,
-	TaskEvent, TaskEventKind, ShellQuotingOptions, ShellQuoting, CommandString, CommandConfiguration, ExtensionTaskSource, TaskScope, RevealProblemKind, DependsOrder, TaskSourceKind
+	TaskEvent, TaskEventKind, ShellQuotingOptions, ShellQuoting, CommandString, CommandConfiguration, ExtensionTaskSource, TaskScope, RevealProblemKind, DependsOrder, TaskSourceKind, InMemoryTask
 } from 'vs/workbench/contrib/tasks/common/tasks';
 import {
 	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, ITaskResolver,
@@ -250,10 +250,12 @@ export class TerminalTaskSystem implements ITaskSystem {
 			executeResult.promise.then(summary => {
 				this.lastTask = this.currentTask;
 			});
-			if (!this.instances[commonKey]) {
-				this.instances[commonKey] = new InstanceManager();
+			if (InMemoryTask.is(task) || !this.isTaskEmpty(task)) {
+				if (!this.instances[commonKey]) {
+					this.instances[commonKey] = new InstanceManager();
+				}
+				this.instances[commonKey].addInstance();
 			}
-			this.instances[commonKey].addInstance();
 			return executeResult;
 		} catch (error) {
 			if (error instanceof TaskError) {
@@ -366,11 +368,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		});
 	}
 
-	private removeFromActiveTasks(task: Task): void {
-		if (!this.activeTasks[task.getMapKey()]) {
-			return;
-		}
-		delete this.activeTasks[task.getMapKey()];
+	private removeInstances(task: Task) {
 		let commonKey = task._id.split('|')[0];
 		if (this.instances[commonKey]) {
 			this.instances[commonKey].removeInstance();
@@ -378,6 +376,14 @@ export class TerminalTaskSystem implements ITaskSystem {
 				delete this.instances[commonKey];
 			}
 		}
+	}
+
+	private removeFromActiveTasks(task: Task): void {
+		if (!this.activeTasks[task.getMapKey()]) {
+			return;
+		}
+		delete this.activeTasks[task.getMapKey()];
+		this.removeInstances(task);
 	}
 
 	public terminate(task: Task): Promise<TaskTerminateResponse> {
@@ -464,6 +470,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			return Promise.all(promises).then((summaries): Promise<ITaskSummary> | ITaskSummary => {
 				for (let summary of summaries) {
 					if (summary.exitCode !== 0) {
+						this.removeInstances(task);
 						return { exitCode: summary.exitCode };
 					}
 				}
@@ -606,8 +613,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		const resolvedVariables = this.resolveVariablesFromSet(systemInfo, workspaceFolder, task, variables, alreadyResolved);
 
 		return resolvedVariables.then((resolvedVariables) => {
-			const isCustomExecution = (task.command.runtime === RuntimeType.CustomExecution);
-			if (resolvedVariables && (task.command !== undefined) && task.command.runtime && (isCustomExecution || (task.command.name !== undefined))) {
+			if (resolvedVariables && !this.isTaskEmpty(task)) {
 				this.currentTask.resolvedVariables = resolvedVariables;
 				return this.executeInTerminal(task, trigger, new VariableResolver(workspaceFolder, systemInfo, resolvedVariables.variables, this.configurationResolverService), workspaceFolder);
 			} else {
@@ -618,6 +624,11 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}, reason => {
 			return Promise.reject(reason);
 		});
+	}
+
+	private isTaskEmpty(task: CustomTask | ContributedTask): boolean {
+		const isCustomExecution = (task.command.runtime === RuntimeType.CustomExecution);
+		return !((task.command !== undefined) && task.command.runtime && (isCustomExecution || (task.command.name !== undefined)));
 	}
 
 	private reexecuteCommand(task: CustomTask | ContributedTask, trigger: string, alreadyResolved: Map<string, string>): Promise<ITaskSummary> {

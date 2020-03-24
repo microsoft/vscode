@@ -11,10 +11,18 @@ import { ColorId, FontStyle, LanguageId, MetadataConsts, StandardTokenType, Toke
 import { writeUInt32BE, readUInt32BE } from 'vs/base/common/buffer';
 import { CharCode } from 'vs/base/common/charCode';
 
-export function countEOL(text: string): [number, number, number] {
+export const enum StringEOL {
+	Unknown = 0,
+	Invalid = 3,
+	LF = 1,
+	CRLF = 2
+}
+
+export function countEOL(text: string): [number, number, number, StringEOL] {
 	let eolCount = 0;
 	let firstLineLength = 0;
 	let lastLineStart = 0;
+	let eol: StringEOL = StringEOL.Unknown;
 	for (let i = 0, len = text.length; i < len; i++) {
 		const chr = text.charCodeAt(i);
 
@@ -25,12 +33,16 @@ export function countEOL(text: string): [number, number, number] {
 			eolCount++;
 			if (i + 1 < len && text.charCodeAt(i + 1) === CharCode.LineFeed) {
 				// \r\n... case
+				eol |= StringEOL.CRLF;
 				i++; // skip \n
 			} else {
 				// \r... case
+				eol |= StringEOL.Invalid;
 			}
 			lastLineStart = i + 1;
 		} else if (chr === CharCode.LineFeed) {
+			// \n... case
+			eol |= StringEOL.LF;
 			if (eolCount === 0) {
 				firstLineLength = i;
 			}
@@ -41,7 +53,7 @@ export function countEOL(text: string): [number, number, number] {
 	if (eolCount === 0) {
 		firstLineLength = text.length;
 	}
-	return [eolCount, firstLineLength, text.length - lastLineStart];
+	return [eolCount, firstLineLength, text.length - lastLineStart, eol];
 }
 
 function getDefaultMetadata(topLevelLanguageId: LanguageId): number {

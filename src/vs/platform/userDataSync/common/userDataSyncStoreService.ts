@@ -40,10 +40,15 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		super();
 		this.userDataSyncStore = getUserDataSyncStore(productService, configurationService);
 		this.commonHeadersPromise = getServiceMachineId(environmentService, fileService, storageService)
-			.then(uuid => ({
-				'X-Sync-Client-Id': productService.version,
-				'X-Sync-Machine-Id': uuid
-			}));
+			.then(uuid => {
+				const headers: IHeaders = {
+					'X-Sync-Client-Id': productService.version,
+				};
+				if (uuid) {
+					headers['X-Sync-Machine-Id'] = uuid;
+				}
+				return headers;
+			});
 	}
 
 	async getAllRefs(resource: SyncResource): Promise<IResourceRefHandle[]> {

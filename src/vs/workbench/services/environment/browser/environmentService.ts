@@ -103,13 +103,10 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	get argvResource(): URI { return joinPath(this.userRoamingDataHome, 'argv.json'); }
 
 	@memoize
+	get snippetsHome(): URI { return joinPath(this.userRoamingDataHome, 'snippets'); }
+
+	@memoize
 	get userDataSyncHome(): URI { return joinPath(this.userRoamingDataHome, 'sync'); }
-
-	@memoize
-	get settingsSyncPreviewResource(): URI { return joinPath(this.userDataSyncHome, 'settings.json'); }
-
-	@memoize
-	get keybindingsSyncPreviewResource(): URI { return joinPath(this.userDataSyncHome, 'keybindings.json'); }
 
 	@memoize
 	get userDataSyncLogResource(): URI { return joinPath(this.options.logsPath, 'userDataSync.log'); }

@@ -321,6 +321,8 @@ export function prepareQuery(original: string): IPreparedQuery {
 	let value = stripWildcards(original).replace(/\s/g, ''); // get rid of all wildcards and whitespace
 	if (isWindows) {
 		value = value.replace(/\//g, sep); // Help Windows users to search for paths when using slash
+	} else {
+		value = value.replace(/\\/g, sep); // Help macOS/Linux users to search for paths when using backslash
 	}
 
 	const lowercase = value.toLowerCase();
@@ -451,7 +453,7 @@ function doScoreItem(label: string, description: string | undefined, path: strin
 	return NO_ITEM_SCORE;
 }
 
-export function compareItemsByScore<T>(itemA: T, itemB: T, query: IPreparedQuery, fuzzy: boolean, accessor: IItemAccessor<T>, cache: ScorerCache, fallbackComparer = fallbackCompare): number {
+export function compareItemsByScore<T>(itemA: T, itemB: T, query: IPreparedQuery, fuzzy: boolean, accessor: IItemAccessor<T>, cache: ScorerCache): number {
 	const itemScoreA = scoreItem(itemA, query, fuzzy, accessor, cache);
 	const itemScoreB = scoreItem(itemB, query, fuzzy, accessor, cache);
 
@@ -517,7 +519,16 @@ export function compareItemsByScore<T>(itemA: T, itemB: T, query: IPreparedQuery
 		return scoreA > scoreB ? -1 : 1;
 	}
 
-	// 6.) scores are identical, prefer more compact matches (label and description)
+	// 6.) prefer matches in label over non-label matches
+	const itemAHasLabelMatches = Array.isArray(itemScoreA.labelMatch) && itemScoreA.labelMatch.length > 0;
+	const itemBHasLabelMatches = Array.isArray(itemScoreB.labelMatch) && itemScoreB.labelMatch.length > 0;
+	if (itemAHasLabelMatches && !itemBHasLabelMatches) {
+		return -1;
+	} else if (itemBHasLabelMatches && !itemAHasLabelMatches) {
+		return 1;
+	}
+
+	// 7.) scores are identical, prefer more compact matches (label and description)
 	const itemAMatchDistance = computeLabelAndDescriptionMatchDistance(itemA, itemScoreA, accessor);
 	const itemBMatchDistance = computeLabelAndDescriptionMatchDistance(itemB, itemScoreB, accessor);
 	if (itemAMatchDistance && itemBMatchDistance && itemAMatchDistance !== itemBMatchDistance) {
@@ -526,7 +537,7 @@ export function compareItemsByScore<T>(itemA: T, itemB: T, query: IPreparedQuery
 
 	// 7.) at this point, scores are identical and match compactness as well
 	// for both items so we start to use the fallback compare
-	return fallbackComparer(itemA, itemB, query, accessor);
+	return fallbackCompare(itemA, itemB, query, accessor);
 }
 
 function computeLabelAndDescriptionMatchDistance<T>(item: T, score: IItemScore, accessor: IItemAccessor<T>): number {

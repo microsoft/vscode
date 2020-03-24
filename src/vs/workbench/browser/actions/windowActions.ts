@@ -16,7 +16,7 @@ import { IsFullscreenContext } from 'vs/workbench/browser/contextkeys';
 import { IsMacNativeContext, IsDevelopmentContext } from 'vs/platform/contextkey/common/contextkeys';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IQuickInputButton, IQuickInputService, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputButton, IQuickInputService, IQuickPickSeparator, IKeyMods } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -27,7 +27,6 @@ import { URI } from 'vs/base/common/uri';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { FileKind } from 'vs/platform/files/common/files';
 import { splitName } from 'vs/base/common/labels';
-import { IKeyMods } from 'vs/base/parts/quickopen/common/quickOpen';
 import { isMacintosh } from 'vs/base/common/platform';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { inQuickOpenContext, getQuickNavigateHandler } from 'vs/workbench/browser/parts/quickopen/quickopen';
@@ -37,7 +36,7 @@ export const inRecentFilesPickerContextKey = 'inRecentFilesPicker';
 
 abstract class BaseOpenRecentAction extends Action {
 
-	private removeFromRecentlyOpened: IQuickInputButton = {
+	private readonly removeFromRecentlyOpened: IQuickInputButton = {
 		iconClass: 'codicon-close',
 		tooltip: nls.localize('remove', "Remove from Recently Opened")
 	};
@@ -125,7 +124,7 @@ abstract class BaseOpenRecentAction extends Action {
 		const pick = await this.quickInputService.pick(picks, {
 			contextKey: inRecentFilesPickerContextKey,
 			activeItem: [...workspacePicks, ...filePicks][autoFocusSecondEntry ? 1 : 0],
-			placeHolder: isMacintosh ? nls.localize('openRecentPlaceHolderMac', "Select to open (hold Cmd-key to open in new window)") : nls.localize('openRecentPlaceHolder', "Select to open (hold Ctrl-key to open in new window)"),
+			placeHolder: isMacintosh ? nls.localize('openRecentPlaceHolderMac', "Select to open (hold Cmd-key to force new window or Alt-key for same window)") : nls.localize('openRecentPlaceHolder', "Select to open (hold Ctrl-key to force new window or Alt-key for same window)"),
 			matchOnDescription: true,
 			onKeyMods: mods => keyMods = mods,
 			quickNavigate: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : undefined,
@@ -136,7 +135,7 @@ abstract class BaseOpenRecentAction extends Action {
 		});
 
 		if (pick) {
-			return this.hostService.openWindow([pick.openable], { forceNewWindow: keyMods?.ctrlCmd });
+			return this.hostService.openWindow([pick.openable], { forceNewWindow: keyMods?.ctrlCmd, forceReuseWindow: keyMods?.alt });
 		}
 	}
 }

@@ -49,7 +49,15 @@ export namespace Iterable {
 		return false;
 	}
 
-	export function* map<T, R>(iterable: Iterable<T>, fn: (t: T) => R): IterableIterator<R> {
+	export function* filter<T>(iterable: Iterable<T>, predicate: (t: T) => boolean): Iterable<T> {
+		for (const element of iterable) {
+			if (predicate(element)) {
+				return yield element;
+			}
+		}
+	}
+
+	export function* map<T, R>(iterable: Iterable<T>, fn: (t: T) => R): Iterable<R> {
 		for (const element of iterable) {
 			return yield fn(element);
 		}

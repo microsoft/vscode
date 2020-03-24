@@ -9225,10 +9225,10 @@ typescript@^2.6.2:
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-2.6.2.tgz#3c5b6fd7f6de0914269027f03c0946758f7673a4"
   integrity sha1-PFtv1/beCRQmkCfwPAlGdY92c6Q=
 
-typescript@^3.9.0-dev.20200313:
-  version "3.9.0-dev.20200313"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.9.0-dev.20200313.tgz#f66aeb2c08268f2b1fc6d1d96e15554c6e7ed29b"
-  integrity sha512-85/IJPm1nEUbQDxK3aN+svIy4X3kPcAipihB3704NY1HXncJ1daNLJW1OktOacb8tD/URpIGs9nMgbUrKvglGg==
+typescript@^3.9.0-dev.20200316:
+  version "3.9.0-dev.20200316"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.9.0-dev.20200316.tgz#7cbb2fa2eedf58eea27b3250ab38674790ccf999"
+  integrity sha512-MM67isAuvHM4hwfHR4K9NikB7MFD9RjISB5cXhtKmjkpMFO0QNzFmFq061VmsJqoRVpG9N2KE+cm6BJ9dIjrtQ==
 
 uc.micro@^1.0.1, uc.micro@^1.0.3:
   version "1.0.3"
@@ -9638,10 +9638,10 @@ vsce@1.48.0:
     yauzl "^2.3.1"
     yazl "^2.2.2"
 
-vscode-debugprotocol@1.39.0:
-  version "1.39.0"
-  resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.39.0.tgz#0c639178d0d5ea7de7903b6478b53d2bc0d77461"
-  integrity sha512-Wkvgtuz90vjtQBcvw9Z+BYa4dA6W+sHwHMpqvJVNmwWSuT3JZdl0XDhZNLqtMXkVF4okxtAe0MmbupPSt+gnAQ==
+vscode-debugprotocol@1.40.0-pre.1:
+  version "1.40.0-pre.1"
+  resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.40.0-pre.1.tgz#62c066c0520cc5e318dfc9873907574018bc8460"
+  integrity sha512-MLlNUSoJbRPNP/7PpnNLOOubZP/X0ObDEjwC6frrn/GR+bT943S1iIdj9aMjT7i93HSpsIAx8YbwkqId7nxLgw==
 
 vscode-minimist@^1.2.2:
   version "1.2.2"

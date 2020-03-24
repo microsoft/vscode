@@ -8,12 +8,12 @@ import { Code } from './code';
 
 export class QuickOpen {
 
-	static QUICK_OPEN = 'div.monaco-quick-open-widget';
-	static QUICK_OPEN_HIDDEN = 'div.monaco-quick-open-widget[aria-hidden="true"]';
-	static QUICK_OPEN_INPUT = `${QuickOpen.QUICK_OPEN} .quick-open-input input`;
-	static QUICK_OPEN_FOCUSED_ELEMENT = `${QuickOpen.QUICK_OPEN} .quick-open-tree .monaco-tree-row.focused .monaco-highlighted-label`;
-	static QUICK_OPEN_ENTRY_SELECTOR = 'div[aria-label="Quick Picker"] .monaco-tree-rows.show-twisties .monaco-tree-row .quick-open-entry';
-	static QUICK_OPEN_ENTRY_LABEL_SELECTOR = 'div[aria-label="Quick Picker"] .monaco-tree-rows.show-twisties .monaco-tree-row .quick-open-entry .label-name';
+	static QUICK_OPEN = '.quick-input-widget';
+	static QUICK_OPEN_INPUT = `${QuickOpen.QUICK_OPEN} .quick-input-box input`;
+	static QUICK_OPEN_ROW = `${QuickOpen.QUICK_OPEN} .quick-input-list .monaco-list-row`;
+	static QUICK_OPEN_FOCUSED_ELEMENT = `${QuickOpen.QUICK_OPEN_ROW}.focused .monaco-highlighted-label`;
+	static QUICK_OPEN_ENTRY_LABEL = `${QuickOpen.QUICK_OPEN_ROW} .label-name`;
+	static QUICK_OPEN_ENTRY_LABEL_SPAN = `${QuickOpen.QUICK_OPEN_ROW} .monaco-highlighted-label span`;
 
 	constructor(private code: Code, private editors: Editors) { }
 
@@ -64,7 +64,7 @@ export class QuickOpen {
 	}
 
 	private async waitForQuickOpenClosed(): Promise<void> {
-		await this.code.waitForElement(QuickOpen.QUICK_OPEN_HIDDEN);
+		await this.code.waitForElement(QuickOpen.QUICK_OPEN, r => !!r && r.attributes.style.indexOf('display: none;') !== -1);
 	}
 
 	async submit(text: string): Promise<void> {
@@ -74,26 +74,30 @@ export class QuickOpen {
 	}
 
 	async selectQuickOpenElement(index: number): Promise<void> {
-		await this.waitForQuickOpenOpened();
-		for (let from = 0; from < index; from++) {
-			await this.code.dispatchKeybinding('down');
-		}
+		this.activateQuickOpenElement(index);
 		await this.code.dispatchKeybinding('enter');
 		await this.waitForQuickOpenClosed();
 	}
 
 	async waitForQuickOpenElements(accept: (names: string[]) => boolean): Promise<void> {
-		await this.code.waitForElements(QuickOpen.QUICK_OPEN_ENTRY_LABEL_SELECTOR, false, els => accept(els.map(e => e.textContent)));
+		await this.code.waitForElements(QuickOpen.QUICK_OPEN_ENTRY_LABEL, false, els => accept(els.map(e => e.textContent)));
 	}
 
-	async runCommand(command: string): Promise<void> {
-		await this.openQuickOpen(`> ${command}`);
+	async runCommand(commandId: string): Promise<void> {
+		await this.openQuickOpen(`>${commandId}`);
 
 		// wait for best choice to be focused
-		await this.code.waitForTextContent(QuickOpen.QUICK_OPEN_FOCUSED_ELEMENT, command);
+		await this.code.waitForTextContent(QuickOpen.QUICK_OPEN_FOCUSED_ELEMENT);
 
 		// wait and click on best choice
-		await this.code.waitAndClick(QuickOpen.QUICK_OPEN_FOCUSED_ELEMENT);
+		await this.selectQuickOpenElement(0);
+	}
+
+	async activateQuickOpenElement(index: number): Promise<void> {
+		await this.waitForQuickOpenOpened();
+		for (let from = 0; from < index; from++) {
+			await this.code.dispatchKeybinding('down');
+		}
 	}
 
 	async openQuickOutline(): Promise<void> {
@@ -106,7 +110,7 @@ export class QuickOpen {
 				await this.code.dispatchKeybinding('ctrl+shift+o');
 			}
 
-			const text = await this.code.waitForTextContent('div[aria-label="Quick Picker"] .monaco-tree-rows.show-twisties div.monaco-tree-row .quick-open-entry .monaco-icon-label .label-name .monaco-highlighted-label span');
+			const text = await this.code.waitForTextContent(QuickOpen.QUICK_OPEN_ENTRY_LABEL_SPAN);
 
 			if (text !== 'No symbol information for the file') {
 				return;

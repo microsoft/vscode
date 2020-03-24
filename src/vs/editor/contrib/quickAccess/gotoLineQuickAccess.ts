@@ -6,17 +6,23 @@
 import { localize } from 'vs/nls';
 import { IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore, IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IEditor, ScrollType } from 'vs/editor/common/editorCommon';
 import { IRange } from 'vs/editor/common/core/range';
 import { AbstractEditorNavigationQuickAccessProvider } from 'vs/editor/contrib/quickAccess/editorNavigationQuickAccess';
 import { IPosition } from 'vs/editor/common/core/position';
+import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorOption, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 
 interface IGotoLineQuickPickItem extends IQuickPickItem, Partial<IPosition> { }
 
 export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditorNavigationQuickAccessProvider {
 
 	static PREFIX = ':';
+
+	constructor() {
+		super({ canAcceptInBackground: true });
+	}
 
 	protected provideWithoutTextEditor(picker: IQuickPick<IGotoLineQuickPickItem>): IDisposable {
 		const label = localize('cannotRunGotoLine', "Open a text editor first to go to a line.");
@@ -31,16 +37,18 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 		const disposables = new DisposableStore();
 
 		// Goto line once picked
-		disposables.add(picker.onDidAccept(() => {
+		disposables.add(picker.onDidAccept(event => {
 			const [item] = picker.selectedItems;
 			if (item) {
 				if (!this.isValidLineNumber(editor, item.lineNumber)) {
 					return;
 				}
 
-				this.gotoLocation(editor, this.toRange(item.lineNumber, item.column), picker.keyMods);
+				this.gotoLocation(editor, { range: this.toRange(item.lineNumber, item.column), keyMods: picker.keyMods, preserveFocus: event.inBackground });
 
-				picker.hide();
+				if (!event.inBackground) {
+					picker.hide();
+				}
 			}
 		}));
 
@@ -74,6 +82,18 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 		};
 		updatePickerAndEditor();
 		disposables.add(picker.onDidChangeValue(() => updatePickerAndEditor()));
+
+		// Adjust line number visibility as needed
+		const codeEditor = getCodeEditor(editor);
+		if (codeEditor) {
+			const options = codeEditor.getOptions();
+			const lineNumbers = options.get(EditorOption.lineNumbers);
+			if (lineNumbers.renderType === RenderLineNumbersType.Relative) {
+				codeEditor.updateOptions({ lineNumbers: 'on' });
+
+				disposables.add(toDisposable(() => codeEditor.updateOptions({ lineNumbers: 'relative' })));
+			}
+		}
 
 		return disposables;
 	}

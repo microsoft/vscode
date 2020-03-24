@@ -44,7 +44,6 @@ import { withUndefinedAsNull } from 'vs/base/common/types';
 import { MementoObject, Memento } from 'vs/workbench/common/memento';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { editorLightBulbForeground, editorLightBulbAutoFixForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
@@ -419,7 +418,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 				dnd: new ResourceDragAndDrop(this.instantiationService),
 				expandOnlyOnTwistieClick: (e: TreeElement) => e instanceof Marker && e.relatedInformation.length > 0,
 				overrideStyles: {
-					listBackground: PANEL_BACKGROUND
+					listBackground: this.getBackgroundColor()
 				}
 			},
 		));

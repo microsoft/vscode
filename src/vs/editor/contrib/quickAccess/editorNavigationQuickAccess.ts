@@ -13,13 +13,17 @@ import { IQuickPick, IQuickPickItem, IKeyMods } from 'vs/platform/quickinput/com
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
-import { isDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { isDiffEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { once } from 'vs/base/common/functional';
 
 interface IEditorLineDecoration {
 	rangeHighlightId: string;
 	overviewRulerDecorationId: string;
+}
+
+export interface IEditorNavigationQuickAccessOptions {
+	canAcceptInBackground?: boolean;
 }
 
 /**
@@ -29,10 +33,15 @@ interface IEditorLineDecoration {
  */
 export abstract class AbstractEditorNavigationQuickAccessProvider implements IQuickAccessProvider {
 
+	constructor(protected options?: IEditorNavigationQuickAccessOptions) { }
+
 	//#region Provider methods
 
 	provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable {
 		const disposables = new DisposableStore();
+
+		// Apply options if any
+		picker.canAcceptInBackground = !!this.options?.canAcceptInBackground;
 
 		// Disable filtering & sorting, we control the results
 		picker.matchOnLabel = picker.matchOnDescription = picker.matchOnDetail = picker.sortByLabel = false;
@@ -59,12 +68,24 @@ export abstract class AbstractEditorNavigationQuickAccessProvider implements IQu
 
 			// Restore any view state if this picker was closed
 			// without actually going to a line
-			const lastKnownEditorViewState = withNullAsUndefined(editor.saveViewState());
-			once(token.onCancellationRequested)(() => {
-				if (lastKnownEditorViewState) {
-					editor.restoreViewState(lastKnownEditorViewState);
-				}
-			});
+			const codeEditor = getCodeEditor(editor);
+			if (codeEditor) {
+
+				// Remember view state and update it when the cursor position
+				// changes even later because it could be that the user has
+				// configured quick open to remain open when focus is lost and
+				// we always want to restore the current location.
+				let lastKnownEditorViewState = withNullAsUndefined(editor.saveViewState());
+				disposables.add(codeEditor.onDidChangeCursorPosition(() => {
+					lastKnownEditorViewState = withNullAsUndefined(editor.saveViewState());
+				}));
+
+				disposables.add(once(token.onCancellationRequested)(() => {
+					if (lastKnownEditorViewState) {
+						editor.restoreViewState(lastKnownEditorViewState);
+					}
+				}));
+			}
 
 			// Clean up decorations on dispose
 			disposables.add(toDisposable(() => this.clearDecorations(editor)));
@@ -98,10 +119,12 @@ export abstract class AbstractEditorNavigationQuickAccessProvider implements IQu
 	 */
 	protected abstract provideWithoutTextEditor(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable;
 
-	protected gotoLocation(editor: IEditor, range: IRange, keyMods: IKeyMods, forceSideBySide?: boolean): void {
-		editor.setSelection(range);
-		editor.revealRangeInCenter(range, ScrollType.Smooth);
-		editor.focus();
+	protected gotoLocation(editor: IEditor, options: { range: IRange, keyMods: IKeyMods, forceSideBySide?: boolean, preserveFocus?: boolean }): void {
+		editor.setSelection(options.range);
+		editor.revealRangeInCenter(options.range, ScrollType.Smooth);
+		if (!options.preserveFocus) {
+			editor.focus();
+		}
 	}
 
 	protected getModel(editor: IEditor | IDiffEditor): ITextModel | undefined {

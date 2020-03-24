@@ -28,16 +28,18 @@ import { ResourceNavigator, WorkbenchAsyncDataTree } from 'vs/platform/list/brow
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import { Event } from 'vs/base/common/event';
-import { dispose } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { isSessionAttach } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { STOP_ID, STOP_LABEL, DISCONNECT_ID, DISCONNECT_LABEL, RESTART_SESSION_ID, RESTART_LABEL, STEP_OVER_ID, STEP_OVER_LABEL, STEP_INTO_LABEL, STEP_INTO_ID, STEP_OUT_LABEL, STEP_OUT_ID, PAUSE_ID, PAUSE_LABEL, CONTINUE_ID, CONTINUE_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 
 const $ = dom.$;
 
@@ -170,8 +172,8 @@ export class CallStackView extends ViewPane {
 			new ThreadsRenderer(this.instantiationService),
 			this.instantiationService.createInstance(StackFramesRenderer),
 			new ErrorsRenderer(),
-			new LoadMoreRenderer(),
-			new ShowMoreRenderer()
+			new LoadMoreRenderer(this.themeService),
+			new ShowMoreRenderer(this.themeService)
 		], this.dataSource, {
 			accessibilityProvider: new CallStackAccessibilityProvider(),
 			ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'callStackAriaLabel' }, "Debug Call Stack"),
@@ -408,6 +410,7 @@ interface IErrorTemplateData {
 
 interface ILabelTemplateData {
 	label: HTMLElement;
+	toDispose: IDisposable;
 }
 
 interface IStackFrameTemplateData {
@@ -433,6 +436,7 @@ class SessionsRenderer implements ITreeRenderer<IDebugSession, FuzzyScore, ISess
 
 	renderTemplate(container: HTMLElement): ISessionTemplateData {
 		const session = dom.append(container, $('.session'));
+		dom.append(session, $('.codicon.codicon-bug'));
 		const name = dom.append(session, $('.name'));
 		const state = dom.append(session, $('.state'));
 		const stateLabel = dom.append(state, $('span.label'));
@@ -594,14 +598,21 @@ class LoadMoreRenderer implements ITreeRenderer<ThreadAndSessionIds, FuzzyScore,
 	static readonly ID = 'loadMore';
 	static readonly LABEL = nls.localize('loadMoreStackFrames', "Load More Stack Frames");
 
+	constructor(private readonly themeService: IThemeService) { }
+
 	get templateId(): string {
 		return LoadMoreRenderer.ID;
 	}
 
-	renderTemplate(container: HTMLElement): IErrorTemplateData {
+	renderTemplate(container: HTMLElement): ILabelTemplateData {
 		const label = dom.append(container, $('.load-more'));
+		const toDispose = attachStylerCallback(this.themeService, { textLinkForeground }, colors => {
+			if (colors.textLinkForeground) {
+				label.style.color = colors.textLinkForeground.toString();
+			}
+		});
 
-		return { label };
+		return { label, toDispose };
 	}
 
 	renderElement(element: ITreeNode<ThreadAndSessionIds, FuzzyScore>, index: number, data: ILabelTemplateData): void {
@@ -609,21 +620,29 @@ class LoadMoreRenderer implements ITreeRenderer<ThreadAndSessionIds, FuzzyScore,
 	}
 
 	disposeTemplate(templateData: ILabelTemplateData): void {
-		// noop
+		templateData.toDispose.dispose();
 	}
 }
 
 class ShowMoreRenderer implements ITreeRenderer<IStackFrame[], FuzzyScore, ILabelTemplateData> {
 	static readonly ID = 'showMore';
 
+	constructor(private readonly themeService: IThemeService) { }
+
+
 	get templateId(): string {
 		return ShowMoreRenderer.ID;
 	}
 
-	renderTemplate(container: HTMLElement): IErrorTemplateData {
+	renderTemplate(container: HTMLElement): ILabelTemplateData {
 		const label = dom.append(container, $('.show-more'));
+		const toDispose = attachStylerCallback(this.themeService, { textLinkForeground }, colors => {
+			if (colors.textLinkForeground) {
+				label.style.color = colors.textLinkForeground.toString();
+			}
+		});
 
-		return { label };
+		return { label, toDispose };
 	}
 
 	renderElement(element: ITreeNode<IStackFrame[], FuzzyScore>, index: number, data: ILabelTemplateData): void {
@@ -636,18 +655,20 @@ class ShowMoreRenderer implements ITreeRenderer<IStackFrame[], FuzzyScore, ILabe
 	}
 
 	disposeTemplate(templateData: ILabelTemplateData): void {
-		// noop
+		templateData.toDispose.dispose();
 	}
 }
 
 class CallStackDelegate implements IListVirtualDelegate<CallStackItem> {
 
 	getHeight(element: CallStackItem): number {
-		if (element instanceof StackFrame) {
-			if (!element.source || !element.source.available || isDeemphasized(element)) {
-				return 12;
-			}
+		if (element instanceof StackFrame && element.presentationHint === 'label') {
+			return 12;
 		}
+		if (element instanceof ThreadAndSessionIds || element instanceof Array) {
+			return 12;
+		}
+
 		return 22;
 	}
 

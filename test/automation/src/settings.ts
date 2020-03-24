@@ -32,6 +32,6 @@ export class SettingsEditor {
 	}
 
 	private async openSettings(): Promise<void> {
-		await this.quickopen.runCommand('Preferences: Open Settings (JSON)');
+		await this.quickopen.runCommand('workbench.action.openSettingsJson');
 	}
 }

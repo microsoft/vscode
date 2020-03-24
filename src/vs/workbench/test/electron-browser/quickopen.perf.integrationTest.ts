@@ -89,7 +89,7 @@ suite.skip('QuickOpen performance (integration)', () => {
 			[IDialogService, dialogService],
 			[INotificationService, notificationService],
 			[IUndoRedoService, undoRedoService],
-			[IModelService, new ModelServiceImpl(configurationService, textResourcePropertiesService, new TestThemeService(), new NullLogService(), undoRedoService)],
+			[IModelService, new ModelServiceImpl(configurationService, textResourcePropertiesService, new TestThemeService(), new NullLogService(), undoRedoService, dialogService)],
 			[IWorkspaceContextService, new TestContextService(testWorkspace(URI.file(testWorkspacePath)))],
 			[IEditorService, new TestEditorService()],
 			[IEditorGroupsService, new TestEditorGroupsService()],

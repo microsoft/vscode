@@ -50,10 +50,10 @@ class ChangeHierarchyDirectionAction extends Action {
 		const update = () => {
 			if (getDirection() === CallHierarchyDirection.CallsFrom) {
 				this.label = localize('toggle.from', "Show Incoming Calls");
-				this.class = 'calls-from';
+				this.class = 'codicon codicon-call-incoming';
 			} else {
 				this.label = localize('toggle.to', "Showing Outgoing Calls");
-				this.class = 'calls-to';
+				this.class = 'codicon codicon-call-outgoing';
 			}
 		};
 		update();

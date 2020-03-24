@@ -40,6 +40,17 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.action.alternativeAcceptSelectedQuickOpenItem',
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: inQuickOpenContext,
+	primary: 0,
+	handler: accessor => {
+		const quickInputService = accessor.get(IQuickInputService);
+		return quickInputService.accept({ ctrlCmd: true, alt: false });
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.action.focusQuickOpen',
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: inQuickOpenContext,

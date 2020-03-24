@@ -35,11 +35,6 @@ export interface IQuickPickItem {
 	strikethrough?: boolean;
 	highlights?: IQuickPickItemHighlights;
 	buttons?: IQuickInputButton[];
-	/**
-	 * Wether to always show the buttons. By default buttons
-	 * are only visible when hovering over them with the mouse
-	 */
-	buttonsAlwaysVisible?: boolean;
 	picked?: boolean;
 	alwaysShow?: boolean;
 }
@@ -53,6 +48,8 @@ export interface IKeyMods {
 	readonly ctrlCmd: boolean;
 	readonly alt: boolean;
 }
+
+export const NO_KEY_MODS: IKeyMods = { ctrlCmd: false, alt: false };
 
 export interface IQuickNavigateConfiguration {
 	keybindings: ResolvedKeybinding[];
@@ -185,6 +182,12 @@ export interface IQuickPickAcceptEvent {
 	inBackground: boolean;
 }
 
+export enum ItemActivation {
+	FIRST = 1,
+	SECOND,
+	LAST
+}
+
 export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 
 	value: string;
@@ -246,6 +249,11 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 
 	readonly onDidChangeActive: Event<T[]>;
 
+	/**
+	 * Allows to control which entry should be activated by default.
+	 */
+	itemActivation: ItemActivation;
+
 	selectedItems: ReadonlyArray<T>;
 
 	readonly onDidChangeSelection: Event<T[]>;
@@ -259,6 +267,13 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	inputHasFocus(): boolean;
 
 	focusOnInput(): void;
+
+	/**
+	 * Hides the input box from the picker UI. This is typically used
+	 * in combination with quick-navigation where no search UI should
+	 * be presented.
+	 */
+	hideInput: boolean;
 }
 
 export interface IInputBox extends IQuickInput {
@@ -290,6 +305,11 @@ export interface IQuickInputButton {
 	/** iconPath or iconClass required */
 	iconClass?: string;
 	tooltip?: string;
+	/**
+	 * Wether to always show the button. By default buttons
+	 * are only visible when hovering over them with the mouse
+	 */
+	alwaysVisible?: boolean;
 }
 
 export interface IQuickPickItemButtonEvent<T extends IQuickPickItem> {
@@ -308,22 +328,35 @@ export type QuickPickInput<T = IQuickPickItem> = T | IQuickPickSeparator;
 
 export type IQuickPickItemWithResource = IQuickPickItem & { resource: URI | undefined };
 
-export const quickPickItemScorerAccessor = new class implements IItemAccessor<IQuickPickItemWithResource> {
+export class QuickPickItemScorerAccessor implements IItemAccessor<IQuickPickItemWithResource> {
+
+	constructor(private options?: { skipDescription?: boolean, skipPath?: boolean }) { }
+
 	getItemLabel(entry: IQuickPickItemWithResource): string {
 		return entry.label;
 	}
 
 	getItemDescription(entry: IQuickPickItemWithResource): string | undefined {
+		if (this.options?.skipDescription) {
+			return undefined;
+		}
+
 		return entry.description;
 	}
 
 	getItemPath(entry: IQuickPickItemWithResource): string | undefined {
+		if (this.options?.skipPath) {
+			return undefined;
+		}
+
 		if (entry.resource?.scheme === Schemas.file) {
 			return entry.resource.fsPath;
 		}
 
 		return entry.resource?.path;
 	}
-};
+}
+
+export const quickPickItemScorerAccessor = new QuickPickItemScorerAccessor();
 
 //#endregion

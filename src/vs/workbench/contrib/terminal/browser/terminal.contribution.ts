@@ -40,7 +40,7 @@ import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
-import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminaQuickAccess';
+import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalsQuickAccess';
 
 registerSingleton(ITerminalService, TerminalService, true);
 
@@ -295,7 +295,7 @@ configurationRegistry.registerConfiguration({
 			default: true
 		},
 		'terminal.integrated.allowMnemonics': {
-			markdownDescription: nls.localize('terminal.integrated.allowMnemonics', "Whether to allow menubar mnemonics (eg. alt+f) to trigger the open the menubar. Note that this will cause all alt keystrokes will skip the shell when true."),
+			markdownDescription: nls.localize('terminal.integrated.allowMnemonics', "Whether to allow menubar mnemonics (eg. alt+f) to trigger the open the menubar. Note that this will cause all alt keystrokes will skip the shell when true. This does nothing on macOS."),
 			type: 'boolean',
 			default: false
 		},
@@ -381,7 +381,8 @@ const VIEW_CONTAINER = Registry.as<IViewContainersRegistry>(ViewContainerExtensi
 	id: TERMINAL_VIEW_ID,
 	name: nls.localize('terminal', "Terminal"),
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [TERMINAL_VIEW_ID, TERMINAL_VIEW_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
-	focusCommand: { id: TERMINAL_COMMAND_ID.FOCUS }
+	focusCommand: { id: TERMINAL_COMMAND_ID.FOCUS },
+	hideIfEmpty: true
 }, ViewContainerLocation.Panel);
 Registry.as<panel.PanelRegistry>(panel.Extensions.Panels).setDefaultPanelId(TERMINAL_VIEW_ID);
 
@@ -389,6 +390,7 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 	id: TERMINAL_VIEW_ID,
 	name: nls.localize('terminal', "Terminal"),
 	canToggleVisibility: false,
+	canMoveView: true,
 	ctorDescriptor: new SyncDescriptor(TerminalViewPane)
 }], VIEW_CONTAINER);
 

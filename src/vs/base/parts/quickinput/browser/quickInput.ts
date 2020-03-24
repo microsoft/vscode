@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/quickInput';
-import { IQuickPickItem, IPickOptions, IInputOptions, IQuickNavigateConfiguration, IQuickPick, IQuickInput, IQuickInputButton, IInputBox, IQuickPickItemButtonEvent, QuickPickInput, IQuickPickSeparator, IKeyMods, IQuickPickAcceptEvent } from 'vs/base/parts/quickinput/common/quickInput';
+import { IQuickPickItem, IPickOptions, IInputOptions, IQuickNavigateConfiguration, IQuickPick, IQuickInput, IQuickInputButton, IInputBox, IQuickPickItemButtonEvent, QuickPickInput, IQuickPickSeparator, IKeyMods, IQuickPickAcceptEvent, NO_KEY_MODS, ItemActivation } from 'vs/base/parts/quickinput/common/quickInput';
 import * as dom from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { QuickInputList } from './quickInputList';
+import { QuickInputList, QuickInputListFocus } from './quickInputList';
 import { QuickInputBox } from './quickInputBox';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -125,6 +125,7 @@ type Visibilities = {
 	list?: boolean;
 	ok?: boolean;
 	customButton?: boolean;
+	progressBar?: boolean;
 };
 
 class QuickInput extends Disposable implements IQuickInput {
@@ -363,7 +364,7 @@ class QuickInput extends Disposable implements IQuickInput {
 
 	readonly onDispose = this.onDisposeEmitter.event;
 
-	public dispose(): void {
+	dispose(): void {
 		this.hide();
 		this.onDisposeEmitter.fire();
 
@@ -390,6 +391,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private _matchOnLabel = true;
 	private _sortByLabel = true;
 	private _autoFocusOnList = true;
+	private _itemActivation = ItemActivation.FIRST;
 	private _activeItems: T[] = [];
 	private activeItemsUpdated = false;
 	private activeItemsToConfirm: T[] | null = [];
@@ -406,8 +408,17 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private _customButton = false;
 	private _customButtonLabel: string | undefined;
 	private _customButtonHover: string | undefined;
+	private _quickNavigate: IQuickNavigateConfiguration | undefined;
+	private _hideInput: boolean | undefined;
 
-	quickNavigate: IQuickNavigateConfiguration | undefined;
+	get quickNavigate() {
+		return this._quickNavigate;
+	}
+
+	set quickNavigate(quickNavigate: IQuickNavigateConfiguration | undefined) {
+		this._quickNavigate = quickNavigate;
+		this.update();
+	}
 
 	get value() {
 		return this._value;
@@ -507,7 +518,6 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		this.update();
 	}
 
-
 	get autoFocusOnList() {
 		return this._autoFocusOnList;
 	}
@@ -515,6 +525,14 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	set autoFocusOnList(autoFocusOnList: boolean) {
 		this._autoFocusOnList = autoFocusOnList;
 		this.update();
+	}
+
+	get itemActivation() {
+		return this._itemActivation;
+	}
+
+	set itemActivation(itemActivation: ItemActivation) {
+		this._itemActivation = itemActivation;
 	}
 
 	get activeItems() {
@@ -540,6 +558,13 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	}
 
 	get keyMods() {
+		if (this._quickNavigate) {
+			// Disable keyMods when quick navigate is enabled
+			// because in this model the interaction is purely
+			// keyboard driven and Ctrl/Alt are typically
+			// pressed and hold during this interaction.
+			return NO_KEY_MODS;
+		}
 		return this.ui.keyMods;
 	}
 
@@ -594,12 +619,21 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		this.update();
 	}
 
-	public inputHasFocus(): boolean {
+	inputHasFocus(): boolean {
 		return this.visible ? this.ui.inputBox.hasFocus() : false;
 	}
 
-	public focusOnInput() {
+	focusOnInput() {
 		this.ui.inputBox.setFocus();
+	}
+
+	get hideInput() {
+		return !!this._hideInput;
+	}
+
+	set hideInput(hideInput: boolean) {
+		this._hideInput = hideInput;
+		this.update();
 	}
 
 	onDidChangeSelection = this.onDidChangeSelectionEmitter.event;
@@ -609,7 +643,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private trySelectFirst() {
 		if (this.autoFocusOnList) {
 			if (!this.ui.isScreenReaderOptimized() && !this.canSelectMany) {
-				this.ui.list.focus('First');
+				this.ui.list.focus(QuickInputListFocus.First);
 			}
 		}
 	}
@@ -622,8 +656,10 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 						return;
 					}
 					this._value = value;
-					this.ui.list.filter(this.filterValue(this.ui.inputBox.value));
-					this.trySelectFirst();
+					const didFilter = this.ui.list.filter(this.filterValue(this.ui.inputBox.value));
+					if (didFilter) {
+						this.trySelectFirst();
+					}
 					this.onDidChangeValueEmitter.fire(value);
 				}));
 			this.visibleDisposables.add(this.ui.inputBox.onMouseDown(event => {
@@ -634,7 +670,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 			this.visibleDisposables.add(this.ui.inputBox.onKeyDown(event => {
 				switch (event.keyCode) {
 					case KeyCode.DownArrow:
-						this.ui.list.focus('Next');
+						this.ui.list.focus(QuickInputListFocus.Next);
 						if (this.canSelectMany) {
 							this.ui.list.domFocus();
 						}
@@ -642,9 +678,9 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 						break;
 					case KeyCode.UpArrow:
 						if (this.ui.list.getFocusedElements().length) {
-							this.ui.list.focus('Previous');
+							this.ui.list.focus(QuickInputListFocus.Previous);
 						} else {
-							this.ui.list.focus('Last');
+							this.ui.list.focus(QuickInputListFocus.Last);
 						}
 						if (this.canSelectMany) {
 							this.ui.list.domFocus();
@@ -653,9 +689,9 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 						break;
 					case KeyCode.PageDown:
 						if (this.ui.list.getFocusedElements().length) {
-							this.ui.list.focus('NextPage');
+							this.ui.list.focus(QuickInputListFocus.NextPage);
 						} else {
-							this.ui.list.focus('First');
+							this.ui.list.focus(QuickInputListFocus.First);
 						}
 						if (this.canSelectMany) {
 							this.ui.list.domFocus();
@@ -664,9 +700,9 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 						break;
 					case KeyCode.PageUp:
 						if (this.ui.list.getFocusedElements().length) {
-							this.ui.list.focus('PreviousPage');
+							this.ui.list.focus(QuickInputListFocus.PreviousPage);
 						} else {
-							this.ui.list.focus('Last');
+							this.ui.list.focus(QuickInputListFocus.Last);
 						}
 						if (this.canSelectMany) {
 							this.ui.list.domFocus();
@@ -699,7 +735,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 				this.onDidAcceptEmitter.fire({ inBackground: false });
 			}));
 			this.visibleDisposables.add(this.ui.onDidCustom(() => {
-				this.onDidCustomEmitter.fire(undefined);
+				this.onDidCustomEmitter.fire();
 			}));
 			this.visibleDisposables.add(this.ui.list.onDidChangeFocus(focusedItems => {
 				if (this.activeItemsUpdated) {
@@ -746,7 +782,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 
 	private registerQuickNavigation() {
 		return dom.addDisposableListener(this.ui.container, dom.EventType.KEY_UP, e => {
-			if (this.canSelectMany || !this.quickNavigate) {
+			if (this.canSelectMany || !this._quickNavigate) {
 				return;
 			}
 
@@ -754,7 +790,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 			const keyCode = keyboardEvent.keyCode;
 
 			// Select element when keys are pressed that signal it
-			const quickNavKeys = this.quickNavigate.keybindings;
+			const quickNavKeys = this._quickNavigate.keybindings;
 			const wasTriggerKeyPressed = quickNavKeys.some(k => {
 				const [firstPart, chordPart] = k.getParts();
 				if (chordPart) {
@@ -784,10 +820,16 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 				return false;
 			});
 
-			if (wasTriggerKeyPressed && this.activeItems[0]) {
-				this._selectedItems = [this.activeItems[0]];
-				this.onDidChangeSelectionEmitter.fire(this.selectedItems);
-				this.onDidAcceptEmitter.fire({ inBackground: false });
+			if (wasTriggerKeyPressed) {
+				if (this.activeItems[0]) {
+					this._selectedItems = [this.activeItems[0]];
+					this.onDidChangeSelectionEmitter.fire(this.selectedItems);
+					this.onDidAcceptEmitter.fire({ inBackground: false });
+				}
+				// Unset quick navigate after press. It is only valid once
+				// and should not result in any behaviour change afterwards
+				// if the picker remains open because there was no active item
+				this._quickNavigate = undefined;
 			}
 		});
 	}
@@ -796,8 +838,22 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		if (!this.visible) {
 			return;
 		}
-		const ok = this.ok === 'default' ? this.canSelectMany : this.ok;
-		this.ui.setVisibilities(this.canSelectMany ? { title: !!this.title || !!this.step, description: !!this.description, checkAll: true, inputBox: true, visibleCount: true, count: true, ok, list: true, message: !!this.validationMessage, customButton: this.customButton } : { title: !!this.title || !!this.step, description: !!this.description, inputBox: true, visibleCount: true, list: true, message: !!this.validationMessage, customButton: this.customButton, ok });
+		const hideInput = !!this._hideInput && this._items.length > 0; // do not allow to hide input without items
+		dom.toggleClass(this.ui.container, 'hidden-input', hideInput);
+		const visibilities: Visibilities = {
+			title: !!this.title || !!this.step,
+			description: !!this.description,
+			checkAll: this.canSelectMany,
+			inputBox: !hideInput,
+			progressBar: !hideInput,
+			visibleCount: true,
+			count: this.canSelectMany,
+			ok: this.ok === 'default' ? this.canSelectMany : this.ok,
+			list: true,
+			message: !!this.validationMessage,
+			customButton: this.customButton
+		};
+		this.ui.setVisibilities(visibilities);
 		super.update();
 		if (this.ui.inputBox.value !== this.value) {
 			this.ui.inputBox.value = this.value;
@@ -823,7 +879,19 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 			this.ui.checkAll.checked = this.ui.list.getAllVisibleChecked();
 			this.ui.visibleCount.setCount(this.ui.list.getVisibleCount());
 			this.ui.count.setCount(this.ui.list.getCheckedCount());
-			this.trySelectFirst();
+			switch (this._itemActivation) {
+				case ItemActivation.SECOND:
+					this.ui.list.focus(QuickInputListFocus.Second);
+					this._itemActivation = ItemActivation.FIRST; // only valid once, then unset
+					break;
+				case ItemActivation.LAST:
+					this.ui.list.focus(QuickInputListFocus.Last);
+					this._itemActivation = ItemActivation.FIRST; // only valid once, then unset
+					break;
+				default:
+					this.trySelectFirst();
+					break;
+			}
 		}
 		if (this.ui.container.classList.contains('show-checkboxes') !== !!this.canSelectMany) {
 			if (this.canSelectMany) {
@@ -862,6 +930,11 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		this.ui.customButton.label = this.customLabel || '';
 		this.ui.customButton.element.title = this.customHover || '';
 		this.ui.setComboboxAccessibility(true);
+		if (!visibilities.inputBox) {
+			// we need to move focus into the tree to detect keybindings
+			// properly when the input box is not visible (quick nav)
+			this.ui.list.domFocus();
+		}
 	}
 }
 
@@ -948,7 +1021,7 @@ class InputBox extends QuickInput implements IInputBox {
 					this._value = value;
 					this.onDidValueChangeEmitter.fire(value);
 				}));
-			this.visibleDisposables.add(this.ui.onDidAccept(() => this.onDidAcceptEmitter.fire(undefined)));
+			this.visibleDisposables.add(this.ui.onDidAccept(() => this.onDidAcceptEmitter.fire()));
 			this.valueSelectionUpdated = true;
 		}
 		super.show();
@@ -1002,10 +1075,12 @@ export class QuickInputController extends Disposable {
 
 	private parentElement: HTMLElement;
 	private styles: IQuickInputStyles;
+
 	private onShowEmitter = new Emitter<void>();
+	readonly onShow = this.onShowEmitter.event;
+
 	private onHideEmitter = new Emitter<void>();
-	public onShow = this.onShowEmitter.event;
-	public onHide = this.onHideEmitter.event;
+	readonly onHide = this.onHideEmitter.event;
 
 	constructor(private options: IQuickInputOptions) {
 		super();
@@ -1016,7 +1091,7 @@ export class QuickInputController extends Disposable {
 	}
 
 	private registerKeyModsListeners() {
-		this._register(dom.addDisposableListener(this.parentElement, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+		this._register(dom.addDisposableListener(window, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			switch (event.keyCode) {
 				case KeyCode.Ctrl:
@@ -1028,7 +1103,7 @@ export class QuickInputController extends Disposable {
 					break;
 			}
 		}));
-		this._register(dom.addDisposableListener(this.parentElement, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
+		this._register(dom.addDisposableListener(window, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			switch (event.keyCode) {
 				case KeyCode.Ctrl:
@@ -1440,6 +1515,7 @@ export class QuickInputController extends Disposable {
 		ui.okContainer.style.display = visibilities.ok ? '' : 'none';
 		ui.customButtonContainer.style.display = visibilities.customButton ? '' : 'none';
 		ui.message.style.display = visibilities.message ? '' : 'none';
+		ui.progressBar.getContainer().style.display = visibilities.progressBar ? '' : 'none';
 		ui.list.display(!!visibilities.list);
 		ui.container.classList[visibilities.checkAll ? 'add' : 'remove']('show-checkboxes');
 		this.updateLayout(); // TODO
@@ -1479,7 +1555,7 @@ export class QuickInputController extends Disposable {
 		}
 	}
 
-	public hide(focusLost?: boolean) {
+	hide(focusLost?: boolean) {
 		const controller = this.controller;
 		if (controller) {
 			this.controller = null;
@@ -1506,14 +1582,21 @@ export class QuickInputController extends Disposable {
 
 	navigate(next: boolean, quickNavigate?: IQuickNavigateConfiguration) {
 		if (this.isDisplayed() && this.getUI().list.isDisplayed()) {
-			this.getUI().list.focus(next ? 'Next' : 'Previous');
+			this.getUI().list.focus(next ? QuickInputListFocus.Next : QuickInputListFocus.Previous);
 			if (quickNavigate && this.controller instanceof QuickPick) {
 				this.controller.quickNavigate = quickNavigate;
 			}
 		}
 	}
 
-	async accept() {
+	async accept(keyMods: IKeyMods = { alt: false, ctrlCmd: false }) {
+		// When accepting the item programmatically, it is important that
+		// we update `keyMods` either from the provided set or unset it
+		// because the accept did not happen from mouse or keyboard
+		// interaction on the list itself
+		this.keyMods.alt = keyMods.alt;
+		this.keyMods.ctrlCmd = keyMods.ctrlCmd;
+
 		this.onDidAcceptEmitter.fire();
 	}
 
@@ -1545,7 +1628,7 @@ export class QuickInputController extends Disposable {
 		}
 	}
 
-	public applyStyles(styles: IQuickInputStyles) {
+	applyStyles(styles: IQuickInputStyles) {
 		this.styles = styles;
 		this.updateStyles();
 	}

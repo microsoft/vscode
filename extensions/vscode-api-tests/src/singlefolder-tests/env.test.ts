@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { env, extensions, ExtensionKind, UIKind, Uri } from 'vscode';
 
-suite('env-namespace', () => {
+suite('vscode API - env', () => {
 
 	test('env is set', function () {
 		assert.equal(typeof env.language, 'string');

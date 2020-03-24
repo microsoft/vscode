@@ -11,7 +11,6 @@ import { isEqual } from 'vs/base/common/resources';
 import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
@@ -138,7 +137,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			return undefined;
 		}
 
-		return this.tryMoveWebview(groupId, target) || this.editorService.createEditorInput({ resource: target, forceFile: true });
+		return this.move(groupId, target)?.editor;
 	}
 
 	public async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
@@ -161,34 +160,30 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	}
 
 	move(group: GroupIdentifier, newResource: URI): { editor: IEditorInput } | undefined {
-		if (!this._moveHandler) {
-			return {
-				editor: this.customEditorService.createInput(newResource, this.viewType, group)
-			};
-		}
-		this._moveHandler(newResource);
-		const newEditor = this.tryMoveWebview(group, newResource);
-		if (!newEditor) {
-			return;
-		}
-		return { editor: newEditor };
-	}
-
-	private tryMoveWebview(groupId: GroupIdentifier, uri: URI, options?: ITextEditorOptions): IEditorInput | undefined {
 		const editorInfo = this.customEditorService.getCustomEditor(this.viewType);
-		if (editorInfo?.matches(uri)) {
-			const newInput = this.instantiationService.createInstance(CustomEditorInput,
-				uri,
+		if (editorInfo?.matches(newResource)) {
+			// We can keep using the same custom editor provider
+
+			if (!this._moveHandler) {
+				return {
+					editor: this.customEditorService.createInput(newResource, this.viewType, group),
+				};
+			}
+
+			this._moveHandler(newResource);
+			const newEditor = this.instantiationService.createInstance(CustomEditorInput,
+				newResource,
 				this.viewType,
 				this.id,
 				new Lazy(() => undefined!)); // this webview is replaced in the transfer call
-			this.transfer(newInput);
-			newInput.updateGroup(groupId);
-			return newInput;
+			this.transfer(newEditor);
+			newEditor.updateGroup(group);
+			return { editor: newEditor };
+		} else {
+			// const possible = this.customEditorService.getContributedCustomEditors(newResource);
+			return { editor: this.editorService.createEditorInput({ resource: newResource, forceFile: true }) };
 		}
-		return undefined;
 	}
-
 
 	public undo(): void {
 		assertIsDefined(this._modelRef);

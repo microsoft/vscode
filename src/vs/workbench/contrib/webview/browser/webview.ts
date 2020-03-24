@@ -59,6 +59,7 @@ export interface WebviewOptions {
 }
 
 export interface WebviewContentOptions {
+	readonly allowMultipleAPIAcquire?: boolean;
 	readonly allowScripts?: boolean;
 	readonly localResourceRoots?: ReadonlyArray<URI>;
 	readonly portMapping?: ReadonlyArray<modes.IWebviewPortMapping>;

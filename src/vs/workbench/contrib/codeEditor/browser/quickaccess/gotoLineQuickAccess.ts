@@ -37,19 +37,20 @@ export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProv
 		return this.editorService.activeTextEditorControl;
 	}
 
-	protected gotoLocation(editor: IEditor, range: IRange, keyMods: IKeyMods, forceSideBySide?: boolean): void {
+	protected gotoLocation(editor: IEditor, options: { range: IRange, keyMods: IKeyMods, forceSideBySide?: boolean, preserveFocus?: boolean }): void {
 
 		// Check for sideBySide use
-		if ((keyMods.ctrlCmd || forceSideBySide) && this.editorService.activeEditor) {
+		if ((options.keyMods.ctrlCmd || options.forceSideBySide) && this.editorService.activeEditor) {
 			this.editorService.openEditor(this.editorService.activeEditor, {
-				selection: range,
-				pinned: keyMods.alt || this.configuration.openEditorPinned
+				selection: options.range,
+				pinned: options.keyMods.alt || this.configuration.openEditorPinned,
+				preserveFocus: options.preserveFocus
 			}, SIDE_GROUP);
 		}
 
 		// Otherwise let parent handle it
 		else {
-			super.gotoLocation(editor, range, keyMods);
+			super.gotoLocation(editor, options);
 		}
 	}
 }
@@ -58,5 +59,5 @@ Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessPro
 	ctor: GotoLineQuickAccessProvider,
 	prefix: AbstractGotoLineQuickAccessProvider.PREFIX,
 	placeholder: localize('gotoLineQuickAccessPlaceholder', "Type the line number and optional column to go to (e.g. 42:5 for line 42 and column 5)."),
-	helpEntries: [{ description: localize('gotoLineQuickAccess', "Go to Line"), needsEditor: true }]
+	helpEntries: [{ description: localize('gotoLineQuickAccess', "Go to Line/Column"), needsEditor: true }]
 });

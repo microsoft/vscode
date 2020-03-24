@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { window, Pseudoterminal, EventEmitter, TerminalDimensions, workspace, ConfigurationTarget, Disposable } from 'vscode';
+import { window, Pseudoterminal, EventEmitter, TerminalDimensions, workspace, ConfigurationTarget, Disposable, UIKind, env } from 'vscode';
 import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 
-suite('window namespace tests', () => {
+// TODO@Daniel flaky tests (https://github.com/microsoft/vscode/issues/92826)
+((env.uiKind === UIKind.Web) ? suite.skip : suite)('vscode API - terminal', () => {
 	suiteSetup(async () => {
 		// Disable conpty in integration tests because of https://github.com/microsoft/vscode/issues/76548
 		await workspace.getConfiguration('terminal.integrated').update('windowsEnableConpty', false, ConfigurationTarget.Global);
@@ -18,6 +19,7 @@ suite('window namespace tests', () => {
 			disposables.forEach(d => d.dispose());
 			disposables.length = 0;
 		});
+
 
 		test('sendText immediately after createTerminal should not throw', (done) => {
 			disposables.push(window.onDidOpenTerminal(term => {

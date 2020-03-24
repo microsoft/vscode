@@ -27,12 +27,12 @@ export const enum WorkingCopyCapabilities {
  * `IBackupFileService.resolve(workingCopy.resource)` to
  * retrieve the backup when loading the working copy.
  */
-export interface IWorkingCopyBackup {
+export interface IWorkingCopyBackup<MetaType = object> {
 
 	/**
 	 * Any serializable metadata to be associated with the backup.
 	 */
-	meta?: object;
+	meta?: MetaType;
 
 	/**
 	 * Use this for larger textual content of the backup.

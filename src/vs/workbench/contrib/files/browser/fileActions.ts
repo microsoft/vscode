@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/fileactions';
 import * as nls from 'vs/nls';
 import { isWindows, isWeb } from 'vs/base/common/platform';
 import * as extpath from 'vs/base/common/extpath';
@@ -47,6 +46,7 @@ import { IFilesConfigurationService } from 'vs/workbench/services/filesConfigura
 import { IWorkingCopyService, IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { sequence } from 'vs/base/common/async';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
+import { once } from 'vs/base/common/functional';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
@@ -499,9 +499,10 @@ export class GlobalCompareResourcesAction extends Action {
 				return undefined;
 			});
 
+			once(this.quickOpenService.onHide)((() => toDispose.dispose()));
+
 			// Bring up quick open
 			await this.quickOpenService.show('', { autoFocus: { autoFocusSecondEntry: true } });
-			toDispose.dispose(); // make sure to unbind if quick open is closing
 		} else {
 			this.notificationService.info(nls.localize('openFileToCompare', "Open a file first to compare it with another file."));
 		}

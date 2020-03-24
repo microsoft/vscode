@@ -123,6 +123,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/notebook",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/quickaccess",
 			"project": "vscode-workbench"
 		},
@@ -344,6 +348,10 @@
 		},
 		{
 			"name": "vs/workbench/contrib/timeline",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/authentication",
 			"project": "vscode-workbench"
 		}
 	]

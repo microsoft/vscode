@@ -45,7 +45,7 @@ interface MutableRemote extends Remote {
 	isReadOnly: boolean;
 }
 
-// TODO[ECA]: Move to git.d.ts once we are good with the api
+// TODO@eamodio: Move to git.d.ts once we are good with the api
 /**
  * Log file options.
  */

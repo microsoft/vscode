@@ -40,6 +40,26 @@ declare module 'vscode' {
 		readonly removed: string[];
 	}
 
+	/**
+	* An [event](#Event) which fires when an [AuthenticationSession](#AuthenticationSession) is added, removed, or changed.
+	*/
+	export interface AuthenticationSessionsChangeEvent {
+		/**
+		 * The ids of the [AuthenticationSession](#AuthenticationSession)s that have been added.
+		*/
+		readonly added: string[];
+
+		/**
+		 * The ids of the [AuthenticationSession](#AuthenticationSession)s that have been removed.
+		 */
+		readonly removed: string[];
+
+		/**
+		 * The ids of the [AuthenticationSession](#AuthenticationSession)s that have been changed.
+		 */
+		readonly changed: string[];
+	}
+
 	export interface AuthenticationProvider {
 		/**
 		 * Used as an identifier for extensions trying to work with a particular
@@ -53,7 +73,7 @@ declare module 'vscode' {
 		 * An [event](#Event) which fires when the array of sessions has changed, or data
 		 * within a session has changed.
 		 */
-		readonly onDidChangeSessions: Event<void>;
+		readonly onDidChangeSessions: Event<AuthenticationSessionsChangeEvent>;
 
 		/**
 		 * Returns an array of current sessions.
@@ -99,7 +119,7 @@ declare module 'vscode' {
 		* within a session has changed for a provider. Fires with the ids of the providers
 		* that have had session data change.
 		*/
-		export const onDidChangeSessions: Event<string[]>;
+		export const onDidChangeSessions: Event<{ [providerId: string]: AuthenticationSessionsChangeEvent }>;
 	}
 
 	//#endregion
@@ -1230,19 +1250,50 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Custom editors: https://github.com/microsoft/vscode/issues/77131
+	//#region OnTypeRename: https://github.com/microsoft/vscode/issues/88424
 
-	// TODO:
-	// - Think about where a rename would live.
-	// - Think about handling go to line? (add other editor options? reveal?)
-	// - Should we expose edits?
-	// - More properties from `TextDocument`?
+	/**
+	 * The rename provider interface defines the contract between extensions and
+	 * the live-rename feature.
+	 */
+	export interface OnTypeRenameProvider {
+		/**
+		 * Provide a list of ranges that can be live renamed together.
+		 *
+		 * @param document The document in which the command was invoked.
+		 * @param position The position at which the command was invoked.
+		 * @param token A cancellation token.
+		 * @return A list of ranges that can be live-renamed togehter. The ranges must have
+		 * identical length and contain identical text content. The ranges cannot overlap.
+		 */
+		provideOnTypeRenameRanges(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Range[]>;
+	}
+
+	namespace languages {
+		/**
+		 * Register a rename provider that works on type.
+		 *
+		 * Multiple providers can be registered for a language. In that case providers are sorted
+		 * by their [score](#languages.match) and the best-matching provider is used. Failure
+		 * of the selected provider will cause a failure of the whole operation.
+		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider An on type rename provider.
+		 * @param stopPattern Stop on type renaming when input text matches the regular expression. Defaults to `^\s`.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerOnTypeRenameProvider(selector: DocumentSelector, provider: OnTypeRenameProvider, stopPattern?: RegExp): Disposable;
+	}
+
+	//#endregion
+
+	//#region Custom editors: https://github.com/microsoft/vscode/issues/77131
 
 	/**
 	 * Defines the editing capability of a custom webview editor. This allows the webview editor to hook into standard
 	 * editor events such as `undo` or `save`.
 	 *
-	 * @param EditType Type of edits.
+	 * @param EditType Type of edits used for the documents this delegate handles.
 	 */
 	interface CustomEditorEditingDelegate<EditType = unknown> {
 		/**
@@ -1253,7 +1304,7 @@ declare module 'vscode' {
 		 *
 		 * @return Thenable signaling that the save has completed.
 		 */
-		save(document: CustomDocument, cancellation: CancellationToken): Thenable<void>;
+		save(document: CustomDocument<EditType>, cancellation: CancellationToken): Thenable<void>;
 
 		/**
 		 * Save the existing resource at a new path.
@@ -1263,7 +1314,7 @@ declare module 'vscode' {
 		 *
 		 * @return Thenable signaling that the save has completed.
 		 */
-		saveAs(document: CustomDocument, targetResource: Uri): Thenable<void>;
+		saveAs(document: CustomDocument<EditType>, targetResource: Uri): Thenable<void>;
 
 		/**
 		 * Event triggered by extensions to signal to VS Code that an edit has occurred.
@@ -1280,7 +1331,7 @@ declare module 'vscode' {
 		 *
 		 * @return Thenable signaling that the change has completed.
 		 */
-		applyEdits(document: CustomDocument, edits: readonly EditType[]): Thenable<void>;
+		applyEdits(document: CustomDocument<EditType>, edits: readonly EditType[]): Thenable<void>;
 
 		/**
 		 * Undo a set of edits.
@@ -1292,7 +1343,7 @@ declare module 'vscode' {
 		 *
 		 * @return Thenable signaling that the change has completed.
 		 */
-		undoEdits(document: CustomDocument, edits: readonly EditType[]): Thenable<void>;
+		undoEdits(document: CustomDocument<EditType>, edits: readonly EditType[]): Thenable<void>;
 
 		/**
 		 * Revert the file to its last saved state.
@@ -1302,7 +1353,7 @@ declare module 'vscode' {
 		 *
 		 * @return Thenable signaling that the change has completed.
 		 */
-		revert(document: CustomDocument, edits: CustomDocumentRevert<EditType>): Thenable<void>;
+		revert(document: CustomDocument<EditType>, edits: CustomDocumentRevert<EditType>): Thenable<void>;
 
 		/**
 		 * Back up the resource in its current state.
@@ -1323,22 +1374,25 @@ declare module 'vscode' {
 		 * in an operation that takes time to complete, your extension may decide to finish the ongoing backup rather
 		 * than cancelling it to ensure that VS Code has some valid backup.
 		 */
-		backup(document: CustomDocument, cancellation: CancellationToken): Thenable<void>;
+		backup(document: CustomDocument<EditType>, cancellation: CancellationToken): Thenable<void>;
 	}
 
 	/**
-	 * Event triggered by extensions to signal to VS Code that an edit has occurred on a CustomDocument``.
+	 * Event triggered by extensions to signal to VS Code that an edit has occurred on a `CustomDocument`.
+	 *
+	 * @param EditType Type of edits used for the document.
 	 */
 	interface CustomDocumentEditEvent<EditType = unknown> {
 		/**
 		 * Document the edit is for.
 		 */
-		readonly document: CustomDocument;
+		readonly document: CustomDocument<EditType>;
 
 		/**
 		 * Object that describes the edit.
 		 *
-		 * Edit objects are passed back to your extension in `undoEdits`, `applyEdits`, and `revert`.
+		 * Edit objects are passed back to your extension in `CustomEditorEditingDelegate.undoEdits`,
+		 * `CustomEditorEditingDelegate.applyEdits`, and `CustomEditorEditingDelegate.revert`.
 		 */
 		readonly edit: EditType;
 
@@ -1366,13 +1420,19 @@ declare module 'vscode' {
 	/**
 	 * Represents a custom document used by a `CustomEditorProvider`.
 	 *
-	 * Custom documents are only used within a given `CustomEditorProvider`. The lifecycle of a
-	 * `CustomDocument` is managed by VS Code. When no more references remain to a given `CustomDocument`,
-	 * then it is disposed of.
+	 * All custom documents must subclass `CustomDocument`. Custom documents are only used within a given
+	 * `CustomEditorProvider`. The lifecycle of a `CustomDocument` is managed by VS Code. When no more references
+	 * remain to a `CustomDocument`, it is disposed of.
 	 *
-	 * @param UserDataType Type of custom object that extensions can store on the document.
+	 * @param EditType Type of edits used in this document.
 	 */
-	interface CustomDocument<UserDataType = unknown> {
+	class CustomDocument<EditType = unknown> {
+		/**
+		 * @param viewType The associated uri for this document.
+		 * @param uri The associated viewType for this document.
+		 */
+		constructor(viewType: string, uri: Uri);
+
 		/**
 		 * The associated viewType for this document.
 		 */
@@ -1389,12 +1449,17 @@ declare module 'vscode' {
 		readonly onDidDispose: Event<void>;
 
 		/**
-		 * Custom data that an extension can store on the document.
+		 * List of edits from document open to the document's current state.
 		 */
-		userData?: UserDataType;
+		readonly appliedEdits: ReadonlyArray<EditType>;
 
-		// TODO: Should we expose edits here?
-		// This could be helpful for tracking the life cycle of edits
+		/**
+		 * List of edits from document open to the document's last saved point.
+		 *
+		 * The save point will be behind `appliedEdits` if the user saves and then continues editing,
+		 * or in front of the last entry in `appliedEdits` if the user saves and then hits undo.
+		 */
+		readonly savedEdits: ReadonlyArray<EditType>;
 	}
 
 	/**
@@ -1406,7 +1471,8 @@ declare module 'vscode' {
 	 * You should use custom text based editors when dealing with binary files or more complex scenarios. For simple text
 	 * based documents, use [`WebviewTextEditorProvider`](#WebviewTextEditorProvider) instead.
 	 */
-	export interface CustomEditorProvider {
+	export interface CustomEditorProvider<EditType = unknown> {
+
 		/**
 		 * Resolve the model for a given resource.
 		 *
@@ -1415,17 +1481,18 @@ declare module 'vscode' {
 		 * If all editors for a given resource are closed, the `CustomDocument` is disposed of. Opening an editor at
 		 * this point will trigger another call to `resolveCustomDocument`.
 		 *
-		 * @param document Document to resolve.
+		 * @param uri Uri of the document to open.
+		 * @param token A cancellation token that indicates the result is no longer needed.
 		 *
-		 * @return The capabilities of the resolved document.
+		 * @return The custom document.
 		 */
-		resolveCustomDocument(document: CustomDocument): Thenable<void>;
+		openCustomDocument(uri: Uri, token: CancellationToken): Thenable<CustomDocument<EditType>>;
 
 		/**
 		 * Resolve a webview editor for a given resource.
 		 *
-		 * This is called when a user first opens a resource for a `CustomTextEditorProvider`, or if they reopen an
-		 * existing editor using this `CustomTextEditorProvider`.
+		 * This is called when a user first opens a resource for a `CustomEditorProvider`, or if they reopen an
+		 * existing editor using this `CustomEditorProvider`.
 		 *
 		 * To resolve a webview editor, the provider must fill in its initial html content and hook up all
 		 * the event listeners it is interested it. The provider can also hold onto the `WebviewPanel` to use later,
@@ -1433,17 +1500,18 @@ declare module 'vscode' {
 		 *
 		 * @param document Document for the resource being resolved.
 		 * @param webviewPanel Webview to resolve.
+		 * @param token A cancellation token that indicates the result is no longer needed.
 		 *
 		 * @return Thenable indicating that the webview editor has been resolved.
 		 */
-		resolveCustomEditor(document: CustomDocument, webviewPanel: WebviewPanel): Thenable<void>;
+		resolveCustomEditor(document: CustomDocument<EditType>, webviewPanel: WebviewPanel, token: CancellationToken): Thenable<void>;
 
 		/**
 		 * Defines the editing capability of a custom webview document.
 		 *
 		 * When not provided, the document is considered readonly.
 		 */
-		readonly editingDelegate?: CustomEditorEditingDelegate;
+		readonly editingDelegate?: CustomEditorEditingDelegate<EditType>;
 	}
 
 	/**
@@ -1457,6 +1525,7 @@ declare module 'vscode' {
 	 * For binary files or more specialized use cases, see [CustomEditorProvider](#CustomEditorProvider).
 	 */
 	export interface CustomTextEditorProvider {
+
 		/**
 		 * Resolve a webview editor for a given text resource.
 		 *
@@ -1469,10 +1538,11 @@ declare module 'vscode' {
 		 *
 		 * @param document Document for the resource to resolve.
 		 * @param webviewPanel Webview to resolve.
+		 * @param token A cancellation token that indicates the result is no longer needed.
 		 *
 		 * @return Thenable indicating that the webview editor has been resolved.
 		 */
-		resolveCustomTextEditor(document: TextDocument, webviewPanel: WebviewPanel): Thenable<void>;
+		resolveCustomTextEditor(document: TextDocument, webviewPanel: WebviewPanel, token: CancellationToken): Thenable<void>;
 
 		/**
 		 * TODO: discuss this at api sync.
@@ -1484,10 +1554,11 @@ declare module 'vscode' {
 		 *
 		 * @param newDocument New text document to use for the custom editor.
 		 * @param existingWebviewPanel Webview panel for the custom editor.
+		 * @param token A cancellation token that indicates the result is no longer needed.
 		 *
 		 * @return Thenable indicating that the webview editor has been moved.
 		 */
-		moveCustomTextEditor?(newDocument: TextDocument, existingWebviewPanel: WebviewPanel): Thenable<void>;
+		moveCustomTextEditor?(newDocument: TextDocument, existingWebviewPanel: WebviewPanel, token: CancellationToken): Thenable<void>;
 	}
 
 	namespace window {
@@ -1497,14 +1568,16 @@ declare module 'vscode' {
 		 * @param viewType Type of the webview editor provider. This should match the `viewType` from the
 		 *   `package.json` contributions.
 		 * @param provider Provider that resolves editors.
-		 * @param webviewOptions Content settings for the webview panels that the provider is given.
+		 * @param options Options for the provider
 		 *
 		 * @return Disposable that unregisters the provider.
 		 */
 		export function registerCustomEditorProvider(
 			viewType: string,
 			provider: CustomEditorProvider | CustomTextEditorProvider,
-			webviewOptions?: WebviewPanelOptions, // TODO: move this onto provider?
+			options?: {
+				readonly webviewOptions?: WebviewPanelOptions;
+			}
 		): Disposable;
 	}
 
@@ -1530,6 +1603,173 @@ declare module 'vscode' {
 		 * Indicates that this markdown string can contain [ThemeIcons](#ThemeIcon), e.g. `$(zap)`.
 		 */
 		readonly supportThemeIcons?: boolean;
+	}
+
+	//#endregion
+
+	//#region Peng: Notebook
+
+	export enum CellKind {
+		Markdown = 1,
+		Code = 2
+	}
+
+	export enum CellOutputKind {
+		Text = 1,
+		Error = 2,
+		Rich = 3
+	}
+
+	export interface CellStreamOutput {
+		outputKind: CellOutputKind.Text;
+		text: string;
+	}
+
+	export interface CellErrorOutput {
+		outputKind: CellOutputKind.Error;
+		/**
+		 * Exception Name
+		 */
+		ename: string;
+		/**
+		 * Exception Value
+		 */
+		evalue: string;
+		/**
+		 * Exception call stack
+		 */
+		traceback: string[];
+	}
+
+	export interface CellDisplayOutput {
+		outputKind: CellOutputKind.Rich;
+		/**
+		 * { mime_type: value }
+		 *
+		 * Example:
+		 * ```json
+		 * {
+		 *   "outputKind": vscode.CellOutputKind.Rich,
+		 *   "data": {
+		 *      "text/html": [
+		 *          "<h1>Hello</h1>"
+		 *       ],
+		 *      "text/plain": [
+		 *        "<IPython.lib.display.IFrame at 0x11dee3e80>"
+		 *      ]
+		 *   }
+		 * }
+		 */
+		data: { [key: string]: any };
+	}
+
+	export type CellOutput = CellStreamOutput | CellErrorOutput | CellDisplayOutput;
+
+	export interface NotebookCellMetadata {
+		/**
+		 * Controls if the content of a cell is editable or not.
+		 */
+		editable: boolean;
+
+		/**
+		 * Controls if the cell is executable.
+		 * This metadata is ignored for markdown cell.
+		 */
+		runnable: boolean;
+	}
+
+	export interface NotebookCell {
+		readonly uri: Uri;
+		handle: number;
+		language: string;
+		cellKind: CellKind;
+		outputs: CellOutput[];
+		getContent(): string;
+		metadata?: NotebookCellMetadata;
+	}
+
+	export interface NotebookDocumentMetadata {
+		/**
+		 * Controls if users can add or delete cells
+		 * Default to true
+		 */
+		editable: boolean;
+
+		/**
+		 * Default value for [cell editable metadata](#NotebookCellMetadata.editable).
+		 * Default to true.
+		 */
+		cellEditable: boolean;
+
+		/**
+		 * Default value for [cell runnable metadata](#NotebookCellMetadata.runnable).
+		 * Default to true.
+		 */
+		cellRunnable: boolean;
+	}
+
+	export interface NotebookDocument {
+		readonly uri: Uri;
+		readonly fileName: string;
+		readonly isDirty: boolean;
+		languages: string[];
+		cells: NotebookCell[];
+		displayOrder?: GlobPattern[];
+		metadata?: NotebookDocumentMetadata;
+	}
+
+	export interface NotebookEditor {
+		readonly document: NotebookDocument;
+		viewColumn?: ViewColumn;
+		/**
+		 * Fired when the output hosting webview posts a message.
+		 */
+		readonly onDidReceiveMessage: Event<any>;
+		/**
+		 * Post a message to the output hosting webview.
+		 *
+		 * Messages are only delivered if the editor is live.
+		 *
+		 * @param message Body of the message. This must be a string or other json serilizable object.
+		 */
+		postMessage(message: any): Thenable<boolean>;
+
+		/**
+		 * Create a notebook cell. The cell is not inserted into current document when created. Extensions should insert the cell into the document by [TextDocument.cells](#TextDocument.cells)
+		 */
+		createCell(content: string, language: string, type: CellKind, outputs: CellOutput[], metadata: NotebookCellMetadata | undefined): NotebookCell;
+	}
+
+	export interface NotebookProvider {
+		resolveNotebook(editor: NotebookEditor): Promise<void>;
+		executeCell(document: NotebookDocument, cell: NotebookCell | undefined): Promise<void>;
+		save(document: NotebookDocument): Promise<boolean>;
+	}
+
+	export interface NotebookOutputSelector {
+		type: string;
+		subTypes?: string[];
+	}
+
+	export interface NotebookOutputRenderer {
+		/**
+		 *
+		 * @returns HTML fragment. We can probably return `CellOutput` instead of string ?
+		 *
+		 */
+		render(document: NotebookDocument, cell: NotebookCell, output: CellOutput, mimeType: string): string;
+		preloads?: Uri[];
+	}
+
+	namespace window {
+		export function registerNotebookProvider(
+			notebookType: string,
+			provider: NotebookProvider
+		): Disposable;
+
+		export function registerNotebookOutputRenderer(type: string, outputSelector: NotebookOutputSelector, renderer: NotebookOutputRenderer): Disposable;
+
+		export let activeNotebookDocument: NotebookDocument | undefined;
 	}
 
 	//#endregion
@@ -1689,17 +1929,10 @@ declare module 'vscode' {
 	export interface Timeline {
 		readonly paging?: {
 			/**
-			 * A set of provider-defined cursors specifing the range of timeline items returned.
+			 * A provider-defined cursor specifying the starting point of timeline items which are after the ones returned.
+			 * Use `undefined` to signal that there are no more items to be returned.
 			 */
-			readonly cursors: {
-				readonly before: string;
-				readonly after?: string
-			};
-
-			/**
-			 * A flag which indicates whether there are more items that weren't returned.
-			 */
-			readonly more?: boolean;
+			readonly cursor: string | undefined;
 		}
 
 		/**
@@ -1710,19 +1943,15 @@ declare module 'vscode' {
 
 	export interface TimelineOptions {
 		/**
-		 * A provider-defined cursor specifing the range of timeline items that should be returned.
+		 * A provider-defined cursor specifying the starting point of the timeline items that should be returned.
 		 */
 		cursor?: string;
 
 		/**
-		 * A flag to specify whether the timeline items being requested should be before or after (default) the provided cursor.
+		 * An optional maximum number timeline items or the all timeline items newer (inclusive) than the timestamp or id that should be returned.
+		 * If `undefined` all timeline items should be returned.
 		 */
-		before?: boolean;
-
-		/**
-		 * The maximum number or the ending cursor of timeline items that should be returned.
-		 */
-		limit?: number | { cursor: string };
+		limit?: number | { timestamp: number; id?: string };
 	}
 
 	export interface TimelineProvider {
@@ -1861,21 +2090,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region https://github.com/microsoft/vscode/issues/90517
-
-	export interface FileSystemError {
-		/**
-		 * A code that identifies this error.
-		 *
-		 * Possible values are names of errors, like [`FileNotFound`](#FileSystemError.FileNotFound),
-		 * or `Unknown` for an unspecified error.
-		 */
-		readonly code: string;
-	}
-
-	//#endregion
-
-
 	//#region https://github.com/microsoft/vscode/issues/90208
 
 	export namespace Uri {
@@ -1887,6 +2101,15 @@ declare module 'vscode' {
 		 * @returns A new uri
 		 */
 		export function joinPaths(base: Uri, ...pathFragments: string[]): Uri;
+	}
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/91541
+
+	export enum CompletionItemKind {
+		User = 25,
+		Issue = 26,
 	}
 
 	//#endregion
