@@ -123,6 +123,7 @@ const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewC
 
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
 	id: Constants.MARKERS_VIEW_ID,
+	containerIcon: 'codicon-warning',
 	name: Messages.MARKERS_PANEL_TITLE_PROBLEMS,
 	canToggleVisibility: false,
 	canMoveView: true,
