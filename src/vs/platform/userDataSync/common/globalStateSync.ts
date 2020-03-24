@@ -20,7 +20,7 @@ import { URI } from 'vs/base/common/uri';
 import { format } from 'vs/base/common/jsonFormatter';
 import { applyEdits } from 'vs/base/common/jsonEdit';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
+import { IStorageKeysSyncRegistryService, IStorageKey } from 'vs/platform/userDataSync/common/storageKeys';
 
 const argvStoragePrefx = 'globalState.argv.';
 const argvProperties: string[] = ['locale'];
@@ -71,10 +71,10 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			const remoteUserData = await this.getRemoteUserData(lastSyncUserData);
 
 			if (remoteUserData.syncData !== null) {
-				const localUserData = await this.getLocalGlobalState();
-				const localGlobalState: IGlobalState = JSON.parse(remoteUserData.syncData.content);
-				const { local, remote } = merge(localGlobalState.storage, null, null, this.storageKeysSyncRegistryService.storageKeys, this.logService);
-				await this.apply({ local, remote, remoteUserData, localUserData, lastSyncUserData });
+				const localGlobalState = await this.getLocalGlobalState();
+				const remoteGlobalState: IGlobalState = JSON.parse(remoteUserData.syncData.content);
+				const { local, remote } = merge(localGlobalState.storage, remoteGlobalState.storage, null, this.getSyncStorageKeys(), this.logService);
+				await this.apply({ local, remote, remoteUserData, localUserData: localGlobalState, lastSyncUserData });
 			}
 
 			// No remote exists to pull
@@ -171,7 +171,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			this.logService.trace(`${this.syncResourceLogLabel}: Remote ui state does not exist. Synchronizing ui state for the first time.`);
 		}
 
-		const { local, remote } = merge(localGloablState.storage, remoteGlobalState.storage, lastSyncGlobalState ? lastSyncGlobalState.storage : null, this.storageKeysSyncRegistryService.storageKeys, this.logService);
+		const { local, remote } = merge(localGloablState.storage, remoteGlobalState ? remoteGlobalState.storage : null, lastSyncGlobalState ? lastSyncGlobalState.storage : null, this.getSyncStorageKeys(), this.logService);
 
 		return { local, remote, remoteUserData, localUserData: localGloablState, lastSyncUserData };
 	}
@@ -287,4 +287,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		}
 	}
 
+	private getSyncStorageKeys(): IStorageKey[] {
+		return [...this.storageKeysSyncRegistryService.storageKeys, ...argvProperties.map(argvProprety => (<IStorageKey>{ key: `${argvStoragePrefx}${argvProprety}`, version: 1 }))];
+	}
 }
