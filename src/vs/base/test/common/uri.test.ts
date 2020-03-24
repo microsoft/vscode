@@ -523,7 +523,7 @@ suite('URI', () => {
 		assertJoined(('file:///foo/'), '../../bazz', 'file:///bazz');
 		assertJoined(('file:///foo'), '../../bazz', 'file:///bazz');
 		assertJoined(('file:///foo'), '../../bazz', 'file:///bazz');
-		assertJoined(('file:///c:/foo/'), '../../bazz', 'file:///bazz');
+		assertJoined(('file:///c:/foo/'), '../../bazz', 'file:///bazz', false);
 		assertJoined(('file://ser/foo/'), '../../bazz', 'file://ser/bazz');
 		assertJoined(('file://ser/foo'), '../../bazz', 'file://ser/bazz');
 		assertJoined(('file:///foo/bar/'), './bazz', 'file:///foo/bar/bazz');
