@@ -111,6 +111,7 @@ class ToggleMarkersPanelAction extends TogglePanelAction {
 const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: Constants.MARKERS_CONTAINER_ID,
 	name: Messages.MARKERS_PANEL_TITLE_PROBLEMS,
+	hideIfEmpty: true,
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [Constants.MARKERS_CONTAINER_ID, Constants.MARKERS_VIEW_STORAGE_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
 	focusCommand: {
 		id: ToggleMarkersPanelAction.ID, keybindings: {
@@ -123,6 +124,7 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 	id: Constants.MARKERS_VIEW_ID,
 	name: Messages.MARKERS_PANEL_TITLE_PROBLEMS,
 	canToggleVisibility: false,
+	canMoveView: true,
 	ctorDescriptor: new SyncDescriptor(MarkersView),
 }], VIEW_CONTAINER);
 
