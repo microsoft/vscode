@@ -87,4 +87,24 @@ suite('SemanticTokensDto', () => {
 		});
 	});
 
+	test('partial array buffer', () => {
+		const sharedArr = new Uint32Array([
+			(1 << 24) + (2 << 16) + (3 << 8) + 4,
+			1, 2, 3, 4, 5, (1 << 24) + (2 << 16) + (3 << 8) + 4
+		]);
+		testRoundTrip({
+			id: 12,
+			type: 'delta',
+			deltas: [{
+				start: 0,
+				deleteCount: 4,
+				data: sharedArr.subarray(0, 1)
+			}, {
+				start: 15,
+				deleteCount: 0,
+				data: sharedArr.subarray(1, sharedArr.length)
+			}]
+		});
+	});
+
 });

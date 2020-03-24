@@ -94,8 +94,14 @@ export class VSBuffer {
 		return new VSBuffer(this.buffer.subarray(start!/*bad lib.d.ts*/, end));
 	}
 
-	set(array: VSBuffer, offset?: number): void {
-		this.buffer.set(array.buffer, offset);
+	set(array: VSBuffer, offset?: number): void;
+	set(array: Uint8Array, offset?: number): void;
+	set(array: VSBuffer | Uint8Array, offset?: number): void {
+		if (array instanceof VSBuffer) {
+			this.buffer.set(array.buffer, offset);
+		} else {
+			this.buffer.set(array, offset);
+		}
 	}
 
 	readUInt32BE(offset: number): number {
