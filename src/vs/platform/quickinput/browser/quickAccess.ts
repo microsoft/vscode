@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IQuickInputService, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPick, IQuickPickItem, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { IQuickAccessController, IQuickAccessProvider, IQuickAccessRegistry, Extensions, IQuickAccessProviderDescriptor, IQuickAccessOptions, DefaultQuickAccessFilterValue } from 'vs/platform/quickinput/common/quickAccess';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -102,7 +102,7 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 		picker.placeholder = descriptor?.placeholder;
 		picker.quickNavigate = options?.quickNavigateConfiguration;
 		picker.hideInput = !!picker.quickNavigate && !visibleQuickAccess; // only hide input if there was no picker opened already
-		picker.autoFocusSecondEntry = !!options?.quickNavigateConfiguration || !!options?.autoFocus?.autoFocusSecondEntry;
+		picker.itemActivation = options?.itemActivation || (options?.quickNavigateConfiguration ? ItemActivation.SECOND : ItemActivation.FIRST);
 		picker.contextKey = descriptor?.contextKey;
 		picker.filterValue = (value: string) => value.substring(descriptor ? descriptor.prefix.length : 0);
 
