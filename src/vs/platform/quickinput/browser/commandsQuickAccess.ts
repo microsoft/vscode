@@ -140,7 +140,7 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 			commandPicks.push({
 				...commandPick,
 				ariaLabel,
-				detail: this.options.showAlias ? commandPick.commandAlias : undefined,
+				detail: this.options.showAlias && commandPick.commandAlias !== commandPick.label ? commandPick.commandAlias : undefined,
 				keybinding,
 				accept: async () => {
 
