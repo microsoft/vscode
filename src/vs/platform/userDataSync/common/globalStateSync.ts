@@ -73,7 +73,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			if (remoteUserData.syncData !== null) {
 				const localUserData = await this.getLocalGlobalState();
 				const localGlobalState: IGlobalState = JSON.parse(remoteUserData.syncData.content);
-				const { local, remote } = merge(localGlobalState.storage, null, null, this.storageKeysSyncRegistryService.storageKeys);
+				const { local, remote } = merge(localGlobalState.storage, null, null, this.storageKeysSyncRegistryService.storageKeys, this.logService);
 				await this.apply({ local, remote, remoteUserData, localUserData, lastSyncUserData });
 			}
 
@@ -171,7 +171,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			this.logService.trace(`${this.syncResourceLogLabel}: Remote ui state does not exist. Synchronizing ui state for the first time.`);
 		}
 
-		const { local, remote } = merge(localGloablState.storage, remoteGlobalState.storage, lastSyncGlobalState ? lastSyncGlobalState.storage : null, this.storageKeysSyncRegistryService.storageKeys);
+		const { local, remote } = merge(localGloablState.storage, remoteGlobalState.storage, lastSyncGlobalState ? lastSyncGlobalState.storage : null, this.storageKeysSyncRegistryService.storageKeys, this.logService);
 
 		return { local, remote, remoteUserData, localUserData: localGloablState, lastSyncUserData };
 	}
@@ -238,43 +238,27 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 	private async writeLocalGlobalState({ added, removed, updated }: { added: IStringDictionary<IStorageValue>, updated: IStringDictionary<IStorageValue>, removed: string[] }): Promise<void> {
 		const argv: IStringDictionary<any> = {};
 		const updatedStorage: IStringDictionary<any> = {};
-		const handleUpdatedStorage = (storage: IStringDictionary<IStorageValue>): void => {
-			for (const key of Object.keys(storage)) {
+		const handleUpdatedStorage = (keys: string[], storage?: IStringDictionary<IStorageValue>): void => {
+			for (const key of keys) {
 				if (key.startsWith(argvStoragePrefx)) {
-					argv[key.substring(argvStoragePrefx.length)] = storage[key].value;
+					argv[key.substring(argvStoragePrefx.length)] = storage ? storage[key].value : undefined;
 					continue;
 				}
-				const { version, value } = storage[key];
-				const storageKey = this.storageKeysSyncRegistryService.storageKeys.filter(storageKey => storageKey.key === key)[0];
-				if (!storageKey) {
-					this.logService.info(`${this.syncResourceLogLabel}: Skipped updating ${key} in storage. It is not registered to sync.`);
-					continue;
-				}
-				if (storageKey.version !== version) {
-					this.logService.info(`${this.syncResourceLogLabel}: Skipped updating ${key} in storage. Local version '${storageKey.version}' and remote version '${version} are not same.`);
-					continue;
-				}
-				if (String(value) !== String(this.storageService.get(key, StorageScope.GLOBAL))) {
-					updatedStorage[key] = value;
+				if (storage) {
+					const storageValue = storage[key];
+					if (storageValue.value !== String(this.storageService.get(key, StorageScope.GLOBAL))) {
+						updatedStorage[key] = storageValue.value;
+					}
+				} else {
+					if (this.storageService.get(key, StorageScope.GLOBAL) !== undefined) {
+						updatedStorage[key] = undefined;
+					}
 				}
 			}
 		};
-		handleUpdatedStorage(added);
-		handleUpdatedStorage(updated);
-		for (const key of removed) {
-			if (key.startsWith(argvStoragePrefx)) {
-				argv[key.substring(argvStoragePrefx.length)] = undefined;
-				continue;
-			}
-			const storageKey = this.storageKeysSyncRegistryService.storageKeys.filter(storageKey => storageKey.key === key)[0];
-			if (!storageKey) {
-				this.logService.info(`${this.syncResourceLogLabel}: Skipped updating ${key} in storage. It is not registered to sync.`);
-				continue;
-			}
-			if (this.storageService.get(key, StorageScope.GLOBAL) !== undefined) {
-				updatedStorage[key] = undefined;
-			}
-		}
+		handleUpdatedStorage(Object.keys(added), added);
+		handleUpdatedStorage(Object.keys(updated), updated);
+		handleUpdatedStorage(removed);
 		if (Object.keys(argv).length) {
 			this.logService.trace(`${this.syncResourceLogLabel}: Updating locale...`);
 			await this.updateArgv(argv);

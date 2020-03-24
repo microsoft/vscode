@@ -8,13 +8,14 @@ import { IStorageValue } from 'vs/platform/userDataSync/common/userDataSync';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { values } from 'vs/base/common/map';
 import { IStorageKey } from 'vs/platform/userDataSync/common/storageKeys';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export interface IMergeResult {
 	local: { added: IStringDictionary<IStorageValue>, removed: string[], updated: IStringDictionary<IStorageValue> };
 	remote: IStringDictionary<IStorageValue> | null;
 }
 
-export function merge(localStorage: IStringDictionary<IStorageValue>, remoteStorage: IStringDictionary<IStorageValue> | null, baseStorage: IStringDictionary<IStorageValue> | null, storageKeys: ReadonlyArray<IStorageKey>): IMergeResult {
+export function merge(localStorage: IStringDictionary<IStorageValue>, remoteStorage: IStringDictionary<IStorageValue> | null, baseStorage: IStringDictionary<IStorageValue> | null, storageKeys: ReadonlyArray<IStorageKey>, logService: ILogService): IMergeResult {
 	if (!remoteStorage) {
 		return { remote: localStorage, local: { added: {}, removed: [], updated: {} } };
 	}
@@ -33,16 +34,41 @@ export function merge(localStorage: IStringDictionary<IStorageValue>, remoteStor
 
 	// Added in remote
 	for (const key of values(baseToRemote.added)) {
+		const { version } = remoteStorage[key];
+		const storageKey = storageKeys.filter(storageKey => storageKey.key === key)[0];
+		if (!storageKey) {
+			logService.info(`GlobalState: Skipped updating ${key} in storage. It is not registered to sync.`);
+			continue;
+		}
+		if (storageKey.version !== version) {
+			logService.info(`GlobalState: Skipped updating ${key} in storage. Local version '${storageKey.version}' and remote version '${version} are not same.`);
+			continue;
+		}
 		local.added[key] = remoteStorage[key];
 	}
 
 	// Updated in Remote
 	for (const key of values(baseToRemote.updated)) {
+		const { version } = remoteStorage[key];
+		const storageKey = storageKeys.filter(storageKey => storageKey.key === key)[0];
+		if (!storageKey) {
+			logService.info(`GlobalState: Skipped updating ${key} in storage. It is not registered to sync.`);
+			continue;
+		}
+		if (storageKey.version !== version) {
+			logService.info(`GlobalState: Skipped updating ${key} in storage. Local version '${storageKey.version}' and remote version '${version} are not same.`);
+			continue;
+		}
 		local.updated[key] = remoteStorage[key];
 	}
 
 	// Removed in remote
 	for (const key of values(baseToRemote.removed)) {
+		const storageKey = storageKeys.filter(storageKey => storageKey.key === key)[0];
+		if (!storageKey) {
+			logService.info(`GlobalState: Skipped updating ${key} in storage. It is not registered to sync.`);
+			continue;
+		}
 		local.removed.push(key);
 	}
 
@@ -55,24 +81,28 @@ export function merge(localStorage: IStringDictionary<IStorageValue>, remoteStor
 
 	// Updated in local
 	for (const key of values(baseToLocal.updated)) {
-		if (!baseToRemote.updated.has(key) || !baseToRemote.removed.has(key)) {
-			const remoteValue = remote[key];
-			const localValue = localStorage[key];
-			if (localValue.version >= remoteValue.version) {
-				remote[key] = localValue;
-			}
+		if (baseToRemote.updated.has(key) || baseToRemote.removed.has(key)) {
+			continue;
 		}
+		const remoteValue = remote[key];
+		const localValue = localStorage[key];
+		if (localValue.version < remoteValue.version) {
+			continue;
+		}
+		remote[key] = localValue;
 	}
 
 	// Removed in local
 	for (const key of values(baseToLocal.removed)) {
-		if (!baseToRemote.updated.has(key)) {
-			const remoteValue = remote[key];
-			const storageKey = storageKeys.filter(storageKey => storageKey.key === key)[0];
-			if (storageKey.version >= remoteValue.version) {
-				delete remote[key];
-			}
+		if (baseToRemote.updated.has(key)) {
+			continue;
 		}
+		const remoteValue = remote[key];
+		const storageKey = storageKeys.filter(storageKey => storageKey.key === key)[0];
+		if (storageKeys && storageKey.version < remoteValue.version) {
+			continue;
+		}
+		delete remote[key];
 	}
 
 	return { local, remote: areSame(remote, remoteStorage) ? null : remote };
