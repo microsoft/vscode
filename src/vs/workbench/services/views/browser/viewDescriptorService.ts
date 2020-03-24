@@ -445,11 +445,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	moveViewToLocation(view: IViewDescriptor, location: ViewContainerLocation): void {
-		let container = this.getDefaultContainer(view.id)!;
-		if (this.getViewContainerLocation(container) !== location) {
-			container = this.registerViewContainerForSingleView(view, location);
-		}
-
+		let container = this.registerViewContainerForSingleView(view, location);
 		this.moveViewsToContainer([view], container);
 	}
 
@@ -491,7 +487,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			id,
 			ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [id, `${id}.state`, { mergeViewWithContainerWhenSingleView: true }]),
 			name: sourceView.name,
-			icon: sourceView.containerIcon,
+			icon: location === ViewContainerLocation.Sidebar ? sourceView.containerIcon || 'codicon-window' : undefined,
 			hideIfEmpty: true
 		}, location);
 	}

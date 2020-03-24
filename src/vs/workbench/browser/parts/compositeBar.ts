@@ -133,9 +133,7 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 			}
 
 			// ... single view
-			const defaultContainer = this.viewDescriptorService.getDefaultContainer(draggedViews[0].id);
-			const canMoveToDefault = !!defaultContainer && this.viewDescriptorService.getViewContainerLocation(defaultContainer) === this.targetContainerLocation;
-			return !!draggedViews[0].canMoveView && (!!draggedViews[0].containerIcon || canMoveToDefault || this.targetContainerLocation === ViewContainerLocation.Panel);
+			return !!draggedViews[0].canMoveView;
 		} else {
 			// Dragging an individual view
 			const viewDescriptor = this.viewDescriptorService.getViewDescriptor(dragData.id);
@@ -146,7 +144,7 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 			}
 
 			// ... to create a view container
-			return this.targetContainerLocation === ViewContainerLocation.Panel || !!viewDescriptor.containerIcon;
+			return true;
 		}
 	}
 }
