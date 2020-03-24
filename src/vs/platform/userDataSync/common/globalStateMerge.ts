@@ -34,32 +34,44 @@ export function merge(localStorage: IStringDictionary<IStorageValue>, remoteStor
 
 	// Added in remote
 	for (const key of values(baseToRemote.added)) {
-		const { version } = remoteStorage[key];
+		const remoteValue = remoteStorage[key];
 		const storageKey = storageKeys.filter(storageKey => storageKey.key === key)[0];
 		if (!storageKey) {
 			logService.info(`GlobalState: Skipped updating ${key} in storage. It is not registered to sync.`);
 			continue;
 		}
-		if (storageKey.version !== version) {
-			logService.info(`GlobalState: Skipped updating ${key} in storage. Local version '${storageKey.version}' and remote version '${version} are not same.`);
+		if (storageKey.version !== remoteValue.version) {
+			logService.info(`GlobalState: Skipped updating ${key} in storage. Local version '${storageKey.version}' and remote version '${remoteValue.version} are not same.`);
 			continue;
 		}
-		local.added[key] = remoteStorage[key];
+		const localValue = localStorage[key];
+		if (localValue && localValue.value === remoteValue.value) {
+			continue;
+		}
+		if (baseToLocal.added.has(key)) {
+			local.updated[key] = remoteValue;
+		} else {
+			local.added[key] = remoteValue;
+		}
 	}
 
 	// Updated in Remote
 	for (const key of values(baseToRemote.updated)) {
-		const { version } = remoteStorage[key];
+		const remoteValue = remoteStorage[key];
 		const storageKey = storageKeys.filter(storageKey => storageKey.key === key)[0];
 		if (!storageKey) {
 			logService.info(`GlobalState: Skipped updating ${key} in storage. It is not registered to sync.`);
 			continue;
 		}
-		if (storageKey.version !== version) {
-			logService.info(`GlobalState: Skipped updating ${key} in storage. Local version '${storageKey.version}' and remote version '${version} are not same.`);
+		if (storageKey.version !== remoteValue.version) {
+			logService.info(`GlobalState: Skipped updating ${key} in storage. Local version '${storageKey.version}' and remote version '${remoteValue.version} are not same.`);
 			continue;
 		}
-		local.updated[key] = remoteStorage[key];
+		const localValue = localStorage[key];
+		if (localValue && localValue.value === remoteValue.value) {
+			continue;
+		}
+		local.updated[key] = remoteValue;
 	}
 
 	// Removed in remote
@@ -99,7 +111,7 @@ export function merge(localStorage: IStringDictionary<IStorageValue>, remoteStor
 		}
 		const remoteValue = remote[key];
 		const storageKey = storageKeys.filter(storageKey => storageKey.key === key)[0];
-		if (storageKeys && storageKey.version < remoteValue.version) {
+		if (storageKey && storageKey.version < remoteValue.version) {
 			continue;
 		}
 		delete remote[key];
