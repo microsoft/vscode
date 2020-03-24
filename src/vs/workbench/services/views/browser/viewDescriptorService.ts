@@ -192,6 +192,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	private readonly viewDescriptorCollections: Map<ViewContainer, { viewDescriptorCollection: ViewDescriptorCollection, disposable: IDisposable; }>;
 	private readonly activeViewContextKeys: Map<string, IContextKey<boolean>>;
 	private readonly movableViewContextKeys: Map<string, IContextKey<boolean>>;
+	private readonly defaultViewLocationContextKeys: Map<string, IContextKey<boolean>>;
 
 	private readonly viewsRegistry: IViewsRegistry;
 	private readonly viewContainersRegistry: IViewContainersRegistry;
@@ -226,6 +227,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		this.viewDescriptorCollections = new Map<ViewContainer, { viewDescriptorCollection: ViewDescriptorCollection, disposable: IDisposable; }>();
 		this.activeViewContextKeys = new Map<string, IContextKey<boolean>>();
 		this.movableViewContextKeys = new Map<string, IContextKey<boolean>>();
+		this.defaultViewLocationContextKeys = new Map<string, IContextKey<boolean>>();
 
 		this.viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
 		this.viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
@@ -671,12 +673,17 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		const sourceViewId = this.generatedContainerSourceViewIds.get(container.id);
 		views.forEach(view => {
 			this.cachedViewInfo.set(view.id, { containerId: container.id, location, sourceViewId });
+			this.getOrCreateDefaultViewLocationContextKey(view).set(this.getDefaultContainer(view.id) === container);
 		});
 
 		this.getViewDescriptors(container).addViews(views);
 	}
 
 	private removeViews(container: ViewContainer, views: IViewDescriptor[]): void {
+		// Set view default location keys to false
+		views.forEach(view => this.getOrCreateDefaultViewLocationContextKey(view).set(false));
+
+		// Remove the views
 		this.getViewDescriptors(container).removeViews(views);
 	}
 
@@ -696,6 +703,16 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		if (!contextKey) {
 			contextKey = new RawContextKey(movableViewContextKeyId, false).bindTo(this.contextKeyService);
 			this.movableViewContextKeys.set(movableViewContextKeyId, contextKey);
+		}
+		return contextKey;
+	}
+
+	private getOrCreateDefaultViewLocationContextKey(viewDescriptor: IViewDescriptor): IContextKey<boolean> {
+		const defaultViewLocationContextKeyId = `${viewDescriptor.id}.defaultViewLocation`;
+		let contextKey = this.defaultViewLocationContextKeys.get(defaultViewLocationContextKeyId);
+		if (!contextKey) {
+			contextKey = new RawContextKey(defaultViewLocationContextKeyId, false).bindTo(this.contextKeyService);
+			this.defaultViewLocationContextKeys.set(defaultViewLocationContextKeyId, contextKey);
 		}
 		return contextKey;
 	}
