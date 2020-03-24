@@ -742,6 +742,13 @@ export const focusedCellIndicator = registerColor('notebook.focusedCellIndicator
 	hc: new Color(new RGBA(0, 73, 122))
 }, nls.localize('notebook.focusedCellIndicator', "The color of the focused notebook cell indicator."));
 
+export const notebookOutputContainerColor = registerColor('notebook.outputContainerBackgroundColor', {
+	dark: new Color(new RGBA(255, 255, 255, 0.06)),
+	light: new Color(new RGBA(228, 230, 241)),
+	hc: null
+}
+	, nls.localize('notebook.outputContainerBackgroundColor', "The Color of the notebook output container background."));
+
 
 registerThemingParticipant((theme, collector) => {
 	const color = getExtraColor(theme, embeddedEditorBackground, { dark: 'rgba(0, 0, 0, .4)', extra_dark: 'rgba(200, 235, 255, .064)', light: '#f4f4f4', hc: null });
@@ -776,10 +783,10 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor blockquote { border-color: ${quoteBorder}; }`);
 	}
 
-	const inactiveListItem = theme.getColor('list.inactiveSelectionBackground');
+	const containerBackground = theme.getColor(notebookOutputContainerColor);
 
-	if (inactiveListItem) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .output { background-color: ${inactiveListItem}; }`);
+	if (containerBackground) {
+		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .output { background-color: ${containerBackground}; }`);
 	}
 
 	const focusedCellIndicatorColor = theme.getColor(focusedCellIndicator);
