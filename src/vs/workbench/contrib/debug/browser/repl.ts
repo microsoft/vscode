@@ -495,7 +495,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 				setRowLineHeight: false,
 				supportDynamicHeights: wordWrap,
 				overrideStyles: {
-					listBackground: PANEL_BACKGROUND
+					listBackground: this.getBackgroundColor()
 				}
 			});
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
