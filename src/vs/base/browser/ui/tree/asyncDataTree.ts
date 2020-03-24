@@ -791,7 +791,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 		this.refreshPromises.set(node, result);
 
-		return result.finally(() => this.refreshPromises.delete(node));
+		return result.finally(() => { this.refreshPromises.delete(node); });
 	}
 
 	private _onDidChangeCollapseState({ node, deep }: ICollapseStateChangeEvent<IAsyncDataTreeNode<TInput, T> | null, any>): void {
