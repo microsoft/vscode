@@ -9,8 +9,8 @@
 	margin-bottom: 4px;
 }
 
-.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item::before,
-.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item::after {
+.monaco-workbench .activitybar > .content .composite-bar > .monaco-action-bar .action-item::before,
+.monaco-workbench .activitybar > .content .composite-bar > .monaco-action-bar .action-item::after {
 	position: absolute;
 	content: '';
 	width: 48px;
@@ -23,25 +23,32 @@
 	transition-delay: 100ms;
 }
 
-.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item::before {
+.monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-item::before {
 	margin-top: -3px;
 	margin-bottom: 1px;
 }
 
-.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item::after {
+/* Override top element since it would be cut off */
+.monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-item:first-of-type::before {
+	margin-top: 0px;
+	margin-bottom: 0px;
+}
+
+.monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-item::after {
 	margin-top: 1px;
 	margin-bottom: -3px;
 }
 
-.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.top::before,
-.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.top::after,
-.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.bottom::before,
-.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.bottom::after {
+.monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-item.top::before,
+.monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-item.top::after,
+.monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-item.bottom::before,
+.monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-item.bottom::after {
 	transition-delay: 0s;
 }
 
-.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.top::before,
-.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.bottom::after {
+.monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-item.top::before,
+.monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-item.bottom::after,
+.monaco-workbench .activitybar > .content.dragged-over > .composite-bar > .monaco-action-bar .action-item:last-of-type::after {
 	opacity: 1;
 }
 

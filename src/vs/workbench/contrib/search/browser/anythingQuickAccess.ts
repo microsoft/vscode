@@ -43,8 +43,11 @@ import { DefaultQuickAccessFilterValue } from 'vs/platform/quickinput/common/qui
 import { IWorkbenchQuickOpenConfiguration } from 'vs/workbench/browser/quickopen';
 import { GotoSymbolQuickAccessProvider } from 'vs/workbench/contrib/codeEditor/browser/quickaccess/gotoSymbolQuickAccess';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ScrollType, IEditor } from 'vs/editor/common/editorCommon';
+import { ScrollType, IEditor, ICodeEditorViewState, IDiffEditorViewState } from 'vs/editor/common/editorCommon';
 import { once } from 'vs/base/common/functional';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 interface IAnythingQuickPickItem extends IPickerQuickAccessItem {
 	resource: URI | undefined;
@@ -73,6 +76,12 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		picker: IQuickPick<IAnythingQuickPickItem> | undefined = undefined;
 
+		editorViewState: {
+			editor: IEditorInput,
+			group: IEditorGroup,
+			state: ICodeEditorViewState | IDiffEditorViewState | undefined
+		} | undefined = undefined;
+
 		scorerCache: ScorerCache = Object.create(null);
 		fileQueryCache: FileQueryCacheState | undefined = undefined;
 
@@ -83,7 +92,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		isQuickNavigating: boolean | undefined = undefined;
 
-		constructor(private readonly provider: AnythingQuickAccessProvider) { }
+		constructor(private readonly provider: AnythingQuickAccessProvider, private readonly editorService: IEditorService) { }
 
 		set(picker: IQuickPick<IAnythingQuickPickItem>): void {
 
@@ -108,8 +117,24 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			this.lastFilter = undefined;
 			this.lastRange = undefined;
 			this.lastActiveGlobalPick = undefined;
+			this.editorViewState = undefined;
 		}
-	}(this);
+
+		rememberEditorViewState(): void {
+			if (this.editorViewState) {
+				return; // return early if already done
+			}
+
+			const activeEditorPane = this.editorService.activeEditorPane;
+			if (activeEditorPane) {
+				this.editorViewState = {
+					group: activeEditorPane.group,
+					editor: activeEditorPane.input,
+					state: withNullAsUndefined(getCodeEditor(activeEditorPane.getControl())?.saveViewState())
+				};
+			}
+		}
+	}(this, this.editorService);
 
 	get defaultFilterValue(): DefaultQuickAccessFilterValue | undefined {
 		if (this.configuration.preserveInput) {
@@ -175,6 +200,17 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			}
 		}));
 
+		// Restore view state upon cancellation if we changed it
+		disposables.add(once(token.onCancellationRequested)(() => {
+			if (this.pickState.editorViewState) {
+				this.editorService.openEditor(
+					this.pickState.editorViewState.editor,
+					{ viewState: this.pickState.editorViewState.state, preserveFocus: true /* import to not close the picker as a result */ },
+					this.pickState.editorViewState.group
+				);
+			}
+		}));
+
 		// Start picker
 		disposables.add(super.provide(picker, token));
 
@@ -191,6 +227,9 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		if (!activeEditorControl) {
 			return Disposable.None; // we need a text editor control to decorate and reveal
 		}
+
+		// we must remember our curret view state to be able to restore
+		this.pickState.rememberEditorViewState();
 
 		// Reveal
 		activeEditorControl.revealRangeInCenter(pick.range.selection, ScrollType.Smooth);
@@ -616,6 +655,11 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		// Bring the editor to front to review symbols to go to
 		try {
+
+			// we must remember our curret view state to be able to restore
+			this.pickState.rememberEditorViewState();
+
+			// open it
 			await this.editorService.openEditor({
 				resource: activeGlobalResource,
 				options: { preserveFocus: true, revealIfOpened: true, ignoreError: true }

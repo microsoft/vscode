@@ -58,8 +58,7 @@ export class TimelineService implements ITimelineService {
 		// 					}
 		// 				],
 		// 				paging: {
-		// 					cursor: 'next',
-		// 					more: true
+		// 					cursor: 'next'
 		// 				}
 		// 			});
 		// 		}
@@ -84,7 +83,7 @@ export class TimelineService implements ITimelineService {
 		// 				}
 		// 			],
 		// 			paging: {
-		// 				more: false
+		// 				cursor: undefined
 		// 			}
 		// 		});
 		// 	},

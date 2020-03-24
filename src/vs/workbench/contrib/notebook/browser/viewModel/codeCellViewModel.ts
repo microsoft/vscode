@@ -9,9 +9,10 @@ import * as model from 'vs/editor/common/model';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_PADDING, CELL_MARGIN, RUN_BUTTON_WIDTH } from 'vs/workbench/contrib/notebook/browser/constants';
-import { CellState, ICellViewModel, CellFindMatch, NotebookViewLayoutAccessor, CodeCellLayoutChangeEvent, CodeCellLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, ICellViewModel, CellFindMatch, CodeCellLayoutChangeEvent, CodeCellLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind, ICell, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { BaseCellViewModel } from './baseCellViewModel';
+import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 
 export class CodeCellViewModel extends BaseCellViewModel implements ICellViewModel {
 	cellKind: CellKind.Code = CellKind.Code;
@@ -59,7 +60,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		readonly viewType: string,
 		readonly notebookHandle: number,
 		readonly cell: ICell,
-		private _layoutAccessor: NotebookViewLayoutAccessor,
+		readonly eventDispatcher: NotebookEventDispatcher,
 		@ITextModelService private readonly _modelService: ITextModelService,
 	) {
 		super(viewType, notebookHandle, cell, UUID.generateUuid());
@@ -75,7 +76,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		this._buffer = null;
 
 		this._layoutInfo = {
-			fontInfo: _layoutAccessor.layoutInfo?.fontInfo || null,
+			fontInfo: null,
 			editorHeight: 0,
 			editorWidth: 0,
 			outputTotalHeight: 0,
@@ -83,9 +84,9 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			indicatorHeight: 0
 		};
 
-		this._register(_layoutAccessor.onDidChangeLayout((e) => {
-			if (e.width) {
-				this.layoutChange({ outerWidth: true });
+		this._register(eventDispatcher.onDidChangeLayout((e) => {
+			if (e.source.width !== undefined) {
+				this.layoutChange({ outerWidth: e.value.width, font: e.value.fontInfo });
 			}
 		}));
 	}
@@ -98,9 +99,9 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			? EDITOR_TOOLBAR_HEIGHT + this.editorHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING + 16 + outputTotalHeight
 			: EDITOR_TOOLBAR_HEIGHT + this.editorHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING + outputTotalHeight;
 		const indicatorHeight = totalHeight - EDITOR_TOOLBAR_HEIGHT - 16;
-		const editorWidth = this._layoutAccessor.layoutInfo ? this._layoutAccessor.layoutInfo.width - CELL_MARGIN * 2 - RUN_BUTTON_WIDTH : 0;
+		const editorWidth = state.outerWidth !== undefined ? state.outerWidth - CELL_MARGIN * 2 - RUN_BUTTON_WIDTH : 0;
 		this._layoutInfo = {
-			fontInfo: this._layoutAccessor.layoutInfo?.fontInfo || null,
+			fontInfo: state.font || null,
 			editorHeight: this._editorHeight,
 			editorWidth,
 			outputTotalHeight,
@@ -137,18 +138,10 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	}
 
 	save() {
-		if (this._textModel && !this._textModel.isDisposed() && this.state === CellState.Editing) {
+		if (this._textModel && !this._textModel.isDisposed() && this.editState === CellEditState.Editing) {
 			let cnt = this._textModel.getLineCount();
 			this.cell.source = this._textModel.getLinesContent().map((str, index) => str + (index !== cnt - 1 ? '\n' : ''));
 		}
-	}
-
-	getText(): string {
-		if (this._textModel) {
-			return this._textModel.getValue();
-		}
-
-		return this.cell.source.join('\n');
 	}
 
 	async resolveTextModel(): Promise<model.ITextModel> {
@@ -167,7 +160,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	}
 
 	onDeselect() {
-		this.state = CellState.Preview;
+		this.editState = CellEditState.Preview;
 	}
 
 	updateOutputHeight(index: number, height: number) {

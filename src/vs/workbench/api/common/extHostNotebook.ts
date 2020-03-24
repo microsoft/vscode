@@ -16,6 +16,12 @@ import { INotebookDisplayOrder, ITransformedDisplayOutputDto, IOrderedMimeType, 
 import { ISplice } from 'vs/base/common/sequence';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 
+const notebookDocumentMetadataDefaults: vscode.NotebookDocumentMetadata = {
+	editable: true,
+	cellEditable: true,
+	cellRunnable: true
+};
+
 export class ExtHostCell implements vscode.NotebookCell {
 
 	public source: string[];
@@ -27,13 +33,16 @@ export class ExtHostCell implements vscode.NotebookCell {
 	private _outputMapping = new Set<vscode.CellOutput>();
 
 	constructor(
+		private viewType: string,
+		private documentUri: URI,
 		readonly handle: number,
 		readonly uri: URI,
 		private _content: string,
 		public cellKind: CellKind,
 		public language: string,
 		outputs: any[],
-		public metadata: vscode.NotebookCellMetadata | undefined,
+		private _metadata: vscode.NotebookCellMetadata | undefined,
+		private _proxy: MainThreadNotebookShape
 	) {
 		this.source = this._content.split(/\r|\n|\r\n/g);
 		this._outputs = outputs;
@@ -60,6 +69,20 @@ export class ExtHostCell implements vscode.NotebookCell {
 
 		this._outputs = newOutputs;
 		this._onDidChangeOutputs.fire(diffs);
+	}
+
+	get metadata() {
+		return this._metadata;
+	}
+
+	set metadata(newMetadata: vscode.NotebookCellMetadata | undefined) {
+		const newMetadataWithDefaults: vscode.NotebookCellMetadata | undefined = newMetadata ? {
+			editable: newMetadata.editable,
+			runnable: newMetadata.runnable
+		} : undefined;
+
+		this._metadata = newMetadataWithDefaults;
+		this._proxy.$updateNotebookCellMetadata(this.viewType, this.documentUri, this.handle, newMetadataWithDefaults);
 	}
 
 	getContent(): string {
@@ -131,14 +154,14 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 		this._proxy.$updateNotebookLanguages(this.viewType, this.uri, this._languages);
 	}
 
-	private _metadata: vscode.NotebookDocumentMetadata | undefined = undefined;
+	private _metadata: vscode.NotebookDocumentMetadata | undefined = notebookDocumentMetadataDefaults;
 
 	get metadata() {
 		return this._metadata;
 	}
 
 	set metadata(newMetadata: vscode.NotebookDocumentMetadata | undefined) {
-		this._metadata = newMetadata;
+		this._metadata = newMetadata || notebookDocumentMetadataDefaults;
 		this._proxy.$updateNotebookMetadata(this.viewType, this.uri, this._metadata);
 	}
 
@@ -347,7 +370,7 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 	onDidReceiveMessage: vscode.Event<any> = this._onDidReceiveMessage.event;
 
 	constructor(
-		viewType: string,
+		private readonly viewType: string,
 		readonly id: string,
 		public uri: URI,
 		private _proxy: MainThreadNotebookShape,
@@ -382,7 +405,7 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 	createCell(content: string, language: string, type: CellKind, outputs: vscode.CellOutput[], metadata: vscode.NotebookCellMetadata | undefined): vscode.NotebookCell {
 		const handle = ExtHostNotebookEditor._cellhandlePool++;
 		const uri = CellUri.generate(this.document.uri, handle);
-		const cell = new ExtHostCell(handle, uri, content, type, language, outputs, metadata);
+		const cell = new ExtHostCell(this.viewType, this.uri, handle, uri, content, type, language, outputs, metadata, this._proxy);
 		return cell;
 	}
 
@@ -580,7 +603,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 			let editor = this._editors.get(URI.revive(uri).toString());
 			let document = this._documents.get(URI.revive(uri).toString());
 
-			let rawCell = editor?.editor.createCell('', language, type, [], undefined) as ExtHostCell;
+			let rawCell = editor?.editor.createCell('', language, type, [], { editable: true, runnable: true }) as ExtHostCell;
 			document?.insertCell(index, rawCell!);
 
 			let allDocuments = this._documentsAndEditors.allDocuments();

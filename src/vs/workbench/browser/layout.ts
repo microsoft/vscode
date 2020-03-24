@@ -424,11 +424,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (!this.state.fullscreen && !this.state.maximized && (activeBorder || inactiveBorder)) {
 			windowBorder = true;
 
-			// If one color is missing, just fallback to the other one
-			const borderColor = this.state.hasFocus
-				? activeBorder ?? inactiveBorder
-				: inactiveBorder ?? activeBorder;
-			this.container.style.setProperty('--window-border-color', borderColor ? borderColor.toString() : 'transparent');
+			// If the inactive color is missing, fallback to the active one
+			const borderColor = this.state.hasFocus ? activeBorder : inactiveBorder ?? activeBorder;
+			this.container.style.setProperty('--window-border-color', borderColor?.toString() ?? 'transparent');
 		}
 
 		if (windowBorder === this.state.windowBorder) {

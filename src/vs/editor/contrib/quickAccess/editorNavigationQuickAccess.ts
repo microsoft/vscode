@@ -80,11 +80,11 @@ export abstract class AbstractEditorNavigationQuickAccessProvider implements IQu
 					lastKnownEditorViewState = withNullAsUndefined(editor.saveViewState());
 				}));
 
-				once(token.onCancellationRequested)(() => {
+				disposables.add(once(token.onCancellationRequested)(() => {
 					if (lastKnownEditorViewState) {
 						editor.restoreViewState(lastKnownEditorViewState);
 					}
-				});
+				}));
 			}
 
 			// Clean up decorations on dispose

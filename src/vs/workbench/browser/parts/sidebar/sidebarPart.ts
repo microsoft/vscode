@@ -21,8 +21,8 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { IThemeService, IColorTheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { SIDE_BAR_TITLE_FOREGROUND, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND, SIDE_BAR_BORDER, SIDE_BAR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { EventType, addDisposableListener, trackFocus } from 'vs/base/browser/dom';
@@ -332,6 +332,23 @@ class FocusSideBarAction extends Action {
 		}
 	}
 }
+
+registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
+
+	// Sidebar Background: since views can host editors, we apply a background rule if the sidebar background
+	// color is different from the editor background color. This is a bit of a hack though. The better way
+	// would be to have a way to push the background color onto each editor widget itself somehow.
+	const sidebarBackground = theme.getColor(SIDE_BAR_BACKGROUND);
+	if (sidebarBackground && sidebarBackground !== theme.getColor(editorBackground)) {
+		collector.addRule(`
+			.monaco-workbench .part.sidebar > .content .monaco-editor,
+			.monaco-workbench .part.sidebar > .content .monaco-editor .margin,
+			.monaco-workbench .part.sidebar > .content .monaco-editor .monaco-editor-background {
+				background-color: ${sidebarBackground};
+			}
+		`);
+	}
+});
 
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 registry.registerWorkbenchAction(SyncActionDescriptor.create(FocusSideBarAction, FocusSideBarAction.ID, FocusSideBarAction.LABEL, {

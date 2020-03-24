@@ -12,12 +12,12 @@ import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ActionBar, ActionsOrientation, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CompositeActionViewItem, CompositeOverflowActivityAction, ICompositeActivity, CompositeOverflowActivityActionViewItem, ActivityAction, ICompositeBar, ICompositeBarColors } from 'vs/workbench/browser/parts/compositeBarActions';
-import { Dimension, $, addDisposableListener, EventType, EventHelper } from 'vs/base/browser/dom';
+import { Dimension, $, addDisposableListener, EventType, EventHelper, toggleClass, isAncestor } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { isUndefinedOrNull } from 'vs/base/common/types';
-import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import { IColorTheme } from 'vs/platform/theme/common/themeService';
 import { Emitter } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewDescriptorService } from 'vs/workbench/common/views';
@@ -187,7 +187,6 @@ export class CompositeBar extends Widget implements ICompositeBar {
 	constructor(
 		items: ICompositeBarItem[],
 		private options: ICompositeBarOptions,
-		@IThemeService private readonly themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
@@ -215,8 +214,6 @@ export class CompositeBar extends Widget implements ICompositeBar {
 
 	create(parent: HTMLElement): HTMLElement {
 		const actionBarDiv = parent.appendChild($('.composite-bar'));
-		const excessDiv = parent.appendChild($('.composite-bar-excess'));
-
 		this.compositeSwitcherBar = this._register(new ActionBar(actionBarDiv, {
 			actionViewItemProvider: (action: IAction) => {
 				if (action instanceof CompositeOverflowActivityAction) {
@@ -242,23 +239,26 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, e => this.showContextMenu(e)));
 
 		// Register a drop target on the whole bar to prevent forbidden feedback
-		this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(parent, {}));
+		this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(parent, {
+			onDragOver: (e: IDraggedCompositeData) => {
+				// don't add feedback if this is over the composite bar actions
+				if (e.eventData.target && isAncestor(e.eventData.target as HTMLElement, actionBarDiv)) {
+					toggleClass(parent, 'dragged-over', false);
+					return;
+				}
 
-		// Allow to drop at the end to move composites to the end
-		this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(excessDiv, {
-			onDragEnter: (e: IDraggedCompositeData) => {
 				const pinnedItems = this.getPinnedComposites();
-				const validDropTarget = this.options.dndHandler.onDragEnter(e.dragAndDropData, pinnedItems[pinnedItems.length - 1].id, e.eventData);
-				this.updateFromDragging(excessDiv, validDropTarget);
+				const validDropTarget = this.options.dndHandler.onDragOver(e.dragAndDropData, pinnedItems[pinnedItems.length - 1].id, e.eventData);
+				toggleClass(parent, 'dragged-over', validDropTarget);
 			},
 
 			onDragLeave: (e: IDraggedCompositeData) => {
-				this.updateFromDragging(excessDiv, false);
+				toggleClass(parent, 'dragged-over', false);
 			},
 			onDrop: (e: IDraggedCompositeData) => {
 				const pinnedItems = this.getPinnedComposites();
 				this.options.dndHandler.drop(e.dragAndDropData, pinnedItems[pinnedItems.length - 1].id, e.eventData, false);
-				this.updateFromDragging(excessDiv, false);
+				toggleClass(parent, 'dragged-over', false);
 			}
 		}));
 
@@ -362,13 +362,6 @@ export class CompositeBar extends Widget implements ICompositeBar {
 
 			this.resetActiveComposite(compositeId);
 		}
-	}
-
-	private updateFromDragging(element: HTMLElement, isDragging: boolean): void {
-		const theme = this.themeService.getColorTheme();
-		const dragBackground = this.options.colors(theme).dragAndDropBackground;
-
-		element.style.backgroundColor = isDragging && dragBackground ? dragBackground.toString() : '';
 	}
 
 	private resetActiveComposite(compositeId: string) {

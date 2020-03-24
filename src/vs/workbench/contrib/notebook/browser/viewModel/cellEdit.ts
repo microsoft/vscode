@@ -6,17 +6,16 @@
 import { ICell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IResourceUndoRedoElement, UndoRedoElementType } from 'vs/platform/undoRedo/common/undoRedo';
 import { URI } from 'vs/base/common/uri';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { NotebookViewModel, CellViewModel, createCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-
+import { BaseCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/baseCellViewModel';
 
 /**
  * It should not modify Undo/Redo stack
  */
 export interface ICellEditingDelegate {
-	insertCell?(index: number, viewCell: CellViewModel): void;
+	insertCell?(index: number, viewCell: BaseCellViewModel): void;
 	deleteCell?(index: number, cell: ICell): void;
 	moveCell?(fromIndex: number, toIndex: number): void;
+	createCellViewModel?(cell: ICell): BaseCellViewModel;
 }
 
 export class InsertCellEdit implements IResourceUndoRedoElement {
@@ -25,7 +24,7 @@ export class InsertCellEdit implements IResourceUndoRedoElement {
 	constructor(
 		public resource: URI,
 		private insertIndex: number,
-		private cell: CellViewModel,
+		private cell: BaseCellViewModel,
 		private editingDelegate: ICellEditingDelegate
 	) {
 	}
@@ -54,10 +53,8 @@ export class DeleteCellEdit implements IResourceUndoRedoElement {
 	constructor(
 		public resource: URI,
 		private insertIndex: number,
-		cell: CellViewModel,
-		private editingDelegate: ICellEditingDelegate,
-		private instantiationService: IInstantiationService,
-		private notebookViewModel: NotebookViewModel
+		cell: BaseCellViewModel,
+		private editingDelegate: ICellEditingDelegate
 	) {
 		this._rawCell = cell.cell;
 
@@ -66,11 +63,11 @@ export class DeleteCellEdit implements IResourceUndoRedoElement {
 	}
 
 	undo(): void | Promise<void> {
-		if (!this.editingDelegate.insertCell) {
+		if (!this.editingDelegate.insertCell || !this.editingDelegate.createCellViewModel) {
 			throw new Error('Notebook Insert Cell not implemented for Undo/Redo');
 		}
 
-		const cell = createCellViewModel(this.instantiationService, this.notebookViewModel, this._rawCell);
+		const cell = this.editingDelegate.createCellViewModel(this._rawCell);
 		this.editingDelegate.insertCell(this.insertIndex, cell);
 	}
 

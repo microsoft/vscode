@@ -26,7 +26,11 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 
 	private readonly lastAcceptedPickerValues = new Map<IQuickAccessProviderDescriptor, string>();
 
-	private visibleQuickAccess: { picker: IQuickPick<IQuickPickItem>, descriptor: IQuickAccessProviderDescriptor | undefined, value: string } | undefined = undefined;
+	private visibleQuickAccess: {
+		picker: IQuickPick<IQuickPickItem>,
+		descriptor: IQuickAccessProviderDescriptor | undefined,
+		value: string
+	} | undefined = undefined;
 
 	constructor(
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -40,14 +44,34 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 		// Find provider for the value to show
 		const [provider, descriptor] = this.getOrInstantiateProvider(value);
 
+		// Return early if quick access is already showing on that
+		// same prefix and simply take over the filter value if it
+		// is more specific and select it for the user to be able
+		// to type over
+		const visibleQuickAccess = this.visibleQuickAccess;
+		const visibleDescriptor = visibleQuickAccess?.descriptor;
+		if (visibleQuickAccess && descriptor && visibleDescriptor === descriptor) {
+
+			// Take over the value only if it is not matching
+			// the existing provider prefix or we are to preserve
+			if (value !== descriptor.prefix && !options?.preserveFilterValue) {
+				visibleQuickAccess.picker.value = value;
+			}
+
+			// Always adjust selection
+			this.adjustValueSelection(visibleQuickAccess.picker, descriptor, options);
+
+			return;
+		}
+
 		// Rewrite the filter value based on certain rules unless disabled
 		if (descriptor && !options?.preserveFilterValue) {
 			let newValue: string | undefined = undefined;
 
 			// If we have a visible provider with a value, take it's filter value but
 			// rewrite to new provider prefix in case they differ
-			if (this.visibleQuickAccess?.descriptor && this.visibleQuickAccess.descriptor !== descriptor) {
-				const newValueCandidateWithoutPrefix = this.visibleQuickAccess.value.substr(this.visibleQuickAccess.descriptor.prefix.length);
+			if (visibleQuickAccess && visibleDescriptor && visibleDescriptor !== descriptor) {
+				const newValueCandidateWithoutPrefix = visibleQuickAccess.value.substr(visibleDescriptor.prefix.length);
 				if (newValueCandidateWithoutPrefix) {
 					newValue = `${descriptor.prefix}${newValueCandidateWithoutPrefix}`;
 				}
@@ -69,26 +93,16 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 			}
 		}
 
-		// Return early if quick access is already showing and
-		// simply take over the filter value and select it for
-		// the user to be able to type over
-		if (descriptor && this.visibleQuickAccess?.descriptor === descriptor) {
-			this.visibleQuickAccess.picker.value = value;
-			this.visibleQuickAccess.picker.valueSelection = [descriptor.prefix.length, value.length];
-
-			return;
-		}
-
 		// Create a picker for the provider to use with the initial value
 		// and adjust the filtering to exclude the prefix from filtering
 		const disposables = new DisposableStore();
 		const picker = disposables.add(this.quickInputService.createQuickPick());
-		picker.placeholder = descriptor?.placeholder;
 		picker.value = value;
+		this.adjustValueSelection(picker, descriptor, options);
+		picker.placeholder = descriptor?.placeholder;
 		picker.quickNavigate = options?.quickNavigateConfiguration;
-		picker.hideInput = !!picker.quickNavigate && !this.visibleQuickAccess; // only hide input if there was no picker opened already
+		picker.hideInput = !!picker.quickNavigate && !visibleQuickAccess; // only hide input if there was no picker opened already
 		picker.autoFocusSecondEntry = !!options?.quickNavigateConfiguration || !!options?.autoFocus?.autoFocusSecondEntry;
-		picker.valueSelection = [descriptor?.prefix.length ?? 0, value.length]; // always allow to type over value after prefix
 		picker.contextKey = descriptor?.contextKey;
 		picker.filterValue = (value: string) => value.substring(descriptor ? descriptor.prefix.length : 0);
 
@@ -104,6 +118,22 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 		// may not call this and then our disposables would leak that rely
 		// on the onDidHide event.
 		picker.show();
+	}
+
+	private adjustValueSelection(picker: IQuickPick<IQuickPickItem>, descriptor?: IQuickAccessProviderDescriptor, options?: IInternalQuickAccessOptions): void {
+		let valueSelection: [number, number];
+
+		// Preserve: just always put the cursor at the end
+		if (options?.preserveFilterValue) {
+			valueSelection = [picker.value.length, picker.value.length];
+		}
+
+		// Otherwise: select the value up until the prefix
+		else {
+			valueSelection = [descriptor?.prefix.length ?? 0, picker.value.length];
+		}
+
+		picker.valueSelection = valueSelection;
 	}
 
 	private registerPickerListeners(disposables: DisposableStore, picker: IQuickPick<IQuickPickItem>, provider: IQuickAccessProvider | undefined, descriptor: IQuickAccessProviderDescriptor | undefined, value: string): CancellationToken {

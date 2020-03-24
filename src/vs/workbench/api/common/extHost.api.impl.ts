@@ -546,9 +546,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostProgress.withProgress(extension, { location: extHostTypes.ProgressLocation.SourceControl }, (progress, token) => task({ report(n: number) { /*noop*/ } }));
 			},
 			withProgress<R>(options: vscode.ProgressOptions, task: (progress: vscode.Progress<{ message?: string; worked?: number }>, token: vscode.CancellationToken) => Thenable<R>) {
-				if (typeof options.location === 'object') {
-					checkProposedApiEnabled(extension);
-				}
 				return extHostProgress.withProgress(extension, options, task);
 			},
 			createOutputChannel(name: string): vscode.OutputChannel {
@@ -583,9 +580,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerWebviewPanelSerializer: (viewType: string, serializer: vscode.WebviewPanelSerializer) => {
 				return extHostWebviews.registerWebviewPanelSerializer(extension, viewType, serializer);
 			},
-			registerCustomEditorProvider: (viewType: string, provider: vscode.CustomEditorProvider | vscode.CustomTextEditorProvider, options?: vscode.WebviewPanelOptions) => {
+			registerCustomEditorProvider: (viewType: string, provider: vscode.CustomEditorProvider | vscode.CustomTextEditorProvider, options?: { webviewOptions?: vscode.WebviewPanelOptions }) => {
 				checkProposedApiEnabled(extension);
-				return extHostWebviews.registerCustomEditorProvider(extension, viewType, provider, options);
+				return extHostWebviews.registerCustomEditorProvider(extension, viewType, provider, options?.webviewOptions);
 			},
 			registerDecorationProvider(provider: vscode.DecorationProvider) {
 				checkProposedApiEnabled(extension);
@@ -1026,12 +1023,12 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			CallHierarchyItem: extHostTypes.CallHierarchyItem,
 			DebugConsoleMode: extHostTypes.DebugConsoleMode,
 			Decoration: extHostTypes.Decoration,
-			WebviewContentState: extHostTypes.WebviewContentState,
 			UIKind: UIKind,
 			ColorThemeKind: extHostTypes.ColorThemeKind,
 			TimelineItem: extHostTypes.TimelineItem,
 			CellKind: extHostTypes.CellKind,
-			CellOutputKind: extHostTypes.CellOutputKind
+			CellOutputKind: extHostTypes.CellOutputKind,
+			CustomDocument: extHostTypes.CustomDocument,
 		};
 	};
 }

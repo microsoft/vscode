@@ -59,6 +59,8 @@ import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/pl
 import { SymbolsQuickAccessProvider } from 'vs/workbench/contrib/search/browser/symbolsQuickAccess';
 import { AnythingQuickAccessProvider } from 'vs/workbench/contrib/search/browser/anythingQuickAccess';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { AbstractGotoLineQuickAccessProvider } from 'vs/editor/contrib/quickAccess/gotoLineQuickAccess';
+import { GotoSymbolQuickAccessProvider } from 'vs/workbench/contrib/codeEditor/browser/quickaccess/gotoSymbolQuickAccess';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService, true);
 registerSingleton(ISearchHistoryService, SearchHistoryService, true);
@@ -666,7 +668,7 @@ const quickAccessRegistry = Registry.as<IQuickAccessRegistry>(QuickAccessExtensi
 quickAccessRegistry.registerQuickAccessProvider({
 	ctor: AnythingQuickAccessProvider,
 	prefix: AnythingQuickAccessProvider.PREFIX,
-	placeholder: nls.localize('anythingQuickAccessPlaceholder', "Type '?' to get help on the actions you can take from here"),
+	placeholder: nls.localize('anythingQuickAccessPlaceholder', "Search files by name (append {0} to go to line or {1} to go to symbol)", AbstractGotoLineQuickAccessProvider.PREFIX, GotoSymbolQuickAccessProvider.PREFIX),
 	contextKey: defaultQuickOpenContextKey,
 	helpEntries: [{ description: nls.localize('anythingQuickAccess', "Go to File"), needsEditor: false }]
 });

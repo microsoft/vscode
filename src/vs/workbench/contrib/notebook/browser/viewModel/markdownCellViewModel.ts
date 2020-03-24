@@ -8,11 +8,12 @@ import * as UUID from 'vs/base/common/uuid';
 import * as model from 'vs/editor/common/model';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CellState, ICellViewModel, CellFindMatch, NotebookViewLayoutAccessor, MarkdownCellLayoutInfo, MarkdownCellLayoutChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICellViewModel, CellFindMatch, MarkdownCellLayoutInfo, MarkdownCellLayoutChangeEvent, CellEditState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { MarkdownRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/mdRenderer';
 import { BaseCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/baseCellViewModel';
 import { CellKind, ICell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CELL_MARGIN } from 'vs/workbench/contrib/notebook/browser/constants';
+import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 
 export class MarkdownCellViewModel extends BaseCellViewModel implements ICellViewModel {
 	cellKind: CellKind.Markdown = CellKind.Markdown;
@@ -34,29 +35,29 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 		readonly viewType: string,
 		readonly notebookHandle: number,
 		readonly cell: ICell,
-		private _layoutAccessor: NotebookViewLayoutAccessor,
+		readonly eventDispatcher: NotebookEventDispatcher,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@ITextModelService private readonly _modelService: ITextModelService) {
 		super(viewType, notebookHandle, cell, UUID.generateUuid());
 
 		this._layoutInfo = {
-			fontInfo: this._layoutAccessor.layoutInfo?.fontInfo || null,
+			fontInfo: null,
 			editorWidth: 0
 		};
 
-		this._register(_layoutAccessor.onDidChangeLayout((e) => {
-			if (e.width) {
-				this.layoutChange({ outerWidth: true });
+		this._register(eventDispatcher.onDidChangeLayout((e) => {
+			if (e.source.width || e.source.fontInfo) {
+				this.layoutChange({ outerWidth: e.value.width, font: e.value.fontInfo });
 			}
 		}));
 	}
 
 	layoutChange(state: MarkdownCellLayoutChangeEvent) {
 		// recompute
-		const editorWidth = this._layoutAccessor.layoutInfo ? this._layoutAccessor.layoutInfo.width - CELL_MARGIN * 2 : 0;
+		const editorWidth = state.outerWidth !== undefined ? state.outerWidth - CELL_MARGIN * 2 : 0;
 
 		this._layoutInfo = {
-			fontInfo: this._layoutAccessor.layoutInfo?.fontInfo || null,
+			fontInfo: state.font || null,
 			editorWidth
 		};
 
@@ -77,17 +78,10 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 	}
 
 	save() {
-		if (this._textModel && !this._textModel.isDisposed() && this.state === CellState.Editing) {
+		if (this._textModel && !this._textModel.isDisposed() && this.editState === CellEditState.Editing) {
 			let cnt = this._textModel.getLineCount();
 			this.cell.source = this._textModel.getLinesContent().map((str, index) => str + (index !== cnt - 1 ? '\n' : ''));
 		}
-	}
-
-	getText(): string {
-		if (this._textModel) {
-			return this._textModel.getValue();
-		}
-		return this.cell.source.join('\n');
 	}
 
 	getHTML(): HTMLElement | null {
@@ -118,7 +112,7 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 	}
 
 	onDeselect() {
-		this.state = CellState.Preview;
+		this.editState = CellEditState.Preview;
 	}
 
 	getMarkdownRenderer() {

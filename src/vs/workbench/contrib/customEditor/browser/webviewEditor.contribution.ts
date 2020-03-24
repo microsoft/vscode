@@ -38,6 +38,8 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 	CustomEditorInputFactory.ID,
 	CustomEditorInputFactory);
 
+Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerCustomEditorInputFactory(CustomEditorInputFactory);
+
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({
 		...workbenchConfigurationNodeBase,

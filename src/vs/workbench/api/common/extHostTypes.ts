@@ -4,16 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesce, equals } from 'vs/base/common/arrays';
+import { escapeCodicons } from 'vs/base/common/codicons';
 import { illegalArgument } from 'vs/base/common/errors';
+import { Emitter } from 'vs/base/common/event';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { isMarkdownString } from 'vs/base/common/htmlContent';
 import { startsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
-import type * as vscode from 'vscode';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
 import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { escapeCodicons } from 'vs/base/common/codicons';
+import type * as vscode from 'vscode';
+import { Cache } from './cache';
+import { assertIsDefined } from 'vs/base/common/types';
 
 function es5ClassCompat(target: Function): any {
 	///@ts-ignore
@@ -2538,13 +2541,6 @@ export class Decoration {
 	bubble?: boolean;
 }
 
-export enum WebviewContentState {
-	Readonly = 1,
-	Unchanged = 2,
-	Dirty = 3,
-}
-
-
 //#region Theming
 
 @es5ClassCompat
@@ -2584,3 +2580,84 @@ export class TimelineItem implements vscode.TimelineItem {
 }
 
 //#endregion Timeline
+
+//#region Custom Editors
+
+interface EditState {
+	readonly allEdits: readonly number[];
+	readonly currentIndex: number;
+	readonly saveIndex: number;
+}
+
+export class CustomDocument<EditType = unknown> implements vscode.CustomDocument<EditType> {
+
+
+	readonly #edits = new Cache<EditType>('edits');
+
+	#editState: EditState;
+
+	readonly #viewType: string;
+	readonly #uri: vscode.Uri;
+
+	constructor(viewType: string, uri: vscode.Uri) {
+		this.#viewType = viewType;
+		this.#uri = uri;
+		this.#editState = {
+			allEdits: [],
+			currentIndex: 0,
+			saveIndex: 0
+		};
+	}
+
+	//#region Public API
+
+	public get viewType(): string { return this.#viewType; }
+
+	public get uri(): vscode.Uri { return this.#uri; }
+
+	#onDidDispose = new Emitter<void>();
+	public readonly onDidDispose = this.#onDidDispose.event;
+
+	get appliedEdits() {
+		return this.#editState.allEdits.slice(0, this.#editState.currentIndex + 1)
+			.map(id => this._getEdit(id));
+	}
+
+	get savedEdits() {
+		return this.#editState.allEdits.slice(0, this.#editState.saveIndex + 1)
+			.map(id => this._getEdit(id));
+	}
+
+	//#endregion
+
+	/** @internal */ _dispose(): void {
+		this.#onDidDispose.fire();
+		this.#onDidDispose.dispose();
+	}
+
+	/** @internal */ _updateEditState(state: EditState) {
+		this.#editState = state;
+	}
+
+	/** @internal*/ _getEdit(editId: number): EditType {
+		return assertIsDefined(this.#edits.get(editId, 0));
+	}
+
+	/** @internal*/ _disposeEdits(editIds: number[]) {
+		for (const editId of editIds) {
+			this.#edits.delete(editId);
+		}
+	}
+
+	/** @internal*/ _addEdit(edit: EditType): number {
+		const id = this.#edits.add([edit]);
+		this.#editState = {
+			allEdits: [...this.#editState.allEdits.slice(0, this.#editState.currentIndex), id],
+			currentIndex: this.#editState.currentIndex + 1,
+			saveIndex: this.#editState.saveIndex,
+		};
+		return id;
+	}
+}
+
+// #endregion

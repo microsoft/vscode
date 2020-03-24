@@ -1289,17 +1289,11 @@ declare module 'vscode' {
 
 	//#region Custom editors: https://github.com/microsoft/vscode/issues/77131
 
-	// TODO:
-	// - Think about where a rename would live.
-	// - Think about handling go to line? (add other editor options? reveal?)
-	// - Should we expose edits?
-	// - More properties from `TextDocument`?
-
 	/**
 	 * Defines the editing capability of a custom webview editor. This allows the webview editor to hook into standard
 	 * editor events such as `undo` or `save`.
 	 *
-	 * @param EditType Type of edits.
+	 * @param EditType Type of edits used for the documents this delegate handles.
 	 */
 	interface CustomEditorEditingDelegate<EditType = unknown> {
 		/**
@@ -1310,7 +1304,7 @@ declare module 'vscode' {
 		 *
 		 * @return Thenable signaling that the save has completed.
 		 */
-		save(document: CustomDocument, cancellation: CancellationToken): Thenable<void>;
+		save(document: CustomDocument<EditType>, cancellation: CancellationToken): Thenable<void>;
 
 		/**
 		 * Save the existing resource at a new path.
@@ -1320,7 +1314,7 @@ declare module 'vscode' {
 		 *
 		 * @return Thenable signaling that the save has completed.
 		 */
-		saveAs(document: CustomDocument, targetResource: Uri): Thenable<void>;
+		saveAs(document: CustomDocument<EditType>, targetResource: Uri): Thenable<void>;
 
 		/**
 		 * Event triggered by extensions to signal to VS Code that an edit has occurred.
@@ -1337,7 +1331,7 @@ declare module 'vscode' {
 		 *
 		 * @return Thenable signaling that the change has completed.
 		 */
-		applyEdits(document: CustomDocument, edits: readonly EditType[]): Thenable<void>;
+		applyEdits(document: CustomDocument<EditType>, edits: readonly EditType[]): Thenable<void>;
 
 		/**
 		 * Undo a set of edits.
@@ -1349,7 +1343,7 @@ declare module 'vscode' {
 		 *
 		 * @return Thenable signaling that the change has completed.
 		 */
-		undoEdits(document: CustomDocument, edits: readonly EditType[]): Thenable<void>;
+		undoEdits(document: CustomDocument<EditType>, edits: readonly EditType[]): Thenable<void>;
 
 		/**
 		 * Revert the file to its last saved state.
@@ -1359,7 +1353,7 @@ declare module 'vscode' {
 		 *
 		 * @return Thenable signaling that the change has completed.
 		 */
-		revert(document: CustomDocument, edits: CustomDocumentRevert<EditType>): Thenable<void>;
+		revert(document: CustomDocument<EditType>, edits: CustomDocumentRevert<EditType>): Thenable<void>;
 
 		/**
 		 * Back up the resource in its current state.
@@ -1380,22 +1374,25 @@ declare module 'vscode' {
 		 * in an operation that takes time to complete, your extension may decide to finish the ongoing backup rather
 		 * than cancelling it to ensure that VS Code has some valid backup.
 		 */
-		backup(document: CustomDocument, cancellation: CancellationToken): Thenable<void>;
+		backup(document: CustomDocument<EditType>, cancellation: CancellationToken): Thenable<void>;
 	}
 
 	/**
-	 * Event triggered by extensions to signal to VS Code that an edit has occurred on a CustomDocument``.
+	 * Event triggered by extensions to signal to VS Code that an edit has occurred on a `CustomDocument`.
+	 *
+	 * @param EditType Type of edits used for the document.
 	 */
 	interface CustomDocumentEditEvent<EditType = unknown> {
 		/**
 		 * Document the edit is for.
 		 */
-		readonly document: CustomDocument;
+		readonly document: CustomDocument<EditType>;
 
 		/**
 		 * Object that describes the edit.
 		 *
-		 * Edit objects are passed back to your extension in `undoEdits`, `applyEdits`, and `revert`.
+		 * Edit objects are passed back to your extension in `CustomEditorEditingDelegate.undoEdits`,
+		 * `CustomEditorEditingDelegate.applyEdits`, and `CustomEditorEditingDelegate.revert`.
 		 */
 		readonly edit: EditType;
 
@@ -1423,13 +1420,19 @@ declare module 'vscode' {
 	/**
 	 * Represents a custom document used by a `CustomEditorProvider`.
 	 *
-	 * Custom documents are only used within a given `CustomEditorProvider`. The lifecycle of a
-	 * `CustomDocument` is managed by VS Code. When no more references remain to a given `CustomDocument`,
-	 * then it is disposed of.
+	 * All custom documents must subclass `CustomDocument`. Custom documents are only used within a given
+	 * `CustomEditorProvider`. The lifecycle of a `CustomDocument` is managed by VS Code. When no more references
+	 * remain to a `CustomDocument`, it is disposed of.
 	 *
-	 * @param UserDataType Type of custom object that extensions can store on the document.
+	 * @param EditType Type of edits used in this document.
 	 */
-	interface CustomDocument<UserDataType = unknown> {
+	class CustomDocument<EditType = unknown> {
+		/**
+		 * @param viewType The associated uri for this document.
+		 * @param uri The associated viewType for this document.
+		 */
+		constructor(viewType: string, uri: Uri);
+
 		/**
 		 * The associated viewType for this document.
 		 */
@@ -1446,12 +1449,17 @@ declare module 'vscode' {
 		readonly onDidDispose: Event<void>;
 
 		/**
-		 * Custom data that an extension can store on the document.
+		 * List of edits from document open to the document's current state.
 		 */
-		userData?: UserDataType;
+		readonly appliedEdits: ReadonlyArray<EditType>;
 
-		// TODO: Should we expose edits here?
-		// This could be helpful for tracking the life cycle of edits
+		/**
+		 * List of edits from document open to the document's last saved point.
+		 *
+		 * The save point will be behind `appliedEdits` if the user saves and then continues editing,
+		 * or in front of the last entry in `appliedEdits` if the user saves and then hits undo.
+		 */
+		readonly savedEdits: ReadonlyArray<EditType>;
 	}
 
 	/**
@@ -1463,7 +1471,8 @@ declare module 'vscode' {
 	 * You should use custom text based editors when dealing with binary files or more complex scenarios. For simple text
 	 * based documents, use [`WebviewTextEditorProvider`](#WebviewTextEditorProvider) instead.
 	 */
-	export interface CustomEditorProvider {
+	export interface CustomEditorProvider<EditType = unknown> {
+
 		/**
 		 * Resolve the model for a given resource.
 		 *
@@ -1472,18 +1481,18 @@ declare module 'vscode' {
 		 * If all editors for a given resource are closed, the `CustomDocument` is disposed of. Opening an editor at
 		 * this point will trigger another call to `resolveCustomDocument`.
 		 *
-		 * @param document Document to resolve.
+		 * @param uri Uri of the document to open.
 		 * @param token A cancellation token that indicates the result is no longer needed.
 		 *
-		 * @return The capabilities of the resolved document.
+		 * @return The custom document.
 		 */
-		resolveCustomDocument(document: CustomDocument, token: CancellationToken): Thenable<void>; // TODO: rename to open?
+		openCustomDocument(uri: Uri, token: CancellationToken): Thenable<CustomDocument<EditType>>;
 
 		/**
 		 * Resolve a webview editor for a given resource.
 		 *
-		 * This is called when a user first opens a resource for a `CustomTextEditorProvider`, or if they reopen an
-		 * existing editor using this `CustomTextEditorProvider`.
+		 * This is called when a user first opens a resource for a `CustomEditorProvider`, or if they reopen an
+		 * existing editor using this `CustomEditorProvider`.
 		 *
 		 * To resolve a webview editor, the provider must fill in its initial html content and hook up all
 		 * the event listeners it is interested it. The provider can also hold onto the `WebviewPanel` to use later,
@@ -1495,14 +1504,14 @@ declare module 'vscode' {
 		 *
 		 * @return Thenable indicating that the webview editor has been resolved.
 		 */
-		resolveCustomEditor(document: CustomDocument, webviewPanel: WebviewPanel, token: CancellationToken): Thenable<void>;
+		resolveCustomEditor(document: CustomDocument<EditType>, webviewPanel: WebviewPanel, token: CancellationToken): Thenable<void>;
 
 		/**
 		 * Defines the editing capability of a custom webview document.
 		 *
 		 * When not provided, the document is considered readonly.
 		 */
-		readonly editingDelegate?: CustomEditorEditingDelegate;
+		readonly editingDelegate?: CustomEditorEditingDelegate<EditType>;
 	}
 
 	/**
@@ -1516,6 +1525,7 @@ declare module 'vscode' {
 	 * For binary files or more specialized use cases, see [CustomEditorProvider](#CustomEditorProvider).
 	 */
 	export interface CustomTextEditorProvider {
+
 		/**
 		 * Resolve a webview editor for a given text resource.
 		 *
@@ -1549,8 +1559,6 @@ declare module 'vscode' {
 		 * @return Thenable indicating that the webview editor has been moved.
 		 */
 		moveCustomTextEditor?(newDocument: TextDocument, existingWebviewPanel: WebviewPanel, token: CancellationToken): Thenable<void>;
-
-		// TODO: handlesMove?: boolean;
 	}
 
 	namespace window {
@@ -1560,14 +1568,16 @@ declare module 'vscode' {
 		 * @param viewType Type of the webview editor provider. This should match the `viewType` from the
 		 *   `package.json` contributions.
 		 * @param provider Provider that resolves editors.
-		 * @param webviewOptions Content settings for the webview panels that the provider is given.
+		 * @param options Options for the provider
 		 *
 		 * @return Disposable that unregisters the provider.
 		 */
 		export function registerCustomEditorProvider(
 			viewType: string,
 			provider: CustomEditorProvider | CustomTextEditorProvider,
-			webviewOptions?: WebviewPanelOptions, // TODO: move this onto provider?
+			options?: {
+				readonly webviewOptions?: WebviewPanelOptions;
+			}
 		): Disposable;
 	}
 
@@ -1656,7 +1666,16 @@ declare module 'vscode' {
 	export type CellOutput = CellStreamOutput | CellErrorOutput | CellDisplayOutput;
 
 	export interface NotebookCellMetadata {
+		/**
+		 * Controls if the content of a cell is editable or not.
+		 */
 		editable: boolean;
+
+		/**
+		 * Controls if the cell is executable.
+		 * This metadata is ignored for markdown cell.
+		 */
+		runnable: boolean;
 	}
 
 	export interface NotebookCell {
@@ -1670,7 +1689,23 @@ declare module 'vscode' {
 	}
 
 	export interface NotebookDocumentMetadata {
+		/**
+		 * Controls if users can add or delete cells
+		 * Default to true
+		 */
 		editable: boolean;
+
+		/**
+		 * Default value for [cell editable metadata](#NotebookCellMetadata.editable).
+		 * Default to true.
+		 */
+		cellEditable: boolean;
+
+		/**
+		 * Default value for [cell runnable metadata](#NotebookCellMetadata.runnable).
+		 * Default to true.
+		 */
+		cellRunnable: boolean;
 	}
 
 	export interface NotebookDocument {
@@ -1702,7 +1737,7 @@ declare module 'vscode' {
 		/**
 		 * Create a notebook cell. The cell is not inserted into current document when created. Extensions should insert the cell into the document by [TextDocument.cells](#TextDocument.cells)
 		 */
-		createCell(content: string, language: string, type: CellKind, outputs: CellOutput[], metadata: NotebookCellMetadata): NotebookCell;
+		createCell(content: string, language: string, type: CellKind, outputs: CellOutput[], metadata: NotebookCellMetadata | undefined): NotebookCell;
 	}
 
 	export interface NotebookProvider {
@@ -1894,14 +1929,10 @@ declare module 'vscode' {
 	export interface Timeline {
 		readonly paging?: {
 			/**
-			 * A provider-defined cursor specifing the starting point of timeline items which are after the ones returned.
+			 * A provider-defined cursor specifying the starting point of timeline items which are after the ones returned.
+			 * Use `undefined` to signal that there are no more items to be returned.
 			 */
-			readonly cursor?: string
-
-			/**
-			 * A flag which indicates whether there are more items that weren't returned.
-			 */
-			readonly more?: boolean;
+			readonly cursor: string | undefined;
 		}
 
 		/**
@@ -1912,7 +1943,7 @@ declare module 'vscode' {
 
 	export interface TimelineOptions {
 		/**
-		 * A provider-defined cursor specifing the starting point of the timeline items that should be returned.
+		 * A provider-defined cursor specifying the starting point of the timeline items that should be returned.
 		 */
 		cursor?: string;
 
