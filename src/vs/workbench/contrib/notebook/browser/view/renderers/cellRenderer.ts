@@ -221,8 +221,8 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 			const contextKeyService = this.contextKeyService.createScoped(templateData.container);
 			contextKeyService.createKey(NOTEBOOK_CELL_TYPE_CONTEXT_KEY, 'markdown');
 			const cellEditableKey = contextKeyService.createKey(NOTEBOOK_CELL_EDITABLE_CONTEXT_KEY, !!(element.metadata?.editable));
-			elementDisposable.add(element.onDidChangeMetadata((e) => {
-				cellEditableKey.set(!!e?.editable);
+			elementDisposable.add(element.onDidChangeMetadata(() => {
+				cellEditableKey.set(!!element.metadata?.editable);
 			}));
 
 			const editModeKey = contextKeyService.createKey(NOTEBOOK_CELL_MARKDOWN_EDIT_MODE_CONTEXT_KEY, element.editState === CellEditState.Editing);
@@ -286,6 +286,8 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		])();
 		disposables.add(runToolbar);
 
+		const executionOrderLabel = DOM.append(runButtonContainer, $('div.execution-count-label'));
+
 		const editorContainer = DOM.append(cellContainer, $('.cell-editor-container'));
 		const editor = this.instantiationService.createInstance(CodeEditorWidget, editorContainer, {
 			...this.editorOptions,
@@ -314,6 +316,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			toolbar,
 			runToolbar,
 			runButtonContainer,
+			executionOrderLabel,
 			outputContainer,
 			editor,
 			disposables,
@@ -352,21 +355,33 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			}
 		}));
 
+		function renderExecutionOrder() {
+			const executionOrdeerLabel = typeof element.metadata?.executionOrder === 'number' ? `[ ${element.metadata.executionOrder} ]` :
+				'[   ]';
+			templateData.executionOrderLabel!.innerText = executionOrdeerLabel;
+		}
+
+		if (templateData.executionOrderLabel) {
+			renderExecutionOrder();
+		}
+
+		elementDisposable.add(element.onDidChangeMetadata(() => {
+			renderExecutionOrder();
+			cellEditableKey.set(!!element.metadata?.editable);
+		}));
+
+		const contextKeyService = this.contextKeyService.createScoped(templateData.container);
+		contextKeyService.createKey(NOTEBOOK_CELL_TYPE_CONTEXT_KEY, 'code');
+		const cellEditableKey = contextKeyService.createKey(NOTEBOOK_CELL_EDITABLE_CONTEXT_KEY, !!(element.metadata?.editable));
+
+		this.setupCellToolbarActions(contextKeyService, templateData, elementDisposable);
+
 		const toolbarContext = <INotebookCellActionContext>{
 			cell: element,
 			cellTemplate: templateData,
 			notebookEditor: this.notebookEditor,
 			$mid: 12
 		};
-
-		const contextKeyService = this.contextKeyService.createScoped(templateData.container);
-		contextKeyService.createKey(NOTEBOOK_CELL_TYPE_CONTEXT_KEY, 'code');
-		const cellEditableKey = contextKeyService.createKey(NOTEBOOK_CELL_EDITABLE_CONTEXT_KEY, !!(element.metadata?.editable));
-		elementDisposable.add(element.onDidChangeMetadata((e) => {
-			cellEditableKey.set(!!e?.editable);
-		}));
-
-		this.setupCellToolbarActions(contextKeyService, templateData, elementDisposable);
 		templateData.toolbar.context = toolbarContext;
 		templateData.runToolbar!.context = toolbarContext;
 	}

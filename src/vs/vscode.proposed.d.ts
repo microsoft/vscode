@@ -1676,6 +1676,8 @@ declare module 'vscode' {
 		 * This metadata is ignored for markdown cell.
 		 */
 		runnable: boolean;
+
+		executionOrder?: number;
 	}
 
 	export interface NotebookCell {
