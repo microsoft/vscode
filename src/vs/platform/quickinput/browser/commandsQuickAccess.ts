@@ -61,12 +61,18 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 			const labelHighlights = withNullAsUndefined(AbstractCommandsQuickAccessProvider.WORD_FILTER(filter, commandPick.label));
 			const aliasHighlights = commandPick.commandAlias ? withNullAsUndefined(AbstractCommandsQuickAccessProvider.WORD_FILTER(filter, commandPick.commandAlias)) : undefined;
 
+			// Add if matching in label or alias
 			if (labelHighlights || aliasHighlights) {
 				commandPick.highlights = {
 					label: labelHighlights,
 					detail: this.options.showAlias ? aliasHighlights : undefined
 				};
 
+				filteredCommandPicks.push(commandPick);
+			}
+
+			// Also add if we have a 100% command ID match
+			else if (filter === commandPick.commandId) {
 				filteredCommandPicks.push(commandPick);
 			}
 		}

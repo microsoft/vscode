@@ -9,7 +9,6 @@ export class QuickInput {
 
 	static QUICK_INPUT = '.quick-input-widget';
 	static QUICK_INPUT_INPUT = `${QuickInput.QUICK_INPUT} .quick-input-box input`;
-	static QUICK_INPUT_FOCUSED_ELEMENT = `${QuickInput.QUICK_INPUT} .quick-open-tree .monaco-tree-row.focused .monaco-highlighted-label`;
 
 	constructor(private code: Code) { }
 
