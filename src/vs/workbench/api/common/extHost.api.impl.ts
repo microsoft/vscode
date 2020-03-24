@@ -488,7 +488,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostTerminalService.onDidWriteTerminalData(listener, thisArg, disposables);
 			},
 			getEnvironmentVariableCollection(persistent?: boolean): vscode.EnvironmentVariableCollection {
-				return null!;
+				checkProposedApiEnabled(extension);
+				return extHostTerminalService.getEnvironmentVariableCollection(extension, persistent);
 			},
 			get state() {
 				return extHostWindow.state;
@@ -955,6 +956,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			DocumentLink: extHostTypes.DocumentLink,
 			DocumentSymbol: extHostTypes.DocumentSymbol,
 			EndOfLine: extHostTypes.EndOfLine,
+			EnvironmentVariableMutatorType: extHostTypes.EnvironmentVariableMutatorType,
 			EvaluatableExpression: extHostTypes.EvaluatableExpression,
 			EventEmitter: Emitter,
 			ExtensionKind: extHostTypes.ExtensionKind,

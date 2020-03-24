@@ -15,6 +15,7 @@ import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { TerminalDataBufferer } from 'vs/workbench/contrib/terminal/common/terminalDataBuffering';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Disposable as VSCodeDisposable } from './extHostTypes';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 export interface IExtHostTerminalService extends ExtHostTerminalServiceShape {
 
@@ -35,7 +36,8 @@ export interface IExtHostTerminalService extends ExtHostTerminalServiceShape {
 	attachPtyToTerminal(id: number, pty: vscode.Pseudoterminal): void;
 	getDefaultShell(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string;
 	getDefaultShellArgs(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string[] | string;
-	registerLinkHandler(handler: vscode.TerminalLinkHandler): vscode.Disposable
+	registerLinkHandler(handler: vscode.TerminalLinkHandler): vscode.Disposable;
+	getEnvironmentVariableCollection(extension: IExtensionDescription, persistent?: boolean): vscode.EnvironmentVariableCollection;
 }
 
 export const IExtHostTerminalService = createDecorator<IExtHostTerminalService>('IExtHostTerminalService');
@@ -333,6 +335,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	public abstract $getAvailableShells(): Promise<IShellDefinitionDto[]>;
 	public abstract $getDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto>;
 	public abstract $acceptWorkspacePermissionsChanged(isAllowed: boolean): void;
+	public abstract getEnvironmentVariableCollection(extension: IExtensionDescription, persistent?: boolean): vscode.EnvironmentVariableCollection;
 
 	public createExtensionTerminal(options: vscode.ExtensionTerminalOptions): vscode.Terminal {
 		const terminal = new ExtHostTerminal(this._proxy, options, options.name);
@@ -668,5 +671,9 @@ export class WorkerExtHostTerminalService extends BaseExtHostTerminalService {
 
 	public $acceptWorkspacePermissionsChanged(isAllowed: boolean): void {
 		// No-op for web worker ext host as workspace permissions aren't used
+	}
+
+	public getEnvironmentVariableCollection(extension: IExtensionDescription, persistent?: boolean): vscode.EnvironmentVariableCollection {
+		throw new Error('Not implemented');
 	}
 }

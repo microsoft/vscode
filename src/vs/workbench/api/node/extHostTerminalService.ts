@@ -22,6 +22,7 @@ import { getSystemShell, detectAvailableShells } from 'vs/workbench/contrib/term
 import { getMainProcessParentEnv } from 'vs/workbench/contrib/terminal/node/terminalEnvironment';
 import { BaseExtHostTerminalService, ExtHostTerminal } from 'vs/workbench/api/common/extHostTerminalService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 export class ExtHostTerminalService extends BaseExtHostTerminalService {
 
@@ -214,5 +215,9 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 
 	public $acceptWorkspacePermissionsChanged(isAllowed: boolean): void {
 		this._isWorkspaceShellAllowed = isAllowed;
+	}
+
+	public getEnvironmentVariableCollection(extension: IExtensionDescription, persistent?: boolean): vscode.EnvironmentVariableCollection {
+		return null!;
 	}
 }
