@@ -496,6 +496,10 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			this.getRelativePathFileResults(query, token)
 		]);
 
+		if (token.isCancellationRequested) {
+			return [];
+		}
+
 		// Return quickly if no relative results are present
 		if (!relativePathFileResults) {
 			return fileSearchResults.results.map(result => result.resource);

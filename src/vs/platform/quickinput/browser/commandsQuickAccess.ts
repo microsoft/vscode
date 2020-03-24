@@ -55,6 +55,10 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 		// Ask subclass for all command picks
 		const allCommandPicks = await this.getCommandPicks(disposables, token);
 
+		if (token.isCancellationRequested) {
+			return [];
+		}
+
 		// Filter
 		const filteredCommandPicks: ICommandQuickPick[] = [];
 		for (const commandPick of allCommandPicks) {

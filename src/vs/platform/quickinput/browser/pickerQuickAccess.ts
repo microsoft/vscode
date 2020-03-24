@@ -7,7 +7,7 @@ import { IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickI
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IQuickPickSeparator, IKeyMods, IQuickPickAcceptEvent } from 'vs/base/parts/quickinput/common/quickInput';
 import { IQuickAccessProvider } from 'vs/platform/quickinput/common/quickAccess';
-import { IDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore, Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { timeout } from 'vs/base/common/async';
 
 export enum TriggerAction {
@@ -90,7 +90,9 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 
 		// Set initial picks and update on type
 		let picksCts: CancellationTokenSource | undefined = undefined;
+		const picksDisposable = disposables.add(new MutableDisposable());
 		const updatePickerItems = async () => {
+			const picksDisposables = picksDisposable.value = new DisposableStore();
 
 			// Cancel any previous ask for picks and busy
 			picksCts?.dispose(true);
@@ -101,7 +103,7 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 
 			// Collect picks and support both long running and short or combined
 			const picksToken = picksCts.token;
-			const res = this.getPicks(picker.value.substr(this.prefix.length).trim(), disposables.add(new DisposableStore()), picksToken);
+			const res = this.getPicks(picker.value.substr(this.prefix.length).trim(), picksDisposables, picksToken);
 
 			// No Picks
 			if (res === null) {
@@ -191,6 +193,7 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 				if (!event.inBackground) {
 					picker.hide(); // hide picker unless we accept in background
 				}
+
 				item.accept(picker.keyMods, event);
 			}
 		}));
