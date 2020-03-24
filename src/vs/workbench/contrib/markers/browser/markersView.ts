@@ -419,7 +419,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 				dnd: new ResourceDragAndDrop(this.instantiationService),
 				expandOnlyOnTwistieClick: (e: TreeElement) => e instanceof Marker && e.relatedInformation.length > 0,
 				overrideStyles: {
-					listBackground: PANEL_BACKGROUND
+					listBackground: this.getBackgroundColor()
 				}
 			},
 		));
