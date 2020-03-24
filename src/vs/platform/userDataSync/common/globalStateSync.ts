@@ -163,7 +163,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 
 	private async getPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<ISyncPreviewResult> {
 		const remoteGlobalState: IGlobalState = remoteUserData.syncData ? JSON.parse(remoteUserData.syncData.content) : null;
-		const lastSyncGlobalState = lastSyncUserData && lastSyncUserData.syncData ? JSON.parse(lastSyncUserData.syncData.content) : null;
+		const lastSyncGlobalState: IGlobalState = lastSyncUserData && lastSyncUserData.syncData ? JSON.parse(lastSyncUserData.syncData.content) : null;
 
 		const localGloablState = await this.getLocalGlobalState();
 
@@ -173,7 +173,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			this.logService.trace(`${this.syncResourceLogLabel}: Remote ui state does not exist. Synchronizing ui state for the first time.`);
 		}
 
-		const { local, remote } = merge(localGloablState.storage, remoteGlobalState.storage, lastSyncGlobalState, this.storageKeysSyncRegistryService.storageKeys);
+		const { local, remote } = merge(localGloablState.storage, remoteGlobalState.storage, lastSyncGlobalState ? lastSyncGlobalState.storage : null, this.storageKeysSyncRegistryService.storageKeys);
 
 		return { local, remote, remoteUserData, localUserData: localGloablState, lastSyncUserData };
 	}
@@ -198,7 +198,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		if (hasRemoteChanged) {
 			// update remote
 			this.logService.trace(`${this.syncResourceLogLabel}: Updating remote ui state...`);
-			const content = JSON.stringify(remote);
+			const content = JSON.stringify(<IGlobalState>{ storage: remote });
 			remoteUserData = await this.updateRemoteUserData(content, forcePush ? null : remoteUserData.ref);
 			this.logService.info(`${this.syncResourceLogLabel}: Updated remote ui state`);
 		}

@@ -53,19 +53,19 @@ export function merge(localStorage: IStringDictionary<IStorageValue>, remoteStor
 		}
 	}
 
-	// Updated in Remote
-	for (const key of values(baseToRemote.updated)) {
+	// Updated in local
+	for (const key of values(baseToLocal.updated)) {
 		if (!baseToRemote.updated.has(key) || !baseToRemote.removed.has(key)) {
 			const remoteValue = remote[key];
 			const localValue = localStorage[key];
 			if (localValue.version >= remoteValue.version) {
-				remote[key] = remoteValue;
+				remote[key] = localValue;
 			}
 		}
 	}
 
-	// Removed in remote
-	for (const key of values(baseToRemote.removed)) {
+	// Removed in local
+	for (const key of values(baseToLocal.removed)) {
 		if (!baseToRemote.updated.has(key)) {
 			const remoteValue = remote[key];
 			const storageKey = storageKeys.filter(storageKey => storageKey.key === key)[0];
@@ -75,7 +75,7 @@ export function merge(localStorage: IStringDictionary<IStorageValue>, remoteStor
 		}
 	}
 
-	return { local, remote: areSame(remote, remoteStorage) ? null : remoteStorage };
+	return { local, remote: areSame(remote, remoteStorage) ? null : remote };
 }
 
 function compare(from: IStringDictionary<any>, to: IStringDictionary<any>): { added: Set<string>, removed: Set<string>, updated: Set<string> } {
