@@ -4,15 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { Task, ContributedTask, CustomTask } from 'vs/workbench/contrib/tasks/common/tasks';
+import { Task, ContributedTask, CustomTask, ConfiguringTask } from 'vs/workbench/contrib/tasks/common/tasks';
 import { IWorkspace, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import * as Types from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { ITaskService, TaskCategories } from 'vs/workbench/contrib/tasks/common/taskService';
+import { ITaskService, WorkspaceFolderTaskResult } from 'vs/workbench/contrib/tasks/common/taskService';
 import { IQuickPickItem, QuickPickInput, IQuickPick } from 'vs/base/parts/quickinput/common/quickInput';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { Event } from 'vs/base/common/event';
 
 export const QUICKOPEN_DETAIL_CONFIG = 'task.quickOpen.detail';
 
@@ -66,11 +67,13 @@ export class TaskMap {
 }
 
 export interface TaskQuickPickEntry extends IQuickPickItem {
-	task: Task | string | undefined | null;
+	task: Task | undefined | null;
+}
+export interface TaskQuickPickEntry2 extends IQuickPickItem {
+	task: Task | ConfiguringTask | string | undefined | null;
 }
 
 export class TaskQuickPick extends Disposable {
-	private taskInstanceCount: { [key: string]: number; } = {};
 	private constructor(
 		private taskService: ITaskService,
 		private configurationService: IConfigurationService,
@@ -83,49 +86,78 @@ export class TaskQuickPick extends Disposable {
 		return this.configurationService.getValue<boolean>(QUICKOPEN_DETAIL_CONFIG);
 	}
 
-	private createTaskEntry(task: Task): TaskQuickPickEntry {
+	private createTaskEntry(task: Task | ConfiguringTask): TaskQuickPickEntry2 {
 		let entryLabel = task._label;
-		let commonKey = task._id.split('|')[0];
-		if (this.taskInstanceCount[commonKey]) {
-			entryLabel = entryLabel + ' (' + this.taskInstanceCount[commonKey].toString() + ')';
-			this.taskInstanceCount[commonKey]++;
-		} else {
-			this.taskInstanceCount[commonKey] = 1;
+		let commonKey = task._id.split('|');
+		if (commonKey.length > 1) {
+			entryLabel = entryLabel + ' (' + commonKey[1] + ')';
 		}
-		const entry: TaskQuickPickEntry = { label: entryLabel, description: this.taskService.getTaskDescription(task), task, detail: this.showDetail() ? task.configurationProperties.detail : undefined };
+		const entry: TaskQuickPickEntry2 = { label: entryLabel, description: this.taskService.getTaskDescription(task), task, detail: this.showDetail() ? task.configurationProperties.detail : undefined };
 		entry.buttons = [{ iconClass: 'codicon-gear', tooltip: nls.localize('configureTask', "Configure Task") }];
 		return entry;
 	}
 
-	private createEntriesForGroup(entries: QuickPickInput<TaskQuickPickEntry>[], tasks: Task[], groupLabel: string) {
+	private createEntriesForGroup(entries: QuickPickInput<TaskQuickPickEntry2>[], tasks: (Task | ConfiguringTask)[], groupLabel: string) {
 		entries.push({ type: 'separator', label: groupLabel });
 		tasks.forEach(task => {
 			entries.push(this.createTaskEntry(task));
 		});
 	}
 
-	private createTypeEntries(entries: QuickPickInput<TaskQuickPickEntry>[], types: string[]) {
+	private createTypeEntries(entries: QuickPickInput<TaskQuickPickEntry2>[], types: string[]) {
 		entries.push({ type: 'separator', label: nls.localize('contributedTasks', "contributed tasks") });
 		types.forEach(type => {
 			entries.push({ label: type, task: type });
 		});
 	}
 
+	private handleFolderTaskResult(result: Map<string, WorkspaceFolderTaskResult>): (Task | ConfiguringTask)[] {
+		let tasks: (Task | ConfiguringTask)[] = [];
+		Array.from(result).forEach(([key, folderTasks]) => {
+			if (folderTasks.set) {
+				tasks.push(...folderTasks.set.tasks);
+			}
+			if (folderTasks.configurations) {
+				for (const configuration in folderTasks.configurations.byIdentifier) {
+					tasks.push(folderTasks.configurations.byIdentifier[configuration]);
+				}
+			}
+		});
+		return tasks;
+	}
+
 	private async show(placeHolder?: string): Promise<Task | undefined | null> {
+		const picker: IQuickPick<TaskQuickPickEntry2> = this.quickInputService.createQuickPick();
+		picker.placeholder = placeHolder;
+		picker.matchOnDescription = true;
+		picker.ignoreFocusOut = false;
+		picker.busy = true;
+		picker.show();
+
 		// First show recent tasks configured tasks. Other tasks will be available at a second level
-		const recentTasks = await this.taskService.tasks({ type: TaskCategories.Recent });
-		const configuredTasks = await this.taskService.tasks({ type: TaskCategories.Configured });
+		const recentTasks: (Task | ConfiguringTask)[] = (await this.taskService.readRecentTasks()).reverse();
+		const configuredTasks: (Task | ConfiguringTask)[] = this.handleFolderTaskResult(await this.taskService.getWorkspaceTasks());
 		const extensionTaskTypes = this.taskService.taskTypes();
 		const sorter = this.taskService.createSorter();
-		const taskQuickPickEntries: QuickPickInput<TaskQuickPickEntry>[] = [];
+		const taskQuickPickEntries: QuickPickInput<TaskQuickPickEntry2>[] = [];
 		if (recentTasks.length > 0) {
 			this.createEntriesForGroup(taskQuickPickEntries, recentTasks, nls.localize('recentlyUsed', 'recently used tasks'));
 		}
 		if (configuredTasks.length > 0) {
-			for (let i = 0; i < configuredTasks.length; i++) {
-
+			let dedupedConfiguredTasks: (Task | ConfiguringTask)[] = [];
+			for (let j = 0; j < configuredTasks.length; j++) {
+				const workspaceFolder = configuredTasks[j].getWorkspaceFolder()?.uri.toString();
+				const definition = configuredTasks[j].getDefinition()?._key;
+				const recentKey = configuredTasks[j].getRecentlyUsedKey();
+				if (!recentTasks.find((value) => {
+					return (workspaceFolder && definition && value.getWorkspaceFolder()?.uri.toString() === workspaceFolder && value.getDefinition()?._key === definition)
+						|| (recentKey && value.getRecentlyUsedKey() === recentKey);
+				})) {
+					dedupedConfiguredTasks.push(configuredTasks[j]);
+				}
 			}
-			this.createEntriesForGroup(taskQuickPickEntries, configuredTasks.sort((a, b) => sorter.compare(a, b)), nls.localize('configured', 'configured tasks'));
+			dedupedConfiguredTasks = dedupedConfiguredTasks.sort((a, b) => sorter.compare(a, b));
+			this.createEntriesForGroup(taskQuickPickEntries, dedupedConfiguredTasks, nls.localize('configured', 'configured tasks'));
 		}
 		if (extensionTaskTypes.length > 0) {
 			this.createTypeEntries(taskQuickPickEntries, extensionTaskTypes);
@@ -134,11 +166,8 @@ export class TaskQuickPick extends Disposable {
 		// TODO: skip if only one entry and setting is set
 		// TODO: handle default entry
 
-		const picker: IQuickPick<TaskQuickPickEntry> = this.quickInputService.createQuickPick();
-		picker.placeholder = placeHolder;
-		picker.matchOnDescription = true;
-		picker.ignoreFocusOut = false;
 		picker.items = taskQuickPickEntries;
+		picker.busy = false;
 
 		picker.onDidTriggerItemButton(context => {
 			let task = context.item.task;
@@ -149,10 +178,9 @@ export class TaskQuickPick extends Disposable {
 				this.taskService.openConfig(task);
 			}
 		});
-		picker.show();
 
-		const firstLevelPickerResult = await new Promise<TaskQuickPickEntry | undefined | null>(resolve => {
-			this._register(picker.onDidAccept(async () => {
+		const firstLevelPickerResult = await new Promise<TaskQuickPickEntry2 | undefined | null>(resolve => {
+			Event.once(picker.onDidAccept)(async () => {
 				let selection = picker.selectedItems ? picker.selectedItems[0] : undefined;
 				// if (cancellationToken.isCancellationRequested) {
 				// 	// canceled when there's only one task
@@ -161,22 +189,58 @@ export class TaskQuickPick extends Disposable {
 				// 		selection = <TaskQuickPickEntry>task;
 				// 	}
 				// }
-				picker.dispose();
 				if (!selection) {
 					resolve();
 				}
 				resolve(selection);
-			}));
+			});
 		});
-		const firstLevelTask: string | Task | undefined | null = firstLevelPickerResult?.task;
+		const firstLevelTask: string | Task | ConfiguringTask | undefined | null = firstLevelPickerResult?.task;
 		if (Types.isString(firstLevelTask)) {
 			// Proceed to second level of quick pick
-			return;
+			picker.busy = true;
+			picker.value = '';
+			const secondLevelPickerResult = new Promise<TaskQuickPickEntry2 | undefined | null>(resolve => {
+				Event.once(picker.onDidAccept)(async () => {
+					let selection = picker.selectedItems ? picker.selectedItems[0] : undefined;
+					// if (cancellationToken.isCancellationRequested) {
+					// 	// canceled when there's only one task
+					// 	const task = (await pickEntries)[0];
+					// 	if ((<any>task).task) {
+					// 		selection = <TaskQuickPickEntry>task;
+					// 	}
+					// }
+					if (!selection) {
+						resolve();
+					}
+					resolve(selection);
+				});
+			});
+			picker.items = await this.getEntriesForProvider(firstLevelTask);
+			picker.busy = false;
+			const selectedEntry = (await secondLevelPickerResult);
+			picker.dispose();
+			return (selectedEntry?.task && !Types.isString(selectedEntry?.task)) ? this.toTask(selectedEntry?.task) : undefined;
 		} else if (firstLevelTask) {
-			return firstLevelTask;
+			picker.dispose();
+			return this.toTask(firstLevelTask);
 		} else {
 			return;
 		}
+	}
+
+	private async getEntriesForProvider(type: string): Promise<QuickPickInput<TaskQuickPickEntry2>[]> {
+		const tasks = await this.taskService.tasks({ type });
+		const taskQuickPickEntries: QuickPickInput<TaskQuickPickEntry2>[] = tasks.map(task => this.createTaskEntry(task));
+		return taskQuickPickEntries;
+	}
+
+	private async toTask(task: Task | ConfiguringTask): Promise<Task | undefined> {
+		if (!ConfiguringTask.is(task)) {
+			return task;
+		}
+
+		return this.taskService.tryResolveTask(task);
 	}
 
 	static async show(taskService: ITaskService, configurationService: IConfigurationService, quickInputService: IQuickInputService, _groupedTasks?: TaskMap) {

@@ -795,6 +795,10 @@ export class ConfiguringTask extends CommonTask {
 	public getWorkspaceFileName(): string | undefined {
 		return (this._source.config.workspace && this._source.config.workspace.configuration) ? resources.basename(this._source.config.workspace.configuration) : undefined;
 	}
+
+	public getWorkspaceFolder(): IWorkspaceFolder | undefined {
+		return this._source.config.workspaceFolder;
+	}
 }
 
 export class ContributedTask extends CommonTask {
@@ -936,7 +940,7 @@ export class TaskSorter {
 		}
 	}
 
-	public compare(a: Task, b: Task): number {
+	public compare(a: Task | ConfiguringTask, b: Task | ConfiguringTask): number {
 		let aw = a.getWorkspaceFolder();
 		let bw = b.getWorkspaceFolder();
 		if (aw && bw) {

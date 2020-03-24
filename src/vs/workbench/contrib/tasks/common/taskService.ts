@@ -33,14 +33,9 @@ export interface CustomizationProperties {
 	isBackground?: boolean;
 }
 
-export enum TaskCategories {
-	Recent = 'Recent',
-	Configured = 'Configured'
-}
-
 export interface TaskFilter {
 	version?: string;
-	type?: string | TaskCategories;
+	type?: string;
 }
 
 interface WorkspaceTaskResult {
@@ -76,16 +71,18 @@ export interface ITaskService {
 	tasks(filter?: TaskFilter): Promise<Task[]>;
 	taskTypes(): string[];
 	getWorkspaceTasks(runSource?: TaskRunSource): Promise<Map<string, WorkspaceFolderTaskResult>>;
+	readRecentTasks(): Promise<(Task | ConfiguringTask)[]>;
 	/**
 	 * @param alias The task's name, label or defined identifier.
 	 */
 	getTask(workspaceFolder: IWorkspace | IWorkspaceFolder | string, alias: string | TaskIdentifier, compareId?: boolean): Promise<Task | undefined>;
+	tryResolveTask(configuringTask: ConfiguringTask): Promise<Task | undefined>;
 	getTasksForGroup(group: string): Promise<Task[]>;
 	getRecentlyUsedTasks(): LinkedMap<string, string>;
 	migrateRecentTasks(tasks: Task[]): void;
 	createSorter(): TaskSorter;
 
-	getTaskDescription(task: Task): string | undefined;
+	getTaskDescription(task: Task | ConfiguringTask): string | undefined;
 	canCustomize(task: ContributedTask | CustomTask): boolean;
 	customize(task: ContributedTask | CustomTask, properties?: {}, openConfig?: boolean): Promise<void>;
 	openConfig(task: CustomTask | undefined): Promise<void>;
