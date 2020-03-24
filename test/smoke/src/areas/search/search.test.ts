@@ -10,8 +10,8 @@ export function setup() {
 	describe('Search', () => {
 		after(function () {
 			const app = this.app as Application;
-			cp.execSync('git checkout .', { cwd: app.workspacePathOrFolder });
-			cp.execSync('git reset --hard origin/master', { cwd: app.workspacePathOrFolder });
+			cp.execSync('git checkout . --quiet', { cwd: app.workspacePathOrFolder });
+			cp.execSync('git reset --hard origin/master --quiet', { cwd: app.workspacePathOrFolder });
 		});
 
 		it('searches for body & checks for correct result number', async function () {
@@ -71,7 +71,7 @@ export function setup() {
 			];
 
 			await app.workbench.quickopen.openQuickOpen('.js');
-			await app.workbench.quickopen.waitForQuickOpenElements(names => expectedNames.every(n => names.some(m => n === m)));
+			await app.workbench.quickinput.waitForQuickInputElements(names => expectedNames.every(n => names.some(m => n === m)));
 			await app.code.dispatchKeybinding('escape');
 		});
 
@@ -84,7 +84,7 @@ export function setup() {
 			];
 
 			await app.workbench.quickopen.openQuickOpen('a.s');
-			await app.workbench.quickopen.waitForQuickOpenElements(names => expectedNames.every(n => names.some(m => n === m)));
+			await app.workbench.quickinput.waitForQuickInputElements(names => expectedNames.every(n => names.some(m => n === m)));
 			await app.code.dispatchKeybinding('escape');
 		});
 	});

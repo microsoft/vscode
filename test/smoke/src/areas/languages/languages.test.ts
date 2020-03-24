@@ -12,7 +12,7 @@ export function setup() {
 			await app.workbench.quickopen.openFile('style.css');
 
 			await app.workbench.quickopen.openQuickOutline();
-			await app.workbench.quickopen.waitForQuickOpenElements(names => names.length === 2);
+			await app.workbench.quickinput.waitForQuickInputElements(names => names.length === 2);
 		});
 
 		it('verifies problems view', async function () {
