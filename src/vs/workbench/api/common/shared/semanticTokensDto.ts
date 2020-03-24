@@ -25,7 +25,7 @@ const enum EncodedSemanticTokensType {
 }
 
 export function encodeSemanticTokensDto(semanticTokens: ISemanticTokensDto): VSBuffer {
-	const buff = VSBuffer.alloc(encodedSize2(semanticTokens));
+	const buff = VSBuffer.alloc(encodeSemanticTokensDtoSize(semanticTokens));
 	let offset = 0;
 	buff.writeUInt32BE(semanticTokens.id, offset); offset += 4;
 	if (semanticTokens.type === 'full') {
@@ -53,7 +53,7 @@ export function encodeSemanticTokensDto(semanticTokens: ISemanticTokensDto): VSB
 	return buff;
 }
 
-function encodedSize2(semanticTokens: ISemanticTokensDto): number {
+function encodeSemanticTokensDtoSize(semanticTokens: ISemanticTokensDto): number {
 	let result = 0;
 	result += 4; // id
 	result += 1; // type

@@ -118,12 +118,12 @@ export class VSBuffer {
 export function readUInt16LE(source: Uint8Array, offset: number): number {
 	return (
 		source[offset]
-		+ source[offset + 1] * 2 ** 8
+		+ ((source[offset + 1] << 8) >>> 0)
 	);
 }
 
 export function writeUInt16LE(destination: Uint8Array, value: number, offset: number): void {
-	destination[offset] = value;
+	destination[offset] = value & 0b11111111;
 	value = value >>> 8;
 	destination[offset + 1] = value;
 }
