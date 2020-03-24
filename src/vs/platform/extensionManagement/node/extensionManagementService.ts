@@ -331,7 +331,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 
 				this.downloadInstallableExtension(extension, operation)
 					.then(installableExtension => this.installExtension(installableExtension, ExtensionType.User, cancellationToken)
-						.then(local => pfs.rimraf(installableExtension.zipPath).finally(() => null).then(() => local)))
+						.then(local => pfs.rimraf(installableExtension.zipPath).finally(() => { }).then(() => local)))
 					.then(local => this.installDependenciesAndPackExtensions(local, existingExtension)
 						.then(() => local, error => this.uninstall(local, true).then(() => Promise.reject(error), () => Promise.reject(error))))
 					.then(
@@ -486,7 +486,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 					() => this.logService.info('Renamed to', renamePath),
 					e => {
 						this.logService.info('Rename failed. Deleting from extracted location', extractPath);
-						return pfs.rimraf(extractPath).finally(() => null).then(() => Promise.reject(e));
+						return pfs.rimraf(extractPath).finally(() => { }).then(() => Promise.reject(e));
 					}));
 	}
 
@@ -497,7 +497,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 				() => extract(zipPath, extractPath, { sourcePath: 'extension', overwrite: true }, token)
 					.then(
 						() => this.logService.info(`Extracted extension to ${extractPath}:`, identifier.id),
-						e => pfs.rimraf(extractPath).finally(() => null)
+						e => pfs.rimraf(extractPath).finally(() => { })
 							.then(() => Promise.reject(new ExtensionManagementError(e.message, e instanceof ExtractError && e.type ? e.type : INSTALL_ERROR_EXTRACTING)))),
 				e => Promise.reject(new ExtensionManagementError(this.joinErrors(e).message, INSTALL_ERROR_DELETING)));
 	}
