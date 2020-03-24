@@ -27,26 +27,26 @@ const enum EncodedSemanticTokensType {
 export function encodeSemanticTokensDto(semanticTokens: ISemanticTokensDto): VSBuffer {
 	const buff = VSBuffer.alloc(encodeSemanticTokensDtoSize(semanticTokens));
 	let offset = 0;
-	buff.writeUInt32BE(semanticTokens.id, offset); offset += 4;
+	buff.writeUInt32LE(semanticTokens.id, offset); offset += 4;
 	if (semanticTokens.type === 'full') {
 		buff.writeUInt8(EncodedSemanticTokensType.Full, offset); offset += 1;
-		buff.writeUInt32BE(semanticTokens.data.length, offset); offset += 4;
+		buff.writeUInt32LE(semanticTokens.data.length, offset); offset += 4;
 		for (const uint of semanticTokens.data) {
-			buff.writeUInt32BE(uint, offset); offset += 4;
+			buff.writeUInt32LE(uint, offset); offset += 4;
 		}
 	} else {
 		buff.writeUInt8(EncodedSemanticTokensType.Delta, offset); offset += 1;
-		buff.writeUInt32BE(semanticTokens.deltas.length, offset); offset += 4;
+		buff.writeUInt32LE(semanticTokens.deltas.length, offset); offset += 4;
 		for (const delta of semanticTokens.deltas) {
-			buff.writeUInt32BE(delta.start, offset); offset += 4;
-			buff.writeUInt32BE(delta.deleteCount, offset); offset += 4;
+			buff.writeUInt32LE(delta.start, offset); offset += 4;
+			buff.writeUInt32LE(delta.deleteCount, offset); offset += 4;
 			if (delta.data) {
-				buff.writeUInt32BE(delta.data.length, offset); offset += 4;
+				buff.writeUInt32LE(delta.data.length, offset); offset += 4;
 				for (const uint of delta.data) {
-					buff.writeUInt32BE(uint, offset); offset += 4;
+					buff.writeUInt32LE(uint, offset); offset += 4;
 				}
 			} else {
-				buff.writeUInt32BE(0, offset); offset += 4;
+				buff.writeUInt32LE(0, offset); offset += 4;
 			}
 		}
 	}
@@ -76,13 +76,13 @@ function encodeSemanticTokensDtoSize(semanticTokens: ISemanticTokensDto): number
 
 export function decodeSemanticTokensDto(buff: VSBuffer): ISemanticTokensDto {
 	let offset = 0;
-	const id = buff.readUInt32BE(offset); offset += 4;
+	const id = buff.readUInt32LE(offset); offset += 4;
 	const type: EncodedSemanticTokensType = buff.readUInt8(offset); offset += 1;
 	if (type === EncodedSemanticTokensType.Full) {
-		const length = buff.readUInt32BE(offset); offset += 4;
+		const length = buff.readUInt32LE(offset); offset += 4;
 		const data = new Uint32Array(length);
 		for (let j = 0; j < length; j++) {
-			data[j] = buff.readUInt32BE(offset); offset += 4;
+			data[j] = buff.readUInt32LE(offset); offset += 4;
 		}
 		return {
 			id: id,
@@ -90,17 +90,17 @@ export function decodeSemanticTokensDto(buff: VSBuffer): ISemanticTokensDto {
 			data: data
 		};
 	}
-	const deltaCount = buff.readUInt32BE(offset); offset += 4;
+	const deltaCount = buff.readUInt32LE(offset); offset += 4;
 	let deltas: { start: number; deleteCount: number; data?: Uint32Array; }[] = [];
 	for (let i = 0; i < deltaCount; i++) {
-		const start = buff.readUInt32BE(offset); offset += 4;
-		const deleteCount = buff.readUInt32BE(offset); offset += 4;
-		const length = buff.readUInt32BE(offset); offset += 4;
+		const start = buff.readUInt32LE(offset); offset += 4;
+		const deleteCount = buff.readUInt32LE(offset); offset += 4;
+		const length = buff.readUInt32LE(offset); offset += 4;
 		let data: Uint32Array | undefined;
 		if (length > 0) {
 			data = new Uint32Array(length);
 			for (let j = 0; j < length; j++) {
-				data[j] = buff.readUInt32BE(offset); offset += 4;
+				data[j] = buff.readUInt32LE(offset); offset += 4;
 			}
 		}
 		deltas[i] = { start, deleteCount, data };

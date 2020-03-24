@@ -106,6 +106,14 @@ export class VSBuffer {
 		writeUInt32BE(this.buffer, value, offset);
 	}
 
+	readUInt32LE(offset: number): number {
+		return readUInt32LE(this.buffer, offset);
+	}
+
+	writeUInt32LE(value: number, offset: number): void {
+		writeUInt32LE(this.buffer, value, offset);
+	}
+
 	readUInt8(offset: number): number {
 		return readUInt8(this.buffer, offset);
 	}
@@ -117,15 +125,15 @@ export class VSBuffer {
 
 export function readUInt16LE(source: Uint8Array, offset: number): number {
 	return (
-		source[offset]
-		+ ((source[offset + 1] << 8) >>> 0)
+		((source[offset + 0] << 0) >>> 0) |
+		((source[offset + 1] << 8) >>> 0)
 	);
 }
 
 export function writeUInt16LE(destination: Uint8Array, value: number, offset: number): void {
-	destination[offset] = value & 0b11111111;
+	destination[offset + 0] = (value & 0b11111111);
 	value = value >>> 8;
-	destination[offset + 1] = value;
+	destination[offset + 1] = (value & 0b11111111);
 }
 
 export function readUInt32BE(source: Uint8Array, offset: number): number {
@@ -145,6 +153,25 @@ export function writeUInt32BE(destination: Uint8Array, value: number, offset: nu
 	destination[offset + 1] = value;
 	value = value >>> 8;
 	destination[offset] = value;
+}
+
+export function readUInt32LE(source: Uint8Array, offset: number): number {
+	return (
+		((source[offset + 0] << 0) >>> 0) |
+		((source[offset + 1] << 8) >>> 0) |
+		((source[offset + 2] << 16) >>> 0) |
+		((source[offset + 3] << 24) >>> 0)
+	);
+}
+
+export function writeUInt32LE(destination: Uint8Array, value: number, offset: number): void {
+	destination[offset + 0] = (value & 0b11111111);
+	value = value >>> 8;
+	destination[offset + 1] = (value & 0b11111111);
+	value = value >>> 8;
+	destination[offset + 2] = (value & 0b11111111);
+	value = value >>> 8;
+	destination[offset + 3] = (value & 0b11111111);
 }
 
 export function readUInt8(source: Uint8Array, offset: number): number {
