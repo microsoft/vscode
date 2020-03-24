@@ -76,7 +76,7 @@ const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewCo
 	name: nls.localize('run', "Run"),
 	ctorDescriptor: new SyncDescriptor(DebugViewPaneContainer),
 	icon: 'codicon-debug-alt-2',
-	order: 3
+	order: 2
 }, ViewContainerLocation.Sidebar);
 
 const openViewletKb: IKeybindings = {
@@ -96,6 +96,7 @@ const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewE
 		id: OpenDebugPanelAction.ID,
 		keybindings: openPanelKb
 	},
+	order: 3,
 	hideIfEmpty: true
 }, ViewContainerLocation.Panel);
 
