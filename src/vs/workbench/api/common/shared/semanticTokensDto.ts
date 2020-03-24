@@ -25,113 +25,115 @@ const enum EncodedSemanticTokensType {
 	Delta = 2
 }
 
-function toUint8Array(arr: Uint32Array): Uint8Array {
-	return new Uint8Array(arr.buffer, arr.byteOffset, arr.length * 4);
+function reverseEndianness(arr: Uint8Array): void {
+	for (let i = 0, len = arr.length; i < len; i += 4) {
+		// flip bytes 0<->3 and 1<->2
+		const b0 = arr[i + 0];
+		const b1 = arr[i + 1];
+		const b2 = arr[i + 2];
+		const b3 = arr[i + 3];
+		arr[i + 0] = b3;
+		arr[i + 1] = b2;
+		arr[i + 2] = b1;
+		arr[i + 3] = b0;
+	}
 }
 
-function toUint32Array(arr: Uint8Array, byteOffset: number, length: number): Uint32Array {
-	return new Uint32Array(arr.buffer, arr.byteOffset + byteOffset, length);
+function toLittleEndianBuffer(arr: Uint32Array): VSBuffer {
+	const uint8Arr = new Uint8Array(arr.buffer, arr.byteOffset, arr.length * 4);
+	if (!platform.isLittleEndian()) {
+		// the byte order must be changed
+		reverseEndianness(uint8Arr);
+	}
+	return VSBuffer.wrap(uint8Arr);
+}
+
+function fromLittleEndianBuffer(buff: VSBuffer): Uint32Array {
+	const uint8Arr = buff.buffer;
+	if (!platform.isLittleEndian()) {
+		// the byte order must be changed
+		reverseEndianness(uint8Arr);
+	}
+	return new Uint32Array(uint8Arr.buffer, uint8Arr.byteOffset);
 }
 
 export function encodeSemanticTokensDto(semanticTokens: ISemanticTokensDto): VSBuffer {
-	const isLittleEndian = platform.isLittleEndian();
-	const buff = VSBuffer.alloc(encodeSemanticTokensDtoSize(semanticTokens));
+	const dest = new Uint32Array(encodeSemanticTokensDtoSize(semanticTokens));
 	let offset = 0;
-	buff.writeUInt32LE(semanticTokens.id, offset); offset += 4;
+	dest[offset++] = semanticTokens.id;
 	if (semanticTokens.type === 'full') {
-		buff.writeUInt32LE(EncodedSemanticTokensType.Full, offset); offset += 4;
-		buff.writeUInt32LE(semanticTokens.data.length, offset); offset += 4;
-		if (isLittleEndian) {
-			const uint8Arr = toUint8Array(semanticTokens.data);
-			buff.set(uint8Arr, offset); offset += uint8Arr.length;
-		} else {
-			for (const uint of semanticTokens.data) {
-				buff.writeUInt32LE(uint, offset); offset += 4;
-			}
-		}
+		dest[offset++] = EncodedSemanticTokensType.Full;
+		dest[offset++] = semanticTokens.data.length;
+		dest.set(semanticTokens.data, offset); offset += semanticTokens.data.length;
 	} else {
-		buff.writeUInt32LE(EncodedSemanticTokensType.Delta, offset); offset += 4;
-		buff.writeUInt32LE(semanticTokens.deltas.length, offset); offset += 4;
+		dest[offset++] = EncodedSemanticTokensType.Delta;
+		dest[offset++] = semanticTokens.deltas.length;
 		for (const delta of semanticTokens.deltas) {
-			buff.writeUInt32LE(delta.start, offset); offset += 4;
-			buff.writeUInt32LE(delta.deleteCount, offset); offset += 4;
+			dest[offset++] = delta.start;
+			dest[offset++] = delta.deleteCount;
 			if (delta.data) {
-				buff.writeUInt32LE(delta.data.length, offset); offset += 4;
-				if (isLittleEndian) {
-					const uint8Arr = toUint8Array(delta.data);
-					buff.set(uint8Arr, offset); offset += uint8Arr.length;
-				} else {
-					for (const uint of delta.data) {
-						buff.writeUInt32LE(uint, offset); offset += 4;
-					}
-				}
+				dest[offset++] = delta.data.length;
+				dest.set(delta.data, offset); offset += delta.data.length;
 			} else {
-				buff.writeUInt32LE(0, offset); offset += 4;
+				dest[offset++] = 0;
 			}
 		}
 	}
-	return buff;
+	return toLittleEndianBuffer(dest);
 }
 
 function encodeSemanticTokensDtoSize(semanticTokens: ISemanticTokensDto): number {
 	let result = 0;
-	result += 4; // id
-	result += 4; // type
+	result += (
+		+ 1 // id
+		+ 1 // type
+	);
 	if (semanticTokens.type === 'full') {
-		result += 4; // data length
-		result += semanticTokens.data.byteLength;
+		result += (
+			+ 1 // data length
+			+ semanticTokens.data.length
+		);
 	} else {
-		result += 4; // delta count
+		result += (
+			+ 1 // delta count
+		);
+		result += (
+			+ 1 // start
+			+ 1 // deleteCount
+			+ 1 // data length
+		) * semanticTokens.deltas.length;
 		for (const delta of semanticTokens.deltas) {
-			result += 4; // start
-			result += 4; // deleteCount
-			result += 4; // data length
 			if (delta.data) {
-				result += delta.data.byteLength;
+				result += delta.data.length;
 			}
 		}
 	}
 	return result;
 }
 
-export function decodeSemanticTokensDto(buff: VSBuffer): ISemanticTokensDto {
-	const isLittleEndian = platform.isLittleEndian();
+export function decodeSemanticTokensDto(_buff: VSBuffer): ISemanticTokensDto {
+	const src = fromLittleEndianBuffer(_buff);
 	let offset = 0;
-	const id = buff.readUInt32LE(offset); offset += 4;
-	const type: EncodedSemanticTokensType = buff.readUInt32LE(offset); offset += 4;
+	const id = src[offset++];
+	const type: EncodedSemanticTokensType = src[offset++];
 	if (type === EncodedSemanticTokensType.Full) {
-		const length = buff.readUInt32LE(offset); offset += 4;
-		let data: Uint32Array;
-		if (isLittleEndian) {
-			data = toUint32Array(buff.buffer, offset, length); offset += 4 * length;
-		} else {
-			data = new Uint32Array(length);
-			for (let j = 0; j < length; j++) {
-				data[j] = buff.readUInt32LE(offset); offset += 4;
-			}
-		}
+		const length = src[offset++];
+		const data = src.subarray(offset, offset + length); offset += length;
 		return {
 			id: id,
 			type: 'full',
 			data: data
 		};
 	}
-	const deltaCount = buff.readUInt32LE(offset); offset += 4;
+	const deltaCount = src[offset++];
 	let deltas: { start: number; deleteCount: number; data?: Uint32Array; }[] = [];
 	for (let i = 0; i < deltaCount; i++) {
-		const start = buff.readUInt32LE(offset); offset += 4;
-		const deleteCount = buff.readUInt32LE(offset); offset += 4;
-		const length = buff.readUInt32LE(offset); offset += 4;
+		const start = src[offset++];
+		const deleteCount = src[offset++];
+		const length = src[offset++];
 		let data: Uint32Array | undefined;
 		if (length > 0) {
-			if (isLittleEndian) {
-				data = toUint32Array(buff.buffer, offset, length); offset += 4 * length;
-			} else {
-				data = new Uint32Array(length);
-				for (let j = 0; j < length; j++) {
-					data[j] = buff.readUInt32LE(offset); offset += 4;
-				}
-			}
+			data = src.subarray(offset, offset + length); offset += length;
 		}
 		deltas[i] = { start, deleteCount, data };
 	}
