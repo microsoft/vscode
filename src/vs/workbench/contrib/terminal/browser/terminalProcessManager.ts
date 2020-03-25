@@ -252,6 +252,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 					run: () => {
 						let text = '';
 						newAdditions.forEach((mutator, variable) => {
+							// TODO: Support other common shells
+							// TODO: Escape the new values properly
 							switch (mutator.type) {
 								case EnvironmentVariableMutatorType.Append:
 									text += `export ${variable}=$${variable}${mutator.value}\n`;
