@@ -17,6 +17,7 @@ import { WebviewResourceScheme } from 'vs/workbench/contrib/webview/common/resou
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { CELL_MARGIN } from 'vs/workbench/contrib/notebook/browser/constants';
 import { Emitter, Event } from 'vs/base/common/event';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 export interface IDimentionMessage {
 	__vscode_notebook_message: boolean;
@@ -85,7 +86,13 @@ export class BackLayerWebView extends Disposable {
 	public readonly onMessage: Event<any> = this._onMessage.event;
 
 
-	constructor(public webviewService: IWebviewService, public notebookService: INotebookService, public notebookEditor: INotebookEditor, public environmentSerice: IEnvironmentService) {
+	constructor(
+		public notebookEditor: INotebookEditor,
+		@IWebviewService webviewService: IWebviewService,
+		@IOpenerService openerService: IOpenerService,
+		@IEnvironmentService private readonly environmentSerice: IEnvironmentService,
+		@INotebookService private readonly notebookService: INotebookService,
+	) {
 		super();
 		this.element = document.createElement('div');
 
@@ -257,6 +264,10 @@ export class BackLayerWebView extends Disposable {
 
 		this.webview = this._createInset(webviewService, content);
 		this.webview.mountTo(this.element);
+
+		this._register(this.webview.onDidClickLink(link => {
+			openerService.open(link, { fromUserGesture: true });
+		}));
 
 		this._register(this.webview.onDidWheel(e => {
 			this.notebookEditor.triggerScroll(e);
