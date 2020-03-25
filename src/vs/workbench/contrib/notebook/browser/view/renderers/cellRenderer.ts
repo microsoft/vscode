@@ -94,6 +94,7 @@ abstract class AbstractCellRenderer {
 				horizontalHasArrows: false,
 				alwaysConsumeMouseWheel: false
 			},
+			renderLineHighlightOnlyWhenFocus: true,
 			overviewRulerLanes: 0,
 			selectOnLineNumbers: false,
 			lineNumbers: 'off',
