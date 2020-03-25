@@ -80,7 +80,7 @@ export class UserDataSyncViewContribution implements IWorkbenchContribution {
 					title: remote ?
 						{ value: localize('workbench.action.showSyncRemoteBackup', "Show Remote Backup"), original: `Show Remote Backup` }
 						: { value: localize('workbench.action.showSyncLocalBackup', "Show Local Backup"), original: `Show Local Backup` },
-					category: { value: localize('sync', "Sync"), original: `Sync` },
+					category: { value: localize('sync preferences', "Preferences Sync"), original: `Preferences Sync` },
 					menu: {
 						id: MenuId.CommandPalette,
 						when: CONTEXT_SYNC_ENABLEMENT
