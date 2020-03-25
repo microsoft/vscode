@@ -124,7 +124,4 @@ import 'vs/workbench/contrib/welcome/telemetryOptOut/browser/telemetryOptOut.con
 // Issues
 import 'vs/workbench/contrib/issue/browser/issue.contribution';
 
-// Open In Desktop
-import 'vs/workbench/contrib/openInDesktop/browser/openInDesktop.web.contribution';
-
 //#endregion
