@@ -39,6 +39,21 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { getMenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { isWeb } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
+
+interface IPlaceholderViewlet {
+	id: string;
+	name?: string;
+	iconUrl?: UriComponents;
+	views?: { when?: string }[];
+}
+
+interface IPinnedViewlet {
+	id: string;
+	pinned: boolean;
+	order?: number;
+	visible: boolean;
+}
 
 interface ICachedViewlet {
 	id: string;
@@ -55,7 +70,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	_serviceBrand: undefined;
 
 	private static readonly ACTION_HEIGHT = 48;
-	private static readonly PINNED_VIEWLETS = 'workbench.activity.pinnedViewlets';
+	private static readonly PINNED_VIEWLETS = 'workbench.activity.pinnedViewlets2';
+	private static readonly PLACEHOLDER_VIEWLETS = 'workbench.activity.placeholderViewlets';
 
 	//#region IView
 
@@ -92,9 +108,12 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService
 	) {
 		super(Parts.ACTIVITYBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
+		this.migrateFromOldCachedViewletsValue();
+		storageKeysSyncRegistryService.registerStorageKey({ key: ActivitybarPart.PINNED_VIEWLETS, version: 1 });
 
 		this.cachedViewlets = this.getCachedViewlets();
 		for (const cachedViewlet of this.cachedViewlets) {
@@ -528,10 +547,15 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		this.compositeBar.layout(new Dimension(width, availableHeight));
 	}
 
+	private getViewContainer(viewletId: string): ViewContainer | undefined {
+		const viewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
+		return viewContainerRegistry.get(viewletId);
+	}
+
 	private onDidStorageChange(e: IWorkspaceStorageChangeEvent): void {
 		if (e.key === ActivitybarPart.PINNED_VIEWLETS && e.scope === StorageScope.GLOBAL
-			&& this.cachedViewletsValue !== this.getStoredCachedViewletsValue() /* This checks if current window changed the value or not */) {
-			this._cachedViewletsValue = undefined;
+			&& this.pinnedViewletsValue !== this.getStoredPinnedViewletsValue() /* This checks if current window changed the value or not */) {
+			this._pinnedViewletsValue = undefined;
 			const newCompositeItems: ICompositeBarItem[] = [];
 			const compositeItems = this.compositeBar.getCompositeBarItems();
 			const cachedViewlets = this.getCachedViewlets();
@@ -583,64 +607,88 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			}
 		}
 
-		this.cachedViewletsValue = JSON.stringify(state);
+		this.storeCachedViewletsState(state);
 	}
 
 	private getCachedViewlets(): ICachedViewlet[] {
-		const storedStates: Array<string | ICachedViewlet> = JSON.parse(this.cachedViewletsValue);
-		const cachedViewlets = storedStates.map(c => {
-			const serialized: ICachedViewlet = typeof c === 'string' /* migration from pinned states to composites states */ ? { id: c, pinned: true, order: undefined, visible: true, name: undefined, iconUrl: undefined, views: undefined } : c;
-			serialized.visible = isUndefinedOrNull(serialized.visible) ? true : serialized.visible;
-			return serialized;
-		});
-
-		for (const old of this.loadOldCachedViewlets()) {
-			const cachedViewlet = cachedViewlets.filter(cached => cached.id === old.id)[0];
+		const cachedViewlets: Array<ICachedViewlet> = JSON.parse(this.pinnedViewletsValue);
+		for (const placeholderViewlet of JSON.parse(this.placeholderViewletsValue)) {
+			const cachedViewlet = cachedViewlets.filter(cached => cached.id === placeholderViewlet.id)[0];
 			if (cachedViewlet) {
-				cachedViewlet.name = old.name;
-				cachedViewlet.iconUrl = old.iconUrl;
-				cachedViewlet.views = old.views;
+				cachedViewlet.name = placeholderViewlet.name;
+				cachedViewlet.iconUrl = placeholderViewlet.iconUrl;
+				cachedViewlet.views = placeholderViewlet.views;
 			}
 		}
 
 		return cachedViewlets;
 	}
 
-	private loadOldCachedViewlets(): ICachedViewlet[] {
-		const previousState = this.storageService.get('workbench.activity.placeholderViewlets', StorageScope.GLOBAL, '[]');
-		const result: ICachedViewlet[] = JSON.parse(previousState);
-		this.storageService.remove('workbench.activity.placeholderViewlets', StorageScope.GLOBAL);
-
-		return result;
+	private storeCachedViewletsState(cachedViewlets: ICachedViewlet[]): void {
+		this.pinnedViewletsValue = JSON.stringify(cachedViewlets.map(({ id, pinned, visible, order }) => (<IPinnedViewlet>{ id, pinned, visible, order })));
+		this.placeholderViewletsValue = JSON.stringify(cachedViewlets.map(({ id, iconUrl, name, views }) => (<IPlaceholderViewlet>{ id, iconUrl, name, views })));
 	}
 
-	private _cachedViewletsValue: string | undefined;
-	private get cachedViewletsValue(): string {
-		if (!this._cachedViewletsValue) {
-			this._cachedViewletsValue = this.getStoredCachedViewletsValue();
+	private _pinnedViewletsValue: string | undefined;
+	private get pinnedViewletsValue(): string {
+		if (!this._pinnedViewletsValue) {
+			this._pinnedViewletsValue = this.getStoredPinnedViewletsValue();
 		}
 
-		return this._cachedViewletsValue;
+		return this._pinnedViewletsValue;
 	}
 
-	private set cachedViewletsValue(cachedViewletsValue: string) {
-		if (this.cachedViewletsValue !== cachedViewletsValue) {
-			this._cachedViewletsValue = cachedViewletsValue;
-			this.setStoredCachedViewletsValue(cachedViewletsValue);
+	private set pinnedViewletsValue(pinnedViewletsValue: string) {
+		if (this.pinnedViewletsValue !== pinnedViewletsValue) {
+			this._pinnedViewletsValue = pinnedViewletsValue;
+			this.setStoredPinnedViewletsValue(pinnedViewletsValue);
 		}
 	}
 
-	private getStoredCachedViewletsValue(): string {
+	private getStoredPinnedViewletsValue(): string {
 		return this.storageService.get(ActivitybarPart.PINNED_VIEWLETS, StorageScope.GLOBAL, '[]');
 	}
 
-	private setStoredCachedViewletsValue(value: string): void {
+	private setStoredPinnedViewletsValue(value: string): void {
 		this.storageService.store(ActivitybarPart.PINNED_VIEWLETS, value, StorageScope.GLOBAL);
 	}
 
-	private getViewContainer(viewletId: string): ViewContainer | undefined {
-		const viewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
-		return viewContainerRegistry.get(viewletId);
+	private _placeholderViewletsValue: string | undefined;
+	private get placeholderViewletsValue(): string {
+		if (!this._placeholderViewletsValue) {
+			this._placeholderViewletsValue = this.getStoredPlaceholderViewletsValue();
+		}
+
+		return this._placeholderViewletsValue;
+	}
+
+	private set placeholderViewletsValue(placeholderViewletsValue: string) {
+		if (this.placeholderViewletsValue !== placeholderViewletsValue) {
+			this._placeholderViewletsValue = placeholderViewletsValue;
+			this.setStoredPlaceholderViewletsValue(placeholderViewletsValue);
+		}
+	}
+
+	private getStoredPlaceholderViewletsValue(): string {
+		return this.storageService.get(ActivitybarPart.PLACEHOLDER_VIEWLETS, StorageScope.GLOBAL, '[]');
+	}
+
+	private setStoredPlaceholderViewletsValue(value: string): void {
+		this.storageService.store(ActivitybarPart.PLACEHOLDER_VIEWLETS, value, StorageScope.GLOBAL);
+	}
+
+	private migrateFromOldCachedViewletsValue(): void {
+		const value = this.storageService.get('workbench.activity.pinnedViewlets', StorageScope.GLOBAL);
+		if (value !== undefined) {
+			const storedStates: Array<string | ICachedViewlet> = JSON.parse(value);
+			const cachedViewlets = storedStates.map(c => {
+				const serialized: ICachedViewlet = typeof c === 'string' /* migration from pinned states to composites states */ ? { id: c, pinned: true, order: undefined, visible: true, name: undefined, iconUrl: undefined, views: undefined } : c;
+				serialized.visible = isUndefinedOrNull(serialized.visible) ? true : serialized.visible;
+				return serialized;
+			});
+			this.storeCachedViewletsState(cachedViewlets);
+			this.storageService.remove('workbench.activity.pinnedViewlets', StorageScope.GLOBAL);
+		}
 	}
 
 	toJSON(): object {

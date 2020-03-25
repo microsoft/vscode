@@ -18,6 +18,9 @@ export class NotebookCellTextModel implements ICell {
 	private _onDidChangeMetadata = new Emitter<NotebookCellMetadata | undefined>();
 	onDidChangeMetadata: Event<NotebookCellMetadata | undefined> = this._onDidChangeMetadata.event;
 
+	private _onDidChangeLanguage = new Emitter<string>();
+	onDidChangeLanguage: Event<string> = this._onDidChangeLanguage.event;
+
 	private _outputs: IOutput[];
 
 	get outputs(): IOutput[] {
@@ -44,13 +47,22 @@ export class NotebookCellTextModel implements ICell {
 		this._onDidChangeMetadata.fire(this._metadata);
 	}
 
+	get language() {
+		return this._language;
+	}
+
+	set language(newLanguage: string) {
+		this._language = newLanguage;
+		this._onDidChangeLanguage.fire(newLanguage);
+	}
+
 	private _buffer: PieceTreeTextBufferFactory | null = null;
 
 	constructor(
 		readonly uri: URI,
 		public handle: number,
 		private _source: string[],
-		public language: string,
+		private _language: string,
 		public cellKind: CellKind,
 		outputs: IOutput[],
 		metadata: NotebookCellMetadata | undefined

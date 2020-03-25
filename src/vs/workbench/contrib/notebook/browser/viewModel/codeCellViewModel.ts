@@ -89,6 +89,12 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				this.layoutChange({ outerWidth: e.value.width, font: e.value.fontInfo });
 			}
 		}));
+
+		this._register(this.onDidChangeLanguage((e) => {
+			if (this._textModel && !this._textModel.isDisposed()) {
+
+			}
+		}));
 	}
 
 	layoutChange(state: CodeCellLayoutChangeEvent) {

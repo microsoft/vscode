@@ -21,6 +21,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
 export interface ICommandQuickPick extends IPickerQuickAccessItem {
 	commandId: string;
@@ -140,7 +141,7 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 			commandPicks.push({
 				...commandPick,
 				ariaLabel,
-				detail: this.options.showAlias ? commandPick.commandAlias : undefined,
+				detail: this.options.showAlias && commandPick.commandAlias !== commandPick.label ? commandPick.commandAlias : undefined,
 				keybinding,
 				accept: async () => {
 
@@ -202,9 +203,14 @@ export class CommandsHistory extends Disposable {
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService
 	) {
 		super();
+
+		// opt-in to syncing
+		storageKeysSyncRegistryService.registerStorageKey({ key: CommandsHistory.PREF_KEY_CACHE, version: 1 });
+		storageKeysSyncRegistryService.registerStorageKey({ key: CommandsHistory.PREF_KEY_COUNTER, version: 1 });
 
 		this.updateConfiguration();
 		this.load();

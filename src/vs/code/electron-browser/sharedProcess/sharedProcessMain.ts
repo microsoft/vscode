@@ -52,7 +52,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IUserDataSyncService, IUserDataSyncStoreService, registerConfiguration, IUserDataSyncLogService, IUserDataSyncUtilService, IUserDataSyncEnablementService, IUserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
 import { UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
-import { UserDataSyncChannel, UserDataSyncUtilServiceClient, UserDataAutoSyncChannel } from 'vs/platform/userDataSync/common/userDataSyncIpc';
+import { UserDataSyncChannel, UserDataSyncUtilServiceClient, UserDataAutoSyncChannel, StorageKeysSyncRegistryChannelClient } from 'vs/platform/userDataSync/common/userDataSyncIpc';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { LoggerService } from 'vs/platform/log/node/loggerService';
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
@@ -67,6 +67,7 @@ import { UserDataSyncEnablementService } from 'vs/platform/userDataSync/common/u
 import { IAuthenticationTokenService, AuthenticationTokenService } from 'vs/platform/authentication/common/authentication';
 import { AuthenticationTokenServiceChannel } from 'vs/platform/authentication/common/authenticationIpc';
 import { UserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSyncBackupStoreService';
+import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
@@ -139,6 +140,8 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 	await storageService.initialize();
 	services.set(IStorageService, storageService);
 	disposables.add(toDisposable(() => storageService.flush()));
+
+	services.set(IStorageKeysSyncRegistryService, new StorageKeysSyncRegistryChannelClient(mainProcessService.getChannel('storageKeysSyncRegistryService')));
 
 	services.set(IEnvironmentService, environmentService);
 	services.set(IProductService, { _serviceBrand: undefined, ...product });

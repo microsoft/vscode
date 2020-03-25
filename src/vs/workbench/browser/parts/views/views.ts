@@ -22,7 +22,6 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { VIEW_ID as SEARCH_VIEW_ID } from 'vs/workbench/services/search/common/search';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { PaneCompositePanel, PanelRegistry, PanelDescriptor, Extensions as PanelExtensions } from 'vs/workbench/browser/panel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -571,33 +570,28 @@ export class ViewsService extends Disposable implements IViewsService {
 				}
 			}));
 
-			const newLocation = location === ViewContainerLocation.Panel ? ViewContainerLocation.Sidebar : ViewContainerLocation.Panel;
-			disposables.add(registerAction2(class MoveViewAction extends Action2 {
+			disposables.add(registerAction2(class ResetViewLocationAction extends Action2 {
 				constructor() {
 					super({
-						id: `${viewDescriptor.id}.moveView`,
+						id: `${viewDescriptor.id}.resetViewLocation`,
 						title: {
-							original: newLocation === ViewContainerLocation.Sidebar ? 'Move to Sidebar' : 'Move to Panel',
-							value: newLocation === ViewContainerLocation.Sidebar ? localize('moveViewToSidebar', "Move to Sidebar") : localize('moveViewToPanel', "Move to Panel")
+							original: 'Reset View Location',
+							value: localize('resetViewLocation', "Reset View Location")
 						},
 						menu: [{
 							id: MenuId.ViewTitleContext,
 							when: ContextKeyExpr.or(
 								ContextKeyExpr.and(
 									ContextKeyExpr.equals('view', viewDescriptor.id),
-									ContextKeyExpr.has(`${viewDescriptor.id}.canMove`),
-									ContextKeyExpr.equals('config.workbench.view.experimental.allowMovingToNewContainer', true)),
-								ContextKeyExpr.and(
-									ContextKeyExpr.equals('view', viewDescriptor.id),
-									ContextKeyExpr.has(`${viewDescriptor.id}.canMove`),
-									ContextKeyExpr.equals('view', SEARCH_VIEW_ID)
+									ContextKeyExpr.equals(`${viewDescriptor.id}.defaultViewLocation`, false)
 								)
 							)
 						}],
 					});
 				}
 				run(accessor: ServicesAccessor): void {
-					accessor.get(IViewDescriptorService).moveViewToLocation(viewDescriptor, newLocation);
+					const viewDescriptorService = accessor.get(IViewDescriptorService);
+					viewDescriptorService.moveViewsToContainer([viewDescriptor], viewDescriptorService.getDefaultContainer(viewDescriptor.id)!);
 					accessor.get(IViewsService).openView(viewDescriptor.id, true);
 				}
 			}));

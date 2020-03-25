@@ -94,9 +94,13 @@ abstract class AbstractCellRenderer {
 				horizontalHasArrows: false,
 				alwaysConsumeMouseWheel: false
 			},
-			overviewRulerLanes: 3,
+			renderLineHighlightOnlyWhenFocus: true,
+			overviewRulerLanes: 0,
+			selectOnLineNumbers: false,
+			lineNumbers: 'off',
+			lineDecorationsWidth: 0,
+			glyphMargin: false,
 			fixedOverflowWidgets: false,
-			lineNumbersMinChars: 1,
 			minimap: { enabled: false },
 		};
 	}

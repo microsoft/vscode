@@ -15,6 +15,7 @@ import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/commo
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { EDITOR_TOP_PADDING, EDITOR_BOTTOM_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 interface IMimeTypeRenderer extends IQuickPickItem {
 	index: number;
@@ -28,7 +29,8 @@ export class CodeCell extends Disposable {
 		private viewCell: CodeCellViewModel,
 		private templateData: CellRenderTemplate,
 		@INotebookService private notebookService: INotebookService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IModeService private readonly _modeService: IModeService
 	) {
 		super();
 
@@ -83,6 +85,11 @@ export class CodeCell extends Disposable {
 		templateData.editor?.updateOptions({ readOnly: !(viewCell.getEvaluatedMetadata(notebookEditor.viewModel?.metadata).editable) });
 		this._register(viewCell.onDidChangeMetadata((e) => {
 			templateData.editor?.updateOptions({ readOnly: !(viewCell.getEvaluatedMetadata(notebookEditor.viewModel?.metadata).editable) });
+		}));
+
+		this._register(viewCell.onDidChangeLanguage((e) => {
+			const mode = this._modeService.create(e);
+			templateData.editor?.getModel()?.setMode(mode.languageIdentifier);
 		}));
 
 		let cellWidthResizeObserver = getResizesObserver(templateData.editorContainer!, {

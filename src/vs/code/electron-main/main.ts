@@ -46,6 +46,7 @@ import { FileService } from 'vs/platform/files/common/fileService';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { Schemas } from 'vs/base/common/network';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IStorageKeysSyncRegistryService, StorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
 class ExpectedError extends Error {
 	readonly isExpected = true;
@@ -162,6 +163,7 @@ class CodeMain {
 		services.set(IRequestService, new SyncDescriptor(RequestMainService));
 		services.set(IThemeMainService, new SyncDescriptor(ThemeMainService));
 		services.set(ISignService, new SyncDescriptor(SignService));
+		services.set(IStorageKeysSyncRegistryService, new SyncDescriptor(StorageKeysSyncRegistryService));
 
 		return [new InstantiationService(services, true), instanceEnvironment];
 	}

@@ -199,6 +199,14 @@ export class MainThreadNotebookController implements IMainNotebookController {
 		let notebookHandle = await this._mainThreadNotebook.resolveNotebook(viewType, uri);
 		if (notebookHandle !== undefined) {
 			mainthreadNotebook = this._mapping.get(URI.from(uri).toString());
+			if (mainthreadNotebook && mainthreadNotebook.textModel.cells.length === 0) {
+				// it's empty, we should create an empty template one
+				const templateCell = await this._proxy.$createEmptyCell(this._viewType, uri, 0, mainthreadNotebook.textModel.languages.length ? mainthreadNotebook.textModel.languages[0] : '', CellKind.Code);
+				if (templateCell) {
+					let mainCell = new NotebookCellTextModel(URI.revive(templateCell.uri), templateCell.handle, templateCell.source, templateCell.language, templateCell.cellKind, templateCell.outputs, templateCell.metadata);
+					mainthreadNotebook.textModel.insertTemplateCell(mainCell);
+				}
+			}
 			return mainthreadNotebook?.textModel;
 		}
 

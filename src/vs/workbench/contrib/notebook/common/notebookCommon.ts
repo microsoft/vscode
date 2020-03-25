@@ -136,6 +136,7 @@ export interface ICell {
 	metadata?: NotebookCellMetadata;
 	onDidChangeOutputs?: Event<NotebookCellOutputsSplice[]>;
 	onDidChangeMetadata: Event<NotebookCellMetadata | undefined>;
+	onDidChangeLanguage: Event<string>;
 	resolveTextBufferFactory(): PieceTreeTextBufferFactory;
 	// TODO@rebornix it should be later on replaced by moving textmodel resolution into CellTextModel
 	contentChange(): void;

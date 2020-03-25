@@ -695,7 +695,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}, {
 			id: SyncResource.GlobalState,
 			label: getSyncAreaLabel(SyncResource.GlobalState),
-			description: localize('ui state description', "only 'Display Language' for now")
 		}];
 	}
 
@@ -914,7 +913,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			constructor() {
 				super({
 					id: signInCommand.id,
-					title: signInCommand.title,
+					title: localize('sign in 2', "Sync: Sign in to sync (1)"),
 					menu: {
 						group: '5_sync',
 						id: MenuId.GlobalActivity,

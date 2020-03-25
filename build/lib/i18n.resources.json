@@ -111,10 +111,6 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/openInDesktop",
-			"project": "vscode-workbench"
-		},
-		{
 			"name": "vs/workbench/contrib/performance",
 			"project": "vscode-workbench"
 		},

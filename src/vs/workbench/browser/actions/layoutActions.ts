@@ -24,7 +24,7 @@ import { InEditorZenModeContext, IsCenteredLayoutContext, EditorAreaVisibleConte
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { SideBarVisibleContext } from 'vs/workbench/common/viewlet';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IViewDescriptorService, IViewContainersRegistry, Extensions as ViewContainerExtensions, IViewsService, FocusedViewContext, ViewContainerLocation } from 'vs/workbench/common/views';
+import { IViewDescriptorService, IViewContainersRegistry, Extensions as ViewContainerExtensions, IViewsService, FocusedViewContext, ViewContainerLocation, IViewDescriptor } from 'vs/workbench/common/views';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -596,6 +596,49 @@ export class MoveFocusedViewAction extends Action {
 }
 
 registry.registerWorkbenchAction(SyncActionDescriptor.create(MoveFocusedViewAction, MoveFocusedViewAction.ID, MoveFocusedViewAction.LABEL), 'View: Move Focused View', viewCategory, FocusedViewContext.notEqualsTo(''));
+
+
+// --- Reset View Location with Command
+export class ResetFocusedViewLocationAction extends Action {
+	static readonly ID = 'workbench.action.resetFocusedViewLocation';
+	static readonly LABEL = nls.localize('resetFocusedViewLocation', "Reset Focused View Location");
+
+	constructor(
+		id: string,
+		label: string,
+		@IViewDescriptorService private viewDescriptorService: IViewDescriptorService,
+		@IContextKeyService private contextKeyService: IContextKeyService,
+		@INotificationService private notificationService: INotificationService,
+		@IViewsService private viewsService: IViewsService
+	) {
+		super(id, label);
+	}
+
+	async run(): Promise<void> {
+		const focusedViewId = FocusedViewContext.getValue(this.contextKeyService);
+
+		let viewDescriptor: IViewDescriptor | null = null;
+		if (focusedViewId !== undefined && focusedViewId.trim() !== '') {
+			viewDescriptor = this.viewDescriptorService.getViewDescriptor(focusedViewId);
+		}
+
+		if (!viewDescriptor) {
+			this.notificationService.error(nls.localize('resetFocusedView.error.noFocusedView', "There is no view currently focused."));
+			return;
+		}
+
+		const defaultContainer = this.viewDescriptorService.getDefaultContainer(viewDescriptor.id);
+		if (!defaultContainer || defaultContainer === this.viewDescriptorService.getViewContainer(viewDescriptor.id)) {
+			return;
+		}
+
+		this.viewDescriptorService.moveViewsToContainer([viewDescriptor], defaultContainer);
+		this.viewsService.openView(viewDescriptor.id, true);
+
+	}
+}
+
+registry.registerWorkbenchAction(SyncActionDescriptor.create(ResetFocusedViewLocationAction, ResetFocusedViewLocationAction.ID, ResetFocusedViewLocationAction.LABEL), 'View: Reset Focused View Location', viewCategory, FocusedViewContext.notEqualsTo(''));
 
 
 // --- Resize View

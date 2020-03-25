@@ -854,6 +854,7 @@ export interface IListOptions<T> {
 	readonly mouseSupport?: boolean;
 	readonly horizontalScrolling?: boolean;
 	readonly ariaProvider?: IAriaProvider<T>;
+	readonly additionalScrollHeight?: number;
 }
 
 export interface IListStyles {
@@ -1110,6 +1111,7 @@ class ListViewDragAndDrop<T> implements IListViewDragAndDrop<T> {
 export interface IListOptionsUpdate {
 	readonly enableKeyboardNavigation?: boolean;
 	readonly automaticKeyboardNavigation?: boolean;
+	readonly additionalScrollHeight?: number;
 }
 
 export class List<T> implements ISpliceable<T>, IDisposable {
@@ -1288,6 +1290,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		if (this.typeLabelController) {
 			this.typeLabelController.updateOptions(this._options);
+		}
+
+		if (optionsUpdate.additionalScrollHeight !== undefined) {
+			this.view.updateOptions(optionsUpdate);
 		}
 	}
 

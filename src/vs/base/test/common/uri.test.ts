@@ -538,7 +538,7 @@ suite('URI', () => {
 		assert.throws(() => assertJoined(('foo:'), 'bazz', ''));
 		assert.throws(() => new URL('bazz', 'foo:'));
 		assert.throws(() => assertJoined(('foo://bar'), 'bazz', ''));
-		assert.throws(() => new URL('bazz', 'foo://bar'));
+		// assert.throws(() => new URL('bazz', 'foo://bar')); Edge,Chrome => throw, Safari => foo://bar/bazz, Firefox ??
 	});
 
 	test('URI#joinPath (posix)', function () {

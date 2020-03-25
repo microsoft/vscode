@@ -24,6 +24,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	languages: string[] = [];
 	metadata: NotebookDocumentMetadata | undefined = { editable: true };
 	renderers = new Set<number>();
+	private _isUntitled: boolean | undefined = undefined;
 
 	constructor(
 		public handle: number,
@@ -36,6 +37,11 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 	updateLanguages(languages: string[]) {
 		this.languages = languages;
+
+		// TODO@rebornix metadata: default language for cell
+		if (this._isUntitled && languages.length && this.cells.length) {
+			this.cells[0].language = languages[0];
+		}
 	}
 
 	updateNotebookMetadata(metadata: NotebookDocumentMetadata) {
@@ -57,7 +63,27 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		});
 	}
 
+	insertTemplateCell(cell: NotebookCellTextModel) {
+		if (this.cells.length > 0 || this._isUntitled !== undefined) {
+			return;
+		}
+
+		this._isUntitled = true;
+		this.cells = [cell];
+
+		let dirtyStateListener = cell.onDidChangeContent(() => {
+			this._isUntitled = false;
+			this._onDidChangeContent.fire();
+		});
+
+		this._cellListeners.set(cell.handle, dirtyStateListener);
+		this._onDidChangeContent.fire();
+		return;
+	}
+
 	insertNewCell(index: number, cell: NotebookCellTextModel): void {
+		this._isUntitled = false;
+
 		this._mapping.set(cell.handle, cell);
 		this.cells.splice(index, 0, cell);
 		let dirtyStateListener = cell.onDidChangeContent(() => {
@@ -70,6 +96,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	}
 
 	removeCell(index: number) {
+		this._isUntitled = false;
+
 		let cell = this.cells[index];
 		this._cellListeners.get(cell.handle)?.dispose();
 		this._cellListeners.delete(cell.handle);
@@ -80,6 +108,12 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 	// TODO@rebornix should this trigger content change event?
 	$spliceNotebookCells(splices: NotebookCellsSplice[]): void {
+		if (!splices.length) {
+			return;
+		}
+
+		this._isUntitled = false;
+
 		splices.reverse().forEach(splice => {
 			let cellDtos = splice[2];
 			let newCells = cellDtos.map(cell => {

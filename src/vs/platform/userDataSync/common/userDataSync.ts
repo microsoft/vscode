@@ -231,9 +231,13 @@ export interface ISyncExtension {
 	disabled?: boolean;
 }
 
+export interface IStorageValue {
+	version: number;
+	value: string;
+}
+
 export interface IGlobalState {
-	argv: IStringDictionary<any>;
-	storage: IStringDictionary<any>;
+	storage: IStringDictionary<IStorageValue>;
 }
 
 export const enum SyncStatus {

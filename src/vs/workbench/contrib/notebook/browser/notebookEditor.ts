@@ -14,7 +14,6 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -29,7 +28,6 @@ import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/outpu
 import { BackLayerWebView } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
 import { CodeCellRenderer, MarkdownCellRenderer, NotebookCellListDelegate } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
 import { IOutput, CellKind, CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -113,11 +111,9 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
-		@IWebviewService private webviewService: IWebviewService,
 		@INotebookService private notebookService: INotebookService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IEnvironmentService private readonly environmentSerice: IEnvironmentService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super(NotebookEditor.ID, telemetryService, themeService, storageService);
@@ -201,6 +197,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 				mouseSupport: true,
 				multipleSelectionSupport: false,
 				enableKeyboardNavigation: true,
+				additionalScrollHeight: 0,
 				overrideStyles: {
 					listBackground: editorBackground,
 					listActiveSelectionBackground: editorBackground,
@@ -222,7 +219,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		);
 
 		this.control = new NotebookCodeEditors(this.list, this.renderedEditors);
-		this.webview = new BackLayerWebView(this.webviewService, this.notebookService, this, this.environmentSerice);
+		this.webview = this.instantiationService.createInstance(BackLayerWebView, this);
 		this._register(this.webview.onMessage(message => {
 			if (this.viewModel) {
 				this.notebookService.onDidReceiveMessage(this.viewModel.viewType, this.viewModel.uri, message);
@@ -333,7 +330,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 	private async attachModel(input: NotebookEditorInput, model: NotebookEditorModel) {
 		if (!this.webview) {
-			this.webview = new BackLayerWebView(this.webviewService, this.notebookService, this, this.environmentSerice);
+			this.webview = this.instantiationService.createInstance(BackLayerWebView, this);
 			this.list?.rowsContainer.insertAdjacentElement('afterbegin', this.webview!.element);
 		}
 
@@ -419,6 +416,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		DOM.toggleClass(this.rootElement, 'mid-width', dimension.width < 1000 && dimension.width >= 600);
 		DOM.toggleClass(this.rootElement, 'narrow-width', dimension.width < 600);
 		DOM.size(this.body, dimension.width, dimension.height);
+		this.list?.updateOptions({ additionalScrollHeight: dimension.height });
 		this.list?.layout(dimension.height, dimension.width);
 		this.eventDispatcher?.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
 	}
@@ -742,6 +740,13 @@ export const focusedCellIndicator = registerColor('notebook.focusedCellIndicator
 	hc: new Color(new RGBA(0, 73, 122))
 }, nls.localize('notebook.focusedCellIndicator', "The color of the focused notebook cell indicator."));
 
+export const notebookOutputContainerColor = registerColor('notebook.outputContainerBackgroundColor', {
+	dark: new Color(new RGBA(255, 255, 255, 0.06)),
+	light: new Color(new RGBA(228, 230, 241)),
+	hc: null
+}
+	, nls.localize('notebook.outputContainerBackgroundColor', "The Color of the notebook output container background."));
+
 
 registerThemingParticipant((theme, collector) => {
 	const color = getExtraColor(theme, embeddedEditorBackground, { dark: 'rgba(0, 0, 0, .4)', extra_dark: 'rgba(200, 235, 255, .064)', light: '#f4f4f4', hc: null });
@@ -776,10 +781,10 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor blockquote { border-color: ${quoteBorder}; }`);
 	}
 
-	const inactiveListItem = theme.getColor('list.inactiveSelectionBackground');
+	const containerBackground = theme.getColor(notebookOutputContainerColor);
 
-	if (inactiveListItem) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .output { background-color: ${inactiveListItem}; }`);
+	if (containerBackground) {
+		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .output { background-color: ${containerBackground}; }`);
 	}
 
 	const focusedCellIndicatorColor = theme.getColor(focusedCellIndicator);

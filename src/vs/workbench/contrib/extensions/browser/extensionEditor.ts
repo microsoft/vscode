@@ -206,6 +206,7 @@ export class ExtensionEditor extends BaseEditor {
 		const root = append(parent, $('.extension-editor'));
 		root.tabIndex = 0; // this is required for the focus tracker on the editor
 		root.style.outline = 'none';
+		root.setAttribute('role', 'document');
 		const header = append(root, $('.header'));
 
 		const iconContainer = append(header, $('.icon-container'));
