@@ -19,7 +19,7 @@ import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import { URI } from 'vs/base/common/uri';
 import { parse as parsePList } from 'vs/workbench/services/themes/common/plistParser';
 import { startsWith } from 'vs/base/common/strings';
-import { TokenStyle, ProbeScope, TokenStylingRule, getTokenClassificationRegistry, TokenStyleValue, TokenStyleData } from 'vs/platform/theme/common/tokenClassificationRegistry';
+import { TokenStyle, ProbeScope, TokenStylingRule, getTokenClassificationRegistry, TokenStyleValue, TokenStyleData, parseClassifierString } from 'vs/platform/theme/common/tokenClassificationRegistry';
 import { MatcherWithPriority, Matcher, createMatchers } from 'vs/workbench/services/themes/common/textMateScopeMatcher';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 import { CharCode } from 'vs/base/common/charCode';
@@ -137,7 +137,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		return color;
 	}
 
-	public getTokenStyle(type: string, modifiers: string[], useDefault = true, definitions: TokenStyleDefinitions = {}): TokenStyle | undefined {
+	private getTokenStyle(type: string, modifiers: string[], language: string, useDefault = true, definitions: TokenStyleDefinitions = {}): TokenStyle | undefined {
 		let result: any = {
 			foreground: undefined,
 			bold: undefined,
@@ -171,7 +171,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		}
 		if (this.tokenStylingRules === undefined) {
 			for (const rule of tokenClassificationRegistry.getTokenStylingDefaultRules()) {
-				const matchScore = rule.selector.match(type, modifiers);
+				const matchScore = rule.selector.match(type, modifiers, language);
 				if (matchScore >= 0) {
 					let style: TokenStyle | undefined;
 					if (rule.defaults.scopesToProbe) {
@@ -191,14 +191,14 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 			}
 		} else {
 			for (const rule of this.tokenStylingRules) {
-				const matchScore = rule.selector.match(type, modifiers);
+				const matchScore = rule.selector.match(type, modifiers, language);
 				if (matchScore >= 0) {
 					_processStyle(matchScore, rule.style, rule);
 				}
 			}
 		}
 		for (const rule of this.customTokenStylingRules) {
-			const matchScore = rule.selector.match(type, modifiers);
+			const matchScore = rule.selector.match(type, modifiers, language);
 			if (matchScore >= 0) {
 				_processStyle(matchScore, rule.style, rule);
 			}
@@ -210,12 +210,12 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	/**
 	 * @param tokenStyleValue Resolve a tokenStyleValue in the context of a theme
 	 */
-	private resolveTokenStyleValue(tokenStyleValue: TokenStyleValue | undefined): TokenStyle | undefined {
+	public resolveTokenStyleValue(tokenStyleValue: TokenStyleValue | undefined): TokenStyle | undefined {
 		if (tokenStyleValue === undefined) {
 			return undefined;
 		} else if (typeof tokenStyleValue === 'string') {
-			const [type, ...modifiers] = tokenStyleValue.split('.');
-			return this.getTokenStyle(type, modifiers);
+			const { type, modifiers, language } = parseClassifierString(tokenStyleValue);
+			return this.getTokenStyle(type, modifiers, language || '');
 		} else if (typeof tokenStyleValue === 'object') {
 			return tokenStyleValue;
 		}
@@ -252,8 +252,9 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		return this.getTokenColorIndex().asArray();
 	}
 
-	public getTokenStyleMetadata(type: string, modifiers: string[], useDefault = true, definitions: TokenStyleDefinitions = {}): ITokenStyle | undefined {
-		const style = this.getTokenStyle(type, modifiers, useDefault, definitions);
+	public getTokenStyleMetadata(typeWithLanguage: string, modifiers: string[], defaultLanguage: string, useDefault = true, definitions: TokenStyleDefinitions = {}): ITokenStyle | undefined {
+		const { type, language } = parseClassifierString(typeWithLanguage);
+		let style = this.getTokenStyle(type, modifiers, language || defaultLanguage, useDefault, definitions);
 		if (!style) {
 			return undefined;
 		}
