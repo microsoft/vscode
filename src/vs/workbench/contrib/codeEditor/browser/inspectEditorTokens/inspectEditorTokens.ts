@@ -70,6 +70,12 @@ class InspectEditorTokensController extends Disposable implements IEditorContrib
 		this._register(this._editor.onDidChangeModel((e) => this.stop()));
 		this._register(this._editor.onDidChangeModelLanguage((e) => this.stop()));
 		this._register(this._editor.onKeyUp((e) => e.keyCode === KeyCode.Escape && this.stop()));
+		this._register(this._themeService.onDidColorThemeChange(_ => {
+			if (this._widget) {
+				this.stop();
+				this.launch();
+			}
+		}));
 	}
 
 	public dispose(): void {
