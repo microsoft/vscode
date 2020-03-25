@@ -25,6 +25,7 @@ import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { EnvironmentVariableMutatorType } from 'vs/workbench/api/common/extHostTypes';
 import { Emitter, Event } from 'vs/base/common/event';
+import { debounce } from 'vs/base/common/decorators';
 
 
 class EnvironmentVariableMutator implements vscode.EnvironmentVariableMutator {
@@ -275,14 +276,21 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 	}
 
 	public getEnvironmentVariableCollection(extension: IExtensionDescription, persistent?: boolean): vscode.EnvironmentVariableCollection {
-		// TODO: Listen to collection change event and debounce events back to renderer
+		let collection: EnvironmentVariableCollection;
 		if (persistent) {
 			// TODO: Persist when persistent is set
 			// TODO: Load collection for this extension when persistent is set
-			this._environmentVariableCollection = new EnvironmentVariableCollection();
+			collection = new EnvironmentVariableCollection();
 		} else {
-			this._environmentVariableCollection = new EnvironmentVariableCollection();
+			collection = new EnvironmentVariableCollection();
 		}
+		collection.onDidChangeCollection(() => this._updateEnvironmentVariableCollection());
+		this._environmentVariableCollection = collection;
 		return this._environmentVariableCollection;
+	}
+
+	@debounce(1000)
+	private _updateEnvironmentVariableCollection() {
+		// TODO: Send updates back to renderer
 	}
 }
