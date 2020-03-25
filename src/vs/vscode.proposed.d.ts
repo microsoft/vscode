@@ -1444,9 +1444,26 @@ declare module 'vscode' {
 		readonly uri: Uri;
 
 		/**
-		 * Event fired when there are no more references to the `CustomDocument`.
+		 * The file system path of the associated resource. Shorthand
+		 * notation for [CustomDocument.uri.fsPath](#CustomDocument.uri). Independent of the uri scheme.
 		 */
-		readonly onDidDispose: Event<void>;
+		readonly fileName: string;
+
+		/**
+		 * Is this document representing an untitled file which has never been saved yet.
+		 */
+		readonly isUntitled: boolean;
+
+		/**
+		 * The version number of this document (it will strictly increase after each
+		 * change, including undo/redo).
+		 */
+		readonly version: number;
+
+		/**
+		 * `true` if there are unpersisted changes.
+		 */
+		readonly isDirty: boolean;
 
 		/**
 		 * List of edits from document open to the document's current state.
@@ -1460,6 +1477,17 @@ declare module 'vscode' {
 		 * or in front of the last entry in `appliedEdits` if the user saves and then hits undo.
 		 */
 		readonly savedEdits: ReadonlyArray<EditType>;
+
+		/**
+		 * `true` if the document has been closed. A closed document isn't synchronized anymore
+		 * and won't be re-used when the same resource is opened again.
+		 */
+		readonly isClosed: boolean;
+
+		/**
+		 * Event fired when there are no more references to the `CustomDocument`.
+		 */
+		readonly onDidDispose: Event<void>;
 	}
 
 	/**
