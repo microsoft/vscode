@@ -6965,10 +6965,10 @@ pkg-dir@^3.0.0:
   dependencies:
     find-up "^3.0.0"
 
-playwright-core@=0.11.0:
-  version "0.11.0"
-  resolved "https://registry.yarnpkg.com/playwright-core/-/playwright-core-0.11.0.tgz#a2372833f6ec4e7886c4409e3da93df997aee61b"
-  integrity sha512-9UPP/Max65PMiZJz9DNWB3ZRWtTlYlceLFnm6JO8aU7m6Vw3gwCvuSGoC5W69H67q98jH0VPSPp546+EnkiR2g==
+playwright-core@=0.12.1:
+  version "0.12.1"
+  resolved "https://registry.yarnpkg.com/playwright-core/-/playwright-core-0.12.1.tgz#07581d1cbe84bb1e438ecdb188de3ed6d5e81ee0"
+  integrity sha512-NZ8Qe/kqsgAmFBxWZnUeE+MoZ04UzNI0DHOKA+I1p/5rbpaWhe1Vx5zVNa05A1iEvOtnKV1PdIEe4IPumG2y2w==
   dependencies:
     debug "^4.1.0"
     extract-zip "^1.6.6"
@@ -6976,17 +6976,16 @@ playwright-core@=0.11.0:
     jpeg-js "^0.3.6"
     pngjs "^3.4.0"
     progress "^2.0.3"
-    proxy-from-env "^1.0.0"
+    proxy-from-env "^1.1.0"
     rimraf "^3.0.2"
-    uuid "^3.4.0"
     ws "^6.1.0"
 
-playwright@0.11.0:
-  version "0.11.0"
-  resolved "https://registry.yarnpkg.com/playwright/-/playwright-0.11.0.tgz#2abec99ea278b220bcd3902d7520ec22abc2d97e"
-  integrity sha512-cTJZ06OhwseMC9+D6KX1NmZXyEoaJl0o6GLkDhwmou3IFTrUFVOw7KYMBpcbJz0Rhb/de5ZPFlDTffLfEy/9lg==
+playwright@0.12.1:
+  version "0.12.1"
+  resolved "https://registry.yarnpkg.com/playwright/-/playwright-0.12.1.tgz#59445ede1aecec120091db7bc95b4e626451e0b0"
+  integrity sha512-icF4+I8y7A5HjhbTsa4Eqtl2fuGe3ECvW0Wrn6aRM5eL5/AqUIgIf2U/0e1S1bEsDfz1JVvClGl5Gqw4aI5H4w==
   dependencies:
-    playwright-core "=0.11.0"
+    playwright-core "=0.12.1"
 
 plist@^3.0.1:
   version "3.0.1"
@@ -7414,10 +7413,10 @@ proto-list@~1.2.1:
   resolved "https://registry.yarnpkg.com/proto-list/-/proto-list-1.2.4.tgz#212d5bfe1318306a420f6402b8e26ff39647a849"
   integrity sha1-IS1b/hMYMGpCD2QCuOJv85ZHqEk=
 
-proxy-from-env@^1.0.0:
-  version "1.0.0"
-  resolved "https://registry.yarnpkg.com/proxy-from-env/-/proxy-from-env-1.0.0.tgz#33c50398f70ea7eb96d21f7b817630a55791c7ee"
-  integrity sha1-M8UDmPcOp+uW0h97gXYwpVeRx+4=
+proxy-from-env@^1.1.0:
+  version "1.1.0"
+  resolved "https://registry.yarnpkg.com/proxy-from-env/-/proxy-from-env-1.1.0.tgz#e102f16ca355424865755d2c9e8ea4f24d58c3e2"
+  integrity sha512-D+zkORCbA9f1tdWRK0RaCR3GPv50cMxcrz4X8k5LTSUD1Dkw47mKJEZQNunItRTkWwgtaUSo1RVFRIG9ZXiFYg==
 
 prr@~1.0.1:
   version "1.0.1"
@@ -9429,11 +9428,6 @@ uuid@^3.3.2:
   version "3.3.2"
   resolved "https://registry.yarnpkg.com/uuid/-/uuid-3.3.2.tgz#1b4af4955eb3077c501c23872fc6513811587131"
   integrity sha512-yXJmeNaw3DnnKAOKJE51sL/ZaYfWJRl1pK9dr19YFCu0ObS231AB1/LbqTKRAQ5kw8A90rA6fr4riOUpTZvQZA==
-
-uuid@^3.4.0:
-  version "3.4.0"
-  resolved "https://registry.yarnpkg.com/uuid/-/uuid-3.4.0.tgz#b23e4358afa8a202fe7a100af1f5f883f02007ee"
-  integrity sha512-HjSDRw6gZE5JMggctHBcjVak08+KEVhSIiDzFnT9S9aegmp85S/bReBVTb4QTFaRNptJ9kuYaNhnbNEOkbKb/A==
 
 v8-compile-cache@2.0.3:
   version "2.0.3"
