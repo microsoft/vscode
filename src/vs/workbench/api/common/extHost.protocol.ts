@@ -426,6 +426,19 @@ export interface TerminalLaunchConfig {
 	isExtensionTerminal?: boolean;
 }
 
+export enum EnvironmentVariableMutatorType {
+	Replace = 1,
+	Append = 2,
+	Prepend = 3
+}
+
+export interface IEnvironmentVariableCollectionDto {
+	extensionIdentifier: string;
+	variables: string[];
+	values: string[];
+	types: EnvironmentVariableMutatorType[];
+}
+
 export interface MainThreadTerminalServiceShape extends IDisposable {
 	$createTerminal(config: TerminalLaunchConfig): Promise<{ id: number, name: string; }>;
 	$dispose(terminalId: number): void;
@@ -436,6 +449,7 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	$stopSendingDataEvents(): void;
 	$startHandlingLinks(): void;
 	$stopHandlingLinks(): void;
+	$updateEnvironmentVariableCollections(collections: IEnvironmentVariableCollectionDto[]): void;
 
 	// Process
 	$sendProcessTitle(terminalId: number, title: string): void;

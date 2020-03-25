@@ -26,6 +26,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { EnvironmentVariableMutatorType } from 'vs/workbench/api/common/extHostTypes';
 import { Emitter, Event } from 'vs/base/common/event';
 import { debounce } from 'vs/base/common/decorators';
+import { dispose } from 'vs/base/common/lifecycle';
 
 
 class EnvironmentVariableMutator implements vscode.EnvironmentVariableMutator {
@@ -85,7 +86,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 	private _variableResolver: ExtHostVariableResolverService | undefined;
 	private _lastActiveWorkspace: IWorkspaceFolder | undefined;
 
-	private _environmentVariableCollection: vscode.EnvironmentVariableCollection | undefined;
+	private _environmentVariableCollection: Map<string, vscode.EnvironmentVariableCollection> = new Map();
 
 	// TODO: Pull this from main side
 	private _isWorkspaceShellAllowed: boolean = false;
@@ -276,6 +277,8 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 	}
 
 	public getEnvironmentVariableCollection(extension: IExtensionDescription, persistent?: boolean): vscode.EnvironmentVariableCollection {
+		dispose(this._environmentVariableCollection.get(extension.identifier.value));
+
 		let collection: EnvironmentVariableCollection;
 		if (persistent) {
 			// TODO: Persist when persistent is set
@@ -285,8 +288,8 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 			collection = new EnvironmentVariableCollection();
 		}
 		collection.onDidChangeCollection(() => this._updateEnvironmentVariableCollection());
-		this._environmentVariableCollection = collection;
-		return this._environmentVariableCollection;
+		this._environmentVariableCollection.set(extension.identifier.value, collection);
+		return collection;
 	}
 
 	@debounce(1000)

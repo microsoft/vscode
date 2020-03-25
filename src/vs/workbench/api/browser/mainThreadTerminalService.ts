@@ -5,7 +5,7 @@
 
 import { DisposableStore, Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IShellLaunchConfig, ITerminalProcessExtHostProxy, ISpawnExtHostProcessRequest, ITerminalDimensions, EXT_HOST_CREATION_DELAY, IAvailableShellsRequest, IDefaultShellAndArgsRequest, IStartExtensionTerminalRequest } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, IExtHostContext, IShellLaunchConfigDto, TerminalLaunchConfig, ITerminalDimensionsDto } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, IExtHostContext, IShellLaunchConfigDto, TerminalLaunchConfig, ITerminalDimensionsDto, IEnvironmentVariableCollectionDto } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { URI } from 'vs/base/common/uri';
 import { StopWatch } from 'vs/base/common/stopwatch';
@@ -345,6 +345,11 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			throw new Error(`Unknown terminal: ${terminalId}`);
 		}
 		return terminal;
+	}
+
+	$updateEnvironmentVariableCollections(collections: IEnvironmentVariableCollectionDto[]): void {
+		// TODO: Pass on to env var service
+		throw new Error('Method not implemented.');
 	}
 }
 
