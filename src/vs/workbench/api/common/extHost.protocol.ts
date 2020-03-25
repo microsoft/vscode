@@ -428,7 +428,6 @@ export interface TerminalLaunchConfig {
 }
 
 export interface IEnvironmentVariableCollectionDto {
-	extensionIdentifier: string;
 	variables: string[];
 	values: string[];
 	types: EnvironmentVariableMutatorType[];
@@ -444,7 +443,7 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	$stopSendingDataEvents(): void;
 	$startHandlingLinks(): void;
 	$stopHandlingLinks(): void;
-	$updateEnvironmentVariableCollections(collections: IEnvironmentVariableCollectionDto[]): void;
+	$setEnvironmentVariableCollection(extensionIdentifier: string, collection: IEnvironmentVariableCollectionDto | undefined): void;
 
 	// Process
 	$sendProcessTitle(terminalId: number, title: string): void;

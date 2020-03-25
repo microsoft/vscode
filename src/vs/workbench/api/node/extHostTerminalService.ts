@@ -20,66 +20,11 @@ import { ExtHostVariableResolverService } from 'vs/workbench/api/common/extHostD
 import { ExtHostDocumentsAndEditors, IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { getSystemShell, detectAvailableShells } from 'vs/workbench/contrib/terminal/node/terminal';
 import { getMainProcessParentEnv } from 'vs/workbench/contrib/terminal/node/terminalEnvironment';
-import { BaseExtHostTerminalService, ExtHostTerminal } from 'vs/workbench/api/common/extHostTerminalService';
+import { BaseExtHostTerminalService, ExtHostTerminal, EnvironmentVariableCollection } from 'vs/workbench/api/common/extHostTerminalService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { EnvironmentVariableMutatorType } from 'vs/workbench/api/common/extHostTypes';
-import { Emitter, Event } from 'vs/base/common/event';
-import { debounce } from 'vs/base/common/decorators';
 import { dispose } from 'vs/base/common/lifecycle';
-
-
-class EnvironmentVariableMutator implements vscode.EnvironmentVariableMutator {
-	constructor(
-		public value: string,
-		public type: vscode.EnvironmentVariableMutatorType
-	) { }
-}
-
-class EnvironmentVariableCollection implements vscode.EnvironmentVariableCollection {
-	private _entries: Map<string, EnvironmentVariableMutator> = new Map();
-
-	protected readonly _onDidChangeCollection: Emitter<void> = new Emitter<void>();
-	get onDidChangeCollection(): Event<void> { return this._onDidChangeCollection && this._onDidChangeCollection.event; }
-
-	replace(variable: string, value: string): void {
-		this._entries.set(variable, new EnvironmentVariableMutator(value, EnvironmentVariableMutatorType.Replace));
-		this._onDidChangeCollection.fire();
-	}
-
-	append(variable: string, value: string): void {
-		this._entries.set(variable, new EnvironmentVariableMutator(value, EnvironmentVariableMutatorType.Append));
-		this._onDidChangeCollection.fire();
-	}
-
-	prepend(variable: string, value: string): void {
-		this._entries.set(variable, new EnvironmentVariableMutator(value, EnvironmentVariableMutatorType.Prepend));
-		this._onDidChangeCollection.fire();
-	}
-
-	get(variable: string): EnvironmentVariableMutator | undefined {
-		return this._entries.get(variable);
-	}
-
-	forEach(callback: (variable: string, mutator: vscode.EnvironmentVariableMutator, collection: vscode.EnvironmentVariableCollection) => any, thisArg?: any): void {
-		this._entries.forEach((value, key) => callback(key, value, this));
-	}
-
-	delete(variable: string): void {
-		this._entries.delete(variable);
-		this._onDidChangeCollection.fire();
-	}
-
-	clear(): void {
-		this._entries.clear();
-		this._onDidChangeCollection.fire();
-	}
-
-	dispose(): void {
-		this._entries.clear();
-		this._onDidChangeCollection.fire();
-	}
-}
 
 export class ExtHostTerminalService extends BaseExtHostTerminalService {
 
@@ -287,21 +232,19 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		} else {
 			collection = new EnvironmentVariableCollection();
 		}
-		collection.onDidChangeCollection(() => this._updateEnvironmentVariableCollections());
+		collection.onDidChangeCollection(() => this._syncEnvironmentVariableCollection(extension.identifier.value, collection));
 		this._environmentVariableCollection.set(extension.identifier.value, collection);
 		return collection;
 	}
 
-	@debounce(1000)
-	private _updateEnvironmentVariableCollections(): void {
-		const collections: IEnvironmentVariableCollectionDto[] = [];
-		this._environmentVariableCollection.forEach((collection, extensionIdenfitier) => {
-			collections.push(this._serializeEnvironmentVariableCollection(extensionIdenfitier, collection));
-		});
-		this._proxy.$updateEnvironmentVariableCollections(collections);
+	private _syncEnvironmentVariableCollection(extensionIdentifier: string, collection: EnvironmentVariableCollection): void {
+		this._proxy.$setEnvironmentVariableCollection(extensionIdentifier, this._serializeEnvironmentVariableCollection(collection));
 	}
 
-	private _serializeEnvironmentVariableCollection(extensionIdentifier: string, collection: vscode.EnvironmentVariableCollection): IEnvironmentVariableCollectionDto {
+	private _serializeEnvironmentVariableCollection(collection: EnvironmentVariableCollection): IEnvironmentVariableCollectionDto | undefined {
+		if (collection.size === 0) {
+			return undefined;
+		}
 		const variables: string[] = [];
 		const values: string[] = [];
 		const types: EnvironmentVariableMutatorType[] = [];
@@ -311,7 +254,6 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 			types.push(mutator.type);
 		});
 		return {
-			extensionIdentifier,
 			variables,
 			values,
 			types

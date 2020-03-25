@@ -13,6 +13,8 @@ import { ITerminalInstanceService, ITerminalService, ITerminalInstance, ITermina
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TerminalDataBufferer } from 'vs/workbench/contrib/terminal/common/terminalDataBuffering';
+import { IEnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariable';
+import { EnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableService';
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
 export class MainThreadTerminalService implements MainThreadTerminalServiceShape {
@@ -29,8 +31,9 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		extHostContext: IExtHostContext,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalInstanceService readonly terminalInstanceService: ITerminalInstanceService,
-		@IRemoteAgentService readonly _remoteAgentService: IRemoteAgentService,
+		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IEnvironmentVariableService private readonly _environmentVariableService: IEnvironmentVariableService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTerminalService);
 		this._remoteAuthority = extHostContext.remoteAuthority;
@@ -347,9 +350,13 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		return terminal;
 	}
 
-	$updateEnvironmentVariableCollections(collections: IEnvironmentVariableCollectionDto[]): void {
-		// TODO: Pass on to env var service
-		throw new Error('Method not implemented.');
+	$setEnvironmentVariableCollection(extensionIdentifier: string, collection: IEnvironmentVariableCollectionDto | undefined): void {
+		if (collection) {
+			const translatedCollection = new EnvironmentVariableCollection(collection.variables, collection.values, collection.types);
+			this._environmentVariableService.set(extensionIdentifier, translatedCollection);
+		} else {
+			this._environmentVariableService.delete(extensionIdentifier);
+		}
 	}
 }
 

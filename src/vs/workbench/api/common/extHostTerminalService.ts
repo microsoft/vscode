@@ -14,7 +14,7 @@ import { timeout } from 'vs/base/common/async';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { TerminalDataBufferer } from 'vs/workbench/contrib/terminal/common/terminalDataBuffering';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Disposable as VSCodeDisposable } from './extHostTypes';
+import { Disposable as VSCodeDisposable, EnvironmentVariableMutatorType } from './extHostTypes';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 export interface IExtHostTerminalService extends ExtHostTerminalServiceShape {
@@ -637,6 +637,62 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 			return false;
 		});
 		return index;
+	}
+}
+
+export class EnvironmentVariableMutator implements vscode.EnvironmentVariableMutator {
+	constructor(
+		public value: string,
+		public type: vscode.EnvironmentVariableMutatorType
+	) { }
+}
+
+export class EnvironmentVariableCollection implements vscode.EnvironmentVariableCollection {
+	private _entries: Map<string, EnvironmentVariableMutator> = new Map();
+
+	protected readonly _onDidChangeCollection: Emitter<void> = new Emitter<void>();
+	get onDidChangeCollection(): Event<void> { return this._onDidChangeCollection && this._onDidChangeCollection.event; }
+
+	get size(): number {
+		return this._entries.size;
+	}
+
+	replace(variable: string, value: string): void {
+		this._entries.set(variable, new EnvironmentVariableMutator(value, EnvironmentVariableMutatorType.Replace));
+		this._onDidChangeCollection.fire();
+	}
+
+	append(variable: string, value: string): void {
+		this._entries.set(variable, new EnvironmentVariableMutator(value, EnvironmentVariableMutatorType.Append));
+		this._onDidChangeCollection.fire();
+	}
+
+	prepend(variable: string, value: string): void {
+		this._entries.set(variable, new EnvironmentVariableMutator(value, EnvironmentVariableMutatorType.Prepend));
+		this._onDidChangeCollection.fire();
+	}
+
+	get(variable: string): EnvironmentVariableMutator | undefined {
+		return this._entries.get(variable);
+	}
+
+	forEach(callback: (variable: string, mutator: vscode.EnvironmentVariableMutator, collection: vscode.EnvironmentVariableCollection) => any, thisArg?: any): void {
+		this._entries.forEach((value, key) => callback(key, value, this));
+	}
+
+	delete(variable: string): void {
+		this._entries.delete(variable);
+		this._onDidChangeCollection.fire();
+	}
+
+	clear(): void {
+		this._entries.clear();
+		this._onDidChangeCollection.fire();
+	}
+
+	dispose(): void {
+		this._entries.clear();
+		this._onDidChangeCollection.fire();
 	}
 }
 

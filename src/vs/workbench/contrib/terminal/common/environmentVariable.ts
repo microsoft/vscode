@@ -19,13 +19,16 @@ export interface IEnvironmentVariableMutator {
 }
 
 export interface IEnvironmentVariableCollection {
-	readonly entries: Map<string, IEnvironmentVariableMutator>;
+	readonly entries: ReadonlyMap<string, IEnvironmentVariableMutator>;
+	equals(other: IEnvironmentVariableCollection): boolean;
 }
 
 /**
  * Tracks and persists environment variable collections as defined by extensions.
  */
 export interface IEnvironmentVariableService {
+	_serviceBrand: undefined;
+
 	/**
 	 * Gets a single collection constructed by merging all collections into one.
 	 */
