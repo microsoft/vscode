@@ -23,11 +23,68 @@ import { getMainProcessParentEnv } from 'vs/workbench/contrib/terminal/node/term
 import { BaseExtHostTerminalService, ExtHostTerminal } from 'vs/workbench/api/common/extHostTerminalService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { EnvironmentVariableMutatorType } from 'vs/workbench/api/common/extHostTypes';
+import { Emitter, Event } from 'vs/base/common/event';
+
+
+class EnvironmentVariableMutator implements vscode.EnvironmentVariableMutator {
+	constructor(
+		public value: string,
+		public type: vscode.EnvironmentVariableMutatorType
+	) { }
+}
+
+class EnvironmentVariableCollection implements vscode.EnvironmentVariableCollection {
+	private _entries: Map<string, EnvironmentVariableMutator> = new Map();
+
+	protected readonly _onDidChangeCollection: Emitter<void> = new Emitter<void>();
+	get onDidChangeCollection(): Event<void> { return this._onDidChangeCollection && this._onDidChangeCollection.event; }
+
+	replace(variable: string, value: string): void {
+		this._entries.set(variable, new EnvironmentVariableMutator(value, EnvironmentVariableMutatorType.Replace));
+		this._onDidChangeCollection.fire();
+	}
+
+	append(variable: string, value: string): void {
+		this._entries.set(variable, new EnvironmentVariableMutator(value, EnvironmentVariableMutatorType.Append));
+		this._onDidChangeCollection.fire();
+	}
+
+	prepend(variable: string, value: string): void {
+		this._entries.set(variable, new EnvironmentVariableMutator(value, EnvironmentVariableMutatorType.Prepend));
+		this._onDidChangeCollection.fire();
+	}
+
+	get(variable: string): EnvironmentVariableMutator | undefined {
+		return this._entries.get(variable);
+	}
+
+	forEach(callback: (variable: string, mutator: vscode.EnvironmentVariableMutator, collection: vscode.EnvironmentVariableCollection) => any, thisArg?: any): void {
+		this._entries.forEach((value, key) => callback(key, value, this));
+	}
+
+	delete(variable: string): void {
+		this._entries.delete(variable);
+		this._onDidChangeCollection.fire();
+	}
+
+	clear(): void {
+		this._entries.clear();
+		this._onDidChangeCollection.fire();
+	}
+
+	dispose(): void {
+		this._entries.clear();
+		this._onDidChangeCollection.fire();
+	}
+}
 
 export class ExtHostTerminalService extends BaseExtHostTerminalService {
 
 	private _variableResolver: ExtHostVariableResolverService | undefined;
 	private _lastActiveWorkspace: IWorkspaceFolder | undefined;
+
+	private _environmentVariableCollection: vscode.EnvironmentVariableCollection | undefined;
 
 	// TODO: Pull this from main side
 	private _isWorkspaceShellAllowed: boolean = false;
@@ -218,6 +275,14 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 	}
 
 	public getEnvironmentVariableCollection(extension: IExtensionDescription, persistent?: boolean): vscode.EnvironmentVariableCollection {
-		return null!;
+		// TODO: Listen to collection change event and debounce events back to renderer
+		if (persistent) {
+			// TODO: Persist when persistent is set
+			// TODO: Load collection for this extension when persistent is set
+			this._environmentVariableCollection = new EnvironmentVariableCollection();
+		} else {
+			this._environmentVariableCollection = new EnvironmentVariableCollection();
+		}
+		return this._environmentVariableCollection;
 	}
 }

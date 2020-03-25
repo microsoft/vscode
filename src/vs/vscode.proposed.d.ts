@@ -1158,7 +1158,7 @@ declare module 'vscode' {
 		append(variable: string, value: string): void;
 		prepend(variable: string, value: string): void;
 		get(variable: string): EnvironmentVariableMutator | undefined;
-		forEach(callback: (variable: string, diagnostics: EnvironmentVariableMutator, collection: EnvironmentVariableCollection) => any, thisArg?: any): void;
+		forEach(callback: (variable: string, mutator: EnvironmentVariableMutator, collection: EnvironmentVariableCollection) => any, thisArg?: any): void;
 		delete(variable: string): void;
 		clear(): void;
 		dispose(): void;
