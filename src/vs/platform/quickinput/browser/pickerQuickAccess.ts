@@ -64,8 +64,16 @@ export interface IPickerQuickAccessProviderOptions {
 }
 
 export type Pick<T> = T | IQuickPickSeparator;
-export type Picks<T> = Array<Pick<T>> | { items: Array<Pick<T>>, active?: T };
+export type PicksWithActive<T> = { items: ReadonlyArray<Pick<T>>, active?: T };
+export type Picks<T> = ReadonlyArray<Pick<T>> | PicksWithActive<T>;
 export type FastAndSlowPicks<T> = { picks: Picks<T>, additionalPicks: Promise<Picks<T>> };
+export type FastAndSlowPicksWithActive<T> = { picks: PicksWithActive<T>, additionalPicks: PicksWithActive<Picks<T>> };
+
+function isPicksWithActive<T>(obj: unknown): obj is PicksWithActive<T> {
+	const candidate = obj as PicksWithActive<T>;
+
+	return Array.isArray(candidate.items);
+}
 
 function isFastAndSlowPicks<T>(obj: unknown): obj is FastAndSlowPicks<T> {
 	const candidate = obj as FastAndSlowPicks<T>;
@@ -108,13 +116,13 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 			const providedPicks = this.getPicks(picker.value.substr(this.prefix.length).trim(), picksDisposables, picksToken);
 
 			function applyPicks(picks: Picks<T>): void {
-				if (Array.isArray(picks)) {
-					picker.items = picks;
-				} else {
+				if (isPicksWithActive(picks)) {
 					picker.items = picks.items;
 					if (picks.active) {
 						picker.activeItems = [picks.active];
 					}
+				} else {
+					picker.items = picks;
 				}
 			}
 
@@ -160,22 +168,22 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 								return;
 							}
 
-							let picks: Array<Pick<T>>;
+							let picks: ReadonlyArray<Pick<T>>;
 							let activePick: Pick<T> | undefined = undefined;
-							if (Array.isArray(providedPicks.picks)) {
-								picks = providedPicks.picks;
-							} else {
+							if (isPicksWithActive(providedPicks.picks)) {
 								picks = providedPicks.picks.items;
 								activePick = providedPicks.picks.active;
+							} else {
+								picks = providedPicks.picks;
 							}
 
-							let additionalPicks: Array<Pick<T>>;
+							let additionalPicks: ReadonlyArray<Pick<T>>;
 							let additionalActivePick: Pick<T> | undefined = undefined;
-							if (Array.isArray(awaitedAdditionalPicks)) {
-								additionalPicks = awaitedAdditionalPicks;
-							} else {
+							if (isPicksWithActive(awaitedAdditionalPicks)) {
 								additionalPicks = awaitedAdditionalPicks.items;
 								additionalActivePick = awaitedAdditionalPicks.active;
+							} else {
+								additionalPicks = awaitedAdditionalPicks;
 							}
 
 							if (additionalPicks.length > 0 || !fastPicksHandlerDone) {
