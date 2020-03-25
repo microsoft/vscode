@@ -36,7 +36,7 @@ export class UserDataSyncViewContribution implements IWorkbenchContribution {
 		return Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
 			{
 				id: 'workbench.view.sync',
-				name: localize('sync', "Sync"),
+				name: localize('sync preferences', "Preferences Sync"),
 				ctorDescriptor: new SyncDescriptor(
 					ViewPaneContainer,
 					['workbench.view.sync', `workbench.view.sync.state`, { mergeViewWithContainerWhenSingleView: true }]
