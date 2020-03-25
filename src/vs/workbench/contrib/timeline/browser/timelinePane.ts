@@ -776,12 +776,14 @@ export class TimelinePane extends ViewPane {
 			// Refresh the view on focus to update the relative timestamps
 			this.onDidFocus(() => this.refreshDebounced(), this, this.visibilityDisposables);
 
+			super.setVisible(visible);
+
 			this.onActiveEditorChanged();
 		} else {
 			this.visibilityDisposables?.dispose();
-		}
 
-		super.setVisible(visible);
+			super.setVisible(visible);
+		}
 	}
 
 	protected layoutBody(height: number, width: number): void {
