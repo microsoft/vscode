@@ -63,12 +63,14 @@ export interface IPickerQuickAccessProviderOptions {
 	canAcceptInBackground?: boolean;
 }
 
-export type FastAndSlowPicksType<T> = { picks: Array<T | IQuickPickSeparator>, additionalPicks: Promise<Array<T | IQuickPickSeparator>> };
+export type Pick<T> = T | IQuickPickSeparator;
+export type Picks<T> = Array<Pick<T>> | { items: Array<Pick<T>>, active?: T };
+export type FastAndSlowPicks<T> = { picks: Picks<T>, additionalPicks: Promise<Picks<T>> };
 
-function isFastAndSlowPicksType<T>(obj: unknown): obj is FastAndSlowPicksType<T> {
-	const candidate = obj as FastAndSlowPicksType<T>;
+function isFastAndSlowPicks<T>(obj: unknown): obj is FastAndSlowPicks<T> {
+	const candidate = obj as FastAndSlowPicks<T>;
 
-	return Array.isArray(candidate.picks) && candidate.additionalPicks instanceof Promise;
+	return !!candidate.picks && candidate.additionalPicks instanceof Promise;
 }
 
 export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem> extends Disposable implements IQuickAccessProvider {
@@ -103,15 +105,26 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 
 			// Collect picks and support both long running and short or combined
 			const picksToken = picksCts.token;
-			const res = this.getPicks(picker.value.substr(this.prefix.length).trim(), picksDisposables, picksToken);
+			const providedPicks = this.getPicks(picker.value.substr(this.prefix.length).trim(), picksDisposables, picksToken);
+
+			function applyPicks(picks: Picks<T>): void {
+				if (Array.isArray(picks)) {
+					picker.items = picks;
+				} else {
+					picker.items = picks.items;
+					if (picks.active) {
+						picker.activeItems = [picks.active];
+					}
+				}
+			}
 
 			// No Picks
-			if (res === null) {
+			if (providedPicks === null) {
 				// Ignore
 			}
 
 			// Fast and Slow Picks
-			else if (isFastAndSlowPicksType(res)) {
+			else if (isFastAndSlowPicks(providedPicks)) {
 				let fastPicksHandlerDone = false;
 				let slowPicksHandlerDone = false;
 
@@ -129,7 +142,7 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 							}
 
 							if (!slowPicksHandlerDone) {
-								picker.items = res.picks;
+								applyPicks(providedPicks.picks);
 							}
 						} finally {
 							fastPicksHandlerDone = true;
@@ -142,13 +155,34 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 					(async () => {
 						picker.busy = true;
 						try {
-							const additionalPicks = await res.additionalPicks;
+							const awaitedAdditionalPicks = await providedPicks.additionalPicks;
 							if (picksToken.isCancellationRequested) {
 								return;
 							}
 
+							let picks: Array<Pick<T>>;
+							let activePick: Pick<T> | undefined = undefined;
+							if (Array.isArray(providedPicks.picks)) {
+								picks = providedPicks.picks;
+							} else {
+								picks = providedPicks.picks.items;
+								activePick = providedPicks.picks.active;
+							}
+
+							let additionalPicks: Array<Pick<T>>;
+							let additionalActivePick: Pick<T> | undefined = undefined;
+							if (Array.isArray(awaitedAdditionalPicks)) {
+								additionalPicks = awaitedAdditionalPicks;
+							} else {
+								additionalPicks = awaitedAdditionalPicks.items;
+								additionalActivePick = awaitedAdditionalPicks.active;
+							}
+
 							if (additionalPicks.length > 0 || !fastPicksHandlerDone) {
-								picker.items = [...res.picks, ...additionalPicks];
+								applyPicks({
+									items: [...picks, ...additionalPicks],
+									active: activePick || additionalActivePick
+								});
 							}
 						} finally {
 							if (!picksToken.isCancellationRequested) {
@@ -162,20 +196,20 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 			}
 
 			// Fast Picks
-			else if (Array.isArray(res)) {
-				picker.items = res;
+			else if (!(providedPicks instanceof Promise)) {
+				applyPicks(providedPicks);
 			}
 
 			// Slow Picks
 			else {
 				picker.busy = true;
 				try {
-					const items = await res;
+					const awaitedPicks = await providedPicks;
 					if (picksToken.isCancellationRequested) {
 						return;
 					}
 
-					picker.items = items;
+					applyPicks(awaitedPicks);
 				} finally {
 					if (!picksToken.isCancellationRequested) {
 						picker.busy = false;
@@ -251,5 +285,5 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 	 * @returns the picks either directly, as promise or combined fast and slow results.
 	 * Pickers can return `null` to signal that no change in picks is needed.
 	 */
-	protected abstract getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Array<T | IQuickPickSeparator> | Promise<Array<T | IQuickPickSeparator>> | FastAndSlowPicksType<T> | null;
+	protected abstract getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Picks<T> | Promise<Picks<T>> | FastAndSlowPicks<T> | null;
 }

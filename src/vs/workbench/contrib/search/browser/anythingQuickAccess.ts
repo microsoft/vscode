@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/anythingQuickAccess';
-import { IQuickPickSeparator, IQuickInputButton, IKeyMods, quickPickItemScorerAccessor, QuickPickItemScorerAccessor, IQuickPick } from 'vs/platform/quickinput/common/quickInput';
-import { IPickerQuickAccessItem, PickerQuickAccessProvider, TriggerAction, FastAndSlowPicksType } from 'vs/platform/quickinput/browser/pickerQuickAccess';
+import { IQuickInputButton, IKeyMods, quickPickItemScorerAccessor, QuickPickItemScorerAccessor, IQuickPick } from 'vs/platform/quickinput/common/quickInput';
+import { IPickerQuickAccessItem, PickerQuickAccessProvider, TriggerAction, FastAndSlowPicks, Picks } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { prepareQuery, IPreparedQuery, compareItemsByScore, scoreItem, ScorerCache } from 'vs/base/common/fuzzyScorer';
 import { IFileQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -88,7 +88,9 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		lastOriginalFilter: string | undefined = undefined;
 		lastFilter: string | undefined = undefined;
 		lastRange: IRange | undefined = undefined;
+
 		lastActiveGlobalPick: IAnythingQuickPickItem | undefined = undefined;
+		lastActiveEditorSymbolPick: IAnythingQuickPickItem | undefined = undefined;
 
 		isQuickNavigating: boolean | undefined = undefined;
 
@@ -117,6 +119,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			this.lastFilter = undefined;
 			this.lastRange = undefined;
 			this.lastActiveGlobalPick = undefined;
+			this.lastActiveEditorSymbolPick = undefined;
 			this.editorViewState = undefined;
 		}
 
@@ -240,7 +243,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		return toDisposable(() => this.clearDecorations(activeEditorControl));
 	}
 
-	protected getPicks(originalFilter: string, disposables: DisposableStore, token: CancellationToken): Promise<Array<IAnythingQuickPickItem | IQuickPickSeparator>> | FastAndSlowPicksType<IAnythingQuickPickItem> | null {
+	protected getPicks(originalFilter: string, disposables: DisposableStore, token: CancellationToken): Promise<Picks<IAnythingQuickPickItem>> | FastAndSlowPicks<IAnythingQuickPickItem> | null {
 
 		// Find a suitable range from the pattern looking for ":", "#" or ","
 		// unless we have the `@` editor symbol character inside the filter
@@ -269,16 +272,24 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		this.pickState.lastOriginalFilter = originalFilter;
 		this.pickState.lastFilter = filter;
 
-		// Remember last active pick (unless editor symbol)
+		// Remember last active pick (global or editor symbol)
 		const activePick = this.pickState.picker?.activeItems[0];
-		if (activePick && !isEditorSymbolQuickPickItem(activePick)) {
-			this.pickState.lastActiveGlobalPick = activePick;
+		if (activePick) {
+			if (isEditorSymbolQuickPickItem(activePick)) {
+				// remember the editor symbol pick, but do not unset the
+				// global pick as we can use it later to restore it when
+				// the user narrows out of the editor symbol search
+				this.pickState.lastActiveEditorSymbolPick = activePick;
+			} else {
+				this.pickState.lastActiveGlobalPick = activePick;
+				this.pickState.lastActiveEditorSymbolPick = undefined;
+			}
 		}
 
 		return this.doGetPicks(filter, disposables, token);
 	}
 
-	private doGetPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Promise<Array<IAnythingQuickPickItem | IQuickPickSeparator>> | FastAndSlowPicksType<IAnythingQuickPickItem> | null {
+	private doGetPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Promise<Picks<IAnythingQuickPickItem>> | FastAndSlowPicks<IAnythingQuickPickItem> | null {
 		const query = prepareQuery(filter);
 
 		// Return early if we have editor symbol picks. We support this by:
@@ -289,22 +300,32 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			return editorSymbolPicks;
 		}
 
+		// If we have a known last active editor symbol pick, we try to restore
+		// the last global pick to support the case of narrowing out from a
+		// editor symbol search back into the global search
+		let activeGlobalPick: IAnythingQuickPickItem | undefined = undefined;
+		if (this.pickState.lastActiveEditorSymbolPick) {
+			activeGlobalPick = this.pickState.lastActiveGlobalPick;
+		}
+
 		// Otherwise return normally with history and file/symbol results
 		const historyEditorPicks = this.getEditorHistoryPicks(query);
 
 		return {
 
 			// Fast picks: editor history
-			picks:
-				(this.pickState.isQuickNavigating || historyEditorPicks.length === 0) ?
+			picks: {
+				items: (this.pickState.isQuickNavigating || historyEditorPicks.length === 0) ?
 					historyEditorPicks :
 					[
 						{ type: 'separator', label: localize('recentlyOpenedSeparator', "recently opened") },
 						...historyEditorPicks
 					],
+				active: activeGlobalPick ? this.findPick(historyEditorPicks, activeGlobalPick) : undefined
+			},
 
 			// Slow picks: files and symbols
-			additionalPicks: (async (): Promise<Array<IAnythingQuickPickItem | IQuickPickSeparator>> => {
+			additionalPicks: (async (): Promise<Picks<IAnythingQuickPickItem>> => {
 
 				// Exclude any result that is already present in editor history
 				const additionalPicksExcludes = new ResourceMap<boolean>();
@@ -319,12 +340,25 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 					return [];
 				}
 
-				return additionalPicks.length > 0 ? [
-					{ type: 'separator', label: this.configuration.includeSymbols ? localize('fileAndSymbolResultsSeparator', "file and symbol results") : localize('fileResultsSeparator', "file results") },
-					...additionalPicks
-				] : [];
+				return {
+					items: additionalPicks.length > 0 ? [
+						{ type: 'separator', label: this.configuration.includeSymbols ? localize('fileAndSymbolResultsSeparator', "file and symbol results") : localize('fileResultsSeparator', "file results") },
+						...additionalPicks
+					] : [],
+					active: activeGlobalPick ? this.findPick(additionalPicks, activeGlobalPick) : undefined
+				};
 			})()
 		};
+	}
+
+	private findPick(picks: IAnythingQuickPickItem[], candidate: IAnythingQuickPickItem): IAnythingQuickPickItem | undefined {
+		for (const pick of picks) {
+			if (isEqual(pick.resource, candidate.resource)) {
+				return pick;
+			}
+		}
+
+		return undefined;
 	}
 
 	private async getAdditionalPicks(query: IPreparedQuery, excludes: ResourceMap<boolean>, token: CancellationToken): Promise<Array<IAnythingQuickPickItem>> {
@@ -636,7 +670,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	private readonly editorSymbolsQuickAccess = this.instantiationService.createInstance(GotoSymbolQuickAccessProvider);
 
-	private getEditorSymbolPicks(query: IPreparedQuery, disposables: DisposableStore, token: CancellationToken): Promise<Array<IAnythingQuickPickItem | IQuickPickSeparator>> | null {
+	private getEditorSymbolPicks(query: IPreparedQuery, disposables: DisposableStore, token: CancellationToken): Promise<Picks<IAnythingQuickPickItem>> | null {
 		const filter = query.original.split(GotoSymbolQuickAccessProvider.PREFIX)[1]?.trim();
 		if (typeof filter !== 'string') {
 			return null; // we need to be searched for editor symbols via `@`
@@ -655,7 +689,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		return this.doGetEditorSymbolPicks(activeGlobalPick, activeGlobalResource, filter, disposables, token);
 	}
 
-	private async doGetEditorSymbolPicks(activeGlobalPick: IAnythingQuickPickItem, activeGlobalResource: URI, filter: string, disposables: DisposableStore, token: CancellationToken): Promise<Array<IAnythingQuickPickItem | IQuickPickSeparator>> {
+	private async doGetEditorSymbolPicks(activeGlobalPick: IAnythingQuickPickItem, activeGlobalResource: URI, filter: string, disposables: DisposableStore, token: CancellationToken): Promise<Picks<IAnythingQuickPickItem>> {
 
 		// Bring the editor to front to review symbols to go to
 		try {
