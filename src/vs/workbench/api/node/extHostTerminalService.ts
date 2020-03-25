@@ -9,7 +9,7 @@ import * as os from 'os';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
-import { IShellLaunchConfigDto, IShellDefinitionDto, IShellAndArgsDto } from 'vs/workbench/api/common/extHost.protocol';
+import { IShellLaunchConfigDto, IShellDefinitionDto, IShellAndArgsDto, IEnvironmentVariableCollectionDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostConfiguration, ExtHostConfigProvider, IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IShellLaunchConfig, ITerminalEnvironment } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -287,13 +287,35 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		} else {
 			collection = new EnvironmentVariableCollection();
 		}
-		collection.onDidChangeCollection(() => this._updateEnvironmentVariableCollection());
+		collection.onDidChangeCollection(() => this._updateEnvironmentVariableCollections());
 		this._environmentVariableCollection.set(extension.identifier.value, collection);
 		return collection;
 	}
 
 	@debounce(1000)
-	private _updateEnvironmentVariableCollection() {
+	private _updateEnvironmentVariableCollections(): void {
+		const dtos: IEnvironmentVariableCollectionDto[] = [];
+		this._environmentVariableCollection.forEach((collection, extensionIdenfitier) => {
+			dtos.push(this._serializeEnvironmentVariableCollection(extensionIdenfitier, collection));
+		});
+
 		// TODO: Send updates back to renderer
+	}
+
+	private _serializeEnvironmentVariableCollection(extensionIdentifier: string, collection: vscode.EnvironmentVariableCollection): IEnvironmentVariableCollectionDto {
+		const variables: string[] = [];
+		const values: string[] = [];
+		const types: EnvironmentVariableMutatorType[] = [];
+		collection.forEach((variable, mutator) => {
+			variables.push(variable);
+			values.push(mutator.value);
+			types.push(mutator.type);
+		});
+		return {
+			extensionIdentifier,
+			variables,
+			values,
+			types
+		};
 	}
 }

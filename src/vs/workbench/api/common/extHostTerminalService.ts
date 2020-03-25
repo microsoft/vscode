@@ -674,6 +674,7 @@ export class WorkerExtHostTerminalService extends BaseExtHostTerminalService {
 	}
 
 	public getEnvironmentVariableCollection(extension: IExtensionDescription, persistent?: boolean): vscode.EnvironmentVariableCollection {
+		// This is not implemented so worker ext host extensions cannot influence terminal envs
 		throw new Error('Not implemented');
 	}
 }

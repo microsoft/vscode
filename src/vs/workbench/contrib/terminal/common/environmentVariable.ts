@@ -7,9 +7,15 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 
 export const IEnvironmentVariableService = createDecorator<IEnvironmentVariableService>('environmentVariableService');
 
+export enum EnvironmentVariableMutatorType {
+	Replace = 1,
+	Append = 2,
+	Prepend = 3
+}
+
 export interface IEnvironmentVariableMutator {
 	readonly value: string;
-	readonly type: 'replace' | 'append' | 'prepend';
+	readonly type: EnvironmentVariableMutatorType;
 }
 
 export interface IEnvironmentVariableCollection {

@@ -54,6 +54,7 @@ import { revive } from 'vs/base/common/marshalling';
 import { INotebookMimeTypeSelector, IOutput, INotebookDisplayOrder, NotebookCellMetadata, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { Dto } from 'vs/base/common/types';
+import { EnvironmentVariableMutatorType } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -424,12 +425,6 @@ export interface TerminalLaunchConfig {
 	strictEnv?: boolean;
 	hideFromUser?: boolean;
 	isExtensionTerminal?: boolean;
-}
-
-export enum EnvironmentVariableMutatorType {
-	Replace = 1,
-	Append = 2,
-	Prepend = 3
 }
 
 export interface IEnvironmentVariableCollectionDto {
