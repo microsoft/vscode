@@ -256,13 +256,13 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 							// TODO: Escape the new values properly
 							switch (mutator.type) {
 								case EnvironmentVariableMutatorType.Append:
-									text += `export ${variable}=$${variable}${mutator.value}\n`;
+									text += `export ${variable}="$${variable}${mutator.value}"\n`;
 									break;
 								case EnvironmentVariableMutatorType.Prepend:
-									text += `export ${variable}=${mutator.value}$${variable}\n`;
+									text += `export ${variable}="${mutator.value}$${variable}"\n`;
 									break;
 								case EnvironmentVariableMutatorType.Replace:
-									text += `export ${variable}=${mutator.value}\n`;
+									text += `export ${variable}="${mutator.value}"\n`;
 									break;
 							}
 						});
