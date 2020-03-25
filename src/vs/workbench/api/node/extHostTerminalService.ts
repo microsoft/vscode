@@ -294,12 +294,11 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 
 	@debounce(1000)
 	private _updateEnvironmentVariableCollections(): void {
-		const dtos: IEnvironmentVariableCollectionDto[] = [];
+		const collections: IEnvironmentVariableCollectionDto[] = [];
 		this._environmentVariableCollection.forEach((collection, extensionIdenfitier) => {
-			dtos.push(this._serializeEnvironmentVariableCollection(extensionIdenfitier, collection));
+			collections.push(this._serializeEnvironmentVariableCollection(extensionIdenfitier, collection));
 		});
-
-		// TODO: Send updates back to renderer
+		this._proxy.$updateEnvironmentVariableCollections(collections);
 	}
 
 	private _serializeEnvironmentVariableCollection(extensionIdentifier: string, collection: vscode.EnvironmentVariableCollection): IEnvironmentVariableCollectionDto {
