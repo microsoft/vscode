@@ -131,6 +131,11 @@
 	margin-right: 24px;
 }
 
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row .cell .run-button-container {
+	width: 30px;
+	position: relative;
+}
+
 .monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row .cell .run-button-container .monaco-toolbar {
 	margin-top: 8px;
 	visibility: hidden;
@@ -139,6 +144,21 @@
 .monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row:hover .cell .run-button-container .monaco-toolbar,
 .monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row.focused .cell .run-button-container .monaco-toolbar {
 	visibility: visible;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row .cell .run-button-container .execution-count-label {
+	position: absolute;
+	top: 8px;
+	font-size: 12px;
+	visibility: visible;
+	white-space: pre;
+	width: 100%;
+	text-align: center;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row:hover .cell .run-button-container .execution-count-label,
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row.focused .cell .run-button-container .execution-count-label {
+	visibility: hidden;
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor .cell .cell-editor-container {

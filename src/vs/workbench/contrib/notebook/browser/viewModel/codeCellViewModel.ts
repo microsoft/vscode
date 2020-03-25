@@ -72,6 +72,10 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			}));
 		}
 
+		this._register(this.cell.onDidChangeMetadata(() => {
+			this._onDidChangeMetadata.fire();
+		}));
+
 		this._outputCollection = new Array(this.cell.outputs.length);
 		this._buffer = null;
 

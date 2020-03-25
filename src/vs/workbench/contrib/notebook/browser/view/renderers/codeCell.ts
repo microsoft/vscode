@@ -83,7 +83,7 @@ export class CodeCell extends Disposable {
 		}));
 
 		templateData.editor?.updateOptions({ readOnly: !(viewCell.getEvaluatedMetadata(notebookEditor.viewModel?.metadata).editable) });
-		this._register(viewCell.onDidChangeMetadata((e) => {
+		this._register(viewCell.onDidChangeMetadata(() => {
 			templateData.editor?.updateOptions({ readOnly: !(viewCell.getEvaluatedMetadata(notebookEditor.viewModel?.metadata).editable) });
 		}));
 

@@ -24,7 +24,7 @@ export const CELL_MARGIN = 32;
 export const EDITOR_TOP_PADDING = 8;
 export const EDITOR_BOTTOM_PADDING = 8;
 export const EDITOR_TOOLBAR_HEIGHT = 22;
-export const RUN_BUTTON_WIDTH = 20;
+export const RUN_BUTTON_WIDTH = 30;
 
 // Cell context keys
 export const NOTEBOOK_CELL_TYPE_CONTEXT_KEY = 'notebookCellType'; // code, markdown
