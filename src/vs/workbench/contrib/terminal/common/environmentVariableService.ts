@@ -6,6 +6,7 @@
 import { IEnvironmentVariableService, IEnvironmentVariableCollection, IEnvironmentVariableMutator, EnvironmentVariableMutatorType } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { Event, Emitter } from 'vs/base/common/event';
 import { debounce } from 'vs/base/common/decorators';
+import { IProcessEnvironment } from 'vs/base/common/platform';
 
 export class EnvironmentVariableCollection implements IEnvironmentVariableCollection {
 	readonly entries: Map<string, IEnvironmentVariableMutator>;
@@ -26,19 +27,47 @@ export class EnvironmentVariableCollection implements IEnvironmentVariableCollec
 		}
 	}
 
-	// TODO: Implement diff method?
-	equals(other: IEnvironmentVariableCollection): boolean {
-		if (this.entries.size !== other.entries.size) {
-			return false;
-		}
-		let result = true;
-		this.entries.forEach((mutator, variable) => {
-			const otherMutator = other.entries.get(variable);
-			if (otherMutator !== mutator) {
-				result = false;
+	// TODO: Remove? Does diff do the job?
+	// equals(other: IEnvironmentVariableCollection): boolean {
+	// 	if (this.entries.size !== other.entries.size) {
+	// 		return false;
+	// 	}
+	// 	let result = true;
+	// 	this.entries.forEach((mutator, variable) => {
+	// 		const otherMutator = other.entries.get(variable);
+	// 		if (otherMutator !== mutator) {
+	// 			result = false;
+	// 		}
+	// 	});
+	// 	return result;
+	// }
+
+	// TODO: Consider doing a full diff, just marking the environment as stale with no action available?
+	getNewAdditions(other: IEnvironmentVariableCollection): ReadonlyMap<string, IEnvironmentVariableMutator> | undefined {
+		const result = new Map<string, IEnvironmentVariableMutator>();
+		other.entries.forEach((newMutator, variable) => {
+			const currentMutator = this.entries.get(variable);
+			if (currentMutator?.type !== newMutator.type || currentMutator.value !== newMutator.value) {
+				result.set(variable, newMutator);
 			}
 		});
-		return result;
+		return result.size === 0 ? undefined : result;
+	}
+
+	applyToProcessEnvironment(env: IProcessEnvironment): void {
+		this.entries.forEach((mutator, variable) => {
+			switch (mutator.type) {
+				case EnvironmentVariableMutatorType.Append:
+					env[variable] = (env[variable] || '') + mutator.value;
+					break;
+				case EnvironmentVariableMutatorType.Prepend:
+					env[variable] = mutator.value + (env[variable] || '');
+					break;
+				case EnvironmentVariableMutatorType.Replace:
+					env[variable] = mutator.value;
+					break;
+			}
+		});
 	}
 }
 
@@ -52,8 +81,8 @@ export class EnvironmentVariableService implements IEnvironmentVariableService {
 	private _mergedCollection: IEnvironmentVariableCollection = new EnvironmentVariableCollection();
 
 	// TODO: Generate a summary of changes inside the terminal component as it needs to be done per-terminal compared to what it started with
-	private readonly _onDidChangeCollections = new Emitter<void>();
-	get onDidChangeCollections(): Event<void> { return this._onDidChangeCollections.event; }
+	private readonly _onDidChangeCollections = new Emitter<IEnvironmentVariableCollection>();
+	get onDidChangeCollections(): Event<IEnvironmentVariableCollection> { return this._onDidChangeCollections.event; }
 
 	constructor() {
 		// TODO: Load in persisted collections
@@ -78,7 +107,7 @@ export class EnvironmentVariableService implements IEnvironmentVariableService {
 
 	@debounce(1000)
 	private _notifyCollectionUpdates(): void {
-		this._onDidChangeCollections.fire();
+		this._onDidChangeCollections.fire(this._mergedCollection);
 	}
 
 	private _resolveMergedCollection(): IEnvironmentVariableCollection {

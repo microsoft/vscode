@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Event } from 'vs/base/common/event';
+import { IProcessEnvironment } from 'vs/base/common/platform';
 
 export const IEnvironmentVariableService = createDecorator<IEnvironmentVariableService>('environmentVariableService');
 
@@ -20,7 +22,17 @@ export interface IEnvironmentVariableMutator {
 
 export interface IEnvironmentVariableCollection {
 	readonly entries: ReadonlyMap<string, IEnvironmentVariableMutator>;
-	equals(other: IEnvironmentVariableCollection): boolean;
+	// TODO: Remove equals?
+	// equals(other: IEnvironmentVariableCollection): boolean;
+
+	/**
+	 * Get's additions when compared to another collection. This only gets additions rather than
+	 * doing a full diff because we can only reliably add entries to an environment, not remove
+	 * them.
+	 */
+	getNewAdditions(other: IEnvironmentVariableCollection): ReadonlyMap<string, IEnvironmentVariableMutator> | undefined;
+
+	applyToProcessEnvironment(env: IProcessEnvironment): void;
 }
 
 /**
@@ -33,6 +45,8 @@ export interface IEnvironmentVariableService {
 	 * Gets a single collection constructed by merging all collections into one.
 	 */
 	readonly mergedCollection: IEnvironmentVariableCollection;
+
+	onDidChangeCollections: Event<IEnvironmentVariableCollection>;
 
 	set(extensionIdentifier: string, collection: IEnvironmentVariableCollection): void;
 	delete(extensionIdentifier: string): void;

@@ -23,6 +23,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { IEnvironmentVariableService, IEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -59,6 +60,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	private _latency: number = -1;
 	private _latencyLastMeasured: number = 0;
 	private _initialCwd: string | undefined;
+	private _extEnvironmentVariableCollection: IEnvironmentVariableCollection | undefined;
 
 	private readonly _onProcessReady = this._register(new Emitter<void>());
 	public get onProcessReady(): Event<void> { return this._onProcessReady.event; }
@@ -87,7 +89,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IProductService private readonly _productService: IProductService,
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
-		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService
+		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
+		@IEnvironmentVariableService private readonly _environmentVariableService: IEnvironmentVariableService
 	) {
 		super();
 		this.ptyProcessReady = new Promise<void>(c => {
@@ -229,6 +232,15 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		this._configHelper.showRecommendations(shellLaunchConfig);
 		const baseEnv = this._configHelper.config.inheritEnv ? processEnv : await this._terminalInstanceService.getMainProcessParentEnv();
 		const env = terminalEnvironment.createTerminalEnvironment(shellLaunchConfig, lastActiveWorkspace, envFromConfigValue, this._configurationResolverService, isWorkspaceShellAllowed, this._productService.version, this._configHelper.config.detectLocale, baseEnv);
+
+		// Fetch any extension environment additions and apply them
+		this._extEnvironmentVariableCollection = this._environmentVariableService.mergedCollection;
+		this._environmentVariableService.onDidChangeCollections((newCollection) => {
+			const newAdditions = this._extEnvironmentVariableCollection!.getNewAdditions(newCollection);
+			// TODO: React to event
+			console.log('new env additions!', newAdditions);
+		});
+		this._extEnvironmentVariableCollection.applyToProcessEnvironment(env);
 
 		const useConpty = this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled;
 		return this._terminalInstanceService.createTerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, useConpty);
