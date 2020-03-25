@@ -390,6 +390,7 @@ Registry.as<panel.PanelRegistry>(panel.Extensions.Panels).setDefaultPanelId(TERM
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
 	id: TERMINAL_VIEW_ID,
 	name: nls.localize('terminal', "Terminal"),
+	containerIcon: 'codicon-terminal',
 	canToggleVisibility: false,
 	canMoveView: true,
 	ctorDescriptor: new SyncDescriptor(TerminalViewPane)
