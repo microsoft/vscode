@@ -1828,9 +1828,9 @@ declare module 'vscode' {
 		name: string;
 
 		/**
-		 * The signature without the return type. Render after `name`.
+		 * The parameters without the return type. Render after `name`.
 		 */
-		signature?: string;
+		parameters?: string;
 
 		/**
 		 * The fully qualified name, like package name or file path. Rendered after `signature`.

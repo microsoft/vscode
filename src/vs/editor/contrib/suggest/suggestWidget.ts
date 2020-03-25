@@ -63,7 +63,7 @@ interface ISuggestionTemplateData {
 	colorspan: HTMLElement;
 	iconLabel: IconLabel;
 	iconContainer: HTMLElement;
-	signatureLabel: HTMLElement;
+	parametersLabel: HTMLElement;
 	qualifierLabel: HTMLElement;
 	/**
 	 * Showing either `CompletionItem#details` or `CompletionItemLabel#type`
@@ -151,7 +151,7 @@ class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTemplateD
 		data.iconLabel = new IconLabel(data.left, { supportHighlights: true, supportCodicons: true });
 		data.disposables.add(data.iconLabel);
 
-		data.signatureLabel = append(data.left, $('span.signature-label'));
+		data.parametersLabel = append(data.left, $('span.signature-label'));
 		data.qualifierLabel = append(data.left, $('span.qualifier-label'));
 		data.detailsLabel = append(data.right, $('span.details-label'));
 
@@ -239,12 +239,12 @@ class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTemplateD
 
 		data.iconLabel.setLabel(textLabel, undefined, labelOptions);
 		if (typeof suggestion.label === 'string') {
-			data.signatureLabel.textContent = '';
+			data.parametersLabel.textContent = '';
 			data.qualifierLabel.textContent = '';
 			data.detailsLabel.textContent = (suggestion.detail || '').replace(/\n.*$/m, '');
 			addClass(data.root, 'string-label');
 		} else {
-			data.signatureLabel.textContent = (suggestion.label.signature || '').replace(/\n.*$/m, '');
+			data.parametersLabel.textContent = (suggestion.label.parameters || '').replace(/\n.*$/m, '');
 			data.qualifierLabel.textContent = (suggestion.label.qualifier || '').replace(/\n.*$/m, '');
 			data.detailsLabel.textContent = (suggestion.label.type || '').replace(/\n.*$/m, '');
 			removeClass(data.root, 'string-label');
