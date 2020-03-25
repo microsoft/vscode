@@ -27,6 +27,9 @@ export class TestCell implements ICell {
 	onDidChangeOutputs: Event<NotebookCellOutputsSplice[]> = this._onDidChangeOutputs.event;
 	private _onDidChangeMetadata = new Emitter<NotebookCellMetadata>();
 	onDidChangeMetadata: Event<NotebookCellMetadata> = this._onDidChangeMetadata.event;
+	private _onDidChangeLanguage = new Emitter<string>();
+	onDidChangeLanguage: Event<string> = this._onDidChangeLanguage.event;
+
 	private _isDirty: boolean = false;
 	private _outputs: IOutput[];
 
