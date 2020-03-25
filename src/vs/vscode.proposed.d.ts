@@ -1444,12 +1444,6 @@ declare module 'vscode' {
 		readonly uri: Uri;
 
 		/**
-		 * The file system path of the associated resource. Shorthand
-		 * notation for [CustomDocument.uri.fsPath](#CustomDocument.uri). Independent of the uri scheme.
-		 */
-		readonly fileName: string;
-
-		/**
 		 * Is this document representing an untitled file which has never been saved yet.
 		 */
 		readonly isUntitled: boolean;
