@@ -5,6 +5,7 @@
 
 import { IEnvironmentVariableService, IEnvironmentVariableCollection, IEnvironmentVariableMutator, EnvironmentVariableMutatorType } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { Event, Emitter } from 'vs/base/common/event';
+import { debounce } from 'vs/base/common/decorators';
 
 export class EnvironmentVariableCollection implements IEnvironmentVariableCollection {
 	readonly entries: Map<string, IEnvironmentVariableMutator>;
@@ -47,15 +48,9 @@ export class EnvironmentVariableCollection implements IEnvironmentVariableCollec
 export class EnvironmentVariableService implements IEnvironmentVariableService {
 	_serviceBrand: undefined;
 
-	/**
-	 * The merged collection, this is set to undefined when it needs to be resolved again and is
-	 * evaluated lazily as needed.
-	 */
+	private _collections: Map<string, IEnvironmentVariableCollection> = new Map();
 	private _mergedCollection: IEnvironmentVariableCollection = new EnvironmentVariableCollection();
 
-	private _collections: Map<string, IEnvironmentVariableCollection> = new Map();
-
-	// TODO: Debounce notifying of terminals about onDidChangeCollections
 	// TODO: Generate a summary of changes inside the terminal component as it needs to be done per-terminal compared to what it started with
 	private readonly _onDidChangeCollections = new Emitter<void>();
 	get onDidChangeCollections(): Event<void> { return this._onDidChangeCollections.event; }
@@ -66,18 +61,24 @@ export class EnvironmentVariableService implements IEnvironmentVariableService {
 	}
 
 	get mergedCollection(): IEnvironmentVariableCollection {
-		if (!this._mergedCollection) {
-			this._mergedCollection = this._resolveMergedCollection();
-		}
 		return this._mergedCollection;
 	}
 
 	set(extensionIdentifier: string, collection: IEnvironmentVariableCollection): void {
 		this._collections.set(extensionIdentifier, collection);
+		this._mergedCollection = this._resolveMergedCollection();
+		this._notifyCollectionUpdates();
 	}
 
 	delete(extensionIdentifier: string): void {
 		this._collections.delete(extensionIdentifier);
+		this._mergedCollection = this._resolveMergedCollection();
+		this._notifyCollectionUpdates();
+	}
+
+	@debounce(1000)
+	private _notifyCollectionUpdates(): void {
+		this._onDidChangeCollections.fire();
 	}
 
 	private _resolveMergedCollection(): IEnvironmentVariableCollection {

@@ -49,7 +49,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		this._registerListeners();
 
 		setTimeout(() => {
-			this._logService.error('get and set');
+			this._logService.info('get and set');
 			const c = this.getEnvironmentVariableCollection({ identifier: { value: 'test' } } as any, true);
 			c.prepend('a', 'b');
 			c.replace('c', 'd');
