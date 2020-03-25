@@ -12,10 +12,6 @@ import { request } from 'vs/base/parts/request/browser/request';
 import { isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
 import { isEqual } from 'vs/base/common/resources';
 import { isStandalone } from 'vs/base/browser/browser';
-import product from 'vs/platform/product/common/product';
-import { Schemas } from 'vs/base/common/network';
-import { posix } from 'vs/base/common/path';
-import { localize } from 'vs/nls';
 
 interface ICredential {
 	service: string;
