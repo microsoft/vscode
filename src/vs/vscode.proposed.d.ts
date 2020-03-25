@@ -60,6 +60,11 @@ declare module 'vscode' {
 		readonly changed: string[];
 	}
 
+	/**
+	 * **WARNING** When writing an AuthenticationProvider, `id` should be treated as part of your extension's
+	 * API, changing it is a breaking change for all extensions relying on the provider. The id is
+	 * treated case-sensitively.
+	 */
 	export interface AuthenticationProvider {
 		/**
 		 * Used as an identifier for extensions trying to work with a particular
