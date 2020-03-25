@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { ExtHostNotebookShape, IMainContext, MainThreadNotebookShape, MainContext, ICellDto, NotebookCellsSplice, NotebookCellOutputsSplice, CellKind, CellOutputKind } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostNotebookShape, IMainContext, MainThreadNotebookShape, MainContext, ICellDto, NotebookCellsSplice, NotebookCellOutputsSplice, CellKind, CellOutputKind, ICellEditOperation, INotebookEditData, CellEditType } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Disposable as VSCodeDisposable } from './extHostTypes';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -292,7 +292,7 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 	}
 
 
-	transformMimeTypes(cell: ExtHostCell, output: vscode.CellDisplayOutput): ITransformedDisplayOutputDto {
+	transformMimeTypes(cell: vscode.NotebookCell, output: vscode.CellDisplayOutput): ITransformedDisplayOutputDto {
 		let mimeTypes = Object.keys(output.data);
 
 		// TODO@rebornix, the document display order might be assigned a bit later. We need to postpone sending the outputs to the core side.
@@ -364,6 +364,57 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 	}
 }
 
+export class NotebookEditorCellEdit {
+	private _finalized: boolean = false;
+	private readonly _documentVersionId: number;
+	private _collectedEdits: ICellEditOperation[] = [];
+
+
+	constructor(
+		readonly editor: ExtHostNotebookEditor
+	) {
+		// TODO@rebornix
+		this._documentVersionId = 0;
+	}
+
+	finalize(): INotebookEditData {
+		this._finalized = true;
+		return {
+			documentVersionId: this._documentVersionId,
+			edits: this._collectedEdits
+		};
+	}
+
+	private _throwIfFinalized() {
+		if (this._finalized) {
+			throw new Error('Edit is only valid while callback runs');
+		}
+	}
+
+	insert(index: number, content: string, language: string, type: CellKind, outputs: vscode.CellOutput[], metadata: vscode.NotebookCellMetadata | undefined): void {
+		this._throwIfFinalized();
+
+		this._collectedEdits.push({
+			editType: CellEditType.Insert,
+			index,
+			content,
+			language,
+			type,
+			outputs: (outputs as any[]), // TODO@rebornix
+			metadata
+		});
+	}
+
+	delete(index: number): void {
+		this._throwIfFinalized();
+
+		this._collectedEdits.push({
+			editType: CellEditType.Delete,
+			index
+		});
+	}
+}
+
 export class ExtHostNotebookEditor extends Disposable implements vscode.NotebookEditor {
 	private _viewColumn: vscode.ViewColumn | undefined;
 	private static _cellhandlePool: number = 0;
@@ -400,6 +451,23 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 				}
 			}
 		}));
+	}
+
+	edit(callback: (editBuilder: NotebookEditorCellEdit) => void): Thenable<boolean> {
+		const edit = new NotebookEditorCellEdit(this);
+		callback(edit);
+		return this._applyEdit(edit);
+	}
+
+	private _applyEdit(editBuilder: NotebookEditorCellEdit): Promise<boolean> {
+		const editData = editBuilder.finalize();
+
+		// return when there is nothing to do
+		if (editData.edits.length === 0) {
+			return Promise.resolve(true);
+		}
+
+		return this._proxy.$tryApplyEdits(this.uri, editData.documentVersionId, editData.edits);
 	}
 
 	createCell(content: string, language: string, type: CellKind, outputs: vscode.CellOutput[], metadata: vscode.NotebookCellMetadata | undefined): vscode.NotebookCell {
@@ -444,7 +512,7 @@ export class ExtHostNotebookOutputRenderer {
 		return false;
 	}
 
-	render(document: ExtHostNotebookDocument, cell: ExtHostCell, output: vscode.CellOutput, mimeType: string): string {
+	render(document: ExtHostNotebookDocument, cell: vscode.NotebookCell, output: vscode.CellOutput, mimeType: string): string {
 		let html = this.renderer.render(document, cell, output, mimeType);
 
 		return html;

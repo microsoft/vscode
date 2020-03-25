@@ -1718,6 +1718,12 @@ declare module 'vscode' {
 		metadata?: NotebookDocumentMetadata;
 	}
 
+	export interface NotebookEditorCellEdit {
+		// createCell(content: string, language: string, type: CellKind, outputs: CellOutput[], metadata: NotebookCellMetadata | undefined): NotebookCell;
+		insert(index: number, content: string, language: string, type: CellKind, outputs: CellOutput[], metadata: NotebookCellMetadata | undefined): void;
+		delete(index: number): void;
+	}
+
 	export interface NotebookEditor {
 		readonly document: NotebookDocument;
 		viewColumn?: ViewColumn;
@@ -1738,6 +1744,8 @@ declare module 'vscode' {
 		 * Create a notebook cell. The cell is not inserted into current document when created. Extensions should insert the cell into the document by [TextDocument.cells](#TextDocument.cells)
 		 */
 		createCell(content: string, language: string, type: CellKind, outputs: CellOutput[], metadata: NotebookCellMetadata | undefined): NotebookCell;
+
+		edit(callback: (editBuilder: NotebookEditorCellEdit) => void): Thenable<boolean>;
 	}
 
 	export interface NotebookProvider {

@@ -686,12 +686,41 @@ export type NotebookCellOutputsSplice = [
 	IOutput[]
 ];
 
+
+export enum CellEditType {
+	Insert = 1,
+	Delete = 2
+}
+
+export interface ICellInsertEdit {
+	editType: CellEditType.Insert;
+	index: number;
+	content: string;
+	language: string;
+	type: CellKind;
+	outputs: IOutput[];
+	metadata?: NotebookCellMetadata;
+}
+
+export interface ICellDeleteEdit {
+	editType: CellEditType.Delete;
+	index: number;
+}
+
+export type ICellEditOperation = ICellInsertEdit | ICellDeleteEdit;
+
+export interface INotebookEditData {
+	documentVersionId: number;
+	edits: ICellEditOperation[];
+}
+
 export interface MainThreadNotebookShape extends IDisposable {
 	$registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string): Promise<void>;
 	$unregisterNotebookProvider(viewType: string): Promise<void>;
 	$registerNotebookRenderer(extension: NotebookExtensionDescription, type: string, selectors: INotebookMimeTypeSelector, handle: number, preloads: UriComponents[]): Promise<void>;
 	$unregisterNotebookRenderer(handle: number): Promise<void>;
 	$createNotebookDocument(handle: number, viewType: string, resource: UriComponents): Promise<void>;
+	$tryApplyEdits(resource: UriComponents, modelVersionId: number, edits: ICellEditOperation[]): Promise<boolean>;
 	$updateNotebookLanguages(viewType: string, resource: UriComponents, languages: string[]): Promise<void>;
 	$updateNotebookMetadata(viewType: string, resource: UriComponents, metadata: NotebookDocumentMetadata): Promise<void>;
 	$updateNotebookCellMetadata(viewType: string, resource: UriComponents, handle: number, metadata: NotebookCellMetadata | undefined): Promise<void>;

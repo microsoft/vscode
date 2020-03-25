@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { MainContext, MainThreadNotebookShape, NotebookExtensionDescription, IExtHostContext, ExtHostNotebookShape, ExtHostContext } from '../common/extHost.protocol';
+import { MainContext, MainThreadNotebookShape, NotebookExtensionDescription, IExtHostContext, ExtHostNotebookShape, ExtHostContext, ICellEditOperation } from '../common/extHost.protocol';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { INotebookService, IMainNotebookController } from 'vs/workbench/contrib/notebook/browser/notebookService';
@@ -63,6 +63,10 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostNotebook);
 		this.registerListeners();
+	}
+
+	$tryApplyEdits(resource: UriComponents, modelVersionId: number, edits: ICellEditOperation[]): Promise<boolean> {
+		throw new Error('Method not implemented.');
 	}
 
 	registerListeners() {
