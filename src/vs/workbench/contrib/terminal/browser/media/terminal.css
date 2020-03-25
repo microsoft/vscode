@@ -155,3 +155,8 @@
 .xterm.xterm-cursor-pointer {
 	cursor: pointer!important;
 }
+
+/* Rotate icon when terminal is in the sidebar */
+.monaco-workbench .part.sidebar .title-actions .terminal-action.codicon-split-horizontal {
+	transform: rotate(-90deg);
+}
