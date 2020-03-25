@@ -1022,7 +1022,11 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		if (this.dimension) {
 			const totalWeight = this.viewsModel.visibleViewDescriptors.reduce((totalWeight, { weight }) => totalWeight + (weight || 20), 0);
 			for (const viewDescriptor of this.viewsModel.visibleViewDescriptors) {
-				sizes.set(viewDescriptor.id, this.dimension.height * (viewDescriptor.weight || 20) / totalWeight);
+				if (this.orientation === Orientation.VERTICAL) {
+					sizes.set(viewDescriptor.id, this.dimension.height * (viewDescriptor.weight || 20) / totalWeight);
+				} else {
+					sizes.set(viewDescriptor.id, this.dimension.width * (viewDescriptor.weight || 20) / totalWeight);
+				}
 			}
 		}
 		return sizes;
