@@ -57,11 +57,13 @@ export class EnvironmentVariableService implements IEnvironmentVariableService {
 
 	// TODO: Debounce notifying of terminals about onDidChangeCollections
 	// TODO: Generate a summary of changes inside the terminal component as it needs to be done per-terminal compared to what it started with
-	protected readonly _onDidChangeCollections = new Emitter<void>();
-	public get onDidChangeCollections(): Event<void> { return this._onDidChangeCollections.event; }
+	private readonly _onDidChangeCollections = new Emitter<void>();
+	get onDidChangeCollections(): Event<void> { return this._onDidChangeCollections.event; }
 
-	// TODO: Load in persisted collections
-	// TODO: Fire an event when collections have changed that the terminal component can listen to
+	constructor() {
+		// TODO: Load in persisted collections
+		// TODO: Fire an event when collections have changed that the terminal component can listen to
+	}
 
 	get mergedCollection(): IEnvironmentVariableCollection {
 		if (!this._mergedCollection) {
@@ -79,7 +81,14 @@ export class EnvironmentVariableService implements IEnvironmentVariableService {
 	}
 
 	private _resolveMergedCollection(): IEnvironmentVariableCollection {
-		const collection = new EnvironmentVariableCollection();
-		return collection;
+		const result = new EnvironmentVariableCollection();
+		this._collections.forEach(collection => {
+			collection.entries.forEach((mutator, variable) => {
+				if (!result.entries.has(variable)) {
+					result.entries.set(variable, mutator);
+				}
+			});
+		});
+		return result;
 	}
 }

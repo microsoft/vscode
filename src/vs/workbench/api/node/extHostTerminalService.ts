@@ -47,6 +47,14 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		this._updateLastActiveWorkspace();
 		this._updateVariableResolver();
 		this._registerListeners();
+
+		setTimeout(() => {
+			this._logService.error('get and set');
+			const c = this.getEnvironmentVariableCollection({ identifier: { value: 'test' } } as any, true);
+			c.prepend('a', 'b');
+			c.replace('c', 'd');
+			c.append('e', 'f');
+		}, 2000);
 	}
 
 	public createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
@@ -232,7 +240,13 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		} else {
 			collection = new EnvironmentVariableCollection();
 		}
-		collection.onDidChangeCollection(() => this._syncEnvironmentVariableCollection(extension.identifier.value, collection));
+		collection.onDidChangeCollection(() => {
+			// When any collection value changes send this immediately, this is done to ensure
+			// following calls to createTerminal will be created with the new environment. It will
+			// result in more noise by sending multiple updates when called but collections are
+			// expected to be small.
+			this._syncEnvironmentVariableCollection(extension.identifier.value, collection);
+		});
 		this._environmentVariableCollection.set(extension.identifier.value, collection);
 		return collection;
 	}
