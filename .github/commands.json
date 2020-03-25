@@ -166,7 +166,7 @@
 	},
 	{
 		"type": "comment",
-		"name": "cbePython",
+		"name": "extPython",
 		"allowUsers": [
 			"cleidigh",
 			"usernamehw",
@@ -179,7 +179,7 @@
 	},
 	{
 		"type": "comment",
-		"name": "cbeC",
+		"name": "extC",
 		"allowUsers": [
 			"cleidigh",
 			"usernamehw",
@@ -192,7 +192,7 @@
 	},
 	{
 		"type": "comment",
-		"name": "cbeC++",
+		"name": "extC++",
 		"allowUsers": [
 			"cleidigh",
 			"usernamehw",
@@ -205,7 +205,7 @@
 	},
 	{
 		"type": "comment",
-		"name": "cbeTS",
+		"name": "extTS",
 		"allowUsers": [
 			"cleidigh",
 			"usernamehw",
@@ -218,7 +218,7 @@
 	},
 	{
 		"type": "comment",
-		"name": "cbeJS",
+		"name": "extJS",
 		"allowUsers": [
 			"cleidigh",
 			"usernamehw",
@@ -231,7 +231,7 @@
 	},
 	{
 		"type": "comment",
-		"name": "cbeC#",
+		"name": "extC#",
 		"allowUsers": [
 			"cleidigh",
 			"usernamehw",
@@ -244,7 +244,7 @@
 	},
 	{
 		"type": "comment",
-		"name": "cbeGo",
+		"name": "extGo",
 		"allowUsers": [
 			"cleidigh",
 			"usernamehw",
@@ -257,7 +257,7 @@
 	},
 	{
 		"type": "comment",
-		"name": "cbePowershell",
+		"name": "extPowershell",
 		"allowUsers": [
 			"cleidigh",
 			"usernamehw",
@@ -270,7 +270,7 @@
 	},
 	{
 		"type": "comment",
-		"name": "cbeLiveShare",
+		"name": "extLiveShare",
 		"allowUsers": [
 			"cleidigh",
 			"usernamehw",
@@ -283,7 +283,7 @@
 	},
 	{
 		"type": "comment",
-		"name": "cbeDocker",
+		"name": "extDocker",
 		"allowUsers": [
 			"cleidigh",
 			"usernamehw",
