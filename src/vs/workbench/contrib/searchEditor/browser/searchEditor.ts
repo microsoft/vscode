@@ -462,8 +462,8 @@ export class SearchEditor extends BaseTextEditor {
 			_reason: 'searchEditor',
 			extraFileResources: this.instantiationService.invokeFunction(getOutOfWorkspaceEditorResources),
 			maxResults: 10000,
-			disregardIgnoreFiles: !config.useIgnores,
-			disregardExcludeSettings: !config.useIgnores,
+			disregardIgnoreFiles: !config.useIgnores || undefined,
+			disregardExcludeSettings: !config.useIgnores || undefined,
 			excludePattern: config.excludes,
 			includePattern: config.includes,
 			previewOptions: {
