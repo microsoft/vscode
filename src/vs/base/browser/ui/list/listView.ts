@@ -275,6 +275,12 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		this.layout();
 	}
 
+	updateOptions(options: IListViewOptions<T>) {
+		if (options.additionalScrollHeight !== undefined) {
+			this.additionalScrollHeight = options.additionalScrollHeight;
+		}
+	}
+
 	triggerScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {
 		this.scrollableElement.triggerScrollFromMouseWheelEvent(browserEvent);
 	}

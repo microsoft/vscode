@@ -201,6 +201,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 				mouseSupport: true,
 				multipleSelectionSupport: false,
 				enableKeyboardNavigation: true,
+				additionalScrollHeight: 0,
 				overrideStyles: {
 					listBackground: editorBackground,
 					listActiveSelectionBackground: editorBackground,
@@ -419,6 +420,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		DOM.toggleClass(this.rootElement, 'mid-width', dimension.width < 1000 && dimension.width >= 600);
 		DOM.toggleClass(this.rootElement, 'narrow-width', dimension.width < 600);
 		DOM.size(this.body, dimension.width, dimension.height);
+		this.list?.updateOptions({ additionalScrollHeight: dimension.height });
 		this.list?.layout(dimension.height, dimension.width);
 		this.eventDispatcher?.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
 	}
