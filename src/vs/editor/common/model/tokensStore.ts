@@ -737,17 +737,25 @@ function toUint32Array(arr: Uint32Array | ArrayBuffer): Uint32Array {
 export class TokensStore2 {
 
 	private _pieces: MultilineTokens2[];
+	private _isComplete: boolean;
 
 	constructor() {
 		this._pieces = [];
+		this._isComplete = false;
 	}
 
 	public flush(): void {
 		this._pieces = [];
+		this._isComplete = false;
 	}
 
-	public set(pieces: MultilineTokens2[] | null) {
+	public set(pieces: MultilineTokens2[] | null, isComplete: boolean) {
 		this._pieces = pieces || [];
+		this._isComplete = isComplete;
+	}
+
+	public isComplete(): boolean {
+		return this._isComplete;
 	}
 
 	public addSemanticTokens(lineNumber: number, aTokens: LineTokens): LineTokens {

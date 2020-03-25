@@ -98,7 +98,7 @@ suite('TokensStore', () => {
 	function testTokensAdjustment(rawInitialState: string[], edits: IIdentifiedSingleEditOperation[], rawFinalState: string[]) {
 		const initialState = parseTokensState(rawInitialState);
 		const model = createTextModel(initialState.text);
-		model.setSemanticTokens([initialState.tokens]);
+		model.setSemanticTokens([initialState.tokens], true);
 
 		model.applyEdits(edits);
 
@@ -183,7 +183,7 @@ suite('TokensStore', () => {
 				0, 38, 42, 245768,
 				0, 43, 47, 180232,
 			])))
-		]);
+		], true);
 		const lineTokens = model.getLineTokens(1);
 		let decodedTokens: number[] = [];
 		for (let i = 0, len = lineTokens.getCount(); i < len; i++) {

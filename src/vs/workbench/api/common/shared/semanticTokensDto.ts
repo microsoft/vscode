@@ -54,7 +54,14 @@ function fromLittleEndianBuffer(buff: VSBuffer): Uint32Array {
 		// the byte order must be changed
 		reverseEndianness(uint8Arr);
 	}
-	return new Uint32Array(uint8Arr.buffer, uint8Arr.byteOffset);
+	if (uint8Arr.byteOffset % 4 === 0) {
+		return new Uint32Array(uint8Arr.buffer, uint8Arr.byteOffset);
+	} else {
+		// unaligned memory access doesn't work on all platforms
+		const data = new Uint8Array(uint8Arr.byteLength);
+		data.set(uint8Arr);
+		return new Uint32Array(data.buffer, data.byteOffset);
+	}
 }
 
 export function encodeSemanticTokensDto(semanticTokens: ISemanticTokensDto): VSBuffer {
