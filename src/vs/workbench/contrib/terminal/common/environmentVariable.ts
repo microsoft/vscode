@@ -21,6 +21,9 @@ export interface IEnvironmentVariableMutator {
 }
 
 export interface IEnvironmentVariableCollection {
+	/**
+	 * All entries in the collection
+	 */
 	readonly entries: ReadonlyMap<string, IEnvironmentVariableMutator>;
 
 	/**
@@ -43,12 +46,24 @@ export interface IEnvironmentVariableService {
 	_serviceBrand: undefined;
 
 	/**
-	 * Gets a single collection constructed by merging all collections into one.
+	 * Gets a single collection constructed by merging all environment variable collections into
+	 * one.
 	 */
 	readonly mergedCollection: IEnvironmentVariableCollection;
 
+	/**
+	 * An event that is fired when an extension's environment variable collection changes, the event
+	 * provides the new merged collection.
+	 */
 	onDidChangeCollections: Event<IEnvironmentVariableCollection>;
 
+	/**
+	 * Sets an extension's environment variable collection.
+	 */
 	set(extensionIdentifier: string, collection: IEnvironmentVariableCollection): void;
+
+	/**
+	 * Deletes an extension's environment variable collection.
+	 */
 	delete(extensionIdentifier: string): void;
 }

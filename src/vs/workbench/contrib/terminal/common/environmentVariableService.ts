@@ -17,6 +17,7 @@ interface ISerializableEnvironmentVariableCollection {
 	values: string[];
 	types: number[];
 }
+
 interface ISerializableExtensionEnvironmentVariableCollection {
 	extensionIdentifier: string,
 	collection: ISerializableEnvironmentVariableCollection
