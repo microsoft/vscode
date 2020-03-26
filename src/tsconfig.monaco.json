@@ -22,7 +22,6 @@
 		"vs/editor/*",
 		"vs/base/common/*",
 		"vs/base/browser/*",
-		"vs/base/parts/tree/*",
 		"vs/platform/*/common/*",
 		"vs/platform/*/browser/*"
 	],
