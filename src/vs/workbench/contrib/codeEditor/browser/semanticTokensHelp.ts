@@ -23,6 +23,8 @@ export class SemanticTokensHelp extends Disposable implements IEditorContributio
 
 	public static readonly ID = 'editor.contrib.semanticHighlightHelp';
 
+	private static notificationShown = false;
+
 	constructor(
 		_editor: ICodeEditor,
 		@INotificationService _notificationService: INotificationService,
@@ -36,6 +38,11 @@ export class SemanticTokensHelp extends Disposable implements IEditorContributio
 		const localToDispose = toDispose.add(new DisposableStore());
 		const installChangeTokenListener = (model: ITextModel) => {
 			localToDispose.add(model.onDidChangeTokens((e) => {
+				if (SemanticTokensHelp.notificationShown) {
+					toDispose.dispose();
+					return;
+				}
+
 				if (!e.semanticTokensApplied) {
 					return;
 				}
@@ -45,6 +52,7 @@ export class SemanticTokensHelp extends Disposable implements IEditorContributio
 				}
 
 				toDispose.dispose(); // uninstall all listeners, make sure the notification is only shown once per window
+				SemanticTokensHelp.notificationShown = true;
 
 				const message = nls.localize(
 					{
