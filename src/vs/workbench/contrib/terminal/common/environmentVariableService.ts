@@ -5,7 +5,7 @@
 
 import { IEnvironmentVariableService, IEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { Event, Emitter } from 'vs/base/common/event';
-import { debounce } from 'vs/base/common/decorators';
+import { debounce, throttle } from 'vs/base/common/decorators';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { EnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableCollection';
@@ -74,13 +74,17 @@ export class EnvironmentVariableService implements IEnvironmentVariableService {
 	}
 
 	private _updateCollections(): void {
-		this._persistCollections();
+		this._persistCollectionsEventually();
 		this._mergedCollection = this._resolveMergedCollection();
-		this._notifyCollectionUpdates();
+		this._notifyCollectionUpdatesEventually();
 	}
 
-	@debounce(1000)
-	private _persistCollections(): void {
+	@throttle(1000)
+	private _persistCollectionsEventually(): void {
+		this._persistCollections();
+	}
+
+	protected _persistCollections(): void {
 		const keys = [...this._collections.keys()];
 		const collectionsJson: ISerializableExtensionEnvironmentVariableCollection[] = keys.map(extensionIdentifier => {
 			return {
@@ -94,11 +98,16 @@ export class EnvironmentVariableService implements IEnvironmentVariableService {
 	}
 
 	@debounce(1000)
-	private _notifyCollectionUpdates(): void {
+	private _notifyCollectionUpdatesEventually(): void {
+		this._notifyCollectionUpdates();
+	}
+
+	protected _notifyCollectionUpdates(): void {
 		this._onDidChangeCollections.fire(this._mergedCollection);
 	}
 
 	private _resolveMergedCollection(): IEnvironmentVariableCollection {
+		// TODO: Currently this will replace any entry but it's more complex; we need to apply multiple PATH transformations for example
 		const result = new EnvironmentVariableCollection();
 		this._collections.forEach(collection => {
 			collection.entries.forEach((mutator, variable) => {

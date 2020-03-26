@@ -99,4 +99,6 @@ suite('EnvironmentVariable - EnvironmentVariableCollection', () => {
 			C: 'c'
 		});
 	});
+
+	// TODO: Implement and test multiple mutators applying to one variable
 });
