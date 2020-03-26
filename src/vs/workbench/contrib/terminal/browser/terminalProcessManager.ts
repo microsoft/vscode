@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { env as processEnv } from 'vs/base/common/process';
@@ -24,8 +23,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { IEnvironmentVariableService, IEnvironmentVariableCollection, EnvironmentVariableMutatorType } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { INotificationService, Severity, IPromptChoice } from 'vs/platform/notification/common/notification';
+import { IEnvironmentVariableService, IMergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -62,7 +60,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	private _latency: number = -1;
 	private _latencyLastMeasured: number = 0;
 	private _initialCwd: string | undefined;
-	private _extEnvironmentVariableCollection: IEnvironmentVariableCollection | undefined;
+	private _extEnvironmentVariableCollection: IMergedEnvironmentVariableCollection | undefined;
 
 	private readonly _onProcessReady = this._register(new Emitter<void>());
 	public get onProcessReady(): Event<void> { return this._onProcessReady.event; }
@@ -92,8 +90,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		@IProductService private readonly _productService: IProductService,
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
-		@IEnvironmentVariableService private readonly _environmentVariableService: IEnvironmentVariableService,
-		@INotificationService private readonly _notificationService: INotificationService
+		@IEnvironmentVariableService private readonly _environmentVariableService: IEnvironmentVariableService
 	) {
 		super();
 		this.ptyProcessReady = new Promise<void>(c => {
@@ -316,35 +313,35 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		this._onProcessExit.fire(exitCode);
 	}
 
-	private _onEnvironmentVariableCollectionChange(newCollection: IEnvironmentVariableCollection): void {
-		const newAdditions = this._extEnvironmentVariableCollection!.getNewAdditions(newCollection);
-		if (newAdditions === undefined) {
-			return;
-		}
-		const promptChoices: IPromptChoice[] = [
-			{
-				label: nls.localize('apply', "Apply"),
-				run: () => {
-					let text = '';
-					newAdditions.forEach((mutator, variable) => {
-						// TODO: Support other common shells
-						// TODO: Escape the new values properly
-						switch (mutator.type) {
-							case EnvironmentVariableMutatorType.Append:
-								text += `export ${variable}="$${variable}${mutator.value}"\n`;
-								break;
-							case EnvironmentVariableMutatorType.Prepend:
-								text += `export ${variable}="${mutator.value}$${variable}"\n`;
-								break;
-							case EnvironmentVariableMutatorType.Replace:
-								text += `export ${variable}="${mutator.value}"\n`;
-								break;
-						}
-					});
-					this.write(text);
-				}
-			} as IPromptChoice
-		];
-		this._notificationService.prompt(Severity.Info, nls.localize('environmentchange', "An extension wants to change the terminal environment, do you want to send commands to set the variables in the terminal? Note if you have an application open in the terminal this may not work."), promptChoices);
+	private _onEnvironmentVariableCollectionChange(newCollection: IMergedEnvironmentVariableCollection): void {
+		// const newAdditions = this._extEnvironmentVariableCollection!.getNewAdditions(newCollection);
+		// if (newAdditions === undefined) {
+		// 	return;
+		// }
+		// const promptChoices: IPromptChoice[] = [
+		// 	{
+		// 		label: nls.localize('apply', "Apply"),
+		// 		run: () => {
+		// 			let text = '';
+		// 			newAdditions.forEach((mutator, variable) => {
+		// 				// TODO: Support other common shells
+		// 				// TODO: Escape the new values properly
+		// 				switch (mutator.type) {
+		// 					case EnvironmentVariableMutatorType.Append:
+		// 						text += `export ${variable}="$${variable}${mutator.value}"\n`;
+		// 						break;
+		// 					case EnvironmentVariableMutatorType.Prepend:
+		// 						text += `export ${variable}="${mutator.value}$${variable}"\n`;
+		// 						break;
+		// 					case EnvironmentVariableMutatorType.Replace:
+		// 						text += `export ${variable}="${mutator.value}"\n`;
+		// 						break;
+		// 				}
+		// 			});
+		// 			this.write(text);
+		// 		}
+		// 	} as IPromptChoice
+		// ];
+		// this._notificationService.prompt(Severity.Info, nls.localize('environmentchange', "An extension wants to change the terminal environment, do you want to send commands to set the variables in the terminal? Note if you have an application open in the terminal this may not work."), promptChoices);
 	}
 }

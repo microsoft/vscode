@@ -3,20 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEnvironmentVariableService, IEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
+import { IEnvironmentVariableService, IEnvironmentVariableCollection, IMergedEnvironmentVariableCollection, ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { Event, Emitter } from 'vs/base/common/event';
 import { debounce, throttle } from 'vs/base/common/decorators';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { EnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableCollection';
+import { MergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableCollection';
+import { deserializeEnvironmentVariableCollection, serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
 
 const ENVIRONMENT_VARIABLE_COLLECTIONS_KEY = 'terminal.integrated.environmentVariableCollections';
-
-interface ISerializableEnvironmentVariableCollection {
-	variables: string[];
-	values: string[];
-	types: number[];
-}
 
 interface ISerializableExtensionEnvironmentVariableCollection {
 	extensionIdentifier: string,
@@ -30,10 +25,10 @@ export class EnvironmentVariableService implements IEnvironmentVariableService {
 	_serviceBrand: undefined;
 
 	private _collections: Map<string, IEnvironmentVariableCollection> = new Map();
-	private _mergedCollection: IEnvironmentVariableCollection;
+	private _mergedCollection: IMergedEnvironmentVariableCollection;
 
-	private readonly _onDidChangeCollections = new Emitter<IEnvironmentVariableCollection>();
-	get onDidChangeCollections(): Event<IEnvironmentVariableCollection> { return this._onDidChangeCollections.event; }
+	private readonly _onDidChangeCollections = new Emitter<IMergedEnvironmentVariableCollection>();
+	get onDidChangeCollections(): Event<IMergedEnvironmentVariableCollection> { return this._onDidChangeCollections.event; }
 
 	constructor(
 		@IExtensionService private _extensionService: IExtensionService,
@@ -42,10 +37,7 @@ export class EnvironmentVariableService implements IEnvironmentVariableService {
 		const serializedPersistedCollections = this._storageService.get(ENVIRONMENT_VARIABLE_COLLECTIONS_KEY, StorageScope.WORKSPACE);
 		if (serializedPersistedCollections) {
 			const collectionsJson: ISerializableExtensionEnvironmentVariableCollection[] = JSON.parse(serializedPersistedCollections);
-			collectionsJson.forEach(c => {
-				const extCollection = new EnvironmentVariableCollection(c.collection.variables, c.collection.values, c.collection.types);
-				this._collections.set(c.extensionIdentifier, extCollection);
-			});
+			collectionsJson.forEach(c => this._collections.set(c.extensionIdentifier, deserializeEnvironmentVariableCollection(c.collection)));
 			console.log('serialized from previous session', this._collections);
 
 			// Asynchronously invalidate collections where extensions have been uninstalled, this is
@@ -59,7 +51,7 @@ export class EnvironmentVariableService implements IEnvironmentVariableService {
 		this._extensionService.onDidChangeExtensions(() => this._invalidateExtensionCollections());
 	}
 
-	get mergedCollection(): IEnvironmentVariableCollection {
+	get mergedCollection(): IMergedEnvironmentVariableCollection {
 		return this._mergedCollection;
 	}
 
@@ -106,17 +98,21 @@ export class EnvironmentVariableService implements IEnvironmentVariableService {
 		this._onDidChangeCollections.fire(this._mergedCollection);
 	}
 
-	private _resolveMergedCollection(): IEnvironmentVariableCollection {
-		// TODO: Currently this will replace any entry but it's more complex; we need to apply multiple PATH transformations for example
-		const result = new EnvironmentVariableCollection();
-		this._collections.forEach(collection => {
-			collection.entries.forEach((mutator, variable) => {
-				if (!result.entries.has(variable)) {
-					result.entries.set(variable, mutator);
-				}
-			});
-		});
-		return result;
+	private _resolveMergedCollection(): IMergedEnvironmentVariableCollection {
+		return new MergedEnvironmentVariableCollection(...[...this._collections.values()]);
+		// const result = new EnvironmentVariableCollection();
+		// this._collections.forEach(collection => {
+		// 	const it = collection.entries();
+		// 	let next = it.next();
+		// 	while (!next.done) {
+		// 		const variable = next.value[0];
+		// 		if (!result.entries.has(variable)) {
+		// 			result.entries.set(variable, next.value[1]);
+		// 		}
+		// 		next = it.next();
+		// 	}
+		// });
+		// return result;
 	}
 
 	private async _invalidateExtensionCollections(): Promise<void> {
@@ -137,14 +133,4 @@ export class EnvironmentVariableService implements IEnvironmentVariableService {
 			this._updateCollections();
 		}
 	}
-}
-
-function serializeEnvironmentVariableCollection(collection: IEnvironmentVariableCollection): ISerializableEnvironmentVariableCollection {
-	const entries = [...collection.entries.entries()];
-	const result: ISerializableEnvironmentVariableCollection = {
-		variables: entries.map(e => e[0]),
-		values: entries.map(e => e[1].value),
-		types: entries.map(e => e[1].type),
-	};
-	return result;
 }

@@ -648,50 +648,50 @@ export class EnvironmentVariableMutator implements vscode.EnvironmentVariableMut
 }
 
 export class EnvironmentVariableCollection implements vscode.EnvironmentVariableCollection {
-	private _entries: Map<string, EnvironmentVariableMutator> = new Map();
+	public entries: Map<string, EnvironmentVariableMutator> = new Map();
 
 	protected readonly _onDidChangeCollection: Emitter<void> = new Emitter<void>();
 	get onDidChangeCollection(): Event<void> { return this._onDidChangeCollection && this._onDidChangeCollection.event; }
 
 	get size(): number {
-		return this._entries.size;
+		return this.entries.size;
 	}
 
 	replace(variable: string, value: string): void {
-		this._entries.set(variable, new EnvironmentVariableMutator(value, EnvironmentVariableMutatorType.Replace));
+		this.entries.set(variable, new EnvironmentVariableMutator(value, EnvironmentVariableMutatorType.Replace));
 		this._onDidChangeCollection.fire();
 	}
 
 	append(variable: string, value: string): void {
-		this._entries.set(variable, new EnvironmentVariableMutator(value, EnvironmentVariableMutatorType.Append));
+		this.entries.set(variable, new EnvironmentVariableMutator(value, EnvironmentVariableMutatorType.Append));
 		this._onDidChangeCollection.fire();
 	}
 
 	prepend(variable: string, value: string): void {
-		this._entries.set(variable, new EnvironmentVariableMutator(value, EnvironmentVariableMutatorType.Prepend));
+		this.entries.set(variable, new EnvironmentVariableMutator(value, EnvironmentVariableMutatorType.Prepend));
 		this._onDidChangeCollection.fire();
 	}
 
 	get(variable: string): EnvironmentVariableMutator | undefined {
-		return this._entries.get(variable);
+		return this.entries.get(variable);
 	}
 
 	forEach(callback: (variable: string, mutator: vscode.EnvironmentVariableMutator, collection: vscode.EnvironmentVariableCollection) => any, thisArg?: any): void {
-		this._entries.forEach((value, key) => callback(key, value, this));
+		this.entries.forEach((value, key) => callback(key, value, this));
 	}
 
 	delete(variable: string): void {
-		this._entries.delete(variable);
+		this.entries.delete(variable);
 		this._onDidChangeCollection.fire();
 	}
 
 	clear(): void {
-		this._entries.clear();
+		this.entries.clear();
 		this._onDidChangeCollection.fire();
 	}
 
 	dispose(): void {
-		this._entries.clear();
+		this.entries.clear();
 		this._onDidChangeCollection.fire();
 	}
 }

@@ -9,7 +9,7 @@ import * as os from 'os';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
-import { IShellLaunchConfigDto, IShellDefinitionDto, IShellAndArgsDto, IEnvironmentVariableCollectionDto } from 'vs/workbench/api/common/extHost.protocol';
+import { IShellLaunchConfigDto, IShellDefinitionDto, IShellAndArgsDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostConfiguration, ExtHostConfigProvider, IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IShellLaunchConfig, ITerminalEnvironment } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -23,8 +23,8 @@ import { getMainProcessParentEnv } from 'vs/workbench/contrib/terminal/node/term
 import { BaseExtHostTerminalService, ExtHostTerminal, EnvironmentVariableCollection } from 'vs/workbench/api/common/extHostTerminalService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { EnvironmentVariableMutatorType } from 'vs/workbench/api/common/extHostTypes';
 import { dispose } from 'vs/base/common/lifecycle';
+import { serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
 
 export class ExtHostTerminalService extends BaseExtHostTerminalService {
 
@@ -254,27 +254,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 	}
 
 	private _syncEnvironmentVariableCollection(extensionIdentifier: string, collection: EnvironmentVariableCollection): void {
-		this._proxy.$setEnvironmentVariableCollection(extensionIdentifier, this._serializeEnvironmentVariableCollection(collection));
-	}
-
-	private _serializeEnvironmentVariableCollection(collection: EnvironmentVariableCollection): IEnvironmentVariableCollectionDto | undefined {
-		if (collection.size === 0) {
-			return undefined;
-		}
-
-
-		const variables: string[] = [];
-		const values: string[] = [];
-		const types: EnvironmentVariableMutatorType[] = [];
-		collection.forEach((variable, mutator) => {
-			variables.push(variable);
-			values.push(mutator.value);
-			types.push(mutator.type);
-		});
-		return {
-			variables,
-			values,
-			types
-		};
+		const serialized = serializeEnvironmentVariableCollection(collection.entries);
+		this._proxy.$setEnvironmentVariableCollection(extensionIdentifier, serialized.length === 0 ? undefined : serialized);
 	}
 }

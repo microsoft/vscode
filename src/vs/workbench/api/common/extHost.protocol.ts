@@ -54,7 +54,7 @@ import { revive } from 'vs/base/common/marshalling';
 import { INotebookMimeTypeSelector, IOutput, INotebookDisplayOrder, NotebookCellMetadata, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { Dto } from 'vs/base/common/types';
-import { EnvironmentVariableMutatorType } from 'vs/workbench/contrib/terminal/common/environmentVariable';
+import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -427,12 +427,6 @@ export interface TerminalLaunchConfig {
 	isExtensionTerminal?: boolean;
 }
 
-export interface IEnvironmentVariableCollectionDto {
-	variables: string[];
-	values: string[];
-	types: EnvironmentVariableMutatorType[];
-}
-
 export interface MainThreadTerminalServiceShape extends IDisposable {
 	$createTerminal(config: TerminalLaunchConfig): Promise<{ id: number, name: string; }>;
 	$dispose(terminalId: number): void;
@@ -443,7 +437,7 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	$stopSendingDataEvents(): void;
 	$startHandlingLinks(): void;
 	$stopHandlingLinks(): void;
-	$setEnvironmentVariableCollection(extensionIdentifier: string, collection: IEnvironmentVariableCollectionDto | undefined): void;
+	$setEnvironmentVariableCollection(extensionIdentifier: string, collection: ISerializableEnvironmentVariableCollection | undefined): void;
 
 	// Process
 	$sendProcessTitle(terminalId: number, title: string): void;

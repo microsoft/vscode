@@ -5,7 +5,7 @@
 
 import { DisposableStore, Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IShellLaunchConfig, ITerminalProcessExtHostProxy, ISpawnExtHostProcessRequest, ITerminalDimensions, EXT_HOST_CREATION_DELAY, IAvailableShellsRequest, IDefaultShellAndArgsRequest, IStartExtensionTerminalRequest } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, IExtHostContext, IShellLaunchConfigDto, TerminalLaunchConfig, ITerminalDimensionsDto, IEnvironmentVariableCollectionDto } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, IExtHostContext, IShellLaunchConfigDto, TerminalLaunchConfig, ITerminalDimensionsDto } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { URI } from 'vs/base/common/uri';
 import { StopWatch } from 'vs/base/common/stopwatch';
@@ -13,8 +13,8 @@ import { ITerminalInstanceService, ITerminalService, ITerminalInstance, ITermina
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TerminalDataBufferer } from 'vs/workbench/contrib/terminal/common/terminalDataBuffering';
-import { IEnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { EnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableCollection';
+import { IEnvironmentVariableService, ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
+import { deserializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
 export class MainThreadTerminalService implements MainThreadTerminalServiceShape {
@@ -350,9 +350,9 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		return terminal;
 	}
 
-	$setEnvironmentVariableCollection(extensionIdentifier: string, collection: IEnvironmentVariableCollectionDto | undefined): void {
+	$setEnvironmentVariableCollection(extensionIdentifier: string, collection: ISerializableEnvironmentVariableCollection | undefined): void {
 		if (collection) {
-			const translatedCollection = new EnvironmentVariableCollection(collection.variables, collection.values, collection.types);
+			const translatedCollection = deserializeEnvironmentVariableCollection(collection);
 			this._environmentVariableService.set(extensionIdentifier, translatedCollection);
 		} else {
 			this._environmentVariableService.delete(extensionIdentifier);

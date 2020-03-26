@@ -20,24 +20,46 @@ export interface IEnvironmentVariableMutator {
 	readonly type: EnvironmentVariableMutatorType;
 }
 
-export interface IEnvironmentVariableCollection {
-	/**
-	 * All entries in the collection
-	 */
-	readonly entries: ReadonlyMap<string, IEnvironmentVariableMutator>;
+export type IEnvironmentVariableCollection = ReadonlyMap<string, IEnvironmentVariableMutator>;
+
+/**
+ * Represents an environment variable collection that results from merging several collections
+ * together.
+ */
+export interface IMergedEnvironmentVariableCollection {
+	readonly entries: ReadonlyMap<string, IEnvironmentVariableMutator[]>;
 
 	/**
 	 * Get's additions when compared to another collection. This only gets additions rather than
 	 * doing a full diff because we can only reliably add entries to an environment, not remove
 	 * them.
 	 */
-	getNewAdditions(other: IEnvironmentVariableCollection): ReadonlyMap<string, IEnvironmentVariableMutator> | undefined;
+	// getNewAdditions(other: IEnvironmentVariableCollection): ReadonlyMap<string, IEnvironmentVariableMutator[]> | undefined;
 
 	/**
 	 * Applies this collection to a process environment.
 	 */
 	applyToProcessEnvironment(env: IProcessEnvironment): void;
 }
+
+// export interface IEnvironmentVariableCollection {
+// 	/**
+// 	 * All entries in the collection
+// 	 */
+// 	readonly entries: ReadonlyMap<string, IEnvironmentVariableMutator>;
+
+// 	/**
+// 	 * Get's additions when compared to another collection. This only gets additions rather than
+// 	 * doing a full diff because we can only reliably add entries to an environment, not remove
+// 	 * them.
+// 	 */
+// 	getNewAdditions(other: IEnvironmentVariableCollection): ReadonlyMap<string, IEnvironmentVariableMutator> | undefined;
+
+// 	/**
+// 	 * Applies this collection to a process environment.
+// 	 */
+// 	applyToProcessEnvironment(env: IProcessEnvironment): void;
+// }
 
 /**
  * Tracks and persists environment variable collections as defined by extensions.
@@ -49,13 +71,13 @@ export interface IEnvironmentVariableService {
 	 * Gets a single collection constructed by merging all environment variable collections into
 	 * one.
 	 */
-	readonly mergedCollection: IEnvironmentVariableCollection;
+	readonly mergedCollection: IMergedEnvironmentVariableCollection;
 
 	/**
 	 * An event that is fired when an extension's environment variable collection changes, the event
 	 * provides the new merged collection.
 	 */
-	onDidChangeCollections: Event<IEnvironmentVariableCollection>;
+	onDidChangeCollections: Event<IMergedEnvironmentVariableCollection>;
 
 	/**
 	 * Sets an extension's environment variable collection.
@@ -67,3 +89,10 @@ export interface IEnvironmentVariableService {
 	 */
 	delete(extensionIdentifier: string): void;
 }
+
+/**
+ * First: Variable
+ * Second: Value
+ * Third: Type
+ */
+export type ISerializableEnvironmentVariableCollection = [string, IEnvironmentVariableMutator][];
