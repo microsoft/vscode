@@ -54,7 +54,7 @@ export class SemanticTokensHelp extends Disposable implements IEditorContributio
 							'Variable 1 will be a theme name.'
 						]
 					},
-					"Code coloring of '{0}' has been updated as the theme '{1}' has semantic highlighting enabled.",
+					"Code coloring of '{0}' has been updated as the theme '{1}' has [semantic highlighting](https://go.microsoft.com/fwlink/?linkid=2122588) enabled.",
 					path.basename(model.uri.path), _themeService.getColorTheme().label
 				);
 
