@@ -5,26 +5,22 @@
 
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
-import { mixin } from 'vs/base/common/objects';
-import { IEditorInput, EditorInput, IEditorIdentifier, IEditorCommandsContext, CloseDirection, SaveReason, EditorsOrder, SideBySideEditorInput } from 'vs/workbench/common/editor';
-import { QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import { EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry, QuickOpenAction } from 'vs/workbench/browser/quickopen';
-import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
+import { IEditorInput, IEditorIdentifier, IEditorCommandsContext, CloseDirection, SaveReason, EditorsOrder, SideBySideEditorInput } from 'vs/workbench/common/editor';
+import { QuickOpenAction } from 'vs/workbench/browser/quickopen';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CLOSE_EDITOR_COMMAND_ID, NAVIGATE_ALL_EDITORS_BY_APPEARANCE_PREFIX, MOVE_ACTIVE_EDITOR_COMMAND_ID, NAVIGATE_IN_ACTIVE_GROUP_BY_MOST_RECENTLY_USED_PREFIX, ActiveEditorMoveArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, mergeAllGroups, NAVIGATE_ALL_EDITORS_BY_MOST_RECENTLY_USED_PREFIX } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { IEditorGroupsService, IEditorGroup, GroupsArrangement, GroupLocation, GroupDirection, preferredSideBySideGroupDirection, IFindGroupScope, GroupOrientation, EditorGroupLayout, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { values } from 'vs/base/common/map';
-import { ItemActivation } from 'vs/platform/quickinput/common/quickInput';
+import { ItemActivation, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
 export class ExecuteCommandAction extends Action {
 
@@ -388,63 +384,6 @@ export class FocusBelowGroup extends BaseFocusGroupAction {
 	) {
 		super(id, label, { direction: GroupDirection.DOWN }, editorGroupService);
 	}
-}
-
-export class OpenToSideFromQuickOpenAction extends Action {
-
-	static readonly OPEN_TO_SIDE_ID = 'workbench.action.openToSide';
-	static readonly OPEN_TO_SIDE_LABEL = nls.localize('openToSide', "Open to the Side");
-
-	constructor(
-		@IEditorService private readonly editorService: IEditorService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
-	) {
-		super(OpenToSideFromQuickOpenAction.OPEN_TO_SIDE_ID, OpenToSideFromQuickOpenAction.OPEN_TO_SIDE_LABEL);
-
-		this.updateClass();
-	}
-
-	updateClass(): void {
-		const preferredDirection = preferredSideBySideGroupDirection(this.configurationService);
-
-		this.class = (preferredDirection === GroupDirection.RIGHT) ? 'codicon-split-horizontal' : 'codicon-split-vertical';
-	}
-
-	async run(context: unknown): Promise<void> {
-		const entry = toEditorQuickOpenEntry(context);
-		if (entry) {
-			const input = entry.getInput();
-			if (input) {
-				if (input instanceof EditorInput) {
-					await this.editorService.openEditor(input, entry.getOptions(), SIDE_GROUP);
-					return;
-				}
-
-				const resourceEditorInput = input as IResourceEditorInput;
-				resourceEditorInput.options = mixin(resourceEditorInput.options, entry.getOptions());
-
-				await this.editorService.openEditor(resourceEditorInput, SIDE_GROUP);
-			}
-		}
-	}
-}
-
-export function toEditorQuickOpenEntry(element: unknown): IEditorQuickOpenEntry | null {
-
-	// QuickOpenEntryGroup
-	if (element instanceof QuickOpenEntryGroup) {
-		const group = element;
-		if (group.getEntry()) {
-			element = group.getEntry();
-		}
-	}
-
-	// EditorQuickOpenEntry or EditorQuickOpenEntryGroup both implement IEditorQuickOpenEntry
-	if (element instanceof EditorQuickOpenEntry || element instanceof EditorQuickOpenEntryGroup) {
-		return element;
-	}
-
-	return null;
 }
 
 export class CloseEditorAction extends Action {
@@ -1222,9 +1161,9 @@ export class ShowEditorsInActiveGroupByMostRecentlyUsedAction extends QuickOpenA
 	constructor(
 		actionId: string,
 		actionLabel: string,
-		@IQuickOpenService quickOpenService: IQuickOpenService
+		@IQuickInputService quickInputService: IQuickInputService
 	) {
-		super(actionId, actionLabel, NAVIGATE_IN_ACTIVE_GROUP_BY_MOST_RECENTLY_USED_PREFIX, quickOpenService);
+		super(actionId, actionLabel, NAVIGATE_IN_ACTIVE_GROUP_BY_MOST_RECENTLY_USED_PREFIX, quickInputService);
 	}
 }
 
@@ -1236,9 +1175,9 @@ export class ShowAllEditorsByAppearanceAction extends QuickOpenAction {
 	constructor(
 		actionId: string,
 		actionLabel: string,
-		@IQuickOpenService quickOpenService: IQuickOpenService
+		@IQuickInputService quickInputService: IQuickInputService
 	) {
-		super(actionId, actionLabel, NAVIGATE_ALL_EDITORS_BY_APPEARANCE_PREFIX, quickOpenService);
+		super(actionId, actionLabel, NAVIGATE_ALL_EDITORS_BY_APPEARANCE_PREFIX, quickInputService);
 	}
 }
 
@@ -1250,9 +1189,9 @@ export class ShowAllEditorsByMostRecentlyUsedAction extends QuickOpenAction {
 	constructor(
 		actionId: string,
 		actionLabel: string,
-		@IQuickOpenService quickOpenService: IQuickOpenService
+		@IQuickInputService quickInputService: IQuickInputService
 	) {
-		super(actionId, actionLabel, NAVIGATE_ALL_EDITORS_BY_MOST_RECENTLY_USED_PREFIX, quickOpenService);
+		super(actionId, actionLabel, NAVIGATE_ALL_EDITORS_BY_MOST_RECENTLY_USED_PREFIX, quickInputService);
 	}
 }
 
@@ -1263,7 +1202,7 @@ export class BaseQuickOpenEditorAction extends Action {
 		label: string,
 		private prefix: string,
 		private itemActivation: ItemActivation | undefined,
-		@IQuickOpenService private readonly quickOpenService: IQuickOpenService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
 		super(id, label);
@@ -1272,9 +1211,9 @@ export class BaseQuickOpenEditorAction extends Action {
 	async run(): Promise<void> {
 		const keybindings = this.keybindingService.lookupKeybindings(this.id);
 
-		this.quickOpenService.show(this.prefix, {
+		this.quickInputService.quickAccess.show(this.prefix, {
 			quickNavigateConfiguration: { keybindings },
-			autoFocus: this.itemActivation === ItemActivation.LAST ? { autoFocusLastEntry: true } : undefined
+			itemActivation: this.itemActivation
 		});
 	}
 }
@@ -1287,10 +1226,10 @@ export class QuickOpenPreviousRecentlyUsedEditorAction extends BaseQuickOpenEdit
 	constructor(
 		id: string,
 		label: string,
-		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IQuickInputService quickInputService: IQuickInputService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		super(id, label, NAVIGATE_ALL_EDITORS_BY_MOST_RECENTLY_USED_PREFIX, undefined, quickOpenService, keybindingService);
+		super(id, label, NAVIGATE_ALL_EDITORS_BY_MOST_RECENTLY_USED_PREFIX, undefined, quickInputService, keybindingService);
 	}
 }
 
@@ -1302,10 +1241,10 @@ export class QuickOpenNextRecentlyUsedEditorAction extends BaseQuickOpenEditorAc
 	constructor(
 		id: string,
 		label: string,
-		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IQuickInputService quickInputService: IQuickInputService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		super(id, label, NAVIGATE_ALL_EDITORS_BY_MOST_RECENTLY_USED_PREFIX, undefined, quickOpenService, keybindingService);
+		super(id, label, NAVIGATE_ALL_EDITORS_BY_MOST_RECENTLY_USED_PREFIX, undefined, quickInputService, keybindingService);
 	}
 }
 
@@ -1317,10 +1256,10 @@ export class QuickOpenPreviousRecentlyUsedEditorInGroupAction extends BaseQuickO
 	constructor(
 		id: string,
 		label: string,
-		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IQuickInputService quickInputService: IQuickInputService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		super(id, label, NAVIGATE_IN_ACTIVE_GROUP_BY_MOST_RECENTLY_USED_PREFIX, undefined, quickOpenService, keybindingService);
+		super(id, label, NAVIGATE_IN_ACTIVE_GROUP_BY_MOST_RECENTLY_USED_PREFIX, undefined, quickInputService, keybindingService);
 	}
 }
 
@@ -1332,10 +1271,10 @@ export class QuickOpenLeastRecentlyUsedEditorInGroupAction extends BaseQuickOpen
 	constructor(
 		id: string,
 		label: string,
-		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IQuickInputService quickInputService: IQuickInputService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		super(id, label, NAVIGATE_IN_ACTIVE_GROUP_BY_MOST_RECENTLY_USED_PREFIX, ItemActivation.LAST, quickOpenService, keybindingService);
+		super(id, label, NAVIGATE_IN_ACTIVE_GROUP_BY_MOST_RECENTLY_USED_PREFIX, ItemActivation.LAST, quickInputService, keybindingService);
 	}
 }
 
@@ -1347,7 +1286,7 @@ export class QuickOpenPreviousEditorFromHistoryAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IQuickOpenService private readonly quickOpenService: IQuickOpenService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
 		super(id, label);
@@ -1356,7 +1295,7 @@ export class QuickOpenPreviousEditorFromHistoryAction extends Action {
 	async run(): Promise<void> {
 		const keybindings = this.keybindingService.lookupKeybindings(this.id);
 
-		this.quickOpenService.show(undefined, { quickNavigateConfiguration: { keybindings } });
+		this.quickInputService.quickAccess.show('', { quickNavigateConfiguration: { keybindings } });
 	}
 }
 

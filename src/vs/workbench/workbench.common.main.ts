@@ -24,8 +24,7 @@ import 'vs/workbench/browser/actions/navigationActions';
 import 'vs/workbench/browser/actions/windowActions';
 import 'vs/workbench/browser/actions/workspaceActions';
 import 'vs/workbench/browser/actions/workspaceCommands';
-
-import 'vs/workbench/browser/parts/quickopen/quickOpenActions';
+import 'vs/workbench/browser/actions/quickOpenActions';
 
 //#endregion
 
@@ -41,7 +40,6 @@ import 'vs/workbench/api/browser/viewsExtensionPoint';
 
 //#region --- workbench parts
 
-import 'vs/workbench/browser/parts/quickopen/quickOpenController';
 import 'vs/workbench/browser/parts/editor/editorPart';
 import 'vs/workbench/browser/parts/activitybar/activitybarPart';
 import 'vs/workbench/browser/parts/panel/panelPart';
@@ -168,7 +166,6 @@ import 'vs/workbench/contrib/bulkEdit/browser/bulkEdit.contribution';
 // Search
 import 'vs/workbench/contrib/search/browser/search.contribution';
 import 'vs/workbench/contrib/search/browser/searchView';
-import 'vs/workbench/contrib/search/browser/openAnythingHandler';
 
 // Search Editor
 import 'vs/workbench/contrib/searchEditor/browser/searchEditor.contribution';

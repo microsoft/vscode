@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IKeyMods, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
+import { IKeyMods, IQuickPickSeparator, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IRange } from 'vs/editor/common/core/range';
@@ -17,6 +17,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { QuickOpenAction } from 'vs/workbench/browser/quickopen';
 
 export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccessProvider {
 
@@ -105,3 +106,17 @@ Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessPro
 		{ description: localize('gotoSymbolByCategoryQuickAccess', "Go to Symbol in Editor by Category"), prefix: AbstractGotoSymbolQuickAccessProvider.PREFIX_BY_CATEGORY, needsEditor: true }
 	]
 });
+
+export class GotoSymbolAction extends QuickOpenAction {
+
+	static readonly ID = 'workbench.action.gotoSymbol';
+	static readonly LABEL = localize('gotoSymbol', "Go to Symbol in Editor...");
+
+	constructor(
+		actionId: string,
+		actionLabel: string,
+		@IQuickInputService quickInputService: IQuickInputService
+	) {
+		super(actionId, actionLabel, GotoSymbolQuickAccessProvider.PREFIX, quickInputService);
+	}
+}

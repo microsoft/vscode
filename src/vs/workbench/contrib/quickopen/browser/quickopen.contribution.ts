@@ -3,21 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as env from 'vs/base/common/platform';
 import * as nls from 'vs/nls';
-import { QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions as QuickOpenExtensions } from 'vs/workbench/browser/quickopen';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncActionDescriptor, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { GotoSymbolAction, GOTO_SYMBOL_PREFIX, SCOPE_PREFIX, GotoSymbolHandler } from 'vs/workbench/contrib/quickopen/browser/gotoSymbolHandler';
-import { ShowAllCommandsAction, ALL_COMMANDS_PREFIX, ClearCommandHistoryAction, CommandsHandler } from 'vs/workbench/contrib/quickopen/browser/commandsHandler';
-import { GotoLineAction, GOTO_LINE_PREFIX, GotoLineHandler } from 'vs/workbench/contrib/quickopen/browser/gotoLineHandler';
-import { HELP_PREFIX, HelpHandler } from 'vs/workbench/contrib/quickopen/browser/helpHandler';
-import { VIEW_PICKER_PREFIX, OpenViewPickerAction, QuickOpenViewPickerAction, ViewPickerHandler } from 'vs/workbench/contrib/quickopen/browser/viewPickerHandler';
 import { inQuickOpenContext, getQuickNavigateHandler } from 'vs/workbench/browser/parts/quickopen/quickopen';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { ShowAllCommandsAction, ClearCommandHistoryAction } from 'vs/workbench/contrib/quickaccess/browser/commandsQuickAccess';
+import { GotoLineAction } from 'vs/workbench/contrib/codeEditor/browser/quickaccess/gotoLineQuickAccess';
+import { GotoSymbolAction } from 'vs/workbench/contrib/codeEditor/browser/quickaccess/gotoSymbolQuickAccess';
+import { OpenViewPickerAction, QuickOpenViewPickerAction } from 'vs/workbench/contrib/quickaccess/browser/viewQuickAccess';
 
 // Register Actions
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
@@ -68,81 +65,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		primary: viewPickerKeybinding.mac.primary | KeyMod.Shift
 	}
 });
-
-// Register Quick Open Handler
-
-Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpenHandler(
-	QuickOpenHandlerDescriptor.create(
-		CommandsHandler,
-		CommandsHandler.ID,
-		ALL_COMMANDS_PREFIX,
-		'inCommandsPicker',
-		nls.localize('commandsHandlerDescriptionDefault', "Show and Run Commands")
-	)
-);
-
-Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpenHandler(
-	QuickOpenHandlerDescriptor.create(
-		GotoLineHandler,
-		GotoLineHandler.ID,
-		GOTO_LINE_PREFIX,
-		undefined,
-		[
-			{
-				prefix: GOTO_LINE_PREFIX,
-				needsEditor: true,
-				description: env.isMacintosh ? nls.localize('gotoLineDescriptionMac', "Go to Line/Column") : nls.localize('gotoLineDescriptionWin', "Go to Line/Column")
-			},
-		]
-	)
-);
-
-Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpenHandler(
-	QuickOpenHandlerDescriptor.create(
-		GotoSymbolHandler,
-		GotoSymbolHandler.ID,
-		GOTO_SYMBOL_PREFIX,
-		'inFileSymbolsPicker',
-		[
-			{
-				prefix: GOTO_SYMBOL_PREFIX,
-				needsEditor: true,
-				description: nls.localize('gotoSymbolDescription', "Go to Symbol in Editor")
-			},
-			{
-				prefix: GOTO_SYMBOL_PREFIX + SCOPE_PREFIX,
-				needsEditor: true,
-				description: nls.localize('gotoSymbolDescriptionScoped', "Go to Symbol in Editor by Category")
-			}
-		]
-	)
-);
-
-Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpenHandler(
-	QuickOpenHandlerDescriptor.create(
-		HelpHandler,
-		HelpHandler.ID,
-		HELP_PREFIX,
-		undefined,
-		nls.localize('helpDescription', "Show Help")
-	)
-);
-
-Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpenHandler(
-	QuickOpenHandlerDescriptor.create(
-		ViewPickerHandler,
-		ViewPickerHandler.ID,
-		VIEW_PICKER_PREFIX,
-		inViewsPickerContextKey,
-		[
-			{
-				prefix: VIEW_PICKER_PREFIX,
-				needsEditor: false,
-				description: nls.localize('viewPickerDescription', "Open View")
-			}
-		]
-	)
-);
 
 // View menu
 

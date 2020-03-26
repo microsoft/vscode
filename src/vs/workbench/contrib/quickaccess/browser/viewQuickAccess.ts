@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickPickSeparator, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IPickerQuickAccessItem, PickerQuickAccessProvider } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IViewDescriptorService, IViewsService, ViewContainer, IViewsRegistry, Extensions as ViewExtensions, IViewContainersRegistry } from 'vs/workbench/common/views';
@@ -17,6 +17,9 @@ import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { matchesFuzzy } from 'vs/base/common/filters';
 import { fuzzyContains } from 'vs/base/common/strings';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { QuickOpenAction } from 'vs/workbench/browser/quickopen';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { Action } from 'vs/base/common/actions';
 
 interface IViewQuickPickItem extends IPickerQuickAccessItem {
 	containerLabel: string;
@@ -179,5 +182,42 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 		}
 
 		return true;
+	}
+}
+
+export class OpenViewPickerAction extends QuickOpenAction {
+
+	static readonly ID = 'workbench.action.openView';
+	static readonly LABEL = localize('openView', "Open View");
+
+	constructor(
+		id: string,
+		label: string,
+		@IQuickInputService quickInputService: IQuickInputService
+	) {
+		super(id, label, ViewQuickAccessProvider.PREFIX, quickInputService);
+	}
+}
+
+export class QuickOpenViewPickerAction extends Action {
+
+	static readonly ID = 'workbench.action.quickOpenView';
+	static readonly LABEL = localize('quickOpenView', "Quick Open View");
+
+	constructor(
+		id: string,
+		label: string,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService
+	) {
+		super(id, label);
+	}
+
+	run(): Promise<boolean> {
+		const keys = this.keybindingService.lookupKeybindings(this.id);
+
+		this.quickInputService.quickAccess.show(ViewQuickAccessProvider.PREFIX, { quickNavigateConfiguration: { keybindings: keys } });
+
+		return Promise.resolve(true);
 	}
 }

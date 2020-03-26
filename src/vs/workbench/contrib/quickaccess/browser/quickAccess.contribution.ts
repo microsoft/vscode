@@ -8,7 +8,10 @@ import { IQuickAccessRegistry, Extensions } from 'vs/platform/quickinput/common/
 import { Registry } from 'vs/platform/registry/common/platform';
 import { HelpQuickAccessProvider } from 'vs/platform/quickinput/browser/helpQuickAccess';
 import { ViewQuickAccessProvider } from 'vs/workbench/contrib/quickaccess/browser/viewQuickAccess';
-import { CommandsQuickAccessProvider } from 'vs/workbench/contrib/quickaccess/browser/commandsQuickAccess';
+import { CommandsQuickAccessProvider, CommandPaletteEditorAction } from 'vs/workbench/contrib/quickaccess/browser/commandsQuickAccess';
+import { registerEditorAction } from 'vs/editor/browser/editorExtensions';
+
+//#region Quick Access Proviers
 
 const registry = Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess);
 
@@ -34,3 +37,12 @@ registry.registerQuickAccessProvider({
 	placeholder: localize('commandsQuickAccessPlaceholder', "Type the name of a command to run."),
 	helpEntries: [{ description: localize('commandsQuickAccess', "Show and Run Commands"), needsEditor: false }]
 });
+
+//#endregion
+
+
+//#region Actions
+
+registerEditorAction(CommandPaletteEditorAction);
+
+//#endregion

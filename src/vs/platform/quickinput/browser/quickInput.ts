@@ -52,7 +52,7 @@ export class QuickInputService extends Themable implements IQuickInputService {
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@ILayoutService protected readonly layoutService: ILayoutService

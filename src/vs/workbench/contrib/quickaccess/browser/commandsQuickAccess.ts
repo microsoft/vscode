@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { ICommandQuickPick } from 'vs/platform/quickinput/browser/commandsQuickAccess';
+import { ICommandQuickPick, CommandsHistory } from 'vs/platform/quickinput/browser/commandsQuickAccess';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -15,7 +15,7 @@ import { DisposableStore, toDisposable, dispose } from 'vs/base/common/lifecycle
 import { AbstractEditorCommandsQuickAccessProvider } from 'vs/editor/contrib/quickAccess/commandsQuickAccess';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { Language } from 'vs/base/common/platform';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -24,6 +24,11 @@ import { DefaultQuickAccessFilterValue } from 'vs/platform/quickinput/common/qui
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchQuickOpenConfiguration } from 'vs/workbench/browser/quickopen';
 import { stripCodicons } from 'vs/base/common/codicons';
+import { Action } from 'vs/base/common/actions';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { EditorAction } from 'vs/editor/browser/editorExtensions';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAccessProvider {
 
@@ -126,3 +131,69 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		return globalCommandPicks;
 	}
 }
+
+//#region Actions
+
+export class ShowAllCommandsAction extends Action {
+
+	static readonly ID = 'workbench.action.showCommands';
+	static readonly LABEL = localize('showTriggerActions', "Show All Commands");
+
+	constructor(
+		id: string,
+		label: string,
+		@IQuickInputService private readonly quickInputService: IQuickInputService
+	) {
+		super(id, label);
+	}
+
+	async run(): Promise<void> {
+		this.quickInputService.quickAccess.show(CommandsQuickAccessProvider.PREFIX);
+	}
+}
+
+export class ClearCommandHistoryAction extends Action {
+
+	static readonly ID = 'workbench.action.clearCommandHistory';
+	static readonly LABEL = localize('clearCommandHistory', "Clear Command History");
+
+	constructor(
+		id: string,
+		label: string,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IStorageService private readonly storageService: IStorageService
+	) {
+		super(id, label);
+	}
+
+	async run(): Promise<void> {
+		const commandHistoryLength = CommandsHistory.getConfiguredCommandHistoryLength(this.configurationService);
+		if (commandHistoryLength > 0) {
+			CommandsHistory.clearHistory(this.configurationService, this.storageService);
+		}
+	}
+}
+
+export class CommandPaletteEditorAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: ShowAllCommandsAction.ID,
+			label: localize('showCommands.label', "Command Palette..."),
+			alias: 'Command Palette...',
+			precondition: EditorContextKeys.editorSimpleInput.toNegated(),
+			contextMenuOpts: {
+				group: 'z_commands',
+				order: 1
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const quickInputService = accessor.get(IQuickInputService);
+
+		quickInputService.quickAccess.show(CommandsQuickAccessProvider.PREFIX);
+	}
+}
+
+//#endregion

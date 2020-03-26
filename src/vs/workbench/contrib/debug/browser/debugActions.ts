@@ -10,7 +10,6 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IDebugService, State, IEnablement, IBreakpoint, IDebugSession, ILaunch } from 'vs/workbench/contrib/debug/common/debug';
 import { Variable, Breakpoint, FunctionBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
@@ -174,13 +173,13 @@ export class SelectAndStartAction extends AbstractDebugAction {
 	constructor(id: string, label: string,
 		@IDebugService debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IQuickOpenService private readonly quickOpenService: IQuickOpenService
+		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
 		super(id, label, '', debugService, keybindingService);
 	}
 
-	run(): Promise<any> {
-		return this.quickOpenService.show('debug ');
+	async run(): Promise<any> {
+		this.quickInputService.quickAccess.show('debug ');
 	}
 }
 

@@ -15,20 +15,30 @@ import { QuickInputController } from 'vs/base/parts/quickinput/browser/quickInpu
 import { QuickInputService as BaseQuickInputService } from 'vs/platform/quickinput/browser/quickInput';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { InQuickOpenContextKey } from 'vs/workbench/browser/parts/quickopen/quickopen';
 
 export class QuickInputService extends BaseQuickInputService {
 
+	private readonly inQuickOpenContext = InQuickOpenContextKey.bindTo(this.contextKeyService);
+
 	constructor(
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IKeybindingService private keybindingService: IKeybindingService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@ILayoutService protected layoutService: ILayoutService
+		@ILayoutService protected readonly layoutService: ILayoutService,
 	) {
 		super(instantiationService, contextKeyService, themeService, accessibilityService, layoutService);
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this._register(this.onShow(() => this.inQuickOpenContext.set(true)));
+		this._register(this.onHide(() => this.inQuickOpenContext.set(false)));
 	}
 
 	protected createController(): QuickInputController {

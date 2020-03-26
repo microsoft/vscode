@@ -4,12 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { RemoveFromEditorHistoryAction } from 'vs/workbench/browser/parts/quickopen/quickOpenController';
 import { QuickOpenSelectNextAction, QuickOpenSelectPreviousAction, inQuickOpenContext, getQuickNavigateHandler, QuickOpenNavigateNextAction, QuickOpenNavigatePreviousAction, defaultQuickOpenContext, QUICKOPEN_ACTION_ID, QUICKOPEN_ACION_LABEL } from 'vs/workbench/browser/parts/quickopen/quickopen';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
@@ -19,8 +17,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: inQuickOpenContext,
 	primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape],
 	handler: accessor => {
-		const quickOpenService = accessor.get(IQuickOpenService);
-		quickOpenService.close();
 		const quickInputService = accessor.get(IQuickInputService);
 		return quickInputService.cancel();
 	}
@@ -32,8 +28,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: inQuickOpenContext,
 	primary: 0,
 	handler: accessor => {
-		const quickOpenService = accessor.get(IQuickOpenService);
-		quickOpenService.accept();
 		const quickInputService = accessor.get(IQuickInputService);
 		return quickInputService.accept();
 	}
@@ -56,8 +50,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: inQuickOpenContext,
 	primary: 0,
 	handler: accessor => {
-		const quickOpenService = accessor.get(IQuickOpenService);
-		quickOpenService.focus();
 		const quickInputService = accessor.get(IQuickInputService);
 		quickInputService.focus();
 	}
@@ -84,7 +76,6 @@ registry.registerWorkbenchAction(SyncActionDescriptor.create(QuickOpenSelectNext
 registry.registerWorkbenchAction(SyncActionDescriptor.create(QuickOpenSelectPreviousAction, QuickOpenSelectPreviousAction.ID, QuickOpenSelectPreviousAction.LABEL, { primary: 0, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_P } }, inQuickOpenContext, KeybindingWeight.WorkbenchContrib + 50), 'Select Previous in Quick Open');
 registry.registerWorkbenchAction(SyncActionDescriptor.create(QuickOpenNavigateNextAction, QuickOpenNavigateNextAction.ID, QuickOpenNavigateNextAction.LABEL), 'Navigate Next in Quick Open');
 registry.registerWorkbenchAction(SyncActionDescriptor.create(QuickOpenNavigatePreviousAction, QuickOpenNavigatePreviousAction.ID, QuickOpenNavigatePreviousAction.LABEL), 'Navigate Previous in Quick Open');
-registry.registerWorkbenchAction(SyncActionDescriptor.create(RemoveFromEditorHistoryAction, RemoveFromEditorHistoryAction.ID, RemoveFromEditorHistoryAction.LABEL), 'Remove From History');
 
 const quickOpenNavigateNextInFilePickerId = 'workbench.action.quickOpenNavigateNextInFilePicker';
 KeybindingsRegistry.registerCommandAndKeybindingRule({

@@ -5,16 +5,11 @@
 
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
-import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ContextKeyExpr, RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
 
 const inQuickOpenKey = 'inQuickOpen';
 export const InQuickOpenContextKey = new RawContextKey<boolean>(inQuickOpenKey, false);
@@ -27,10 +22,10 @@ export const QUICKOPEN_ACION_LABEL = nls.localize('quickOpen', "Go to File...");
 
 CommandsRegistry.registerCommand({
 	id: QUICKOPEN_ACTION_ID,
-	handler: async function (accessor: ServicesAccessor, prefix: string | null = null) {
-		const quickOpenService = accessor.get(IQuickOpenService);
+	handler: async function (accessor: ServicesAccessor, prefix: unknown) {
+		const quickInputService = accessor.get(IQuickInputService);
 
-		await quickOpenService.show(typeof prefix === 'string' ? prefix : undefined);
+		quickInputService.quickAccess.show(typeof prefix === 'string' ? prefix : undefined);
 	},
 	description: {
 		description: `Quick open`,
@@ -45,9 +40,9 @@ CommandsRegistry.registerCommand({
 
 export const QUICKOPEN_FOCUS_SECONDARY_ACTION_ID = 'workbench.action.quickOpenPreviousEditor';
 CommandsRegistry.registerCommand(QUICKOPEN_FOCUS_SECONDARY_ACTION_ID, async function (accessor: ServicesAccessor, prefix: string | null = null) {
-	const quickOpenService = accessor.get(IQuickOpenService);
+	const quickInputService = accessor.get(IQuickInputService);
 
-	await quickOpenService.show(undefined, { autoFocus: { autoFocusSecondEntry: true } });
+	quickInputService.quickAccess.show('', { itemActivation: ItemActivation.SECOND });
 });
 
 export class BaseQuickOpenNavigateAction extends Action {
@@ -57,7 +52,6 @@ export class BaseQuickOpenNavigateAction extends Action {
 		label: string,
 		private next: boolean,
 		private quickNavigate: boolean,
-		@IQuickOpenService private readonly quickOpenService: IQuickOpenService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
@@ -68,7 +62,6 @@ export class BaseQuickOpenNavigateAction extends Action {
 		const keys = this.keybindingService.lookupKeybindings(this.id);
 		const quickNavigate = this.quickNavigate ? { keybindings: keys } : undefined;
 
-		this.quickOpenService.navigate(this.next, quickNavigate);
 		this.quickInputService.navigate(this.next, quickNavigate);
 	}
 }
@@ -76,13 +69,11 @@ export class BaseQuickOpenNavigateAction extends Action {
 export function getQuickNavigateHandler(id: string, next?: boolean): ICommandHandler {
 	return accessor => {
 		const keybindingService = accessor.get(IKeybindingService);
-		const quickOpenService = accessor.get(IQuickOpenService);
 		const quickInputService = accessor.get(IQuickInputService);
 
 		const keys = keybindingService.lookupKeybindings(id);
 		const quickNavigate = { keybindings: keys };
 
-		quickOpenService.navigate(!!next, quickNavigate);
 		quickInputService.navigate(!!next, quickNavigate);
 	};
 }
@@ -95,11 +86,10 @@ export class QuickOpenNavigateNextAction extends BaseQuickOpenNavigateAction {
 	constructor(
 		id: string,
 		label: string,
-		@IQuickOpenService quickOpenService: IQuickOpenService,
 		@IQuickInputService quickInputService: IQuickInputService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		super(id, label, true, true, quickOpenService, quickInputService, keybindingService);
+		super(id, label, true, true, quickInputService, keybindingService);
 	}
 }
 
@@ -111,11 +101,10 @@ export class QuickOpenNavigatePreviousAction extends BaseQuickOpenNavigateAction
 	constructor(
 		id: string,
 		label: string,
-		@IQuickOpenService quickOpenService: IQuickOpenService,
 		@IQuickInputService quickInputService: IQuickInputService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		super(id, label, false, true, quickOpenService, quickInputService, keybindingService);
+		super(id, label, false, true, quickInputService, keybindingService);
 	}
 }
 
@@ -127,11 +116,10 @@ export class QuickOpenSelectNextAction extends BaseQuickOpenNavigateAction {
 	constructor(
 		id: string,
 		label: string,
-		@IQuickOpenService quickOpenService: IQuickOpenService,
 		@IQuickInputService quickInputService: IQuickInputService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		super(id, label, true, false, quickOpenService, quickInputService, keybindingService);
+		super(id, label, true, false, quickInputService, keybindingService);
 	}
 }
 
@@ -143,63 +131,9 @@ export class QuickOpenSelectPreviousAction extends BaseQuickOpenNavigateAction {
 	constructor(
 		id: string,
 		label: string,
-		@IQuickOpenService quickOpenService: IQuickOpenService,
 		@IQuickInputService quickInputService: IQuickInputService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		super(id, label, false, false, quickOpenService, quickInputService, keybindingService);
+		super(id, label, false, false, quickInputService, keybindingService);
 	}
 }
-
-// TODO@Ben delete eventually when quick open is implemented using quick input
-export class LegacyQuickInputQuickOpenController extends Disposable {
-
-	private readonly inQuickOpenWidgets: Record<string, boolean> = Object.create(null);
-	private readonly inQuickOpenContext = InQuickOpenContextKey.bindTo(this.contextKeyService);
-
-	constructor(
-		@IQuickOpenService private readonly quickOpenService: IQuickOpenService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService
-	) {
-		super();
-
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-		this._register(this.quickOpenService.onShow(() => this.inQuickOpen('quickOpen', true)));
-		this._register(this.quickOpenService.onHide(() => this.inQuickOpen('quickOpen', false)));
-
-		this._register(this.quickOpenService.onShow(() => this.quickInputService.hide(true)));
-
-		this._register(this.quickInputService.onShow(() => {
-			this.quickOpenService.close();
-			this.inQuickOpen('quickInput', true);
-		}));
-
-		this._register(this.quickInputService.onHide(() => {
-			this.inQuickOpen('quickInput', false);
-		}));
-	}
-
-	private inQuickOpen(widget: 'quickInput' | 'quickOpen', open: boolean) {
-		if (open) {
-			this.inQuickOpenWidgets[widget] = true;
-		} else {
-			delete this.inQuickOpenWidgets[widget];
-		}
-
-		if (Object.keys(this.inQuickOpenWidgets).length) {
-			if (!this.inQuickOpenContext.get()) {
-				this.inQuickOpenContext.set(true);
-			}
-		} else {
-			if (this.inQuickOpenContext.get()) {
-				this.inQuickOpenContext.reset();
-			}
-		}
-	}
-}
-
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(LegacyQuickInputQuickOpenController, LifecyclePhase.Ready);

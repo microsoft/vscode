@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IKeyMods } from 'vs/platform/quickinput/common/quickInput';
+import { IKeyMods, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IRange } from 'vs/editor/common/core/range';
@@ -13,6 +13,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IQuickAccessRegistry, Extensions } from 'vs/platform/quickinput/common/quickAccess';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
+import { QuickOpenAction } from 'vs/workbench/browser/quickopen';
 
 export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProvider {
 
@@ -61,3 +62,17 @@ Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessPro
 	placeholder: localize('gotoLineQuickAccessPlaceholder', "Type the line number and optional column to go to (e.g. 42:5 for line 42 and column 5)."),
 	helpEntries: [{ description: localize('gotoLineQuickAccess', "Go to Line/Column"), needsEditor: true }]
 });
+
+export class GotoLineAction extends QuickOpenAction {
+
+	static readonly ID = 'workbench.action.gotoLine';
+	static readonly LABEL = localize('gotoLine', "Go to Line/Column...");
+
+	constructor(
+		actionId: string,
+		actionLabel: string,
+		@IQuickInputService quickInputService: IQuickInputService
+	) {
+		super(actionId, actionLabel, GotoLineQuickAccessProvider.PREFIX, quickInputService);
+	}
+}

@@ -89,7 +89,7 @@ export class NoTabsTitleControl extends TitleControl {
 		EventHelper.stop(e, false);
 
 		// delayed to let the onTitleClick() come first which can cause a focus change which can close quick open
-		setTimeout(() => this.quickOpenService.show());
+		setTimeout(() => this.quickInputService.quickAccess.show());
 	}
 
 	private onTitleDoubleClick(e: MouseEvent): void {
@@ -114,7 +114,7 @@ export class NoTabsTitleControl extends TitleControl {
 			// gesture tap should open the quick open
 			// editorGroupView will focus on the editor again when there are mouse/pointer/touch down events
 			// we need to wait a bit as `GesureEvent.Tap` is generated from `touchstart` and then `touchend` evnets, which are not an atom event.
-			setTimeout(() => this.quickOpenService.show(), 50);
+			setTimeout(() => this.quickInputService.quickAccess.show(), 50);
 		}
 	}
 
