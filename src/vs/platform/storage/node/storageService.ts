@@ -48,6 +48,11 @@ export class NativeStorageService extends Disposable implements IStorageService 
 	) {
 		super();
 
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+
 		// Global Storage change events
 		this._register(this.globalStorage.onDidChangeStorage(key => this.handleDidChangeStorage(key, StorageScope.GLOBAL)));
 	}

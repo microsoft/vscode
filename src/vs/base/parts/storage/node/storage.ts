@@ -14,7 +14,6 @@ import { IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest } from 'vs/b
 
 interface IDatabaseConnection {
 	readonly db: Database;
-
 	readonly isInMemory: boolean;
 
 	isErroneous?: boolean;
@@ -22,7 +21,7 @@ interface IDatabaseConnection {
 }
 
 export interface ISQLiteStorageDatabaseOptions {
-	logging?: ISQLiteStorageDatabaseLoggingOptions;
+	readonly logging?: ISQLiteStorageDatabaseLoggingOptions;
 }
 
 export interface ISQLiteStorageDatabaseLoggingOptions {
@@ -45,7 +44,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 
 	private readonly whenConnected = this.connect(this.path);
 
-	constructor(private path: string, private options: ISQLiteStorageDatabaseOptions = Object.create(null)) { }
+	constructor(private readonly path: string, private readonly options: ISQLiteStorageDatabaseOptions = Object.create(null)) { }
 
 	async getItems(): Promise<Map<string, string>> {
 		const connection = await this.whenConnected;

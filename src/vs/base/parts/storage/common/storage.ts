@@ -18,17 +18,17 @@ export enum StorageHint {
 }
 
 export interface IStorageOptions {
-	hint?: StorageHint;
+	readonly hint?: StorageHint;
 }
 
 export interface IUpdateRequest {
-	insert?: Map<string, string>;
-	delete?: Set<string>;
+	readonly insert?: Map<string, string>;
+	readonly delete?: Set<string>;
 }
 
 export interface IStorageItemsChangeEvent {
-	changed?: Map<string, string>;
-	deleted?: Set<string>;
+	readonly changed?: Map<string, string>;
+	readonly deleted?: Set<string>;
 }
 
 export interface IStorageDatabase {

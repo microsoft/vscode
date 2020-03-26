@@ -23,8 +23,8 @@ interface ISerializableUpdateRequest {
 }
 
 interface ISerializableItemsChangeEvent {
-	changed?: Item[];
-	deleted?: Key[];
+	readonly changed?: Item[];
+	readonly deleted?: Key[];
 }
 
 export class GlobalStorageDatabaseChannel extends Disposable implements IServerChannel {
@@ -34,15 +34,13 @@ export class GlobalStorageDatabaseChannel extends Disposable implements IServerC
 	private readonly _onDidChangeItems = this._register(new Emitter<ISerializableItemsChangeEvent>());
 	readonly onDidChangeItems = this._onDidChangeItems.event;
 
-	private whenReady: Promise<void>;
+	private readonly whenReady = this.init();
 
 	constructor(
 		private logService: ILogService,
 		private storageMainService: IStorageMainService
 	) {
 		super();
-
-		this.whenReady = this.init();
 	}
 
 	private async init(): Promise<void> {
@@ -166,8 +164,8 @@ export class GlobalStorageDatabaseChannelClient extends Disposable implements IS
 
 	_serviceBrand: undefined;
 
-	private readonly _onDidChangeItemsExternal: Emitter<IStorageItemsChangeEvent> = this._register(new Emitter<IStorageItemsChangeEvent>());
-	readonly onDidChangeItemsExternal: Event<IStorageItemsChangeEvent> = this._onDidChangeItemsExternal.event;
+	private readonly _onDidChangeItemsExternal = this._register(new Emitter<IStorageItemsChangeEvent>());
+	readonly onDidChangeItemsExternal = this._onDidChangeItemsExternal.event;
 
 	private onDidChangeItemsOnMainListener: IDisposable | undefined;
 
