@@ -204,6 +204,7 @@ export class BackLayerWebView extends Disposable {
 					outputNode.style.position = 'absolute';
 					outputNode.style.top = event.data.top + 'px';
 					outputNode.style.left = event.data.left + 'px';
+					outputNode.style.width = 'calc(100% - ' + event.data.left + 'px)';
 
 					outputNode.id = outputId;
 					let content = event.data.content;
