@@ -149,4 +149,12 @@ export class NotebookEditorInput extends EditorInput {
 		}
 		return false;
 	}
+
+	dispose() {
+		if (this.textModel) {
+			this.notebookService.destoryNotebookDocument(this.textModel!.notebook.viewType, this.textModel!.notebook);
+		}
+
+		super.dispose();
+	}
 }

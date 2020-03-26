@@ -243,13 +243,6 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		}
 
 		this.list?.splice(0, this.list?.length);
-
-		if (this.notebookViewModel && !this.notebookViewModel.isDirty()) {
-			this.notebookService.destoryNotebookDocument(this.notebookViewModel.viewType!, this.notebookViewModel!.notebookDocument);
-			this.notebookViewModel.dispose();
-			this.notebookViewModel = undefined;
-		}
-
 		super.onHide();
 	}
 
