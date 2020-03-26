@@ -60,6 +60,7 @@ import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
+import { getSizeObserver } from 'vs/workbench/contrib/extensions/browser/sizeObserver';
 
 function removeEmbeddedSVGs(documentContent: string): string {
 	const newDocument = new DOMParser().parseFromString(documentContent, 'text/html');
@@ -256,6 +257,22 @@ export class ExtensionEditor extends BaseEditor {
 		const subtextContainer = append(details, $('.subtext-container'));
 		const subtext = append(subtextContainer, $('.subtext'));
 		const ignoreActionbar = this._register(new ActionBar(subtextContainer, { animated: false }));
+
+		// Watch for changes in the header's size in order to resize inner components accordingly
+		const resizeObserver = getSizeObserver(header, () => {
+			const currHeight = resizeObserver.getHeight();
+
+			// give the font size a minimum of 10px
+			// const fontSize = Math.max(currHeight * 0.1), 10);
+			const fontSize = Math.round(currHeight * 0.1);
+			header.style.fontSize = `${fontSize}px`;
+
+			// hide recommendation comment on when header os too small
+			if (currHeight < 120) {
+				subtextContainer.style.display = 'none';
+			}
+		});
+		resizeObserver.startObserving();
 
 		this._register(Event.chain(extensionActionBar.onDidRun)
 			.map(({ error }) => error)
