@@ -198,6 +198,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 				multipleSelectionSupport: false,
 				enableKeyboardNavigation: true,
 				additionalScrollHeight: 0,
+				styleController: (_suffix: string) => { return this.list!; },
 				overrideStyles: {
 					listBackground: editorBackground,
 					listActiveSelectionBackground: editorBackground,
@@ -574,16 +575,16 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	moveCellDown(cell: ICellViewModel): void {
 		const index = this.notebookViewModel!.getViewCellIndex(cell);
 		const newIdx = index + 1;
-		this.moveCellToIndex(cell, index, newIdx);
+		this.moveCellToIndex(index, newIdx);
 	}
 
 	moveCellUp(cell: ICellViewModel): void {
 		const index = this.notebookViewModel!.getViewCellIndex(cell);
 		const newIdx = index - 1;
-		this.moveCellToIndex(cell, index, newIdx);
+		this.moveCellToIndex(index, newIdx);
 	}
 
-	private moveCellToIndex(cell: ICellViewModel, index: number, newIdx: number): void {
+	private moveCellToIndex(index: number, newIdx: number): void {
 		if (!this.notebookViewModel!.moveCellToIdx(index, newIdx, true)) {
 			return;
 		}
