@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { DisposableStore, Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { readonly } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ISplice } from 'vs/base/common/sequence';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { CellKind, CellOutputKind, ExtHostNotebookShape, IMainContext, MainContext, MainThreadNotebookShape, NotebookCellOutputsSplice } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { CellUri, diff, IErrorOutput, INotebookDisplayOrder, IOrderedMimeType, IStreamOutput, ITransformedDisplayOutputDto, mimeTypeSupportedByCore, sortMimeTypes, NotebookCellsChangedEvent, NotebookCellsSplice2, ICellEditOperation, INotebookEditData, CellEditType, ICellInsertEdit } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellUri, diff, ICellEditOperation, ICellInsertEdit, IErrorOutput, INotebookDisplayOrder, INotebookEditData, IOrderedMimeType, IStreamOutput, ITransformedDisplayOutputDto, mimeTypeSupportedByCore, NotebookCellsChangedEvent, NotebookCellsSplice2, sortMimeTypes } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Disposable as VSCodeDisposable } from './extHostTypes';
 
 interface IObservable<T> {
@@ -70,7 +70,7 @@ export class ExtHostCell extends Disposable implements vscode.NotebookCell {
 		readonly handle: number,
 		readonly uri: URI,
 		private _content: string,
-		public cellKind: CellKind,
+		public readonly cellKind: CellKind,
 		public language: string,
 		outputs: any[],
 		_metadata: vscode.NotebookCellMetadata | undefined,
@@ -114,7 +114,7 @@ export class ExtHostCell extends Disposable implements vscode.NotebookCell {
 		return this._metadata;
 	}
 
-	set metadata(newMetadata: vscode.NotebookCellMetadata | undefined) {
+	set metadata(newMetadata: vscode.NotebookCellMetadata) {
 		this._metadataChangeListener.dispose();
 		const observableMetadata = getObservable(newMetadata || {} as any); // TODO defaults
 		this._metadata = observableMetadata.proxy;

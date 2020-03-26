@@ -1681,16 +1681,20 @@ declare module 'vscode' {
 		 * This metadata is ignored for markdown cell.
 		 */
 		runnable?: boolean;
+
+		/**
+		 * Execution order information of the cell
+		 */
 		executionOrder?: number;
 	}
 
 	export interface NotebookCell {
 		readonly uri: Uri;
+		readonly cellKind: CellKind;
+		readonly source: string;
 		language: string;
-		cellKind: CellKind;
 		outputs: CellOutput[];
-		source: string;
-		metadata?: NotebookCellMetadata;
+		metadata: NotebookCellMetadata;
 	}
 
 	export interface NotebookDocumentMetadata {
@@ -1711,14 +1715,15 @@ declare module 'vscode' {
 		 * Default to true.
 		 */
 		cellRunnable: boolean;
+
 	}
 
 	export interface NotebookDocument {
 		readonly uri: Uri;
 		readonly fileName: string;
 		readonly isDirty: boolean;
-		languages: string[];
 		readonly cells: NotebookCell[];
+		languages: string[];
 		displayOrder?: GlobPattern[];
 		metadata?: NotebookDocumentMetadata;
 	}
@@ -1768,7 +1773,20 @@ declare module 'vscode' {
 		preloads?: Uri[];
 	}
 
-	namespace window {
+	export interface NotebookDocumentChangeEvent {
+
+		/**
+		 * The affected document.
+		 */
+		readonly document: NotebookDocument;
+
+		/**
+		 * An array of content changes.
+		 */
+		// readonly contentChanges: ReadonlyArray<TextDocumentContentChangeEvent>;
+	}
+
+	export namespace notebook {
 		export function registerNotebookProvider(
 			notebookType: string,
 			provider: NotebookProvider
@@ -1777,6 +1795,8 @@ declare module 'vscode' {
 		export function registerNotebookOutputRenderer(type: string, outputSelector: NotebookOutputSelector, renderer: NotebookOutputRenderer): Disposable;
 
 		export let activeNotebookDocument: NotebookDocument | undefined;
+
+		// export const onDidChangeNotebookDocument: Event<NotebookDocumentChangeEvent>;
 	}
 
 	//#endregion
