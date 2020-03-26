@@ -249,6 +249,8 @@ export class OutputEditor extends AbstractTextResourceEditor {
 
 	protected createEditor(parent: HTMLElement): void {
 
+		parent.setAttribute('role', 'document');
+
 		// First create the scoped instantiation service and only then construct the editor using the scoped service
 		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(parent));
 		this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]));
