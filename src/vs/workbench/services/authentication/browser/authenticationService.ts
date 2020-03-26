@@ -88,7 +88,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		this._onDidChangeSessions.fire({ providerId: id, event: event });
 		const provider = this._authenticationProviders.get(id);
 		if (provider) {
-			provider.updateSessionItems();
+			provider.updateSessionItems(event);
 		}
 	}
 

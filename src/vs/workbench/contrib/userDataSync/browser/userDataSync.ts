@@ -53,6 +53,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { timeout } from 'vs/base/common/async';
+import { distinct } from 'vs/base/common/arrays';
 
 const enum AuthStatus {
 	Initializing = 'Initializing',
@@ -251,7 +252,8 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			const quickPick = this.quickInputService.createQuickPick<{ label: string, session: AuthenticationSession }>();
 			quickPick.title = localize('chooseAccountTitle', "Preferences Sync: Choose Account");
 			quickPick.placeholder = localize('chooseAccount', "Choose an account you would like to use for settings sync");
-			quickPick.items = sessions.map(session => {
+			const dedupedSessions = distinct(sessions, (session) => session.accountName);
+			quickPick.items = dedupedSessions.map(session => {
 				return {
 					label: session.accountName,
 					session: session
