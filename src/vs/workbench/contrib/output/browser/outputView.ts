@@ -88,6 +88,7 @@ export class OutputViewPane extends ViewPane {
 	renderBody(container: HTMLElement): void {
 		this.editor.create(container);
 		const codeEditor = <ICodeEditor>this.editor.getControl();
+		codeEditor.setAriaOptions({ role: 'document', activeDescendant: undefined });
 		this._register(codeEditor.onDidChangeModelContent(() => {
 			const activeChannel = this.outputService.getActiveChannel();
 			if (activeChannel && !this.scrollLock) {
@@ -317,4 +318,3 @@ class SwitchOutputActionViewItem extends SelectActionViewItem {
 		this.setOptions(options.map((label, index) => <ISelectOptionItem>{ text: label, isDisabled: (index === separatorIndex ? true : false) }), Math.max(0, selected));
 	}
 }
-
