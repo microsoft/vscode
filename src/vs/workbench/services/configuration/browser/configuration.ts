@@ -101,7 +101,8 @@ class FileServiceBasedConfiguration extends Disposable {
 					const content = await this.fileService.readFile(resource);
 					return content.value.toString();
 				} catch (error) {
-					if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND) {
+					if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND
+						&& (<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_DIRECTORY) {
 						errors.onUnexpectedError(error);
 					}
 				}
