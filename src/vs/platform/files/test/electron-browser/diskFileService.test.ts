@@ -1410,6 +1410,10 @@ suite('Disk File Service', function () {
 	});
 
 	test('readFile - FILE_NOT_DIRECTORY', async () => {
+		if (isWindows) {
+			return; // error code does not seem to be supported on windows
+		}
+
 		const resource = URI.file(join(testDir, 'lorem.txt', 'file.txt'));
 
 		let error: FileOperationError | undefined = undefined;
