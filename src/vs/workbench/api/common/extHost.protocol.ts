@@ -51,7 +51,7 @@ import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import { TunnelOptions } from 'vs/platform/remote/common/tunnel';
 import { Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor, InternalTimelineOptions } from 'vs/workbench/contrib/timeline/common/timeline';
 import { revive } from 'vs/base/common/marshalling';
-import { INotebookMimeTypeSelector, IOutput, INotebookDisplayOrder, NotebookCellMetadata, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookMimeTypeSelector, IOutput, INotebookDisplayOrder, NotebookCellMetadata, NotebookDocumentMetadata, ICellEditOperation, NotebookCellsChangedEvent } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { Dto } from 'vs/base/common/types';
 
@@ -686,45 +686,16 @@ export type NotebookCellOutputsSplice = [
 	IOutput[]
 ];
 
-
-export enum CellEditType {
-	Insert = 1,
-	Delete = 2
-}
-
-export interface ICellInsertEdit {
-	editType: CellEditType.Insert;
-	index: number;
-	content: string;
-	language: string;
-	type: CellKind;
-	outputs: IOutput[];
-	metadata?: NotebookCellMetadata;
-}
-
-export interface ICellDeleteEdit {
-	editType: CellEditType.Delete;
-	index: number;
-}
-
-export type ICellEditOperation = ICellInsertEdit | ICellDeleteEdit;
-
-export interface INotebookEditData {
-	documentVersionId: number;
-	edits: ICellEditOperation[];
-}
-
 export interface MainThreadNotebookShape extends IDisposable {
 	$registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string): Promise<void>;
 	$unregisterNotebookProvider(viewType: string): Promise<void>;
 	$registerNotebookRenderer(extension: NotebookExtensionDescription, type: string, selectors: INotebookMimeTypeSelector, handle: number, preloads: UriComponents[]): Promise<void>;
 	$unregisterNotebookRenderer(handle: number): Promise<void>;
 	$createNotebookDocument(handle: number, viewType: string, resource: UriComponents): Promise<void>;
-	$tryApplyEdits(resource: UriComponents, modelVersionId: number, edits: ICellEditOperation[]): Promise<boolean>;
+	$tryApplyEdits(viewType: string, resource: UriComponents, modelVersionId: number, edits: ICellEditOperation[], renderers: number[]): Promise<boolean>;
 	$updateNotebookLanguages(viewType: string, resource: UriComponents, languages: string[]): Promise<void>;
 	$updateNotebookMetadata(viewType: string, resource: UriComponents, metadata: NotebookDocumentMetadata): Promise<void>;
 	$updateNotebookCellMetadata(viewType: string, resource: UriComponents, handle: number, metadata: NotebookCellMetadata | undefined): Promise<void>;
-	$spliceNotebookCells(viewType: string, resource: UriComponents, splices: NotebookCellsSplice[], renderers: number[]): Promise<void>;
 	$spliceNotebookCellOutputs(viewType: string, resource: UriComponents, cellHandle: number, splices: NotebookCellOutputsSplice[], renderers: number[]): Promise<void>;
 	$postMessage(handle: number, value: any): Promise<boolean>;
 }
@@ -1560,13 +1531,13 @@ export interface ExtHostCommentsShape {
 export interface ExtHostNotebookShape {
 	$resolveNotebook(viewType: string, uri: UriComponents): Promise<number | undefined>;
 	$executeNotebook(viewType: string, uri: UriComponents, cellHandle: number | undefined): Promise<void>;
-	$createEmptyCell(viewType: string, uri: UriComponents, index: number, language: string, type: CellKind): Promise<ICellDto | undefined>;
 	$deleteCell(viewType: string, uri: UriComponents, index: number): Promise<boolean>;
 	$saveNotebook(viewType: string, uri: UriComponents): Promise<boolean>;
 	$updateActiveEditor(viewType: string, uri: UriComponents): Promise<void>;
 	$destoryNotebookDocument(viewType: string, uri: UriComponents): Promise<boolean>;
 	$acceptDisplayOrder(displayOrder: INotebookDisplayOrder): void;
 	$onDidReceiveMessage(uri: UriComponents, message: any): void;
+	$acceptModelChanged(uriComponents: UriComponents, event: NotebookCellsChangedEvent): void;
 }
 
 export interface ExtHostStorageShape {

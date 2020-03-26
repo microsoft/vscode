@@ -560,9 +560,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		const language = newLanguages && newLanguages.length ? newLanguages[0] : 'markdown';
 		const index = this.notebookViewModel!.getViewCellIndex(cell);
 		const insertIndex = direction === 'above' ? index : index + 1;
-		const newModeCell = await this.notebookService.createNotebookCell(this.notebookViewModel!.viewType, this.notebookViewModel!.uri, insertIndex, language, type);
-		newModeCell!.source = initialText.split(/\r?\n/g);
-		const newCell = this.notebookViewModel!.insertCell(insertIndex, newModeCell!, true);
+		const newCell = this.notebookViewModel!.createCell(insertIndex, initialText.split(/\r?\n/g), language, type, true);
 		this.list?.setFocus([insertIndex]);
 
 		if (type === CellKind.Markdown) {
@@ -577,7 +575,6 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	async deleteNotebookCell(cell: ICellViewModel): Promise<void> {
 		(cell as CellViewModel).save();
 		const index = this.notebookViewModel!.getViewCellIndex(cell);
-		await this.notebookService.deleteNotebookCell(this.notebookViewModel!.viewType, this.notebookViewModel!.uri, index);
 		this.notebookViewModel!.deleteCell(index, true);
 	}
 

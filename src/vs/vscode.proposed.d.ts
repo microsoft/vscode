@@ -1669,18 +1669,17 @@ declare module 'vscode' {
 		/**
 		 * Controls if the content of a cell is editable or not.
 		 */
-		editable: boolean;
+		editable?: boolean;
 
 		/**
 		 * Controls if the cell is executable.
 		 * This metadata is ignored for markdown cell.
 		 */
-		runnable: boolean;
+		runnable?: boolean;
 	}
 
 	export interface NotebookCell {
 		readonly uri: Uri;
-		handle: number;
 		language: string;
 		cellKind: CellKind;
 		outputs: CellOutput[];
@@ -1713,13 +1712,12 @@ declare module 'vscode' {
 		readonly fileName: string;
 		readonly isDirty: boolean;
 		languages: string[];
-		cells: NotebookCell[];
+		readonly cells: NotebookCell[];
 		displayOrder?: GlobPattern[];
 		metadata?: NotebookDocumentMetadata;
 	}
 
 	export interface NotebookEditorCellEdit {
-		// createCell(content: string, language: string, type: CellKind, outputs: CellOutput[], metadata: NotebookCellMetadata | undefined): NotebookCell;
 		insert(index: number, content: string, language: string, type: CellKind, outputs: CellOutput[], metadata: NotebookCellMetadata | undefined): void;
 		delete(index: number): void;
 	}
@@ -1739,11 +1737,6 @@ declare module 'vscode' {
 		 * @param message Body of the message. This must be a string or other json serilizable object.
 		 */
 		postMessage(message: any): Thenable<boolean>;
-
-		/**
-		 * Create a notebook cell. The cell is not inserted into current document when created. Extensions should insert the cell into the document by [TextDocument.cells](#TextDocument.cells)
-		 */
-		createCell(content: string, language: string, type: CellKind, outputs: CellOutput[], metadata: NotebookCellMetadata | undefined): NotebookCell;
 
 		edit(callback: (editBuilder: NotebookEditorCellEdit) => void): Thenable<boolean>;
 	}

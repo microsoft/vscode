@@ -158,6 +158,21 @@ export class NotebookViewModel extends Disposable {
 		this._onDidChangeViewCells.fire({ synchronous: true, splices: [[deleteIndex, 1, []]] });
 	}
 
+	createCell(index: number, source: string[], language: string, type: CellKind, synchronous: boolean) {
+		const cell = this._model.notebook.createCellTextModel(source, language, type, [], undefined);
+		let newCell: CellViewModel = createCellViewModel(this.instantiationService, this, cell);
+		this._viewCells!.splice(index, 0, newCell);
+		this._model.insertCell(cell, index);
+		this._localStore.add(newCell);
+		this.undoService.pushElement(new InsertCellEdit(this.uri, index, newCell, {
+			insertCell: this._insertCellDelegate.bind(this),
+			deleteCell: this._deleteCellDelegate.bind(this)
+		}));
+
+		this._onDidChangeViewCells.fire({ synchronous: synchronous, splices: [[index, 0, [newCell]]] });
+		return newCell;
+	}
+
 	insertCell(index: number, cell: ICell, synchronous: boolean): CellViewModel {
 		let newCell: CellViewModel = createCellViewModel(this.instantiationService, this, cell);
 		this._viewCells!.splice(index, 0, newCell);
