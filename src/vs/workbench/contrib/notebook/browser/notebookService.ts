@@ -126,7 +126,7 @@ export class NotebookService extends Disposable implements INotebookService {
 	private readonly _models: { [modelId: string]: ModelData; };
 	private _onDidChangeActiveEditor = new Emitter<{ viewType: string, uri: URI }>();
 	onDidChangeActiveEditor: Event<{ viewType: string, uri: URI }> = this._onDidChangeActiveEditor.event;
-	private _resolvePool = new Map<string, () => void>();
+	private _resolvePool = new Map<string, (() => void)[]>();
 
 	constructor(
 		@IExtensionService private readonly extensionService: IExtensionService
@@ -175,16 +175,22 @@ export class NotebookService extends Disposable implements INotebookService {
 
 		let resolve: () => void;
 		const promise = new Promise<void>(r => { resolve = r; });
-		this._resolvePool.set(viewType, resolve!);
+		if (!this._resolvePool.has(viewType)) {
+			this._resolvePool.set(viewType, []);
+		}
+
+		let resolves = this._resolvePool.get(viewType)!;
+		resolves.push(resolve!);
+		this._resolvePool.set(viewType, resolves);
 		return promise;
 	}
 
 	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: IMainNotebookController) {
 		this._notebookProviders.set(viewType, { extensionData, controller });
 
-		let resolve = this._resolvePool.get(viewType);
-		if (resolve) {
-			resolve();
+		let resolves = this._resolvePool.get(viewType);
+		if (resolves) {
+			resolves.forEach(resolve => resolve());
 			this._resolvePool.delete(viewType);
 		}
 	}
