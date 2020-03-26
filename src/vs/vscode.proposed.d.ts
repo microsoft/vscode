@@ -1683,7 +1683,7 @@ declare module 'vscode' {
 		language: string;
 		cellKind: CellKind;
 		outputs: CellOutput[];
-		getContent(): string;
+		source: string;
 		metadata?: NotebookCellMetadata;
 	}
 

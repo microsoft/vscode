@@ -24,13 +24,21 @@ const notebookDocumentMetadataDefaults: vscode.NotebookDocumentMetadata = {
 
 export class ExtHostCell implements vscode.NotebookCell {
 
-	public source: string[];
+	private originalSource: string[];
 	private _outputs: any[];
 	private _onDidChangeOutputs = new Emitter<ISplice<vscode.CellOutput>[]>();
 	onDidChangeOutputs: Event<ISplice<vscode.CellOutput>[]> = this._onDidChangeOutputs.event;
 	private _textDocument: vscode.TextDocument | undefined;
 	private _initalVersion: number = -1;
 	private _outputMapping = new Set<vscode.CellOutput>();
+
+	get source() {
+		if (this._textDocument && this._initalVersion !== this._textDocument?.version) {
+			return this._textDocument.getText();
+		} else {
+			return this.originalSource.join('\n');
+		}
+	}
 
 	constructor(
 		private viewType: string,
@@ -44,7 +52,7 @@ export class ExtHostCell implements vscode.NotebookCell {
 		private _metadata: vscode.NotebookCellMetadata | undefined,
 		private _proxy: MainThreadNotebookShape
 	) {
-		this.source = this._content.split(/\r|\n|\r\n/g);
+		this.originalSource = this._content.split(/\r|\n|\r\n/g);
 		this._outputs = outputs;
 	}
 
@@ -89,7 +97,7 @@ export class ExtHostCell implements vscode.NotebookCell {
 		if (this._textDocument && this._initalVersion !== this._textDocument?.version) {
 			return this._textDocument.getText();
 		} else {
-			return this.source.join('\n');
+			return this.originalSource.join('\n');
 		}
 	}
 
@@ -100,7 +108,7 @@ export class ExtHostCell implements vscode.NotebookCell {
 
 	detachTextDocument() {
 		if (this._textDocument && this._textDocument.version !== this._initalVersion) {
-			this.source = this._textDocument.getText().split(/\r|\n|\r\n/g);
+			this.originalSource = this._textDocument.getText().split(/\r|\n|\r\n/g);
 		}
 
 		this._textDocument = undefined;
@@ -243,20 +251,6 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 
 		this._proxy.$spliceNotebookCellOutputs(this.viewType, this.uri, cell.handle, outputDtos, Array.from(renderers));
 	}
-
-	deleteCell(index: number): boolean {
-		if (index >= this.cells.length) {
-			return false;
-		}
-
-		let cell = this.cells[index];
-		this._cellDisposableMapping.get(cell.handle)?.dispose();
-		this._cellDisposableMapping.delete(cell.handle);
-
-		this.cells.splice(index, 1);
-		return true;
-	}
-
 
 	transformMimeTypes(cell: vscode.NotebookCell, output: vscode.CellDisplayOutput): ITransformedDisplayOutputDto {
 		let mimeTypes = Object.keys(output.data);
@@ -663,22 +657,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 		let cell = cellHandle !== undefined ? document.getCell(cellHandle) : undefined;
 		return provider.provider.executeCell(document!, cell);
-	}
-
-	async $deleteCell(viewType: string, uri: UriComponents, index: number): Promise<boolean> {
-		let provider = this._notebookProviders.get(viewType);
-
-		if (!provider) {
-			return false;
-		}
-
-		let document = this._documents.get(URI.revive(uri).toString());
-
-		if (document) {
-			return document.deleteCell(index);
-		}
-
-		return false;
 	}
 
 	async $saveNotebook(viewType: string, uri: UriComponents): Promise<boolean> {
