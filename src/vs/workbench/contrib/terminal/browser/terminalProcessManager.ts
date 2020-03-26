@@ -238,41 +238,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 		// Fetch any extension environment additions and apply them
 		this._extEnvironmentVariableCollection = this._environmentVariableService.mergedCollection;
-		this._environmentVariableService.onDidChangeCollections((newCollection) => {
-			const newAdditions = this._extEnvironmentVariableCollection!.getNewAdditions(newCollection);
-			if (newAdditions === undefined) {
-				return;
-			}
-			// TODO: React to event
-			console.log('new env additions!', newAdditions);
-			// TODO: Localize
-			const promptChoices: IPromptChoice[] = [
-				{
-					label: nls.localize('apply', "Apply"),
-					run: () => {
-						let text = '';
-						newAdditions.forEach((mutator, variable) => {
-							// TODO: Support other common shells
-							// TODO: Escape the new values properly
-							switch (mutator.type) {
-								case EnvironmentVariableMutatorType.Append:
-									text += `export ${variable}="$${variable}${mutator.value}"\n`;
-									break;
-								case EnvironmentVariableMutatorType.Prepend:
-									text += `export ${variable}="${mutator.value}$${variable}"\n`;
-									break;
-								case EnvironmentVariableMutatorType.Replace:
-									text += `export ${variable}="${mutator.value}"\n`;
-									break;
-							}
-						});
-						this.write(text);
-					}
-				} as IPromptChoice
-			];
-			this._notificationService.prompt(Severity.Info, 'An extension wants to change the terminal environment, do you want to send export commands to the terminal? ' + newAdditions?.entries.toString(), promptChoices);
-
-		});
+		this._register(this._environmentVariableService.onDidChangeCollections(newCollection => this._onEnvironmentVariableCollectionChange(newCollection)));
 		this._extEnvironmentVariableCollection.applyToProcessEnvironment(env);
 
 		const useConpty = this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled;
@@ -348,5 +314,37 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		}
 
 		this._onProcessExit.fire(exitCode);
+	}
+
+	private _onEnvironmentVariableCollectionChange(newCollection: IEnvironmentVariableCollection): void {
+		const newAdditions = this._extEnvironmentVariableCollection!.getNewAdditions(newCollection);
+		if (newAdditions === undefined) {
+			return;
+		}
+		const promptChoices: IPromptChoice[] = [
+			{
+				label: nls.localize('apply', "Apply"),
+				run: () => {
+					let text = '';
+					newAdditions.forEach((mutator, variable) => {
+						// TODO: Support other common shells
+						// TODO: Escape the new values properly
+						switch (mutator.type) {
+							case EnvironmentVariableMutatorType.Append:
+								text += `export ${variable}="$${variable}${mutator.value}"\n`;
+								break;
+							case EnvironmentVariableMutatorType.Prepend:
+								text += `export ${variable}="${mutator.value}$${variable}"\n`;
+								break;
+							case EnvironmentVariableMutatorType.Replace:
+								text += `export ${variable}="${mutator.value}"\n`;
+								break;
+						}
+					});
+					this.write(text);
+				}
+			} as IPromptChoice
+		];
+		this._notificationService.prompt(Severity.Info, nls.localize('environmentchange', "An extension wants to change the terminal environment, do you want to send export commands to the terminal?"), promptChoices);
 	}
 }
