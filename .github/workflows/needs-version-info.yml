@@ -18,5 +18,6 @@ jobs:
           token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
           matcher: '\b(\d\.\d{2,3}\.\d|insiders?|1\.\d\d\d?)\b'
           tags: NEEDS_VERSION_INFO_IGNORE
+          bots: vscodebot|vscode-triage-bot
           comment: "Thanks for creating this issue! We detected it's missing some basic information, such as your VS Code and operating system versions, or in some other way doesn't follow our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines. Please take the time to review these guidelines and update the issue.\nThis comment will go away once sufficient information is included in your issue.\n\nHappy Coding!"
           label: needs more info
