@@ -1808,7 +1808,6 @@
   },
   "dependencies": {
     "byline": "^5.0.0",
-    "dayjs": "1.8.19",
     "file-type": "^7.2.0",
     "iconv-lite": "^0.4.24",
     "jschardet": "2.1.1",
