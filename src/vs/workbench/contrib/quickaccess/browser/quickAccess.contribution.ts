@@ -8,16 +8,14 @@ import { IQuickAccessRegistry, Extensions } from 'vs/platform/quickinput/common/
 import { Registry } from 'vs/platform/registry/common/platform';
 import { HelpQuickAccessProvider } from 'vs/platform/quickinput/browser/helpQuickAccess';
 import { ViewQuickAccessProvider, OpenViewPickerAction, QuickAccessViewPickerAction } from 'vs/workbench/contrib/quickaccess/browser/viewQuickAccess';
-import { CommandsQuickAccessProvider, CommandPaletteEditorAction, ShowAllCommandsAction, ClearCommandHistoryAction } from 'vs/workbench/contrib/quickaccess/browser/commandsQuickAccess';
-import { registerEditorAction } from 'vs/editor/browser/editorExtensions';
+import { CommandsQuickAccessProvider, ShowAllCommandsAction, ClearCommandHistoryAction } from 'vs/workbench/contrib/quickaccess/browser/commandsQuickAccess';
 import { MenuRegistry, MenuId, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { GotoLineAction } from 'vs/workbench/contrib/codeEditor/browser/quickaccess/gotoLineQuickAccess';
-import { GotoSymbolAction } from 'vs/workbench/contrib/codeEditor/browser/quickaccess/gotoSymbolQuickAccess';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { inQuickPickContext, getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 //#region Quick Access Proviers
 
@@ -96,6 +94,16 @@ MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 	order: 1
 });
 
+MenuRegistry.appendMenuItem(MenuId.EditorContext, {
+	group: 'z_commands',
+	command: {
+		id: ShowAllCommandsAction.ID,
+		title: localize('commandPalette', "Command Palette..."),
+		precondition: EditorContextKeys.editorSimpleInput.toNegated()
+	},
+	order: 1
+});
+
 //#endregion
 
 
@@ -107,15 +115,6 @@ registry.registerWorkbenchAction(SyncActionDescriptor.create(ShowAllCommandsActi
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_P,
 	secondary: [KeyCode.F1]
 }), 'Show All Commands');
-
-registry.registerWorkbenchAction(SyncActionDescriptor.create(GotoLineAction, GotoLineAction.ID, GotoLineAction.LABEL, {
-	primary: KeyMod.CtrlCmd | KeyCode.KEY_G,
-	mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_G }
-}), 'Go to Line/Column...');
-
-registry.registerWorkbenchAction(SyncActionDescriptor.create(GotoSymbolAction, GotoSymbolAction.ID, GotoSymbolAction.LABEL, {
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_O
-}), 'Go to Symbol in Editor...');
 
 const inViewsPickerContextKey = 'inViewsPicker';
 const inViewsPickerContext = ContextKeyExpr.and(inQuickPickContext, ContextKeyExpr.has(inViewsPickerContextKey));
@@ -149,12 +148,5 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		primary: viewPickerKeybinding.mac.primary | KeyMod.Shift
 	}
 });
-
-//#endregion
-
-
-//#region Actions
-
-registerEditorAction(CommandPaletteEditorAction);
 
 //#endregion

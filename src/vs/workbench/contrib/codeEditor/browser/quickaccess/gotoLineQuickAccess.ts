@@ -10,10 +10,13 @@ import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/
 import { IRange } from 'vs/editor/common/core/range';
 import { AbstractGotoLineQuickAccessProvider } from 'vs/editor/contrib/quickAccess/gotoLineQuickAccess';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IQuickAccessRegistry, Extensions } from 'vs/platform/quickinput/common/quickAccess';
+import { IQuickAccessRegistry, Extensions as QuickaccesExtensions } from 'vs/platform/quickinput/common/quickAccess';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { Action } from 'vs/base/common/actions';
+import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
+import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 
 export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProvider {
 
@@ -56,7 +59,7 @@ export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProv
 	}
 }
 
-Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessProvider({
+Registry.as<IQuickAccessRegistry>(QuickaccesExtensions.Quickaccess).registerQuickAccessProvider({
 	ctor: GotoLineQuickAccessProvider,
 	prefix: AbstractGotoLineQuickAccessProvider.PREFIX,
 	placeholder: localize('gotoLineQuickAccessPlaceholder', "Type the line number and optional column to go to (e.g. 42:5 for line 42 and column 5)."),
@@ -80,3 +83,8 @@ export class GotoLineAction extends Action {
 		this.quickInputService.quickAccess.show(GotoLineQuickAccessProvider.PREFIX);
 	}
 }
+
+Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions).registerWorkbenchAction(SyncActionDescriptor.create(GotoLineAction, GotoLineAction.ID, GotoLineAction.LABEL, {
+	primary: KeyMod.CtrlCmd | KeyCode.KEY_G,
+	mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_G }
+}), 'Go to Line/Column...');

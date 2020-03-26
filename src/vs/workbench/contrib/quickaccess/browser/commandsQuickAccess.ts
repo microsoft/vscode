@@ -15,7 +15,7 @@ import { DisposableStore, toDisposable, dispose } from 'vs/base/common/lifecycle
 import { AbstractEditorCommandsQuickAccessProvider } from 'vs/editor/contrib/quickAccess/commandsQuickAccess';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { Language } from 'vs/base/common/platform';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -27,8 +27,6 @@ import { stripCodicons } from 'vs/base/common/codicons';
 import { Action } from 'vs/base/common/actions';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { EditorAction } from 'vs/editor/browser/editorExtensions';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAccessProvider {
 
@@ -171,28 +169,6 @@ export class ClearCommandHistoryAction extends Action {
 		if (commandHistoryLength > 0) {
 			CommandsHistory.clearHistory(this.configurationService, this.storageService);
 		}
-	}
-}
-
-export class CommandPaletteEditorAction extends EditorAction {
-
-	constructor() {
-		super({
-			id: ShowAllCommandsAction.ID,
-			label: localize('showCommands.label', "Command Palette..."),
-			alias: 'Command Palette...',
-			precondition: EditorContextKeys.editorSimpleInput.toNegated(),
-			contextMenuOpts: {
-				group: 'z_commands',
-				order: 1
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const quickInputService = accessor.get(IQuickInputService);
-
-		quickInputService.quickAccess.show(CommandsQuickAccessProvider.PREFIX);
 	}
 }
 

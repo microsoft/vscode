@@ -9,7 +9,7 @@ import { IEditor } from 'vs/editor/common/editorCommon';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IRange } from 'vs/editor/common/core/range';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IQuickAccessRegistry, Extensions } from 'vs/platform/quickinput/common/quickAccess';
+import { IQuickAccessRegistry, Extensions as QuickaccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
 import { AbstractGotoSymbolQuickAccessProvider, IGotoSymbolQuickPickItem } from 'vs/editor/contrib/quickAccess/gotoSymbolQuickAccess';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
@@ -18,6 +18,9 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Action } from 'vs/base/common/actions';
+import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
+import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 
 export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccessProvider {
 
@@ -96,7 +99,7 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 	//#endregion
 }
 
-Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessProvider({
+Registry.as<IQuickAccessRegistry>(QuickaccessExtensions.Quickaccess).registerQuickAccessProvider({
 	ctor: GotoSymbolQuickAccessProvider,
 	prefix: AbstractGotoSymbolQuickAccessProvider.PREFIX,
 	contextKey: 'inFileSymbolsPicker',
@@ -124,3 +127,7 @@ export class GotoSymbolAction extends Action {
 		this.quickInputService.quickAccess.show(GotoSymbolQuickAccessProvider.PREFIX);
 	}
 }
+
+Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions).registerWorkbenchAction(SyncActionDescriptor.create(GotoSymbolAction, GotoSymbolAction.ID, GotoSymbolAction.LABEL, {
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_O
+}), 'Go to Symbol in Editor...');

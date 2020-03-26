@@ -184,6 +184,9 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 	}
 }
 
+
+//#region Actions
+
 export class OpenViewPickerAction extends Action {
 
 	static readonly ID = 'workbench.action.openView';
@@ -224,3 +227,5 @@ export class QuickAccessViewPickerAction extends Action {
 		return Promise.resolve(true);
 	}
 }
+
+//#endregion
