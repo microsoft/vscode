@@ -62,12 +62,13 @@ export class NodeTestBackupFileService extends BackupFileService {
 
 	constructor(workspaceBackupPath: string) {
 		const environmentService = new TestBackupEnvironmentService(workspaceBackupPath);
-		const fileService = new FileService(new NullLogService());
-		const diskFileSystemProvider = new DiskFileSystemProvider(new NullLogService());
+		const logService = new NullLogService();
+		const fileService = new FileService(logService);
+		const diskFileSystemProvider = new DiskFileSystemProvider(logService);
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(environmentService.appSettingsHome, environmentService.backupHome, diskFileSystemProvider, environmentService));
 
-		super(environmentService, fileService);
+		super(environmentService, fileService, logService);
 
 		this.fileService = fileService;
 		this.backupResourceJoiners = [];
@@ -98,6 +99,14 @@ export class NodeTestBackupFileService extends BackupFileService {
 		while (this.discardBackupJoiners.length) {
 			this.discardBackupJoiners.pop()!();
 		}
+	}
+
+	async getBackupContents(resource: URI): Promise<string> {
+		const backupResource = this.toBackupResource(resource);
+
+		const fileContents = await this.fileService.readFile(backupResource);
+
+		return fileContents.value.toString();
 	}
 }
 
@@ -473,7 +482,7 @@ suite('BackupFileService', () => {
 			await testResolveBackup(fooBarFile, contents, meta, null);
 		});
 
-		test('should throw an error when restoring invalid backup', async () => {
+		test('should ignore invalid backups', async () => {
 			const contents = 'test\nand more stuff';
 
 			await service.backup(fooBarFile, createTextBufferFactory(contents).create(DefaultEndOfLine.LF).createSnapshot(false), 1);
@@ -485,14 +494,14 @@ suite('BackupFileService', () => {
 
 			await service.fileService.writeFile(service.toBackupResource(fooBarFile), VSBuffer.fromString(''));
 
-			let err: Error;
+			let err: Error | undefined = undefined;
 			try {
 				await service.resolve<IBackupTestMetaData>(fooBarFile);
 			} catch (error) {
 				err = error;
 			}
 
-			assert.ok(err!);
+			assert.ok(!err);
 		});
 
 		async function testResolveBackup(resource: URI, contents: string, meta?: IBackupTestMetaData, expectedMeta?: IBackupTestMetaData | null) {

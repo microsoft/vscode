@@ -83,4 +83,81 @@ suite('NotebookViewModel', () => {
 			}
 		);
 	});
+
+	test('metadata', function () {
+		withTestNotebook(
+			instantiationService,
+			blukEditService,
+			undoRedoService,
+			[
+				[['var a = 1;'], 'javascript', CellKind.Code, [], {}],
+				[['var b = 2;'], 'javascript', CellKind.Code, [], { editable: true, runnable: true }],
+				[['var c = 3;'], 'javascript', CellKind.Code, [], { editable: true, runnable: false }],
+				[['var d = 4;'], 'javascript', CellKind.Code, [], { editable: false, runnable: true }],
+				[['var e = 5;'], 'javascript', CellKind.Code, [], { editable: false, runnable: false }],
+			],
+			(editor, viewModel) => {
+				viewModel.notebookDocument.metadata = { editable: true, cellRunnable: true, cellEditable: true };
+
+				assert.deepEqual(viewModel.viewCells[0].getEvaluatedMetadata(viewModel.metadata), {
+					editable: true,
+					runnable: true
+				});
+
+				assert.deepEqual(viewModel.viewCells[1].getEvaluatedMetadata(viewModel.metadata), {
+					editable: true,
+					runnable: true
+				});
+
+				assert.deepEqual(viewModel.viewCells[2].getEvaluatedMetadata(viewModel.metadata), {
+					editable: true,
+					runnable: false
+				});
+
+				assert.deepEqual(viewModel.viewCells[3].getEvaluatedMetadata(viewModel.metadata), {
+					editable: false,
+					runnable: true
+				});
+
+				assert.deepEqual(viewModel.viewCells[4].getEvaluatedMetadata(viewModel.metadata), {
+					editable: false,
+					runnable: false
+				});
+
+				viewModel.notebookDocument.metadata = { editable: true, cellRunnable: false, cellEditable: true };
+
+				assert.deepEqual(viewModel.viewCells[0].getEvaluatedMetadata(viewModel.metadata), {
+					editable: true,
+					runnable: false
+				});
+
+				assert.deepEqual(viewModel.viewCells[1].getEvaluatedMetadata(viewModel.metadata), {
+					editable: true,
+					runnable: true
+				});
+
+				assert.deepEqual(viewModel.viewCells[2].getEvaluatedMetadata(viewModel.metadata), {
+					editable: true,
+					runnable: false
+				});
+
+				assert.deepEqual(viewModel.viewCells[3].getEvaluatedMetadata(viewModel.metadata), {
+					editable: false,
+					runnable: true
+				});
+
+				assert.deepEqual(viewModel.viewCells[4].getEvaluatedMetadata(viewModel.metadata), {
+					editable: false,
+					runnable: false
+				});
+
+				viewModel.notebookDocument.metadata = { editable: true, cellRunnable: false, cellEditable: false };
+
+				assert.deepEqual(viewModel.viewCells[0].getEvaluatedMetadata(viewModel.metadata), {
+					editable: false,
+					runnable: false
+				});
+			}
+		);
+	});
 });

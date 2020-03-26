@@ -467,7 +467,7 @@ export class TitlebarPart extends Part implements ITitleService {
 			if ((!isWeb && isMacintosh) || this.currentMenubarVisibility === 'hidden') {
 				this.title.style.zoom = `${1 / getZoomFactor()}`;
 			} else {
-				this.title.style.zoom = null;
+				this.title.style.zoom = '';
 			}
 
 			runAtThisOrScheduleAtNextAnimationFrame(() => this.adjustTitleMarginToCenter());

@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IServerChannel, IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { Event } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IUserDataSyncService, IUserDataSyncUtilService, IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
 import { URI } from 'vs/base/common/uri';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
+import { IStorageKeysSyncRegistryService, IStorageKey } from 'vs/platform/userDataSync/common/storageKeys';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 export class UserDataSyncChannel implements IServerChannel {
 
@@ -98,6 +100,54 @@ export class UserDataSyncUtilServiceClient implements IUserDataSyncUtilService {
 
 	async resolveFormattingOptions(file: URI): Promise<FormattingOptions> {
 		return this.channel.call('resolveFormattingOptions', [file]);
+	}
+
+}
+
+export class StorageKeysSyncRegistryChannel implements IServerChannel {
+
+	constructor(private readonly service: IStorageKeysSyncRegistryService) { }
+
+	listen(_: unknown, event: string): Event<any> {
+		switch (event) {
+			case 'onDidChangeStorageKeys': return this.service.onDidChangeStorageKeys;
+		}
+		throw new Error(`Event not found: ${event}`);
+	}
+
+	call(context: any, command: string, args?: any): Promise<any> {
+		switch (command) {
+			case '_getInitialData': return Promise.resolve(this.service.storageKeys);
+			case 'registerStorageKey': return Promise.resolve(this.service.registerStorageKey(args[0]));
+		}
+		throw new Error('Invalid call');
+	}
+}
+
+export class StorageKeysSyncRegistryChannelClient extends Disposable implements IStorageKeysSyncRegistryService {
+
+	_serviceBrand: undefined;
+
+	private _storageKeys: ReadonlyArray<IStorageKey> = [];
+	get storageKeys(): ReadonlyArray<IStorageKey> { return this._storageKeys; }
+	private readonly _onDidChangeStorageKeys: Emitter<ReadonlyArray<IStorageKey>> = this._register(new Emitter<ReadonlyArray<IStorageKey>>());
+	readonly onDidChangeStorageKeys = this._onDidChangeStorageKeys.event;
+
+	constructor(private readonly channel: IChannel) {
+		super();
+		this.channel.call<IStorageKey[]>('_getInitialData').then(storageKeys => {
+			this.updateStorageKeys(storageKeys);
+			this._register(this.channel.listen<ReadonlyArray<IStorageKey>>('onDidChangeStorageKeys')(storageKeys => this.updateStorageKeys(storageKeys)));
+		});
+	}
+
+	private async updateStorageKeys(storageKeys: ReadonlyArray<IStorageKey>): Promise<void> {
+		this._storageKeys = storageKeys;
+		this._onDidChangeStorageKeys.fire(this.storageKeys);
+	}
+
+	registerStorageKey(storageKey: IStorageKey): void {
+		this.channel.call('registerStorageKey', [storageKey]);
 	}
 
 }

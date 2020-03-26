@@ -247,6 +247,9 @@ function convertPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePath: (toDA: 
 export function getVisibleAndSorted<T extends { presentation?: IConfigPresentation }>(array: T[]): T[] {
 	return array.filter(config => !config.presentation?.hidden).sort((first, second) => {
 		if (!first.presentation) {
+			if (!second.presentation) {
+				return 0;
+			}
 			return 1;
 		}
 		if (!second.presentation) {
@@ -271,6 +274,10 @@ export function getVisibleAndSorted<T extends { presentation?: IConfigPresentati
 
 function compareOrders(first: number | undefined, second: number | undefined): number {
 	if (typeof first !== 'number') {
+		if (typeof second !== 'number') {
+			return 0;
+		}
+
 		return 1;
 	}
 	if (typeof second !== 'number') {

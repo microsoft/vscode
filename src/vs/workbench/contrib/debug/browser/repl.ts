@@ -36,7 +36,7 @@ import { IDecorationOptions } from 'vs/editor/common/editorCommon';
 import { transparent, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { FocusSessionActionViewItem } from 'vs/workbench/contrib/debug/browser/debugActionViewItems';
-import { CompletionContext, CompletionList, CompletionProviderRegistry, CompletionItem, completionKindFromString, CompletionItemKind } from 'vs/editor/common/modes';
+import { CompletionContext, CompletionList, CompletionProviderRegistry, CompletionItem, completionKindFromString, CompletionItemKind, CompletionItemInsertTextRule } from 'vs/editor/common/modes';
 import { first } from 'vs/base/common/arrays';
 import { ITreeNode, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -147,13 +147,24 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 								if (response && response.body && response.body.targets) {
 									response.body.targets.forEach(item => {
 										if (item && item.label) {
+											let insertTextRules: CompletionItemInsertTextRule | undefined = undefined;
+											let insertText = item.text || item.label;
+											if (typeof item.selectionStart === 'number') {
+												// If a debug completion item sets a selection we need to use snippets to make sure the selection is selected #90974
+												insertTextRules = CompletionItemInsertTextRule.InsertAsSnippet;
+												const selectionLength = typeof item.selectionLength === 'number' ? item.selectionLength : 0;
+												const placeholder = selectionLength > 0 ? '${1:' + insertText.substr(item.selectionStart, selectionLength) + '}$0' : '$0';
+												insertText = insertText.substr(0, item.selectionStart) + placeholder + insertText.substr(item.selectionStart + selectionLength);
+											}
+
 											suggestions.push({
 												label: item.label,
-												insertText: item.text || item.label,
+												insertText,
 												kind: completionKindFromString(item.type || 'property'),
 												filterText: (item.start && item.length) ? text.substr(item.start, item.length).concat(item.label) : undefined,
 												range: computeRange(item.length || overwriteBefore),
-												sortText: item.sortText
+												sortText: item.sortText,
+												insertTextRules
 											});
 										}
 									});
@@ -208,9 +219,20 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('debug.console.lineHeight') || e.affectsConfiguration('debug.console.fontSize') || e.affectsConfiguration('debug.console.fontFamily')) {
-				this.onDidFontChange();
+				this.onDidStyleChange();
 			}
 		}));
+
+		this._register(this.themeService.onDidColorThemeChange(e => {
+			this.onDidStyleChange();
+		}));
+
+		this._register(this.viewDescriptorService.onDidChangeLocation(e => {
+			if (e.views.some(v => v.id === this.id)) {
+				this.onDidStyleChange();
+			}
+		}));
+
 		this._register(this.editorService.onDidActiveEditorChange(() => {
 			this.setMode();
 		}));
@@ -253,14 +275,15 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		}
 	}
 
-	private onDidFontChange(): void {
+	private onDidStyleChange(): void {
 		if (this.styleElement) {
 			const debugConsole = this.configurationService.getValue<IDebugConfiguration>('debug').console;
 			const fontSize = debugConsole.fontSize;
 			const fontFamily = debugConsole.fontFamily === 'default' ? 'var(--monaco-monospace-font)' : debugConsole.fontFamily;
 			const lineHeight = debugConsole.lineHeight ? `${debugConsole.lineHeight}px` : '1.4em';
+			const backgroundColor = this.themeService.getColorTheme().getColor(this.getBackgroundColor());
 
-			// Set the font size, font family, line height and align the twistie to be centered
+			// Set the font size, font family, line height and align the twistie to be centered, and input theme color
 			this.styleElement.innerHTML = `
 				.repl .repl-tree .expression {
 					font-size: ${fontSize}px;
@@ -273,6 +296,10 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 				.repl .repl-tree .monaco-tl-twistie {
 					background-position-y: calc(100% - ${fontSize * 1.4 / 2 - 8}px);
+				}
+
+				.repl .repl-input-wrapper .monaco-editor .lines-content {
+					background-color: ${backgroundColor};
 				}
 			`;
 
@@ -510,7 +537,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		// Make sure to select the session if debugging is already active
 		this.selectSession();
 		this.styleElement = dom.createStyleSheet(this.container);
-		this.onDidFontChange();
+		this.onDidStyleChange();
 	}
 
 	private createReplInput(container: HTMLElement): void {

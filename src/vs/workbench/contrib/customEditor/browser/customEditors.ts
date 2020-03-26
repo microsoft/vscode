@@ -13,7 +13,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { EditorActivation, IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { FileOperation, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
@@ -21,16 +21,16 @@ import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { EditorInput, EditorOptions, IEditorInput, IEditorPane, GroupIdentifier } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, GroupIdentifier, IEditorInput, IEditorPane } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { webviewEditorsExtensionPoint } from 'vs/workbench/contrib/customEditor/browser/extensionPoint';
 import { CONTEXT_CUSTOM_EDITORS, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CustomEditorInfo, CustomEditorInfoCollection, CustomEditorPriority, CustomEditorSelector, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { CustomEditorModelManager } from 'vs/workbench/contrib/customEditor/common/customEditorModelManager';
+import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { IWebviewService, webviewHasOwnEditFunctionsContext } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
 import { CustomEditorInput } from './customEditorInput';
-import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 
 export const defaultEditorId = 'default';
 
@@ -284,6 +284,10 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 	): Promise<IEditorPane | undefined> {
 		const targetGroup = group || this.editorGroupService.activeGroup;
 
+		if (options && typeof options.activation === 'undefined') {
+			options = { ...options, activation: options.preserveFocus ? EditorActivation.RESTORE : undefined };
+		}
+
 		// Try to replace existing editors for resource
 		const existingEditors = targetGroup.editors.filter(editor => editor.resource && isEqual(editor.resource, resource));
 		if (existingEditors.length) {
@@ -323,8 +327,8 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 
 	private async handleMovedFileInOpenedFileEditors(_oldResource: URI, newResource: URI): Promise<void> {
 		// See if the new resource can be opened in a custom editor
-		const possibleEditors = this.getAllCustomEditors(newResource).allEditors;
-		if (!possibleEditors.length) {
+		const possibleEditors = this.getAllCustomEditors(newResource);
+		if (!possibleEditors.allEditors.length) {
 			return;
 		}
 
@@ -350,19 +354,25 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 			return;
 		}
 
-		// If there is, show a single prompt for all editors to see if the user wants to re-open them
-		//
-		// TODO: instead of prompting eagerly, it'd likly be better to replace all the editors with
-		// ones that would prompt when they first become visible
-		await new Promise(resolve => setTimeout(resolve, 50));
-		const pickedViewType = await this.showOpenWithPrompt(newResource);
-		if (!pickedViewType) {
+		let viewType: string | undefined;
+		if (possibleEditors.defaultEditor) {
+			viewType = possibleEditors.defaultEditor.id;
+		} else {
+			// If there is, show a single prompt for all editors to see if the user wants to re-open them
+			//
+			// TODO: instead of prompting eagerly, it'd likly be better to replace all the editors with
+			// ones that would prompt when they first become visible
+			await new Promise(resolve => setTimeout(resolve, 50));
+			viewType = await this.showOpenWithPrompt(newResource);
+		}
+
+		if (!viewType) {
 			return;
 		}
 
 		for (const [group, entries] of editorsToReplace) {
 			this.editorService.replaceEditors(entries.map(editor => {
-				const replacement = this.createInput(newResource, pickedViewType, group);
+				const replacement = this.createInput(newResource, viewType!, group);
 				return {
 					editor,
 					replacement,
@@ -454,7 +464,11 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 		const existingEditorForResource = group.editors.find(editor => isEqual(resource, editor.resource));
 		if (existingEditorForResource) {
 			return {
-				override: this.editorService.openEditor(existingEditorForResource, { ...options, ignoreOverrides: true }, group)
+				override: this.editorService.openEditor(existingEditorForResource, {
+					...options,
+					ignoreOverrides: true,
+					activation: options?.preserveFocus ? EditorActivation.RESTORE : undefined,
+				}, group)
 			};
 		}
 

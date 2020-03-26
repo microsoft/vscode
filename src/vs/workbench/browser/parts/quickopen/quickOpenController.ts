@@ -47,7 +47,7 @@ import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { timeout } from 'vs/base/common/async';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPickItem, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -179,7 +179,20 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 
 	show(prefix?: string, options?: IShowOptions): Promise<void> {
 		if (this.useNewExperimentalVersion) {
-			this.quickInputService.quickAccess.show(prefix, options);
+			this.quickInputService.quickAccess.show(prefix, {
+				quickNavigateConfiguration: options?.quickNavigateConfiguration,
+				itemActivation: (() => {
+					if (options?.autoFocus?.autoFocusSecondEntry) {
+						return ItemActivation.SECOND;
+					}
+
+					if (options?.autoFocus?.autoFocusLastEntry) {
+						return ItemActivation.LAST;
+					}
+
+					return undefined;
+				})()
+			});
 
 			return Promise.resolve();
 		}

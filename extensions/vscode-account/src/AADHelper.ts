@@ -103,6 +103,7 @@ export class AzureActiveDirectoryService {
 
 				await Promise.all(refreshes);
 			} catch (e) {
+				Logger.info('Failed to initialize stored data');
 				await this.clearSessions();
 			}
 		}
@@ -170,6 +171,7 @@ export class AzureActiveDirectoryService {
 				if (this._tokens.length) {
 					// Log out all
 					removedIds = this._tokens.map(token => token.sessionId);
+					Logger.info('No tokens in memory, clearing keychain data');
 					await this.clearSessions();
 				}
 			}
@@ -203,7 +205,7 @@ export class AzureActiveDirectoryService {
 			Logger.info('Token expired or unavailable, trying refresh');
 			const refreshedToken = await this.refreshToken(token.refreshToken, token.scope);
 			if (refreshedToken.accessToken) {
-				Promise.resolve(token.accessToken);
+				return refreshedToken.accessToken;
 			} else {
 				throw new Error();
 			}

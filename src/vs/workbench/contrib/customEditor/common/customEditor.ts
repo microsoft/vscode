@@ -57,8 +57,8 @@ export interface ICustomEditorModel extends IDisposable {
 
 	revert(options?: IRevertOptions): Promise<void>;
 
-	save(options?: ISaveOptions): Promise<boolean>;
-	saveAs(resource: URI, targetResource: URI, currentOptions?: ISaveOptions): Promise<boolean>;
+	saveCustomEditor(options?: ISaveOptions): Promise<URI | undefined>;
+	saveCustomEditorAs(resource: URI, targetResource: URI, currentOptions?: ISaveOptions): Promise<boolean>;
 }
 
 export const enum CustomEditorPriority {

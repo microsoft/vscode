@@ -23,6 +23,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { DefaultQuickAccessFilterValue } from 'vs/platform/quickinput/common/quickAccess';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchQuickOpenConfiguration } from 'vs/workbench/browser/quickopen';
+import { stripCodicons } from 'vs/base/common/codicons';
 
 export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAccessProvider {
 
@@ -114,7 +115,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 			globalCommandPicks.push({
 				commandId: action.item.id,
 				commandAlias,
-				label
+				label: stripCodicons(label)
 			});
 		}
 

@@ -121,6 +121,7 @@ export class MenuId {
 	static readonly TimelineTitle = new MenuId('TimelineTitle');
 	static readonly TimelineTitleContext = new MenuId('TimelineTitleContext');
 	static readonly AccountsContext = new MenuId('AccountsContext');
+	static readonly WebMenuActions = new MenuId('MenubarWebMenu');
 
 	readonly id: number;
 	readonly _debugName: string;

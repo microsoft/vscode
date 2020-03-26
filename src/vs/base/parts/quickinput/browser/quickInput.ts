@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/quickInput';
-import { IQuickPickItem, IPickOptions, IInputOptions, IQuickNavigateConfiguration, IQuickPick, IQuickInput, IQuickInputButton, IInputBox, IQuickPickItemButtonEvent, QuickPickInput, IQuickPickSeparator, IKeyMods, IQuickPickAcceptEvent, NO_KEY_MODS } from 'vs/base/parts/quickinput/common/quickInput';
+import { IQuickPickItem, IPickOptions, IInputOptions, IQuickNavigateConfiguration, IQuickPick, IQuickInput, IQuickInputButton, IInputBox, IQuickPickItemButtonEvent, QuickPickInput, IQuickPickSeparator, IKeyMods, IQuickPickAcceptEvent, NO_KEY_MODS, ItemActivation } from 'vs/base/parts/quickinput/common/quickInput';
 import * as dom from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { QuickInputList, QuickInputListFocus } from './quickInputList';
@@ -20,11 +20,9 @@ import { dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { ActionBar, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
-import { URI } from 'vs/base/common/uri';
 import { equals } from 'vs/base/common/arrays';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { getIconClass } from 'vs/base/parts/quickinput/browser/quickInputUtils';
-import { registerAndGetAmdImageURL } from 'vs/base/common/amd';
 import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
 import { List, IListOptions, IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
@@ -70,10 +68,7 @@ const $ = dom.$;
 type Writeable<T> = { -readonly [P in keyof T]: T[P] };
 
 const backButton = {
-	iconPath: {
-		dark: URI.parse(registerAndGetAmdImageURL('vs/base/parts/quickinput/browser/media/arrow-left-dark.svg')),
-		light: URI.parse(registerAndGetAmdImageURL('vs/base/parts/quickinput/browser/media/arrow-left-light.svg'))
-	},
+	iconClass: 'codicon-arrow-left',
 	tooltip: localize('quickInput.back', "Back"),
 	handle: -1 // TODO
 };
@@ -391,7 +386,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private _matchOnLabel = true;
 	private _sortByLabel = true;
 	private _autoFocusOnList = true;
-	private _autoFocusSecondEntry = false;
+	private _itemActivation = ItemActivation.FIRST;
 	private _activeItems: T[] = [];
 	private activeItemsUpdated = false;
 	private activeItemsToConfirm: T[] | null = [];
@@ -527,12 +522,12 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		this.update();
 	}
 
-	get autoFocusSecondEntry() {
-		return this._autoFocusSecondEntry;
+	get itemActivation() {
+		return this._itemActivation;
 	}
 
-	set autoFocusSecondEntry(autoFocusSecondEntry: boolean) {
-		this._autoFocusSecondEntry = autoFocusSecondEntry;
+	set itemActivation(itemActivation: ItemActivation) {
+		this._itemActivation = itemActivation;
 	}
 
 	get activeItems() {
@@ -879,11 +874,18 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 			this.ui.checkAll.checked = this.ui.list.getAllVisibleChecked();
 			this.ui.visibleCount.setCount(this.ui.list.getVisibleCount());
 			this.ui.count.setCount(this.ui.list.getCheckedCount());
-			if (this._autoFocusSecondEntry) {
-				this.ui.list.focus(QuickInputListFocus.Second);
-				this._autoFocusSecondEntry = false; // only valid once, then unset
-			} else {
-				this.trySelectFirst();
+			switch (this._itemActivation) {
+				case ItemActivation.SECOND:
+					this.ui.list.focus(QuickInputListFocus.Second);
+					this._itemActivation = ItemActivation.FIRST; // only valid once, then unset
+					break;
+				case ItemActivation.LAST:
+					this.ui.list.focus(QuickInputListFocus.Last);
+					this._itemActivation = ItemActivation.FIRST; // only valid once, then unset
+					break;
+				default:
+					this.trySelectFirst();
+					break;
 			}
 		}
 		if (this.ui.container.classList.contains('show-checkboxes') !== !!this.canSelectMany) {

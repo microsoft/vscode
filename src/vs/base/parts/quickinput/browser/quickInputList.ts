@@ -496,7 +496,7 @@ export class QuickInputList {
 	}
 
 	set enabled(value: boolean) {
-		this.list.getHTMLElement().style.pointerEvents = value ? null : 'none';
+		this.list.getHTMLElement().style.pointerEvents = value ? '' : 'none';
 	}
 
 	focus(what: QuickInputListFocus): void {

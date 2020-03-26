@@ -11,7 +11,7 @@ import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { overviewRulerRangeHighlight } from 'vs/editor/common/view/editorColorRegistry';
 import { IQuickPick, IQuickPickItem, IKeyMods } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { isDiffEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { withNullAsUndefined } from 'vs/base/common/types';
@@ -47,13 +47,12 @@ export abstract class AbstractEditorNavigationQuickAccessProvider implements IQu
 		picker.matchOnLabel = picker.matchOnDescription = picker.matchOnDetail = picker.sortByLabel = false;
 
 		// Provide based on current active editor
-		let pickerDisposable = this.doProvide(picker, token);
-		disposables.add(toDisposable(() => pickerDisposable.dispose()));
+		const pickerDisposable = disposables.add(new MutableDisposable());
+		pickerDisposable.value = this.doProvide(picker, token);
 
 		// Re-create whenever the active editor changes
 		disposables.add(this.onDidActiveTextEditorControlChange(() => {
-			pickerDisposable.dispose();
-			pickerDisposable = this.doProvide(picker, token);
+			pickerDisposable.value = this.doProvide(picker, token);
 		}));
 
 		return disposables;
@@ -81,7 +80,7 @@ export abstract class AbstractEditorNavigationQuickAccessProvider implements IQu
 				}));
 
 				disposables.add(once(token.onCancellationRequested)(() => {
-					if (lastKnownEditorViewState) {
+					if (lastKnownEditorViewState && editor === this.activeTextEditorControl) {
 						editor.restoreViewState(lastKnownEditorViewState);
 					}
 				}));

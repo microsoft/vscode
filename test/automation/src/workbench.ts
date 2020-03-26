@@ -44,8 +44,8 @@ export class Workbench {
 
 	constructor(code: Code, userDataPath: string) {
 		this.editors = new Editors(code);
-		this.quickopen = new QuickOpen(code, this.editors);
 		this.quickinput = new QuickInput(code);
+		this.quickopen = new QuickOpen(code, this.editors, this.quickinput);
 		this.explorer = new Explorer(code, this.editors);
 		this.activitybar = new ActivityBar(code);
 		this.search = new Search(code);

@@ -9,6 +9,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { first, coalesce } from 'vs/base/common/arrays';
 import { startsWith } from 'vs/base/common/strings';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { ItemActivation } from 'vs/base/parts/quickinput/common/quickInput';
 
 export interface IQuickAccessOptions {
 
@@ -18,9 +19,10 @@ export interface IQuickAccessOptions {
 	quickNavigateConfiguration?: IQuickNavigateConfiguration;
 
 	/**
-	 * Wether to select the second pick item by default instead of the first.
+	 * Allows to configure a different item activation strategy.
+	 * By default the first item in the list will get activated.
 	 */
-	autoFocus?: { autoFocusSecondEntry?: boolean }
+	itemActivation?: ItemActivation
 }
 
 export interface IQuickAccessController {

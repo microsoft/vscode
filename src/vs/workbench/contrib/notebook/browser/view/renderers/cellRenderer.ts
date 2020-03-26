@@ -6,6 +6,7 @@
 import { getZoomLevel } from 'vs/base/browser/browser';
 import * as DOM from 'vs/base/browser/dom';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IAction } from 'vs/base/common/actions';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -16,15 +17,16 @@ import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { MenuItemAction, IMenu } from 'vs/platform/actions/common/actions';
+import { IMenu, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_PADDING, NOTEBOOK_CELL_EDITABLE_CONTEXT_KEY, NOTEBOOK_CELL_TYPE_CONTEXT_KEY, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE_CONTEXT_KEY } from 'vs/workbench/contrib/notebook/browser/constants';
-import { CellRenderTemplate, CellRunState, ICellViewModel, INotebookEditor, CellEditState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_PADDING, NOTEBOOK_CELL_EDITABLE_CONTEXT_KEY, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE_CONTEXT_KEY, NOTEBOOK_CELL_TYPE_CONTEXT_KEY } from 'vs/workbench/contrib/notebook/browser/constants';
+import { ExecuteCellAction, INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/contrib/notebookActions';
+import { CellEditState, CellRenderTemplate, CellRunState, ICellViewModel, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellMenus } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellMenus';
 import { CodeCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/codeCell';
 import { StatefullMarkdownCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/markdownCell';
@@ -32,8 +34,6 @@ import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookCellActionContext, ExecuteCellAction } from 'vs/workbench/contrib/notebook/browser/contrib/notebookActions';
-import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 
 const $ = DOM.$;
 
@@ -94,9 +94,13 @@ abstract class AbstractCellRenderer {
 				horizontalHasArrows: false,
 				alwaysConsumeMouseWheel: false
 			},
-			overviewRulerLanes: 3,
+			renderLineHighlightOnlyWhenFocus: true,
+			overviewRulerLanes: 0,
+			selectOnLineNumbers: false,
+			lineNumbers: 'off',
+			lineDecorationsWidth: 0,
+			glyphMargin: false,
 			fixedOverflowWidgets: false,
-			lineNumbersMinChars: 1,
 			minimap: { enabled: false },
 		};
 	}
@@ -217,8 +221,8 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 			const contextKeyService = this.contextKeyService.createScoped(templateData.container);
 			contextKeyService.createKey(NOTEBOOK_CELL_TYPE_CONTEXT_KEY, 'markdown');
 			const cellEditableKey = contextKeyService.createKey(NOTEBOOK_CELL_EDITABLE_CONTEXT_KEY, !!(element.metadata?.editable));
-			elementDisposable.add(element.onDidChangeMetadata((e) => {
-				cellEditableKey.set(!!e?.editable);
+			elementDisposable.add(element.onDidChangeMetadata(() => {
+				cellEditableKey.set(!!element.metadata?.editable);
 			}));
 
 			const editModeKey = contextKeyService.createKey(NOTEBOOK_CELL_MARKDOWN_EDIT_MODE_CONTEXT_KEY, element.editState === CellEditState.Editing);
@@ -282,6 +286,8 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		])();
 		disposables.add(runToolbar);
 
+		const executionOrderLabel = DOM.append(runButtonContainer, $('div.execution-count-label'));
+
 		const editorContainer = DOM.append(cellContainer, $('.cell-editor-container'));
 		const editor = this.instantiationService.createInstance(CodeEditorWidget, editorContainer, {
 			...this.editorOptions,
@@ -310,6 +316,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			toolbar,
 			runToolbar,
 			runButtonContainer,
+			executionOrderLabel,
 			outputContainer,
 			editor,
 			disposables,
@@ -348,21 +355,36 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			}
 		}));
 
+		function renderExecutionOrder() {
+			const executionOrdeerLabel = typeof element.metadata?.executionOrder === 'number' ? `[ ${element.metadata.executionOrder} ]` :
+				'[   ]';
+			templateData.executionOrderLabel!.innerText = executionOrdeerLabel;
+		}
+
+		const contextKeyService = this.contextKeyService.createScoped(templateData.container);
+		contextKeyService.createKey(NOTEBOOK_CELL_TYPE_CONTEXT_KEY, 'code');
+		const cellEditableKey = contextKeyService.createKey(NOTEBOOK_CELL_EDITABLE_CONTEXT_KEY, !!(element.metadata?.editable));
+
+		const updateForMetadata = () => {
+			const metadata = element.getEvaluatedMetadata(this.notebookEditor.viewModel!.notebookDocument.metadata);
+			DOM.toggleClass(templateData.cellContainer, 'runnable', !!metadata.runnable);
+			renderExecutionOrder();
+			cellEditableKey.set(!!metadata.editable);
+		};
+
+		updateForMetadata();
+		elementDisposable.add(element.onDidChangeMetadata(() => {
+			updateForMetadata();
+		}));
+
+		this.setupCellToolbarActions(contextKeyService, templateData, elementDisposable);
+
 		const toolbarContext = <INotebookCellActionContext>{
 			cell: element,
 			cellTemplate: templateData,
 			notebookEditor: this.notebookEditor,
 			$mid: 12
 		};
-
-		const contextKeyService = this.contextKeyService.createScoped(templateData.container);
-		contextKeyService.createKey(NOTEBOOK_CELL_TYPE_CONTEXT_KEY, 'code');
-		const cellEditableKey = contextKeyService.createKey(NOTEBOOK_CELL_EDITABLE_CONTEXT_KEY, !!(element.metadata?.editable));
-		elementDisposable.add(element.onDidChangeMetadata((e) => {
-			cellEditableKey.set(!!e?.editable);
-		}));
-
-		this.setupCellToolbarActions(contextKeyService, templateData, elementDisposable);
 		templateData.toolbar.context = toolbarContext;
 		templateData.runToolbar!.context = toolbarContext;
 	}

@@ -6,7 +6,6 @@
 import { isWindows } from 'vs/base/common/platform';
 import { CharCode } from 'vs/base/common/charCode';
 import * as paths from 'vs/base/common/path';
-import * as extpath from 'vs/base/common/extpath';
 
 const _schemePattern = /^\w[\w\d+.-]*$/;
 const _singleSlashStart = /^\//;
@@ -206,7 +205,7 @@ export class URI implements UriComponents {
 		// if (this.scheme !== 'file') {
 		// 	console.warn(`[UriError] calling fsPath with scheme ${this.scheme}`);
 		// }
-		return _makeFsPath(this);
+		return _makeFsPath(this, false);
 	}
 
 	// ---- modify to new -------------------------
@@ -340,20 +339,21 @@ export class URI implements UriComponents {
 	/**
 	 * Join a URI path with path fragments and normalizes the resulting path.
 	 *
-	 * @param resource The input URI.
+	 * @param uri The input URI.
 	 * @param pathFragment The path fragment to add to the URI path.
 	 * @returns The resulting URI.
 	 */
-	static joinPaths(resource: URI, ...pathFragment: string[]): URI {
-		let joinedPath: string;
-		if (resource.scheme === 'file') {
-			joinedPath = URI.file(paths.join(originalFSPath(resource), ...pathFragment)).path;
-		} else {
-			joinedPath = paths.posix.join(resource.path || '/', ...pathFragment);
+	static joinPath(uri: URI, ...pathFragment: string[]): URI {
+		if (!uri.path) {
+			throw new Error(`[UriError]: cannot call joinPaths on URI without path`);
 		}
-		return resource.with({
-			path: joinedPath
-		});
+		let newPath: string;
+		if (isWindows && uri.scheme === 'file') {
+			newPath = URI.file(paths.win32.join(_makeFsPath(uri, true), ...pathFragment)).path;
+		} else {
+			newPath = paths.posix.join(uri.path, ...pathFragment);
+		}
+		return uri.with({ path: newPath });
 	}
 
 	// ---- printing/externalize ---------------------------
@@ -420,7 +420,7 @@ class _URI extends URI {
 
 	get fsPath(): string {
 		if (!this._fsPath) {
-			this._fsPath = _makeFsPath(this);
+			this._fsPath = _makeFsPath(this, false);
 		}
 		return this._fsPath;
 	}
@@ -576,7 +576,7 @@ function encodeURIComponentMinimal(path: string): string {
 /**
  * Compute `fsPath` for the given uri
  */
-function _makeFsPath(uri: URI): string {
+function _makeFsPath(uri: URI, keepDriveLetterCasing: boolean): string {
 
 	let value: string;
 	if (uri.authority && uri.path.length > 1 && uri.scheme === 'file') {
@@ -588,7 +588,11 @@ function _makeFsPath(uri: URI): string {
 		&& uri.path.charCodeAt(2) === CharCode.Colon
 	) {
 		// windows drive letter: file:///c:/far/boo
-		value = uri.path[1].toLowerCase() + uri.path.substr(2);
+		if (!keepDriveLetterCasing) {
+			value = uri.path[1].toLowerCase() + uri.path.substr(2);
+		} else {
+			value = uri.path.substr(1, 2);
+		}
 	} else {
 		// other path
 		value = uri.path;
@@ -693,30 +697,4 @@ function percentDecode(str: string): string {
 		return str;
 	}
 	return str.replace(_rEncodedAsHex, (match) => decodeURIComponentGraceful(match));
-}
-
-
-// --- utils
-
-export function originalFSPath(uri: URI): string {
-	let value: string;
-	const uriPath = uri.path;
-	if (uri.authority && uriPath.length > 1 && uri.scheme === 'file') {
-		// unc path: file://shares/c$/far/boo
-		value = `//${uri.authority}${uriPath}`;
-	} else if (
-		isWindows
-		&& uriPath.charCodeAt(0) === CharCode.Slash
-		&& extpath.isWindowsDriveLetter(uriPath.charCodeAt(1))
-		&& uriPath.charCodeAt(2) === CharCode.Colon
-	) {
-		value = uriPath.substr(1);
-	} else {
-		// other path
-		value = uriPath;
-	}
-	if (isWindows) {
-		value = value.replace(/\//g, '\\');
-	}
-	return value;
 }
