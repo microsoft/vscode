@@ -17,7 +17,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { QuickOpenAction } from 'vs/workbench/browser/quickopen';
+import { Action } from 'vs/base/common/actions';
 
 export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccessProvider {
 
@@ -107,16 +107,20 @@ Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessPro
 	]
 });
 
-export class GotoSymbolAction extends QuickOpenAction {
+export class GotoSymbolAction extends Action {
 
 	static readonly ID = 'workbench.action.gotoSymbol';
 	static readonly LABEL = localize('gotoSymbol', "Go to Symbol in Editor...");
 
 	constructor(
-		actionId: string,
-		actionLabel: string,
-		@IQuickInputService quickInputService: IQuickInputService
+		id: string,
+		label: string,
+		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
-		super(actionId, actionLabel, GotoSymbolQuickAccessProvider.PREFIX, quickInputService);
+		super(id, label);
+	}
+
+	async run(): Promise<void> {
+		this.quickInputService.quickAccess.show(GotoSymbolQuickAccessProvider.PREFIX);
 	}
 }

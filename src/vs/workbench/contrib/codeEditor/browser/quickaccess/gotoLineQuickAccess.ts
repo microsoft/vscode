@@ -13,7 +13,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IQuickAccessRegistry, Extensions } from 'vs/platform/quickinput/common/quickAccess';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
-import { QuickOpenAction } from 'vs/workbench/browser/quickopen';
+import { Action } from 'vs/base/common/actions';
 
 export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProvider {
 
@@ -63,16 +63,20 @@ Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessPro
 	helpEntries: [{ description: localize('gotoLineQuickAccess', "Go to Line/Column"), needsEditor: true }]
 });
 
-export class GotoLineAction extends QuickOpenAction {
+export class GotoLineAction extends Action {
 
 	static readonly ID = 'workbench.action.gotoLine';
 	static readonly LABEL = localize('gotoLine', "Go to Line/Column...");
 
 	constructor(
-		actionId: string,
-		actionLabel: string,
-		@IQuickInputService quickInputService: IQuickInputService
+		id: string,
+		label: string,
+		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
-		super(actionId, actionLabel, GotoLineQuickAccessProvider.PREFIX, quickInputService);
+		super(id, label);
+	}
+
+	async run(): Promise<void> {
+		this.quickInputService.quickAccess.show(GotoLineQuickAccessProvider.PREFIX);
 	}
 }

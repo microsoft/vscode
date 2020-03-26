@@ -17,7 +17,6 @@ import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { matchesFuzzy } from 'vs/base/common/filters';
 import { fuzzyContains } from 'vs/base/common/strings';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { QuickOpenAction } from 'vs/workbench/browser/quickopen';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Action } from 'vs/base/common/actions';
 
@@ -185,7 +184,7 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 	}
 }
 
-export class OpenViewPickerAction extends QuickOpenAction {
+export class OpenViewPickerAction extends Action {
 
 	static readonly ID = 'workbench.action.openView';
 	static readonly LABEL = localize('openView', "Open View");
@@ -193,9 +192,13 @@ export class OpenViewPickerAction extends QuickOpenAction {
 	constructor(
 		id: string,
 		label: string,
-		@IQuickInputService quickInputService: IQuickInputService
+		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
-		super(id, label, ViewQuickAccessProvider.PREFIX, quickInputService);
+		super(id, label);
+	}
+
+	async run(): Promise<void> {
+		this.quickInputService.quickAccess.show(ViewQuickAccessProvider.PREFIX);
 	}
 }
 

@@ -31,7 +31,6 @@ import { isWindows } from 'vs/base/common/platform';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { ITerminalInstance, ITerminalService, Direction } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { Action2 } from 'vs/platform/actions/common/actions';
-import { QuickOpenAction } from 'vs/workbench/browser/quickopen';
 import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalsQuickAccess';
 
 async function getCwdForSplit(configHelper: ITerminalConfigHelper, instance: ITerminalInstance, folders?: IWorkspaceFolder[], commandService?: ICommandService): Promise<string | URI | undefined> {
@@ -1075,7 +1074,7 @@ export class HideTerminalFindWidgetAction extends Action {
 	}
 }
 
-export class QuickOpenTermAction extends QuickOpenAction {
+export class QuickOpenTermAction extends Action {
 
 	public static readonly ID = TERMINAL_COMMAND_ID.QUICK_OPEN_TERM;
 	public static readonly LABEL = nls.localize('quickOpenTerm', "Switch Active Terminal");
@@ -1083,9 +1082,13 @@ export class QuickOpenTermAction extends QuickOpenAction {
 	constructor(
 		id: string,
 		label: string,
-		@IQuickInputService quickInputService: IQuickInputService
+		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
-		super(id, label, TerminalQuickAccessProvider.PREFIX, quickInputService);
+		super(id, label);
+	}
+
+	async run(): Promise<void> {
+		this.quickInputService.quickAccess.show(TerminalQuickAccessProvider.PREFIX);
 	}
 }
 
