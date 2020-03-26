@@ -254,7 +254,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 	}
 
 	private _syncEnvironmentVariableCollection(extensionIdentifier: string, collection: EnvironmentVariableCollection): void {
-		const serialized = serializeEnvironmentVariableCollection(collection.entries);
+		const serialized = serializeEnvironmentVariableCollection(collection.map);
 		this._proxy.$setEnvironmentVariableCollection(extensionIdentifier, serialized.length === 0 ? undefined : serialized);
 	}
 }

@@ -99,7 +99,7 @@ export class EnvironmentVariableService implements IEnvironmentVariableService {
 	}
 
 	private _resolveMergedCollection(): IMergedEnvironmentVariableCollection {
-		return new MergedEnvironmentVariableCollection(...[...this._collections.values()]);
+		return new MergedEnvironmentVariableCollection(this._collections);
 		// const result = new EnvironmentVariableCollection();
 		// this._collections.forEach(collection => {
 		// 	const it = collection.entries();

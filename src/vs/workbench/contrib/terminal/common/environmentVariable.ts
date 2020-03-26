@@ -20,26 +20,34 @@ export interface IEnvironmentVariableMutator {
 	readonly type: EnvironmentVariableMutatorType;
 }
 
+export interface IExtensionOwnedEnvironmentVariableMutator extends IEnvironmentVariableMutator {
+	readonly extensionIdentifier: string;
+}
+
 export type IEnvironmentVariableCollection = ReadonlyMap<string, IEnvironmentVariableMutator>;
+
+export interface IMergedEnvironmentVariableCollectionDiff {
+	added: ReadonlyMap<string, IExtensionOwnedEnvironmentVariableMutator[]>;
+	changed: ReadonlyMap<string, IExtensionOwnedEnvironmentVariableMutator[]>;
+	removed: ReadonlyMap<string, IExtensionOwnedEnvironmentVariableMutator[]>;
+}
 
 /**
  * Represents an environment variable collection that results from merging several collections
  * together.
  */
 export interface IMergedEnvironmentVariableCollection {
-	readonly entries: ReadonlyMap<string, IEnvironmentVariableMutator[]>;
-
-	/**
-	 * Get's additions when compared to another collection. This only gets additions rather than
-	 * doing a full diff because we can only reliably add entries to an environment, not remove
-	 * them.
-	 */
-	// getNewAdditions(other: IEnvironmentVariableCollection): ReadonlyMap<string, IEnvironmentVariableMutator[]> | undefined;
+	readonly map: ReadonlyMap<string, IExtensionOwnedEnvironmentVariableMutator[]>;
 
 	/**
 	 * Applies this collection to a process environment.
 	 */
 	applyToProcessEnvironment(env: IProcessEnvironment): void;
+
+	/**
+	 * Generates a diff of this connection against another.
+	 */
+	diff(other: IMergedEnvironmentVariableCollection): IMergedEnvironmentVariableCollectionDiff;
 }
 
 // export interface IEnvironmentVariableCollection {
