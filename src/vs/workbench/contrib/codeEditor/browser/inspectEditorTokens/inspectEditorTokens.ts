@@ -540,7 +540,6 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		}
 		const theme = this._themeService.getColorTheme() as ColorThemeData;
 
-		const isTokenStylingRule = (d: any): d is TokenStylingRule => !!d.value;
 		if (Array.isArray(definition)) {
 			const scopesDefinition: TextMateThemingRuleDefinitions = {};
 			theme.resolveScopes(definition, scopesDefinition);
@@ -549,7 +548,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 				return `${escape(scopesDefinition.scope.join(' '))}<br><code class="tiw-theme-selector">${matchingRule.scope}\n${JSON.stringify(matchingRule.settings, null, '\t')}</code>`;
 			}
 			return '';
-		} else if (isTokenStylingRule(definition)) {
+		} else if (TokenStylingRule.is(definition)) {
 			const scope = theme.getTokenStylingRuleScope(definition);
 			if (scope === 'setting') {
 				return `User settings: ${definition.selector.selectorString} - ${this._renderStyleProperty(definition.style, property)}`;

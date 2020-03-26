@@ -58,7 +58,36 @@ export class TokenStyle implements Readonly<TokenStyleData> {
 }
 
 export namespace TokenStyle {
-	export function fromData(data: { foreground?: Color, bold?: boolean, underline?: boolean, italic?: boolean }) {
+	export function toJSONObject(style: TokenStyle): any {
+		return {
+			_foreground: style.foreground === undefined ? null : Color.Format.CSS.formatHexA(style.foreground, true),
+			_bold: style.bold === undefined ? null : style.bold,
+			_underline: style.underline === undefined ? null : style.underline,
+			_italic: style.italic === undefined ? null : style.italic,
+		};
+	}
+	export function fromJSONObject(obj: any): TokenStyle | undefined {
+		if (obj) {
+			const boolOrUndef = (b: any) => (typeof b === 'boolean') ? b : undefined;
+			const colorOrUndef = (s: any) => (typeof s === 'string') ? Color.fromHex(s) : undefined;
+			return new TokenStyle(colorOrUndef(obj._foreground), boolOrUndef(obj._bold), boolOrUndef(obj._underline), boolOrUndef(obj._italic));
+		}
+		return undefined;
+	}
+	export function equals(s1: any, s2: any): boolean {
+		if (s1 === s2) {
+			return true;
+		}
+		return s1 !== undefined && s2 !== undefined
+			&& (s1.foreground instanceof Color ? s1.foreground.equals(s2.foreground) : s2.foreground === undefined)
+			&& s1.bold === s2.bold
+			&& s1.underline === s2.underline
+			&& s1.italic === s2.italic;
+	}
+	export function is(s: any): s is TokenStyle {
+		return s instanceof TokenStyle;
+	}
+	export function fromData(data: { foreground?: Color, bold?: boolean, underline?: boolean, italic?: boolean }): TokenStyle {
 		return new TokenStyle(data.foreground, data.bold, data.underline, data.italic);
 	}
 	export function fromSettings(foreground: string | undefined, fontStyle: string | undefined): TokenStyle {
@@ -109,6 +138,38 @@ export interface TokenStylingDefaultRule {
 export interface TokenStylingRule {
 	style: TokenStyle;
 	selector: TokenSelector;
+}
+
+export namespace TokenStylingRule {
+	export function fromJSONObject(registry: ITokenClassificationRegistry, o: any): TokenStylingRule | undefined {
+		if (o && typeof o._selector === 'string' && o._style) {
+			const style = TokenStyle.fromJSONObject(o._style);
+			if (style) {
+				try {
+					return { selector: registry.parseTokenSelector(o._selector), style };
+				} catch (_ignore) {
+				}
+			}
+		}
+		return undefined;
+	}
+	export function toJSONObject(rule: TokenStylingRule): any {
+		return {
+			_selector: rule.selector.selectorString,
+			_style: TokenStyle.toJSONObject(rule.style)
+		};
+	}
+	export function equals(r1: TokenStylingRule | undefined, r2: TokenStylingRule | undefined) {
+		if (r1 === r2) {
+			return true;
+		}
+		return r1 !== undefined && r2 !== undefined
+			&& r1.selector && r2.selector && r1.selector.selectorString === r2.selector.selectorString
+			&& TokenStyle.equals(r1.style, r2.style);
+	}
+	export function is(r: any): r is TokenStylingRule {
+		return r && r.selector && typeof r.selector.selectorString === 'string' && TokenStyle.is(r.style);
+	}
 }
 
 /**
