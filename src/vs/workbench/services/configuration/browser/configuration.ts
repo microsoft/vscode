@@ -8,7 +8,7 @@ import * as resources from 'vs/base/common/resources';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as errors from 'vs/base/common/errors';
 import { Disposable, IDisposable, dispose, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { FileChangeType, FileChangesEvent, IFileService, whenProviderRegistered, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { ConfigurationModel, ConfigurationModelParser, UserSettings } from 'vs/platform/configuration/common/configurationModels';
 import { WorkspaceConfigurationModelParser, StandaloneConfigurationModelParser } from 'vs/workbench/services/configuration/common/configurationModels';
@@ -26,12 +26,13 @@ import { hash } from 'vs/base/common/hash';
 
 export class UserConfiguration extends Disposable {
 
-	private readonly _onDidInitializeCompleteConfiguration: Emitter<void> = this._register(new Emitter<void>());
 	private readonly _onDidChangeConfiguration: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
 	readonly onDidChangeConfiguration: Event<ConfigurationModel> = this._onDidChangeConfiguration.event;
 
 	private readonly userConfiguration: MutableDisposable<UserSettings | FileServiceBasedConfiguration> = this._register(new MutableDisposable<UserSettings | FileServiceBasedConfiguration>());
 	private readonly reloadConfigurationScheduler: RunOnceScheduler;
+
+	get hasTasksLoaded(): boolean { return this.userConfiguration.value instanceof FileServiceBasedConfiguration; }
 
 	constructor(
 		private readonly userSettingsResource: URI,
@@ -42,9 +43,6 @@ export class UserConfiguration extends Disposable {
 		this.userConfiguration.value = new UserSettings(this.userSettingsResource, this.scopes, this.fileService);
 		this._register(this.userConfiguration.value.onDidChange(() => this.reloadConfigurationScheduler.schedule()));
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.reload().then(configurationModel => this._onDidChangeConfiguration.fire(configurationModel)), 50));
-
-		runWhenIdle(() => this._onDidInitializeCompleteConfiguration.fire(), 5000);
-		this._register(Event.once(this._onDidInitializeCompleteConfiguration.event)(() => this.reloadConfigurationScheduler.schedule()));
 	}
 
 	async initialize(): Promise<ConfigurationModel> {
@@ -52,7 +50,7 @@ export class UserConfiguration extends Disposable {
 	}
 
 	async reload(): Promise<ConfigurationModel> {
-		if (this.userConfiguration.value instanceof FileServiceBasedConfiguration) {
+		if (this.hasTasksLoaded) {
 			return this.userConfiguration.value!.loadConfiguration();
 		}
 

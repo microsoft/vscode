@@ -8,7 +8,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { ResourceMap } from 'vs/base/common/map';
 import { equals } from 'vs/base/common/objects';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { Queue, Barrier } from 'vs/base/common/async';
+import { Queue, Barrier, runWhenIdle } from 'vs/base/common/async';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IWorkspaceContextService, Workspace, WorkbenchState, IWorkspaceFolder, toWorkspaceFolders, IWorkspaceFoldersChangeEvent, WorkspaceFolder, toWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationModel, DefaultConfigurationModel, ConfigurationChangeEvent, AllKeysConfigurationChangeEvent, mergeChanges } from 'vs/platform/configuration/common/configurationModels';
@@ -390,6 +390,11 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 			} else {
 				// Not waiting on this validation to unblock start up
 				this.validateWorkspaceFoldersAndReload();
+			}
+
+			if (!this.localUserConfiguration.hasTasksLoaded) {
+				// Reload local user configuration again to load user tasks
+				runWhenIdle(() => this.reloadLocalUserConfiguration().then(configurationModel => this.onLocalUserConfigurationChanged(configurationModel)), 5000);
 			}
 		});
 	}
