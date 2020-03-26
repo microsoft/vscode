@@ -193,8 +193,8 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		}
 
 		this._ensureOutputsTop();
-
-		return this._outputsTop!.getAccumulatedValue(index - 1);
+		const offset = this._outputsTop!.getAccumulatedValue(index - 1);
+		return this.layoutInfo.outputContainerOffset + offset;
 	}
 
 	spliceOutputHeights(start: number, deleteCnt: number, heights: number[]) {

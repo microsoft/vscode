@@ -263,8 +263,7 @@ export class CodeCell extends Disposable {
 
 		if (result.shadowContent) {
 			this.viewCell.selfSizeMonitoring = true;
-			let editorHeight = this.viewCell.layoutInfo.editorHeight;
-			this.notebookEditor.createInset(this.viewCell, currOutput, result.shadowContent, editorHeight + this.viewCell.getOutputOffset(index));
+			this.notebookEditor.createInset(this.viewCell, currOutput, result.shadowContent, this.viewCell.getOutputOffset(index));
 		} else {
 			DOM.addClass(outputItemDiv, 'foreground');
 		}

@@ -322,9 +322,7 @@ export class BackLayerWebView extends Disposable {
 	shouldUpdateInset(cell: CodeCellViewModel, output: IOutput, cellTop: number) {
 		let outputCache = this.insetMapping.get(output)!;
 		let outputIndex = cell.outputs.indexOf(output);
-
-		let outputOffsetInOutputContainer = cell.getOutputOffset(outputIndex);
-		let outputOffset = cellTop + cell.layoutInfo.editorHeight + outputOffsetInOutputContainer;
+		let outputOffset = cellTop + cell.getOutputOffset(outputIndex);
 
 		if (outputOffset === outputCache.cacheOffset) {
 			return false;
@@ -339,8 +337,7 @@ export class BackLayerWebView extends Disposable {
 			let id = outputCache.outputId;
 			let outputIndex = item.cell.outputs.indexOf(item.output);
 
-			let outputOffsetInOutputContainer = item.cell.getOutputOffset(outputIndex);
-			let outputOffset = item.cellTop + item.cell.layoutInfo.outputContainerOffset + outputOffsetInOutputContainer;
+			let outputOffset = item.cellTop + item.cell.getOutputOffset(outputIndex);
 			outputCache.cacheOffset = outputOffset;
 
 			return {
