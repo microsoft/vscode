@@ -13,7 +13,7 @@ jobs:
         uses: actions/checkout@v2
         with:
           repository: 'JacksonKearl/vscode-triage-github-actions'
-          ref: v4
+          ref: v5
       - name: Run Commands
         uses: ./commands
         with:
