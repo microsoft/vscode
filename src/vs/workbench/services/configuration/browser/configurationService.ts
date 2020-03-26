@@ -156,7 +156,7 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 		return false;
 	}
 
-	private doUpdateFolders(foldersToAdd: IWorkspaceFolderCreationData[], foldersToRemove: URI[], index?: number): Promise<void> {
+	private async doUpdateFolders(foldersToAdd: IWorkspaceFolderCreationData[], foldersToRemove: URI[], index?: number): Promise<void> {
 		if (this.getWorkbenchState() !== WorkbenchState.WORKSPACE) {
 			return Promise.resolve(undefined); // we need a workspace to begin with
 		}
@@ -192,7 +192,7 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 
 			const storedFoldersToAdd: IStoredWorkspaceFolder[] = [];
 
-			foldersToAdd.forEach(async folderToAdd => {
+			await Promise.all(foldersToAdd.map(async folderToAdd => {
 				const folderURI = folderToAdd.uri;
 				if (this.contains(currentWorkspaceFolderUris, folderURI)) {
 					return; // already existing
@@ -204,7 +204,7 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 					}
 				} catch (e) { /* Ignore */ }
 				storedFoldersToAdd.push(getStoredWorkspaceFolder(folderURI, folderToAdd.name, workspaceConfigFolder, slashForPath));
-			});
+			}));
 
 			// Apply to array of newStoredFolders
 			if (storedFoldersToAdd.length > 0) {
@@ -623,10 +623,11 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 		for (const workspaceFolder of workspaceFolders) {
 			try {
 				const result = await this.fileService.resolve(workspaceFolder.uri);
-				if (result.isDirectory) {
-					validWorkspaceFolders.push(workspaceFolder);
+				if (!result.isDirectory) {
+					continue;
 				}
 			} catch (e) { /* Ignore */ }
+			validWorkspaceFolders.push(workspaceFolder);
 		}
 		return validWorkspaceFolders;
 	}
