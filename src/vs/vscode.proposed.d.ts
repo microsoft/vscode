@@ -60,6 +60,11 @@ declare module 'vscode' {
 		readonly changed: string[];
 	}
 
+	/**
+	 * **WARNING** When writing an AuthenticationProvider, `id` should be treated as part of your extension's
+	 * API, changing it is a breaking change for all extensions relying on the provider. The id is
+	 * treated case-sensitively.
+	 */
 	export interface AuthenticationProvider {
 		/**
 		 * Used as an identifier for extensions trying to work with a particular
@@ -1676,6 +1681,7 @@ declare module 'vscode' {
 		 * This metadata is ignored for markdown cell.
 		 */
 		runnable?: boolean;
+		executionOrder?: number;
 	}
 
 	export interface NotebookCell {
@@ -1829,9 +1835,9 @@ declare module 'vscode' {
 		name: string;
 
 		/**
-		 * The signature without the return type. Render after `name`.
+		 * The parameters without the return type. Render after `name`.
 		 */
-		signature?: string;
+		parameters?: string;
 
 		/**
 		 * The fully qualified name, like package name or file path. Rendered after `signature`.

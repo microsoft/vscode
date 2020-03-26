@@ -1362,7 +1362,7 @@ export enum CompletionItemTag {
 
 export interface CompletionItemLabel {
 	name: string;
-	signature?: string;
+	parameters?: string;
 	qualifier?: string;
 	type?: string;
 }

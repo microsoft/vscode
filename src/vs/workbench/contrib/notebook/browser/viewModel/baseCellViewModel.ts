@@ -32,8 +32,8 @@ export abstract class BaseCellViewModel extends Disposable {
 	readonly onDidChangeEditorAttachState = this._onDidChangeEditorAttachState.event;
 	protected readonly _onDidChangeCursorSelection: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidChangeCursorSelection: Event<void> = this._onDidChangeCursorSelection.event;
-	protected readonly _onDidChangeMetadata: Emitter<NotebookCellMetadata | undefined> = this._register(new Emitter<NotebookCellMetadata | undefined>());
-	public readonly onDidChangeMetadata: Event<NotebookCellMetadata | undefined> = this._onDidChangeMetadata.event;
+	protected readonly _onDidChangeMetadata: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onDidChangeMetadata: Event<void> = this._onDidChangeMetadata.event;
 	protected readonly _onDidChangeLanguage: Emitter<string> = this._register(new Emitter<string>());
 	public readonly onDidChangeLanguage: Event<string> = this._onDidChangeLanguage.event;
 	get handle() {
@@ -106,8 +106,8 @@ export abstract class BaseCellViewModel extends Disposable {
 			this._onDidChangeLanguage.fire(e);
 		}));
 
-		this._register(cell.onDidChangeMetadata((e) => {
-			this._onDidChangeMetadata.fire(e);
+		this._register(cell.onDidChangeMetadata(() => {
+			this._onDidChangeMetadata.fire();
 		}));
 	}
 

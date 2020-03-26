@@ -250,6 +250,7 @@ export interface CellRenderTemplate {
 	focusIndicator?: HTMLElement;
 	runToolbar?: ToolBar;
 	runButtonContainer?: HTMLElement;
+	executionOrderLabel?: HTMLElement;
 	editingContainer?: HTMLElement;
 	outputContainer?: HTMLElement;
 	editor?: CodeEditorWidget;

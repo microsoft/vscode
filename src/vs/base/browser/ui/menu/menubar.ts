@@ -21,6 +21,7 @@ import { asArray } from 'vs/base/common/arrays';
 import { ScanCodeUtils, ScanCode } from 'vs/base/common/scanCode';
 import { isMacintosh } from 'vs/base/common/platform';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 
 const $ = DOM.$;
 
@@ -90,7 +91,7 @@ export class MenuBar extends Disposable {
 	private menuStyle: IMenuStyles | undefined;
 	private overflowLayoutScheduled: IDisposable | undefined = undefined;
 
-	constructor(private container: HTMLElement, private options: IMenuBarOptions = {}) {
+	constructor(private container: HTMLElement, private options: IMenuBarOptions = {}, private compactMenuActions?: IAction[]) {
 		super();
 
 		this.container.setAttribute('role', 'menubar');
@@ -489,6 +490,11 @@ export class MenuBar extends Disposable {
 				DOM.removeNode(this.overflowMenu.buttonElement);
 				this.container.insertBefore(this.overflowMenu.buttonElement, this.menuCache[this.numMenusShown].buttonElement);
 				this.overflowMenu.buttonElement.style.visibility = 'visible';
+			}
+
+			if (this.compactMenuActions && this.compactMenuActions.length) {
+				this.overflowMenu.actions.push(new Separator());
+				this.overflowMenu.actions.push(...this.compactMenuActions);
 			}
 		} else {
 			DOM.removeNode(this.overflowMenu.buttonElement);

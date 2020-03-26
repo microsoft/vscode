@@ -509,6 +509,16 @@ export class CustomMenubarControl extends MenubarControl {
 		}
 
 		if (firstTime) {
+			const webActions = [];
+			const webMenu = this.menuService.createMenu(MenuId.WebMenuActions, this.contextKeyService);
+			for (const groups of webMenu.getActions()) {
+				const [, actions] = groups;
+				for (const action of actions) {
+					action.label = mnemonicMenuLabel(this.calculateActionLabel(action));
+					webActions.push(action);
+				}
+			}
+
 			this.menubar = this._register(new MenuBar(
 				this.container, {
 				enableMnemonics: this.currentEnableMenuBarMnemonics,
@@ -516,7 +526,7 @@ export class CustomMenubarControl extends MenubarControl {
 				visibility: this.currentMenubarVisibility,
 				getKeybinding: (action) => this.keybindingService.lookupKeybinding(action.id),
 				compactMode: this.currentCompactMenuMode
-			}));
+			}, webActions.length > 0 ? webActions : undefined));
 
 			this.accessibilityService.alwaysUnderlineAccessKeys().then(val => {
 				this.alwaysOnMnemonics = val;

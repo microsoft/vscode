@@ -1821,7 +1821,7 @@
     "@types/byline": "4.2.31",
     "@types/file-type": "^5.2.1",
     "@types/mocha": "2.2.43",
-    "@types/node": "^12.11.7",
+    "@types/node": "^12.12.31",
     "@types/which": "^1.0.28",
     "mocha": "^3.2.0",
     "mocha-junit-reporter": "^1.23.3",

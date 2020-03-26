@@ -16,6 +16,7 @@ import { CellRenderTemplate, CellEditState, ICellViewModel, INotebookEditor, KEY
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
 import { CellKind, NOTEBOOK_EDITOR_CURSOR_BOUNDARY } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 const enum CellToolbarOrder {
 	MoveCellUp,
@@ -709,9 +710,9 @@ registerAction2(class extends Action2 {
 			id: 'workbench.action.notebook.cursorDown',
 			title: 'Notebook Cursor Move Down',
 			keybinding: {
-				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.has(InputFocusedContextKey), NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('top'), NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('none')),
+				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.has(InputFocusedContextKey), EditorContextKeys.editorTextFocus, NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('top'), NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('none')),
 				primary: KeyCode.DownArrow,
-				weight: KeybindingWeight.WorkbenchContrib
+				weight: KeybindingWeight.EditorContrib // smaller than Suggest Widget, etc
 			}
 		});
 	}
@@ -748,9 +749,9 @@ registerAction2(class extends Action2 {
 			id: 'workbench.action.notebook.cursorUp',
 			title: 'Notebook Cursor Move Up',
 			keybinding: {
-				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.has(InputFocusedContextKey), NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('bottom'), NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('none')),
+				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.has(InputFocusedContextKey), EditorContextKeys.editorTextFocus, NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('bottom'), NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('none')),
 				primary: KeyCode.UpArrow,
-				weight: KeybindingWeight.WorkbenchContrib
+				weight: KeybindingWeight.EditorContrib // smaller than Suggest Widget, etc
 			},
 		});
 	}
