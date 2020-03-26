@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { Task, ContributedTask, CustomTask, ConfiguringTask } from 'vs/workbench/contrib/tasks/common/tasks';
+import { Task, ContributedTask, CustomTask, ConfiguringTask, TaskSorter } from 'vs/workbench/contrib/tasks/common/tasks';
 import { IWorkspace, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import * as Types from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -16,6 +16,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 
 export const QUICKOPEN_DETAIL_CONFIG = 'task.quickOpen.detail';
+export const QUICKOPEN_SKIP_CONFIG = 'task.quickOpen.skip';
 
 export function isWorkspaceFolder(folder: IWorkspace | IWorkspaceFolder): folder is IWorkspaceFolder {
 	return 'uri' in folder;
@@ -73,13 +74,16 @@ export interface TaskQuickPickEntry2 extends IQuickPickItem {
 	task: Task | ConfiguringTask | string | undefined | null;
 }
 
+const SHOW_ALL: string = nls.localize('taskQuickPick.showAll', "Show All Tasks...");
+
 export class TaskQuickPick extends Disposable {
+	private sorter: TaskSorter;
 	private constructor(
 		private taskService: ITaskService,
 		private configurationService: IConfigurationService,
-		private quickInputService: IQuickInputService,
-		/*private groupedTasks?: TaskMap*/) {
+		private quickInputService: IQuickInputService) {
 		super();
+		this.sorter = this.taskService.createSorter();
 	}
 
 	private showDetail(): boolean {
@@ -105,10 +109,11 @@ export class TaskQuickPick extends Disposable {
 	}
 
 	private createTypeEntries(entries: QuickPickInput<TaskQuickPickEntry2>[], types: string[]) {
-		entries.push({ type: 'separator', label: nls.localize('contributedTasks', "contributed tasks") });
+		entries.push({ type: 'separator', label: nls.localize('contributedTasks', "contributed") });
 		types.forEach(type => {
-			entries.push({ label: type, task: type });
+			entries.push({ label: type, task: type, description: SHOW_ALL });
 		});
+		entries.push({ label: SHOW_ALL, task: SHOW_ALL });
 	}
 
 	private handleFolderTaskResult(result: Map<string, WorkspaceFolderTaskResult>): (Task | ConfiguringTask)[] {
@@ -126,48 +131,55 @@ export class TaskQuickPick extends Disposable {
 		return tasks;
 	}
 
-	private async show(placeHolder?: string): Promise<Task | undefined | null> {
+	private dedupeConfiguredAndRecent(recentTasks: (Task | ConfiguringTask)[], configuredTasks: (Task | ConfiguringTask)[]): (Task | ConfiguringTask)[] {
+		let dedupedConfiguredTasks: (Task | ConfiguringTask)[] = [];
+		for (let j = 0; j < configuredTasks.length; j++) {
+			const workspaceFolder = configuredTasks[j].getWorkspaceFolder()?.uri.toString();
+			const definition = configuredTasks[j].getDefinition()?._key;
+			const recentKey = configuredTasks[j].getRecentlyUsedKey();
+			if (!recentTasks.find((value) => {
+				return (workspaceFolder && definition && value.getWorkspaceFolder()?.uri.toString() === workspaceFolder && value.getDefinition()?._key === definition)
+					|| (recentKey && value.getRecentlyUsedKey() === recentKey);
+			})) {
+				dedupedConfiguredTasks.push(configuredTasks[j]);
+			}
+		}
+		dedupedConfiguredTasks = dedupedConfiguredTasks.sort((a, b) => this.sorter.compare(a, b));
+		return dedupedConfiguredTasks;
+	}
+
+	private async createTopLevelEntries(defaultEntry?: TaskQuickPickEntry): Promise<{ entries: QuickPickInput<TaskQuickPickEntry2>[], isSingleConfigured?: Task | ConfiguringTask }> {
+		const recentTasks: (Task | ConfiguringTask)[] = (await this.taskService.readRecentTasks()).reverse();
+		const configuredTasks: (Task | ConfiguringTask)[] = this.handleFolderTaskResult(await this.taskService.getWorkspaceTasks());
+		const extensionTaskTypes = this.taskService.taskTypes();
+		const taskQuickPickEntries: QuickPickInput<TaskQuickPickEntry2>[] = [];
+		if (recentTasks.length > 0) {
+			this.createEntriesForGroup(taskQuickPickEntries, recentTasks, nls.localize('recentlyUsed', 'recently used'));
+		}
+		if (configuredTasks.length > 0) {
+			let dedupedConfiguredTasks: (Task | ConfiguringTask)[] = this.dedupeConfiguredAndRecent(recentTasks, configuredTasks);
+			if (dedupedConfiguredTasks.length > 0) {
+				this.createEntriesForGroup(taskQuickPickEntries, dedupedConfiguredTasks, nls.localize('configured', 'configured'));
+			}
+		}
+
+		if (defaultEntry && (configuredTasks.length === 0)) {
+			taskQuickPickEntries.push({ type: 'separator', label: nls.localize('configured', 'configured') });
+			taskQuickPickEntries.push(defaultEntry);
+		}
+
+		if (extensionTaskTypes.length > 0) {
+			this.createTypeEntries(taskQuickPickEntries, extensionTaskTypes);
+		}
+		return { entries: taskQuickPickEntries, isSingleConfigured: configuredTasks.length === 1 ? configuredTasks[0] : undefined };
+	}
+
+	private async show(placeHolder: string, defaultEntry?: TaskQuickPickEntry): Promise<Task | undefined | null> {
 		const picker: IQuickPick<TaskQuickPickEntry2> = this.quickInputService.createQuickPick();
 		picker.placeholder = placeHolder;
 		picker.matchOnDescription = true;
 		picker.ignoreFocusOut = false;
-		picker.busy = true;
 		picker.show();
-
-		// First show recent tasks configured tasks. Other tasks will be available at a second level
-		const recentTasks: (Task | ConfiguringTask)[] = (await this.taskService.readRecentTasks()).reverse();
-		const configuredTasks: (Task | ConfiguringTask)[] = this.handleFolderTaskResult(await this.taskService.getWorkspaceTasks());
-		const extensionTaskTypes = this.taskService.taskTypes();
-		const sorter = this.taskService.createSorter();
-		const taskQuickPickEntries: QuickPickInput<TaskQuickPickEntry2>[] = [];
-		if (recentTasks.length > 0) {
-			this.createEntriesForGroup(taskQuickPickEntries, recentTasks, nls.localize('recentlyUsed', 'recently used tasks'));
-		}
-		if (configuredTasks.length > 0) {
-			let dedupedConfiguredTasks: (Task | ConfiguringTask)[] = [];
-			for (let j = 0; j < configuredTasks.length; j++) {
-				const workspaceFolder = configuredTasks[j].getWorkspaceFolder()?.uri.toString();
-				const definition = configuredTasks[j].getDefinition()?._key;
-				const recentKey = configuredTasks[j].getRecentlyUsedKey();
-				if (!recentTasks.find((value) => {
-					return (workspaceFolder && definition && value.getWorkspaceFolder()?.uri.toString() === workspaceFolder && value.getDefinition()?._key === definition)
-						|| (recentKey && value.getRecentlyUsedKey() === recentKey);
-				})) {
-					dedupedConfiguredTasks.push(configuredTasks[j]);
-				}
-			}
-			dedupedConfiguredTasks = dedupedConfiguredTasks.sort((a, b) => sorter.compare(a, b));
-			this.createEntriesForGroup(taskQuickPickEntries, dedupedConfiguredTasks, nls.localize('configured', 'configured tasks'));
-		}
-		if (extensionTaskTypes.length > 0) {
-			this.createTypeEntries(taskQuickPickEntries, extensionTaskTypes);
-		}
-		// TODO: Add additional entries
-		// TODO: skip if only one entry and setting is set
-		// TODO: handle default entry
-
-		picker.items = taskQuickPickEntries;
-		picker.busy = false;
 
 		picker.onDidTriggerItemButton(context => {
 			let task = context.item.task;
@@ -179,59 +191,79 @@ export class TaskQuickPick extends Disposable {
 			}
 		});
 
+		// First show recent tasks configured tasks. Other tasks will be available at a second level
+		const topLevelEntriesResult = await this.createTopLevelEntries(defaultEntry);
+		if (topLevelEntriesResult.isSingleConfigured && this.configurationService.getValue<boolean>(QUICKOPEN_SKIP_CONFIG)) {
+			picker.dispose();
+			return this.toTask(topLevelEntriesResult.isSingleConfigured);
+		}
+		const taskQuickPickEntries: QuickPickInput<TaskQuickPickEntry2>[] = topLevelEntriesResult.entries;
+
+		do {
+			const firstLevelTask = await this.doPickerFirstLevel(picker, taskQuickPickEntries);
+			if (Types.isString(firstLevelTask)) {
+				// Proceed to second level of quick pick
+				const selectedEntry = await this.doPickerSecondLevel(picker, firstLevelTask);
+				if (selectedEntry && selectedEntry.task === null) {
+					// The user has chosen to go back to the first level
+					continue;
+				} else {
+					picker.dispose();
+					return (selectedEntry?.task && !Types.isString(selectedEntry?.task)) ? this.toTask(selectedEntry?.task) : undefined;
+				}
+			} else if (firstLevelTask) {
+				picker.dispose();
+				return this.toTask(firstLevelTask);
+			} else {
+				return;
+			}
+		} while (1);
+		return;
+	}
+
+	private async doPickerFirstLevel(picker: IQuickPick<TaskQuickPickEntry2>, taskQuickPickEntries: QuickPickInput<TaskQuickPickEntry2>[]): Promise<Task | ConfiguringTask | string | null | undefined> {
+		picker.items = taskQuickPickEntries;
 		const firstLevelPickerResult = await new Promise<TaskQuickPickEntry2 | undefined | null>(resolve => {
 			Event.once(picker.onDidAccept)(async () => {
-				let selection = picker.selectedItems ? picker.selectedItems[0] : undefined;
-				// if (cancellationToken.isCancellationRequested) {
-				// 	// canceled when there's only one task
-				// 	const task = (await pickEntries)[0];
-				// 	if ((<any>task).task) {
-				// 		selection = <TaskQuickPickEntry>task;
-				// 	}
-				// }
-				if (!selection) {
-					resolve();
-				}
-				resolve(selection);
+				resolve(picker.selectedItems ? picker.selectedItems[0] : undefined);
 			});
 		});
-		const firstLevelTask: string | Task | ConfiguringTask | undefined | null = firstLevelPickerResult?.task;
-		if (Types.isString(firstLevelTask)) {
-			// Proceed to second level of quick pick
-			picker.busy = true;
-			picker.value = '';
-			const secondLevelPickerResult = new Promise<TaskQuickPickEntry2 | undefined | null>(resolve => {
-				Event.once(picker.onDidAccept)(async () => {
-					let selection = picker.selectedItems ? picker.selectedItems[0] : undefined;
-					// if (cancellationToken.isCancellationRequested) {
-					// 	// canceled when there's only one task
-					// 	const task = (await pickEntries)[0];
-					// 	if ((<any>task).task) {
-					// 		selection = <TaskQuickPickEntry>task;
-					// 	}
-					// }
-					if (!selection) {
-						resolve();
-					}
-					resolve(selection);
-				});
-			});
-			picker.items = await this.getEntriesForProvider(firstLevelTask);
-			picker.busy = false;
-			const selectedEntry = (await secondLevelPickerResult);
-			picker.dispose();
-			return (selectedEntry?.task && !Types.isString(selectedEntry?.task)) ? this.toTask(selectedEntry?.task) : undefined;
-		} else if (firstLevelTask) {
-			picker.dispose();
-			return this.toTask(firstLevelTask);
+		return firstLevelPickerResult?.task;
+	}
+
+	private async doPickerSecondLevel(picker: IQuickPick<TaskQuickPickEntry2>, type: string) {
+		picker.busy = true;
+		picker.value = '';
+		if (type === SHOW_ALL) {
+			picker.items = (await this.taskService.tasks()).sort((a, b) => this.sorter.compare(a, b)).map(task => this.createTaskEntry(task));
 		} else {
-			return;
+			picker.items = await this.getEntriesForProvider(type);
 		}
+		picker.busy = false;
+		const secondLevelPickerResult = await new Promise<TaskQuickPickEntry2 | undefined | null>(resolve => {
+			Event.once(picker.onDidAccept)(async () => {
+				resolve(picker.selectedItems ? picker.selectedItems[0] : undefined);
+			});
+		});
+
+		return secondLevelPickerResult;
 	}
 
 	private async getEntriesForProvider(type: string): Promise<QuickPickInput<TaskQuickPickEntry2>[]> {
-		const tasks = await this.taskService.tasks({ type });
-		const taskQuickPickEntries: QuickPickInput<TaskQuickPickEntry2>[] = tasks.map(task => this.createTaskEntry(task));
+		const tasks = (await this.taskService.tasks({ type })).sort((a, b) => this.sorter.compare(a, b));
+		let taskQuickPickEntries: QuickPickInput<TaskQuickPickEntry2>[];
+		if (tasks.length > 0) {
+			taskQuickPickEntries = tasks.map(task => this.createTaskEntry(task));
+			taskQuickPickEntries.unshift({
+				label: nls.localize('TaskQuickPick.goBack', 'Go back...'),
+				task: null
+			});
+		} else {
+			taskQuickPickEntries = [{
+				label: nls.localize('TaskQuickPick.noTasksForType', 'No {0} tasks found. Go back...', type),
+				task: null
+			}];
+		}
 		return taskQuickPickEntries;
 	}
 
@@ -243,8 +275,8 @@ export class TaskQuickPick extends Disposable {
 		return this.taskService.tryResolveTask(task);
 	}
 
-	static async show(taskService: ITaskService, configurationService: IConfigurationService, quickInputService: IQuickInputService, _groupedTasks?: TaskMap) {
-		const taskQuickPick = new TaskQuickPick(taskService, configurationService, quickInputService /*, groupedTasks*/);
-		return taskQuickPick.show();
+	static async show(taskService: ITaskService, configurationService: IConfigurationService, quickInputService: IQuickInputService, placeHolder: string, defaultEntry?: TaskQuickPickEntry, selectedEntry?: TaskQuickPickEntry, additionalEntries?: TaskQuickPickEntry[], tasks?: Promise<Task[]> | Task[], taskSet?: TaskMap) {
+		const taskQuickPick = new TaskQuickPick(taskService, configurationService, quickInputService);
+		return taskQuickPick.show(placeHolder, defaultEntry);
 	}
 }
