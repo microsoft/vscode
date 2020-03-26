@@ -17,7 +17,7 @@ export function setup(isWeb) {
 			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.SYNC_STATUS);
 			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.PROBLEMS_STATUS);
 
-			await app.workbench.quickopen.openFile('app.js');
+			await app.workbench.quickaccess.openFile('app.js');
 			if (!isWeb) {
 				// Encoding picker currently hidden in web (only UTF-8 supported)
 				await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.ENCODING_STATUS);
@@ -35,7 +35,7 @@ export function setup(isWeb) {
 			await app.workbench.quickinput.waitForQuickInputOpened();
 			await app.workbench.quickinput.closeQuickInput();
 
-			await app.workbench.quickopen.openFile('app.js');
+			await app.workbench.quickaccess.openFile('app.js');
 			await app.workbench.statusbar.clickOn(StatusBarElement.INDENTATION_STATUS);
 			await app.workbench.quickinput.waitForQuickInputOpened();
 			await app.workbench.quickinput.closeQuickInput();
@@ -74,7 +74,7 @@ export function setup(isWeb) {
 		it(`checks if 'Go to Line' works if called from the status bar`, async function () {
 			const app = this.app as Application;
 
-			await app.workbench.quickopen.openFile('app.js');
+			await app.workbench.quickaccess.openFile('app.js');
 			await app.workbench.statusbar.clickOn(StatusBarElement.SELECTION_STATUS);
 
 			await app.workbench.quickinput.waitForQuickInputOpened();
@@ -86,7 +86,7 @@ export function setup(isWeb) {
 		it(`verifies if changing EOL is reflected in the status bar`, async function () {
 			const app = this.app as Application;
 
-			await app.workbench.quickopen.openFile('app.js');
+			await app.workbench.quickaccess.openFile('app.js');
 			await app.workbench.statusbar.clickOn(StatusBarElement.EOL_STATUS);
 
 			await app.workbench.quickinput.waitForQuickInputOpened();

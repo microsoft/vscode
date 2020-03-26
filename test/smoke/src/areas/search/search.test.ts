@@ -70,7 +70,7 @@ export function setup() {
 				'jsconfig.json'
 			];
 
-			await app.workbench.quickopen.openQuickOpen('.js');
+			await app.workbench.quickaccess.openQuickAccess('.js');
 			await app.workbench.quickinput.waitForQuickInputElements(names => expectedNames.every(n => names.some(m => n === m)));
 			await app.code.dispatchKeybinding('escape');
 		});
@@ -83,7 +83,7 @@ export function setup() {
 				'package.json'
 			];
 
-			await app.workbench.quickopen.openQuickOpen('a.s');
+			await app.workbench.quickaccess.openQuickAccess('a.s');
 			await app.workbench.quickinput.waitForQuickInputElements(names => expectedNames.every(n => names.some(m => n === m)));
 			await app.code.dispatchKeybinding('escape');
 		});
