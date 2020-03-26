@@ -105,6 +105,7 @@ export class BackLayerWebView extends Disposable {
 
 		const loader = URI.file(path.join(environmentSerice.appRoot, '/out/vs/loader.js')).with({ scheme: WebviewResourceScheme });
 
+		const outputNodePadding = 8;
 		let content = /* html */`
 		<html lang="en">
 			<head>
@@ -112,7 +113,8 @@ export class BackLayerWebView extends Disposable {
 				<style>
 					#container > div > div {
 						width: 100%;
-						padding: 8px 0 0 0;
+						padding: ${outputNodePadding}px;
+						box-sizing: border-box;
 						background-color: var(--vscode-list-inactiveSelectionBackground);
 					}
 					body {
@@ -172,7 +174,7 @@ export class BackLayerWebView extends Disposable {
 							type: 'dimension',
 							id: id,
 							data: {
-								height: entry.contentRect.height
+								height: entry.contentRect.height + ${outputNodePadding}
 							}
 						});
 				}
