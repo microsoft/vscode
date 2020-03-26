@@ -52,6 +52,8 @@ export const NAVIGATE_IN_ACTIVE_GROUP_BY_MOST_RECENTLY_USED_PREFIX = 'edt active
 
 export const OPEN_EDITOR_AT_INDEX_COMMAND_ID = 'workbench.action.openEditorAtIndex';
 
+export const PIN_CURRENT_EDITOR_COMMAND_ID = 'workbench.action.pinCurrentEditor';
+
 export interface ActiveEditorMoveArguments {
 	to: 'first' | 'last' | 'left' | 'right' | 'up' | 'down' | 'center' | 'position' | 'previous' | 'next';
 	by: 'tab' | 'group';
@@ -111,6 +113,22 @@ function registerActiveEditorMoveCommand(): void {
 					}
 				}
 			]
+		}
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: PIN_CURRENT_EDITOR_COMMAND_ID,
+		weight: KeybindingWeight.WorkbenchContrib,
+		when: undefined,
+		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_I),
+		// primary: undefined,
+		handler: (accessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
+			const editorGroupService = accessor.get(IEditorGroupsService);
+
+			const { group, editor } = resolveCommandsContext(editorGroupService, getCommandsContext(resourceOrContext, context));
+			if (group && editor && group.activeEditor) {
+				group.pinEditor(group.activeEditor);
+			}
 		}
 	});
 }
