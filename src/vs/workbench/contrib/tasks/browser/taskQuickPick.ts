@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
+import * as Objects from 'vs/base/common/objects';
 import { Task, ContributedTask, CustomTask, ConfiguringTask, TaskSorter } from 'vs/workbench/contrib/tasks/common/tasks';
 import { IWorkspace, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import * as Types from 'vs/base/common/types';
@@ -44,8 +45,23 @@ export class TaskQuickPick extends Disposable {
 		return this.configurationService.getValue<boolean>(QUICKOPEN_DETAIL_CONFIG);
 	}
 
+	private guessTaskLabel(task: Task | ConfiguringTask): string {
+		if (task._label) {
+			return task._label;
+		}
+		if (ConfiguringTask.is(task)) {
+			let label: string = task.configures.type;
+			const configures = Objects.deepClone(task.configures);
+			delete configures['_key'];
+			delete configures['type'];
+			Object.keys(configures).forEach(key => label += `: ${configures[key]}`);
+			return label;
+		}
+		return '';
+	}
+
 	private createTaskEntry(task: Task | ConfiguringTask): TaskTwoLevelQuickPickEntry {
-		let entryLabel = task._label;
+		let entryLabel = this.guessTaskLabel(task);
 		let commonKey = task._id.split('|');
 		if (commonKey.length > 1) {
 			entryLabel = entryLabel + ' (' + commonKey[1] + ')';
@@ -65,7 +81,7 @@ export class TaskQuickPick extends Disposable {
 	private createTypeEntries(entries: QuickPickInput<TaskTwoLevelQuickPickEntry>[], types: string[]) {
 		entries.push({ type: 'separator', label: nls.localize('contributedTasks', "contributed") });
 		types.forEach(type => {
-			entries.push({ label: type, task: type, description: SHOW_ALL });
+			entries.push({ label: `$(folder) ${type}`, task: type });
 		});
 		entries.push({ label: SHOW_ALL, task: SHOW_ALL });
 	}
