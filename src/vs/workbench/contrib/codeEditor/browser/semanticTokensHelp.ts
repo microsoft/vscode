@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import * as path from 'vs/base/common/path';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -14,6 +14,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 /**
  * Shows a message when semantic tokens are shown the first time.
@@ -26,7 +27,8 @@ export class SemanticTokensHelp extends Disposable implements IEditorContributio
 		_editor: ICodeEditor,
 		@INotificationService _notificationService: INotificationService,
 		@IOpenerService _openerService: IOpenerService,
-		@IWorkbenchThemeService _themeService: IWorkbenchThemeService
+		@IWorkbenchThemeService _themeService: IWorkbenchThemeService,
+		@IEditorService _editorService: IEditorService
 	) {
 		super();
 
@@ -37,8 +39,12 @@ export class SemanticTokensHelp extends Disposable implements IEditorContributio
 				if (!e.semanticTokensApplied) {
 					return;
 				}
+				const activeEditorControl = _editorService.activeTextEditorControl;
+				if (!isCodeEditor(activeEditorControl) || activeEditorControl.getModel() !== model) {
+					return; // only show if model is in the active code editor
+				}
 
-				toDispose.dispose(); // uninstall all listeners, makes sure the notification is only shown once per window
+				toDispose.dispose(); // uninstall all listeners, make sure the notification is only shown once per window
 
 				const message = nls.localize(
 					{
@@ -48,7 +54,7 @@ export class SemanticTokensHelp extends Disposable implements IEditorContributio
 							'Variable 1 will be a theme name.'
 						]
 					},
-					"Semantic highlighting has been applied to '{0}' as the theme '{1}' has semantic highlighting enabled.",
+					"Code coloring of '{0}' has been updated as the theme '{1}' has semantic highlighting enabled.",
 					path.basename(model.uri.path), _themeService.getColorTheme().label
 				);
 
