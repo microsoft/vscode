@@ -15,7 +15,7 @@ import { QuickInputController } from 'vs/base/parts/quickinput/browser/quickInpu
 import { QuickInputService as BaseQuickInputService } from 'vs/platform/quickinput/browser/quickInput';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { InQuickOpenContextKey } from 'vs/workbench/browser/parts/quickopen/quickopen';
+import { InQuickOpenContextKey } from 'vs/workbench/browser/quickopen';
 
 export class QuickInputService extends BaseQuickInputService {
 

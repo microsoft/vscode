@@ -29,7 +29,7 @@ import { FileKind } from 'vs/platform/files/common/files';
 import { splitName } from 'vs/base/common/labels';
 import { isMacintosh } from 'vs/base/common/platform';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { inQuickOpenContext, getQuickNavigateHandler } from 'vs/workbench/browser/parts/quickopen/quickopen';
+import { inQuickOpenContext, getQuickNavigateHandler } from 'vs/workbench/browser/quickopen';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export const inRecentFilesPickerContextKey = 'inRecentFilesPicker';
