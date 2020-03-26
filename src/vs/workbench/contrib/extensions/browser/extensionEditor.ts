@@ -265,9 +265,11 @@ export class ExtensionEditor extends BaseEditor {
 			const fontSize = Math.round(currHeight * 0.1);
 			header.style.fontSize = `${fontSize}px`;
 
-			// hide recommendation comment on when header os too small
+			// hide subtext and reduce padding on when header os too small
 			if (currHeight < 120) {
 				subtextContainer.style.display = 'none';
+				header.style.paddingTop = '0.5%';
+				header.style.paddingBottom = '0.5%';
 			}
 		});
 		resizeObserver.startObserving();
