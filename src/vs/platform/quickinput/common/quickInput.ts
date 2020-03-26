@@ -94,7 +94,4 @@ export interface IQuickInputService {
 	 * Cancels quick input and closes it.
 	 */
 	cancel(): Promise<void>;
-
-	// TODO@Ben remove once quick open is gone
-	hide(focusLost?: boolean): void;
 }

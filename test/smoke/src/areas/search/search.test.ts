@@ -57,8 +57,8 @@ export function setup() {
 		});
 	});
 
-	describe('Quick Open', () => {
-		it('quick open search produces correct result', async function () {
+	describe('Quick Access', () => {
+		it('quick access search produces correct result', async function () {
 			const app = this.app as Application;
 			const expectedNames = [
 				'.eslintrc.json',
@@ -75,7 +75,7 @@ export function setup() {
 			await app.code.dispatchKeybinding('escape');
 		});
 
-		it('quick open respects fuzzy matching', async function () {
+		it('quick access respects fuzzy matching', async function () {
 			const app = this.app as Application;
 			const expectedNames = [
 				'tasks.json',

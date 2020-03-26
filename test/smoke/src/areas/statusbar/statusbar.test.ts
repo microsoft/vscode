@@ -28,7 +28,7 @@ export function setup(isWeb) {
 			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.SELECTION_STATUS);
 		});
 
-		it(`verifies that 'quick open' opens when clicking on status bar elements`, async function () {
+		it(`verifies that 'quick input' opens when clicking on status bar elements`, async function () {
 			const app = this.app as Application;
 
 			await app.workbench.statusbar.clickOn(StatusBarElement.BRANCH_STATUS);

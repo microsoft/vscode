@@ -166,10 +166,6 @@ export class QuickInputService extends Themable implements IQuickInputService {
 		return this.controller.cancel();
 	}
 
-	hide(focusLost?: boolean): void {
-		return this.controller.hide(focusLost);
-	}
-
 	protected updateStyles() {
 		this.controller.applyStyles(this.computeStyles());
 	}
