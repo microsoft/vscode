@@ -112,8 +112,7 @@ export class BackLayerWebView extends Disposable {
 				<style>
 					#container > div > div {
 						width: 100%;
-						padding: 0 8px;
-						margin: 8px 0;
+						padding: 8px 0 0 0;
 						background-color: var(--vscode-list-inactiveSelectionBackground);
 					}
 					body {
@@ -288,7 +287,7 @@ export class BackLayerWebView extends Disposable {
 
 					let cell = this.insetMapping.get(output)!.cell;
 					let height = data.data.height;
-					let outputHeight = height === 0 ? 0 : height + 16;
+					let outputHeight = height;
 
 					if (cell) {
 						let outputIndex = cell.outputs.indexOf(output);
@@ -325,7 +324,7 @@ export class BackLayerWebView extends Disposable {
 		let outputIndex = cell.outputs.indexOf(output);
 
 		let outputOffsetInOutputContainer = cell.getOutputOffset(outputIndex);
-		let outputOffset = cellTop + cell.layoutInfo.editorHeight + 16 /* editor padding */ + 8 + outputOffsetInOutputContainer;
+		let outputOffset = cellTop + cell.layoutInfo.editorHeight + outputOffsetInOutputContainer;
 
 		if (outputOffset === outputCache.cacheOffset) {
 			return false;
@@ -341,7 +340,7 @@ export class BackLayerWebView extends Disposable {
 			let outputIndex = item.cell.outputs.indexOf(item.output);
 
 			let outputOffsetInOutputContainer = item.cell.getOutputOffset(outputIndex);
-			let outputOffset = item.cellTop + item.cell.layoutInfo.editorHeight + 16 /* editor padding */ + 16 + outputOffsetInOutputContainer;
+			let outputOffset = item.cellTop + item.cell.layoutInfo.outputContainerOffset + outputOffsetInOutputContainer;
 			outputCache.cacheOffset = outputOffset;
 
 			return {

@@ -83,6 +83,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			fontInfo: null,
 			editorHeight: 0,
 			editorWidth: 0,
+			outputContainerOffset: 0,
 			outputTotalHeight: 0,
 			totalHeight: 0,
 			indicatorHeight: 0
@@ -108,12 +109,14 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		const totalHeight = this.outputs.length
 			? EDITOR_TOOLBAR_HEIGHT + this.editorHeight + EDITOR_TOP_PADDING + 16 + outputTotalHeight
 			: EDITOR_TOOLBAR_HEIGHT + this.editorHeight + EDITOR_TOP_PADDING + outputTotalHeight;
-		const indicatorHeight = totalHeight - EDITOR_TOOLBAR_HEIGHT - 16;
+		const indicatorHeight = this.editorHeight + outputTotalHeight;
+		const outputContainerOffset = EDITOR_TOOLBAR_HEIGHT + this.editorHeight;
 		const editorWidth = state.outerWidth !== undefined ? state.outerWidth - CELL_MARGIN * 2 - CELL_RUN_GUTTER : 0;
 		this._layoutInfo = {
 			fontInfo: state.font || null,
 			editorHeight: this._editorHeight,
 			editorWidth,
+			outputContainerOffset,
 			outputTotalHeight,
 			totalHeight,
 			indicatorHeight
