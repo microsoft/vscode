@@ -10,6 +10,7 @@ import { ICell, NotebookCellsSplice } from 'vs/workbench/contrib/notebook/common
 import { URI } from 'vs/base/common/uri';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
+import { isEqual } from 'vs/base/common/resources';
 
 export class NotebookEditorModel extends EditorModel {
 	private _dirty = false;
@@ -136,5 +137,16 @@ export class NotebookEditorInput extends EditorInput {
 		}
 
 		return this.promise;
+	}
+
+	matches(otherInput: unknown): boolean {
+		if (this === otherInput) {
+			return true;
+		}
+		if (otherInput instanceof NotebookEditorInput) {
+			return this.viewType === otherInput.viewType
+				&& isEqual(this.resource, otherInput.resource);
+		}
+		return false;
 	}
 }
