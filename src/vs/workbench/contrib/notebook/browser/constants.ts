@@ -20,11 +20,11 @@ export const COPY_CELL_DOWN_COMMAND_ID = 'workbench.notebook.cell.copyDown';
 export const EXECUTE_CELL_COMMAND_ID = 'workbench.notebook.cell.execute';
 
 // Cell sizing related
-export const CELL_MARGIN = 32;
+export const CELL_MARGIN = 20;
+export const CELL_RUN_GUTTER = 32; // TODO should be dynamic based on execution order width, and runnable enablement
 export const EDITOR_TOP_PADDING = 8;
 export const EDITOR_BOTTOM_PADDING = 8;
 export const EDITOR_TOOLBAR_HEIGHT = 22;
-export const RUN_BUTTON_WIDTH = 30;
 
 // Cell context keys
 export const NOTEBOOK_CELL_TYPE_CONTEXT_KEY = 'notebookCellType'; // code, markdown

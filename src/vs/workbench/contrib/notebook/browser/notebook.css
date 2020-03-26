@@ -132,28 +132,33 @@
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row .cell .run-button-container {
-	width: 30px;
 	position: relative;
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row .cell .run-button-container .monaco-toolbar {
-	margin-top: 8px;
+	margin-top: 5px;
 	visibility: hidden;
 }
 
-.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row:hover .cell .run-button-container .monaco-toolbar,
-.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row.focused .cell .run-button-container .monaco-toolbar {
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row .cell .run-button-container .monaco-toolbar .codicon-play {
+	margin-right: 8px;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row:hover .cell.runnable .run-button-container .monaco-toolbar,
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row.focused .cell.runnable .run-button-container .monaco-toolbar {
 	visibility: visible;
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row .cell .run-button-container .execution-count-label {
 	position: absolute;
-	top: 8px;
+	top: 2px;
 	font-size: 12px;
 	visibility: visible;
 	white-space: pre;
 	width: 100%;
 	text-align: center;
+	padding-right: 2px;
+	box-sizing: border-box;
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row:hover .cell .run-button-container .execution-count-label,
@@ -187,7 +192,7 @@
 	width: 6px;
 	border-left-width: 2px;
 	border-left-style: solid;
-	left: 28px;
+	left: 20px;
 	top: 22px;
 	bottom: 8px;
 	visibility: hidden;
