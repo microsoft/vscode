@@ -35,6 +35,7 @@ import { CustomTextEditorModel } from 'vs/workbench/contrib/customEditor/common/
 import { WebviewExtensionDescription, WebviewIcons } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
 import { ICreateWebViewShowOptions, IWebviewWorkbenchService, WebviewInputOptions } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
+import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -581,6 +582,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 	private _currentEditIndex: number = -1;
 	private _savePoint: number = -1;
 	private readonly _edits: Array<number> = [];
+	private _fromBackup: boolean = false;
 
 	public static async create(
 		instantiationService: IInstantiationService,
@@ -591,7 +593,9 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 		cancellation: CancellationToken,
 	) {
 		const { editable } = await proxy.$createWebviewCustomEditorDocument(resource, viewType, cancellation);
-		return instantiationService.createInstance(MainThreadCustomEditorModel, proxy, viewType, resource, editable, getEditors);
+		const model = instantiationService.createInstance(MainThreadCustomEditorModel, proxy, viewType, resource, editable, getEditors);
+		await model.init();
+		return model;
 	}
 
 	constructor(
@@ -604,6 +608,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 		@ILabelService private readonly _labelService: ILabelService,
 		@IFileService private readonly _fileService: IFileService,
 		@IUndoRedoService private readonly _undoService: IUndoRedoService,
+		@IBackupFileService private readonly _backupFileService: IBackupFileService,
 	) {
 		super();
 
@@ -614,6 +619,11 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 
 	get editorResource() {
 		return this._editorResource;
+	}
+
+	async init(): Promise<void> {
+		const backup = await this._backupFileService.resolve<CustomDocumentBackupData>(this.resource);
+		this._fromBackup = !!backup;
 	}
 
 	dispose() {
@@ -645,7 +655,10 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 	}
 
 	public isDirty(): boolean {
-		return this._edits.length > 0 && this._savePoint !== this._currentEditIndex;
+		if (this._edits.length > 0) {
+			return this._savePoint !== this._currentEditIndex;
+		}
+		return this._fromBackup;
 	}
 
 	private readonly _onDidChangeDirty: Emitter<void> = this._register(new Emitter<void>());
