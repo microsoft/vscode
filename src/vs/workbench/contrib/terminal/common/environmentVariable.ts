@@ -34,11 +34,6 @@ export interface IEnvironmentVariableCollection {
 	 * Applies this collection to a process environment.
 	 */
 	applyToProcessEnvironment(env: IProcessEnvironment): void;
-
-	/**
-	 * Gets a serializable view of the collection.
-	 */
-	// serialize(): [string, IEnvironmentVariableMutator][];
 }
 
 /**
