@@ -1242,18 +1242,20 @@ namespace GroupKind {
 }
 
 namespace TaskDependency {
+	function uriFromSource(context: ParseContext, source: TaskConfigSource): URI | string {
+		switch (source) {
+			case TaskConfigSource.User: return USER_TASKS_GROUP_KEY;
+			case TaskConfigSource.TasksJson: return context.workspaceFolder.uri;
+			default: return context.workspace && context.workspace.configuration ? context.workspace.configuration : context.workspaceFolder.uri;
+		}
+	}
+
 	export function from(this: void, external: string | TaskIdentifier, context: ParseContext, source: TaskConfigSource): Tasks.TaskDependency | undefined {
 		if (Types.isString(external)) {
-			let uri: URI | string;
-			if (source === TaskConfigSource.User) {
-				uri = USER_TASKS_GROUP_KEY;
-			} else {
-				uri = context.workspace && context.workspace.configuration ? context.workspace.configuration : context.workspaceFolder.uri;
-			}
-			return { uri, task: external };
+			return { uri: uriFromSource(context, source), task: external };
 		} else if (TaskIdentifier.is(external)) {
 			return {
-				uri: context.workspace && context.workspace.configuration ? context.workspace.configuration : context.workspaceFolder.uri,
+				uri: uriFromSource(context, source),
 				task: Tasks.TaskDefinition.createTaskIdentifier(external as Tasks.TaskIdentifier, context.problemReporter)
 			};
 		} else {
