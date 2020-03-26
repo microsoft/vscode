@@ -52,13 +52,17 @@ export class UserConfiguration extends Disposable {
 	}
 
 	async reload(): Promise<ConfigurationModel> {
-		if (!(this.userConfiguration.value instanceof FileServiceBasedConfiguration)) {
-			const folder = resources.dirname(this.userSettingsResource);
-			const standAloneConfigurationResources: [string, URI][] = [TASKS_CONFIGURATION_KEY].map(name => ([name, resources.joinPath(folder, `${name}.json`)]));
-			this.userConfiguration.value = new FileServiceBasedConfiguration(folder.toString(), [this.userSettingsResource], standAloneConfigurationResources, this.scopes, this.fileService);
-			this._register(this.userConfiguration.value.onDidChange(() => this.reloadConfigurationScheduler.schedule()));
+		if (this.userConfiguration.value instanceof FileServiceBasedConfiguration) {
+			return this.userConfiguration.value!.loadConfiguration();
 		}
-		return this.userConfiguration.value!.loadConfiguration();
+
+		const folder = resources.dirname(this.userSettingsResource);
+		const standAloneConfigurationResources: [string, URI][] = [TASKS_CONFIGURATION_KEY].map(name => ([name, resources.joinPath(folder, `${name}.json`)]));
+		const fileServiceBasedConfiguration = new FileServiceBasedConfiguration(folder.toString(), [this.userSettingsResource], standAloneConfigurationResources, this.scopes, this.fileService);
+		const configurationModel = await fileServiceBasedConfiguration.loadConfiguration();
+		this.userConfiguration.value = fileServiceBasedConfiguration;
+		this._register(this.userConfiguration.value.onDidChange(() => this.reloadConfigurationScheduler.schedule()));
+		return configurationModel;
 	}
 
 	reprocess(): ConfigurationModel {
