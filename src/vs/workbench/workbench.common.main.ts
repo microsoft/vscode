@@ -146,10 +146,7 @@ import 'vs/workbench/contrib/notebook/browser/notebook.contribution';
 // Logs
 import 'vs/workbench/contrib/logs/common/logs.contribution';
 
-// Quick Open Handlers
-import 'vs/workbench/contrib/quickopen/browser/quickopen.contribution';
-
-// Quick Access Providers
+// Quickopen
 import 'vs/workbench/contrib/quickaccess/browser/quickAccess.contribution';
 
 // Explorer
