@@ -1807,11 +1807,17 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return this._tokens2.isComplete();
 	}
 
-	public setPartialSemanticTokens(tokens: MultilineTokens2[]): void {
+	public setPartialSemanticTokens(range: Range, tokens: MultilineTokens2[]): void {
 		if (this.hasSemanticTokens()) {
 			return;
 		}
-		this.setSemanticTokens(tokens, false);
+		const changedRange = this._tokens2.setPartial(range, tokens);
+
+		this._emitModelTokensChangedEvent({
+			tokenizationSupportChanged: false,
+			semanticTokensApplied: true,
+			ranges: [{ fromLineNumber: changedRange.startLineNumber, toLineNumber: changedRange.endLineNumber }]
+		});
 	}
 
 	public tokenizeViewport(startLineNumber: number, endLineNumber: number): void {

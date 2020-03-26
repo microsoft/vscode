@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { MultilineTokens2, SparseEncodedTokens } from 'vs/editor/common/model/tokensStore';
+import { MultilineTokens2, SparseEncodedTokens, TokensStore2 } from 'vs/editor/common/model/tokensStore';
 import { Range } from 'vs/editor/common/core/range';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { MetadataConsts, TokenMetadata } from 'vs/editor/common/modes';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { LineTokens } from 'vs/editor/common/core/lineTokens';
 
 suite('TokensStore', () => {
 
@@ -212,4 +213,91 @@ suite('TokensStore', () => {
 		model.dispose();
 	});
 
+	test('partial tokens 1', () => {
+		const store = new TokensStore2();
+
+		// setPartial: [1,1 -> 31,2], [(5,5-10),(10,5-10),(15,5-10),(20,5-10),(25,5-10),(30,5-10)]
+		store.setPartial(new Range(1, 1, 31, 2), [
+			new MultilineTokens2(5, new SparseEncodedTokens(new Uint32Array([
+				0, 5, 10, 1,
+				5, 5, 10, 2,
+				10, 5, 10, 3,
+				15, 5, 10, 4,
+				20, 5, 10, 5,
+				25, 5, 10, 6,
+			])))
+		]);
+
+		// setPartial: [18,1 -> 42,1], [(20,5-10),(25,5-10),(30,5-10),(35,5-10),(40,5-10)]
+		store.setPartial(new Range(18, 1, 42, 1), [
+			new MultilineTokens2(20, new SparseEncodedTokens(new Uint32Array([
+				0, 5, 10, 4,
+				5, 5, 10, 5,
+				10, 5, 10, 6,
+				15, 5, 10, 7,
+				20, 5, 10, 8,
+			])))
+		]);
+
+		// setPartial: [1,1 -> 31,2], [(5,5-10),(10,5-10),(15,5-10),(20,5-10),(25,5-10),(30,5-10)]
+		store.setPartial(new Range(1, 1, 31, 2), [
+			new MultilineTokens2(5, new SparseEncodedTokens(new Uint32Array([
+				0, 5, 10, 1,
+				5, 5, 10, 2,
+				10, 5, 10, 3,
+				15, 5, 10, 4,
+				20, 5, 10, 5,
+				25, 5, 10, 6,
+			])))
+		]);
+
+		const lineTokens = store.addSemanticTokens(10, new LineTokens(new Uint32Array([12, 1]), `enum Enum1 {`));
+		assert.equal(lineTokens.getCount(), 3);
+	});
+
+	test('partial tokens 2', () => {
+		const store = new TokensStore2();
+
+		// setPartial: [1,1 -> 31,2], [(5,5-10),(10,5-10),(15,5-10),(20,5-10),(25,5-10),(30,5-10)]
+		store.setPartial(new Range(1, 1, 31, 2), [
+			new MultilineTokens2(5, new SparseEncodedTokens(new Uint32Array([
+				0, 5, 10, 1,
+				5, 5, 10, 2,
+				10, 5, 10, 3,
+				15, 5, 10, 4,
+				20, 5, 10, 5,
+				25, 5, 10, 6,
+			])))
+		]);
+
+		// setPartial: [6,1 -> 36,2], [(10,5-10),(15,5-10),(20,5-10),(25,5-10),(30,5-10),(35,5-10)]
+		store.setPartial(new Range(6, 1, 36, 2), [
+			new MultilineTokens2(10, new SparseEncodedTokens(new Uint32Array([
+				0, 5, 10, 2,
+				5, 5, 10, 3,
+				10, 5, 10, 4,
+				15, 5, 10, 5,
+				20, 5, 10, 6,
+			])))
+		]);
+
+		// setPartial: [17,1 -> 42,1], [(20,5-10),(25,5-10),(30,5-10),(35,5-10),(40,5-10)]
+		store.setPartial(new Range(17, 1, 42, 1), [
+			new MultilineTokens2(20, new SparseEncodedTokens(new Uint32Array([
+				0, 5, 10, 4,
+				5, 5, 10, 5,
+				10, 5, 10, 6,
+				15, 5, 10, 7,
+				20, 5, 10, 8,
+			])))
+		]);
+
+		const lineTokens = store.addSemanticTokens(20, new LineTokens(new Uint32Array([12, 1]), `enum Enum1 {`));
+		assert.equal(lineTokens.getCount(), 3);
+	});
+
+	// tokensStore.ts:878 ==> INSIDE PARTIAL SET: PIECES: [(5,5-10)]
+	// tokensStore.ts:894 ==> AFTER PARTIAL SET: PIECES: [(10,5-10),(15,5-10),(20,5-10),(25,5-10),(30,5-10),(35,5-10)], [(5,5-10)]
+	// tokensStore.ts:878 ==> INSIDE PARTIAL SET: PIECES: [(10,5-10),(15,5-10)], [(5,5-10)]
+	// tokensStore.ts:894 ==> AFTER PARTIAL SET: PIECES: [(20,5-10),(25,5-10),(30,5-10),(35,5-10),(40,5-10)], [(10,5-10),(15,5-10)], [(5,5-10)]
 });

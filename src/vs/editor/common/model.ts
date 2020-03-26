@@ -832,7 +832,7 @@ export interface ITextModel {
 	/**
 	 * @internal
 	 */
-	setPartialSemanticTokens(tokens: MultilineTokens2[] | null): void;
+	setPartialSemanticTokens(range: Range, tokens: MultilineTokens2[] | null): void;
 
 	/**
 	 * @internal
