@@ -1074,10 +1074,10 @@ export class HideTerminalFindWidgetAction extends Action {
 	}
 }
 
-export class QuickOpenTermAction extends Action {
+export class QuickAccessTerminalAction extends Action {
 
 	public static readonly ID = TERMINAL_COMMAND_ID.QUICK_OPEN_TERM;
-	public static readonly LABEL = nls.localize('quickOpenTerm', "Switch Active Terminal");
+	public static readonly LABEL = nls.localize('quickAccessTerminal', "Switch Active Terminal");
 
 	constructor(
 		id: string,

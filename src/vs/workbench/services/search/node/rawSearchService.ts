@@ -183,7 +183,7 @@ export class SearchService implements IRawSearchService {
 			const sortSW = (typeof config.maxResults !== 'number' || config.maxResults > 0) && StopWatch.create(false);
 			return this.sortResults(config, results, scorerCache, token)
 				.then<[ISerializedSearchSuccess, IRawFileMatch[]]>(sortedResults => {
-					// sortingTime: -1 indicates a "sorted" search that was not sorted, i.e. populating the cache when quickopen is opened.
+					// sortingTime: -1 indicates a "sorted" search that was not sorted, i.e. populating the cache when quickaccess is opened.
 					// Contrasting with findFiles which is not sorted and will have sortingTime: undefined
 					const sortingTime = sortSW ? sortSW.elapsed() : -1;
 

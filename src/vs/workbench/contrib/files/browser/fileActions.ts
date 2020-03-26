@@ -501,7 +501,7 @@ export class GlobalCompareResourcesAction extends Action {
 
 			once(this.quickInputService.onHide)((() => toDispose.dispose()));
 
-			// Bring up quick open
+			// Bring up quick access
 			this.quickInputService.quickAccess.show('', { itemActivation: ItemActivation.SECOND });
 		} else {
 			this.notificationService.info(nls.localize('openFileToCompare', "Open a file first to compare it with another file."));

@@ -24,7 +24,7 @@ import 'vs/workbench/browser/actions/navigationActions';
 import 'vs/workbench/browser/actions/windowActions';
 import 'vs/workbench/browser/actions/workspaceActions';
 import 'vs/workbench/browser/actions/workspaceCommands';
-import 'vs/workbench/browser/actions/quickOpenActions';
+import 'vs/workbench/browser/actions/quickAccessActions';
 
 //#endregion
 
@@ -146,7 +146,7 @@ import 'vs/workbench/contrib/notebook/browser/notebook.contribution';
 // Logs
 import 'vs/workbench/contrib/logs/common/logs.contribution';
 
-// Quickopen
+// Quickaccess
 import 'vs/workbench/contrib/quickaccess/browser/quickAccess.contribution';
 
 // Explorer

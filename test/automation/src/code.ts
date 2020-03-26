@@ -134,7 +134,7 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 		options.workspacePath,
 		'--skip-getting-started',
 		'--skip-release-notes',
-		'--sticky-quickopen',
+		'--sticky-quickinput',
 		'--disable-telemetry',
 		'--disable-updates',
 		'--disable-crash-reporter',

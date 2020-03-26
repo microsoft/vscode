@@ -22,7 +22,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { DefaultQuickAccessFilterValue } from 'vs/platform/quickinput/common/quickAccess';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkbenchQuickOpenConfiguration } from 'vs/workbench/browser/quickopen';
+import { IWorkbenchQuickAccessConfiguration } from 'vs/workbench/browser/quickaccess';
 import { stripCodicons } from 'vs/base/common/codicons';
 import { Action } from 'vs/base/common/actions';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
@@ -66,7 +66,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 	}
 
 	private get configuration() {
-		const commandPaletteConfig = this.configurationService.getValue<IWorkbenchQuickOpenConfiguration>().workbench.commandPalette;
+		const commandPaletteConfig = this.configurationService.getValue<IWorkbenchQuickAccessConfiguration>().workbench.commandPalette;
 
 		return {
 			preserveInput: commandPaletteConfig.preserveInput

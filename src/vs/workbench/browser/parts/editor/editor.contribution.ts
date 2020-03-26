@@ -26,7 +26,7 @@ import {
 	CloseEditorsInOtherGroupsAction, CloseAllEditorsAction, MoveGroupLeftAction, MoveGroupRightAction, SplitEditorAction, JoinTwoGroupsAction, RevertAndCloseEditorAction,
 	NavigateBetweenGroupsAction, FocusActiveGroupAction, FocusFirstGroupAction, ResetGroupSizesAction, MaximizeGroupAction, MinimizeOtherGroupsAction, FocusPreviousGroup, FocusNextGroup,
 	CloseLeftEditorsInGroupAction, OpenNextEditor, OpenPreviousEditor, NavigateBackwardsAction, NavigateForwardAction, NavigateLastAction, ReopenClosedEditorAction,
-	QuickOpenPreviousRecentlyUsedEditorInGroupAction, QuickOpenPreviousEditorFromHistoryAction, ShowAllEditorsByAppearanceAction, ClearEditorHistoryAction, MoveEditorRightInGroupAction, OpenNextEditorInGroup,
+	QuickAccessPreviousRecentlyUsedEditorInGroupAction, QuickAccessPreviousEditorFromHistoryAction, ShowAllEditorsByAppearanceAction, ClearEditorHistoryAction, MoveEditorRightInGroupAction, OpenNextEditorInGroup,
 	OpenPreviousEditorInGroup, OpenNextRecentlyUsedEditorAction, OpenPreviousRecentlyUsedEditorAction, MoveEditorToPreviousGroupAction,
 	MoveEditorToNextGroupAction, MoveEditorToFirstGroupAction, MoveEditorLeftInGroupAction, ClearRecentFilesAction, OpenLastEditorInGroup,
 	ShowEditorsInActiveGroupByMostRecentlyUsedAction, MoveEditorToLastGroupAction, OpenFirstEditorInGroup, MoveGroupUpAction, MoveGroupDownAction, FocusLastGroupAction, SplitEditorLeftAction, SplitEditorRightAction,
@@ -34,12 +34,11 @@ import {
 	JoinAllGroupsAction, FocusLeftGroup, FocusAboveGroup, FocusRightGroup, FocusBelowGroup, EditorLayoutSingleAction, EditorLayoutTwoColumnsAction, EditorLayoutThreeColumnsAction, EditorLayoutTwoByTwoGridAction,
 	EditorLayoutTwoRowsAction, EditorLayoutThreeRowsAction, EditorLayoutTwoColumnsBottomAction, EditorLayoutTwoRowsRightAction, NewEditorGroupLeftAction, NewEditorGroupRightAction,
 	NewEditorGroupAboveAction, NewEditorGroupBelowAction, SplitEditorOrthogonalAction, CloseEditorInAllGroupsAction, NavigateToLastEditLocationAction, ToggleGroupSizesAction, ShowAllEditorsByMostRecentlyUsedAction,
-	QuickOpenPreviousRecentlyUsedEditorAction, OpenPreviousRecentlyUsedEditorInGroupAction, OpenNextRecentlyUsedEditorInGroupAction, QuickOpenNextRecentlyUsedEditorAction as QuickOpenLeastRecentlyUsedEditorAction,
-	QuickOpenLeastRecentlyUsedEditorInGroupAction
+	QuickAccessPreviousRecentlyUsedEditorAction, OpenPreviousRecentlyUsedEditorInGroupAction, OpenNextRecentlyUsedEditorInGroupAction, QuickAccessLeastRecentlyUsedEditorAction, QuickAccessLeastRecentlyUsedEditorInGroupAction
 } from 'vs/workbench/browser/parts/editor/editorActions';
 import * as editorCommands from 'vs/workbench/browser/parts/editor/editorCommands';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { inQuickOpenContext, getQuickNavigateHandler } from 'vs/workbench/browser/quickopen';
+import { inQuickPickContext, getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { isMacintosh } from 'vs/base/common/platform';
@@ -269,7 +268,7 @@ if (Object.keys(SUPPORTED_ENCODINGS).length > 1) {
 // Register Editor Quick Access
 const quickAccessRegistry = Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess);
 const editorPickerContextKey = 'inEditorsPicker';
-const editorPickerContext = ContextKeyExpr.and(inQuickOpenContext, ContextKeyExpr.has(editorPickerContextKey));
+const editorPickerContext = ContextKeyExpr.and(inQuickPickContext, ContextKeyExpr.has(editorPickerContextKey));
 
 quickAccessRegistry.registerQuickAccessProvider({
 	ctor: ActiveGroupEditorsByMostRecentlyUsedQuickAccess,
@@ -374,29 +373,29 @@ registry.registerWorkbenchAction(SyncActionDescriptor.create(EditorLayoutTwoColu
 
 // Register Quick Editor Actions including built in quick navigate support for some
 
-registry.registerWorkbenchAction(SyncActionDescriptor.create(QuickOpenPreviousRecentlyUsedEditorAction, QuickOpenPreviousRecentlyUsedEditorAction.ID, QuickOpenPreviousRecentlyUsedEditorAction.LABEL), 'View: Quick Open Previous Recently Used Editor', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.create(QuickOpenLeastRecentlyUsedEditorAction, QuickOpenLeastRecentlyUsedEditorAction.ID, QuickOpenLeastRecentlyUsedEditorAction.LABEL), 'View: Quick Open Least Recently Used Editor', category);
+registry.registerWorkbenchAction(SyncActionDescriptor.create(QuickAccessPreviousRecentlyUsedEditorAction, QuickAccessPreviousRecentlyUsedEditorAction.ID, QuickAccessPreviousRecentlyUsedEditorAction.LABEL), 'View: Quick Open Previous Recently Used Editor', category);
+registry.registerWorkbenchAction(SyncActionDescriptor.create(QuickAccessLeastRecentlyUsedEditorAction, QuickAccessLeastRecentlyUsedEditorAction.ID, QuickAccessLeastRecentlyUsedEditorAction.LABEL), 'View: Quick Open Least Recently Used Editor', category);
 
-registry.registerWorkbenchAction(SyncActionDescriptor.create(QuickOpenPreviousRecentlyUsedEditorInGroupAction, QuickOpenPreviousRecentlyUsedEditorInGroupAction.ID, QuickOpenPreviousRecentlyUsedEditorInGroupAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.Tab, mac: { primary: KeyMod.WinCtrl | KeyCode.Tab } }), 'View: Quick Open Previous Recently Used Editor in Group', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.create(QuickOpenLeastRecentlyUsedEditorInGroupAction, QuickOpenLeastRecentlyUsedEditorInGroupAction.ID, QuickOpenLeastRecentlyUsedEditorInGroupAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab, mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab } }), 'View: Quick Open Least Recently Used Editor in Group', category);
+registry.registerWorkbenchAction(SyncActionDescriptor.create(QuickAccessPreviousRecentlyUsedEditorInGroupAction, QuickAccessPreviousRecentlyUsedEditorInGroupAction.ID, QuickAccessPreviousRecentlyUsedEditorInGroupAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.Tab, mac: { primary: KeyMod.WinCtrl | KeyCode.Tab } }), 'View: Quick Open Previous Recently Used Editor in Group', category);
+registry.registerWorkbenchAction(SyncActionDescriptor.create(QuickAccessLeastRecentlyUsedEditorInGroupAction, QuickAccessLeastRecentlyUsedEditorInGroupAction.ID, QuickAccessLeastRecentlyUsedEditorInGroupAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab, mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab } }), 'View: Quick Open Least Recently Used Editor in Group', category);
 
-registry.registerWorkbenchAction(SyncActionDescriptor.create(QuickOpenPreviousEditorFromHistoryAction, QuickOpenPreviousEditorFromHistoryAction.ID, QuickOpenPreviousEditorFromHistoryAction.LABEL), 'Quick Open Previous Editor from History');
+registry.registerWorkbenchAction(SyncActionDescriptor.create(QuickAccessPreviousEditorFromHistoryAction, QuickAccessPreviousEditorFromHistoryAction.ID, QuickAccessPreviousEditorFromHistoryAction.LABEL), 'Quick Open Previous Editor from History');
 
-const quickOpenNavigateNextInEditorPickerId = 'workbench.action.quickOpenNavigateNextInEditorPicker';
+const quickAccessNavigateNextInEditorPickerId = 'workbench.action.quickOpenNavigateNextInEditorPicker';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: quickOpenNavigateNextInEditorPickerId,
+	id: quickAccessNavigateNextInEditorPickerId,
 	weight: KeybindingWeight.WorkbenchContrib + 50,
-	handler: getQuickNavigateHandler(quickOpenNavigateNextInEditorPickerId, true),
+	handler: getQuickNavigateHandler(quickAccessNavigateNextInEditorPickerId, true),
 	when: editorPickerContext,
 	primary: KeyMod.CtrlCmd | KeyCode.Tab,
 	mac: { primary: KeyMod.WinCtrl | KeyCode.Tab }
 });
 
-const quickOpenNavigatePreviousInEditorPickerId = 'workbench.action.quickOpenNavigatePreviousInEditorPicker';
+const quickAccessNavigatePreviousInEditorPickerId = 'workbench.action.quickOpenNavigatePreviousInEditorPicker';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: quickOpenNavigatePreviousInEditorPickerId,
+	id: quickAccessNavigatePreviousInEditorPickerId,
 	weight: KeybindingWeight.WorkbenchContrib + 50,
-	handler: getQuickNavigateHandler(quickOpenNavigatePreviousInEditorPickerId, false),
+	handler: getQuickNavigateHandler(quickAccessNavigatePreviousInEditorPickerId, false),
 	when: editorPickerContext,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab,
 	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab }

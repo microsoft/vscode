@@ -15,11 +15,11 @@ import { QuickInputController } from 'vs/base/parts/quickinput/browser/quickInpu
 import { QuickInputService as BaseQuickInputService } from 'vs/platform/quickinput/browser/quickInput';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { InQuickOpenContextKey } from 'vs/workbench/browser/quickopen';
+import { InQuickPickContextKey } from 'vs/workbench/browser/quickaccess';
 
 export class QuickInputService extends BaseQuickInputService {
 
-	private readonly inQuickOpenContext = InQuickOpenContextKey.bindTo(this.contextKeyService);
+	private readonly inQuickInputContext = InQuickPickContextKey.bindTo(this.contextKeyService);
 
 	constructor(
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
@@ -37,13 +37,13 @@ export class QuickInputService extends BaseQuickInputService {
 	}
 
 	private registerListeners(): void {
-		this._register(this.onShow(() => this.inQuickOpenContext.set(true)));
-		this._register(this.onHide(() => this.inQuickOpenContext.set(false)));
+		this._register(this.onShow(() => this.inQuickInputContext.set(true)));
+		this._register(this.onHide(() => this.inQuickInputContext.set(false)));
 	}
 
 	protected createController(): QuickInputController {
 		return super.createController(this.layoutService, {
-			ignoreFocusOut: () => this.environmentService.args['sticky-quickopen'] || !this.configurationService.getValue('workbench.quickOpen.closeOnFocusLost'),
+			ignoreFocusOut: () => this.environmentService.args['sticky-quickinput'] || !this.configurationService.getValue('workbench.quickOpen.closeOnFocusLost'),
 			backKeybindingLabel: () => this.keybindingService.lookupKeybinding('workbench.action.quickInputBack')?.getLabel() || undefined,
 		});
 	}

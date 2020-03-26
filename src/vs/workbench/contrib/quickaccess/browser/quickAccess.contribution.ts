@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { IQuickAccessRegistry, Extensions } from 'vs/platform/quickinput/common/quickAccess';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { HelpQuickAccessProvider } from 'vs/platform/quickinput/browser/helpQuickAccess';
-import { ViewQuickAccessProvider, OpenViewPickerAction, QuickOpenViewPickerAction } from 'vs/workbench/contrib/quickaccess/browser/viewQuickAccess';
+import { ViewQuickAccessProvider, OpenViewPickerAction, QuickAccessViewPickerAction } from 'vs/workbench/contrib/quickaccess/browser/viewQuickAccess';
 import { CommandsQuickAccessProvider, CommandPaletteEditorAction, ShowAllCommandsAction, ClearCommandHistoryAction } from 'vs/workbench/contrib/quickaccess/browser/commandsQuickAccess';
 import { registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { MenuRegistry, MenuId, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
@@ -16,21 +16,21 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { GotoLineAction } from 'vs/workbench/contrib/codeEditor/browser/quickaccess/gotoLineQuickAccess';
 import { GotoSymbolAction } from 'vs/workbench/contrib/codeEditor/browser/quickaccess/gotoSymbolQuickAccess';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { inQuickOpenContext, getQuickNavigateHandler } from 'vs/workbench/browser/quickopen';
+import { inQuickPickContext, getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 //#region Quick Access Proviers
 
-const quickOpenRegistry = Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess);
+const quickAccessRegistry = Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess);
 
-quickOpenRegistry.registerQuickAccessProvider({
+quickAccessRegistry.registerQuickAccessProvider({
 	ctor: HelpQuickAccessProvider,
 	prefix: HelpQuickAccessProvider.PREFIX,
 	placeholder: localize('helpQuickAccessPlaceholder', "Type '{0}' to get help on the actions you can take from here.", HelpQuickAccessProvider.PREFIX),
 	helpEntries: [{ description: localize('helpQuickAccess', "Show all Quick Access Providers"), needsEditor: false }]
 });
 
-quickOpenRegistry.registerQuickAccessProvider({
+quickAccessRegistry.registerQuickAccessProvider({
 	ctor: ViewQuickAccessProvider,
 	prefix: ViewQuickAccessProvider.PREFIX,
 	contextKey: 'inViewsPicker',
@@ -38,7 +38,7 @@ quickOpenRegistry.registerQuickAccessProvider({
 	helpEntries: [{ description: localize('viewQuickAccess', "Open View"), needsEditor: false }]
 });
 
-quickOpenRegistry.registerQuickAccessProvider({
+quickAccessRegistry.registerQuickAccessProvider({
 	ctor: CommandsQuickAccessProvider,
 	prefix: CommandsQuickAccessProvider.PREFIX,
 	contextKey: 'inCommandsPicker',
@@ -118,30 +118,30 @@ registry.registerWorkbenchAction(SyncActionDescriptor.create(GotoSymbolAction, G
 }), 'Go to Symbol in Editor...');
 
 const inViewsPickerContextKey = 'inViewsPicker';
-const inViewsPickerContext = ContextKeyExpr.and(inQuickOpenContext, ContextKeyExpr.has(inViewsPickerContextKey));
+const inViewsPickerContext = ContextKeyExpr.and(inQuickPickContext, ContextKeyExpr.has(inViewsPickerContextKey));
 
 const viewPickerKeybinding = { primary: KeyMod.CtrlCmd | KeyCode.KEY_Q, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_Q }, linux: { primary: 0 } };
 
 const viewCategory = localize('view', "View");
 registry.registerWorkbenchAction(SyncActionDescriptor.create(OpenViewPickerAction, OpenViewPickerAction.ID, OpenViewPickerAction.LABEL), 'View: Open View', viewCategory);
-registry.registerWorkbenchAction(SyncActionDescriptor.create(QuickOpenViewPickerAction, QuickOpenViewPickerAction.ID, QuickOpenViewPickerAction.LABEL, viewPickerKeybinding), 'View: Quick Open View', viewCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.create(QuickAccessViewPickerAction, QuickAccessViewPickerAction.ID, QuickAccessViewPickerAction.LABEL, viewPickerKeybinding), 'View: Quick Open View', viewCategory);
 
-const quickOpenNavigateNextInViewPickerId = 'workbench.action.quickOpenNavigateNextInViewPicker';
+const quickAccessNavigateNextInViewPickerId = 'workbench.action.quickOpenNavigateNextInViewPicker';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: quickOpenNavigateNextInViewPickerId,
+	id: quickAccessNavigateNextInViewPickerId,
 	weight: KeybindingWeight.WorkbenchContrib + 50,
-	handler: getQuickNavigateHandler(quickOpenNavigateNextInViewPickerId, true),
+	handler: getQuickNavigateHandler(quickAccessNavigateNextInViewPickerId, true),
 	when: inViewsPickerContext,
 	primary: viewPickerKeybinding.primary,
 	linux: viewPickerKeybinding.linux,
 	mac: viewPickerKeybinding.mac
 });
 
-const quickOpenNavigatePreviousInViewPickerId = 'workbench.action.quickOpenNavigatePreviousInViewPicker';
+const quickAccessNavigatePreviousInViewPickerId = 'workbench.action.quickOpenNavigatePreviousInViewPicker';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: quickOpenNavigatePreviousInViewPickerId,
+	id: quickAccessNavigatePreviousInViewPickerId,
 	weight: KeybindingWeight.WorkbenchContrib + 50,
-	handler: getQuickNavigateHandler(quickOpenNavigatePreviousInViewPickerId, false),
+	handler: getQuickNavigateHandler(quickAccessNavigatePreviousInViewPickerId, false),
 	when: inViewsPickerContext,
 	primary: viewPickerKeybinding.primary | KeyMod.Shift,
 	linux: viewPickerKeybinding.linux,

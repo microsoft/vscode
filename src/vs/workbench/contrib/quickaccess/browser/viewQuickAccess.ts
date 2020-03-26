@@ -202,7 +202,7 @@ export class OpenViewPickerAction extends Action {
 	}
 }
 
-export class QuickOpenViewPickerAction extends Action {
+export class QuickAccessViewPickerAction extends Action {
 
 	static readonly ID = 'workbench.action.quickOpenView';
 	static readonly LABEL = localize('quickOpenView', "Quick Open View");

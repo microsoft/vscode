@@ -8,14 +8,14 @@ import { ICommandHandler } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
-export const inQuickOpenContextKeyValue = 'inQuickOpen';
-export const InQuickOpenContextKey = new RawContextKey<boolean>(inQuickOpenContextKeyValue, false);
-export const inQuickOpenContext = ContextKeyExpr.has(inQuickOpenContextKeyValue);
+export const inQuickPickContextKeyValue = 'inQuickOpen';
+export const InQuickPickContextKey = new RawContextKey<boolean>(inQuickPickContextKeyValue, false);
+export const inQuickPickContext = ContextKeyExpr.has(inQuickPickContextKeyValue);
 
-export const defaultQuickOpenContextKeyValue = 'inFilesPicker';
-export const defaultQuickOpenContext = ContextKeyExpr.and(inQuickOpenContext, ContextKeyExpr.has(defaultQuickOpenContextKeyValue));
+export const defaultQuickAccessContextKeyValue = 'inFilesPicker';
+export const defaultQuickAccessContext = ContextKeyExpr.and(inQuickPickContext, ContextKeyExpr.has(defaultQuickAccessContextKeyValue));
 
-export interface IWorkbenchQuickOpenConfiguration {
+export interface IWorkbenchQuickAccessConfiguration {
 	workbench: {
 		commandPalette: {
 			history: number;
