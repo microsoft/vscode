@@ -262,8 +262,6 @@ export class ExtensionEditor extends BaseEditor {
 		const resizeObserver = getSizeObserver(header, () => {
 			const currHeight = resizeObserver.getHeight();
 
-			// give the font size a minimum of 10px
-			// const fontSize = Math.max(currHeight * 0.1), 10);
 			const fontSize = Math.round(currHeight * 0.1);
 			header.style.fontSize = `${fontSize}px`;
 
