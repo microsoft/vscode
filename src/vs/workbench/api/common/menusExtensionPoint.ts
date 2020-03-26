@@ -38,6 +38,7 @@ namespace schema {
 			case 'debug/toolbar': return MenuId.DebugToolBar;
 			case 'debug/toolBar': return MenuId.DebugToolBar;
 			case 'menuBar/file': return MenuId.MenubarFileMenu;
+			case 'menuBar/webNavigation': return MenuId.MenubarWebNavigationMenu;
 			case 'scm/title': return MenuId.SCMTitle;
 			case 'scm/sourceControl': return MenuId.SCMSourceControl;
 			case 'scm/resourceState/context': return MenuId.SCMResourceContext;
@@ -64,6 +65,7 @@ namespace schema {
 		switch (menuId) {
 			case MenuId.StatusBarWindowIndicatorMenu:
 			case MenuId.MenubarFileMenu:
+			case MenuId.MenubarWebNavigationMenu:
 				return true;
 		}
 		return false;
