@@ -9,7 +9,6 @@ import { IStorageChangeEvent, IStorageMainService } from 'vs/platform/storage/no
 import { IUpdateRequest, IStorageDatabase, IStorageItemsChangeEvent } from 'vs/base/parts/storage/common/storage';
 import { mapToSerializable, serializableToMap, values } from 'vs/base/common/map';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { ILogService } from 'vs/platform/log/common/log';
 import { generateUuid } from 'vs/base/common/uuid';
 import { instanceStorageKey, firstSessionDateStorageKey, lastSessionDateStorageKey, currentSessionDateStorageKey, crashReporterIdStorageKey } from 'vs/platform/telemetry/common/telemetry';
@@ -50,8 +49,7 @@ export class GlobalStorageDatabaseChannel extends Disposable implements IServerC
 		try {
 			await this.storageMainService.initialize();
 		} catch (error) {
-			onUnexpectedError(error);
-			this.logService.error(error);
+			this.logService.error(`[storage] init(): Unable to init global storage due to ${error}`);
 		}
 
 		// This is unique to the application instance and thereby
