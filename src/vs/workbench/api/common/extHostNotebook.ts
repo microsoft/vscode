@@ -10,10 +10,10 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { ISplice } from 'vs/base/common/sequence';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { CellKind, CellOutputKind, ExtHostNotebookShape, IMainContext, MainContext, MainThreadNotebookShape, NotebookCellOutputsSplice, NotebookCellsSplice } from 'vs/workbench/api/common/extHost.protocol';
+import { CellKind, CellOutputKind, ExtHostNotebookShape, IMainContext, MainContext, MainThreadNotebookShape, NotebookCellOutputsSplice } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { CellUri, diff, IErrorOutput, INotebookDisplayOrder, IOrderedMimeType, IOutput, IStreamOutput, ITransformedDisplayOutputDto, mimeTypeSupportedByCore, sortMimeTypes, NotebookCellsChangedEvent, NotebookCellsSplice2, ICellEditOperation, INotebookEditData, CellEditType, ICellInsertEdit } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellUri, diff, IErrorOutput, INotebookDisplayOrder, IOrderedMimeType, IStreamOutput, ITransformedDisplayOutputDto, mimeTypeSupportedByCore, sortMimeTypes, NotebookCellsChangedEvent, NotebookCellsSplice2, ICellEditOperation, INotebookEditData, CellEditType, ICellInsertEdit } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Disposable as VSCodeDisposable } from './extHostTypes';
 
 interface IObservable<T> {
@@ -271,7 +271,7 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 
 			let transformedOutputs = outputs.map(output => {
 				if (output.outputKind === CellOutputKind.Rich) {
-					const ret = this.transformMimeTypes(cell, output);
+					const ret = this.transformMimeTypes(output);
 
 					if (ret.orderedMimeTypes[ret.pickedMimeTypeIndex].isResolved) {
 						renderers.add(ret.orderedMimeTypes[ret.pickedMimeTypeIndex].rendererId!);
@@ -288,7 +288,7 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 		this._proxy.$spliceNotebookCellOutputs(this.viewType, this.uri, cell.handle, outputDtos, Array.from(renderers));
 	}
 
-	transformMimeTypes(cell: vscode.NotebookCell, output: vscode.CellDisplayOutput): ITransformedDisplayOutputDto {
+	transformMimeTypes(output: vscode.CellDisplayOutput): ITransformedDisplayOutputDto {
 		let mimeTypes = Object.keys(output.data);
 
 		// TODO@rebornix, the document display order might be assigned a bit later. We need to postpone sending the outputs to the core side.
@@ -301,7 +301,7 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 			let handlers = this.renderingHandler.findBestMatchedRenderer(mimeType);
 
 			if (handlers.length) {
-				let renderedOutput = handlers[0].render(this, cell, output, mimeType);
+				let renderedOutput = handlers[0].render(this, output, mimeType);
 
 				orderMimeTypes.push({
 					mimeType: mimeType,
@@ -400,7 +400,7 @@ export class NotebookEditorCellEdit {
 
 		const transformedOutputs = outputs.map(output => {
 			if (output.outputKind === CellOutputKind.Rich) {
-				const ret = this.editor.document.transformMimeTypes(cell as unknown as vscode.NotebookCell, output);
+				const ret = this.editor.document.transformMimeTypes(output);
 
 				if (ret.orderedMimeTypes[ret.pickedMimeTypeIndex].isResolved) {
 					this._renderers.add(ret.orderedMimeTypes[ret.pickedMimeTypeIndex].rendererId!);
@@ -543,8 +543,8 @@ export class ExtHostNotebookOutputRenderer {
 		return false;
 	}
 
-	render(document: ExtHostNotebookDocument, cell: vscode.NotebookCell, output: vscode.CellOutput, mimeType: string): string {
-		let html = this.renderer.render(document, cell, output, mimeType);
+	render(document: ExtHostNotebookDocument, output: vscode.CellOutput, mimeType: string): string {
+		let html = this.renderer.render(document, output, mimeType);
 
 		return html;
 	}

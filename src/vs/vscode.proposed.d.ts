@@ -1764,7 +1764,7 @@ declare module 'vscode' {
 		 * @returns HTML fragment. We can probably return `CellOutput` instead of string ?
 		 *
 		 */
-		render(document: NotebookDocument, cell: NotebookCell, output: CellOutput, mimeType: string): string;
+		render(document: NotebookDocument, output: CellOutput, mimeType: string): string;
 		preloads?: Uri[];
 	}
 
