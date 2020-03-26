@@ -224,6 +224,7 @@ export interface ICellInsertEdit {
 export interface ICellDeleteEdit {
 	editType: CellEditType.Delete;
 	index: number;
+	count: number;
 }
 
 export type ICellEditOperation = ICellInsertEdit | ICellDeleteEdit;

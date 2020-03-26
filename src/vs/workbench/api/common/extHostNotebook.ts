@@ -13,7 +13,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { CellKind, CellOutputKind, ExtHostNotebookShape, IMainContext, MainContext, MainThreadNotebookShape, NotebookCellOutputsSplice } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { CellEditType, CellUri, diff, ICellEditOperation, ICellInsertEdit, IErrorOutput, INotebookDisplayOrder, INotebookEditData, IOrderedMimeType, IStreamOutput, ITransformedDisplayOutputDto, mimeTypeSupportedByCore, NotebookCellsChangedEvent, NotebookCellsSplice2, sortMimeTypes } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellUri, diff, ICellEditOperation, ICellInsertEdit, IErrorOutput, INotebookDisplayOrder, INotebookEditData, IOrderedMimeType, IStreamOutput, ITransformedDisplayOutputDto, mimeTypeSupportedByCore, NotebookCellsChangedEvent, NotebookCellsSplice2, sortMimeTypes, ICellDeleteEdit } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Disposable as VSCodeDisposable } from './extHostTypes';
 
 interface IObservable<T> {
@@ -425,7 +425,8 @@ export class NotebookEditorCellEdit {
 
 		this._collectedEdits.push({
 			editType: CellEditType.Delete,
-			index
+			index,
+			count: 1
 		});
 	}
 }
@@ -495,8 +496,15 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 			let prev = compressedEdits[prevIndex];
 
 			if (prev.editType === CellEditType.Insert && editData.edits[i].editType === CellEditType.Insert) {
-				if (prev.index + prev.cells.length === editData.edits[i].index) {
+				if (prev.index === editData.edits[i].index) {
 					prev.cells.push(...(editData.edits[i] as ICellInsertEdit).cells);
+					continue;
+				}
+			}
+
+			if (prev.editType === CellEditType.Delete && editData.edits[i].editType === CellEditType.Delete) {
+				if (prev.index === editData.edits[i].index) {
+					prev.count += (editData.edits[i] as ICellDeleteEdit).count;
 					continue;
 				}
 			}
