@@ -15,7 +15,7 @@ import { IOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IWebviewService, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewResourceScheme } from 'vs/workbench/contrib/webview/common/resourceLoader';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { CELL_MARGIN } from 'vs/workbench/contrib/notebook/browser/constants';
+import { CELL_MARGIN, CELL_RUN_GUTTER } from 'vs/workbench/contrib/notebook/browser/constants';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 
@@ -44,11 +44,13 @@ export interface ICreationRequestMessage {
 	id: string;
 	outputId: string;
 	top: number;
+	left: number;
 }
 
 export interface IContentWidgetTopRequest {
 	id: string;
 	top: number;
+	left: number;
 }
 
 export interface IViewScrollTopRequestMessage {
@@ -201,6 +203,7 @@ export class BackLayerWebView extends Disposable {
 					let outputNode = document.createElement('div');
 					outputNode.style.position = 'absolute';
 					outputNode.style.top = event.data.top + 'px';
+					outputNode.style.left = event.data.left + 'px';
 
 					outputNode.id = outputId;
 					let content = event.data.content;
@@ -342,7 +345,8 @@ export class BackLayerWebView extends Disposable {
 
 			return {
 				id: id,
-				top: outputOffset
+				top: outputOffset,
+				left: CELL_RUN_GUTTER
 			};
 		});
 
@@ -366,7 +370,8 @@ export class BackLayerWebView extends Disposable {
 			content: shadowContent,
 			id: cell.id,
 			outputId: outputId,
-			top: initialTop
+			top: initialTop,
+			left: CELL_RUN_GUTTER
 		};
 
 		this.webview.sendMessage(message);
