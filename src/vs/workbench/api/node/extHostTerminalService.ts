@@ -261,6 +261,8 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		if (collection.size === 0) {
 			return undefined;
 		}
+
+
 		const variables: string[] = [];
 		const values: string[] = [];
 		const types: EnvironmentVariableMutatorType[] = [];

@@ -7,6 +7,20 @@ import { IEnvironmentVariableService, IEnvironmentVariableCollection, IEnvironme
 import { Event, Emitter } from 'vs/base/common/event';
 import { debounce } from 'vs/base/common/decorators';
 import { IProcessEnvironment } from 'vs/base/common/platform';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+
+const ENVIRONMENT_VARIABLE_COLLECTIONS_KEY = 'terminal.integrated.environmentVariableCollections';
+
+interface ISerializableEnvironmentVariableCollection {
+	variables: string[];
+	values: string[];
+	types: number[];
+}
+interface ISerializableExtensionEnvironmentVariableCollection {
+	extensionIdentifier: string,
+	collection: ISerializableEnvironmentVariableCollection
+}
 
 export class EnvironmentVariableCollection implements IEnvironmentVariableCollection {
 	readonly entries: Map<string, IEnvironmentVariableMutator>;
@@ -26,21 +40,6 @@ export class EnvironmentVariableCollection implements IEnvironmentVariableCollec
 			}
 		}
 	}
-
-	// TODO: Remove? Does diff do the job?
-	// equals(other: IEnvironmentVariableCollection): boolean {
-	// 	if (this.entries.size !== other.entries.size) {
-	// 		return false;
-	// 	}
-	// 	let result = true;
-	// 	this.entries.forEach((mutator, variable) => {
-	// 		const otherMutator = other.entries.get(variable);
-	// 		if (otherMutator !== mutator) {
-	// 			result = false;
-	// 		}
-	// 	});
-	// 	return result;
-	// }
 
 	// TODO: Consider doing a full diff, just marking the environment as stale with no action available?
 	getNewAdditions(other: IEnvironmentVariableCollection): ReadonlyMap<string, IEnvironmentVariableMutator> | undefined {
@@ -78,15 +77,36 @@ export class EnvironmentVariableService implements IEnvironmentVariableService {
 	_serviceBrand: undefined;
 
 	private _collections: Map<string, IEnvironmentVariableCollection> = new Map();
-	private _mergedCollection: IEnvironmentVariableCollection = new EnvironmentVariableCollection();
+	private _mergedCollection: IEnvironmentVariableCollection;
 
-	// TODO: Generate a summary of changes inside the terminal component as it needs to be done per-terminal compared to what it started with
 	private readonly _onDidChangeCollections = new Emitter<IEnvironmentVariableCollection>();
 	get onDidChangeCollections(): Event<IEnvironmentVariableCollection> { return this._onDidChangeCollections.event; }
 
-	constructor() {
-		// TODO: Load in persisted collections
-		// TODO: Fire an event when collections have changed that the terminal component can listen to
+	constructor(
+		@IExtensionService private _extensionService: IExtensionService,
+		@IStorageService private readonly _storageService: IStorageService
+	) {
+		const serializedPersistedCollections = this._storageService.get(ENVIRONMENT_VARIABLE_COLLECTIONS_KEY, StorageScope.WORKSPACE);
+		if (serializedPersistedCollections) {
+			// TODO: Load in persisted collections
+			const collectionsJson: ISerializableExtensionEnvironmentVariableCollection[] = JSON.parse(serializedPersistedCollections);
+
+
+			collectionsJson.forEach(c => {
+				const extCollection = new EnvironmentVariableCollection(c.collection.variables, c.collection.values, c.collection.types);
+				this._collections.set(c.extensionIdentifier, extCollection);
+			});
+			console.log('serialized from previous session', this._collections);
+
+			// Asynchronously invalidate collections where extensions have been uninstalled, this is
+			// async to avoid making all functions on the service synchronous and because extensions
+			// being uninstalled is rare.
+			this._invalidateExtensionCollections();
+		}
+		this._mergedCollection = this._resolveMergedCollection();
+
+		// Listen for uninstalled/disabled extensions
+		this._extensionService.onDidChangeExtensions(() => this._invalidateExtensionCollections());
 	}
 
 	get mergedCollection(): IEnvironmentVariableCollection {
@@ -95,14 +115,32 @@ export class EnvironmentVariableService implements IEnvironmentVariableService {
 
 	set(extensionIdentifier: string, collection: IEnvironmentVariableCollection): void {
 		this._collections.set(extensionIdentifier, collection);
-		this._mergedCollection = this._resolveMergedCollection();
-		this._notifyCollectionUpdates();
+		this._updateCollections();
 	}
 
 	delete(extensionIdentifier: string): void {
 		this._collections.delete(extensionIdentifier);
+		this._updateCollections();
+	}
+
+	private _updateCollections(): void {
+		this._persistCollections();
 		this._mergedCollection = this._resolveMergedCollection();
 		this._notifyCollectionUpdates();
+	}
+
+	@debounce(1000)
+	private _persistCollections(): void {
+		const keys = [...this._collections.keys()];
+		const collectionsJson: ISerializableExtensionEnvironmentVariableCollection[] = keys.map(extensionIdentifier => {
+			return {
+				extensionIdentifier,
+				collection: serializeEnvironmentVariableCollection(this._collections.get(extensionIdentifier)!)
+			};
+		});
+		const stringifiedJson = JSON.stringify(collectionsJson);
+		console.log('storing', stringifiedJson, collectionsJson);
+		this._storageService.store(ENVIRONMENT_VARIABLE_COLLECTIONS_KEY, stringifiedJson, StorageScope.WORKSPACE);
 	}
 
 	@debounce(1000)
@@ -121,4 +159,34 @@ export class EnvironmentVariableService implements IEnvironmentVariableService {
 		});
 		return result;
 	}
+
+	private async _invalidateExtensionCollections(): Promise<void> {
+		console.log('checking extensions');
+		await this._extensionService.whenInstalledExtensionsRegistered();
+
+		const registeredExtensions = await this._extensionService.getExtensions();
+		let changes = false;
+		this._collections.forEach((_, extensionIdentifier) => {
+			const isExtensionRegistered = registeredExtensions.some(r => r.identifier.value === extensionIdentifier);
+			if (!isExtensionRegistered) {
+				console.log('invalidated ' + extensionIdentifier);
+				this._collections.delete(extensionIdentifier);
+				changes = true;
+			}
+		});
+		if (changes) {
+			this._updateCollections();
+		}
+	}
+}
+
+
+function serializeEnvironmentVariableCollection(collection: IEnvironmentVariableCollection): ISerializableEnvironmentVariableCollection {
+	const entries = [...collection.entries.entries()];
+	const result: ISerializableEnvironmentVariableCollection = {
+		variables: entries.map(e => e[0]),
+		values: entries.map(e => e[1].value),
+		types: entries.map(e => e[1].type),
+	};
+	return result;
 }

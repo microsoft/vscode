@@ -22,8 +22,6 @@ export interface IEnvironmentVariableMutator {
 
 export interface IEnvironmentVariableCollection {
 	readonly entries: ReadonlyMap<string, IEnvironmentVariableMutator>;
-	// TODO: Remove equals?
-	// equals(other: IEnvironmentVariableCollection): boolean;
 
 	/**
 	 * Get's additions when compared to another collection. This only gets additions rather than
@@ -32,7 +30,15 @@ export interface IEnvironmentVariableCollection {
 	 */
 	getNewAdditions(other: IEnvironmentVariableCollection): ReadonlyMap<string, IEnvironmentVariableMutator> | undefined;
 
+	/**
+	 * Applies this collection to a process environment.
+	 */
 	applyToProcessEnvironment(env: IProcessEnvironment): void;
+
+	/**
+	 * Gets a serializable view of the collection.
+	 */
+	// serialize(): [string, IEnvironmentVariableMutator][];
 }
 
 /**

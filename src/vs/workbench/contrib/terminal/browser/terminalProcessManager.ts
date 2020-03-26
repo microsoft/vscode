@@ -345,6 +345,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				}
 			} as IPromptChoice
 		];
-		this._notificationService.prompt(Severity.Info, nls.localize('environmentchange', "An extension wants to change the terminal environment, do you want to send export commands to the terminal?"), promptChoices);
+		this._notificationService.prompt(Severity.Info, nls.localize('environmentchange', "An extension wants to change the terminal environment, do you want to send commands to set the variables in the terminal? Note if you have an application open in the terminal this may not work."), promptChoices);
 	}
 }
