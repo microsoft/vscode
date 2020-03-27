@@ -179,7 +179,8 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 	renderTemplate(container: HTMLElement): CellRenderTemplate {
 		const codeInnerContent = document.createElement('div');
 		DOM.addClasses(codeInnerContent, 'cell', 'code');
-		codeInnerContent.style.display = 'none';
+		const editorContainer = DOM.append(codeInnerContent, $('.markdown-editor-container'));
+		editorContainer.style.display = 'none';
 
 		const disposables = new DisposableStore();
 		const toolbar = this.createToolbar(container);
@@ -196,7 +197,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		return {
 			container: container,
 			cellContainer: innerContent,
-			editingContainer: codeInnerContent,
+			editingContainer: editorContainer,
 			disposables,
 			toolbar,
 			toJSON: () => { return {}; }
