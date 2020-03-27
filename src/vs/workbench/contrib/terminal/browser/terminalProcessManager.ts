@@ -314,6 +314,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	}
 
 	private _onEnvironmentVariableCollectionChange(newCollection: IMergedEnvironmentVariableCollection): void {
+		// TODO: React to changes in environment variable collections
 		// const newAdditions = this._extEnvironmentVariableCollection!.getNewAdditions(newCollection);
 		// if (newAdditions === undefined) {
 		// 	return;
