@@ -24,73 +24,91 @@ import * as extHostTypes from './extHostTypes';
 type IconPath = URI | { light: URI, dark: URI };
 
 export class ExtHostWebview implements vscode.Webview {
-	private _html: string = '';
-	private _isDisposed: boolean = false;
-	private _hasCalledAsWebviewUri = false;
 
-	public readonly _onMessageEmitter = new Emitter<any>();
-	public readonly onDidReceiveMessage: Event<any> = this._onMessageEmitter.event;
+	readonly #handle: extHostProtocol.WebviewPanelHandle;
+	readonly #proxy: extHostProtocol.MainThreadWebviewsShape;
+	readonly #deprecationService: IExtHostApiDeprecationService;
+
+	readonly #initData: WebviewInitData;
+	readonly #workspace: IExtHostWorkspace | undefined;
+	readonly #extension: IExtensionDescription;
+
+	#html: string = '';
+	#options: vscode.WebviewOptions;
+	#isDisposed: boolean = false;
+	#hasCalledAsWebviewUri = false;
 
 	constructor(
-		private readonly _handle: extHostProtocol.WebviewPanelHandle,
-		private readonly _proxy: extHostProtocol.MainThreadWebviewsShape,
-		private _options: vscode.WebviewOptions,
-		private readonly _initData: WebviewInitData,
-		private readonly _workspace: IExtHostWorkspace | undefined,
-		private readonly _extension: IExtensionDescription,
-		private readonly _deprecationService: IExtHostApiDeprecationService,
-	) { }
+		handle: extHostProtocol.WebviewPanelHandle,
+		proxy: extHostProtocol.MainThreadWebviewsShape,
+		options: vscode.WebviewOptions,
+		initData: WebviewInitData,
+		workspace: IExtHostWorkspace | undefined,
+		extension: IExtensionDescription,
+		deprecationService: IExtHostApiDeprecationService,
+	) {
+		this.#handle = handle;
+		this.#proxy = proxy;
+		this.#options = options;
+		this.#initData = initData;
+		this.#workspace = workspace;
+		this.#extension = extension;
+		this.#deprecationService = deprecationService;
+	}
+
+	/* internal */ readonly _onMessageEmitter = new Emitter<any>();
+	public readonly onDidReceiveMessage: Event<any> = this._onMessageEmitter.event;
 
 	public dispose() {
 		this._onMessageEmitter.dispose();
 	}
 
 	public asWebviewUri(resource: vscode.Uri): vscode.Uri {
-		this._hasCalledAsWebviewUri = true;
-		return asWebviewUri(this._initData, this._handle, resource);
+		this.#hasCalledAsWebviewUri = true;
+		return asWebviewUri(this.#initData, this.#handle, resource);
 	}
 
 	public get cspSource(): string {
-		return this._initData.webviewCspSource
-			.replace('{{uuid}}', this._handle);
+		return this.#initData.webviewCspSource
+			.replace('{{uuid}}', this.#handle);
 	}
 
 	public get html(): string {
 		this.assertNotDisposed();
-		return this._html;
+		return this.#html;
 	}
 
 	public set html(value: string) {
 		this.assertNotDisposed();
-		if (this._html !== value) {
-			this._html = value;
-			if (!this._hasCalledAsWebviewUri && /(["'])vscode-resource:([^\s'"]+?)(["'])/i.test(value)) {
-				this._hasCalledAsWebviewUri = true;
-				this._deprecationService.report('Webview vscode-resource: uris', this._extension,
+		if (this.#html !== value) {
+			this.#html = value;
+			if (!this.#hasCalledAsWebviewUri && /(["'])vscode-resource:([^\s'"]+?)(["'])/i.test(value)) {
+				this.#hasCalledAsWebviewUri = true;
+				this.#deprecationService.report('Webview vscode-resource: uris', this.#extension,
 					`Please migrate to use the 'webview.asWebviewUri' api instead: https://aka.ms/vscode-webview-use-aswebviewuri`);
 			}
-			this._proxy.$setHtml(this._handle, value);
+			this.#proxy.$setHtml(this.#handle, value);
 		}
 	}
 
 	public get options(): vscode.WebviewOptions {
 		this.assertNotDisposed();
-		return this._options;
+		return this.#options;
 	}
 
 	public set options(newOptions: vscode.WebviewOptions) {
 		this.assertNotDisposed();
-		this._proxy.$setOptions(this._handle, convertWebviewOptions(this._extension, this._workspace, newOptions));
-		this._options = newOptions;
+		this.#proxy.$setOptions(this.#handle, convertWebviewOptions(this.#extension, this.#workspace, newOptions));
+		this.#options = newOptions;
 	}
 
 	public postMessage(message: any): Promise<boolean> {
 		this.assertNotDisposed();
-		return this._proxy.$postMessage(this._handle, message);
+		return this.#proxy.$postMessage(this.#handle, message);
 	}
 
 	private assertNotDisposed() {
-		if (this._isDisposed) {
+		if (this.#isDisposed) {
 			throw new Error('Webview is disposed');
 		}
 	}
