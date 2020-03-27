@@ -1123,6 +1123,9 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	});
 
 	test('deleting workspace settings', async () => {
+		if (isLinux) {
+			return;
+		}
 		fs.writeFileSync(globalSettingsFile, '{ "configurationService.folder.testSetting": "userValue" }');
 		const workspaceSettingsResource = URI.file(path.join(workspaceDir, '.vscode', 'settings.json'));
 		await fileService.writeFile(workspaceSettingsResource, VSBuffer.fromString('{ "configurationService.folder.testSetting": "workspaceValue" }'));
