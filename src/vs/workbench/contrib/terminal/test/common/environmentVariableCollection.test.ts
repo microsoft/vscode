@@ -93,7 +93,24 @@ suite.only('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 		});
 
 		test('should generate removed diffs', () => {
-			// TODO: Implement
+			const merged1 = new MergedEnvironmentVariableCollection(new Map([
+				['ext1', deserializeEnvironmentVariableCollection([
+					['A', { value: 'a', type: EnvironmentVariableMutatorType.Replace }],
+					['B', { value: 'b', type: EnvironmentVariableMutatorType.Replace }]
+				])]
+			]));
+			const merged2 = new MergedEnvironmentVariableCollection(new Map([
+				['ext1', deserializeEnvironmentVariableCollection([
+					['A', { value: 'a', type: EnvironmentVariableMutatorType.Replace }]
+				])]
+			]));
+			const diff = merged1.diff(merged2);
+			strictEqual(diff.changed.size, 0);
+			strictEqual(diff.added.size, 0);
+			const entries = [...diff.removed.entries()];
+			deepStrictEqual(entries, [
+				['B', [{ extensionIdentifier: 'ext1', value: 'b', type: EnvironmentVariableMutatorType.Replace }]]
+			]);
 		});
 
 		test('should generate changed diffs', () => {

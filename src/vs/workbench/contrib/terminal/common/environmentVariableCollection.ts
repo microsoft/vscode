@@ -65,20 +65,22 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 		const removed: Map<string, IExtensionOwnedEnvironmentVariableMutator[]> = new Map();
 
 		// Find added
-		other.map.forEach((extensionMutators, variable) => {
+		other.map.forEach((otherMutators, variable) => {
 			const currentMutators = this.map.get(variable);
 
-			// If it doesn't exist, all are newly added
+			// If it doesn't exist, all are added
 			if (!currentMutators) {
-				added.set(variable, extensionMutators);
+				added.set(variable, otherMutators);
 				return;
 			}
 
-			// Find entries belonging to not currently recorded
+			// Create a map to help
 			const currentMutatorExtensions = new Map<string, boolean>();
-			const addedArray: IExtensionOwnedEnvironmentVariableMutator[] = [];
 			currentMutators.forEach(m => currentMutatorExtensions.set(m.extensionIdentifier, true));
-			extensionMutators.forEach(extensionMutator => {
+
+			// Find entries added in other
+			const addedArray: IExtensionOwnedEnvironmentVariableMutator[] = [];
+			otherMutators.forEach(extensionMutator => {
 				if (!currentMutatorExtensions.has(extensionMutator.extensionIdentifier)) {
 					addedArray.push(extensionMutator);
 				}
@@ -87,6 +89,36 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 			// Set if any were found
 			if (addedArray.length > 0) {
 				added.set(variable, addedArray);
+			}
+		});
+
+		// TODO: Factor out this and added part into a shared function
+
+		// Find removed
+		this.map.forEach((currentMutators, variable) => {
+			const otherMutators = other.map.get(variable);
+
+			// If it doesn't exist, all are removed
+			if (!otherMutators) {
+				removed.set(variable, currentMutators);
+				return;
+			}
+
+			// Create a map to help
+			const otherMutatorExtensions = new Map<string, boolean>();
+			otherMutators.forEach(m => otherMutatorExtensions.set(m.extensionIdentifier, true));
+
+			// Find entries removed from other
+			const removedArray: IExtensionOwnedEnvironmentVariableMutator[] = [];
+			otherMutators.forEach(extensionMutator => {
+				if (!otherMutatorExtensions.has(extensionMutator.extensionIdentifier)) {
+					removedArray.push(extensionMutator);
+				}
+			});
+
+			// Set if any were found
+			if (removedArray.length > 0) {
+				removed.set(variable, removedArray);
 			}
 		});
 
