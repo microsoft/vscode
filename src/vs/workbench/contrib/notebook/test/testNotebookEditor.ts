@@ -169,8 +169,9 @@ export class TestNotebookEditor implements INotebookEditor {
 		// throw new Error('Method not implemented.');
 		return;
 	}
-	layoutNotebookCell(cell: CellViewModel, height: number): void {
+	async layoutNotebookCell(cell: CellViewModel, height: number): Promise<void> {
 		// throw new Error('Method not implemented.');
+		return;
 	}
 	createInset(cell: CellViewModel, output: IOutput, shadowContent: string, offset: number): void {
 		// throw new Error('Method not implemented.');
