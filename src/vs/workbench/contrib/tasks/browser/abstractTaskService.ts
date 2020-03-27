@@ -79,7 +79,7 @@ import { ITextEditorSelection, TextEditorSelectionRevealType } from 'vs/platform
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { find } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IViewsService } from 'vs/workbench/common/views';
+import { IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
 import { isWorkspaceFolder, TaskQuickPickEntry, QUICKOPEN_DETAIL_CONFIG, TaskQuickPick, QUICKOPEN_SKIP_CONFIG } from 'vs/workbench/contrib/tasks/browser/taskQuickPick';
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
@@ -253,7 +253,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@ITerminalInstanceService private readonly terminalInstanceService: ITerminalInstanceService,
 		@IRemotePathService private readonly remotePathService: IRemotePathService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
-		@IPreferencesService private readonly preferencesService: IPreferencesService
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService
 	) {
 		super();
 
@@ -1468,7 +1469,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this.modelService, this.configurationResolverService, this.telemetryService,
 			this.contextService, this.environmentService,
 			AbstractTaskService.OutputChannelId, this.fileService, this.terminalInstanceService,
-			this.remotePathService,
+			this.remotePathService, this.viewDescriptorService,
 			(workspaceFolder: IWorkspaceFolder) => {
 				if (!workspaceFolder) {
 					return undefined;

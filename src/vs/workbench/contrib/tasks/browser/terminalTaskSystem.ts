@@ -45,7 +45,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
 import { env as processEnv, cwd as processCwd } from 'vs/base/common/process';
-import { IViewsService } from 'vs/workbench/common/views';
+import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 
 interface TerminalData {
 	terminal: ITerminalInstance;
@@ -201,6 +201,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		private fileService: IFileService,
 		private terminalInstanceService: ITerminalInstanceService,
 		private remotePathService: IRemotePathService,
+		private viewDescriptorService: IViewDescriptorService,
 		taskSystemInfoResolver: TaskSystemInfoResolver,
 	) {
 
@@ -298,7 +299,8 @@ export class TerminalTaskSystem implements ITaskSystem {
 		if (!terminalData) {
 			return false;
 		}
-		if (this.isTaskVisible(task)) {
+		const isTerminalInPanel: boolean = this.viewDescriptorService.getViewLocation(TERMINAL_VIEW_ID) === ViewContainerLocation.Panel;
+		if (isTerminalInPanel && this.isTaskVisible(task)) {
 			if (this.previousPanelId) {
 				if (this.previousTerminalInstance) {
 					this.terminalService.setActiveInstance(this.previousTerminalInstance);
@@ -310,9 +312,11 @@ export class TerminalTaskSystem implements ITaskSystem {
 			this.previousPanelId = undefined;
 			this.previousTerminalInstance = undefined;
 		} else {
-			this.previousPanelId = this.panelService.getActivePanel()?.getId();
-			if (this.previousPanelId === TERMINAL_VIEW_ID) {
-				this.previousTerminalInstance = this.terminalService.getActiveInstance() ?? undefined;
+			if (isTerminalInPanel) {
+				this.previousPanelId = this.panelService.getActivePanel()?.getId();
+				if (this.previousPanelId === TERMINAL_VIEW_ID) {
+					this.previousTerminalInstance = this.terminalService.getActiveInstance() ?? undefined;
+				}
 			}
 			this.terminalService.setActiveInstance(terminalData.terminal);
 			if (CustomTask.is(task) || ContributedTask.is(task)) {
