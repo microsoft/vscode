@@ -79,6 +79,12 @@ export interface IEnvironmentVariableService {
 	 * Gets a single collection constructed by merging all environment variable collections into
 	 * one.
 	 */
+	readonly collections: ReadonlyMap<string, IEnvironmentVariableCollection>;
+
+	/**
+	 * Gets a single collection constructed by merging all environment variable collections into
+	 * one.
+	 */
 	readonly mergedCollection: IMergedEnvironmentVariableCollection;
 
 	/**

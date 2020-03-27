@@ -24,8 +24,8 @@ interface ISerializableExtensionEnvironmentVariableCollection {
 export class EnvironmentVariableService implements IEnvironmentVariableService {
 	_serviceBrand: undefined;
 
-	private _collections: Map<string, IEnvironmentVariableCollection> = new Map();
-	private _mergedCollection: IMergedEnvironmentVariableCollection;
+	collections: Map<string, IEnvironmentVariableCollection> = new Map();
+	mergedCollection: IMergedEnvironmentVariableCollection;
 
 	private readonly _onDidChangeCollections = new Emitter<IMergedEnvironmentVariableCollection>();
 	get onDidChangeCollections(): Event<IMergedEnvironmentVariableCollection> { return this._onDidChangeCollections.event; }
@@ -37,36 +37,32 @@ export class EnvironmentVariableService implements IEnvironmentVariableService {
 		const serializedPersistedCollections = this._storageService.get(ENVIRONMENT_VARIABLE_COLLECTIONS_KEY, StorageScope.WORKSPACE);
 		if (serializedPersistedCollections) {
 			const collectionsJson: ISerializableExtensionEnvironmentVariableCollection[] = JSON.parse(serializedPersistedCollections);
-			collectionsJson.forEach(c => this._collections.set(c.extensionIdentifier, deserializeEnvironmentVariableCollection(c.collection)));
+			collectionsJson.forEach(c => this.collections.set(c.extensionIdentifier, deserializeEnvironmentVariableCollection(c.collection)));
 
 			// Asynchronously invalidate collections where extensions have been uninstalled, this is
 			// async to avoid making all functions on the service synchronous and because extensions
 			// being uninstalled is rare.
 			this._invalidateExtensionCollections();
 		}
-		this._mergedCollection = this._resolveMergedCollection();
+		this.mergedCollection = this._resolveMergedCollection();
 
 		// Listen for uninstalled/disabled extensions
 		this._extensionService.onDidChangeExtensions(() => this._invalidateExtensionCollections());
 	}
 
-	get mergedCollection(): IMergedEnvironmentVariableCollection {
-		return this._mergedCollection;
-	}
-
 	set(extensionIdentifier: string, collection: IEnvironmentVariableCollection): void {
-		this._collections.set(extensionIdentifier, collection);
+		this.collections.set(extensionIdentifier, collection);
 		this._updateCollections();
 	}
 
 	delete(extensionIdentifier: string): void {
-		this._collections.delete(extensionIdentifier);
+		this.collections.delete(extensionIdentifier);
 		this._updateCollections();
 	}
 
 	private _updateCollections(): void {
 		this._persistCollectionsEventually();
-		this._mergedCollection = this._resolveMergedCollection();
+		this.mergedCollection = this._resolveMergedCollection();
 		this._notifyCollectionUpdatesEventually();
 	}
 
@@ -76,11 +72,11 @@ export class EnvironmentVariableService implements IEnvironmentVariableService {
 	}
 
 	protected _persistCollections(): void {
-		const keys = [...this._collections.keys()];
+		const keys = [...this.collections.keys()];
 		const collectionsJson: ISerializableExtensionEnvironmentVariableCollection[] = keys.map(extensionIdentifier => {
 			return {
 				extensionIdentifier,
-				collection: serializeEnvironmentVariableCollection(this._collections.get(extensionIdentifier)!)
+				collection: serializeEnvironmentVariableCollection(this.collections.get(extensionIdentifier)!)
 			};
 		});
 		const stringifiedJson = JSON.stringify(collectionsJson);
@@ -93,24 +89,11 @@ export class EnvironmentVariableService implements IEnvironmentVariableService {
 	}
 
 	protected _notifyCollectionUpdates(): void {
-		this._onDidChangeCollections.fire(this._mergedCollection);
+		this._onDidChangeCollections.fire(this.mergedCollection);
 	}
 
 	private _resolveMergedCollection(): IMergedEnvironmentVariableCollection {
-		return new MergedEnvironmentVariableCollection(this._collections);
-		// const result = new EnvironmentVariableCollection();
-		// this._collections.forEach(collection => {
-		// 	const it = collection.entries();
-		// 	let next = it.next();
-		// 	while (!next.done) {
-		// 		const variable = next.value[0];
-		// 		if (!result.entries.has(variable)) {
-		// 			result.entries.set(variable, next.value[1]);
-		// 		}
-		// 		next = it.next();
-		// 	}
-		// });
-		// return result;
+		return new MergedEnvironmentVariableCollection(this.collections);
 	}
 
 	private async _invalidateExtensionCollections(): Promise<void> {
@@ -118,10 +101,10 @@ export class EnvironmentVariableService implements IEnvironmentVariableService {
 
 		const registeredExtensions = await this._extensionService.getExtensions();
 		let changes = false;
-		this._collections.forEach((_, extensionIdentifier) => {
+		this.collections.forEach((_, extensionIdentifier) => {
 			const isExtensionRegistered = registeredExtensions.some(r => r.identifier.value === extensionIdentifier);
 			if (!isExtensionRegistered) {
-				this._collections.delete(extensionIdentifier);
+				this.collections.delete(extensionIdentifier);
 				changes = true;
 			}
 		});

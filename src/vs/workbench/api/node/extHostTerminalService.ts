@@ -25,13 +25,14 @@ import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { dispose } from 'vs/base/common/lifecycle';
 import { serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
+import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 
 export class ExtHostTerminalService extends BaseExtHostTerminalService {
 
 	private _variableResolver: ExtHostVariableResolverService | undefined;
 	private _lastActiveWorkspace: IWorkspaceFolder | undefined;
 
-	private _environmentVariableCollection: Map<string, vscode.EnvironmentVariableCollection> = new Map();
+	private _environmentVariableCollections: Map<string, EnvironmentVariableCollection> = new Map();
 
 	// TODO: Pull this from main side
 	private _isWorkspaceShellAllowed: boolean = false;
@@ -48,13 +49,14 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		this._updateVariableResolver();
 		this._registerListeners();
 
-		const c = this.getEnvironmentVariableCollection({ identifier: { value: 'test' } } as any, true);
 		setTimeout(() => {
+			const c = this.getEnvironmentVariableCollection({ identifier: { value: 'test' } } as any, true);
 			c.prepend('a', 'b');
 			c.replace('c', 'd');
 			c.append('e', 'f');
 		}, 2000);
 		setTimeout(() => {
+			const c = this.getEnvironmentVariableCollection({ identifier: { value: 'test' } } as any, true);
 			c.prepend('a', 'late addition');
 		}, 4000);
 	}
@@ -232,29 +234,43 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 	}
 
 	public getEnvironmentVariableCollection(extension: IExtensionDescription, persistent?: boolean): vscode.EnvironmentVariableCollection {
-		dispose(this._environmentVariableCollection.get(extension.identifier.value));
-
-		let collection: EnvironmentVariableCollection;
+		let collection: EnvironmentVariableCollection | undefined;
 		if (persistent) {
-			// TODO: Persist when persistent is set
-			// TODO: Load collection for this extension when persistent is set
-			collection = new EnvironmentVariableCollection();
-		} else {
-			collection = new EnvironmentVariableCollection();
+			// If persistent is specified, return the current collection if it exists
+			collection = this._environmentVariableCollections.get(extension.identifier.value);
 		}
-		collection.onDidChangeCollection(() => {
-			// When any collection value changes send this immediately, this is done to ensure
-			// following calls to createTerminal will be created with the new environment. It will
-			// result in more noise by sending multiple updates when called but collections are
-			// expected to be small.
-			this._syncEnvironmentVariableCollection(extension.identifier.value, collection);
-		});
-		this._environmentVariableCollection.set(extension.identifier.value, collection);
+
+		if (!collection) {
+			// If not persistent, clear out the current collection and create a new one
+			dispose(this._environmentVariableCollections.get(extension.identifier.value));
+			collection = new EnvironmentVariableCollection();
+			this._setEnvironmentVariableCollection(extension.identifier.value, collection);
+		}
+
 		return collection;
 	}
 
 	private _syncEnvironmentVariableCollection(extensionIdentifier: string, collection: EnvironmentVariableCollection): void {
 		const serialized = serializeEnvironmentVariableCollection(collection.map);
 		this._proxy.$setEnvironmentVariableCollection(extensionIdentifier, serialized.length === 0 ? undefined : serialized);
+	}
+
+	public $initEnvironmentVariableCollections(collections: [string, ISerializableEnvironmentVariableCollection][]): void {
+		collections.forEach(entry => {
+			const extensionIdentifier = entry[0];
+			const collection = new EnvironmentVariableCollection(entry[1]);
+			this._setEnvironmentVariableCollection(extensionIdentifier, collection);
+		});
+	}
+
+	private _setEnvironmentVariableCollection(extensionIdentifier: string, collection: EnvironmentVariableCollection): void {
+		this._environmentVariableCollections.set(extensionIdentifier, collection);
+		collection.onDidChangeCollection(() => {
+			// When any collection value changes send this immediately, this is done to ensure
+			// following calls to createTerminal will be created with the new environment. It will
+			// result in more noise by sending multiple updates when called but collections are
+			// expected to be small.
+			this._syncEnvironmentVariableCollection(extensionIdentifier, collection!);
+		});
 	}
 }

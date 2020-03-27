@@ -14,7 +14,7 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TerminalDataBufferer } from 'vs/workbench/contrib/terminal/common/terminalDataBuffering';
 import { IEnvironmentVariableService, ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { deserializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
+import { deserializeEnvironmentVariableCollection, serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
 export class MainThreadTerminalService implements MainThreadTerminalServiceShape {
@@ -73,6 +73,13 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		const activeInstance = this._terminalService.getActiveInstance();
 		if (activeInstance) {
 			this._proxy.$acceptActiveTerminalChanged(activeInstance.id);
+		}
+		if (this._environmentVariableService.collections.size > 0) {
+			const collectionAsArray = [...this._environmentVariableService.collections.entries()];
+			const serializedCollections: [string, ISerializableEnvironmentVariableCollection][] = collectionAsArray.map(e => {
+				return [e[0], serializeEnvironmentVariableCollection(e[1])];
+			});
+			this._proxy.$initEnvironmentVariableCollections(serializedCollections);
 		}
 
 		this._terminalService.extHostReady(extHostContext.remoteAuthority);

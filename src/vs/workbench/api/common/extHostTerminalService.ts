@@ -16,6 +16,7 @@ import { TerminalDataBufferer } from 'vs/workbench/contrib/terminal/common/termi
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Disposable as VSCodeDisposable, EnvironmentVariableMutatorType } from './extHostTypes';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 
 export interface IExtHostTerminalService extends ExtHostTerminalServiceShape {
 
@@ -336,6 +337,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	public abstract $getDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto>;
 	public abstract $acceptWorkspacePermissionsChanged(isAllowed: boolean): void;
 	public abstract getEnvironmentVariableCollection(extension: IExtensionDescription, persistent?: boolean): vscode.EnvironmentVariableCollection;
+	public abstract $initEnvironmentVariableCollections(collections: [string, ISerializableEnvironmentVariableCollection][]): void;
 
 	public createExtensionTerminal(options: vscode.ExtensionTerminalOptions): vscode.Terminal {
 		const terminal = new ExtHostTerminal(this._proxy, options, options.name);
@@ -640,39 +642,36 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	}
 }
 
-export class EnvironmentVariableMutator implements vscode.EnvironmentVariableMutator {
-	constructor(
-		public value: string,
-		public type: vscode.EnvironmentVariableMutatorType
-	) { }
-}
-
 export class EnvironmentVariableCollection implements vscode.EnvironmentVariableCollection {
-	public map: Map<string, EnvironmentVariableMutator> = new Map();
+	public readonly map: Map<string, vscode.EnvironmentVariableMutator> = new Map();
 
 	protected readonly _onDidChangeCollection: Emitter<void> = new Emitter<void>();
 	get onDidChangeCollection(): Event<void> { return this._onDidChangeCollection && this._onDidChangeCollection.event; }
+
+	constructor(serialized?: ISerializableEnvironmentVariableCollection) {
+		this.map = new Map(serialized);
+	}
 
 	get size(): number {
 		return this.map.size;
 	}
 
 	replace(variable: string, value: string): void {
-		this.map.set(variable, new EnvironmentVariableMutator(value, EnvironmentVariableMutatorType.Replace));
+		this.map.set(variable, { value, type: EnvironmentVariableMutatorType.Replace });
 		this._onDidChangeCollection.fire();
 	}
 
 	append(variable: string, value: string): void {
-		this.map.set(variable, new EnvironmentVariableMutator(value, EnvironmentVariableMutatorType.Append));
+		this.map.set(variable, { value, type: EnvironmentVariableMutatorType.Append });
 		this._onDidChangeCollection.fire();
 	}
 
 	prepend(variable: string, value: string): void {
-		this.map.set(variable, new EnvironmentVariableMutator(value, EnvironmentVariableMutatorType.Prepend));
+		this.map.set(variable, { value, type: EnvironmentVariableMutatorType.Prepend });
 		this._onDidChangeCollection.fire();
 	}
 
-	get(variable: string): EnvironmentVariableMutator | undefined {
+	get(variable: string): vscode.EnvironmentVariableMutator | undefined {
 		return this.map.get(variable);
 	}
 
@@ -732,5 +731,9 @@ export class WorkerExtHostTerminalService extends BaseExtHostTerminalService {
 	public getEnvironmentVariableCollection(extension: IExtensionDescription, persistent?: boolean): vscode.EnvironmentVariableCollection {
 		// This is not implemented so worker ext host extensions cannot influence terminal envs
 		throw new Error('Not implemented');
+	}
+
+	public $initEnvironmentVariableCollections(collections: [string, ISerializableEnvironmentVariableCollection][]): void {
+		// No-op for web worker ext host as collections aren't used
 	}
 }
