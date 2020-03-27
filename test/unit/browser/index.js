@@ -155,7 +155,7 @@ async function runTestsInBrowser(testModules, browserType) {
 	});
 
 	try {
-		// @ts-ignore
+		// @ts-expect-error
 		await page.evaluate(modules => loadAndRun(modules), testModules);
 	} catch (err) {
 		console.error(err);
