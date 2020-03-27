@@ -617,7 +617,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	async executeNotebookCell(cell: ICellViewModel): Promise<void> {
 		try {
 			cell.runState = CellRunState.Running;
-			const provider = this.notebookService.getContributedNotebookProviders(cell.uri)[0];
+			const provider = this.notebookService.getContributedNotebookProviders(this.viewModel!.uri)[0];
 			if (provider) {
 				const viewType = provider.id;
 				const notebookUri = CellUri.parse(cell.uri)?.notebook;

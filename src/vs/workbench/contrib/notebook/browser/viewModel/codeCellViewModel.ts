@@ -188,11 +188,12 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	}
 
 	getOutputOffset(index: number): number {
+		this._ensureOutputsTop();
+
 		if (index >= this._outputCollection.length) {
 			throw new Error('Output index out of range!');
 		}
 
-		this._ensureOutputsTop();
 		const offset = this._outputsTop!.getAccumulatedValue(index - 1);
 		return this.layoutInfo.outputContainerOffset + offset;
 	}
