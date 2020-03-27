@@ -1,7 +1,7 @@
 name: Locker
 on:
   schedule:
-    - cron: 30 * * * *
+    - cron: 0 * * * *
 
 jobs:
   main:
