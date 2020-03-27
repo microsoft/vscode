@@ -83,7 +83,7 @@ export class CodeCell extends Disposable {
 		}));
 
 		templateData.editor?.updateOptions({ readOnly: !(viewCell.getEvaluatedMetadata(notebookEditor.viewModel?.metadata).editable) });
-		this._register(viewCell.onDidChangeMetadata((e) => {
+		this._register(viewCell.onDidChangeMetadata(() => {
 			templateData.editor?.updateOptions({ readOnly: !(viewCell.getEvaluatedMetadata(notebookEditor.viewModel?.metadata).editable) });
 		}));
 
@@ -227,7 +227,7 @@ export class CodeCell extends Disposable {
 			if (transformedDisplayOutput.orderedMimeTypes.length > 1) {
 				outputItemDiv.style.position = 'relative';
 				const mimeTypePicker = DOM.$('.multi-mimetype-output');
-				DOM.addClasses(mimeTypePicker, 'codicon', 'codicon-list-selection');
+				DOM.addClasses(mimeTypePicker, 'codicon', 'codicon-code');
 				outputItemDiv.appendChild(mimeTypePicker);
 				this.outputResizeListeners.get(currOutput)!.add(DOM.addStandardDisposableListener(mimeTypePicker, 'mousedown', async e => {
 					e.preventDefault();
@@ -263,8 +263,7 @@ export class CodeCell extends Disposable {
 
 		if (result.shadowContent) {
 			this.viewCell.selfSizeMonitoring = true;
-			let editorHeight = this.viewCell.layoutInfo.editorHeight;
-			this.notebookEditor.createInset(this.viewCell, currOutput, result.shadowContent, editorHeight + 8 + this.viewCell.getOutputOffset(index));
+			this.notebookEditor.createInset(this.viewCell, currOutput, result.shadowContent, this.viewCell.getOutputOffset(index));
 		} else {
 			DOM.addClass(outputItemDiv, 'foreground');
 		}

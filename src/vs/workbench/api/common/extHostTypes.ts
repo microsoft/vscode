@@ -17,6 +17,7 @@ import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remo
 import type * as vscode from 'vscode';
 import { Cache } from './cache';
 import { assertIsDefined } from 'vs/base/common/types';
+import { Schemas } from 'vs/base/common/network';
 
 function es5ClassCompat(target: Function): any {
 	///@ts-ignore
@@ -1368,7 +1369,7 @@ export enum CompletionItemTag {
 
 export interface CompletionItemLabel {
 	name: string;
-	signature?: string;
+	parameters?: string;
 	qualifier?: string;
 	type?: string;
 }
@@ -2597,22 +2598,22 @@ interface EditState {
 
 export class CustomDocument<EditType = unknown> implements vscode.CustomDocument<EditType> {
 
-
 	readonly #edits = new Cache<EditType>('edits');
-
-	#editState: EditState;
 
 	readonly #viewType: string;
 	readonly #uri: vscode.Uri;
 
+	#editState: EditState = {
+		allEdits: [],
+		currentIndex: -1,
+		saveIndex: -1,
+	};
+	#isDisposed = false;
+	#version = 1;
+
 	constructor(viewType: string, uri: vscode.Uri) {
 		this.#viewType = viewType;
 		this.#uri = uri;
-		this.#editState = {
-			allEdits: [],
-			currentIndex: 0,
-			saveIndex: 0
-		};
 	}
 
 	//#region Public API
@@ -2621,15 +2622,27 @@ export class CustomDocument<EditType = unknown> implements vscode.CustomDocument
 
 	public get uri(): vscode.Uri { return this.#uri; }
 
+	public get fileName(): string { return this.uri.fsPath; }
+
+	public get isUntitled() { return this.uri.scheme === Schemas.untitled; }
+
 	#onDidDispose = new Emitter<void>();
 	public readonly onDidDispose = this.#onDidDispose.event;
 
-	get appliedEdits() {
+	public get isClosed() { return this.#isDisposed; }
+
+	public get version() { return this.#version; }
+
+	public get isDirty() {
+		return this.#editState.currentIndex !== this.#editState.saveIndex;
+	}
+
+	public get appliedEdits() {
 		return this.#editState.allEdits.slice(0, this.#editState.currentIndex + 1)
 			.map(id => this._getEdit(id));
 	}
 
-	get savedEdits() {
+	public get savedEdits() {
 		return this.#editState.allEdits.slice(0, this.#editState.saveIndex + 1)
 			.map(id => this._getEdit(id));
 	}
@@ -2637,11 +2650,13 @@ export class CustomDocument<EditType = unknown> implements vscode.CustomDocument
 	//#endregion
 
 	/** @internal */ _dispose(): void {
+		this.#isDisposed = true;
 		this.#onDidDispose.fire();
 		this.#onDidDispose.dispose();
 	}
 
 	/** @internal */ _updateEditState(state: EditState) {
+		++this.#version;
 		this.#editState = state;
 	}
 

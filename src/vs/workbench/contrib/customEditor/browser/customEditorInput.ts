@@ -6,6 +6,7 @@
 import { memoize } from 'vs/base/common/decorators';
 import { Lazy } from 'vs/base/common/lazy';
 import { IReference } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
 import { basename } from 'vs/base/common/path';
 import { isEqual } from 'vs/base/common/resources';
 import { assertIsDefined } from 'vs/base/common/types';
@@ -99,6 +100,10 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		return this._modelRef ? this._modelRef.object.isReadonly() : false;
 	}
 
+	public isUntitled(): boolean {
+		return this.resource.scheme === Schemas.untitled;
+	}
+
 	public isDirty(): boolean {
 		if (!this._modelRef) {
 			return false;
@@ -120,8 +125,16 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 
 	public async save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
 		const modelRef = assertIsDefined(this._modelRef);
-		const result = await modelRef.object.save(options);
-		return result ? this : undefined;
+		const target = await modelRef.object.saveCustomEditor(options);
+		if (!target) {
+			return undefined; // save cancelled
+		}
+
+		if (!isEqual(target, this.resource)) {
+			return this.customEditorService.createInput(target, this.viewType, groupId);
+		}
+
+		return this;
 	}
 
 	public async saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
@@ -133,7 +146,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			return undefined; // save cancelled
 		}
 
-		if (!await modelRef.object.saveAs(this._editorResource, target, options)) {
+		if (!await modelRef.object.saveCustomEditorAs(this._editorResource, target, options)) {
 			return undefined;
 		}
 

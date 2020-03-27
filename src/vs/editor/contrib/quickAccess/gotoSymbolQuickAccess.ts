@@ -17,6 +17,7 @@ import { values } from 'vs/base/common/collections';
 import { trim, format } from 'vs/base/common/strings';
 import { fuzzyScore, FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { assign } from 'vs/base/common/objects';
+import { prepareQuery, IPreparedQuery } from 'vs/base/common/fuzzyScorer';
 
 export interface IGotoSymbolQuickPickItem extends IQuickPickItem {
 	kind: SymbolKind,
@@ -155,7 +156,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 			// Collect symbol picks
 			picker.busy = true;
 			try {
-				const items = await this.doGetSymbolPicks(symbolsPromise, picker.value.substr(AbstractGotoSymbolQuickAccessProvider.PREFIX.length).trim(), picksCts.token);
+				const items = await this.doGetSymbolPicks(symbolsPromise, prepareQuery(picker.value.substr(AbstractGotoSymbolQuickAccessProvider.PREFIX.length).trim()), picksCts.token);
 				if (token.isCancellationRequested) {
 					return;
 				}
@@ -194,18 +195,24 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 		return disposables;
 	}
 
-	protected async doGetSymbolPicks(symbolsPromise: Promise<DocumentSymbol[]>, filter: string, token: CancellationToken): Promise<Array<IGotoSymbolQuickPickItem | IQuickPickSeparator>> {
+	protected async doGetSymbolPicks(symbolsPromise: Promise<DocumentSymbol[]>, query: IPreparedQuery, token: CancellationToken): Promise<Array<IGotoSymbolQuickPickItem | IQuickPickSeparator>> {
 		const symbols = await symbolsPromise;
 		if (token.isCancellationRequested) {
 			return [];
 		}
 
-		// Normalize filter
-		const filterBySymbolKind = filter.indexOf(AbstractGotoSymbolQuickAccessProvider.SCOPE_PREFIX) === 0;
+		const filterBySymbolKind = query.original.indexOf(AbstractGotoSymbolQuickAccessProvider.SCOPE_PREFIX) === 0;
 		const filterPos = filterBySymbolKind ? 1 : 0;
-		const [symbolFilter, containerFilter] = filter.split(' ') as [string, string | undefined];
-		const symbolFilterLow = symbolFilter.toLowerCase();
-		const containerFilterLow = containerFilter?.toLowerCase();
+
+		// Split between symbol and container query if separated by space
+		let symbolQuery: IPreparedQuery;
+		let containerQuery: IPreparedQuery | undefined;
+		if (query.values && query.values.length > 1) {
+			symbolQuery = prepareQuery(query.values[0].original);
+			containerQuery = prepareQuery(query.values[1].original);
+		} else {
+			symbolQuery = query;
+		}
 
 		// Convert to symbol picks and apply filtering
 		const filteredSymbolPicks: IGotoSymbolQuickPickItem[] = [];
@@ -219,16 +226,16 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 			let containerScore: FuzzyScore | undefined = undefined;
 
 			let includeSymbol = true;
-			if (filter.length > filterPos) {
+			if (query.original.length > filterPos) {
 
 				// Score by symbol
-				symbolScore = fuzzyScore(symbolFilter, symbolFilterLow, filterPos, symbolLabel, symbolLabel.toLowerCase(), 0, true);
+				symbolScore = fuzzyScore(symbolQuery.original, symbolQuery.originalLowercase, filterPos, symbolLabel, symbolLabel.toLowerCase(), 0, true);
 				includeSymbol = !!symbolScore;
 
 				// Score by container if specified
-				if (includeSymbol && containerFilter && containerFilterLow) {
+				if (includeSymbol && containerQuery) {
 					if (containerLabel) {
-						containerScore = fuzzyScore(containerFilter, containerFilterLow, filterPos, containerLabel, containerLabel.toLowerCase(), 0, true);
+						containerScore = fuzzyScore(containerQuery.original, containerQuery.originalLowercase, filterPos, containerLabel, containerLabel.toLowerCase(), 0, true);
 					}
 
 					includeSymbol = !!containerScore;

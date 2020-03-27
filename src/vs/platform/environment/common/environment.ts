@@ -56,7 +56,7 @@ export interface ParsedArgs {
 	'open-url'?: boolean;
 	'skip-getting-started'?: boolean;
 	'skip-release-notes'?: boolean;
-	'sticky-quickopen'?: boolean;
+	'sticky-quickinput'?: boolean;
 	'disable-restore-windows'?: boolean;
 	'disable-telemetry'?: boolean;
 	'export-default-configuration'?: string;

@@ -129,19 +129,19 @@
 	},
 	{
 		"type": "label",
-		"name": "~needs version info",
-		"action": "updateLabels",
-		"addLabel": "needs more info",
-		"removeLabel": "~needs version info",
-		"comment": "Thanks for creating this issue! We figured it's missing some basic information, such as a version number, or in some other way doesn't follow our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines. Please take the time to review these and update the issue.\n\nHappy Coding!"
-	},
-	{
-		"type": "label",
 		"name": "~needs more info",
 		"action": "updateLabels",
 		"addLabel": "needs more info",
 		"removeLabel": "~needs more info",
 		"comment": "Thanks for creating this issue! We figured it's missing some basic information or in some other way doesn't follow our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines. Please take the time to review these and update the issue.\n\nHappy Coding!"
+	},
+	{	
+		"type": "label",	
+		"name": "~needs version info",	
+		"action": "updateLabels",	
+		"addLabel": "needs more info",	
+		"removeLabel": "~needs version info",	
+		"comment": "Thanks for creating this issue! We figured it's missing some basic information, such as a version number, or in some other way doesn't follow our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines. Please take the time to review these and update the issue.\n\nHappy Coding!"	
 	},
 	{
 		"type": "comment",
@@ -163,5 +163,135 @@
 		"name": "*off-topic",
 		"action": "close",
 		"comment": "Thanks for creating this issue. We think this issue is unactionable or unrelated to the goals of this project. Please follow our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines.\n\nHappy Coding!"
+	},
+	{
+		"type": "comment",
+		"name": "extPython",
+		"allowUsers": [
+			"cleidigh",
+			"usernamehw",
+			"gjsjohnmurray",
+			"IllusionMH"
+		],
+		"action": "close",
+		"addLabel": "*caused-by-extension",
+		"comment": "It looks like this is caused by the Python extension. Please file it with the repository [here](https://github.com/Microsoft/vscode-python). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines for more information.\n\nHappy Coding!"
+	},
+	{
+		"type": "comment",
+		"name": "extC",
+		"allowUsers": [
+			"cleidigh",
+			"usernamehw",
+			"gjsjohnmurray",
+			"IllusionMH"
+		],
+		"action": "close",
+		"addLabel": "*caused-by-extension",
+		"comment": "It looks like this is caused by the C extension. Please file it with the repository [here](https://github.com/Microsoft/vscode-cpptools). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines for more information.\n\nHappy Coding!"
+	},
+	{
+		"type": "comment",
+		"name": "extC++",
+		"allowUsers": [
+			"cleidigh",
+			"usernamehw",
+			"gjsjohnmurray",
+			"IllusionMH"
+		],
+		"action": "close",
+		"addLabel": "*caused-by-extension",
+		"comment": "It looks like this is caused by the C++ extension. Please file it with the repository [here](https://github.com/Microsoft/vscode-cpptools). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines for more information.\n\nHappy Coding!"
+	},
+	{
+		"type": "comment",
+		"name": "extTS",
+		"allowUsers": [
+			"cleidigh",
+			"usernamehw",
+			"gjsjohnmurray",
+			"IllusionMH"
+		],
+		"action": "close",
+		"addLabel": "*caused-by-extension",
+		"comment": "It looks like this is caused by the TypeScript language service. Please file it with the repository [here](https://github.com/microsoft/TypeScript/). Make sure to check their [contributing guidelines](https://github.com/microsoft/TypeScript/blob/master/CONTRIBUTING.md) and provide relevant information such as the extension version you're using. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines for more information.\n\nHappy Coding!"
+	},
+	{
+		"type": "comment",
+		"name": "extJS",
+		"allowUsers": [
+			"cleidigh",
+			"usernamehw",
+			"gjsjohnmurray",
+			"IllusionMH"
+		],
+		"action": "close",
+		"addLabel": "*caused-by-extension",
+		"comment": "It looks like this is caused by the TypeScript/JavaScript language service. Please file it with the repository [here](https://github.com/microsoft/TypeScript/). Make sure to check their [contributing guidelines](https://github.com/microsoft/TypeScript/blob/master/CONTRIBUTING.md) and provide relevant information such as the extension version you're using. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines for more information.\n\nHappy Coding!"
+	},
+	{
+		"type": "comment",
+		"name": "extC#",
+		"allowUsers": [
+			"cleidigh",
+			"usernamehw",
+			"gjsjohnmurray",
+			"IllusionMH"
+		],
+		"action": "close",
+		"addLabel": "*caused-by-extension",
+		"comment": "It looks like this is caused by the C# extension. Please file it with the repository [here](https://github.com/OmniSharp/omnisharp-vscode.git). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines for more information.\n\nHappy Coding!"
+	},
+	{
+		"type": "comment",
+		"name": "extGo",
+		"allowUsers": [
+			"cleidigh",
+			"usernamehw",
+			"gjsjohnmurray",
+			"IllusionMH"
+		],
+		"action": "close",
+		"addLabel": "*caused-by-extension",
+		"comment": "It looks like this is caused by the Go extension. Please file it with the repository [here](https://github.com/microsoft/vscode-go). Make sure to check their [contributing guidelines](https://github.com/microsoft/vscode-go/blob/master/CONTRIBUTING.md) and provide relevant information such as the extension version you're using. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines for more information.\n\nHappy Coding!"
+	},
+	{
+		"type": "comment",
+		"name": "extPowershell",
+		"allowUsers": [
+			"cleidigh",
+			"usernamehw",
+			"gjsjohnmurray",
+			"IllusionMH"
+		],
+		"action": "close",
+		"addLabel": "*caused-by-extension",
+		"comment": "It looks like this is caused by the Powershell extension. Please file it with the repository [here](https://github.com/PowerShell/vscode-powershell). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines for more information.\n\nHappy Coding!"
+	},
+	{
+		"type": "comment",
+		"name": "extLiveShare",
+		"allowUsers": [
+			"cleidigh",
+			"usernamehw",
+			"gjsjohnmurray",
+			"IllusionMH"
+		],
+		"action": "close",
+		"addLabel": "*caused-by-extension",
+		"comment": "It looks like this is caused by the LiveShare extension. Please file it with the repository [here](https://github.com/MicrosoftDocs/live-share). Make sure to check their [contributing guidelines](https://github.com/MicrosoftDocs/live-share/blob/master/CONTRIBUTING.md) and provide relevant information such as the extension version you're using. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines for more information.\n\nHappy Coding!"
+	},
+	{
+		"type": "comment",
+		"name": "extDocker",
+		"allowUsers": [
+			"cleidigh",
+			"usernamehw",
+			"gjsjohnmurray",
+			"IllusionMH"
+		],
+		"action": "close",
+		"addLabel": "*caused-by-extension",
+		"comment": "It looks like this is caused by the Docker extension. Please file it with the repository [here](https://github.com/microsoft/vscode-docker). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines for more information.\n\nHappy Coding!"
 	}
 ]

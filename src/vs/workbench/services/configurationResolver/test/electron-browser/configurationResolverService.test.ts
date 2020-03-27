@@ -584,10 +584,6 @@ class MockQuickInputService implements IQuickInputService {
 	cancel(): Promise<void> {
 		throw new Error('not implemented.');
 	}
-
-	hide(): void {
-		throw new Error('not implemented.');
-	}
 }
 
 class MockInputsConfigurationService extends TestConfigurationService {

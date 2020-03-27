@@ -4,13 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import { prepareActions } from 'vs/workbench/browser/actions';
+import { Separator, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
 
-suite('Workbench action registry', () => {
+suite('Actionbar', () => {
 
-	test('Workbench Action Bar prepareActions()', function () {
+	test('prepareActions()', function () {
 		let a1 = new Separator();
 		let a2 = new Separator();
 		let a3 = new Action('a3');

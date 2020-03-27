@@ -8,7 +8,7 @@ import * as resources from 'vs/base/common/resources';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as errors from 'vs/base/common/errors';
 import { Disposable, IDisposable, dispose, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { FileChangeType, FileChangesEvent, IFileService, whenProviderRegistered, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { ConfigurationModel, ConfigurationModelParser, UserSettings } from 'vs/platform/configuration/common/configurationModels';
 import { WorkspaceConfigurationModelParser, StandaloneConfigurationModelParser } from 'vs/workbench/services/configuration/common/configurationModels';
@@ -26,12 +26,13 @@ import { hash } from 'vs/base/common/hash';
 
 export class UserConfiguration extends Disposable {
 
-	private readonly _onDidInitializeCompleteConfiguration: Emitter<void> = this._register(new Emitter<void>());
 	private readonly _onDidChangeConfiguration: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
 	readonly onDidChangeConfiguration: Event<ConfigurationModel> = this._onDidChangeConfiguration.event;
 
 	private readonly userConfiguration: MutableDisposable<UserSettings | FileServiceBasedConfiguration> = this._register(new MutableDisposable<UserSettings | FileServiceBasedConfiguration>());
 	private readonly reloadConfigurationScheduler: RunOnceScheduler;
+
+	get hasTasksLoaded(): boolean { return this.userConfiguration.value instanceof FileServiceBasedConfiguration; }
 
 	constructor(
 		private readonly userSettingsResource: URI,
@@ -42,9 +43,6 @@ export class UserConfiguration extends Disposable {
 		this.userConfiguration.value = new UserSettings(this.userSettingsResource, this.scopes, this.fileService);
 		this._register(this.userConfiguration.value.onDidChange(() => this.reloadConfigurationScheduler.schedule()));
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.reload().then(configurationModel => this._onDidChangeConfiguration.fire(configurationModel)), 50));
-
-		runWhenIdle(() => this._onDidInitializeCompleteConfiguration.fire(), 5000);
-		this._register(Event.once(this._onDidInitializeCompleteConfiguration.event)(() => this.reloadConfigurationScheduler.schedule()));
 	}
 
 	async initialize(): Promise<ConfigurationModel> {
@@ -52,13 +50,22 @@ export class UserConfiguration extends Disposable {
 	}
 
 	async reload(): Promise<ConfigurationModel> {
-		if (!(this.userConfiguration.value instanceof FileServiceBasedConfiguration)) {
-			const folder = resources.dirname(this.userSettingsResource);
-			const standAloneConfigurationResources: [string, URI][] = [TASKS_CONFIGURATION_KEY].map(name => ([name, resources.joinPath(folder, `${name}.json`)]));
-			this.userConfiguration.value = new FileServiceBasedConfiguration(folder.toString(), [this.userSettingsResource], standAloneConfigurationResources, this.scopes, this.fileService);
+		if (this.hasTasksLoaded) {
+			return this.userConfiguration.value!.loadConfiguration();
+		}
+
+		const folder = resources.dirname(this.userSettingsResource);
+		const standAloneConfigurationResources: [string, URI][] = [TASKS_CONFIGURATION_KEY].map(name => ([name, resources.joinPath(folder, `${name}.json`)]));
+		const fileServiceBasedConfiguration = new FileServiceBasedConfiguration(folder.toString(), [this.userSettingsResource], standAloneConfigurationResources, this.scopes, this.fileService);
+		const configurationModel = await fileServiceBasedConfiguration.loadConfiguration();
+		this.userConfiguration.value = fileServiceBasedConfiguration;
+
+		// Check for value because userConfiguration might have been disposed.
+		if (this.userConfiguration.value) {
 			this._register(this.userConfiguration.value.onDidChange(() => this.reloadConfigurationScheduler.schedule()));
 		}
-		return this.userConfiguration.value!.loadConfiguration();
+
+		return configurationModel;
 	}
 
 	reprocess(): ConfigurationModel {
@@ -101,11 +108,12 @@ class FileServiceBasedConfiguration extends Disposable {
 					const content = await this.fileService.readFile(resource);
 					return content.value.toString();
 				} catch (error) {
-					if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND) {
+					if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND
+						&& (<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_DIRECTORY) {
 						errors.onUnexpectedError(error);
 					}
 				}
-				return undefined;
+				return '{}';
 			}));
 		};
 
@@ -720,6 +728,7 @@ export class FolderConfiguration extends Disposable implements IFolderConfigurat
 		this.folderConfiguration = this.cachedFolderConfiguration = new CachedFolderConfiguration(workspaceFolder.uri, configFolderRelativePath, configurationCache);
 		if (workspaceFolder.uri.scheme === Schemas.file) {
 			this.folderConfiguration = this.createFileServiceBasedConfiguration(fileService);
+			this.folderConfigurationDisposable = this._register(this.folderConfiguration.onDidChange(e => this.onDidFolderConfigurationChange()));
 		} else {
 			whenProviderRegistered(workspaceFolder.uri, fileService)
 				.then(() => {
@@ -730,7 +739,6 @@ export class FolderConfiguration extends Disposable implements IFolderConfigurat
 					this.onDidFolderConfigurationChange();
 				});
 		}
-		this.folderConfigurationDisposable = this._register(this.folderConfiguration.onDidChange(e => this.onDidFolderConfigurationChange()));
 	}
 
 	loadConfiguration(): Promise<ConfigurationModel> {

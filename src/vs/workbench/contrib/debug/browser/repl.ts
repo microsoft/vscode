@@ -76,6 +76,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 	private static readonly REFRESH_DELAY = 100; // delay in ms to refresh the repl for new elements to show
 	private static readonly REPL_INPUT_LINE_HEIGHT = 19;
+	private static readonly URI = uri.parse(`${DEBUG_SCHEME}:replinput`);
 
 	private history: HistoryNavigator<string>;
 	private tree!: WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>;
@@ -149,10 +150,12 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 										if (item && item.label) {
 											let insertTextRules: CompletionItemInsertTextRule | undefined = undefined;
 											let insertText = item.text || item.label;
-											if (typeof item.selectionStart === 'number' && typeof item.selectionLength === 'number') {
+											if (typeof item.selectionStart === 'number') {
 												// If a debug completion item sets a selection we need to use snippets to make sure the selection is selected #90974
 												insertTextRules = CompletionItemInsertTextRule.InsertAsSnippet;
-												insertText = insertText.substr(0, item.selectionStart) + '${1:' + insertText.substr(item.selectionStart, item.selectionLength) + '}$0' + insertText.substr(item.selectionStart + item.selectionLength);
+												const selectionLength = typeof item.selectionLength === 'number' ? item.selectionLength : 0;
+												const placeholder = selectionLength > 0 ? '${1:' + insertText.substr(item.selectionStart, selectionLength) + '}$0' : '$0';
+												insertText = insertText.substr(0, item.selectionStart) + placeholder + insertText.substr(item.selectionStart + selectionLength);
 											}
 
 											suggestions.push({
@@ -208,7 +211,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			if (!visible) {
 				dispose(this.model);
 			} else {
-				this.model = this.modelService.createModel('', null, uri.parse(`${DEBUG_SCHEME}:replinput`), true);
+				this.model = this.modelService.getModel(Repl.URI) || this.modelService.createModel('', null, Repl.URI, true);
 				this.setMode();
 				this.replInput.setModel(this.model);
 				this.updateInputDecoration();

@@ -7,7 +7,7 @@ import 'vs/css!./media/views';
 import { Disposable, IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IViewDescriptorService, ViewContainer, IViewDescriptor, IViewContainersRegistry, Extensions as ViewExtensions, IView, ViewContainerLocation, IViewsService, IViewPaneContainer, getVisbileViewContextKey } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, IWorkspaceStorageChangeEvent } from 'vs/platform/storage/common/storage';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -34,6 +34,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { URI } from 'vs/base/common/uri';
 import { IProgressIndicator } from 'vs/platform/progress/common/progress';
+import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
 export interface IViewState {
 	visibleGlobal: boolean | undefined;
@@ -101,30 +102,46 @@ export class ContributableViewsModel extends Disposable {
 	}
 
 	setVisible(id: string, visible: boolean, size?: number): void {
-		const { visibleIndex, viewDescriptor, state } = this.find(id);
+		this.doSetVisible([{ id, visible, size }]);
+	}
 
-		if (!viewDescriptor.canToggleVisibility) {
-			throw new Error(`Can't toggle this view's visibility`);
+	protected doSetVisible(viewDescriptors: { id: string, visible: boolean, size?: number }[]): void {
+		const added: IAddedViewDescriptorRef[] = [];
+		const removed: IViewDescriptorRef[] = [];
+
+		for (const { id, visible, size } of viewDescriptors) {
+			const { visibleIndex, viewDescriptor, state } = this.find(id);
+
+			if (!viewDescriptor.canToggleVisibility) {
+				throw new Error(`Can't toggle this view's visibility`);
+			}
+
+			if (this.isViewDescriptorVisible(viewDescriptor) === visible) {
+				return;
+			}
+
+			if (viewDescriptor.workspace) {
+				state.visibleWorkspace = visible;
+			} else {
+				state.visibleGlobal = visible;
+			}
+
+			if (typeof size === 'number') {
+				state.size = size;
+			}
+
+			if (visible) {
+				added.push({ index: visibleIndex, viewDescriptor, size: state.size, collapsed: !!state.collapsed });
+			} else {
+				removed.push({ index: visibleIndex, viewDescriptor });
+			}
 		}
 
-		if (this.isViewDescriptorVisible(viewDescriptor) === visible) {
-			return;
+		if (added.length) {
+			this._onDidAdd.fire(added);
 		}
-
-		if (viewDescriptor.workspace) {
-			state.visibleWorkspace = visible;
-		} else {
-			state.visibleGlobal = visible;
-		}
-
-		if (typeof size === 'number') {
-			state.size = size;
-		}
-
-		if (visible) {
-			this._onDidAdd.fire([{ index: visibleIndex, viewDescriptor, size: state.size, collapsed: !!state.collapsed }]);
-		} else {
-			this._onDidRemove.fire([{ index: visibleIndex, viewDescriptor }]);
+		if (removed.length) {
+			this._onDidRemove.fire(removed);
 		}
 	}
 
@@ -318,6 +335,7 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 		viewletStateStorageId: string,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IStorageService storageService: IStorageService,
+		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService
 	) {
 		const globalViewsStateStorageId = `${viewletStateStorageId}.hidden`;
 		const viewStates = PersistentContributableViewsModel.loadViewsStates(viewletStateStorageId, globalViewsStateStorageId, storageService);
@@ -334,6 +352,30 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 			Event.map(this.onDidMove, ({ from, to }) => [from, to]),
 			Event.map(this.onDidChangeViewState, viewDescriptorRef => [viewDescriptorRef]))
 			(viewDescriptorRefs => this.saveViewsStates()));
+
+		storageKeysSyncRegistryService.registerStorageKey({ key: this.globalViewsStateStorageId, version: 1 });
+		this._globalViewsStatesValue = this.getStoredGlobalViewsStatesValue();
+		this._register(this.storageService.onDidChangeStorage(e => this.onDidStorageChange(e)));
+	}
+
+	private onDidStorageChange(e: IWorkspaceStorageChangeEvent): void {
+		if (e.key === this.globalViewsStateStorageId && e.scope === StorageScope.GLOBAL
+			&& this.globalViewsStatesValue !== this.getStoredGlobalViewsStatesValue() /* This checks if current window changed the value or not */) {
+			this._globalViewsStatesValue = undefined;
+			const storedViewsVisibilityStates = PersistentContributableViewsModel.loadGlobalViewsState(this.globalViewsStateStorageId, this.storageService, StorageScope.GLOBAL);
+			const changedViews: { id: string, visible: boolean }[] = [];
+			for (const [id, state] of storedViewsVisibilityStates) {
+				const viewState = this.viewStates.get(id);
+				if (viewState) {
+					if (viewState.visibleGlobal !== !state.isHidden) {
+						changedViews.push({ id, visible: !state.isHidden });
+					}
+				}
+			}
+			if (changedViews.length) {
+				this.doSetVisible(changedViews);
+			}
+		}
 	}
 
 	private saveViewsStates(): void {
@@ -372,9 +414,32 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 				order: !viewDescriptor.workspace && viewState ? viewState.order : undefined
 			});
 		}
-		this.storageService.store(this.globalViewsStateStorageId, JSON.stringify(values(storedViewsVisibilityStates)), StorageScope.GLOBAL);
+		this.globalViewsStatesValue = JSON.stringify(values(storedViewsVisibilityStates));
 	}
 
+	private _globalViewsStatesValue: string | undefined;
+	private get globalViewsStatesValue(): string {
+		if (!this._globalViewsStatesValue) {
+			this._globalViewsStatesValue = this.getStoredGlobalViewsStatesValue();
+		}
+
+		return this._globalViewsStatesValue;
+	}
+
+	private set globalViewsStatesValue(globalViewsStatesValue: string) {
+		if (this.globalViewsStatesValue !== globalViewsStatesValue) {
+			this._globalViewsStatesValue = globalViewsStatesValue;
+			this.setStoredGlobalViewsStatesValue(globalViewsStatesValue);
+		}
+	}
+
+	private getStoredGlobalViewsStatesValue(): string {
+		return this.storageService.get(this.globalViewsStateStorageId, StorageScope.GLOBAL, '[]');
+	}
+
+	private setStoredGlobalViewsStatesValue(value: string): void {
+		this.storageService.store(this.globalViewsStateStorageId, value, StorageScope.GLOBAL);
+	}
 
 	private static loadViewsStates(workspaceViewsStateStorageId: string, globalViewsStateStorageId: string, storageService: IStorageService): Map<string, IViewState> {
 		const viewStates = new Map<string, IViewState>();

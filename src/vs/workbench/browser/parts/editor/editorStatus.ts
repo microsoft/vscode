@@ -1209,7 +1209,7 @@ export class ChangeModeAction extends Action {
 
 				this.configurationService.updateValue(FILES_ASSOCIATIONS_CONFIG, currentAssociations, target);
 			}
-		}, 50 /* quick open is sensitive to being opened so soon after another */);
+		}, 50 /* quick input is sensitive to being opened so soon after another */);
 	}
 
 	private getFakeResource(lang: string): URI | undefined {
@@ -1344,7 +1344,7 @@ export class ChangeEncodingAction extends Action {
 			return;
 		}
 
-		await timeout(50); // quick open is sensitive to being opened so soon after another
+		await timeout(50); // quick input is sensitive to being opened so soon after another
 
 		const resource = toResource(activeEditorPane.input, { supportSideBySide: SideBySideEditor.MASTER });
 		if (!resource || (!this.fileService.canHandleResource(resource) && resource.scheme !== Schemas.untitled)) {

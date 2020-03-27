@@ -6,7 +6,6 @@
 import { localize } from 'vs/nls';
 import { IPickerQuickAccessItem, PickerQuickAccessProvider, TriggerAction } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { fuzzyScore, createMatches, FuzzyScore } from 'vs/base/common/filters';
-import { stripWildcards } from 'vs/base/common/strings';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ThrottledDelayer } from 'vs/base/common/async';
@@ -27,6 +26,7 @@ import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { getSelectionSearchString } from 'vs/editor/contrib/find/findController';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { prepareQuery, IPreparedQuery } from 'vs/base/common/fuzzyScorer';
 
 interface ISymbolQuickPickItem extends IPickerQuickAccessItem {
 	resource: URI | undefined;
@@ -89,28 +89,33 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 		return this.getSymbolPicks(filter, undefined, token);
 	}
 
-	async getSymbolPicks(filter: string, options: { skipLocal?: boolean, skipSorting?: boolean, delay?: number } | undefined, token: CancellationToken): Promise<Array<ISymbolQuickPickItem>> {
+	async getSymbolPicks(filter: string, options: { skipLocal?: boolean, skipScoring?: boolean, delay?: number } | undefined, token: CancellationToken): Promise<Array<ISymbolQuickPickItem>> {
 		return this.delayer.trigger(async () => {
 			if (token.isCancellationRequested) {
 				return [];
 			}
 
-			return this.doGetSymbolPicks(filter, options, token);
+			return this.doGetSymbolPicks(prepareQuery(filter), options, token);
 		}, options?.delay);
 	}
 
-	private async doGetSymbolPicks(filter: string, options: { skipLocal?: boolean, skipSorting?: boolean } | undefined, token: CancellationToken): Promise<Array<ISymbolQuickPickItem>> {
-		const workspaceSymbols = await getWorkspaceSymbols(filter, token);
+	private async doGetSymbolPicks(query: IPreparedQuery, options: { skipLocal?: boolean, skipScoring?: boolean } | undefined, token: CancellationToken): Promise<Array<ISymbolQuickPickItem>> {
+		const workspaceSymbols = await getWorkspaceSymbols(query.original, token);
 		if (token.isCancellationRequested) {
 			return [];
 		}
 
 		const symbolPicks: Array<ISymbolQuickPickItem> = [];
 
-		// Normalize filter
-		const [symbolFilter, containerFilter] = stripWildcards(filter).split(' ') as [string, string | undefined];
-		const symbolFilterLow = symbolFilter.toLowerCase();
-		const containerFilterLow = containerFilter?.toLowerCase();
+		// Split between symbol and container query
+		let symbolQuery: IPreparedQuery;
+		let containerQuery: IPreparedQuery | undefined;
+		if (query.values && query.values.length > 1) {
+			symbolQuery = prepareQuery(query.values[0].original);
+			containerQuery = prepareQuery(query.values[1].original);
+		} else {
+			symbolQuery = query;
+		}
 
 		// Convert to symbol picks and apply filtering
 		const openSideBySideDirection = this.configuration.openSideBySideDirection;
@@ -125,9 +130,9 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 					continue;
 				}
 
-				// Score by symbol label
+				// Score by symbol label (unless disabled)
 				const symbolLabel = symbol.name;
-				const symbolScore = fuzzyScore(symbolFilter, symbolFilterLow, 0, symbolLabel, symbolLabel.toLowerCase(), 0, true);
+				const symbolScore = options?.skipScoring ? FuzzyScore.Default : fuzzyScore(symbolQuery.original, symbolQuery.originalLowercase, 0, symbolLabel, symbolLabel.toLowerCase(), 0, true);
 				if (!symbolScore) {
 					continue;
 				}
@@ -143,11 +148,13 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 					}
 				}
 
-				// Score by container if specified
+				// Score by container if specified (unless disabled)
 				let containerScore: FuzzyScore | undefined = undefined;
-				if (containerFilter && containerFilterLow) {
+				if (options?.skipScoring) {
+					containerScore = FuzzyScore.Default;
+				} else if (containerQuery) {
 					if (containerLabel) {
-						containerScore = fuzzyScore(containerFilter, containerFilterLow, 0, containerLabel, containerLabel.toLowerCase(), 0, true);
+						containerScore = fuzzyScore(containerQuery.original, containerQuery.originalLowercase, 0, containerLabel, containerLabel.toLowerCase(), 0, true);
 					}
 
 					if (!containerScore) {
@@ -177,7 +184,7 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 					score: symbolScore,
 					label: symbolLabelWithIcon,
 					ariaLabel: localize('symbolAriaLabel', "{0}, symbols picker", symbolLabel),
-					highlights: deprecated ? undefined : {
+					highlights: (deprecated || options?.skipScoring) ? undefined : {
 						label: createMatches(symbolScore, symbolLabelWithIcon.length - symbolLabel.length /* Readjust matches to account for codicons in label */),
 						description: createMatches(containerScore)
 					},
@@ -200,7 +207,7 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 		}
 
 		// Sort picks (unless disabled)
-		if (!options?.skipSorting) {
+		if (!options?.skipScoring) {
 			symbolPicks.sort((symbolA, symbolB) => this.compareSymbols(symbolA, symbolB));
 		}
 

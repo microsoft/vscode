@@ -8,8 +8,8 @@ import * as UUID from 'vs/base/common/uuid';
 import * as model from 'vs/editor/common/model';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_PADDING, CELL_MARGIN, RUN_BUTTON_WIDTH } from 'vs/workbench/contrib/notebook/browser/constants';
-import { CellEditState, ICellViewModel, CellFindMatch, CodeCellLayoutChangeEvent, CodeCellLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_PADDING, CELL_MARGIN, CELL_RUN_GUTTER } from 'vs/workbench/contrib/notebook/browser/constants';
+import { CellEditState, ICellViewModel, CellFindMatch, CodeCellLayoutChangeEvent, CodeCellLayoutInfo, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind, ICell, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { BaseCellViewModel } from './baseCellViewModel';
 import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
@@ -61,6 +61,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		readonly notebookHandle: number,
 		readonly cell: ICell,
 		readonly eventDispatcher: NotebookEventDispatcher,
+		initialNotebookLayoutInfo: NotebookLayoutInfo | null,
 		@ITextModelService private readonly _modelService: ITextModelService,
 	) {
 		super(viewType, notebookHandle, cell, UUID.generateUuid());
@@ -72,13 +73,18 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			}));
 		}
 
+		this._register(this.cell.onDidChangeMetadata(() => {
+			this._onDidChangeMetadata.fire();
+		}));
+
 		this._outputCollection = new Array(this.cell.outputs.length);
 		this._buffer = null;
 
 		this._layoutInfo = {
-			fontInfo: null,
+			fontInfo: initialNotebookLayoutInfo?.fontInfo || null,
 			editorHeight: 0,
 			editorWidth: 0,
+			outputContainerOffset: 0,
 			outputTotalHeight: 0,
 			totalHeight: 0,
 			indicatorHeight: 0
@@ -102,14 +108,16 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		this._ensureOutputsTop();
 		const outputTotalHeight = this._outputsTop!.getTotalValue();
 		const totalHeight = this.outputs.length
-			? EDITOR_TOOLBAR_HEIGHT + this.editorHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING + 16 + outputTotalHeight
+			? EDITOR_TOOLBAR_HEIGHT + this.editorHeight + EDITOR_TOP_PADDING + 16 + outputTotalHeight
 			: EDITOR_TOOLBAR_HEIGHT + this.editorHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING + outputTotalHeight;
-		const indicatorHeight = totalHeight - EDITOR_TOOLBAR_HEIGHT - 16;
-		const editorWidth = state.outerWidth !== undefined ? state.outerWidth - CELL_MARGIN * 2 - RUN_BUTTON_WIDTH : 0;
+		const indicatorHeight = this.editorHeight + outputTotalHeight;
+		const outputContainerOffset = EDITOR_TOOLBAR_HEIGHT + this.editorHeight;
+		const editorWidth = state.outerWidth !== undefined ? state.outerWidth - CELL_MARGIN * 2 - CELL_RUN_GUTTER : 0;
 		this._layoutInfo = {
 			fontInfo: state.font || null,
 			editorHeight: this._editorHeight,
 			editorWidth,
+			outputContainerOffset,
 			outputTotalHeight,
 			totalHeight,
 			indicatorHeight
@@ -181,13 +189,14 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	}
 
 	getOutputOffset(index: number): number {
+		this._ensureOutputsTop();
+
 		if (index >= this._outputCollection.length) {
 			throw new Error('Output index out of range!');
 		}
 
-		this._ensureOutputsTop();
-
-		return this._outputsTop!.getAccumulatedValue(index - 1);
+		const offset = this._outputsTop!.getAccumulatedValue(index - 1);
+		return this.layoutInfo.outputContainerOffset + offset;
 	}
 
 	spliceOutputHeights(start: number, deleteCnt: number, heights: number[]) {

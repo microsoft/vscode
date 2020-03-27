@@ -12,7 +12,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { DisposableStore, toDisposable, IDisposable } from 'vs/base/common/lifecycle';
 import { timeout } from 'vs/base/common/async';
-import { PickerQuickAccessProvider, FastAndSlowPicksType } from 'vs/platform/quickinput/browser/pickerQuickAccess';
+import { PickerQuickAccessProvider, FastAndSlowPicks } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 
 suite('QuickAccess', () => {
 
@@ -239,7 +239,7 @@ suite('QuickAccess', () => {
 			super('bothFastAndSlow');
 		}
 
-		protected getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): FastAndSlowPicksType<IQuickPickItem> {
+		protected getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): FastAndSlowPicks<IQuickPickItem> {
 			fastAndSlowProviderCalled = true;
 
 			return {

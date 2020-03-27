@@ -14,7 +14,7 @@ import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { WorkspaceTextEdit } from 'vs/editor/common/modes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { CellFindMatch, CellEditState, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellFindMatch, CellEditState, ICellViewModel, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { DeleteCellEdit, InsertCellEdit, MoveCellEdit } from 'vs/workbench/contrib/notebook/browser/viewModel/cellEdit';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
@@ -99,10 +99,15 @@ export class NotebookViewModel extends Disposable {
 		return null;
 	}
 
+	get layoutInfo(): NotebookLayoutInfo | null {
+		return this._layoutInfo;
+	}
+
 	constructor(
 		public viewType: string,
 		private _model: NotebookEditorModel,
 		readonly eventDispatcher: NotebookEventDispatcher,
+		private _layoutInfo: NotebookLayoutInfo | null,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IBulkEditService private readonly bulkEditService: IBulkEditService,
 		@IUndoRedoService private readonly undoService: IUndoRedoService
@@ -122,6 +127,10 @@ export class NotebookViewModel extends Disposable {
 
 		this._register(this._model.notebook.onDidChangeMetadata(e => {
 			this.eventDispatcher.emit([new NotebookMetadataChangedEvent(e)]);
+		}));
+
+		this._register(this.eventDispatcher.onDidChangeLayout((e) => {
+			this._layoutInfo = e.value;
 		}));
 
 		this._viewCells = this._model!.notebook!.cells.map(cell => {
@@ -156,6 +165,21 @@ export class NotebookViewModel extends Disposable {
 		this._viewCells.splice(deleteIndex, 1);
 		this._model.deleteCell(deleteIndex);
 		this._onDidChangeViewCells.fire({ synchronous: true, splices: [[deleteIndex, 1, []]] });
+	}
+
+	createCell(index: number, source: string[], language: string, type: CellKind, synchronous: boolean) {
+		const cell = this._model.notebook.createCellTextModel(source, language, type, [], undefined);
+		let newCell: CellViewModel = createCellViewModel(this.instantiationService, this, cell);
+		this._viewCells!.splice(index, 0, newCell);
+		this._model.insertCell(cell, index);
+		this._localStore.add(newCell);
+		this.undoService.pushElement(new InsertCellEdit(this.uri, index, newCell, {
+			insertCell: this._insertCellDelegate.bind(this),
+			deleteCell: this._deleteCellDelegate.bind(this)
+		}));
+
+		this._onDidChangeViewCells.fire({ synchronous: synchronous, splices: [[index, 0, [newCell]]] });
+		return newCell;
 	}
 
 	insertCell(index: number, cell: ICell, synchronous: boolean): CellViewModel {
@@ -397,8 +421,8 @@ export type CellViewModel = CodeCellViewModel | MarkdownCellViewModel;
 
 export function createCellViewModel(instantiationService: IInstantiationService, notebookViewModel: NotebookViewModel, cell: ICell) {
 	if (cell.cellKind === CellKind.Code) {
-		return instantiationService.createInstance(CodeCellViewModel, notebookViewModel.viewType, notebookViewModel.handle, cell, notebookViewModel.eventDispatcher);
+		return instantiationService.createInstance(CodeCellViewModel, notebookViewModel.viewType, notebookViewModel.handle, cell, notebookViewModel.eventDispatcher, notebookViewModel.layoutInfo);
 	} else {
-		return instantiationService.createInstance(MarkdownCellViewModel, notebookViewModel.viewType, notebookViewModel.handle, cell, notebookViewModel.eventDispatcher);
+		return instantiationService.createInstance(MarkdownCellViewModel, notebookViewModel.viewType, notebookViewModel.handle, cell, notebookViewModel.eventDispatcher, notebookViewModel.layoutInfo);
 	}
 }

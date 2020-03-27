@@ -497,6 +497,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 
 	private _getSemanticTokenAtPosition(semanticTokens: SemanticTokensResult, pos: Position): ISemanticTokenInfo | null {
 		const tokenData = semanticTokens.tokens.data;
+		const defaultLanguage = this._model.getLanguageIdentifier().language;
 		let lastLine = 0;
 		let lastCharacter = 0;
 		const posLine = pos.lineNumber - 1, posCharacter = pos.column - 1; // to 0-based position
@@ -511,7 +512,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 				const definitions = {};
 				const colorMap = this._themeService.getColorTheme().tokenColorMap;
 				const theme = this._themeService.getColorTheme() as ColorThemeData;
-				const tokenStyle = theme.getTokenStyleMetadata(type, modifiers, true, definitions);
+				const tokenStyle = theme.getTokenStyleMetadata(type, modifiers, defaultLanguage, true, definitions);
 
 				let metadata: IDecodedMetadata | undefined = undefined;
 				if (tokenStyle) {
@@ -539,7 +540,6 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		}
 		const theme = this._themeService.getColorTheme() as ColorThemeData;
 
-		const isTokenStylingRule = (d: any): d is TokenStylingRule => !!d.value;
 		if (Array.isArray(definition)) {
 			const scopesDefinition: TextMateThemingRuleDefinitions = {};
 			theme.resolveScopes(definition, scopesDefinition);
@@ -548,7 +548,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 				return `${escape(scopesDefinition.scope.join(' '))}<br><code class="tiw-theme-selector">${matchingRule.scope}\n${JSON.stringify(matchingRule.settings, null, '\t')}</code>`;
 			}
 			return '';
-		} else if (isTokenStylingRule(definition)) {
+		} else if (TokenStylingRule.is(definition)) {
 			const scope = theme.getTokenStylingRuleScope(definition);
 			if (scope === 'setting') {
 				return `User settings: ${definition.selector.selectorString} - ${this._renderStyleProperty(definition.style, property)}`;
@@ -556,16 +556,9 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 				return `Color theme: ${definition.selector.selectorString} - ${this._renderStyleProperty(definition.style, property)}`;
 			}
 			return '';
-		} else if (typeof definition === 'string') {
-			const [type, ...modifiers] = definition.split('.');
-			const definitions: TokenStyleDefinitions = {};
-			const m = theme.getTokenStyleMetadata(type, modifiers, true, definitions);
-			if (m && definitions.foreground) {
-				return this._renderTokenStyleDefinition(definitions[property], property);
-			}
-			return '';
 		} else {
-			return this._renderStyleProperty(definition, property);
+			const style = theme.resolveTokenStyleValue(definition);
+			return `Default: ${style ? this._renderStyleProperty(style, property) : ''}`;
 		}
 	}
 

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { promises as fs, exists } from 'fs';
+import { promises as fs, exists, realpath } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import * as cp from 'child_process';
@@ -18,7 +18,6 @@ import { detectEncoding } from './encoding';
 import { Ref, RefType, Branch, Remote, GitErrorCodes, LogOptions, Change, Status, CommitOptions } from './api/git';
 import * as byline from 'byline';
 import { StringDecoder } from 'string_decoder';
-import { promisify } from 'util';
 
 // https://github.com/microsoft/vscode/issues/65693
 const MAX_CLI_LENGTH = 30000;
@@ -436,10 +435,13 @@ export class Git {
 					const [, letter] = match;
 
 					try {
-						const result = await promisify(cp.exec)(`wmic logicaldisk where 'drivetype=4 and deviceid="${letter}:"' get deviceid,providername`);
-						match = /([A-Z]):\s+(.*?)\s*$/m.exec(result?.stdout.toString() ?? '');
-						if (match !== null) {
-							const [, , networkPath] = match;
+						const networkPath = await new Promise<string>(resolve =>
+							realpath.native(`${letter}:`, { encoding: 'utf8' }, (err, resolvedPath) =>
+								// eslint-disable-next-line eqeqeq
+								resolve(err != null ? undefined : resolvedPath),
+							),
+						);
+						if (networkPath !== undefined) {
 							return path.normalize(
 								repoUri.fsPath.replace(networkPath, `${letter.toLowerCase()}:`),
 							);

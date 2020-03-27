@@ -76,11 +76,6 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 			if (!data || !URI.isUri(resource) || typeof name !== 'string' || typeof viewType !== 'string') {
 				return undefined;
 			}
-			// TODO@joh,peng this is disabled because the note-editor isn't fit for being
-			// restorted (as it seems)
-			if ('true') {
-				return undefined;
-			}
 			return instantiationService.createInstance(NotebookEditorInput, resource, name, viewType);
 		}
 	}

@@ -43,7 +43,7 @@ class NullAccessorClass implements scorer.IItemAccessor<URI> {
 }
 
 function _doScore(target: string, query: string, fuzzy: boolean): scorer.Score {
-	return scorer.score(target, query, query.toLowerCase(), fuzzy);
+	return scorer.score(target, scorer.prepareQuery(query), fuzzy);
 }
 
 function scoreItem<T>(item: T, query: string, fuzzy: boolean, accessor: scorer.IItemAccessor<T>, cache: scorer.ScorerCache): scorer.IItemScore {
@@ -107,6 +107,42 @@ suite('Fuzzy Scorer', () => {
 		assert.ok(_doScore(target, 'ello', false)[0] > 0);
 		assert.ok(_doScore(target, 'ld', false)[0] > 0);
 		assert.equal(_doScore(target, 'eo', false)[0], 0);
+	});
+
+	test('score (fuzzy, multiple)', function () {
+		const target = 'HeLlo-World';
+
+		const [firstSingleScore, firstSinglePositions] = _doScore(target, 'HelLo', true);
+		const [secondSingleScore, secondSinglePositions] = _doScore(target, 'World', true);
+		const firstAndSecondSinglePositions = [...firstSinglePositions, ...secondSinglePositions];
+
+		let [multiScore, multiPositions] = _doScore(target, 'HelLo World', true);
+
+		function assertScore() {
+			assert.ok(multiScore >= firstSingleScore + secondSingleScore);
+			for (let i = 0; i < multiPositions.length; i++) {
+				assert.equal(multiPositions[i], firstAndSecondSinglePositions[i]);
+			}
+		}
+
+		function assertNoScore() {
+			assert.equal(multiScore, 0);
+			assert.equal(multiPositions.length, 0);
+		}
+
+		assertScore();
+
+		[multiScore, multiPositions] = _doScore(target, 'World HelLo', true);
+		assertScore();
+
+		[multiScore, multiPositions] = _doScore(target, 'World HelLo World', true);
+		assertScore();
+
+		[multiScore, multiPositions] = _doScore(target, 'World HelLo Nothing', true);
+		assertNoScore();
+
+		[multiScore, multiPositions] = _doScore(target, 'More Nothing', true);
+		assertNoScore();
 	});
 
 	test('scoreItem - matches are proper', function () {
@@ -820,11 +856,42 @@ suite('Fuzzy Scorer', () => {
 		assert.equal(res[0], resourceB);
 	});
 
-	test('prepareSearchForScoring', () => {
+	test('prepareQuery', () => {
 		assert.equal(scorer.prepareQuery(' f*a ').value, 'fa');
+		assert.equal(scorer.prepareQuery('model Tester.ts').original, 'model Tester.ts');
+		assert.equal(scorer.prepareQuery('model Tester.ts').originalLowercase, 'model Tester.ts'.toLowerCase());
 		assert.equal(scorer.prepareQuery('model Tester.ts').value, 'modelTester.ts');
-		assert.equal(scorer.prepareQuery('Model Tester.ts').lowercase, 'modeltester.ts');
+		assert.equal(scorer.prepareQuery('Model Tester.ts').valueLowercase, 'modeltester.ts');
 		assert.equal(scorer.prepareQuery('ModelTester.ts').containsPathSeparator, false);
 		assert.equal(scorer.prepareQuery('Model' + sep + 'Tester.ts').containsPathSeparator, true);
+
+		// with spaces
+		let query = scorer.prepareQuery('He*llo World');
+		assert.equal(query.original, 'He*llo World');
+		assert.equal(query.value, 'HelloWorld');
+		assert.equal(query.valueLowercase, 'HelloWorld'.toLowerCase());
+		assert.equal(query.values?.length, 2);
+		assert.equal(query.values?.[0].original, 'He*llo');
+		assert.equal(query.values?.[0].value, 'Hello');
+		assert.equal(query.values?.[0].valueLowercase, 'Hello'.toLowerCase());
+		assert.equal(query.values?.[1].original, 'World');
+		assert.equal(query.values?.[1].value, 'World');
+		assert.equal(query.values?.[1].valueLowercase, 'World'.toLowerCase());
+
+		// with spaces that are empty
+		query = scorer.prepareQuery(' Hello   World  	');
+		assert.equal(query.original, ' Hello   World  	');
+		assert.equal(query.originalLowercase, ' Hello   World  	'.toLowerCase());
+		assert.equal(query.value, 'HelloWorld');
+		assert.equal(query.valueLowercase, 'HelloWorld'.toLowerCase());
+		assert.equal(query.values?.length, 2);
+		assert.equal(query.values?.[0].original, 'Hello');
+		assert.equal(query.values?.[0].originalLowercase, 'Hello'.toLowerCase());
+		assert.equal(query.values?.[0].value, 'Hello');
+		assert.equal(query.values?.[0].valueLowercase, 'Hello'.toLowerCase());
+		assert.equal(query.values?.[1].original, 'World');
+		assert.equal(query.values?.[1].originalLowercase, 'World'.toLowerCase());
+		assert.equal(query.values?.[1].value, 'World');
+		assert.equal(query.values?.[1].valueLowercase, 'World'.toLowerCase());
 	});
 });

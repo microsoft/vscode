@@ -34,7 +34,8 @@ const BUILT_IN_AUTH_DEPENDENTS: AuthDependent[] = [
 
 export class MainThreadAuthenticationProvider extends Disposable {
 	private _sessionMenuItems = new Map<string, IDisposable[]>();
-	private _sessionIds: string[] = [];
+	private _accounts = new Map<string, string[]>(); // Map account name to session ids
+	private _sessions = new Map<string, string>(); // Map account id to name
 
 	constructor(
 		private readonly _proxy: ExtHostAuthenticationShape,
@@ -43,10 +44,6 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		public readonly dependents: AuthDependent[]
 	) {
 		super();
-
-		if (!dependents.length) {
-			return;
-		}
 
 		this.registerCommandsAndContextMenuItems();
 	}
@@ -86,21 +83,23 @@ export class MainThreadAuthenticationProvider extends Disposable {
 	}
 
 	private registerCommandsAndContextMenuItems(): void {
-		this._register(CommandsRegistry.registerCommand({
-			id: `signIn${this.id}`,
-			handler: (accessor, args) => {
-				this.setPermissionsForAccount(accessor.get(IQuickInputService), true);
-			},
-		}));
-
-		this._register(MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
-			group: '2_providers',
-			command: {
+		if (this.dependents.length) {
+			this._register(CommandsRegistry.registerCommand({
 				id: `signIn${this.id}`,
-				title: nls.localize('addAccount', "Sign in to {0}", this.displayName)
-			},
-			order: 3
-		}));
+				handler: (accessor, args) => {
+					this.setPermissionsForAccount(accessor.get(IQuickInputService), true);
+				},
+			}));
+
+			this._register(MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
+				group: '2_providers',
+				command: {
+					id: `signIn${this.id}`,
+					title: nls.localize('addAccount', "Sign in to {0}", this.displayName)
+				},
+				order: 3
+			}));
+		}
 
 		this._proxy.$getSessions(this.id).then(sessions => {
 			sessions.forEach(session => this.registerSession(session));
@@ -108,7 +107,16 @@ export class MainThreadAuthenticationProvider extends Disposable {
 	}
 
 	private registerSession(session: modes.AuthenticationSession) {
-		this._sessionIds.push(session.id);
+		this._sessions.set(session.id, session.accountName);
+
+		const existingSessionsForAccount = this._accounts.get(session.accountName);
+		if (existingSessionsForAccount) {
+			this._accounts.set(session.accountName, existingSessionsForAccount.concat(session.id));
+			return;
+		} else {
+			this._accounts.set(session.accountName, [session.id]);
+		}
+
 		const menuItem = MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
 			group: '1_accounts',
 			command: {
@@ -131,7 +139,8 @@ export class MainThreadAuthenticationProvider extends Disposable {
 				quickPick.onDidAccept(e => {
 					const selected = quickPick.selectedItems[0];
 					if (selected.label === 'Sign Out') {
-						this.logout(session.id);
+						const sessionsForAccount = this._accounts.get(session.accountName);
+						sessionsForAccount?.forEach(sessionId => this.logout(sessionId));
 					}
 
 					quickPick.dispose();
@@ -145,7 +154,7 @@ export class MainThreadAuthenticationProvider extends Disposable {
 			},
 		});
 
-		this._sessionMenuItems.set(session.id, [menuItem, manageCommand]);
+		this._sessionMenuItems.set(session.accountName, [menuItem, manageCommand]);
 	}
 
 	async getSessions(): Promise<ReadonlyArray<modes.AuthenticationSession>> {
@@ -158,22 +167,29 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		});
 	}
 
-	async updateSessionItems(): Promise<void> {
-		const currentSessions = await this._proxy.$getSessions(this.id);
-		const removedSessionIds = this._sessionIds.filter(id => !currentSessions.some(session => session.id === id));
-		const addedSessions = currentSessions.filter(session => !this._sessionIds.some(id => id === session.id));
+	async updateSessionItems(event: modes.AuthenticationSessionsChangeEvent): Promise<void> {
+		const { added, removed } = event;
+		const session = await this._proxy.$getSessions(this.id);
+		const addedSessions = session.filter(session => added.some(id => id === session.id));
 
-		removedSessionIds.forEach(id => {
-			const disposeables = this._sessionMenuItems.get(id);
-			if (disposeables) {
-				disposeables.forEach(disposeable => disposeable.dispose());
-				this._sessionMenuItems.delete(id);
+		removed.forEach(sessionId => {
+			const accountName = this._sessions.get(sessionId);
+			if (accountName) {
+				let sessionsForAccount = this._accounts.get(accountName) || [];
+				const sessionIndex = sessionsForAccount.indexOf(sessionId);
+				sessionsForAccount.splice(sessionIndex);
+
+				if (!sessionsForAccount.length) {
+					const disposeables = this._sessionMenuItems.get(accountName);
+					if (disposeables) {
+						disposeables.forEach(disposeable => disposeable.dispose());
+						this._sessionMenuItems.delete(accountName);
+					}
+				}
 			}
 		});
 
 		addedSessions.forEach(session => this.registerSession(session));
-
-		this._sessionIds = currentSessions.map(session => session.id);
 	}
 
 	login(scopes: string[]): Promise<modes.AuthenticationSession> {

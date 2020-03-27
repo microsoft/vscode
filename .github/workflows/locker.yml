@@ -1,9 +1,7 @@
-name: Commands
+name: Locker
 on:
-  issue_comment:
-    types: [created]
-  issues:
-    types: [labeled]
+  schedule:
+    - cron: 0 * * * *
 
 jobs:
   main:
@@ -14,8 +12,9 @@ jobs:
         with:
           repository: 'JacksonKearl/vscode-triage-github-actions'
           ref: v9
-      - name: Run Commands
-        uses: ./commands
+      - name: Run Locker
+        uses: ./locker
         with:
-          token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
-          config-path: commands
+          daysSinceClose: 1000
+          daysSinceUpdate: 3
+          ignoredLabel: "*out-of-scope"

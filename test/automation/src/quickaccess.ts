@@ -7,14 +7,14 @@ import { Editors } from './editors';
 import { Code } from './code';
 import { QuickInput } from './quickinput';
 
-export class QuickOpen {
+export class QuickAccess {
 
 	constructor(private code: Code, private editors: Editors, private quickInput: QuickInput) { }
 
-	async openQuickOpen(value: string): Promise<void> {
+	async openQuickAccess(value: string): Promise<void> {
 		let retries = 0;
 
-		// other parts of code might steal focus away from quickopen :(
+		// other parts of code might steal focus away from quickinput :(
 		while (retries < 5) {
 			if (process.platform === 'darwin') {
 				await this.code.dispatchKeybinding('cmd+p');
@@ -40,7 +40,7 @@ export class QuickOpen {
 	}
 
 	async openFile(fileName: string): Promise<void> {
-		await this.openQuickOpen(fileName);
+		await this.openQuickAccess(fileName);
 
 		await this.quickInput.waitForQuickInputElements(names => names[0] === fileName);
 		await this.code.dispatchKeybinding('enter');
@@ -49,7 +49,7 @@ export class QuickOpen {
 	}
 
 	async runCommand(commandId: string): Promise<void> {
-		await this.openQuickOpen(`>${commandId}`);
+		await this.openQuickAccess(`>${commandId}`);
 
 		// wait for best choice to be focused
 		await this.code.waitForTextContent(QuickInput.QUICK_INPUT_FOCUSED_ELEMENT);

@@ -7,13 +7,17 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { INotebookTextModel, NotebookCellOutputsSplice, NotebookCellsSplice, NotebookDocumentMetadata, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel, NotebookCellOutputsSplice, NotebookCellsSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, CellEditType, CellUri, ICellInsertEdit, NotebookCellsChangedEvent, CellKind, IOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class NotebookTextModel extends Disposable implements INotebookTextModel {
+	private static _cellhandlePool: number = 0;
+
 	private readonly _onWillDispose: Emitter<void> = this._register(new Emitter<void>());
 	readonly onWillDispose: Event<void> = this._onWillDispose.event;
 	private readonly _onDidChangeCells = new Emitter<NotebookCellsSplice[]>();
 	get onDidChangeCells(): Event<NotebookCellsSplice[]> { return this._onDidChangeCells.event; }
+	private _onDidModelChange = new Emitter<NotebookCellsChangedEvent>();
+	get onDidModelChange(): Event<NotebookCellsChangedEvent> { return this._onDidModelChange.event; }
 	private _onDidChangeContent = new Emitter<void>();
 	onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 	private _onDidChangeMetadata = new Emitter<NotebookDocumentMetadata>();
@@ -25,6 +29,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	metadata: NotebookDocumentMetadata | undefined = { editable: true };
 	renderers = new Set<number>();
 	private _isUntitled: boolean | undefined = undefined;
+	private _versionId = 0;
 
 	constructor(
 		public handle: number,
@@ -33,6 +38,47 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	) {
 		super();
 		this.cells = [];
+	}
+
+	createCellTextModel(
+		source: string[],
+		language: string,
+		cellKind: CellKind,
+		outputs: IOutput[],
+		metadata: NotebookCellMetadata | undefined
+	) {
+		const cellHandle = NotebookTextModel._cellhandlePool++;
+		const cellUri = CellUri.generate(this.uri, cellHandle);
+		return new NotebookCellTextModel(URI.revive(cellUri), cellHandle, source, language, cellKind, outputs || [], metadata);
+	}
+
+	applyEdit(modelVersionId: number, edits: ICellEditOperation[]): boolean {
+		if (modelVersionId !== this._versionId) {
+			return false;
+		}
+
+		for (let i = 0; i < edits.length; i++) {
+			switch (edits[i].editType) {
+				case CellEditType.Insert:
+					const insertEdit = edits[i] as ICellInsertEdit;
+					const mainCells = insertEdit.cells.map(cell => {
+						const cellHandle = NotebookTextModel._cellhandlePool++;
+						const cellUri = CellUri.generate(this.uri, cellHandle);
+						return new NotebookCellTextModel(URI.revive(cellUri), cellHandle, cell.source, cell.language, cell.cellKind, cell.outputs || [], cell.metadata);
+					});
+					this.insertNewCell(insertEdit.index, mainCells);
+					break;
+				case CellEditType.Delete:
+					this.removeCell(edits[i].index);
+					break;
+			}
+		}
+
+		return true;
+	}
+
+	private _increaseVersionId(): void {
+		this._versionId = this._versionId + 1;
 	}
 
 	updateLanguages(languages: string[]) {
@@ -78,20 +124,61 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		this._cellListeners.set(cell.handle, dirtyStateListener);
 		this._onDidChangeContent.fire();
+
+		this._onDidModelChange.fire({
+			versionId: this._versionId, changes: [
+				[
+					0,
+					0,
+					[{
+						handle: cell.handle,
+						uri: cell.uri,
+						source: cell.source,
+						language: cell.language,
+						cellKind: cell.cellKind,
+						outputs: cell.outputs,
+						metadata: cell.metadata
+					}]
+				]
+			]
+		});
+
 		return;
 	}
 
-	insertNewCell(index: number, cell: NotebookCellTextModel): void {
+	insertNewCell(index: number, cells: NotebookCellTextModel[]): void {
 		this._isUntitled = false;
 
-		this._mapping.set(cell.handle, cell);
-		this.cells.splice(index, 0, cell);
-		let dirtyStateListener = cell.onDidChangeContent(() => {
-			this._onDidChangeContent.fire();
+		for (let i = 0; i < cells.length; i++) {
+			this._mapping.set(cells[i].handle, cells[i]);
+			let dirtyStateListener = cells[i].onDidChangeContent(() => {
+				this._onDidChangeContent.fire();
+			});
+
+			this._cellListeners.set(cells[i].handle, dirtyStateListener);
+		}
+
+		this.cells.splice(index, 0, ...cells);
+		this._onDidChangeContent.fire();
+		this._increaseVersionId();
+		this._onDidModelChange.fire({
+			versionId: this._versionId, changes: [
+				[
+					index,
+					0,
+					cells.map(cell => ({
+						handle: cell.handle,
+						uri: cell.uri,
+						source: cell.source,
+						language: cell.language,
+						cellKind: cell.cellKind,
+						outputs: cell.outputs,
+						metadata: cell.metadata
+					}))
+				]
+			]
 		});
 
-		this._cellListeners.set(cell.handle, dirtyStateListener);
-		this._onDidChangeContent.fire();
 		return;
 	}
 
@@ -103,33 +190,9 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._cellListeners.delete(cell.handle);
 		this.cells.splice(index, 1);
 		this._onDidChangeContent.fire();
-	}
 
-
-	// TODO@rebornix should this trigger content change event?
-	$spliceNotebookCells(splices: NotebookCellsSplice[]): void {
-		if (!splices.length) {
-			return;
-		}
-
-		this._isUntitled = false;
-
-		splices.reverse().forEach(splice => {
-			let cellDtos = splice[2];
-			let newCells = cellDtos.map(cell => {
-				let mainCell = new NotebookCellTextModel(URI.revive(cell.uri), cell.handle, cell.source, cell.language, cell.cellKind, cell.outputs || [], cell.metadata);
-				this._mapping.set(cell.handle, mainCell);
-				let dirtyStateListener = mainCell.onDidChangeContent(() => {
-					this._onDidChangeContent.fire();
-				});
-				this._cellListeners.set(cell.handle, dirtyStateListener);
-				return mainCell;
-			});
-
-			this.cells.splice(splice[0], splice[1], ...newCells);
-		});
-
-		this._onDidChangeCells.fire(splices);
+		this._increaseVersionId();
+		this._onDidModelChange.fire({ versionId: this._versionId, changes: [[index, 1, []]] });
 	}
 
 	// TODO@rebornix should this trigger content change event?
