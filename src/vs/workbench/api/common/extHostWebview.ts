@@ -116,19 +116,18 @@ export class ExtHostWebview implements vscode.Webview {
 
 export class ExtHostWebviewEditor extends Disposable implements vscode.WebviewPanel {
 
-	private readonly _handle: extHostProtocol.WebviewPanelHandle;
-	private readonly _proxy: extHostProtocol.MainThreadWebviewsShape;
-	private readonly _viewType: string;
-	private _title: string;
-	private _iconPath?: IconPath;
+	readonly #handle: extHostProtocol.WebviewPanelHandle;
+	readonly #proxy: extHostProtocol.MainThreadWebviewsShape;
+	readonly #viewType: string;
 
-	readonly #options: vscode.WebviewPanelOptions;
 	readonly #webview: ExtHostWebview;
+	readonly #options: vscode.WebviewPanelOptions;
 
+	#title: string;
+	#iconPath?: IconPath;
 	#viewColumn: vscode.ViewColumn | undefined = undefined;
 	#visible: boolean = true;
 	#active: boolean = true;
-
 	#isDisposed: boolean = false;
 
 	readonly #onDidDispose = this._register(new Emitter<void>());
@@ -147,12 +146,12 @@ export class ExtHostWebviewEditor extends Disposable implements vscode.WebviewPa
 		webview: ExtHostWebview
 	) {
 		super();
-		this._handle = handle;
-		this._proxy = proxy;
-		this._viewType = viewType;
+		this.#handle = handle;
+		this.#proxy = proxy;
+		this.#viewType = viewType;
 		this.#options = editorOptions;
 		this.#viewColumn = viewColumn;
-		this._title = title;
+		this.#title = title;
 		this.#webview = webview;
 	}
 
@@ -163,7 +162,7 @@ export class ExtHostWebviewEditor extends Disposable implements vscode.WebviewPa
 
 		this.#isDisposed = true;
 		this.#onDidDispose.fire();
-		this._proxy.$disposeWebview(this._handle);
+		this.#proxy.$disposeWebview(this.#handle);
 		this.#webview.dispose();
 
 		super.dispose();
@@ -176,33 +175,33 @@ export class ExtHostWebviewEditor extends Disposable implements vscode.WebviewPa
 
 	get viewType(): string {
 		this.assertNotDisposed();
-		return this._viewType;
+		return this.#viewType;
 	}
 
 	get title(): string {
 		this.assertNotDisposed();
-		return this._title;
+		return this.#title;
 	}
 
 	set title(value: string) {
 		this.assertNotDisposed();
-		if (this._title !== value) {
-			this._title = value;
-			this._proxy.$setTitle(this._handle, value);
+		if (this.#title !== value) {
+			this.#title = value;
+			this.#proxy.$setTitle(this.#handle, value);
 		}
 	}
 
 	get iconPath(): IconPath | undefined {
 		this.assertNotDisposed();
-		return this._iconPath;
+		return this.#iconPath;
 	}
 
 	set iconPath(value: IconPath | undefined) {
 		this.assertNotDisposed();
-		if (this._iconPath !== value) {
-			this._iconPath = value;
+		if (this.#iconPath !== value) {
+			this.#iconPath = value;
 
-			this._proxy.$setIconPath(this._handle, URI.isUri(value) ? { light: value, dark: value } : value);
+			this.#proxy.$setIconPath(this.#handle, URI.isUri(value) ? { light: value, dark: value } : value);
 		}
 	}
 
@@ -245,12 +244,12 @@ export class ExtHostWebviewEditor extends Disposable implements vscode.WebviewPa
 
 	public postMessage(message: any): Promise<boolean> {
 		this.assertNotDisposed();
-		return this._proxy.$postMessage(this._handle, message);
+		return this.#proxy.$postMessage(this.#handle, message);
 	}
 
 	public reveal(viewColumn?: vscode.ViewColumn, preserveFocus?: boolean): void {
 		this.assertNotDisposed();
-		this._proxy.$reveal(this._handle, {
+		this.#proxy.$reveal(this.#handle, {
 			viewColumn: viewColumn ? typeConverters.ViewColumn.from(viewColumn) : undefined,
 			preserveFocus: !!preserveFocus
 		});
