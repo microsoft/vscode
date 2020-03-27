@@ -52,7 +52,6 @@ import { fromNow } from 'vs/base/common/date';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { timeout } from 'vs/base/common/async';
 import { distinct } from 'vs/base/common/arrays';
 
 const enum AuthStatus {
@@ -1074,8 +1073,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					quickPick.items = items;
 					disposables.add(quickPick.onDidAccept(() => {
 						if (quickPick.selectedItems[0] && quickPick.selectedItems[0].id) {
-							// Introduce timeout as workaround - #91661 #91740
-							timeout(0).then(() => commandService.executeCommand(quickPick.selectedItems[0].id!));
+							commandService.executeCommand(quickPick.selectedItems[0].id);
 						}
 						quickPick.hide();
 					}));

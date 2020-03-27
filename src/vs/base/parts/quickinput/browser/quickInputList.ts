@@ -106,6 +106,11 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 
 		// Checkbox
 		const label = dom.append(data.entry, $('label.quick-input-list-label'));
+		data.toDisposeTemplate.push(dom.addStandardDisposableListener(label, dom.EventType.CLICK, e => {
+			if (!data.checkbox.offsetParent) { // If checkbox not visible:
+				e.preventDefault(); // Prevent toggle of checkbox when it is immediately shown afterwards. #91740
+			}
+		}));
 		data.checkbox = <HTMLInputElement>dom.append(label, $('input.quick-input-list-checkbox'));
 		data.checkbox.type = 'checkbox';
 		data.toDisposeTemplate.push(dom.addStandardDisposableListener(data.checkbox, dom.EventType.CHANGE, e => {
