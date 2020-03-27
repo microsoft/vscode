@@ -348,11 +348,11 @@
 }
 
 .extension-editor .subcontent .monaco-list-row .content .unknown-extension > .error-marker {
-	background-color: #be1100;
+	background-color: #BE1100;
 	padding: 2px 4px;
 	font-weight: bold;
 	font-size: 11px;
-	color: #ccc;
+	color: #CCC;
 }
 
 .extension-editor .subcontent .monaco-list-row .unknown-extension > .message {
