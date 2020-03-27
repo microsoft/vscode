@@ -26,6 +26,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { dispose } from 'vs/base/common/lifecycle';
 import { serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
+import { MergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableCollection';
 
 export class ExtHostTerminalService extends BaseExtHostTerminalService {
 
@@ -196,6 +197,10 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 			terminalConfig.get<'auto' | 'off' | 'on'>('detectLocale', 'auto'),
 			baseEnv
 		);
+
+		// Apply extension environment variable collections to the environment
+		const mergedCollection = new MergedEnvironmentVariableCollection(this._environmentVariableCollections);
+		mergedCollection.applyToProcessEnvironment(env);
 
 		this._proxy.$sendResolvedLaunchConfig(id, shellLaunchConfig);
 		// Fork the process and listen for messages
