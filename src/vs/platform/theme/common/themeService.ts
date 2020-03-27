@@ -106,7 +106,7 @@ export interface IColorTheme {
 	/**
 	 * Returns the token style for a given classification. The result uses the <code>MetadataConsts</code> format
 	 */
-	getTokenStyleMetadata(type: string, modifiers: string[]): ITokenStyle | undefined;
+	getTokenStyleMetadata(type: string, modifiers: string[], modelLanguage: string): ITokenStyle | undefined;
 
 	/**
 	 * List of all colors used with tokens. <code>getTokenStyleMetadata</code> references the colors by index into this list.

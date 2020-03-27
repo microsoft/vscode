@@ -40,6 +40,7 @@ export interface CodeCellLayoutInfo {
 	readonly editorHeight: number;
 	readonly editorWidth: number;
 	readonly totalHeight: number;
+	readonly outputContainerOffset: number;
 	readonly outputTotalHeight: number;
 	readonly indicatorHeight: number;
 }
@@ -250,6 +251,7 @@ export interface CellRenderTemplate {
 	focusIndicator?: HTMLElement;
 	runToolbar?: ToolBar;
 	runButtonContainer?: HTMLElement;
+	executionOrderLabel?: HTMLElement;
 	editingContainer?: HTMLElement;
 	outputContainer?: HTMLElement;
 	editor?: CodeEditorWidget;

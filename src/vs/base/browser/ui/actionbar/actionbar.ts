@@ -873,3 +873,51 @@ export class SelectActionViewItem extends BaseActionViewItem {
 		this.selectBox.render(container);
 	}
 }
+
+export function prepareActions(actions: IAction[]): IAction[] {
+	if (!actions.length) {
+		return actions;
+	}
+
+	// Clean up leading separators
+	let firstIndexOfAction = -1;
+	for (let i = 0; i < actions.length; i++) {
+		if (actions[i].id === Separator.ID) {
+			continue;
+		}
+
+		firstIndexOfAction = i;
+		break;
+	}
+
+	if (firstIndexOfAction === -1) {
+		return [];
+	}
+
+	actions = actions.slice(firstIndexOfAction);
+
+	// Clean up trailing separators
+	for (let h = actions.length - 1; h >= 0; h--) {
+		const isSeparator = actions[h].id === Separator.ID;
+		if (isSeparator) {
+			actions.splice(h, 1);
+		} else {
+			break;
+		}
+	}
+
+	// Clean up separator duplicates
+	let foundAction = false;
+	for (let k = actions.length - 1; k >= 0; k--) {
+		const isSeparator = actions[k].id === Separator.ID;
+		if (isSeparator && !foundAction) {
+			actions.splice(k, 1);
+		} else if (!isSeparator) {
+			foundAction = true;
+		} else if (isSeparator) {
+			foundAction = false;
+		}
+	}
+
+	return actions;
+}

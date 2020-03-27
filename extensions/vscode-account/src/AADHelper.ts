@@ -205,7 +205,7 @@ export class AzureActiveDirectoryService {
 			Logger.info('Token expired or unavailable, trying refresh');
 			const refreshedToken = await this.refreshToken(token.refreshToken, token.scope);
 			if (refreshedToken.accessToken) {
-				Promise.resolve(token.accessToken);
+				return refreshedToken.accessToken;
 			} else {
 				throw new Error();
 			}

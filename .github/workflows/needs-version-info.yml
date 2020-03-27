@@ -1,7 +1,7 @@
 name: Needs Version Info
 on:
   issues:
-    types: [opened]
+    types: [opened, edited]
 
 jobs:
   main:
@@ -11,10 +11,13 @@ jobs:
         uses: actions/checkout@v2
         with:
           repository: 'JacksonKearl/vscode-triage-github-actions'
-          ref: v4
-      # - name: Run Needs Version Info
-      #   uses: ./needs-more-info
-      #   with:
-      #     token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
-      #     matcher: '\b(\d\.\d{2,3}\.\d|insiders?|1\.\d\d\d?)\b'
-      #     label: ~needs version info
+          ref: v7
+      - name: Run Needs Version Info
+        uses: ./needs-more-info
+        with:
+          token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
+          matcher: '\b(\d\.\d{2,3}\.\d|insiders?|1\.\d\d\d?)\b'
+          tags: feature_request_template
+          bots: vscodebot|vscode-triage-bot
+          comment: "Thanks for creating this issue! We detected it's missing some basic information, such as your VS Code and operating system versions, or in some other way doesn't follow our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines. Please take the time to review these guidelines and update the issue.\n\nThis comment will go away once sufficient information is included in your issue.\n\nHappy Coding!"
+          label: needs more info

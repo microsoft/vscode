@@ -62,7 +62,6 @@ function flatten(bucket: DocumentSymbol[], entries: DocumentSymbol[], overrideCo
 	}
 }
 
-
 CommandsRegistry.registerCommand('_executeDocumentSymbolProvider', async function (accessor, ...args) {
 	const [resource] = args;
 	assertType(URI.isUri(resource));

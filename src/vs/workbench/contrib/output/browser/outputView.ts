@@ -88,6 +88,7 @@ export class OutputViewPane extends ViewPane {
 	renderBody(container: HTMLElement): void {
 		this.editor.create(container);
 		const codeEditor = <ICodeEditor>this.editor.getControl();
+		codeEditor.setAriaOptions({ role: 'document', activeDescendant: undefined });
 		this._register(codeEditor.onDidChangeModelContent(() => {
 			const activeChannel = this.outputService.getActiveChannel();
 			if (activeChannel && !this.scrollLock) {
@@ -249,6 +250,8 @@ export class OutputEditor extends AbstractTextResourceEditor {
 
 	protected createEditor(parent: HTMLElement): void {
 
+		parent.setAttribute('role', 'document');
+
 		// First create the scoped instantiation service and only then construct the editor using the scoped service
 		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(parent));
 		this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]));
@@ -315,4 +318,3 @@ class SwitchOutputActionViewItem extends SelectActionViewItem {
 		this.setOptions(options.map((label, index) => <ISelectOptionItem>{ text: label, isDisabled: (index === separatorIndex ? true : false) }), Math.max(0, selected));
 	}
 }
-

@@ -9,7 +9,6 @@ import { IStorageChangeEvent, IStorageMainService } from 'vs/platform/storage/no
 import { IUpdateRequest, IStorageDatabase, IStorageItemsChangeEvent } from 'vs/base/parts/storage/common/storage';
 import { mapToSerializable, serializableToMap, values } from 'vs/base/common/map';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { ILogService } from 'vs/platform/log/common/log';
 import { generateUuid } from 'vs/base/common/uuid';
 import { instanceStorageKey, firstSessionDateStorageKey, lastSessionDateStorageKey, currentSessionDateStorageKey, crashReporterIdStorageKey } from 'vs/platform/telemetry/common/telemetry';
@@ -24,8 +23,8 @@ interface ISerializableUpdateRequest {
 }
 
 interface ISerializableItemsChangeEvent {
-	changed?: Item[];
-	deleted?: Key[];
+	readonly changed?: Item[];
+	readonly deleted?: Key[];
 }
 
 export class GlobalStorageDatabaseChannel extends Disposable implements IServerChannel {
@@ -35,23 +34,20 @@ export class GlobalStorageDatabaseChannel extends Disposable implements IServerC
 	private readonly _onDidChangeItems = this._register(new Emitter<ISerializableItemsChangeEvent>());
 	readonly onDidChangeItems = this._onDidChangeItems.event;
 
-	private whenReady: Promise<void>;
+	private readonly whenReady = this.init();
 
 	constructor(
 		private logService: ILogService,
 		private storageMainService: IStorageMainService
 	) {
 		super();
-
-		this.whenReady = this.init();
 	}
 
 	private async init(): Promise<void> {
 		try {
 			await this.storageMainService.initialize();
 		} catch (error) {
-			onUnexpectedError(error);
-			this.logService.error(error);
+			this.logService.error(`[storage] init(): Unable to init global storage due to ${error}`);
 		}
 
 		// This is unique to the application instance and thereby
@@ -168,8 +164,8 @@ export class GlobalStorageDatabaseChannelClient extends Disposable implements IS
 
 	_serviceBrand: undefined;
 
-	private readonly _onDidChangeItemsExternal: Emitter<IStorageItemsChangeEvent> = this._register(new Emitter<IStorageItemsChangeEvent>());
-	readonly onDidChangeItemsExternal: Event<IStorageItemsChangeEvent> = this._onDidChangeItemsExternal.event;
+	private readonly _onDidChangeItemsExternal = this._register(new Emitter<IStorageItemsChangeEvent>());
+	readonly onDidChangeItemsExternal = this._onDidChangeItemsExternal.event;
 
 	private onDidChangeItemsOnMainListener: IDisposable | undefined;
 

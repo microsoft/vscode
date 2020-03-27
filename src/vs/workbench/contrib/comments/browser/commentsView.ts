@@ -121,7 +121,7 @@ export class CommentsPanel extends ViewPane {
 
 	public getActions(): IAction[] {
 		if (!this.collapseAllAction) {
-			this.collapseAllAction = new Action('vs.tree.collapse', nls.localize('collapseAll', "Collapse All"), 'monaco-tree-action collapse-all', true, () => this.tree ? new CollapseAllAction<any, any>(this.tree, true).run() : Promise.resolve());
+			this.collapseAllAction = new Action('vs.tree.collapse', nls.localize('collapseAll', "Collapse All"), 'collapse-all', true, () => this.tree ? new CollapseAllAction<any, any>(this.tree, true).run() : Promise.resolve());
 			this._register(this.collapseAllAction);
 		}
 

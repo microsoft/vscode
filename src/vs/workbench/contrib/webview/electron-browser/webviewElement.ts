@@ -233,11 +233,10 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		const webviewAndContents = this._register(new WebviewTagHandle(this.element!));
 		const session = this._register(new WebviewSession(webviewAndContents));
 
-		this._protocolProvider = new WebviewProtocolProvider
-			(webviewAndContents,
-				() => this.extension ? this.extension.location : undefined,
-				() => (this.content.options.localResourceRoots || []),
-				fileService);
+		this._protocolProvider = new WebviewProtocolProvider(webviewAndContents,
+			() => this.extension?.location,
+			() => (this.content.options.localResourceRoots || []),
+			fileService);
 		this._register(this._protocolProvider);
 
 		this._register(new WebviewPortMappingProvider(

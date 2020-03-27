@@ -3,28 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* File icon themeable OLD tree style */
-.file-icon-themable-tree .monaco-tree-row .content {
-	display: flex;
-}
-
-.file-icon-themable-tree .monaco-tree-row .content::before {
-	background-size: 16px;
-	background-position: 50% 50%;
-	background-repeat: no-repeat;
-	padding-right: 6px;
-	width: 16px;
-	height: 22px;
-	display: inline-block;
-	vertical-align: top;
-	content: ' ';
-}
-
-.file-icon-themable-tree.align-icons-and-twisties .monaco-tree-row:not(.has-children) .content::before,
-.file-icon-themable-tree.hide-arrows .monaco-tree-row .content::before {
-	display: none;
-}
-
 /* File icons in trees */
 
 .file-icon-themable-tree.align-icons-and-twisties .monaco-tl-twistie:not(.force-twistie):not(.collapsible),

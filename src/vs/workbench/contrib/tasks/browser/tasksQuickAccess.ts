@@ -96,7 +96,7 @@ export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQ
 	private fillPicks(taskPicks: Array<IPickerQuickAccessItem | IQuickPickSeparator>, input: string, tasks: Array<CustomTask | ContributedTask>, groupLabel: string): void {
 		let first = true;
 		for (const task of tasks) {
-			const highlights = matchesFuzzy(input, task._label);
+			const highlights = matchesFuzzy(input, task._label, true);
 			if (!highlights) {
 				continue;
 			}

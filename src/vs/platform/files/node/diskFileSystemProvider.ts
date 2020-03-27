@@ -668,6 +668,9 @@ export class DiskFileSystemProvider extends Disposable implements
 			case 'EISDIR':
 				code = FileSystemProviderErrorCode.FileIsADirectory;
 				break;
+			case 'ENOTDIR':
+				code = FileSystemProviderErrorCode.FileNotADirectory;
+				break;
 			case 'EEXIST':
 				code = FileSystemProviderErrorCode.FileExists;
 				break;
