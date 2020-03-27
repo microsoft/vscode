@@ -67,46 +67,15 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 		// Find added
 		other.map.forEach((otherMutators, variable) => {
 			const currentMutators = this.map.get(variable);
-			console.log('check added', variable);
 			const addedArray = getMissingMutatorsFromArray(otherMutators, currentMutators);
-			console.log('addedArray', addedArray?.length);
 			if (addedArray) {
 				added.set(variable, addedArray);
-				console.log('get', added.get(variable)?.length);
-			}
-		});
-
-		other.map.forEach((otherMutators, variable) => {
-			const currentMutators = this.map.get(variable);
-
-			// If it doesn't exist, all are added
-			if (!currentMutators) {
-				added.set(variable, otherMutators);
-				return;
-			}
-
-			// Create a map to help
-			const currentMutatorExtensions = new Map<string, boolean>();
-			currentMutators.forEach(m => currentMutatorExtensions.set(m.extensionIdentifier, true));
-
-			// Find entries added in other
-			const addedArray: IExtensionOwnedEnvironmentVariableMutator[] = [];
-			otherMutators.forEach(extensionMutator => {
-				if (!currentMutatorExtensions.has(extensionMutator.extensionIdentifier)) {
-					addedArray.push(extensionMutator);
-				}
-			});
-
-			// Set if any were found
-			if (addedArray.length > 0) {
-				console.log('alt addedArray', addedArray.length);
 			}
 		});
 
 		// Find removed
 		this.map.forEach((currentMutators, variable) => {
 			const otherMutators = other.map.get(variable);
-			console.log('check removed', variable);
 			const removedArray = getMissingMutatorsFromArray(currentMutators, otherMutators);
 			if (removedArray) {
 				removed.set(variable, removedArray);
@@ -123,7 +92,6 @@ function getMissingMutatorsFromArray(
 ): IExtensionOwnedEnvironmentVariableMutator[] | undefined {
 	// If it doesn't exist, all are removed
 	if (!other) {
-		console.log('result', current);
 		return current;
 	}
 
@@ -134,13 +102,10 @@ function getMissingMutatorsFromArray(
 	// Find entries removed from other
 	const result: IExtensionOwnedEnvironmentVariableMutator[] = [];
 	current.forEach(extensionMutator => {
-		console.log('check for extension ' + extensionMutator.extensionIdentifier);
 		if (!otherMutatorExtensions.has(extensionMutator.extensionIdentifier)) {
-			console.log('pushed');
 			result.push(extensionMutator);
 		}
 	});
 
-	console.log('result', result.length);
 	return result.length === 0 ? undefined : result;
 }

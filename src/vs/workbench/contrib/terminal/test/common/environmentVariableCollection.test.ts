@@ -10,6 +10,57 @@ import { MergedEnvironmentVariableCollection } from 'vs/workbench/contrib/termin
 import { deserializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
 
 suite.only('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
+	suite('ctor', () => {
+		test('Should keep entries that come after a Prepend or Append type mutators', () => {
+			const merged = new MergedEnvironmentVariableCollection(new Map([
+				['ext1', deserializeEnvironmentVariableCollection([
+					['A', { value: 'a1', type: EnvironmentVariableMutatorType.Prepend }]
+				])],
+				['ext2', deserializeEnvironmentVariableCollection([
+					['A', { value: 'a2', type: EnvironmentVariableMutatorType.Append }]
+				])],
+				['ext3', deserializeEnvironmentVariableCollection([
+					['A', { value: 'a3', type: EnvironmentVariableMutatorType.Prepend }]
+				])],
+				['ext4', deserializeEnvironmentVariableCollection([
+					['A', { value: 'a4', type: EnvironmentVariableMutatorType.Append }]
+				])]
+			]));
+			deepStrictEqual([...merged.map.entries()], [
+				['A', [
+					{ extensionIdentifier: 'ext4', type: EnvironmentVariableMutatorType.Append, value: 'a4' },
+					{ extensionIdentifier: 'ext3', type: EnvironmentVariableMutatorType.Prepend, value: 'a3' },
+					{ extensionIdentifier: 'ext2', type: EnvironmentVariableMutatorType.Append, value: 'a2' },
+					{ extensionIdentifier: 'ext1', type: EnvironmentVariableMutatorType.Prepend, value: 'a1' }
+				]]
+			]);
+		});
+
+		test('Should remove entries that come after a Replace type mutator', () => {
+			const merged = new MergedEnvironmentVariableCollection(new Map([
+				['ext1', deserializeEnvironmentVariableCollection([
+					['A', { value: 'a1', type: EnvironmentVariableMutatorType.Prepend }]
+				])],
+				['ext2', deserializeEnvironmentVariableCollection([
+					['A', { value: 'a2', type: EnvironmentVariableMutatorType.Append }]
+				])],
+				['ext3', deserializeEnvironmentVariableCollection([
+					['A', { value: 'a3', type: EnvironmentVariableMutatorType.Replace }]
+				])],
+				['ext4', deserializeEnvironmentVariableCollection([
+					['A', { value: 'a4', type: EnvironmentVariableMutatorType.Append }]
+				])]
+			]));
+			deepStrictEqual([...merged.map.entries()], [
+				['A', [
+					{ extensionIdentifier: 'ext3', type: EnvironmentVariableMutatorType.Replace, value: 'a3' },
+					{ extensionIdentifier: 'ext2', type: EnvironmentVariableMutatorType.Append, value: 'a2' },
+					{ extensionIdentifier: 'ext1', type: EnvironmentVariableMutatorType.Prepend, value: 'a1' }
+				]]
+			], 'The ext4 entry should be removed as it comes after a Replace');
+		});
+	});
+
 	suite('applyToProcessEnvironment', () => {
 		test('should apply the collection to an environment', () => {
 			const merged = new MergedEnvironmentVariableCollection(new Map([
@@ -51,6 +102,22 @@ suite.only('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 	});
 
 	suite('diff', () => {
+		test('should generate added diffs from when the first entry is added', () => {
+			const merged1 = new MergedEnvironmentVariableCollection(new Map([]));
+			const merged2 = new MergedEnvironmentVariableCollection(new Map([
+				['ext1', deserializeEnvironmentVariableCollection([
+					['A', { value: 'a', type: EnvironmentVariableMutatorType.Replace }]
+				])]
+			]));
+			const diff = merged1.diff(merged2);
+			strictEqual(diff.changed.size, 0);
+			strictEqual(diff.removed.size, 0);
+			const entries = [...diff.added.entries()];
+			deepStrictEqual(entries, [
+				['A', [{ extensionIdentifier: 'ext1', value: 'a', type: EnvironmentVariableMutatorType.Replace }]]
+			]);
+		});
+
 		test('should generate added diffs from the same extension', () => {
 			const merged1 = new MergedEnvironmentVariableCollection(new Map([
 				['ext1', deserializeEnvironmentVariableCollection([
@@ -73,41 +140,61 @@ suite.only('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 		});
 
 		test('should generate added diffs from a different extension', () => {
-			console.log('START');
 			const merged1 = new MergedEnvironmentVariableCollection(new Map([
 				['ext1', deserializeEnvironmentVariableCollection([
-					['A', { value: 'a1', type: EnvironmentVariableMutatorType.Replace }]
+					['A', { value: 'a1', type: EnvironmentVariableMutatorType.Prepend }]
 				])]
 			]));
-			// TODO: Swapping the order or these changes the test result, the order is important
+
 			const merged2 = new MergedEnvironmentVariableCollection(new Map([
 				['ext2', deserializeEnvironmentVariableCollection([
 					['A', { value: 'a2', type: EnvironmentVariableMutatorType.Append }]
 				])],
 				['ext1', deserializeEnvironmentVariableCollection([
-					['A', { value: 'a1', type: EnvironmentVariableMutatorType.Replace }]
+					['A', { value: 'a1', type: EnvironmentVariableMutatorType.Prepend }]
 				])]
 			]));
 			const diff = merged1.diff(merged2);
 			strictEqual(diff.changed.size, 0);
 			strictEqual(diff.removed.size, 0);
-			const entries = [...diff.added.entries()];
-			deepStrictEqual(entries, [
+			deepStrictEqual([...diff.added.entries()], [
 				['A', [{ extensionIdentifier: 'ext2', value: 'a2', type: EnvironmentVariableMutatorType.Append }]]
 			]);
 
-			// Swapping the order or the entries should yield the same result
 			const merged3 = new MergedEnvironmentVariableCollection(new Map([
 				['ext1', deserializeEnvironmentVariableCollection([
-					['A', { value: 'a1', type: EnvironmentVariableMutatorType.Replace }]
+					['A', { value: 'a1', type: EnvironmentVariableMutatorType.Prepend }]
 				])],
+				// This entry should get removed
 				['ext2', deserializeEnvironmentVariableCollection([
 					['A', { value: 'a2', type: EnvironmentVariableMutatorType.Append }]
 				])]
 			]));
 			const diff2 = merged1.diff(merged3);
-			deepStrictEqual([...diff.added.entries()], [...diff2.added.entries()]);
+			strictEqual(diff2.changed.size, 0);
+			strictEqual(diff2.removed.size, 0);
+			deepStrictEqual([...diff.added.entries()], [...diff2.added.entries()], 'Swapping the order of the entries in the other collection should yield the same result');
+		});
 
+		test('should remove entries in the diff that come after a Replce', () => {
+			const merged1 = new MergedEnvironmentVariableCollection(new Map([
+				['ext1', deserializeEnvironmentVariableCollection([
+					['A', { value: 'a1', type: EnvironmentVariableMutatorType.Replace }]
+				])]
+			]));
+			const merged4 = new MergedEnvironmentVariableCollection(new Map([
+				['ext1', deserializeEnvironmentVariableCollection([
+					['A', { value: 'a1', type: EnvironmentVariableMutatorType.Replace }]
+				])],
+				// This entry should get removed as it comes after a replace
+				['ext2', deserializeEnvironmentVariableCollection([
+					['A', { value: 'a2', type: EnvironmentVariableMutatorType.Append }]
+				])]
+			]));
+			const diff = merged1.diff(merged4);
+			strictEqual(diff.changed.size, 0);
+			strictEqual(diff.removed.size, 0);
+			deepStrictEqual([...diff.added.entries()], [], 'Replace should ignore any entries after it');
 		});
 
 		test('should generate removed diffs', () => {
