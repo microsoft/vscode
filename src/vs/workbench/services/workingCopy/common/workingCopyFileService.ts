@@ -192,6 +192,8 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
+
+		// register a default working copy provider that uses the working copy service
 		this.registerWorkingCopyProvider(resource => {
 			return this.workingCopyService.workingCopies.filter(workingCopy => {
 				if (this.fileService.canHandleResource(resource)) {
