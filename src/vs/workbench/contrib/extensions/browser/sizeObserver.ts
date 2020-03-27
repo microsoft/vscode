@@ -20,7 +20,7 @@ type ResizeListener = () => void;
 /**
  * An interface the represents the required methods from ElementResizeObserver.
  */
-export interface ISizeObserver extends Disposable {
+export interface IResizeObserver extends Disposable {
 	startObserving(): void;
 	stopObserving(): void;
 	getWidth(): number;
@@ -30,7 +30,7 @@ export interface ISizeObserver extends Disposable {
 /**
  * An adapter for the browser's ResizeObserver class to match the ISizeObserver interface.
  */
-class BrowserResizeObserver extends Disposable implements ISizeObserver {
+class BrowserResizeObserver extends Disposable implements IResizeObserver {
 	private readonly element: HTMLElement;
 	private readonly observer: ResizeObserver;
 	private width: number;
@@ -79,7 +79,7 @@ class BrowserResizeObserver extends Disposable implements ISizeObserver {
 	}
 }
 
-export function getSizeObserver(element: HTMLElement, callback: ResizeListener): ISizeObserver {
+export function getSizeObserver(element: HTMLElement, callback: ResizeListener): IResizeObserver {
 	// If ResizeObserver is supported use BrowserResizeObserver otherwise fallback to ElementSizeObserver
 	if (ResizeObserver) {
 		return new BrowserResizeObserver(element, callback);

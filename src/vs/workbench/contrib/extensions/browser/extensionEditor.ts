@@ -60,7 +60,7 @@ import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { getSizeObserver } from 'vs/workbench/contrib/extensions/browser/sizeObserver';
+import { getSizeObserver, IResizeObserver } from 'vs/workbench/contrib/extensions/browser/sizeObserver';
 
 function removeEmbeddedSVGs(documentContent: string): string {
 	const newDocument = new DOMParser().parseFromString(documentContent, 'text/html');
@@ -181,6 +181,8 @@ export class ExtensionEditor extends BaseEditor {
 	private activeElement: IActiveElement | null = null;
 	private editorLoadComplete: boolean = false;
 
+	private headerResizeObserver: IResizeObserver | null = null;
+
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -259,20 +261,31 @@ export class ExtensionEditor extends BaseEditor {
 		const ignoreActionbar = this._register(new ActionBar(subtextContainer, { animated: false }));
 
 		// Watch for changes in the header's size in order to resize inner components accordingly
-		const resizeObserver = getSizeObserver(header, () => {
-			const currHeight = resizeObserver.getHeight();
+		this.headerResizeObserver = getSizeObserver(header, () => {
+			if (this.headerResizeObserver === null) {
+				return;
+			}
+
+			const currHeight = this.headerResizeObserver.getHeight();
 
 			const fontSize = Math.round(currHeight * 0.1);
 			header.style.fontSize = `${fontSize}px`;
 
-			// hide subtext and reduce padding on when header os too small
+			// hide subtext and reduce padding when header is too small
 			if (currHeight < 120) {
 				subtextContainer.style.display = 'none';
 				header.style.paddingTop = '0.5%';
 				header.style.paddingBottom = '0.5%';
+			} else {
+				header.style.paddingTop = '1%';
+				header.style.paddingBottom = '1%';
+
+				if (subtext.textContent !== '') {
+					subtextContainer.style.display = 'block';
+				}
 			}
 		});
-		resizeObserver.startObserving();
+		this.headerResizeObserver.startObserving();
 
 		this._register(Event.chain(extensionActionBar.onDidRun)
 			.map(({ error }) => error)
@@ -1417,6 +1430,11 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		this.notificationService.error(err);
+	}
+
+	dispose(): void {
+		super.dispose();
+		this.headerResizeObserver?.dispose();
 	}
 }
 

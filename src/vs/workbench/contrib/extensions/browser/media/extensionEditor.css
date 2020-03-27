@@ -76,7 +76,6 @@
 .extension-editor > .header > .details > .title > .name {
 	flex: 0;
 	font-size: 1.8em;
-	line-height: 30px;
 	font-weight: 600;
 	white-space: nowrap;
 }
@@ -187,7 +186,7 @@
 	display: block;
 	float: left;
 	margin-top: 0;
-	font-size: 13px;
+	font-size: 1em;
 	font-style: italic;
 }
 
@@ -199,7 +198,6 @@
 
 .extension-editor > .header > .details > .subtext-container > .subtext {
 	float: left;
-	margin-top: 5px;
 	margin-right: 4px;
 }
 .extension-editor > .header > .details > .subtext-container > .monaco-action-bar .action-label {
