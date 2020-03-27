@@ -722,8 +722,7 @@ class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem
 
 	async getChildren(element: IDebugModel | CallStackItem): Promise<CallStackItem[]> {
 		if (isDebugModel(element)) {
-			const sessions = element.getSessions();
-			return sessions.length ? Promise.resolve(sessions.filter(s => !s.parentSession)) : Promise.resolve([]);
+			return Promise.resolve(element.getSessions().filter(s => !s.parentSession));
 		} else if (isDebugSession(element)) {
 			const childSessions = this.debugService.getModel().getSessions().filter(s => s.parentSession === element);
 			const threads: CallStackItem[] = element.getAllThreads();
