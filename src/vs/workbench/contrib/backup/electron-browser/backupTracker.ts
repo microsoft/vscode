@@ -47,7 +47,8 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 			return this.onBeforeShutdownWithDirty(reason, dirtyWorkingCopies);
 		}
 
-		return false; // no veto (no dirty working copies)
+		// No dirty working copies
+		return this.onBeforeShutdownWithoutDirty();
 	}
 
 	protected async onBeforeShutdownWithDirty(reason: ShutdownReason, workingCopies: IWorkingCopy[]): Promise<boolean> {
@@ -252,5 +253,22 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 		}
 
 		return Promise.all(backupsToDiscard.map(workingCopy => this.backupFileService.discardBackup(workingCopy.resource))).then(() => false, () => false);
+	}
+
+	private async onBeforeShutdownWithoutDirty(): Promise<boolean> {
+		// If we have proceeded enough that editors and dirty state
+		// has restored, we make sure that no backups lure around
+		// given we have no known dirty working copy. This helps
+		// to clean up stale backups as for example reported in
+		// https://github.com/microsoft/vscode/issues/92962
+		if (this.lifecycleService.phase >= LifecyclePhase.Restored) {
+			try {
+				await this.backupFileService.discardBackups();
+			} catch (error) {
+				this.logService.error(`[backup tracker] error discarding backups: ${error}`);
+			}
+		}
+
+		return false;
 	}
 }

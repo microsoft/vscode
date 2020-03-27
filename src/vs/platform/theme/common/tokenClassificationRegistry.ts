@@ -533,7 +533,15 @@ function createDefaultTokenClassificationRegistry(): TokenClassificationRegistry
 
 	registerTokenStyleDefault('variable.readonly', [['variable.other.constant']]);
 	registerTokenStyleDefault('property.readonly', [['variable.other.constant.property']]);
-
+	registerTokenStyleDefault('type.defaultLibrary', [['support.type']]);
+	registerTokenStyleDefault('class.defaultLibrary', [['support.class']]);
+	registerTokenStyleDefault('interface.defaultLibrary', [['support.class']]);
+	registerTokenStyleDefault('variable.defaultLibrary', [['support.variable'], ['support.other.variable']]);
+	registerTokenStyleDefault('variable.defaultLibrary.readonly', [['support.constant']]);
+	registerTokenStyleDefault('property.defaultLibrary', [['support.variable.property']]);
+	registerTokenStyleDefault('property.defaultLibrary.readonly', [['support.constant.property']]);
+	registerTokenStyleDefault('function.defaultLibrary', [['support.function']]);
+	registerTokenStyleDefault('member.defaultLibrary', [['support.function']]);
 	return registry;
 }
 

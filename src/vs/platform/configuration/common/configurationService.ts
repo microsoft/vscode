@@ -29,6 +29,7 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 		fileService: IFileService
 	) {
 		super();
+		this._register(fileService.watch(settingsResource));
 		this.userConfiguration = this._register(new UserSettings(this.settingsResource, undefined, fileService));
 		this.configuration = new Configuration(new DefaultConfigurationModel(), new ConfigurationModel());
 

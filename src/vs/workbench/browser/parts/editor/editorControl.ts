@@ -23,10 +23,10 @@ export interface IOpenEditorResult {
 
 export class EditorControl extends Disposable {
 
-	get minimumWidth() { return this._activeEditorPane ? this._activeEditorPane.minimumWidth : DEFAULT_EDITOR_MIN_DIMENSIONS.width; }
-	get minimumHeight() { return this._activeEditorPane ? this._activeEditorPane.minimumHeight : DEFAULT_EDITOR_MIN_DIMENSIONS.height; }
-	get maximumWidth() { return this._activeEditorPane ? this._activeEditorPane.maximumWidth : DEFAULT_EDITOR_MAX_DIMENSIONS.width; }
-	get maximumHeight() { return this._activeEditorPane ? this._activeEditorPane.maximumHeight : DEFAULT_EDITOR_MAX_DIMENSIONS.height; }
+	get minimumWidth() { return this._activeEditorPane?.minimumWidth ?? DEFAULT_EDITOR_MIN_DIMENSIONS.width; }
+	get minimumHeight() { return this._activeEditorPane?.minimumHeight ?? DEFAULT_EDITOR_MIN_DIMENSIONS.height; }
+	get maximumWidth() { return this._activeEditorPane?.maximumWidth ?? DEFAULT_EDITOR_MAX_DIMENSIONS.width; }
+	get maximumHeight() { return this._activeEditorPane?.maximumHeight ?? DEFAULT_EDITOR_MAX_DIMENSIONS.height; }
 
 	private readonly _onDidFocus = this._register(new Emitter<void>());
 	readonly onDidFocus = this._onDidFocus.event;
