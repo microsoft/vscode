@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { window, Pseudoterminal, EventEmitter, TerminalDimensions, workspace, ConfigurationTarget, Disposable, UIKind, env } from 'vscode';
+import { window, Pseudoterminal, EventEmitter, TerminalDimensions, workspace, ConfigurationTarget, Disposable, UIKind, env, EnvironmentVariableMutatorType, EnvironmentVariableMutator } from 'vscode';
 import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 
 // TODO@Daniel flaky tests (https://github.com/microsoft/vscode/issues/92826)
@@ -617,6 +617,106 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 				terminal.sendText(isWindows ? '$env:A' : 'echo $A');
 				terminal.sendText(isWindows ? '$env:B' : 'echo $B');
 				terminal.sendText(isWindows ? '$env:C' : 'echo $C');
+			});
+
+			test('should respect clearing entries', (done) => {
+				// Text to match on before passing the test
+				const expectedText = [
+					'~a1~',
+					'~b1~'
+				];
+				disposables.push(window.onDidWriteTerminalData(e => {
+					try {
+						equal(terminal, e.terminal);
+					} catch (e) {
+						done(e);
+					}
+					// Multiple expected could show up in the same data event
+					while (expectedText.length > 0 && e.data.indexOf(expectedText[0]) >= 0) {
+						expectedText.shift();
+						// Check if all string are found, if so finish the test
+						if (expectedText.length === 0) {
+							disposables.push(window.onDidCloseTerminal(() => done()));
+							terminal.dispose();
+						}
+					}
+				}));
+				const collection = window.getEnvironmentVariableCollection();
+				disposables.push(collection);
+				collection.replace('A', '~a2~');
+				collection.replace('B', '~a2~');
+				collection.clear();
+				const isWindows = process.platform === 'win32';
+				const terminal = window.createTerminal({
+					shellPath: isWindows ? 'powershell.exe' : 'sh',
+					env: {
+						A: '~a1~',
+						B: '~b1~'
+					}
+				});
+				terminal.sendText(isWindows ? '$env:A' : 'echo $A');
+				terminal.sendText(isWindows ? '$env:B' : 'echo $B');
+			});
+
+			test('should respect deleting entries', (done) => {
+				// Text to match on before passing the test
+				const expectedText = [
+					'~a1~',
+					'~b2~'
+				];
+				disposables.push(window.onDidWriteTerminalData(e => {
+					try {
+						equal(terminal, e.terminal);
+					} catch (e) {
+						done(e);
+					}
+					// Multiple expected could show up in the same data event
+					while (expectedText.length > 0 && e.data.indexOf(expectedText[0]) >= 0) {
+						expectedText.shift();
+						// Check if all string are found, if so finish the test
+						if (expectedText.length === 0) {
+							disposables.push(window.onDidCloseTerminal(() => done()));
+							terminal.dispose();
+						}
+					}
+				}));
+				const collection = window.getEnvironmentVariableCollection();
+				disposables.push(collection);
+				collection.replace('A', '~a2~');
+				collection.replace('B', '~b2~');
+				collection.delete('A');
+				const isWindows = process.platform === 'win32';
+				const terminal = window.createTerminal({
+					shellPath: isWindows ? 'powershell.exe' : 'sh',
+					env: {
+						A: '~a1~',
+						B: '~b2~'
+					}
+				});
+				terminal.sendText(isWindows ? '$env:A' : 'echo $A');
+				terminal.sendText(isWindows ? '$env:B' : 'echo $B');
+			});
+
+			test('get and forEach should work', () => {
+				const collection = window.getEnvironmentVariableCollection();
+				disposables.push(collection);
+				collection.replace('A', '~a2~');
+				collection.append('B', '~b2~');
+				collection.prepend('C', '~c2~');
+
+				// Verify get
+				deepEqual(collection.get('A'), { value: '~a2~', type: EnvironmentVariableMutatorType.Replace });
+				deepEqual(collection.get('B'), { value: '~b2~', type: EnvironmentVariableMutatorType.Append });
+				deepEqual(collection.get('C'), { value: '~c2~', type: EnvironmentVariableMutatorType.Prepend });
+
+				// Verify forEach
+				const entries: [string, EnvironmentVariableMutator][] = [];
+				collection.forEach((v, m) => entries.push([v, m]));
+				deepEqual(entries, [
+					['A', { value: '~a2~', type: EnvironmentVariableMutatorType.Replace }],
+					['B', { value: '~b2~', type: EnvironmentVariableMutatorType.Append }],
+					['C', { value: '~c2~', type: EnvironmentVariableMutatorType.Prepend }]
+				]);
 			});
 		});
 	});
