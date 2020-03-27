@@ -779,10 +779,6 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			description,
 			iconClasses: getIconClasses(this.modelService, this.modeService, resource),
 			buttons: (() => {
-				if (this.pickState.isQuickNavigating) {
-					return undefined; // no actions when quick navigating
-				}
-
 				const openSideBySideDirection = configuration.openSideBySideDirection;
 				const buttons: IQuickInputButton[] = [];
 
@@ -792,8 +788,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 					tooltip: openSideBySideDirection === 'right' ? localize('openToSide', "Open to the Side") : localize('openToBottom', "Open to the Bottom")
 				});
 
-				// Remove from History
-				if (isEditorHistoryEntry) {
+				// Remove from History (unless quick navigating)
+				if (!this.pickState.isQuickNavigating && isEditorHistoryEntry) {
 					buttons.push({
 						iconClass: isDirty ? 'dirty-anything codicon-circle-filled' : 'codicon-close',
 						tooltip: localize('closeEditor', "Remove from Recently Opened"),

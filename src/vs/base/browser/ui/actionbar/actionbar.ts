@@ -134,6 +134,18 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 			}
 		}));
 
+		if (platform.isMacintosh) {
+			// macOS: allow to trigger the button when holding Ctrl+key and pressing the
+			//  main mouse button. This is for scenarios where e.g. some interaction forces
+			// the Ctrl+key to be pressed and hold but the user still wants to interact
+			// with the actions (for example quick access in quick navigation mode).
+			this._register(DOM.addDisposableListener(element, DOM.EventType.CONTEXT_MENU, e => {
+				if (e.button === 0 && e.ctrlKey === true) {
+					this.onClick(e);
+				}
+			}));
+		}
+
 		this._register(DOM.addDisposableListener(element, DOM.EventType.CLICK, e => {
 			DOM.EventHelper.stop(e, true);
 			// See https://developer.mozilla.org/en-US/Add-ons/WebExtensions/Interact_with_the_clipboard
@@ -633,8 +645,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 			// Prevent native context menu on actions
 			this._register(DOM.addDisposableListener(actionViewItemElement, DOM.EventType.CONTEXT_MENU, (e: DOM.EventLike) => {
-				e.preventDefault();
-				e.stopPropagation();
+				DOM.EventHelper.stop(e, true);
 			}));
 
 			let item: IActionViewItem | undefined;
