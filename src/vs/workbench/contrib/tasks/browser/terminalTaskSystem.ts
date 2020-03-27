@@ -228,16 +228,12 @@ export class TerminalTaskSystem implements ITaskSystem {
 	}
 
 	public run(task: Task, resolver: ITaskResolver, trigger: string = Triggers.command): ITaskExecuteResult {
-		let commonKey = task._id.split('|')[0];
-		let validInstance = task.runOptions && task.runOptions.instanceLimit && this.instances[commonKey] && this.instances[commonKey].instances < task.runOptions.instanceLimit;
-		let instance = this.instances[commonKey] ? this.instances[commonKey].instances : 0;
+		let validInstance = task.runOptions && task.runOptions.instanceLimit && this.instances[task._id] && this.instances[task._id].instances < task.runOptions.instanceLimit;
+		let instance = this.instances[task._id] ? this.instances[task._id].instances : 0;
 		this.currentTask = new VerifiedTask(task, resolver, trigger);
-		let taskClone = undefined;
 		if (instance > 0) {
-			taskClone = task.clone();
-			taskClone._id += '|' + this.instances[commonKey].counter.toString();
+			task.instance = this.instances[task._id].counter;
 		}
-		let taskToExecute = taskClone ?? task;
 		let lastTaskInstance = this.getLastInstance(task);
 		let terminalData = lastTaskInstance ? this.activeTasks[lastTaskInstance.getMapKey()] : undefined;
 		if (terminalData && terminalData.promise && !validInstance) {
@@ -246,15 +242,15 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 
 		try {
-			const executeResult = { kind: TaskExecuteKind.Started, task, started: {}, promise: this.executeTask(taskToExecute, resolver, trigger) };
+			const executeResult = { kind: TaskExecuteKind.Started, task, started: {}, promise: this.executeTask(task, resolver, trigger) };
 			executeResult.promise.then(summary => {
 				this.lastTask = this.currentTask;
 			});
 			if (InMemoryTask.is(task) || !this.isTaskEmpty(task)) {
-				if (!this.instances[commonKey]) {
-					this.instances[commonKey] = new InstanceManager();
+				if (!this.instances[task._id]) {
+					this.instances[task._id] = new InstanceManager();
 				}
-				this.instances[commonKey].addInstance();
+				this.instances[task._id].addInstance();
 			}
 			return executeResult;
 		} catch (error) {
@@ -343,9 +339,8 @@ export class TerminalTaskSystem implements ITaskSystem {
 
 	public getLastInstance(task: Task): Task | undefined {
 		let lastInstance = undefined;
-		let commonId = task._id.split('|')[0];
 		Object.keys(this.activeTasks).forEach((key) => {
-			if (commonId === this.activeTasks[key].task._id.split('|')[0]) {
+			if (task._id === this.activeTasks[key].task._id) {
 				lastInstance = this.activeTasks[key].task;
 			}
 		});
@@ -369,11 +364,10 @@ export class TerminalTaskSystem implements ITaskSystem {
 	}
 
 	private removeInstances(task: Task) {
-		let commonKey = task._id.split('|')[0];
-		if (this.instances[commonKey]) {
-			this.instances[commonKey].removeInstance();
-			if (this.instances[commonKey].instances === 0) {
-				delete this.instances[commonKey];
+		if (this.instances[task._id]) {
+			this.instances[task._id].removeInstance();
+			if (this.instances[task._id].instances === 0) {
+				delete this.instances[task._id];
 			}
 		}
 	}

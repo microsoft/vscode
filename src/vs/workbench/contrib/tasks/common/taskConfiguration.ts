@@ -2079,12 +2079,18 @@ class ConfigurationParser {
 	}
 }
 
-let uuidMaps: Map<string, UUIDMap> = new Map();
-export function parse(workspaceFolder: IWorkspaceFolder, workspace: IWorkspace | undefined, platform: Platform, configuration: ExternalTaskRunnerConfiguration, logger: IProblemReporter, source: TaskConfigSource): ParseResult {
-	let uuidMap = uuidMaps.get(workspaceFolder.uri.toString());
+let uuidMaps: Map<TaskConfigSource, Map<string, UUIDMap>> = new Map();
+let recentUuidMaps: Map<string, UUIDMap> = new Map();
+export function parse(workspaceFolder: IWorkspaceFolder, workspace: IWorkspace | undefined, platform: Platform, configuration: ExternalTaskRunnerConfiguration, logger: IProblemReporter, source: TaskConfigSource, isRecents: boolean = false): ParseResult {
+	let selectedUuidMaps = isRecents ? recentUuidMaps : uuidMaps.get(source);
+	if (!selectedUuidMaps) {
+		uuidMaps.set(source, new Map());
+		selectedUuidMaps = uuidMaps.get(source)!;
+	}
+	let uuidMap = selectedUuidMaps.get(workspaceFolder.uri.toString());
 	if (!uuidMap) {
 		uuidMap = new UUIDMap();
-		uuidMaps.set(workspaceFolder.uri.toString(), uuidMap);
+		selectedUuidMaps.set(workspaceFolder.uri.toString(), uuidMap);
 	}
 	try {
 		uuidMap.start();
@@ -2093,6 +2099,8 @@ export function parse(workspaceFolder: IWorkspaceFolder, workspace: IWorkspace |
 		uuidMap.finish();
 	}
 }
+
+
 
 export function createCustomTask(contributedTask: Tasks.ContributedTask, configuredProps: Tasks.ConfiguringTask | Tasks.CustomTask): Tasks.CustomTask {
 	return CustomTask.createCustomTask(contributedTask, configuredProps);

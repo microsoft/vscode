@@ -652,6 +652,8 @@ export class CustomTask extends CommonTask {
 
 	type!: '$customized'; // CUSTOMIZED_TASK_TYPE
 
+	instance: number | undefined;
+
 	/**
 	 * Indicated the source of the task (e.g. tasks.json or extension)
 	 */
@@ -810,6 +812,8 @@ export class ContributedTask extends CommonTask {
 	 */
 	_source!: ExtensionTaskSource;
 
+	instance: number | undefined;
+
 	defines: KeyedTaskIdentifier;
 
 	hasDefinedMatchers: boolean;
@@ -876,6 +880,8 @@ export class InMemoryTask extends CommonTask {
 	 * Indicated the source of the task (e.g. tasks.json or extension)
 	 */
 	_source: InMemoryTaskSource;
+
+	instance: number | undefined;
 
 	type!: 'inMemory';
 

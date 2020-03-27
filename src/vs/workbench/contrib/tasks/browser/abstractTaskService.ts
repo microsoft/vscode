@@ -710,24 +710,44 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this.workspaceFolders.forEach(folder => {
 			folderMap[folder.uri.toString()] = folder;
 		});
+		const folderToTasksMap: Map<string, any> = new Map();
 		const recentlyUsedTasks = this.getRecentlyUsedTasks();
 		const tasks: (Task | ConfiguringTask)[] = [];
-		for (let key of recentlyUsedTasks.keys()) {
+		for (const key of recentlyUsedTasks.keys()) {
 			const folder = this.getFolderFromTaskKey(key);
 			const task = JSON.parse(recentlyUsedTasks.get(key)!);
-
+			if (folder && !folderToTasksMap.has(folder)) {
+				folderToTasksMap.set(folder, []);
+			}
 			if (folder && (folderMap[folder] || (folder === USER_TASKS_GROUP_KEY)) && task) {
-				let custom: CustomTask[] = [];
-				let customized: IStringDictionary<ConfiguringTask> = Object.create(null);
-				await this.computeTasksForSingleConfig(folderMap[folder] ?? this.workspaceFolders[0], {
-					version: '2.0.0',
-					tasks: [task]
-				}, TaskRunSource.System, custom, customized, folderMap[folder] ? TaskConfig.TaskConfigSource.TasksJson : TaskConfig.TaskConfigSource.User);
-				tasks.push(...custom);
-				for (const configuration in customized) {
-					tasks.push(customized[configuration]);
+				folderToTasksMap.get(folder).push(task);
+			}
+		}
+		const readTasksMap: Map<string, (Task | ConfiguringTask)> = new Map();
+		for (const key of folderToTasksMap.keys()) {
+			let custom: CustomTask[] = [];
+			let customized: IStringDictionary<ConfiguringTask> = Object.create(null);
+			await this.computeTasksForSingleConfig(folderMap[key] ?? this.workspaceFolders[0], {
+				version: '2.0.0',
+				tasks: folderToTasksMap.get(key)
+			}, TaskRunSource.System, custom, customized, folderMap[key] ? TaskConfig.TaskConfigSource.TasksJson : TaskConfig.TaskConfigSource.User, true);
+			custom.forEach(task => {
+				const taskKey = task.getRecentlyUsedKey();
+				if (taskKey) {
+					readTasksMap.set(taskKey, task);
 				}
+			});
+			for (const configuration in customized) {
+				const taskKey = customized[configuration].getRecentlyUsedKey();
+				if (taskKey) {
+					readTasksMap.set(taskKey, customized[configuration]);
+				}
+			}
+		}
 
+		for (const key of recentlyUsedTasks.keys()) {
+			if (readTasksMap.has(key)) {
+				tasks.push(readTasksMap.get(key)!);
 			}
 		}
 		return tasks;
@@ -1811,13 +1831,13 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return { workspaceFolder, set: undefined, configurations: undefined, hasErrors: false };
 	}
 
-	private async computeTasksForSingleConfig(workspaceFolder: IWorkspaceFolder, config: TaskConfig.ExternalTaskRunnerConfiguration | undefined, runSource: TaskRunSource, custom: CustomTask[], customized: IStringDictionary<ConfiguringTask>, source: TaskConfig.TaskConfigSource): Promise<boolean> {
+	private async computeTasksForSingleConfig(workspaceFolder: IWorkspaceFolder, config: TaskConfig.ExternalTaskRunnerConfiguration | undefined, runSource: TaskRunSource, custom: CustomTask[], customized: IStringDictionary<ConfiguringTask>, source: TaskConfig.TaskConfigSource, isRecentTask: boolean = false): Promise<boolean> {
 		if (!config) {
 			return false;
 		}
 		let taskSystemInfo: TaskSystemInfo | undefined = workspaceFolder ? this._taskSystemInfos.get(workspaceFolder.uri.scheme) : undefined;
 		let problemReporter = new ProblemReporter(this._outputChannel);
-		let parseResult = TaskConfig.parse(workspaceFolder, this._workspace, taskSystemInfo ? taskSystemInfo.platform : Platform.platform, config, problemReporter, source);
+		let parseResult = TaskConfig.parse(workspaceFolder, this._workspace, taskSystemInfo ? taskSystemInfo.platform : Platform.platform, config, problemReporter, source, isRecentTask);
 		let hasErrors = false;
 		if (!parseResult.validationStatus.isOK()) {
 			this.showOutput(runSource);
@@ -2061,12 +2081,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 		const TaskQuickPickEntry = (task: Task): TaskQuickPickEntry => {
 			let entryLabel = task._label;
-			let commonKey = task._id.split('|')[0];
-			if (count[commonKey]) {
-				entryLabel = entryLabel + ' (' + count[commonKey].toString() + ')';
-				count[commonKey]++;
+			if (count[task._id]) {
+				entryLabel = entryLabel + ' (' + count[task._id].toString() + ')';
+				count[task._id]++;
 			} else {
-				count[commonKey] = 1;
+				count[task._id] = 1;
 			}
 			return { label: entryLabel, description: this.getTaskDescription(task), task, detail: this.showDetail() ? task.configurationProperties.detail : undefined };
 
