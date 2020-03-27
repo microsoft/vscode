@@ -59,7 +59,12 @@ export class UserConfiguration extends Disposable {
 		const fileServiceBasedConfiguration = new FileServiceBasedConfiguration(folder.toString(), [this.userSettingsResource], standAloneConfigurationResources, this.scopes, this.fileService);
 		const configurationModel = await fileServiceBasedConfiguration.loadConfiguration();
 		this.userConfiguration.value = fileServiceBasedConfiguration;
-		this._register(fileServiceBasedConfiguration.onDidChange(() => this.reloadConfigurationScheduler.schedule()));
+
+		// Check for value because userConfiguration might have been disposed.
+		if (this.userConfiguration.value) {
+			this._register(this.userConfiguration.value.onDidChange(() => this.reloadConfigurationScheduler.schedule()));
+		}
+
 		return configurationModel;
 	}
 
