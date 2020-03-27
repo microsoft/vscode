@@ -120,6 +120,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		this._register(this.debugService.getViewModel().onDidFocusSession(() => this.updateScheduler.schedule()));
 		this._register(this.debugService.onDidNewSession(() => this.updateScheduler.schedule()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onDidConfigurationChange(e)));
+		this._register(this.debugToolBarMenu.onDidChange(() => this.updateScheduler.schedule()));
 		this._register(this.actionBar.actionRunner.onDidRun((e: IRunEvent) => {
 			// check for error
 			if (e.error && !errors.isPromiseCanceledError(e.error)) {
