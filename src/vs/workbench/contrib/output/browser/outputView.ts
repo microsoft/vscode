@@ -139,8 +139,8 @@ export class OutputViewPane extends ViewPane {
 
 	private setInput(channel: IOutputChannel): void {
 		this.channelId = channel.id;
-		const descriptor = this.outputService.getChannelDescriptor(channel.id)!;
-		CONTEXT_ACTIVE_LOG_OUTPUT.bindTo(this.contextKeyService).set(!!descriptor.file && descriptor.log);
+		const descriptor = this.outputService.getChannelDescriptor(channel.id);
+		CONTEXT_ACTIVE_LOG_OUTPUT.bindTo(this.contextKeyService).set(!!descriptor?.file && descriptor?.log);
 		this.editorPromise = this.editor.setInput(this.createInput(channel), EditorOptions.create({ preserveFocus: true }), CancellationToken.None)
 			.then(() => this.editor);
 	}
