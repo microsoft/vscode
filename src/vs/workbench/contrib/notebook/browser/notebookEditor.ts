@@ -564,7 +564,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	//#endregion
 
 	//#region Cell operations
-	layoutNotebookCell(cell: ICellViewModel, height: number) {
+	async layoutNotebookCell(cell: ICellViewModel, height: number): Promise<void> {
 		let relayout = (cell: ICellViewModel, height: number) => {
 			let index = this.notebookViewModel!.getViewCellIndex(cell);
 			if (index >= 0) {
@@ -572,9 +572,13 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			}
 		};
 
+		let r: () => void;
 		DOM.scheduleAtNextAnimationFrame(() => {
 			relayout(cell, height);
+			r();
 		});
+
+		return new Promise(resolve => { r = resolve; });
 	}
 
 	async insertNotebookCell(cell: ICellViewModel, type: CellKind, direction: 'above' | 'below', initialText: string = ''): Promise<void> {
@@ -589,9 +593,13 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			newCell.editState = CellEditState.Editing;
 		}
 
+		let r: () => void;
 		DOM.scheduleAtNextAnimationFrame(() => {
 			this.list?.revealInCenterIfOutsideViewport(insertIndex);
+			r();
 		});
+
+		return new Promise(resolve => { r = resolve; });
 	}
 
 	async deleteNotebookCell(cell: ICellViewModel): Promise<void> {
@@ -600,26 +608,30 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		this.notebookViewModel!.deleteCell(index, true);
 	}
 
-	moveCellDown(cell: ICellViewModel): void {
+	async moveCellDown(cell: ICellViewModel): Promise<void> {
 		const index = this.notebookViewModel!.getViewCellIndex(cell);
 		const newIdx = index + 1;
-		this.moveCellToIndex(index, newIdx);
+		return this.moveCellToIndex(index, newIdx);
 	}
 
-	moveCellUp(cell: ICellViewModel): void {
+	async moveCellUp(cell: ICellViewModel): Promise<void> {
 		const index = this.notebookViewModel!.getViewCellIndex(cell);
 		const newIdx = index - 1;
-		this.moveCellToIndex(index, newIdx);
+		return this.moveCellToIndex(index, newIdx);
 	}
 
-	private moveCellToIndex(index: number, newIdx: number): void {
+	private async moveCellToIndex(index: number, newIdx: number): Promise<void> {
 		if (!this.notebookViewModel!.moveCellToIdx(index, newIdx, true)) {
 			return;
 		}
 
+		let r: () => void;
 		DOM.scheduleAtNextAnimationFrame(() => {
 			this.list?.revealInCenterIfOutsideViewport(index + 1);
+			r();
 		});
+
+		return new Promise(resolve => { r = resolve; });
 	}
 
 	editNotebookCell(cell: CellViewModel): void {

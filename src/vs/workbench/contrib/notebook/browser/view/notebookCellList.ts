@@ -306,6 +306,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	private _revealInternal(index: number, ignoreIfInsideViewport: boolean, revealPosition: CellRevealPosition) {
+		if (index >= this.view.length) {
+			return;
+		}
+
 		const scrollTop = this.view.getScrollTop();
 		const wrapperBottom = scrollTop + this.view.renderHeight;
 		const elementTop = this.view.elementTop(index);
