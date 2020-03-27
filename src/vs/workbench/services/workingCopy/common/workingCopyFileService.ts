@@ -6,15 +6,15 @@
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Event, AsyncEmitter, IWaitUntil } from 'vs/base/common/event';
+import { insert } from 'vs/base/common/arrays';
 import { URI } from 'vs/base/common/uri';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IFileService, FileOperation, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IWorkingCopyService, IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { isEqualOrParent, isEqual } from 'vs/base/common/resources';
 import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
 import { WorkingCopyFileOperationParticipant } from 'vs/workbench/services/workingCopy/common/workingCopyFileOperationParticipant';
-import { flatten } from 'vs/base/common/arrays';
 
 export const IWorkingCopyFileService = createDecorator<IWorkingCopyFileService>('workingCopyFileService');
 
@@ -58,6 +58,9 @@ export interface IWorkingCopyFileOperationParticipant {
 	): Promise<void>;
 }
 
+/**
+ * Returns the working copies for a given resource.
+ */
 type WorkingCopyProvider = (resourceOrFolder: URI) => IWorkingCopy[];
 
 /**
@@ -147,7 +150,12 @@ export interface IWorkingCopyFileService {
 
 	//#region Path related
 
-	registerWorkingCopyProvider(provider: WorkingCopyProvider): void;
+	/**
+	 * Register a new provider for working copies.
+	 *
+	 * @return Disposable the unregisters the provider.
+	 */
+	registerWorkingCopyProvider(provider: WorkingCopyProvider): IDisposable;
 
 	/**
 	 * Will return all working copies that are dirty matching the provided resource.
@@ -184,6 +192,18 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
+		this.registerWorkingCopyProvider(resource => {
+			return this.workingCopyService.workingCopies.filter(workingCopy => {
+				if (this.fileService.canHandleResource(resource)) {
+					// only check for parents if the resource can be handled
+					// by the file system where we then assume a folder like
+					// path structure
+					return isEqualOrParent(workingCopy.resource, resource);
+				}
+
+				return isEqual(workingCopy.resource, resource);
+			});
+		});
 	}
 
 	async move(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
@@ -281,26 +301,21 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 
 	private readonly workingCopyProviders: WorkingCopyProvider[] = [];
 
-	registerWorkingCopyProvider(provider: WorkingCopyProvider): void {
-		this.workingCopyProviders.push(provider);
+	registerWorkingCopyProvider(provider: WorkingCopyProvider): IDisposable {
+		const remove = insert(this.workingCopyProviders, provider);
+		return toDisposable(remove);
 	}
 
 	getDirty(resource: URI): IWorkingCopy[] {
-		const providerResources = flatten(this.workingCopyProviders.map(provider => provider(resource)));
-		if (providerResources.length) {
-			return providerResources;
-		}
-
-		return this.workingCopyService.dirtyWorkingCopies.filter(dirty => {
-			if (this.fileService.canHandleResource(resource)) {
-				// only check for parents if the resource can be handled
-				// by the file system where we then assume a folder like
-				// path structure
-				return isEqualOrParent(dirty.resource, resource);
+		const dirtyWorkingCopies = new Set<IWorkingCopy>();
+		for (const provider of this.workingCopyProviders) {
+			for (const workingCopy of provider(resource)) {
+				if (workingCopy.isDirty()) {
+					dirtyWorkingCopies.add(workingCopy);
+				}
 			}
-
-			return isEqual(dirty.resource, resource);
-		});
+		}
+		return Array.from(dirtyWorkingCopies);
 	}
 
 	//#endregion
