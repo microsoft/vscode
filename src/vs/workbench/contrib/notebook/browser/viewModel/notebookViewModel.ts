@@ -25,6 +25,7 @@ import { NotebookEventDispatcher, NotebookMetadataChangedEvent } from 'vs/workbe
 export interface INotebookEditorViewState {
 	editingCells: { [key: number]: boolean };
 	editorViewStates: { [key: number]: editorCommon.ICodeEditorViewState | null };
+	scrollPosition?: { left: number; top: number; };
 }
 
 export interface ICellModelDecorations {
