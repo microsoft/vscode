@@ -604,7 +604,17 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				case 0: this.openerService.open(URI.parse('https://aka.ms/vscode-settings-sync-help')); return;
 				case 2: return;
 			}
+		} else if (skipAccountPick) {
+			const result = await this.dialogService.confirm({
+				type: 'info',
+				message: localize('turn on sync confirmation', "Do you want to turn on preferences sync?"),
+				primaryButton: localize('turn on', "Turn On")
+			});
+			if (!result.confirmed) {
+				return;
+			}
 		}
+
 		return new Promise((c, e) => {
 			const disposables: DisposableStore = new DisposableStore();
 			const quickPick = this.quickInputService.createQuickPick<ConfigureSyncQuickPickItem>();
