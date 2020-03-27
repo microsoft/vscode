@@ -11,7 +11,7 @@ import { Disposable, DisposableStore, dispose, IDisposable, IReference } from 'v
 import { Schemas } from 'vs/base/common/network';
 import { basename } from 'vs/base/common/path';
 import { isWeb } from 'vs/base/common/platform';
-import { isEqual } from 'vs/base/common/resources';
+import { isEqual, isEqualOrParent } from 'vs/base/common/resources';
 import { escape } from 'vs/base/common/strings';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as modes from 'vs/editor/common/modes';
@@ -38,6 +38,7 @@ import { ICreateWebViewShowOptions, IWebviewWorkbenchService, WebviewInputOption
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IWorkingCopy, IWorkingCopyBackup, IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { extHostNamedCustomer } from '../common/extHostCustomers';
 
@@ -121,6 +122,8 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 	constructor(
 		context: extHostProtocol.IExtHostContext,
 		@IExtensionService extensionService: IExtensionService,
+		@IWorkingCopyService workingCopyService: IWorkingCopyService,
+		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
 		@ICustomEditorService private readonly _customEditorService: ICustomEditorService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@IEditorService private readonly _editorService: IEditorService,
@@ -164,6 +167,20 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 			},
 			resolveWebview: () => { throw new Error('not implemented'); }
 		}));
+
+		workingCopyFileService.registerWorkingCopyProvider((editorResource) => {
+			const matchedWorkingCopies: IWorkingCopy[] = [];
+
+			for (const workingCopy of workingCopyService.workingCopies) {
+				if (workingCopy instanceof MainThreadCustomEditorModel) {
+					if (isEqualOrParent(editorResource, workingCopy.editorResource)) {
+						matchedWorkingCopies.push(workingCopy);
+					}
+				}
+			}
+			return matchedWorkingCopies;
+
+		});
 	}
 
 	public $createWebviewPanel(
@@ -593,6 +610,10 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 		if (_editable) {
 			this._register(workingCopyService.registerWorkingCopy(this));
 		}
+	}
+
+	get editorResource() {
+		return this._editorResource;
 	}
 
 	dispose() {
