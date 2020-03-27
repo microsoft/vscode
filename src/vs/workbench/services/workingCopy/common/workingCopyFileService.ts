@@ -153,7 +153,7 @@ export interface IWorkingCopyFileService {
 	/**
 	 * Register a new provider for working copies.
 	 *
-	 * @return Disposable the unregisters the provider.
+	 * @return a disposable that unregisters the provider.
 	 */
 	registerWorkingCopyProvider(provider: WorkingCopyProvider): IDisposable;
 
