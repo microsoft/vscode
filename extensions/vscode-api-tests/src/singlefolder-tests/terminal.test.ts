@@ -563,18 +563,21 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 				collection.replace('A', '~a2~');
 				collection.append('B', '~b2~');
 				collection.prepend('C', '~c2~');
-				const isWindows = process.platform === 'win32';
 				const terminal = window.createTerminal({
-					shellPath: isWindows ? 'powershell.exe' : 'sh',
 					env: {
 						A: 'a1',
 						B: 'b1',
 						C: 'c1'
 					}
 				});
-				terminal.sendText(isWindows ? '$env:A' : 'echo $A');
-				terminal.sendText(isWindows ? '$env:B' : 'echo $B');
-				terminal.sendText(isWindows ? '$env:C' : 'echo $C');
+				// Run both PowerShell and sh commands, errors don't matter we're just looking for
+				// the correct output
+				terminal.sendText('$env:A');
+				terminal.sendText('echo $A');
+				terminal.sendText('$env:B');
+				terminal.sendText('echo $B');
+				terminal.sendText('$env:C');
+				terminal.sendText('echo $C');
 			});
 
 			test('should have collection variables apply to environment variables that don\'t exist', (done) => {
@@ -605,18 +608,21 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 				collection.replace('A', '~a2~');
 				collection.append('B', '~b2~');
 				collection.prepend('C', '~c2~');
-				const isWindows = process.platform === 'win32';
 				const terminal = window.createTerminal({
-					shellPath: isWindows ? 'powershell.exe' : 'sh',
 					env: {
 						A: null,
 						B: null,
 						C: null
 					}
 				});
-				terminal.sendText(isWindows ? '$env:A' : 'echo $A');
-				terminal.sendText(isWindows ? '$env:B' : 'echo $B');
-				terminal.sendText(isWindows ? '$env:C' : 'echo $C');
+				// Run both PowerShell and sh commands, errors don't matter we're just looking for
+				// the correct output
+				terminal.sendText('$env:A');
+				terminal.sendText('echo $A');
+				terminal.sendText('$env:B');
+				terminal.sendText('echo $B');
+				terminal.sendText('$env:C');
+				terminal.sendText('echo $C');
 			});
 
 			test('should respect clearing entries', (done) => {
@@ -646,16 +652,18 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 				collection.replace('A', '~a2~');
 				collection.replace('B', '~a2~');
 				collection.clear();
-				const isWindows = process.platform === 'win32';
 				const terminal = window.createTerminal({
-					shellPath: isWindows ? 'powershell.exe' : 'sh',
 					env: {
 						A: '~a1~',
 						B: '~b1~'
 					}
 				});
-				terminal.sendText(isWindows ? '$env:A' : 'echo $A');
-				terminal.sendText(isWindows ? '$env:B' : 'echo $B');
+				// Run both PowerShell and sh commands, errors don't matter we're just looking for
+				// the correct output
+				terminal.sendText('$env:A');
+				terminal.sendText('echo $A');
+				terminal.sendText('$env:B');
+				terminal.sendText('echo $B');
 			});
 
 			test('should respect deleting entries', (done) => {
@@ -685,16 +693,18 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 				collection.replace('A', '~a2~');
 				collection.replace('B', '~b2~');
 				collection.delete('A');
-				const isWindows = process.platform === 'win32';
 				const terminal = window.createTerminal({
-					shellPath: isWindows ? 'powershell.exe' : 'sh',
 					env: {
 						A: '~a1~',
 						B: '~b2~'
 					}
 				});
-				terminal.sendText(isWindows ? '$env:A' : 'echo $A');
-				terminal.sendText(isWindows ? '$env:B' : 'echo $B');
+				// Run both PowerShell and sh commands, errors don't matter we're just looking for
+				// the correct output
+				terminal.sendText('$env:A');
+				terminal.sendText('echo $A');
+				terminal.sendText('$env:B');
+				terminal.sendText('echo $B');
 			});
 
 			test('get and forEach should work', () => {
