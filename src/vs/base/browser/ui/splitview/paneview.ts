@@ -214,7 +214,11 @@ export abstract class Pane extends Disposable implements IView {
 			.event(() => this.setExpanded(true), null));
 
 		this._register(domEvent(this.header, 'click')
-			(() => this.setExpanded(!this.isExpanded()), null));
+			(e => {
+				if (!e.defaultPrevented) {
+					this.setExpanded(!this.isExpanded());
+				}
+			}, null));
 
 		this.body = append(this.element, $('.pane-body'));
 		this.renderBody(this.body);
