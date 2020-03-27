@@ -317,6 +317,9 @@ export class QuickInputList {
 				this._onLeave.fire();
 			}
 		}));
+		this.disposables.push(this.list.onMouseMiddleClick(e => {
+			this._onLeave.fire();
+		}));
 		this.disposables.push(this.list.onContextMenu(e => {
 			if (typeof e.index === 'number') {
 				e.browserEvent.preventDefault();
