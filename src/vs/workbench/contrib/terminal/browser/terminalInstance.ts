@@ -537,7 +537,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._register(this._themeService.onDidColorThemeChange(theme => this._updateTheme(xterm, theme)));
 		this._register(this._viewDescriptorService.onDidChangeLocation(({ views }) => {
 			if (views.some(v => v.id === TERMINAL_VIEW_ID)) {
-				this._updateTheme(xterm, this._themeService.getColorTheme());
+				this._updateTheme(xterm);
 			}
 		}));
 
