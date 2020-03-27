@@ -130,7 +130,12 @@ export class CodeCell extends Disposable {
 			}
 		}));
 
-		this._register(templateData.editor!.onDidChangeCursorSelection(() => {
+		this._register(templateData.editor!.onDidChangeCursorSelection((e) => {
+			if (e.source === 'restoreState') {
+				// do not reveal the cell into view if this selection change was caused by restoring editors...
+				return;
+			}
+
 			const primarySelection = templateData.editor!.getSelection();
 
 			if (primarySelection) {
