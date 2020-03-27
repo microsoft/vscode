@@ -151,6 +151,7 @@ tokenModifiers[TokenModifier.declaration] = 'declaration';
 tokenModifiers[TokenModifier.readonly] = 'readonly';
 tokenModifiers[TokenModifier.static] = 'static';
 tokenModifiers[TokenModifier.local] = 'local';
+tokenModifiers[TokenModifier.defaultLibrary] = 'defaultLibrary';
 
 // make sure token types and modifiers are complete
 if (tokenTypes.filter(t => !!t).length !== TokenType._) {
