@@ -64,10 +64,10 @@ export class FeedbackStatusbarConribution extends Disposable implements IWorkben
 		if (productService.sendASmile) {
 			this.entry = this._register(statusbarService.addEntry(this.getStatusEntry(), 'status.feedback', localize('status.feedback', "Tweet Feedback"), StatusbarAlignment.RIGHT, -100 /* towards the end of the right hand side */));
 
-			CommandsRegistry.registerCommand('feedback.open', () => this.toggleFeedback());
+			CommandsRegistry.registerCommand('help.tweetFeedback', () => this.toggleFeedback());
 			MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 				command: {
-					id: 'feedback.open',
+					id: 'help.tweetFeedback',
 					category: localize('help', "Help"),
 					title: localize('status.feedback', "Tweet Feedback")
 				}
@@ -104,7 +104,7 @@ export class FeedbackStatusbarConribution extends Disposable implements IWorkben
 		return {
 			text: '$(feedback)',
 			tooltip: localize('status.feedback', "Tweet Feedback"),
-			command: 'feedback.open',
+			command: 'help.tweetFeedback',
 			showBeak
 		};
 	}
