@@ -91,30 +91,6 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 			}
 		});
 
-		// 	// If it doesn't exist, none are changed (they are removed)
-		// 	if (!otherMutators) {
-		// 		return;
-		// 	}
-
-		// 	// Create a map to help
-		// 	const otherMutatorExtensions = new Map<string, IExtensionOwnedEnvironmentVariableMutator>();
-		// 	otherMutators.forEach(m => otherMutatorExtensions.set(m.extensionIdentifier, m));
-
-		// 	// Find entries that exist in both but are not equal
-		// 	const result: IExtensionOwnedEnvironmentVariableMutator[] = [];
-		// 	currentMutators.forEach(mutator => {
-		// 		const otherMutator = otherMutatorExtensions.get(mutator.extensionIdentifier);
-		// 		if (otherMutator && (mutator.type !== otherMutator.type || mutator.value !== otherMutator.value)) {
-		// 			result.push(mutator);
-		// 		}
-		// 	});
-
-		// 	if (result.length !== 0) {
-		// 		changed.set(variable, result);
-		// 	}
-
-		// });
-
 		return { added, changed, removed };
 	}
 }

@@ -657,18 +657,23 @@ export class EnvironmentVariableCollection implements vscode.EnvironmentVariable
 	}
 
 	replace(variable: string, value: string): void {
-		this.map.set(variable, { value, type: EnvironmentVariableMutatorType.Replace });
-		this._onDidChangeCollection.fire();
+		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Replace });
 	}
 
 	append(variable: string, value: string): void {
-		this.map.set(variable, { value, type: EnvironmentVariableMutatorType.Append });
-		this._onDidChangeCollection.fire();
+		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Append });
 	}
 
 	prepend(variable: string, value: string): void {
-		this.map.set(variable, { value, type: EnvironmentVariableMutatorType.Prepend });
-		this._onDidChangeCollection.fire();
+		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Prepend });
+	}
+
+	private _setIfDiffers(variable: string, mutator: vscode.EnvironmentVariableMutator): void {
+		const current = this.map.get(variable);
+		if (!current || current.value !== mutator.value || current.type !== mutator.type) {
+			this.map.set(variable, mutator);
+			this._onDidChangeCollection.fire();
+		}
 	}
 
 	get(variable: string): vscode.EnvironmentVariableMutator | undefined {
