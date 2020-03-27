@@ -206,7 +206,7 @@ export function withTestNotebook(instantiationService: IInstantiationService, bl
 	});
 	const model = new NotebookEditorModel(notebook);
 	const eventDispatcher = new NotebookEventDispatcher();
-	const viewModel = new NotebookViewModel(viewType, model, eventDispatcher, instantiationService, blukEditService, undoRedoService);
+	const viewModel = new NotebookViewModel(viewType, model, eventDispatcher, null, instantiationService, blukEditService, undoRedoService);
 
 	callback(editor, viewModel);
 

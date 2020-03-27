@@ -9,7 +9,7 @@ import * as model from 'vs/editor/common/model';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_PADDING, CELL_MARGIN, CELL_RUN_GUTTER } from 'vs/workbench/contrib/notebook/browser/constants';
-import { CellEditState, ICellViewModel, CellFindMatch, CodeCellLayoutChangeEvent, CodeCellLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, ICellViewModel, CellFindMatch, CodeCellLayoutChangeEvent, CodeCellLayoutInfo, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind, ICell, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { BaseCellViewModel } from './baseCellViewModel';
 import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
@@ -61,6 +61,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		readonly notebookHandle: number,
 		readonly cell: ICell,
 		readonly eventDispatcher: NotebookEventDispatcher,
+		initialNotebookLayoutInfo: NotebookLayoutInfo | null,
 		@ITextModelService private readonly _modelService: ITextModelService,
 	) {
 		super(viewType, notebookHandle, cell, UUID.generateUuid());
@@ -80,7 +81,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		this._buffer = null;
 
 		this._layoutInfo = {
-			fontInfo: null,
+			fontInfo: initialNotebookLayoutInfo?.fontInfo || null,
 			editorHeight: 0,
 			editorWidth: 0,
 			outputContainerOffset: 0,
@@ -108,7 +109,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		const outputTotalHeight = this._outputsTop!.getTotalValue();
 		const totalHeight = this.outputs.length
 			? EDITOR_TOOLBAR_HEIGHT + this.editorHeight + EDITOR_TOP_PADDING + 16 + outputTotalHeight
-			: EDITOR_TOOLBAR_HEIGHT + this.editorHeight + EDITOR_TOP_PADDING + outputTotalHeight;
+			: EDITOR_TOOLBAR_HEIGHT + this.editorHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING + outputTotalHeight;
 		const indicatorHeight = this.editorHeight + outputTotalHeight;
 		const outputContainerOffset = EDITOR_TOOLBAR_HEIGHT + this.editorHeight;
 		const editorWidth = state.outerWidth !== undefined ? state.outerWidth - CELL_MARGIN * 2 - CELL_RUN_GUTTER : 0;
