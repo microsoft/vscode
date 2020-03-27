@@ -73,9 +73,13 @@ interface ICommand {
 	id: string,
 
 	/**
-	 * A function that is being executed with any arguments passed over.
+	 * A function that is being executed with any arguments passed over. The
+	 * return type will be send back to the caller.
+	 *
+	 * Note: arguments and return type should be serializable so that they can
+	 * be exchanged across processes boundaries.
 	 */
-	handler: (...args: any[]) => void;
+	handler: (...args: any[]) => unknown;
 }
 
 interface IWorkbenchConstructionOptions {
@@ -217,7 +221,7 @@ async function create(domElement: HTMLElement, options: IWorkbenchConstructionOp
 			CommandsRegistry.registerCommand(command.id, (accessor, ...args) => {
 				// we currently only pass on the arguments but not the accessor
 				// to the command to reduce our exposure of internal API.
-				command.handler(...args);
+				return command.handler(...args);
 			});
 		}
 	}
