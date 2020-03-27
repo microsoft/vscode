@@ -25,7 +25,7 @@ suite('NotebookViewModel', () => {
 		const notebook = new NotebookTextModel(0, 'notebook', URI.parse('test'));
 		const model = new NotebookEditorModel(notebook);
 		const eventDispatcher = new NotebookEventDispatcher();
-		const viewModel = new NotebookViewModel('notebook', model, eventDispatcher, instantiationService, blukEditService, undoRedoService);
+		const viewModel = new NotebookViewModel('notebook', model, eventDispatcher, null, instantiationService, blukEditService, undoRedoService);
 		assert.equal(viewModel.viewType, 'notebook');
 	});
 

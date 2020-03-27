@@ -890,7 +890,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			group: '5_sync',
 			command: {
 				id: turnOnSyncCommand.id,
-				title: localize('global activity turn on sync', "Preferences Sync: Turn on...")
+				title: localize('global activity turn on sync', "Turn on Preferences Sync...")
 			},
 			when: turnOnSyncWhenContext,
 			order: 1
@@ -903,7 +903,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			group: '5_sync',
 			command: {
 				id: turnOnSyncCommand.id,
-				title: localize('global activity turn on sync', "Preferences Sync: Turn on...")
+				title: localize('global activity turn on sync', "Turn on Preferences Sync...")
 			},
 			when: turnOnSyncWhenContext,
 		});
@@ -1025,7 +1025,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			constructor() {
 				super({
 					id: 'workbench.userData.actions.syncStatus',
-					title: localize('sync is on', "Preferences Sync: On"),
+					title: localize('sync is on', "Preferences sync is on"),
 					menu: [
 						{
 							id: MenuId.GlobalActivity,

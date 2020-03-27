@@ -254,6 +254,15 @@
 	font-weight: 600;
 }
 
+.extensions-viewlet > .extensions .extension > .details > .footer > .sync-ignored {
+	font-size: 11px;
+}
+
+.extensions-viewlet > .extensions .extension > .details > .footer > .sync-ignored > .codicon {
+	font-size: 14px;
+	vertical-align: text-top;
+}
+
 .extensions-viewlet > .extensions .selected .extension > .details > .footer > .author,
 .extensions-viewlet > .extensions .selected.focused .extension > .details > .footer > .author {
 	opacity: 1;

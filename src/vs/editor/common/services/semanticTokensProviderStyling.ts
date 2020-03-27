@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SemanticTokensLegend, TokenMetadata, FontStyle, MetadataConsts, SemanticTokens } from 'vs/editor/common/modes';
+import { SemanticTokensLegend, TokenMetadata, FontStyle, MetadataConsts, SemanticTokens, LanguageIdentifier } from 'vs/editor/common/modes';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { MultilineTokens2, SparseEncodedTokens } from 'vs/editor/common/model/tokensStore';
@@ -24,8 +24,8 @@ export class SemanticTokensProviderStyling {
 		this._hashTable = new HashTable();
 	}
 
-	public getMetadata(tokenTypeIndex: number, tokenModifierSet: number): number {
-		const entry = this._hashTable.get(tokenTypeIndex, tokenModifierSet);
+	public getMetadata(tokenTypeIndex: number, tokenModifierSet: number, languageId: LanguageIdentifier): number {
+		const entry = this._hashTable.get(tokenTypeIndex, tokenModifierSet, languageId.id);
 		let metadata: number;
 		if (entry) {
 			metadata = entry.metadata;
@@ -40,7 +40,7 @@ export class SemanticTokensProviderStyling {
 				modifierSet = modifierSet >> 1;
 			}
 
-			const tokenStyle = this._themeService.getColorTheme().getTokenStyleMetadata(tokenType, tokenModifiers);
+			const tokenStyle = this._themeService.getColorTheme().getTokenStyleMetadata(tokenType, tokenModifiers, languageId.language);
 			if (typeof tokenStyle === 'undefined') {
 				metadata = SemanticTokensProviderStylingConstants.NO_STYLING;
 			} else {
@@ -66,7 +66,7 @@ export class SemanticTokensProviderStyling {
 					metadata = SemanticTokensProviderStylingConstants.NO_STYLING;
 				}
 			}
-			this._hashTable.add(tokenTypeIndex, tokenModifierSet, metadata);
+			this._hashTable.add(tokenTypeIndex, tokenModifierSet, languageId.id, metadata);
 		}
 		if (this._logService.getLevel() === LogLevel.Trace) {
 			const type = this._legend.tokenTypes[tokenTypeIndex];
@@ -91,7 +91,7 @@ const enum SemanticColoringConstants {
 	DesiredMaxAreas = 1024,
 }
 
-export function toMultilineTokens2(tokens: SemanticTokens, styling: SemanticTokensProviderStyling): MultilineTokens2[] {
+export function toMultilineTokens2(tokens: SemanticTokens, styling: SemanticTokensProviderStyling, languageId: LanguageIdentifier): MultilineTokens2[] {
 	const srcData = tokens.data;
 	const tokenCount = (tokens.data.length / 5) | 0;
 	const tokensPerArea = Math.max(Math.ceil(tokenCount / SemanticColoringConstants.DesiredMaxAreas), SemanticColoringConstants.DesiredTokensPerArea);
@@ -136,7 +136,7 @@ export function toMultilineTokens2(tokens: SemanticTokens, styling: SemanticToke
 			const length = srcData[srcOffset + 2];
 			const tokenTypeIndex = srcData[srcOffset + 3];
 			const tokenModifierSet = srcData[srcOffset + 4];
-			const metadata = styling.getMetadata(tokenTypeIndex, tokenModifierSet);
+			const metadata = styling.getMetadata(tokenTypeIndex, tokenModifierSet, languageId);
 
 			if (metadata !== SemanticTokensProviderStylingConstants.NO_STYLING) {
 				if (areaLine === 0) {
@@ -168,12 +168,14 @@ export function toMultilineTokens2(tokens: SemanticTokens, styling: SemanticToke
 class HashTableEntry {
 	public readonly tokenTypeIndex: number;
 	public readonly tokenModifierSet: number;
+	public readonly languageId: number;
 	public readonly metadata: number;
 	public next: HashTableEntry | null;
 
-	constructor(tokenTypeIndex: number, tokenModifierSet: number, metadata: number) {
+	constructor(tokenTypeIndex: number, tokenModifierSet: number, languageId: number, metadata: number) {
 		this.tokenTypeIndex = tokenTypeIndex;
 		this.tokenModifierSet = tokenModifierSet;
+		this.languageId = languageId;
 		this.metadata = metadata;
 		this.next = null;
 	}
@@ -204,16 +206,20 @@ class HashTable {
 		}
 	}
 
-	private _hashFunc(tokenTypeIndex: number, tokenModifierSet: number): number {
-		return ((((tokenTypeIndex << 5) - tokenTypeIndex) + tokenModifierSet) | 0) % this._currentLength;  // tokenTypeIndex * 31 + tokenModifierSet, keep as int32
+	private _hash2(n1: number, n2: number): number {
+		return (((n1 << 5) - n1) + n2) | 0;  // n1 * 31 + n2, keep as int32
 	}
 
-	public get(tokenTypeIndex: number, tokenModifierSet: number): HashTableEntry | null {
-		const hash = this._hashFunc(tokenTypeIndex, tokenModifierSet);
+	private _hashFunc(tokenTypeIndex: number, tokenModifierSet: number, languageId: number): number {
+		return this._hash2(this._hash2(tokenTypeIndex, tokenModifierSet), languageId) % this._currentLength;
+	}
+
+	public get(tokenTypeIndex: number, tokenModifierSet: number, languageId: number): HashTableEntry | null {
+		const hash = this._hashFunc(tokenTypeIndex, tokenModifierSet, languageId);
 
 		let p = this._elements[hash];
 		while (p) {
-			if (p.tokenTypeIndex === tokenTypeIndex && p.tokenModifierSet === tokenModifierSet) {
+			if (p.tokenTypeIndex === tokenTypeIndex && p.tokenModifierSet === tokenModifierSet && p.languageId === languageId) {
 				return p;
 			}
 			p = p.next;
@@ -222,7 +228,7 @@ class HashTable {
 		return null;
 	}
 
-	public add(tokenTypeIndex: number, tokenModifierSet: number, metadata: number): void {
+	public add(tokenTypeIndex: number, tokenModifierSet: number, languageId: number, metadata: number): void {
 		this._elementsCount++;
 		if (this._growCount !== 0 && this._elementsCount >= this._growCount) {
 			// expand!
@@ -244,11 +250,11 @@ class HashTable {
 				}
 			}
 		}
-		this._add(new HashTableEntry(tokenTypeIndex, tokenModifierSet, metadata));
+		this._add(new HashTableEntry(tokenTypeIndex, tokenModifierSet, languageId, metadata));
 	}
 
 	private _add(element: HashTableEntry): void {
-		const hash = this._hashFunc(element.tokenTypeIndex, element.tokenModifierSet);
+		const hash = this._hashFunc(element.tokenTypeIndex, element.tokenModifierSet, element.languageId);
 		element.next = this._elements[hash];
 		this._elements[hash] = element;
 	}

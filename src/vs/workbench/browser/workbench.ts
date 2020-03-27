@@ -16,7 +16,6 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { isWindows, isLinux, isWeb, isNative, isMacintosh } from 'vs/base/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IEditorInputFactoryRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
-import { IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs/workbench/browser/actions';
 import { getSingletonServiceDescriptors } from 'vs/platform/instantiation/common/extensions';
 import { Position, Parts, IWorkbenchLayoutService, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
 import { IStorageService, WillSaveStateReason, StorageScope } from 'vs/platform/storage/common/storage';
@@ -216,7 +215,6 @@ export class Workbench extends Layout {
 	}
 
 	private startRegistries(accessor: ServicesAccessor): void {
-		Registry.as<IActionBarRegistry>(ActionBarExtensions.Actionbar).start(accessor);
 		Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).start(accessor);
 		Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor);
 	}

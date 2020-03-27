@@ -29,7 +29,7 @@ import { FileKind, IFileService, IFileStat } from 'vs/platform/files/common/file
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IListService, WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
-import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { ColorIdentifier, ColorFunction } from 'vs/platform/theme/common/colorRegistry';
 import { attachBreadcrumbsStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -168,7 +168,7 @@ export class BreadcrumbsControl {
 		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@IQuickOpenService private readonly _quickOpenService: IQuickOpenService,
+		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITextResourceConfigurationService private readonly _textResourceConfigurationService: ITextResourceConfigurationService,
 		@IFileService private readonly _fileService: IFileService,
@@ -343,7 +343,7 @@ export class BreadcrumbsControl {
 			// using quick pick
 			this._widget.setFocused(undefined);
 			this._widget.setSelection(undefined);
-			this._quickOpenService.show(element instanceof TreeElement ? '@' : '');
+			this._quickInputService.quickAccess.show(element instanceof TreeElement ? '@' : '');
 			return;
 		}
 

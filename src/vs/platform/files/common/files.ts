@@ -395,6 +395,8 @@ export function toFileOperationResult(error: Error): FileOperationResult {
 			return FileOperationResult.FILE_NOT_FOUND;
 		case FileSystemProviderErrorCode.FileIsADirectory:
 			return FileOperationResult.FILE_IS_DIRECTORY;
+		case FileSystemProviderErrorCode.FileNotADirectory:
+			return FileOperationResult.FILE_NOT_DIRECTORY;
 		case FileSystemProviderErrorCode.NoPermissions:
 			return FileOperationResult.FILE_PERMISSION_DENIED;
 		case FileSystemProviderErrorCode.FileExists:
@@ -763,6 +765,7 @@ export const enum FileOperationResult {
 	FILE_TOO_LARGE,
 	FILE_INVALID_PATH,
 	FILE_EXCEEDS_MEMORY_LIMIT,
+	FILE_NOT_DIRECTORY,
 	FILE_OTHER_ERROR
 }
 

@@ -117,6 +117,8 @@ abstract class AbstractCellRenderer {
 			}
 		});
 
+		toolbar.getContainer().style.height = `${EDITOR_TOOLBAR_HEIGHT}px`;
+
 		return toolbar;
 	}
 
@@ -140,9 +142,9 @@ abstract class AbstractCellRenderer {
 
 			if (templateData.focusIndicator) {
 				if (actions.length) {
-					templateData.focusIndicator.style.top = `24px`;
+					templateData.focusIndicator.style.top = `${EDITOR_TOOLBAR_HEIGHT + EDITOR_TOP_PADDING}px`;
 				} else {
-					templateData.focusIndicator.style.top = `8px`;
+					templateData.focusIndicator.style.top = `${EDITOR_TOP_PADDING}px`;
 				}
 			}
 		};

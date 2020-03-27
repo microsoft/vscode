@@ -55,7 +55,6 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	const listHighlightForegroundColor = theme.getColor(listHighlightForeground);
 	if (listHighlightForegroundColor) {
 		collector.addRule(`
-			.monaco-workbench .monaco-tree .monaco-tree-row .monaco-highlighted-label .highlight,
 			.monaco-workbench .monaco-list .monaco-list-row .monaco-highlighted-label .highlight {
 				color: ${listHighlightForegroundColor};
 			}
@@ -115,7 +114,6 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 		.monaco-workbench [tabindex="-1"]:focus,
 		.monaco-workbench .synthetic-focus,
 		.monaco-workbench select:focus,
-		.monaco-workbench .monaco-tree.focused.no-focused-item:focus:before,
 		.monaco-workbench .monaco-list:not(.element-focused):focus:before,
 		.monaco-workbench input[type="button"]:focus,
 		.monaco-workbench input[type="text"]:focus,
@@ -141,11 +139,6 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 		.hc-black input[type="checkbox"]:focus {
 			outline-style: solid;
 			outline-width: 1px;
-		}
-
-		.hc-black .monaco-tree.focused.no-focused-item:focus:before {
-			outline-width: 1px;
-			outline-offset: -2px;
 		}
 
 		.hc-black .synthetic-focus input {

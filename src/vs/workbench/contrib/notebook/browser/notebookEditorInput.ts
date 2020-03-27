@@ -10,6 +10,7 @@ import { ICell, NotebookCellsSplice } from 'vs/workbench/contrib/notebook/common
 import { URI } from 'vs/base/common/uri';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
+import { isEqual } from 'vs/base/common/resources';
 
 export class NotebookEditorModel extends EditorModel {
 	private _dirty = false;
@@ -53,8 +54,7 @@ export class NotebookEditorModel extends EditorModel {
 		let notebook = this.getNotebook();
 
 		if (notebook) {
-			let mainCell = new NotebookCellTextModel(URI.revive(cell.uri), cell.handle, cell.source, cell.language, cell.cellKind, cell.outputs, cell.metadata);
-			this.notebook.insertNewCell(index, mainCell);
+			this.notebook.insertNewCell(index, [cell as NotebookCellTextModel]);
 			this._dirty = true;
 			this._onDidChangeDirty.fire();
 
@@ -136,5 +136,24 @@ export class NotebookEditorInput extends EditorInput {
 		}
 
 		return this.promise;
+	}
+
+	matches(otherInput: unknown): boolean {
+		if (this === otherInput) {
+			return true;
+		}
+		if (otherInput instanceof NotebookEditorInput) {
+			return this.viewType === otherInput.viewType
+				&& isEqual(this.resource, otherInput.resource);
+		}
+		return false;
+	}
+
+	dispose() {
+		if (this.textModel) {
+			this.notebookService.destoryNotebookDocument(this.textModel!.notebook.viewType, this.textModel!.notebook);
+		}
+
+		super.dispose();
 	}
 }

@@ -1449,9 +1449,20 @@ declare module 'vscode' {
 		readonly uri: Uri;
 
 		/**
-		 * Event fired when there are no more references to the `CustomDocument`.
+		 * Is this document representing an untitled file which has never been saved yet.
 		 */
-		readonly onDidDispose: Event<void>;
+		readonly isUntitled: boolean;
+
+		/**
+		 * The version number of this document (it will strictly increase after each
+		 * change, including undo/redo).
+		 */
+		readonly version: number;
+
+		/**
+		 * `true` if there are unpersisted changes.
+		 */
+		readonly isDirty: boolean;
 
 		/**
 		 * List of edits from document open to the document's current state.
@@ -1465,6 +1476,17 @@ declare module 'vscode' {
 		 * or in front of the last entry in `appliedEdits` if the user saves and then hits undo.
 		 */
 		readonly savedEdits: ReadonlyArray<EditType>;
+
+		/**
+		 * `true` if the document has been closed. A closed document isn't synchronized anymore
+		 * and won't be re-used when the same resource is opened again.
+		 */
+		readonly isClosed: boolean;
+
+		/**
+		 * Event fired when there are no more references to the `CustomDocument`.
+		 */
+		readonly onDidDispose: Event<void>;
 	}
 
 	/**
@@ -1674,25 +1696,27 @@ declare module 'vscode' {
 		/**
 		 * Controls if the content of a cell is editable or not.
 		 */
-		editable: boolean;
+		editable?: boolean;
 
 		/**
 		 * Controls if the cell is executable.
 		 * This metadata is ignored for markdown cell.
 		 */
-		runnable: boolean;
+		runnable?: boolean;
 
+		/**
+		 * Execution order information of the cell
+		 */
 		executionOrder?: number;
 	}
 
 	export interface NotebookCell {
 		readonly uri: Uri;
-		handle: number;
+		readonly cellKind: CellKind;
+		readonly source: string;
 		language: string;
-		cellKind: CellKind;
 		outputs: CellOutput[];
-		getContent(): string;
-		metadata?: NotebookCellMetadata;
+		metadata: NotebookCellMetadata;
 	}
 
 	export interface NotebookDocumentMetadata {
@@ -1713,16 +1737,22 @@ declare module 'vscode' {
 		 * Default to true.
 		 */
 		cellRunnable: boolean;
+
 	}
 
 	export interface NotebookDocument {
 		readonly uri: Uri;
 		readonly fileName: string;
 		readonly isDirty: boolean;
+		readonly cells: NotebookCell[];
 		languages: string[];
-		cells: NotebookCell[];
 		displayOrder?: GlobPattern[];
 		metadata?: NotebookDocumentMetadata;
+	}
+
+	export interface NotebookEditorCellEdit {
+		insert(index: number, content: string, language: string, type: CellKind, outputs: CellOutput[], metadata: NotebookCellMetadata | undefined): void;
+		delete(index: number): void;
 	}
 
 	export interface NotebookEditor {
@@ -1741,10 +1771,7 @@ declare module 'vscode' {
 		 */
 		postMessage(message: any): Thenable<boolean>;
 
-		/**
-		 * Create a notebook cell. The cell is not inserted into current document when created. Extensions should insert the cell into the document by [TextDocument.cells](#TextDocument.cells)
-		 */
-		createCell(content: string, language: string, type: CellKind, outputs: CellOutput[], metadata: NotebookCellMetadata | undefined): NotebookCell;
+		edit(callback: (editBuilder: NotebookEditorCellEdit) => void): Thenable<boolean>;
 	}
 
 	export interface NotebookProvider {
@@ -1764,11 +1791,24 @@ declare module 'vscode' {
 		 * @returns HTML fragment. We can probably return `CellOutput` instead of string ?
 		 *
 		 */
-		render(document: NotebookDocument, cell: NotebookCell, output: CellOutput, mimeType: string): string;
+		render(document: NotebookDocument, output: CellOutput, mimeType: string): string;
 		preloads?: Uri[];
 	}
 
-	namespace window {
+	export interface NotebookDocumentChangeEvent {
+
+		/**
+		 * The affected document.
+		 */
+		readonly document: NotebookDocument;
+
+		/**
+		 * An array of content changes.
+		 */
+		// readonly contentChanges: ReadonlyArray<TextDocumentContentChangeEvent>;
+	}
+
+	export namespace notebook {
 		export function registerNotebookProvider(
 			notebookType: string,
 			provider: NotebookProvider
@@ -1777,6 +1817,8 @@ declare module 'vscode' {
 		export function registerNotebookOutputRenderer(type: string, outputSelector: NotebookOutputSelector, renderer: NotebookOutputRenderer): Disposable;
 
 		export let activeNotebookDocument: NotebookDocument | undefined;
+
+		// export const onDidChangeNotebookDocument: Event<NotebookDocumentChangeEvent>;
 	}
 
 	//#endregion

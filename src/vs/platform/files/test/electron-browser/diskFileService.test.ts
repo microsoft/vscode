@@ -1409,6 +1409,24 @@ suite('Disk File Service', function () {
 		assert.equal(error!.fileOperationResult, FileOperationResult.FILE_IS_DIRECTORY);
 	});
 
+	test('readFile - FILE_NOT_DIRECTORY', async () => {
+		if (isWindows) {
+			return; // error code does not seem to be supported on windows
+		}
+
+		const resource = URI.file(join(testDir, 'lorem.txt', 'file.txt'));
+
+		let error: FileOperationError | undefined = undefined;
+		try {
+			await service.readFile(resource);
+		} catch (err) {
+			error = err;
+		}
+
+		assert.ok(error);
+		assert.equal(error!.fileOperationResult, FileOperationResult.FILE_NOT_DIRECTORY);
+	});
+
 	test('readFile - FILE_NOT_FOUND', async () => {
 		const resource = URI.file(join(testDir, '404.html'));
 

@@ -16,6 +16,7 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { USER_TASKS_GROUP_KEY } from 'vs/workbench/contrib/tasks/common/taskService';
 
 export const TASK_RUNNING_STATE = new RawContextKey<boolean>('taskRunning', false);
 
@@ -731,7 +732,7 @@ export class CustomTask extends CommonTask {
 			folder: string;
 			id: string;
 		}
-		let workspaceFolder = this._source.config.workspaceFolder;
+		let workspaceFolder = this._source.kind === TaskSourceKind.User ? USER_TASKS_GROUP_KEY : this._source.config.workspaceFolder?.uri.toString();
 		if (!workspaceFolder) {
 			return undefined;
 		}
@@ -739,7 +740,7 @@ export class CustomTask extends CommonTask {
 		if (this._source.kind !== TaskSourceKind.Workspace) {
 			id += this._source.kind;
 		}
-		let key: CustomKey = { type: CUSTOMIZED_TASK_TYPE, folder: workspaceFolder.uri.toString(), id };
+		let key: CustomKey = { type: CUSTOMIZED_TASK_TYPE, folder: workspaceFolder, id };
 		return JSON.stringify(key);
 	}
 
@@ -794,6 +795,10 @@ export class ConfiguringTask extends CommonTask {
 
 	public getWorkspaceFileName(): string | undefined {
 		return (this._source.config.workspace && this._source.config.workspace.configuration) ? resources.basename(this._source.config.workspace.configuration) : undefined;
+	}
+
+	public getWorkspaceFolder(): IWorkspaceFolder | undefined {
+		return this._source.config.workspaceFolder;
 	}
 }
 
@@ -936,7 +941,7 @@ export class TaskSorter {
 		}
 	}
 
-	public compare(a: Task, b: Task): number {
+	public compare(a: Task | ConfiguringTask, b: Task | ConfiguringTask): number {
 		let aw = a.getWorkspaceFolder();
 		let bw = b.getWorkspaceFolder();
 		if (aw && bw) {

@@ -40,6 +40,7 @@ export interface CodeCellLayoutInfo {
 	readonly editorHeight: number;
 	readonly editorWidth: number;
 	readonly totalHeight: number;
+	readonly outputContainerOffset: number;
 	readonly outputTotalHeight: number;
 	readonly indicatorHeight: number;
 }

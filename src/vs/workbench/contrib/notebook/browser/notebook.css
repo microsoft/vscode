@@ -64,7 +64,7 @@
 .monaco-workbench .part.editor > .content .notebook-editor .output .multi-mimetype-output {
 	position: absolute;
 	top: 4px;
-	left: -28px;
+	left: -32px;
 	width: 16px;
 	height: 16px;
 	cursor: pointer;

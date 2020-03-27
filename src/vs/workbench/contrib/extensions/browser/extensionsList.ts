@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { append, $, addClass, removeClass, toggleClass } from 'vs/base/browser/dom';
 import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 import { IAction } from 'vs/base/common/actions';
@@ -19,7 +20,9 @@ import { Label, RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteB
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
+import { isLanguagePackExtension, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { CodiconLabel } from 'vs/base/browser/ui/codiconLabel/codiconLabel';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface IExtensionsViewState {
 	onFocus: Event<IExtension>;
@@ -34,6 +37,7 @@ export interface ITemplateData {
 	installCount: HTMLElement;
 	ratings: HTMLElement;
 	author: HTMLElement;
+	syncIgnored: HTMLElement;
 	description: HTMLElement;
 	extension: IExtension | null;
 	disposables: IDisposable[];
@@ -56,7 +60,8 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
-		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) { }
 
 	get templateId() { return 'extension'; }
@@ -78,6 +83,9 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const description = append(details, $('.description.ellipsis'));
 		const footer = append(details, $('.footer'));
 		const author = append(footer, $('.author.ellipsis'));
+		const syncIgnored = append(footer, $('.sync-ignored.ellipsis'));
+		const syncIgnoredLabel = new CodiconLabel(syncIgnored);
+		syncIgnoredLabel.text = '$(eye-closed) ' + localize('extensionSyncIgnoredLabel', 'Sync: Ignored');
 		const actionbar = new ActionBar(footer, {
 			animated: false,
 			actionViewItemProvider: (action: IAction) => {
@@ -119,7 +127,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const disposables = combinedDisposable(...actions, ...widgets, actionbar, extensionContainers, extensionTooltipAction);
 
 		return {
-			root, element, icon, name, installCount, ratings, author, description, disposables: [disposables], actionbar,
+			root, element, icon, name, installCount, syncIgnored, ratings, author, description, disposables: [disposables], actionbar,
 			extensionDisposables: [],
 			set extension(extension: IExtension) {
 				extensionContainers.extension = extension;
@@ -197,9 +205,25 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 				data.actionbar.viewItems.forEach(item => (<ExtensionActionViewItem>item).setFocus(false));
 			}
 		}, this, data.extensionDisposables);
+
+
+		this.updateExtensionIgnored(extension, data);
+		this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectedKeys.includes('sync.ignoredExtensions')) {
+				this.updateExtensionIgnored(extension, data);
+			}
+		}, data.extensionDisposables);
 	}
 
 	disposeTemplate(data: ITemplateData): void {
 		data.disposables = dispose(data.disposables);
+	}
+
+	private updateExtensionIgnored(extension: IExtension, data: ITemplateData): void {
+		data.syncIgnored.style.display = this.extensionIsIgnored(extension.identifier) ? 'block' : 'none';
+	}
+
+	private extensionIsIgnored(identifier: IExtensionIdentifier): boolean {
+		return this.configurationService.getValue<string[]>('sync.ignoredExtensions').some(id => areSameExtensions({ id }, identifier));
 	}
 }

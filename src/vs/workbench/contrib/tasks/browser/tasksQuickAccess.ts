@@ -4,15 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickPickSeparator, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IPickerQuickAccessItem, PickerQuickAccessProvider, TriggerAction } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { matchesFuzzy } from 'vs/base/common/filters';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
-import { CustomTask, ContributedTask } from 'vs/workbench/contrib/tasks/common/tasks';
+import { ITaskService, Task } from 'vs/workbench/contrib/tasks/common/taskService';
+import { CustomTask, ContributedTask, ConfiguringTask } from 'vs/workbench/contrib/tasks/common/tasks';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IStringDictionary } from 'vs/base/common/collections';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { TaskQuickPick, TaskTwoLevelQuickPickEntry } from 'vs/workbench/contrib/tasks/browser/taskQuickPick';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { isString } from 'vs/base/common/types';
 
 export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
 
@@ -22,7 +24,9 @@ export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQ
 
 	constructor(
 		@IExtensionService extensionService: IExtensionService,
-		@ITaskService private taskService: ITaskService
+		@ITaskService private taskService: ITaskService,
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IQuickInputService private quickInputService: IQuickInputService
 	) {
 		super(TasksQuickAccessProvider.PREFIX);
 
@@ -30,7 +34,6 @@ export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQ
 	}
 
 	protected async getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Promise<Array<IPickerQuickAccessItem | IQuickPickSeparator>> {
-
 		// always await extensions
 		await this.activationPromise;
 
@@ -38,102 +41,49 @@ export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQ
 			return [];
 		}
 
-		// Resolve custom and contributed tasks
-		const tasks = (await this.taskService.tasks())
-			.filter<CustomTask | ContributedTask>((task): task is CustomTask | ContributedTask => ContributedTask.is(task) || CustomTask.is(task));
-
-		if (token.isCancellationRequested) {
-			return [];
-		}
-
-		this.taskService.migrateRecentTasks(tasks);
-
-		// Split up tasks across recently used, configured and detected
-		const recentlyUsedTasks = this.taskService.getRecentlyUsedTasks();
-		const recent: Array<CustomTask | ContributedTask> = [];
-		const configured: CustomTask[] = [];
-		const detected: ContributedTask[] = [];
-		const taskMap: IStringDictionary<CustomTask | ContributedTask> = Object.create(null);
-		for (const task of tasks) {
-			const key = task.getRecentlyUsedKey();
-			if (key) {
-				taskMap[key] = task;
-			}
-		}
-		for (const key of recentlyUsedTasks.keys()) {
-			const task = taskMap[key];
-			if (task) {
-				recent.push(task);
-			}
-		}
-		for (const task of tasks) {
-			const key = task.getRecentlyUsedKey();
-			if (!key || !recentlyUsedTasks.has(key)) {
-				if (CustomTask.is(task)) {
-					configured.push(task);
-				} else {
-					detected.push(task);
-				}
-			}
-		}
-
+		const taskQuickPick = new TaskQuickPick(this.taskService, this.configurationService, this.quickInputService);
+		const topLevelPicks = await taskQuickPick.getTopLevelEntries();
 		const taskPicks: Array<IPickerQuickAccessItem | IQuickPickSeparator> = [];
-		const sorter = this.taskService.createSorter();
 
-		// Fill picks in sorted order
-
-		this.fillPicks(taskPicks, filter, recent, localize('recentlyUsed', "recently used tasks"));
-
-		configured.sort((a, b) => sorter.compare(a, b));
-		this.fillPicks(taskPicks, filter, configured, localize('configured', "configured tasks"));
-
-		detected.sort((a, b) => sorter.compare(a, b));
-		this.fillPicks(taskPicks, filter, detected, localize('detected', "detected tasks"));
-
-		return taskPicks;
-	}
-
-	private fillPicks(taskPicks: Array<IPickerQuickAccessItem | IQuickPickSeparator>, input: string, tasks: Array<CustomTask | ContributedTask>, groupLabel: string): void {
-		let first = true;
-		for (const task of tasks) {
-			const highlights = matchesFuzzy(input, task._label);
+		for (const entry of topLevelPicks.entries) {
+			if (entry.type === 'separator') {
+				taskPicks.push(entry);
+			}
+			const highlights = matchesFuzzy(filter, entry.label!, true);
 			if (!highlights) {
 				continue;
 			}
-			if (first) {
-				first = false;
-				taskPicks.push({ type: 'separator', label: groupLabel });
-			}
-			taskPicks.push({
-				label: task._label,
-				ariaLabel: localize('entryAriaLabel', "{0}, tasks picker", task._label),
-				description: this.taskService.getTaskDescription(task),
-				highlights: { label: highlights },
-				buttons: (() => {
-					const buttons = [];
-
-					if (ContributedTask.is(task) || CustomTask.is(task)) {
-						buttons.push({
-							iconClass: 'codicon-gear',
-							tooltip: localize('customizeTask', "Configure Task")
-						});
-					}
-
-					return buttons;
-				})(),
-				trigger: () => {
-					if (ContributedTask.is(task)) {
-						this.taskService.customize(task, undefined, true);
-					} else {
-						this.taskService.openConfig(task);
-					}
-
-					return TriggerAction.CLOSE_PICKER;
-				},
-				accept: () => {
-					this.taskService.run(task, { attachProblemMatcher: true });
+			const task: Task | ConfiguringTask | string = (<TaskTwoLevelQuickPickEntry>entry).task!;
+			const quickAccessEntry: IPickerQuickAccessItem = <TaskTwoLevelQuickPickEntry>entry;
+			quickAccessEntry.ariaLabel = localize('entryAriaLabel', "{0}, tasks picker", entry.label!);
+			quickAccessEntry.highlights = { label: highlights };
+			quickAccessEntry.trigger = () => {
+				if (ContributedTask.is(task)) {
+					this.taskService.customize(task, undefined, true);
+				} else if (CustomTask.is(task)) {
+					this.taskService.openConfig(task);
 				}
-			});
+				return TriggerAction.CLOSE_PICKER;
+			};
+			quickAccessEntry.accept = async () => {
+				if (isString(task)) {
+					// switch to quick pick and show second level
+					taskQuickPick.show(localize('TaskService.pickRunTask', 'Select the task to run'), undefined, task);
+				} else {
+					this.taskService.run(await this.toTask(task), { attachProblemMatcher: true });
+				}
+			};
+
+			taskPicks.push(quickAccessEntry);
 		}
+		return taskPicks;
+	}
+
+	private async toTask(task: Task | ConfiguringTask): Promise<Task | undefined> {
+		if (!ConfiguringTask.is(task)) {
+			return task;
+		}
+
+		return this.taskService.tryResolveTask(task);
 	}
 }

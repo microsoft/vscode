@@ -457,6 +457,9 @@ export class TextAreaHandler extends ViewPart {
 			this.textArea.setAttribute('aria-autocomplete', 'both');
 			this.textArea.removeAttribute('aria-activedescendant');
 		}
+		if (options.role) {
+			this.textArea.setAttribute('role', options.role);
+		}
 	}
 
 	// --- end view API

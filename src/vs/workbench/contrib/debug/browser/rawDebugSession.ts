@@ -670,7 +670,7 @@ export class RawDebugSession implements IDisposable {
 			});
 		}
 		if (error && error.format && error.showUser) {
-			this.notificationService.error(error.format);
+			this.notificationService.error(userMessage);
 		}
 
 		return new Error(userMessage);

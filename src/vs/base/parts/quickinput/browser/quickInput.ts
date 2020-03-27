@@ -794,7 +794,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 
 				if (firstPart.shiftKey && keyCode === KeyCode.Shift) {
 					if (keyboardEvent.ctrlKey || keyboardEvent.altKey || keyboardEvent.metaKey) {
-						return false; // this is an optimistic check for the shift key being used to navigate back in quick open
+						return false; // this is an optimistic check for the shift key being used to navigate back in quick input
 					}
 
 					return true;
@@ -1053,7 +1053,7 @@ class InputBox extends QuickInput implements IInputBox {
 }
 
 export class QuickInputController extends Disposable {
-	private static readonly MAX_WIDTH = 600; // Max total width of quick open widget
+	private static readonly MAX_WIDTH = 600; // Max total width of quick input widget
 
 	private idPrefix: string;
 	private ui: QuickInputUI | undefined;

@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { getTokenClassificationRegistry, ITokenClassificationRegistry, typeAndModifierIdPattern, TokenStyleDefaults, TokenStyle, fontStylePattern } from 'vs/platform/theme/common/tokenClassificationRegistry';
+import { getTokenClassificationRegistry, ITokenClassificationRegistry, typeAndModifierIdPattern, TokenStyleDefaults, TokenStyle, fontStylePattern, selectorPattern } from 'vs/platform/theme/common/tokenClassificationRegistry';
 import { textmateColorSettingsSchemaId } from 'vs/workbench/services/themes/common/colorThemeSchema';
 
 interface ITokenTypeExtensionPoint {
@@ -36,7 +36,6 @@ interface ITokenStyleDefaultExtensionPoint {
 	};
 }
 
-const selectorPattern = '^([-_\\w]+|\\*)(\\.[-_\\w+]+)*$';
 const colorPattern = '^#([0-9A-Fa-f]{6})([0-9A-Fa-f]{2})?$';
 
 const tokenClassificationRegistry: ITokenClassificationRegistry = getTokenClassificationRegistry();
@@ -98,7 +97,7 @@ const tokenStyleDefaultsExtPoint = ExtensionsRegistry.registerExtensionPoint<ITo
 					type: 'string',
 					description: nls.localize('contributes.semanticTokenStyleDefaults.selector', 'The selector matching token types and modifiers.'),
 					pattern: selectorPattern,
-					patternErrorMessage: nls.localize('contributes.semanticTokenStyleDefaults.selector.format', 'Selectors should be in the form (type|*)(.modifier)*'),
+					patternErrorMessage: nls.localize('contributes.semanticTokenStyleDefaults.selector.format', 'Selectors should be in the form (type|*)(.modifier)*(:language)?'),
 				},
 				scope: {
 					type: 'array',
@@ -226,7 +225,7 @@ export class TokenClassificationExtensionPoints {
 						continue;
 					}
 					if (!contribution.selector.match(selectorPattern)) {
-						collector.error(nls.localize('invalid.selector.format', "'configuration.semanticTokenStyleDefaults.selector' must be in the form (type|*)(.modifier)*"));
+						collector.error(nls.localize('invalid.selector.format', "'configuration.semanticTokenStyleDefaults.selector' must be in the form (type|*)(.modifier)*(:language)?"));
 						continue;
 					}
 

@@ -872,7 +872,7 @@ class ModelSemanticColoring extends Disposable {
 
 			this._currentDocumentResponse = new SemanticTokensResponse(provider, tokens.resultId, tokens.data);
 
-			const result = toMultilineTokens2(tokens, styling);
+			const result = toMultilineTokens2(tokens, styling, this._model.getLanguageIdentifier());
 
 			// Adjust incoming semantic tokens
 			if (pendingChanges.length > 0) {

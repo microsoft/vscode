@@ -18,7 +18,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IFileService } from 'vs/platform/files/common/files';
 import { toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { ExplorerViewPaneContainer } from 'vs/workbench/contrib/files/browser/explorerViewlet';
-import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
+import { IQuickInputService, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModel } from 'vs/editor/common/model';
@@ -467,7 +467,7 @@ export class GlobalCompareResourcesAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IQuickOpenService private readonly quickOpenService: IQuickOpenService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IEditorService private readonly editorService: IEditorService,
 		@INotificationService private readonly notificationService: INotificationService,
 	) {
@@ -499,10 +499,10 @@ export class GlobalCompareResourcesAction extends Action {
 				return undefined;
 			});
 
-			once(this.quickOpenService.onHide)((() => toDispose.dispose()));
+			once(this.quickInputService.onHide)((() => toDispose.dispose()));
 
-			// Bring up quick open
-			await this.quickOpenService.show('', { autoFocus: { autoFocusSecondEntry: true } });
+			// Bring up quick access
+			this.quickInputService.quickAccess.show('', { itemActivation: ItemActivation.SECOND });
 		} else {
 			this.notificationService.info(nls.localize('openFileToCompare', "Open a file first to compare it with another file."));
 		}

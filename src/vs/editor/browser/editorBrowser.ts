@@ -333,6 +333,7 @@ export interface IOverviewRuler {
  */
 export interface IEditorAriaOptions {
 	activeDescendant: string | undefined;
+	role?: string;
 }
 
 /**
