@@ -321,7 +321,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext): Promise<void> {
 		return changeActiveCellToKind(CellKind.Markdown, accessor);
 	}
 });
@@ -384,7 +384,7 @@ async function changeActiveCellToKind(kind: CellKind, accessor: ServicesAccessor
 		return;
 	}
 
-	editor.focusNotebookCell(newCell, false);
+	editor.focusNotebookCell(newCell, true);
 	editor.deleteNotebookCell(activeCell);
 }
 

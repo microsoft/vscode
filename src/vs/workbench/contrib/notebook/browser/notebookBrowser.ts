@@ -155,7 +155,7 @@ export interface INotebookEditor {
 	/**
 	 * Layout the cell with a new height
 	 */
-	layoutNotebookCell(cell: ICellViewModel, height: number): void;
+	layoutNotebookCell(cell: ICellViewModel, height: number): Promise<void>;
 
 	/**
 	 * Render the output in webview layer

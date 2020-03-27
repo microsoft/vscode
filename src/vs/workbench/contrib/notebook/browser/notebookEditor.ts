@@ -335,6 +335,14 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		const viewState = this.loadTextEditorViewState(input);
 		this.notebookViewModel.restoreEditorViewState(viewState);
 
+		if (viewState?.scrollPosition !== undefined) {
+			this.list!.scrollTop = viewState!.scrollPosition.top;
+			this.list!.scrollLeft = viewState!.scrollPosition.left;
+		} else {
+			this.list!.scrollTop = 0;
+			this.list!.scrollLeft = 0;
+		}
+
 		this.localStore.add(this.eventDispatcher.onDidChangeMetadata((e) => {
 			this.editorEditable?.set(e.source.editable);
 		}));
@@ -409,6 +417,10 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	private saveTextEditorViewState(input: NotebookEditorInput): void {
 		if (this.group && this.notebookViewModel) {
 			const state = this.notebookViewModel.saveEditorViewState();
+			if (this.list) {
+				state.scrollPosition = { left: this.list.scrollLeft, top: this.list.scrollTop };
+			}
+
 			this.editorMemento.saveEditorState(this.group, input.resource, state);
 		}
 	}
@@ -552,7 +564,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	//#endregion
 
 	//#region Cell operations
-	layoutNotebookCell(cell: ICellViewModel, height: number) {
+	async layoutNotebookCell(cell: ICellViewModel, height: number): Promise<void> {
 		let relayout = (cell: ICellViewModel, height: number) => {
 			let index = this.notebookViewModel!.getViewCellIndex(cell);
 			if (index >= 0) {
@@ -560,9 +572,13 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			}
 		};
 
+		let r: () => void;
 		DOM.scheduleAtNextAnimationFrame(() => {
 			relayout(cell, height);
+			r();
 		});
+
+		return new Promise(resolve => { r = resolve; });
 	}
 
 	async insertNotebookCell(cell: ICellViewModel, type: CellKind, direction: 'above' | 'below', initialText: string = ''): Promise<void> {
@@ -577,9 +593,13 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			newCell.editState = CellEditState.Editing;
 		}
 
+		let r: () => void;
 		DOM.scheduleAtNextAnimationFrame(() => {
 			this.list?.revealInCenterIfOutsideViewport(insertIndex);
+			r();
 		});
+
+		return new Promise(resolve => { r = resolve; });
 	}
 
 	async deleteNotebookCell(cell: ICellViewModel): Promise<void> {
@@ -588,26 +608,30 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		this.notebookViewModel!.deleteCell(index, true);
 	}
 
-	moveCellDown(cell: ICellViewModel): void {
+	async moveCellDown(cell: ICellViewModel): Promise<void> {
 		const index = this.notebookViewModel!.getViewCellIndex(cell);
 		const newIdx = index + 1;
-		this.moveCellToIndex(index, newIdx);
+		return this.moveCellToIndex(index, newIdx);
 	}
 
-	moveCellUp(cell: ICellViewModel): void {
+	async moveCellUp(cell: ICellViewModel): Promise<void> {
 		const index = this.notebookViewModel!.getViewCellIndex(cell);
 		const newIdx = index - 1;
-		this.moveCellToIndex(index, newIdx);
+		return this.moveCellToIndex(index, newIdx);
 	}
 
-	private moveCellToIndex(index: number, newIdx: number): void {
+	private async moveCellToIndex(index: number, newIdx: number): Promise<void> {
 		if (!this.notebookViewModel!.moveCellToIdx(index, newIdx, true)) {
 			return;
 		}
 
+		let r: () => void;
 		DOM.scheduleAtNextAnimationFrame(() => {
 			this.list?.revealInCenterIfOutsideViewport(index + 1);
+			r();
 		});
+
+		return new Promise(resolve => { r = resolve; });
 	}
 
 	editNotebookCell(cell: CellViewModel): void {
@@ -805,6 +829,7 @@ registerThemingParticipant((theme, collector) => {
 	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .output { margin: 0px ${CELL_MARGIN}px 0px ${CELL_MARGIN + CELL_RUN_GUTTER}px }`);
 
 	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell .cell-editor-container { width: calc(100% - ${CELL_RUN_GUTTER}px); }`);
+	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell .markdown-editor-container { margin-left: ${CELL_RUN_GUTTER}px; }`);
 	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row > div.cell.markdown { padding-left: ${CELL_RUN_GUTTER}px; }`);
 	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell .run-button-container { width: ${CELL_RUN_GUTTER}px; }`);
 });

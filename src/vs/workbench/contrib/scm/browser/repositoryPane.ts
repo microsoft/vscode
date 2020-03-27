@@ -692,6 +692,7 @@ export class RepositoryPane extends ViewPane {
 			const label = binding ? binding.getLabel() : (platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter');
 			const placeholderText = format(this.repository.input.placeholder, label);
 
+			this.inputEditor.updateOptions({ ariaLabel: placeholderText });
 			placeholderTextContainer.textContent = placeholderText;
 		};
 
