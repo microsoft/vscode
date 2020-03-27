@@ -811,6 +811,7 @@ export class TestBackupFileService implements IBackupFileService {
 	getBackups(): Promise<URI[]> { return Promise.resolve([]); }
 	resolve<T extends object>(_backup: URI): Promise<IResolvedBackup<T> | undefined> { return Promise.resolve(undefined); }
 	discardBackup(_resource: URI): Promise<void> { return Promise.resolve(); }
+	discardBackups(): Promise<void> { return Promise.resolve(); }
 	parseBackupContent(textBufferFactory: ITextBufferFactory): string {
 		const textBuffer = textBufferFactory.create(DefaultEndOfLine.LF);
 		const lineCount = textBuffer.getLineCount();
