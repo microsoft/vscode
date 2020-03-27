@@ -63,6 +63,7 @@ const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewC
 	name: nls.localize('output', "Output"),
 	order: 1,
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [OUTPUT_VIEW_ID, OUTPUT_VIEW_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
+	hideIfEmpty: true,
 	focusCommand: { id: toggleOutputAcitonId, keybindings: toggleOutputActionKeybindings }
 }, ViewContainerLocation.Panel);
 
