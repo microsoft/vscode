@@ -1144,7 +1144,6 @@ declare module 'vscode' {
 		Prepend = 3
 	}
 
-	// This could be inlined into get/forEach if preferable
 	export interface EnvironmentVariableMutator {
 		/**
 		 * The type of mutation that will occur to the variable.
@@ -1157,30 +1156,71 @@ declare module 'vscode' {
 		readonly value: string;
 	}
 
+	/**
+	 * A collection of mutations that an extension can apply to a process environment.
+	 */
 	export interface EnvironmentVariableCollection {
-		// We should mention in docs that replace/append/prepend all overwrite each other's values
+		/**
+		 * Replace an environment variable with a value.
+		 *
+		 * Note that an extension can only make a single change to any one variable, so this will
+		 * overwrite any previous calls to replace, append or prepend.
+		 */
 		replace(variable: string, value: string): void;
+
+		/**
+		 * Append a value to an environment variable.
+		 *
+		 * Note that an extension can only make a single change to any one variable, so this will
+		 * overwrite any previous calls to replace, append or prepend.
+		 */
 		append(variable: string, value: string): void;
+
+		/**
+		 * Prepend a value to an environment variable.
+		 *
+		 * Note that an extension can only make a single change to any one variable, so this will
+		 * overwrite any previous calls to replace, append or prepend.
+		 */
 		prepend(variable: string, value: string): void;
+
+		/**
+		 * Gets the mutator that this collection applies to a variable, if any.
+		 */
 		get(variable: string): EnvironmentVariableMutator | undefined;
+
+		/**
+		 * Iterate over each mutator in this collection.
+		 */
 		forEach(callback: (variable: string, mutator: EnvironmentVariableMutator, collection: EnvironmentVariableCollection) => any, thisArg?: any): void;
+
+		/**
+		 * Deletes this collection's mutator for a variable.
+		 */
 		delete(variable: string): void;
+
+		/**
+		 * Clears all mutators from this collection.
+		 */
 		clear(): void;
+
+		/**
+		 * Disposes the collection, if the collection was persisted it will no longer be retained
+		 * across reloads.
+		 */
 		dispose(): void;
 	}
 
 	export namespace window {
 		/**
-		 * Creates an environment variable collection for this workspace, enabling
-		 * changes to terminal environment variables. Creating an collection will
-		 * replace any existing collections for this workspace. This will fetch the
-		 * cached collection if one exists for this workspace.
-		 * @param persistent Whether the collection is cached for the workspace across
-		 * window reloads. When true the collection will be active immediately such
-		 * that terminal creation does not need to be blocked on extension activation
-		 * on successive reloads, additionally this API will return the cached
-		 * collection from the previous session. The collection will be invalidated
-		 * by uninstalling the extension or by creating a new one. Defaults to false.
+		 * Creates or returns the extension's environment variable collection for this workspace,
+		 * enabling changes to be applied to terminal environment variables.
+		 *
+		 * @param persistent Whether the collection should be cached for the workspace and applied
+		 * to the terminal across window reloads. When true the collection will be active
+		 * immediately such when the window reloads. Additionally, this API will return the cached
+		 * version if it exists. The collection will be invalidated when the extension is
+		 * uninstalled or when the collection is disposed. Defaults to false.
 		 */
 		export function getEnvironmentVariableCollection(persistent?: boolean): EnvironmentVariableCollection;
 	}
