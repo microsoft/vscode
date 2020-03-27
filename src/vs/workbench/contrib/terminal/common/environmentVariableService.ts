@@ -38,7 +38,6 @@ export class EnvironmentVariableService implements IEnvironmentVariableService {
 		if (serializedPersistedCollections) {
 			const collectionsJson: ISerializableExtensionEnvironmentVariableCollection[] = JSON.parse(serializedPersistedCollections);
 			collectionsJson.forEach(c => this._collections.set(c.extensionIdentifier, deserializeEnvironmentVariableCollection(c.collection)));
-			console.log('serialized from previous session', this._collections);
 
 			// Asynchronously invalidate collections where extensions have been uninstalled, this is
 			// async to avoid making all functions on the service synchronous and because extensions
@@ -85,7 +84,6 @@ export class EnvironmentVariableService implements IEnvironmentVariableService {
 			};
 		});
 		const stringifiedJson = JSON.stringify(collectionsJson);
-		console.log('storing', stringifiedJson, collectionsJson);
 		this._storageService.store(ENVIRONMENT_VARIABLE_COLLECTIONS_KEY, stringifiedJson, StorageScope.WORKSPACE);
 	}
 
@@ -116,7 +114,6 @@ export class EnvironmentVariableService implements IEnvironmentVariableService {
 	}
 
 	private async _invalidateExtensionCollections(): Promise<void> {
-		console.log('checking extensions');
 		await this._extensionService.whenInstalledExtensionsRegistered();
 
 		const registeredExtensions = await this._extensionService.getExtensions();
@@ -124,7 +121,6 @@ export class EnvironmentVariableService implements IEnvironmentVariableService {
 		this._collections.forEach((_, extensionIdentifier) => {
 			const isExtensionRegistered = registeredExtensions.some(r => r.identifier.value === extensionIdentifier);
 			if (!isExtensionRegistered) {
-				console.log('invalidated ' + extensionIdentifier);
 				this._collections.delete(extensionIdentifier);
 				changes = true;
 			}

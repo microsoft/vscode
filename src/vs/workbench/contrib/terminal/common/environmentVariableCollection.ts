@@ -67,20 +67,53 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 		// Find added
 		other.map.forEach((otherMutators, variable) => {
 			const currentMutators = this.map.get(variable);
-			const addedArray = getMissingMutatorsFromArray(otherMutators, currentMutators);
-			if (addedArray) {
-				added.set(variable, addedArray);
+			const result = getMissingMutatorsFromArray(otherMutators, currentMutators);
+			if (result) {
+				added.set(variable, result);
 			}
 		});
 
 		// Find removed
 		this.map.forEach((currentMutators, variable) => {
 			const otherMutators = other.map.get(variable);
-			const removedArray = getMissingMutatorsFromArray(currentMutators, otherMutators);
-			if (removedArray) {
-				removed.set(variable, removedArray);
+			const result = getMissingMutatorsFromArray(currentMutators, otherMutators);
+			if (result) {
+				removed.set(variable, result);
 			}
 		});
+
+		// Find changed
+		this.map.forEach((currentMutators, variable) => {
+			const otherMutators = other.map.get(variable);
+			const result = getChangedMutatorsFromArray(currentMutators, otherMutators);
+			if (result) {
+				changed.set(variable, result);
+			}
+		});
+
+		// 	// If it doesn't exist, none are changed (they are removed)
+		// 	if (!otherMutators) {
+		// 		return;
+		// 	}
+
+		// 	// Create a map to help
+		// 	const otherMutatorExtensions = new Map<string, IExtensionOwnedEnvironmentVariableMutator>();
+		// 	otherMutators.forEach(m => otherMutatorExtensions.set(m.extensionIdentifier, m));
+
+		// 	// Find entries that exist in both but are not equal
+		// 	const result: IExtensionOwnedEnvironmentVariableMutator[] = [];
+		// 	currentMutators.forEach(mutator => {
+		// 		const otherMutator = otherMutatorExtensions.get(mutator.extensionIdentifier);
+		// 		if (otherMutator && (mutator.type !== otherMutator.type || mutator.value !== otherMutator.value)) {
+		// 			result.push(mutator);
+		// 		}
+		// 	});
+
+		// 	if (result.length !== 0) {
+		// 		changed.set(variable, result);
+		// 	}
+
+		// });
 
 		return { added, changed, removed };
 	}
@@ -101,9 +134,35 @@ function getMissingMutatorsFromArray(
 
 	// Find entries removed from other
 	const result: IExtensionOwnedEnvironmentVariableMutator[] = [];
-	current.forEach(extensionMutator => {
-		if (!otherMutatorExtensions.has(extensionMutator.extensionIdentifier)) {
-			result.push(extensionMutator);
+	current.forEach(mutator => {
+		if (!otherMutatorExtensions.has(mutator.extensionIdentifier)) {
+			result.push(mutator);
+		}
+	});
+
+	return result.length === 0 ? undefined : result;
+}
+
+function getChangedMutatorsFromArray(
+	current: IExtensionOwnedEnvironmentVariableMutator[],
+	other: IExtensionOwnedEnvironmentVariableMutator[] | undefined
+): IExtensionOwnedEnvironmentVariableMutator[] | undefined {
+	// If it doesn't exist, none are changed (they are removed)
+	if (!other) {
+		return undefined;
+	}
+
+	// Create a map to help
+	const otherMutatorExtensions = new Map<string, IExtensionOwnedEnvironmentVariableMutator>();
+	other.forEach(m => otherMutatorExtensions.set(m.extensionIdentifier, m));
+
+	// Find entries that exist in both but are not equal
+	const result: IExtensionOwnedEnvironmentVariableMutator[] = [];
+	current.forEach(mutator => {
+		const otherMutator = otherMutatorExtensions.get(mutator.extensionIdentifier);
+		if (otherMutator && (mutator.type !== otherMutator.type || mutator.value !== otherMutator.value)) {
+			// Return the new result, not the old one
+			result.push(otherMutator);
 		}
 	});
 
