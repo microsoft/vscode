@@ -48,6 +48,7 @@ import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environ
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { timeout } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 class TestEnvironmentService extends NativeWorkbenchEnvironmentService {
 
@@ -721,6 +722,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	let workspaceName = `testWorkspace${uuid.generateUuid()}`, parentResource: string, workspaceDir: string, testObject: IConfigurationService, globalSettingsFile: string, globalTasksFile: string, workspaceService: WorkspaceService;
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 	let fileService: IFileService;
+	let disposableStore: DisposableStore = new DisposableStore();
 
 	suiteSetup(() => {
 		configurationRegistry.registerConfiguration({
@@ -773,13 +775,13 @@ suite('WorkspaceConfigurationService - Folder', () => {
 				const diskFileSystemProvider = new DiskFileSystemProvider(new NullLogService());
 				fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 				fileService.registerProvider(Schemas.userData, new FileUserDataProvider(environmentService.appSettingsHome, environmentService.backupHome, diskFileSystemProvider, environmentService));
-				workspaceService = new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService) }, environmentService, fileService, remoteAgentService);
+				workspaceService = disposableStore.add(new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService) }, environmentService, fileService, remoteAgentService));
 				instantiationService.stub(IWorkspaceContextService, workspaceService);
 				instantiationService.stub(IConfigurationService, workspaceService);
 				instantiationService.stub(IEnvironmentService, environmentService);
 
 				// Watch workspace configuration directory
-				fileService.watch(joinPath(URI.file(workspaceDir), '.vscode'));
+				disposableStore.add(fileService.watch(joinPath(URI.file(workspaceDir), '.vscode')));
 
 				return workspaceService.initialize(convertToWorkspacePayload(URI.file(folderDir))).then(() => {
 					instantiationService.stub(IFileService, fileService);
@@ -793,9 +795,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	});
 
 	teardown(() => {
-		if (testObject) {
-			(<WorkspaceService>testObject).dispose();
-		}
+		disposableStore.clear();
 		if (parentResource) {
 			return pfs.rimraf(parentResource, pfs.RimRafMode.MOVE);
 		}
