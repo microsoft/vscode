@@ -275,7 +275,13 @@ export class QuickInputList {
 			setRowLineHeight: false,
 			multipleSelectionSupport: false,
 			horizontalScrolling: false,
-			accessibilityProvider
+			accessibilityProvider,
+			ariaProvider: {
+				getRole: () => 'option',
+				getSetSize: (_: ListElement, _index: number, listLength: number) => listLength,
+				getPosInSet: (_: ListElement, index: number) => index
+			},
+			ariaRole: 'listbox'
 		} as IListOptions<ListElement>);
 		this.list.getHTMLElement().id = id;
 		this.disposables.push(this.list);
