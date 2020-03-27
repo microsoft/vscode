@@ -15,6 +15,6 @@ jobs:
       - name: Run Locker
         uses: ./locker
         with:
-          daysSinceClose: 300
+          daysSinceClose: 700
           daysSinceUpdate: 3
           ignoredLabel: "*out-of-scope"
