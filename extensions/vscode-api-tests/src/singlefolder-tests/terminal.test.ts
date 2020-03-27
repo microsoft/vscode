@@ -548,6 +548,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 					} catch (e) {
 						done(e);
 					}
+					console.log('Terminal data: ' + e.data);
 					// Multiple expected could show up in the same data event
 					while (expectedText.length > 0 && e.data.indexOf(expectedText[0]) >= 0) {
 						expectedText.shift();
@@ -593,6 +594,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 					} catch (e) {
 						done(e);
 					}
+					console.log('Terminal data: ' + e.data);
 					// Multiple expected could show up in the same data event
 					while (expectedText.length > 0 && e.data.indexOf(expectedText[0]) >= 0) {
 						expectedText.shift();
