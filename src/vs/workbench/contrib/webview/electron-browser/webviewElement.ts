@@ -216,6 +216,8 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 	public extension: WebviewExtensionDescription | undefined;
 	private readonly _protocolProvider: WebviewProtocolProvider;
 
+	private readonly _domReady: Promise<void>;
+
 	constructor(
 		id: string,
 		options: WebviewOptions,
@@ -247,6 +249,13 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		));
 
 		this._register(new WebviewKeyboardHandler(webviewAndContents));
+
+		this._domReady = new Promise(resolve => {
+			const subscription = this._register(this.on(WebviewMessageChannels.webviewReady, () => {
+				subscription.dispose();
+				resolve();
+			}));
+		});
 
 		this._register(addDisposableListener(this.element!, 'console-message', function (e: { level: number; message: string; line: number; sourceId: string; }) {
 			console.log(`[Embedded Page] ${e.message}`);
@@ -334,7 +343,10 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 	}
 
 	protected async postMessage(channel: string, data?: any): Promise<void> {
-		await this._protocolProvider.ready;
+		await Promise.all([
+			this._protocolProvider.ready,
+			this._domReady,
+		]);
 		this.element?.send(channel, data);
 	}
 
