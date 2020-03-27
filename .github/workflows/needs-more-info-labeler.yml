@@ -1,7 +1,7 @@
-name: Needs Version Info
-on:
-  issues:
-    types: [opened, edited]
+name: Needs More Info Labeler
+on: repository_dispatch # disable pending resolution of #92958
+  # issues:
+  #   types: [opened, edited]
 
 jobs:
   main:
@@ -11,9 +11,9 @@ jobs:
         uses: actions/checkout@v2
         with:
           repository: 'JacksonKearl/vscode-triage-github-actions'
-          ref: v10
-      - name: Run Needs Version Info
-        uses: ./needs-more-info
+          ref: v11
+      - name: Run Needs More Info Labeler
+        uses: ./needs-more-info-labeler
         with:
           token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
           matcher: '\b(\d\.\d{2,3}\.\d|insiders?|1\.\d\d\d?)\b'
