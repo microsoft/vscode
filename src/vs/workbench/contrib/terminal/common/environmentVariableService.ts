@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEnvironmentVariableService, IEnvironmentVariableCollection, IMergedEnvironmentVariableCollection, ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
+import { IEnvironmentVariableService, IMergedEnvironmentVariableCollection, ISerializableEnvironmentVariableCollection, IEnvironmentVariableCollectionWithPersistence } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { Event, Emitter } from 'vs/base/common/event';
 import { debounce, throttle } from 'vs/base/common/decorators';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -24,7 +24,7 @@ interface ISerializableExtensionEnvironmentVariableCollection {
 export class EnvironmentVariableService implements IEnvironmentVariableService {
 	_serviceBrand: undefined;
 
-	collections: Map<string, IEnvironmentVariableCollection> = new Map();
+	collections: Map<string, IEnvironmentVariableCollectionWithPersistence> = new Map();
 	mergedCollection: IMergedEnvironmentVariableCollection;
 
 	private readonly _onDidChangeCollections = new Emitter<IMergedEnvironmentVariableCollection>();
@@ -37,7 +37,10 @@ export class EnvironmentVariableService implements IEnvironmentVariableService {
 		const serializedPersistedCollections = this._storageService.get(ENVIRONMENT_VARIABLE_COLLECTIONS_KEY, StorageScope.WORKSPACE);
 		if (serializedPersistedCollections) {
 			const collectionsJson: ISerializableExtensionEnvironmentVariableCollection[] = JSON.parse(serializedPersistedCollections);
-			collectionsJson.forEach(c => this.collections.set(c.extensionIdentifier, deserializeEnvironmentVariableCollection(c.collection)));
+			collectionsJson.forEach(c => this.collections.set(c.extensionIdentifier, {
+				persistent: true,
+				map: deserializeEnvironmentVariableCollection(c.collection)
+			}));
 
 			// Asynchronously invalidate collections where extensions have been uninstalled, this is
 			// async to avoid making all functions on the service synchronous and because extensions
@@ -50,7 +53,7 @@ export class EnvironmentVariableService implements IEnvironmentVariableService {
 		this._extensionService.onDidChangeExtensions(() => this._invalidateExtensionCollections());
 	}
 
-	set(extensionIdentifier: string, collection: IEnvironmentVariableCollection): void {
+	set(extensionIdentifier: string, collection: IEnvironmentVariableCollectionWithPersistence): void {
 		this.collections.set(extensionIdentifier, collection);
 		this._updateCollections();
 	}
@@ -72,12 +75,14 @@ export class EnvironmentVariableService implements IEnvironmentVariableService {
 	}
 
 	protected _persistCollections(): void {
-		const keys = [...this.collections.keys()];
-		const collectionsJson: ISerializableExtensionEnvironmentVariableCollection[] = keys.map(extensionIdentifier => {
-			return {
-				extensionIdentifier,
-				collection: serializeEnvironmentVariableCollection(this.collections.get(extensionIdentifier)!)
-			};
+		const collectionsJson: ISerializableExtensionEnvironmentVariableCollection[] = [];
+		this.collections.forEach((collection, extensionIdentifier) => {
+			if (collection.persistent) {
+				collectionsJson.push({
+					extensionIdentifier,
+					collection: serializeEnvironmentVariableCollection(this.collections.get(extensionIdentifier)!.map)
+				});
+			}
 		});
 		const stringifiedJson = JSON.stringify(collectionsJson);
 		this._storageService.store(ENVIRONMENT_VARIABLE_COLLECTIONS_KEY, stringifiedJson, StorageScope.WORKSPACE);

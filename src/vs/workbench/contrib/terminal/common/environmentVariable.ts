@@ -24,7 +24,13 @@ export interface IExtensionOwnedEnvironmentVariableMutator extends IEnvironmentV
 	readonly extensionIdentifier: string;
 }
 
-export type IEnvironmentVariableCollection = ReadonlyMap<string, IEnvironmentVariableMutator>;
+export interface IEnvironmentVariableCollection {
+	readonly map: ReadonlyMap<string, IEnvironmentVariableMutator>;
+}
+
+export interface IEnvironmentVariableCollectionWithPersistence extends IEnvironmentVariableCollection {
+	readonly persistent: boolean;
+}
 
 export interface IMergedEnvironmentVariableCollectionDiff {
 	added: ReadonlyMap<string, IExtensionOwnedEnvironmentVariableMutator[]>;

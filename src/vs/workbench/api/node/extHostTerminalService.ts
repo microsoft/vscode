@@ -233,17 +233,22 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		this._isWorkspaceShellAllowed = isAllowed;
 	}
 
-	public getEnvironmentVariableCollection(extension: IExtensionDescription, persistent?: boolean): vscode.EnvironmentVariableCollection {
+	public getEnvironmentVariableCollection(extension: IExtensionDescription, persistent: boolean = false): vscode.EnvironmentVariableCollection {
 		let collection: EnvironmentVariableCollection | undefined;
 		if (persistent) {
 			// If persistent is specified, return the current collection if it exists
 			collection = this._environmentVariableCollections.get(extension.identifier.value);
+
+			// If persistence changed then create a new collection
+			if (collection && !collection.persistent) {
+				collection = undefined;
+			}
 		}
 
 		if (!collection) {
 			// If not persistent, clear out the current collection and create a new one
 			dispose(this._environmentVariableCollections.get(extension.identifier.value));
-			collection = new EnvironmentVariableCollection();
+			collection = new EnvironmentVariableCollection(persistent);
 			this._setEnvironmentVariableCollection(extension.identifier.value, collection);
 		}
 
@@ -252,13 +257,13 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 
 	private _syncEnvironmentVariableCollection(extensionIdentifier: string, collection: EnvironmentVariableCollection): void {
 		const serialized = serializeEnvironmentVariableCollection(collection.map);
-		this._proxy.$setEnvironmentVariableCollection(extensionIdentifier, serialized.length === 0 ? undefined : serialized);
+		this._proxy.$setEnvironmentVariableCollection(extensionIdentifier, collection.persistent, serialized.length === 0 ? undefined : serialized);
 	}
 
 	public $initEnvironmentVariableCollections(collections: [string, ISerializableEnvironmentVariableCollection][]): void {
 		collections.forEach(entry => {
 			const extensionIdentifier = entry[0];
-			const collection = new EnvironmentVariableCollection(entry[1]);
+			const collection = new EnvironmentVariableCollection(true, entry[1]);
 			this._setEnvironmentVariableCollection(extensionIdentifier, collection);
 		});
 	}

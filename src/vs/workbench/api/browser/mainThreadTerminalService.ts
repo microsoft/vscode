@@ -77,7 +77,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		if (this._environmentVariableService.collections.size > 0) {
 			const collectionAsArray = [...this._environmentVariableService.collections.entries()];
 			const serializedCollections: [string, ISerializableEnvironmentVariableCollection][] = collectionAsArray.map(e => {
-				return [e[0], serializeEnvironmentVariableCollection(e[1])];
+				return [e[0], serializeEnvironmentVariableCollection(e[1].map)];
 			});
 			this._proxy.$initEnvironmentVariableCollections(serializedCollections);
 		}
@@ -357,9 +357,12 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		return terminal;
 	}
 
-	$setEnvironmentVariableCollection(extensionIdentifier: string, collection: ISerializableEnvironmentVariableCollection | undefined): void {
+	$setEnvironmentVariableCollection(extensionIdentifier: string, persistent: boolean, collection: ISerializableEnvironmentVariableCollection | undefined): void {
 		if (collection) {
-			const translatedCollection = deserializeEnvironmentVariableCollection(collection);
+			const translatedCollection = {
+				persistent,
+				map: deserializeEnvironmentVariableCollection(collection)
+			};
 			this._environmentVariableService.set(extensionIdentifier, translatedCollection);
 		} else {
 			this._environmentVariableService.delete(extensionIdentifier);

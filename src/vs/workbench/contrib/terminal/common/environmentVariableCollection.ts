@@ -11,7 +11,7 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 
 	constructor(collections: Map<string, IEnvironmentVariableCollection>) {
 		collections.forEach((collection, extensionIdentifier) => {
-			const it = collection.entries();
+			const it = collection.map.entries();
 			let next = it.next();
 			while (!next.done) {
 				const variable = next.value[0];

@@ -643,12 +643,15 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 }
 
 export class EnvironmentVariableCollection implements vscode.EnvironmentVariableCollection {
-	public readonly map: Map<string, vscode.EnvironmentVariableMutator> = new Map();
+	readonly map: Map<string, vscode.EnvironmentVariableMutator> = new Map();
 
 	protected readonly _onDidChangeCollection: Emitter<void> = new Emitter<void>();
 	get onDidChangeCollection(): Event<void> { return this._onDidChangeCollection && this._onDidChangeCollection.event; }
 
-	constructor(serialized?: ISerializableEnvironmentVariableCollection) {
+	constructor(
+		readonly persistent: boolean,
+		serialized?: ISerializableEnvironmentVariableCollection
+	) {
 		this.map = new Map(serialized);
 	}
 
