@@ -343,8 +343,13 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 
 	public attachToElement(element: HTMLElement): void {
 		this._container = element;
-		this._tabElement = document.createElement('div');
-		this._tabElement.classList.add('terminal-tab');
+
+		// If we already have a tab element, we can reparent it
+		if (!this._tabElement) {
+			this._tabElement = document.createElement('div');
+			this._tabElement.classList.add('terminal-tab');
+		}
+
 		this._container.appendChild(this._tabElement);
 		if (!this._splitPaneContainer) {
 			this._panelPosition = this._layoutService.getPanelPosition();
