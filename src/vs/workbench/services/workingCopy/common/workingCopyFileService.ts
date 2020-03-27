@@ -151,7 +151,7 @@ export interface IWorkingCopyFileService {
 	//#region Path related
 
 	/**
-	 * Register a new provider for working copies.
+	 * Register a new provider for working copies based on a resource.
 	 *
 	 * @return a disposable that unregisters the provider.
 	 */
