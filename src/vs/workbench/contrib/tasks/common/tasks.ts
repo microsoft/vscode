@@ -802,6 +802,24 @@ export class ConfiguringTask extends CommonTask {
 	public getWorkspaceFolder(): IWorkspaceFolder | undefined {
 		return this._source.config.workspaceFolder;
 	}
+
+	public getRecentlyUsedKey(): string | undefined {
+		interface CustomKey {
+			type: string;
+			folder: string;
+			id: string;
+		}
+		let workspaceFolder = this._source.kind === TaskSourceKind.User ? USER_TASKS_GROUP_KEY : this._source.config.workspaceFolder?.uri.toString();
+		if (!workspaceFolder) {
+			return undefined;
+		}
+		let id: string = this.configurationProperties.identifier!;
+		if (this._source.kind !== TaskSourceKind.Workspace) {
+			id += this._source.kind;
+		}
+		let key: CustomKey = { type: CUSTOMIZED_TASK_TYPE, folder: workspaceFolder, id };
+		return JSON.stringify(key);
+	}
 }
 
 export class ContributedTask extends CommonTask {

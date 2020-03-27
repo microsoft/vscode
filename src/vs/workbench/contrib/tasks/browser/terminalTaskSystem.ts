@@ -228,11 +228,12 @@ export class TerminalTaskSystem implements ITaskSystem {
 	}
 
 	public run(task: Task, resolver: ITaskResolver, trigger: string = Triggers.command): ITaskExecuteResult {
-		let validInstance = task.runOptions && task.runOptions.instanceLimit && this.instances[task._id] && this.instances[task._id].instances < task.runOptions.instanceLimit;
-		let instance = this.instances[task._id] ? this.instances[task._id].instances : 0;
+		const recentTaskKey = task.getRecentlyUsedKey() ?? '';
+		let validInstance = task.runOptions && task.runOptions.instanceLimit && this.instances[recentTaskKey] && this.instances[recentTaskKey].instances < task.runOptions.instanceLimit;
+		let instance = this.instances[recentTaskKey] ? this.instances[recentTaskKey].instances : 0;
 		this.currentTask = new VerifiedTask(task, resolver, trigger);
 		if (instance > 0) {
-			task.instance = this.instances[task._id].counter;
+			task.instance = this.instances[recentTaskKey].counter;
 		}
 		let lastTaskInstance = this.getLastInstance(task);
 		let terminalData = lastTaskInstance ? this.activeTasks[lastTaskInstance.getMapKey()] : undefined;
@@ -247,10 +248,10 @@ export class TerminalTaskSystem implements ITaskSystem {
 				this.lastTask = this.currentTask;
 			});
 			if (InMemoryTask.is(task) || !this.isTaskEmpty(task)) {
-				if (!this.instances[task._id]) {
-					this.instances[task._id] = new InstanceManager();
+				if (!this.instances[recentTaskKey]) {
+					this.instances[recentTaskKey] = new InstanceManager();
 				}
-				this.instances[task._id].addInstance();
+				this.instances[recentTaskKey].addInstance();
 			}
 			return executeResult;
 		} catch (error) {
@@ -339,8 +340,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 
 	public getLastInstance(task: Task): Task | undefined {
 		let lastInstance = undefined;
+		const recentKey = task.getRecentlyUsedKey();
 		Object.keys(this.activeTasks).forEach((key) => {
-			if (task._id === this.activeTasks[key].task._id) {
+			if (recentKey && recentKey === this.activeTasks[key].task.getRecentlyUsedKey()) {
 				lastInstance = this.activeTasks[key].task;
 			}
 		});
@@ -364,10 +366,11 @@ export class TerminalTaskSystem implements ITaskSystem {
 	}
 
 	private removeInstances(task: Task) {
-		if (this.instances[task._id]) {
-			this.instances[task._id].removeInstance();
-			if (this.instances[task._id].instances === 0) {
-				delete this.instances[task._id];
+		const recentTaskKey = task.getRecentlyUsedKey() ?? '';
+		if (this.instances[recentTaskKey]) {
+			this.instances[recentTaskKey].removeInstance();
+			if (this.instances[recentTaskKey].instances === 0) {
+				delete this.instances[recentTaskKey];
 			}
 		}
 	}
