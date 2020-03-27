@@ -1,9 +1,7 @@
-name: Commands
+name: New Release
 on:
-  issue_comment:
-    types: [created]
   issues:
-    types: [labeled]
+    types: [opened]
 
 jobs:
   main:
@@ -14,8 +12,11 @@ jobs:
         with:
           repository: 'JacksonKearl/vscode-triage-github-actions'
           ref: v10
-      - name: Run Commands
-        uses: ./commands
+      - name: Run New Release
+        uses: ./new-release
         with:
           token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
-          config-path: commands
+          label: new release
+          labelColor: "006b75"
+          labelDescription: Issues found in a recent release of VS Code
+          days: 5
