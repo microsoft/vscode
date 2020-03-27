@@ -152,23 +152,12 @@ suite('Decoration Render Options', () => {
 		if (platform.isWindows) {
 			// windows file path (used as string)
 			s.registerDecorationType('example', { gutterIconPath: URI.file('c:\\files\\miles\\more.png') });
-			const sheet1 = readStyleSheet(styleSheet);
-			assert(
-				sheet1.indexOf('background: url(\'file:///c%3A/files/miles/more.png\') center center no-repeat;') > 0
-				|| sheet1.indexOf('background: url("file:///c%3A/files/miles/more.png") center center no-repeat;') > 0
-				|| sheet1.indexOf('background: url("file:///c:/files/miles/more.png") center center no-repeat;') > 0
-				|| sheet1.indexOf('background-image: url("file:///c:/files/miles/more.png"); background-position: center center; background-repeat: no-repeat no-repeat;') > 0
-			);
+			assert(readStyleSheet(styleSheet).indexOf(`{background:url('file:///c:/files/miles/more.png') center center no-repeat;}`) > 0);
 			s.removeDecorationType('example');
 
 			// single quote must always be escaped/encoded
 			s.registerDecorationType('example', { gutterIconPath: URI.file('c:\\files\\foo\\b\'ar.png') });
-			const sheet2 = readStyleSheet(styleSheet);
-			assert(
-				sheet2.indexOf('background: url(\'file:///Users/foo/b%27ar.png\') center center no-repeat;') > 0
-				|| sheet2.indexOf('background: url("file:///Users/foo/b%27ar.png") center center no-repeat;') > 0
-				|| sheet2.indexOf('background-image: url("file:///Users/foo/b%27ar.png"); background-position: center center; background-repeat: no-repeat no-repeat;') > 0
-			);
+			assert(readStyleSheet(styleSheet).indexOf(`{background:url('file:///c:/files/foo/b%27ar.png') center center no-repeat;}`) > 0);
 			s.removeDecorationType('example');
 		} else {
 			// unix file path (used as string)
