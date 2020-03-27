@@ -73,14 +73,19 @@ suite.only('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 		});
 
 		test('should generate added diffs from a different extension', () => {
+			console.log('START');
 			const merged1 = new MergedEnvironmentVariableCollection(new Map([
 				['ext1', deserializeEnvironmentVariableCollection([
 					['A', { value: 'a1', type: EnvironmentVariableMutatorType.Replace }]
 				])]
 			]));
+			// TODO: Swapping the order or these changes the test result, the order is important
 			const merged2 = new MergedEnvironmentVariableCollection(new Map([
 				['ext2', deserializeEnvironmentVariableCollection([
-					['A', { value: 'a2', type: EnvironmentVariableMutatorType.Replace }]
+					['A', { value: 'a2', type: EnvironmentVariableMutatorType.Append }]
+				])],
+				['ext1', deserializeEnvironmentVariableCollection([
+					['A', { value: 'a1', type: EnvironmentVariableMutatorType.Replace }]
 				])]
 			]));
 			const diff = merged1.diff(merged2);
@@ -88,8 +93,21 @@ suite.only('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 			strictEqual(diff.removed.size, 0);
 			const entries = [...diff.added.entries()];
 			deepStrictEqual(entries, [
-				['A', [{ extensionIdentifier: 'ext2', value: 'a2', type: EnvironmentVariableMutatorType.Replace }]]
+				['A', [{ extensionIdentifier: 'ext2', value: 'a2', type: EnvironmentVariableMutatorType.Append }]]
 			]);
+
+			// Swapping the order or the entries should yield the same result
+			const merged3 = new MergedEnvironmentVariableCollection(new Map([
+				['ext1', deserializeEnvironmentVariableCollection([
+					['A', { value: 'a1', type: EnvironmentVariableMutatorType.Replace }]
+				])],
+				['ext2', deserializeEnvironmentVariableCollection([
+					['A', { value: 'a2', type: EnvironmentVariableMutatorType.Append }]
+				])]
+			]));
+			const diff2 = merged1.diff(merged3);
+			deepStrictEqual([...diff.added.entries()], [...diff2.added.entries()]);
+
 		});
 
 		test('should generate removed diffs', () => {

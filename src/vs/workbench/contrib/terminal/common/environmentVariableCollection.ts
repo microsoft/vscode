@@ -67,6 +67,17 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 		// Find added
 		other.map.forEach((otherMutators, variable) => {
 			const currentMutators = this.map.get(variable);
+			console.log('check added', variable);
+			const addedArray = getMissingMutatorsFromArray(otherMutators, currentMutators);
+			console.log('addedArray', addedArray?.length);
+			if (addedArray) {
+				added.set(variable, addedArray);
+				console.log('get', added.get(variable)?.length);
+			}
+		});
+
+		other.map.forEach((otherMutators, variable) => {
+			const currentMutators = this.map.get(variable);
 
 			// If it doesn't exist, all are added
 			if (!currentMutators) {
@@ -88,40 +99,48 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 
 			// Set if any were found
 			if (addedArray.length > 0) {
-				added.set(variable, addedArray);
+				console.log('alt addedArray', addedArray.length);
 			}
 		});
-
-		// TODO: Factor out this and added part into a shared function
 
 		// Find removed
 		this.map.forEach((currentMutators, variable) => {
 			const otherMutators = other.map.get(variable);
-
-			// If it doesn't exist, all are removed
-			if (!otherMutators) {
-				removed.set(variable, currentMutators);
-				return;
-			}
-
-			// Create a map to help
-			const otherMutatorExtensions = new Map<string, boolean>();
-			otherMutators.forEach(m => otherMutatorExtensions.set(m.extensionIdentifier, true));
-
-			// Find entries removed from other
-			const removedArray: IExtensionOwnedEnvironmentVariableMutator[] = [];
-			otherMutators.forEach(extensionMutator => {
-				if (!otherMutatorExtensions.has(extensionMutator.extensionIdentifier)) {
-					removedArray.push(extensionMutator);
-				}
-			});
-
-			// Set if any were found
-			if (removedArray.length > 0) {
+			console.log('check removed', variable);
+			const removedArray = getMissingMutatorsFromArray(currentMutators, otherMutators);
+			if (removedArray) {
 				removed.set(variable, removedArray);
 			}
 		});
 
 		return { added, changed, removed };
 	}
+}
+
+function getMissingMutatorsFromArray(
+	current: IExtensionOwnedEnvironmentVariableMutator[],
+	other: IExtensionOwnedEnvironmentVariableMutator[] | undefined
+): IExtensionOwnedEnvironmentVariableMutator[] | undefined {
+	// If it doesn't exist, all are removed
+	if (!other) {
+		console.log('result', current);
+		return current;
+	}
+
+	// Create a map to help
+	const otherMutatorExtensions = new Map<string, boolean>();
+	other.forEach(m => otherMutatorExtensions.set(m.extensionIdentifier, true));
+
+	// Find entries removed from other
+	const result: IExtensionOwnedEnvironmentVariableMutator[] = [];
+	current.forEach(extensionMutator => {
+		console.log('check for extension ' + extensionMutator.extensionIdentifier);
+		if (!otherMutatorExtensions.has(extensionMutator.extensionIdentifier)) {
+			console.log('pushed');
+			result.push(extensionMutator);
+		}
+	});
+
+	console.log('result', result.length);
+	return result.length === 0 ? undefined : result;
 }
