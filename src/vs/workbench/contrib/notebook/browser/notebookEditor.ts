@@ -342,11 +342,27 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		this.localStore.add(this.notebookViewModel.onDidChangeViewCells((e) => {
 			if (e.synchronous) {
 				e.splices.reverse().forEach((diff) => {
+					// remove output in the webview
+					for (let i = diff[0]; i < diff[0] + diff[1]; i++) {
+						const cell = this.list?.element(i);
+						cell?.cell.outputs.forEach(output => {
+							this.removeInset(output);
+						});
+					}
+
 					this.list?.splice(diff[0], diff[1], diff[2]);
 				});
 			} else {
 				DOM.scheduleAtNextAnimationFrame(() => {
 					e.splices.reverse().forEach((diff) => {
+						// remove output in the webview
+						for (let i = diff[0]; i < diff[0] + diff[1]; i++) {
+							const cell = this.list?.element(i);
+							cell?.cell.outputs.forEach(output => {
+								this.removeInset(output);
+							});
+						}
+
 						this.list?.splice(diff[0], diff[1], diff[2]);
 					});
 				});
