@@ -81,7 +81,8 @@ export class BreadcrumbsWidget {
 	private _dimension: dom.Dimension | undefined;
 
 	constructor(
-		container: HTMLElement
+		container: HTMLElement,
+		horizontalScrollbarSize: number,
 	) {
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'monaco-breadcrumbs';
@@ -90,7 +91,7 @@ export class BreadcrumbsWidget {
 		this._scrollable = new DomScrollableElement(this._domNode, {
 			vertical: ScrollbarVisibility.Hidden,
 			horizontal: ScrollbarVisibility.Auto,
-			horizontalScrollbarSize: 3,
+			horizontalScrollbarSize,
 			useShadows: false,
 			scrollYToX: true
 		});
@@ -104,6 +105,12 @@ export class BreadcrumbsWidget {
 		this._disposables.add(focusTracker);
 		this._disposables.add(focusTracker.onDidBlur(_ => this._onDidChangeFocus.fire(false)));
 		this._disposables.add(focusTracker.onDidFocus(_ => this._onDidChangeFocus.fire(true)));
+	}
+
+	setHorizontalScrollbarSize(size: number) {
+		this._scrollable.updateOptions({
+			horizontalScrollbarSize: size
+		});
 	}
 
 	dispose(): void {

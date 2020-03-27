@@ -92,7 +92,7 @@ export abstract class TitleControl extends Themable {
 		this.registerListeners();
 	}
 
-	private registerListeners(): void {
+	protected registerListeners(): void {
 
 		// Update actions toolbar when extension register that may contribute them
 		this._register(this.extensionService.onDidRegisterExtensions(() => this.updateEditorActionsToolbar()));
