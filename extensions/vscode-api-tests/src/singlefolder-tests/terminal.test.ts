@@ -533,5 +533,91 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 				}
 			});
 		});
+
+		suite('getEnvironmentVariableCollection', () => {
+			test('should have collection variables apply to terminals immediately after setting', (done) => {
+				// Text to match on before passing the test
+				const expectedText = [
+					'~a2~',
+					'b1~b2~',
+					'~c2~c1'
+				];
+				disposables.push(window.onDidWriteTerminalData(e => {
+					try {
+						equal(terminal, e.terminal);
+					} catch (e) {
+						done(e);
+					}
+					// Multiple expected could show up in the same data event
+					while (expectedText.length > 0 && e.data.indexOf(expectedText[0]) >= 0) {
+						expectedText.shift();
+						// Check if all string are found, if so finish the test
+						if (expectedText.length === 0) {
+							disposables.push(window.onDidCloseTerminal(() => done()));
+							terminal.dispose();
+						}
+					}
+				}));
+				const collection = window.getEnvironmentVariableCollection();
+				disposables.push(collection);
+				collection.replace('A', '~a2~');
+				collection.append('B', '~b2~');
+				collection.prepend('C', '~c2~');
+				const isWindows = process.platform === 'win32';
+				const terminal = window.createTerminal({
+					shellPath: isWindows ? 'powershell.exe' : 'sh',
+					env: {
+						A: 'a1',
+						B: 'b1',
+						C: 'c1'
+					}
+				});
+				terminal.sendText(isWindows ? '$env:A' : 'echo $A');
+				terminal.sendText(isWindows ? '$env:B' : 'echo $B');
+				terminal.sendText(isWindows ? '$env:C' : 'echo $C');
+			});
+
+			test('should have collection variables apply to environment variables that don\'t exist', (done) => {
+				// Text to match on before passing the test
+				const expectedText = [
+					'~a2~',
+					'~b2~',
+					'~c2~'
+				];
+				disposables.push(window.onDidWriteTerminalData(e => {
+					try {
+						equal(terminal, e.terminal);
+					} catch (e) {
+						done(e);
+					}
+					// Multiple expected could show up in the same data event
+					while (expectedText.length > 0 && e.data.indexOf(expectedText[0]) >= 0) {
+						expectedText.shift();
+						// Check if all string are found, if so finish the test
+						if (expectedText.length === 0) {
+							disposables.push(window.onDidCloseTerminal(() => done()));
+							terminal.dispose();
+						}
+					}
+				}));
+				const collection = window.getEnvironmentVariableCollection();
+				disposables.push(collection);
+				collection.replace('A', '~a2~');
+				collection.append('B', '~b2~');
+				collection.prepend('C', '~c2~');
+				const isWindows = process.platform === 'win32';
+				const terminal = window.createTerminal({
+					shellPath: isWindows ? 'powershell.exe' : 'sh',
+					env: {
+						A: null,
+						B: null,
+						C: null
+					}
+				});
+				terminal.sendText(isWindows ? '$env:A' : 'echo $A');
+				terminal.sendText(isWindows ? '$env:B' : 'echo $B');
+				terminal.sendText(isWindows ? '$env:C' : 'echo $C');
+			});
+		});
 	});
 });
