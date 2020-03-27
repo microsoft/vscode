@@ -1,0 +1,21 @@
+name: Needs More Info Closer
+on:
+  schedule:
+    - cron: 30 * * * *
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Actions
+        uses: actions/checkout@v2
+        with:
+          repository: 'JacksonKearl/vscode-triage-github-actions'
+          ref: master
+      - name: Run Needs More Info Closer
+        uses: ./needs-more-info-closer
+        with:
+          token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
+          label: needs more info
+          days: 7
+          comment: too little info bye
