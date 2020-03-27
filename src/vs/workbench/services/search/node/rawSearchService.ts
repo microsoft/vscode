@@ -312,7 +312,7 @@ export class SearchService implements IRawSearchService {
 
 			// Pattern match on results
 			const results: IRawFileMatch[] = [];
-			const normalizedSearchValueLowercase = prepareQuery(searchValue).lowercase;
+			const normalizedSearchValueLowercase = prepareQuery(searchValue).valueLowercase;
 			for (const entry of cachedEntries) {
 
 				// Check if this entry is a match for the search value

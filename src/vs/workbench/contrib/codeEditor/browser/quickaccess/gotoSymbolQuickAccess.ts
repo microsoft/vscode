@@ -21,6 +21,7 @@ import { Action } from 'vs/base/common/actions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { prepareQuery } from 'vs/base/common/fuzzyScorer';
 
 export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccessProvider {
 
@@ -85,7 +86,7 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 			return [];
 		}
 
-		return this.doGetSymbolPicks(this.getDocumentSymbols(model, true, token), filter, token);
+		return this.doGetSymbolPicks(this.getDocumentSymbols(model, true, token), prepareQuery(filter), token);
 	}
 
 	addDecorations(editor: IEditor, range: IRange): void {

@@ -357,28 +357,30 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			return [];
 		}
 
-		// Sort top 512 items by score
+		// Perform sorting (top results by score)
 		const sortedAnythingPicks = top(
 			[...filePicks, ...symbolPicks],
 			(anyPickA, anyPickB) => compareItemsByScore(anyPickA, anyPickB, query, true, quickPickItemScorerAccessor, this.pickState.scorerCache),
 			AnythingQuickAccessProvider.MAX_RESULTS
 		);
 
-		// Adjust highlights
+		// Perform filtering
+		const filteredAnythingPicks: IAnythingQuickPickItem[] = [];
 		for (const anythingPick of sortedAnythingPicks) {
-			if (anythingPick.highlights) {
-				continue; // preserve any highlights we got already (e.g. symbols)
+			const { score, labelMatch, descriptionMatch } = scoreItem(anythingPick, query, true, quickPickItemScorerAccessor, this.pickState.scorerCache);
+			if (!score) {
+				continue; // exclude files/symbols not matching query
 			}
-
-			const { labelMatch, descriptionMatch } = scoreItem(anythingPick, query, true, quickPickItemScorerAccessor, this.pickState.scorerCache);
 
 			anythingPick.highlights = {
 				label: labelMatch,
 				description: descriptionMatch
 			};
+
+			filteredAnythingPicks.push(anythingPick);
 		}
 
-		return sortedAnythingPicks;
+		return filteredAnythingPicks;
 	}
 
 
@@ -398,10 +400,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			return []; // disabled when searching
 		}
 
-		// Only match on label of the editor unless the search includes path separators
-		const editorHistoryScorerAccessor = query.containsPathSeparator ? quickPickItemScorerAccessor : this.labelOnlyEditorHistoryPickAccessor;
-
-		// Otherwise filter and sort by query
+		// Perform filtering
+		const editorHistoryScorerAccessor = query.containsPathSeparator ? quickPickItemScorerAccessor : this.labelOnlyEditorHistoryPickAccessor; // Only match on label of the editor unless the search includes path separators
 		const editorHistoryPicks: Array<IAnythingQuickPickItem> = [];
 		for (const editor of this.historyService.getHistory()) {
 			const resource = editor.resource;
@@ -429,6 +429,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			return editorHistoryPicks;
 		}
 
+		// Perform sorting
 		return editorHistoryPicks.sort((editorA, editorB) => compareItemsByScore(editorA, editorB, query, false, editorHistoryScorerAccessor, this.pickState.scorerCache));
 	}
 
@@ -501,7 +502,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 				this.fileQueryBuilder.file(
 					this.contextService.getWorkspace().folders,
 					this.getFileQueryOptions({
-						filePattern: query.original,
+						query,
 						cacheKey: this.pickState.fileQueryCache?.cacheKey,
 						maxResults: AnythingQuickAccessProvider.MAX_RESULTS
 					})
@@ -536,17 +537,32 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		];
 	}
 
-	private getFileQueryOptions(input: { filePattern?: string, cacheKey?: string, maxResults?: number }): IFileQueryBuilderOptions {
-		const fileQueryOptions: IFileQueryBuilderOptions = {
+	private getFileQueryOptions(input: { query?: IPreparedQuery, cacheKey?: string, maxResults?: number }): IFileQueryBuilderOptions {
+
+		// filePattern for search depends on the number of queries in input:
+		// - with multiple: only take the first one and let the filter later drop non-matching results
+		// - with single: just take the original in full
+		//
+		// This enables to e.g. search for "someFile someFolder" by only returning
+		// search results for "someFile" and not both that would normally not match.
+		//
+		let filePattern = '';
+		if (input.query) {
+			if (input.query.values && input.query.values.length > 1) {
+				filePattern = input.query.values[0].original;
+			} else {
+				filePattern = input.query.original;
+			}
+		}
+
+		return {
 			_reason: 'openFileHandler', // used for telemetry - do not change
 			extraFileResources: this.instantiationService.invokeFunction(getOutOfWorkspaceEditorResources),
-			filePattern: input.filePattern || '',
+			filePattern,
 			cacheKey: input.cacheKey,
 			maxResults: input.maxResults || 0,
 			sortByScore: true
 		};
-
-		return fileQueryOptions;
 	}
 
 	private async getAbsolutePathFileResult(query: IPreparedQuery, token: CancellationToken): Promise<URI | undefined> {
@@ -638,11 +654,25 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			return [];
 		}
 
+		// symbolPattern for search depends on the number of queries in input:
+		// - with multiple: only take the first one and let the filter later drop non-matching results
+		// - with single: just take the original in full
+		//
+		// This enables to e.g. search for "someFile someFolder" by only returning
+		// symbol results for "someFile" and not both that would normally not match.
+		//
+		let symbolPattern = '';
+		if (query.values && query.values.length > 1) {
+			symbolPattern = query.values[0].original;
+		} else {
+			symbolPattern = query.original;
+		}
+
 		// Delegate to the existing symbols quick access
-		// but skip local results and also do not sort
-		return this.workspaceSymbolsQuickAccess.getSymbolPicks(query.value, {
+		// but skip local results and also do not score
+		return this.workspaceSymbolsQuickAccess.getSymbolPicks(symbolPattern, {
 			skipLocal: true,
-			skipSorting: true,
+			skipScoring: true,
 			delay: AnythingQuickAccessProvider.TYPING_SEARCH_DELAY
 		}, token);
 	}
