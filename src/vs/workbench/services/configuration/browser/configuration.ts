@@ -59,7 +59,7 @@ export class UserConfiguration extends Disposable {
 		const fileServiceBasedConfiguration = new FileServiceBasedConfiguration(folder.toString(), [this.userSettingsResource], standAloneConfigurationResources, this.scopes, this.fileService);
 		const configurationModel = await fileServiceBasedConfiguration.loadConfiguration();
 		this.userConfiguration.value = fileServiceBasedConfiguration;
-		this._register(this.userConfiguration.value.onDidChange(() => this.reloadConfigurationScheduler.schedule()));
+		this._register(fileServiceBasedConfiguration.onDidChange(() => this.reloadConfigurationScheduler.schedule()));
 		return configurationModel;
 	}
 
@@ -108,7 +108,7 @@ class FileServiceBasedConfiguration extends Disposable {
 						errors.onUnexpectedError(error);
 					}
 				}
-				return undefined;
+				return '{}';
 			}));
 		};
 
@@ -723,6 +723,7 @@ export class FolderConfiguration extends Disposable implements IFolderConfigurat
 		this.folderConfiguration = this.cachedFolderConfiguration = new CachedFolderConfiguration(workspaceFolder.uri, configFolderRelativePath, configurationCache);
 		if (workspaceFolder.uri.scheme === Schemas.file) {
 			this.folderConfiguration = this.createFileServiceBasedConfiguration(fileService);
+			this.folderConfigurationDisposable = this._register(this.folderConfiguration.onDidChange(e => this.onDidFolderConfigurationChange()));
 		} else {
 			whenProviderRegistered(workspaceFolder.uri, fileService)
 				.then(() => {
@@ -733,7 +734,6 @@ export class FolderConfiguration extends Disposable implements IFolderConfigurat
 					this.onDidFolderConfigurationChange();
 				});
 		}
-		this.folderConfigurationDisposable = this._register(this.folderConfiguration.onDidChange(e => this.onDidFolderConfigurationChange()));
 	}
 
 	loadConfiguration(): Promise<ConfigurationModel> {

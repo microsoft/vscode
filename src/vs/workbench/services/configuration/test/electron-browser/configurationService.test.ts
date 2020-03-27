@@ -30,7 +30,7 @@ import { IJSONEditingService } from 'vs/workbench/services/configuration/common/
 import { JSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditingService';
 import { createHash } from 'crypto';
 import { Schemas } from 'vs/base/common/network';
-import { originalFSPath } from 'vs/base/common/resources';
+import { originalFSPath, joinPath } from 'vs/base/common/resources';
 import { isLinux } from 'vs/base/common/platform';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
@@ -47,6 +47,7 @@ import { IKeybindingEditingService, KeybindingsEditingService } from 'vs/workben
 import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { timeout } from 'vs/base/common/async';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 class TestEnvironmentService extends NativeWorkbenchEnvironmentService {
 
@@ -719,6 +720,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 
 	let workspaceName = `testWorkspace${uuid.generateUuid()}`, parentResource: string, workspaceDir: string, testObject: IConfigurationService, globalSettingsFile: string, globalTasksFile: string, workspaceService: WorkspaceService;
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+	let fileService: IFileService;
 
 	suiteSetup(() => {
 		configurationRegistry.registerConfiguration({
@@ -767,7 +769,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 				const environmentService = new TestEnvironmentService(URI.file(parentDir));
 				const remoteAgentService = instantiationService.createInstance(RemoteAgentService, {});
 				instantiationService.stub(IRemoteAgentService, remoteAgentService);
-				const fileService = new FileService(new NullLogService());
+				fileService = new FileService(new NullLogService());
 				const diskFileSystemProvider = new DiskFileSystemProvider(new NullLogService());
 				fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 				fileService.registerProvider(Schemas.userData, new FileUserDataProvider(environmentService.appSettingsHome, environmentService.backupHome, diskFileSystemProvider, environmentService));
@@ -775,6 +777,9 @@ suite('WorkspaceConfigurationService - Folder', () => {
 				instantiationService.stub(IWorkspaceContextService, workspaceService);
 				instantiationService.stub(IConfigurationService, workspaceService);
 				instantiationService.stub(IEnvironmentService, environmentService);
+
+				// Watch workspace configuration directory
+				fileService.watch(joinPath(URI.file(workspaceDir), '.vscode'));
 
 				return workspaceService.initialize(convertToWorkspacePayload(URI.file(folderDir))).then(() => {
 					instantiationService.stub(IFileService, fileService);
@@ -1100,6 +1105,37 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	test('change event when there are global tasks', () => {
 		fs.writeFileSync(globalTasksFile, '{ "version": "1.0.0", "tasks": [{ "taskName": "myTask" }');
 		return new Promise((c) => testObject.onDidChangeConfiguration(() => c()));
+	});
+
+	test('creating workspace settings', async () => {
+		fs.writeFileSync(globalSettingsFile, '{ "configurationService.folder.testSetting": "userValue" }');
+		await testObject.reloadConfiguration();
+		const workspaceSettingsResource = URI.file(path.join(workspaceDir, '.vscode', 'settings.json'));
+		await new Promise(async (c) => {
+			const disposable = testObject.onDidChangeConfiguration(e => {
+				assert.ok(e.affectsConfiguration('configurationService.folder.testSetting'));
+				assert.equal(testObject.getValue('configurationService.folder.testSetting'), 'workspaceValue');
+				disposable.dispose();
+				c();
+			});
+			await fileService.writeFile(workspaceSettingsResource, VSBuffer.fromString('{ "configurationService.folder.testSetting": "workspaceValue" }'));
+		});
+	});
+
+	test('deleting workspace settings', async () => {
+		fs.writeFileSync(globalSettingsFile, '{ "configurationService.folder.testSetting": "userValue" }');
+		const workspaceSettingsResource = URI.file(path.join(workspaceDir, '.vscode', 'settings.json'));
+		await fileService.writeFile(workspaceSettingsResource, VSBuffer.fromString('{ "configurationService.folder.testSetting": "workspaceValue" }'));
+		await testObject.reloadConfiguration();
+		await new Promise(async (c) => {
+			const disposable = testObject.onDidChangeConfiguration(e => {
+				assert.ok(e.affectsConfiguration('configurationService.folder.testSetting'));
+				assert.equal(testObject.getValue('configurationService.folder.testSetting'), 'userValue');
+				disposable.dispose();
+				c();
+			});
+			await fileService.del(workspaceSettingsResource);
+		});
 	});
 });
 
