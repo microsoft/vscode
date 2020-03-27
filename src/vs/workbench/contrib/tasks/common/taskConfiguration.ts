@@ -2080,12 +2080,13 @@ class ConfigurationParser {
 }
 
 let uuidMaps: Map<TaskConfigSource, Map<string, UUIDMap>> = new Map();
-let recentUuidMaps: Map<string, UUIDMap> = new Map();
+let recentUuidMaps: Map<TaskConfigSource, Map<string, UUIDMap>> = new Map();
 export function parse(workspaceFolder: IWorkspaceFolder, workspace: IWorkspace | undefined, platform: Platform, configuration: ExternalTaskRunnerConfiguration, logger: IProblemReporter, source: TaskConfigSource, isRecents: boolean = false): ParseResult {
-	let selectedUuidMaps = isRecents ? recentUuidMaps : uuidMaps.get(source);
+	let recentOrOtherMaps = isRecents ? recentUuidMaps : uuidMaps;
+	let selectedUuidMaps = recentOrOtherMaps.get(source);
 	if (!selectedUuidMaps) {
-		uuidMaps.set(source, new Map());
-		selectedUuidMaps = uuidMaps.get(source)!;
+		recentOrOtherMaps.set(source, new Map());
+		selectedUuidMaps = recentOrOtherMaps.get(source)!;
 	}
 	let uuidMap = selectedUuidMaps.get(workspaceFolder.uri.toString());
 	if (!uuidMap) {

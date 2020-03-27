@@ -725,7 +725,7 @@ export class CustomTask extends CommonTask {
 
 	public getMapKey(): string {
 		let workspaceFolder = this._source.config.workspaceFolder;
-		return workspaceFolder ? `${workspaceFolder.uri.toString()}|${this._id}` : this._id;
+		return workspaceFolder ? `${workspaceFolder.uri.toString()}|${this._id}|${this.instance}` : `${this._id}|${this.instance}`;
 	}
 
 	public getRecentlyUsedKey(): string | undefined {
@@ -843,8 +843,8 @@ export class ContributedTask extends CommonTask {
 	public getMapKey(): string {
 		let workspaceFolder = this._source.workspaceFolder;
 		return workspaceFolder
-			? `${this._source.scope.toString()}|${workspaceFolder.uri.toString()}|${this._id}`
-			: `${this._source.scope.toString()}|${this._id}`;
+			? `${this._source.scope.toString()}|${workspaceFolder.uri.toString()}|${this._id}|${this.instance}`
+			: `${this._source.scope.toString()}|${this._id}|${this.instance}`;
 	}
 
 	public getRecentlyUsedKey(): string | undefined {
@@ -897,6 +897,10 @@ export class InMemoryTask extends CommonTask {
 
 	public getTelemetryKind(): string {
 		return 'composite';
+	}
+
+	public getMapKey(): string {
+		return `${this._id}|${this.instance}`;
 	}
 
 	protected fromObject(object: InMemoryTask): InMemoryTask {
