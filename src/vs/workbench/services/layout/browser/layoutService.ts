@@ -25,7 +25,12 @@ export const enum Parts {
 export const enum Position {
 	LEFT,
 	RIGHT,
-	BOTTOM
+	BOTTOM,
+	TOP
+}
+
+export function isTopOrBottom(position: Position): boolean {
+	return position === Position.TOP || position === Position.BOTTOM;
 }
 
 export function positionToString(position: Position): string {
@@ -33,6 +38,7 @@ export function positionToString(position: Position): string {
 		case Position.LEFT: return 'left';
 		case Position.RIGHT: return 'right';
 		case Position.BOTTOM: return 'bottom';
+		case Position.TOP: return 'top';
 	}
 
 	return 'bottom';
@@ -41,7 +47,8 @@ export function positionToString(position: Position): string {
 const positionsByString: { [key: string]: Position } = {
 	[positionToString(Position.LEFT)]: Position.LEFT,
 	[positionToString(Position.RIGHT)]: Position.RIGHT,
-	[positionToString(Position.BOTTOM)]: Position.BOTTOM
+	[positionToString(Position.BOTTOM)]: Position.BOTTOM,
+	[positionToString(Position.TOP)]: Position.TOP
 };
 
 export function positionFromString(str: string): Position {

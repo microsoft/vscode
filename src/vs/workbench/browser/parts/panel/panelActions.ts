@@ -123,6 +123,7 @@ const PositionPanelActionId = {
 	LEFT: 'workbench.action.positionPanelLeft',
 	RIGHT: 'workbench.action.positionPanelRight',
 	BOTTOM: 'workbench.action.positionPanelBottom',
+	TOP: 'workbench.action.positionPanelTop',
 };
 
 interface PanelActionConfig<T> {
@@ -147,6 +148,7 @@ export const PositionPanelActionConfigs: PanelActionConfig<Position>[] = [
 	createPositionPanelActionConfig(PositionPanelActionId.LEFT, 'View: Move Panel Left', nls.localize('positionPanelLeft', 'Move Panel Left'), Position.LEFT),
 	createPositionPanelActionConfig(PositionPanelActionId.RIGHT, 'View: Move Panel Right', nls.localize('positionPanelRight', 'Move Panel Right'), Position.RIGHT),
 	createPositionPanelActionConfig(PositionPanelActionId.BOTTOM, 'View: Move Panel To Bottom', nls.localize('positionPanelBottom', 'Move Panel To Bottom'), Position.BOTTOM),
+	createPositionPanelActionConfig(PositionPanelActionId.TOP, 'View: Move Panel To Top', nls.localize('positionPanelTop', 'Move Panel To Top'), Position.TOP),
 ];
 
 const positionByActionId = new Map(PositionPanelActionConfigs.map(config => [config.id, config.value]));

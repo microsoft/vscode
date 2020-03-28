@@ -25,7 +25,16 @@
 }
 
 .monaco-workbench.noeditorarea .part.panel.bottom .composite.title {
-	border-top-width: 0; /* no border when editor area is hiden */
+	border-top-width: 0; /* no border when editor area is hidden */
+}
+
+.monaco-workbench .part.panel.top .composite.title {
+	border-bottom-width: 1px;
+	border-bottom-style: solid;
+}
+
+.monaco-workbench.noeditorarea .part.panel.top .composite.title {
+	border-bottom-width: 0; /* no border when editor area is hidden */
 }
 
 .monaco-workbench .part.panel.right {
@@ -34,7 +43,7 @@
 }
 
 .monaco-workbench.noeditorarea .part.panel.right {
-	border-left-width: 0; /* no border when editor area is hiden */
+	border-left-width: 0; /* no border when editor area is hidden */
 }
 
 .monaco-workbench .part.panel.left {
@@ -43,7 +52,7 @@
 }
 
 .monaco-workbench.noeditorarea .part.panel.left {
-	border-right-width: 0; /* no border when editor area is hiden */
+	border-right-width: 0; /* no border when editor area is hidden */
 }
 
 .monaco-workbench .part.panel > .composite.tit > .title-actions .monaco-action-bar .action-item .action-label {

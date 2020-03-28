@@ -212,7 +212,7 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 			},
 			'workbench.panel.defaultLocation': {
 				'type': 'string',
-				'enum': ['left', 'bottom', 'right'],
+				'enum': ['left', 'bottom', 'right', 'top'],
 				'default': 'bottom',
 				'description': nls.localize('panelDefaultLocation', "Controls the default location of the panel (terminal, debug console, output, problems). It can either show at the bottom, right, or left of the workbench.")
 			},

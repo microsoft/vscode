@@ -14,7 +14,7 @@ import { pathsToEditors } from 'vs/workbench/common/editor';
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
 import { PanelRegistry, Extensions as PanelExtensions } from 'vs/workbench/browser/panel';
-import { Position, Parts, IWorkbenchLayoutService, positionFromString, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
+import { Position, Parts, IWorkbenchLayoutService, positionFromString, positionToString, isTopOrBottom } from 'vs/workbench/services/layout/browser/layoutService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IStorageService, StorageScope, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -916,7 +916,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			const panelSize = this.state.panel.hidden
 				? grid.getViewCachedVisibleSize(this.panelPartView)
-				: (this.state.panel.position === Position.BOTTOM ? grid.getViewSize(this.panelPartView).height : grid.getViewSize(this.panelPartView).width);
+				: (isTopOrBottom(this.state.panel.position) ? grid.getViewSize(this.panelPartView).height : grid.getViewSize(this.panelPartView).width);
 
 			this.storageService.store(Storage.PANEL_SIZE, panelSize, StorageScope.GLOBAL);
 			this.storageService.store(Storage.PANEL_DIMENSION, positionToString(this.state.panel.position), StorageScope.GLOBAL);
@@ -993,8 +993,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 				this.workbenchGrid.resizeView(this.panelPartView,
 					{
-						width: viewSize.width + (this.getPanelPosition() !== Position.BOTTOM ? sizeChangePxWidth : 0),
-						height: viewSize.height + (this.getPanelPosition() !== Position.BOTTOM ? 0 : sizeChangePxHeight)
+						width: viewSize.width + (!isTopOrBottom(this.getPanelPosition()) ? sizeChangePxWidth : 0),
+						height: viewSize.height + (!isTopOrBottom(this.getPanelPosition()) ? 0 : sizeChangePxHeight)
 					});
 
 				break;
@@ -1012,8 +1012,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					} else if (this.isVisible(Parts.PANEL_PART)) {
 						this.workbenchGrid.resizeView(this.editorPartView,
 							{
-								width: viewSize.width + (this.getPanelPosition() !== Position.BOTTOM ? sizeChangePxWidth : 0),
-								height: viewSize.height + (this.getPanelPosition() !== Position.BOTTOM ? 0 : sizeChangePxHeight)
+								width: viewSize.width + (!isTopOrBottom(this.getPanelPosition()) ? sizeChangePxWidth : 0),
+								height: viewSize.height + (!isTopOrBottom(this.getPanelPosition()) ? 0 : sizeChangePxHeight)
 							});
 					}
 				} else {
@@ -1168,7 +1168,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const size = this.workbenchGrid.getViewSize(this.panelPartView);
 		if (!this.isPanelMaximized()) {
 			if (!this.state.panel.hidden) {
-				if (this.state.panel.position === Position.BOTTOM) {
+				if (isTopOrBottom(this.state.panel.position)) {
 					this.state.panel.lastNonMaximizedHeight = size.height;
 					this.storageService.store(Storage.PANEL_LAST_NON_MAXIMIZED_HEIGHT, this.state.panel.lastNonMaximizedHeight, StorageScope.GLOBAL);
 				} else {
@@ -1180,7 +1180,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.setEditorHidden(true);
 		} else {
 			this.setEditorHidden(false);
-			this.workbenchGrid.resizeView(this.panelPartView, { width: this.state.panel.position === Position.BOTTOM ? size.width : this.state.panel.lastNonMaximizedWidth, height: this.state.panel.position === Position.BOTTOM ? this.state.panel.lastNonMaximizedHeight : size.height });
+			this.workbenchGrid.resizeView(this.panelPartView, { width: isTopOrBottom(this.state.panel.position) ? size.width : this.state.panel.lastNonMaximizedWidth, height: isTopOrBottom(this.state.panel.position) ? this.state.panel.lastNonMaximizedHeight : size.height });
 			this.editorGroupService.activeGroup.focus();
 		}
 	}
@@ -1255,15 +1255,17 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// Save the current size of the panel for the new orthogonal direction
 			// If moving down, save the width of the panel
 			// Otherwise, save the height of the panel
-			if (position === Position.BOTTOM) {
+			if (isTopOrBottom(position)) {
 				this.state.panel.lastNonMaximizedWidth = size.width;
-			} else if (positionFromString(oldPositionValue) === Position.BOTTOM) {
+			} else if (isTopOrBottom(positionFromString(oldPositionValue))) {
 				this.state.panel.lastNonMaximizedHeight = size.height;
 			}
 		}
 
 		if (position === Position.BOTTOM) {
 			this.workbenchGrid.moveView(this.panelPartView, this.state.editor.hidden ? size.height : this.state.panel.lastNonMaximizedHeight, this.editorPartView, Direction.Down);
+		} else if (position === Position.TOP) {
+			this.workbenchGrid.moveView(this.panelPartView, this.state.editor.hidden ? size.height : this.state.panel.lastNonMaximizedHeight, this.editorPartView, Direction.Up);
 		} else if (position === Position.RIGHT) {
 			this.workbenchGrid.moveView(this.panelPartView, this.state.editor.hidden ? size.width : this.state.panel.lastNonMaximizedWidth, this.editorPartView, Direction.Right);
 		} else {
@@ -1324,6 +1326,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		switch (this.state.panel.position) {
 			case Position.BOTTOM:
 				return [{ type: 'branch', data: [editorNode, panelNode], size: editorSectionWidth }];
+			case Position.TOP:
+				return [{ type: 'branch', data: [panelNode, editorNode], size: editorSectionWidth }];
 			case Position.RIGHT:
 				return [editorNode, panelNode];
 			case Position.LEFT:
@@ -1338,8 +1342,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// At some point, we will not fall back to old keys from legacy layout, but for now, let's migrate the keys
 		const sideBarSize = this.storageService.getNumber(Storage.SIDEBAR_SIZE, StorageScope.GLOBAL, this.storageService.getNumber('workbench.sidebar.width', StorageScope.GLOBAL, Math.min(workbenchDimensions.width / 4, 300)));
 		const panelDimension = positionFromString(this.storageService.get(Storage.PANEL_DIMENSION, StorageScope.GLOBAL, 'bottom'));
-		const fallbackPanelSize = this.state.panel.position === Position.BOTTOM ? workbenchDimensions.height / 3 : workbenchDimensions.width / 4;
-		const panelSize = panelDimension === this.state.panel.position ? this.storageService.getNumber(Storage.PANEL_SIZE, StorageScope.GLOBAL, this.storageService.getNumber(this.state.panel.position === Position.BOTTOM ? 'workbench.panel.height' : 'workbench.panel.width', StorageScope.GLOBAL, fallbackPanelSize)) : fallbackPanelSize;
+		const fallbackPanelSize = isTopOrBottom(this.state.panel.position) ? workbenchDimensions.height / 3 : workbenchDimensions.width / 4;
+		const panelSize = panelDimension === this.state.panel.position ? this.storageService.getNumber(Storage.PANEL_SIZE, StorageScope.GLOBAL, this.storageService.getNumber(isTopOrBottom(this.state.panel.position) ? 'workbench.panel.height' : 'workbench.panel.width', StorageScope.GLOBAL, fallbackPanelSize)) : fallbackPanelSize;
 
 		const titleBarHeight = this.titleBarPartView.minimumHeight;
 		const statusBarHeight = this.statusBarPartView.minimumHeight;
@@ -1364,7 +1368,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const editorNode: ISerializedLeafNode = {
 			type: 'leaf',
 			data: { type: Parts.EDITOR_PART },
-			size: this.state.panel.position === Position.BOTTOM ?
+			size: isTopOrBottom(this.state.panel.position) ?
 				middleSectionHeight - (this.state.panel.hidden ? 0 : panelSize) :
 				editorSectionWidth - (this.state.panel.hidden ? 0 : panelSize),
 			visible: !this.state.editor.hidden
