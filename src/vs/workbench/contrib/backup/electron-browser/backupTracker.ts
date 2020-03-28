@@ -269,6 +269,6 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 			}
 		}
 
-		return false;
+		return false; // no veto (no dirty)
 	}
 }

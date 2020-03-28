@@ -71,7 +71,7 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 
 	private static readonly SYMBOL_PICKS_TIMEOUT = 8000;
 
-	async getSymbolPicks(model: ITextModel, filter: string, disposables: DisposableStore, token: CancellationToken): Promise<Array<IGotoSymbolQuickPickItem | IQuickPickSeparator>> {
+	async getSymbolPicks(model: ITextModel, filter: string, options: { extraContainerLabel?: string }, disposables: DisposableStore, token: CancellationToken): Promise<Array<IGotoSymbolQuickPickItem | IQuickPickSeparator>> {
 
 		// If the registry does not know the model, we wait for as long as
 		// the registry knows it. This helps in cases where a language
@@ -86,7 +86,7 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 			return [];
 		}
 
-		return this.doGetSymbolPicks(this.getDocumentSymbols(model, true, token), prepareQuery(filter), token);
+		return this.doGetSymbolPicks(this.getDocumentSymbols(model, true, token), prepareQuery(filter), options, token);
 	}
 
 	addDecorations(editor: IEditor, range: IRange): void {
