@@ -269,7 +269,7 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 				return options.ariaProvider!.getRole!(el.element as T);
 			} : () => 'treeitem',
 			isChecked: options.ariaProvider!.isChecked ? (e) => {
-				return options.ariaProvider?.isChecked!(e.element as T);
+				return !!(options.ariaProvider?.isChecked!(e.element as T));
 			} : undefined
 		},
 		ariaRole: ListAriaRootRole.TREE,

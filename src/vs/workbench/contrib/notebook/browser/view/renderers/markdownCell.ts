@@ -180,6 +180,19 @@ export class StatefullMarkdownCell extends Disposable {
 			}
 		}));
 
+		this.localDisposables.add(this.editor!.onDidChangeCursorSelection((e) => {
+			if (e.source === 'restoreState') {
+				// do not reveal the cell into view if this selection change was caused by restoring editors...
+				return;
+			}
+
+			const primarySelection = this.editor!.getSelection();
+
+			if (primarySelection) {
+				this.notebookEditor.revealLineInView(this.viewCell, primarySelection!.positionLineNumber);
+			}
+		}));
+
 		let cellWidthResizeObserver = getResizesObserver(this.templateData.editingContainer!, dimension, () => {
 			let newWidth = cellWidthResizeObserver.getWidth();
 			let realContentHeight = this.editor!.getContentHeight();

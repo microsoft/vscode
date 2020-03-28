@@ -31,6 +31,9 @@ export function setup() {
 		after(async function () {
 			const app = this.app as Application;
 			await app.workbench.settingsEditor.clearUserSettings();
+
+			// Wait for settings to be applied, which will happen after the settings file is empty
+			await app.workbench.activitybar.waitForActivityBar(ActivityBarPosition.LEFT);
 		});
 	});
 }

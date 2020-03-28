@@ -269,7 +269,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		const webview = new Lazy(() => {
 			return this.webviewService.createWebviewOverlay(id, { customClasses: options?.customClasses }, {});
 		});
-		const input = this.instantiationService.createInstance(CustomEditorInput, resource, viewType, id, webview);
+		const input = this.instantiationService.createInstance(CustomEditorInput, resource, viewType, id, webview, false);
 		if (typeof group !== 'undefined') {
 			input.updateGroup(group);
 		}
@@ -325,10 +325,15 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		this._webviewHasOwnEditFunctions.set(possibleEditors.length > 0);
 	}
 
-	private async handleMovedFileInOpenedFileEditors(_oldResource: URI, newResource: URI): Promise<void> {
+	private async handleMovedFileInOpenedFileEditors(oldResource: URI, newResource: URI): Promise<void> {
+		if (extname(oldResource) === extname(newResource)) {
+			return;
+		}
+
 		// See if the new resource can be opened in a custom editor
-		const possibleEditors = this.getAllCustomEditors(newResource).allEditors;
-		if (!possibleEditors.length) {
+		if (!this.getAllCustomEditors(newResource).allEditors
+			.some(editor => editor.priority !== CustomEditorPriority.option)
+		) {
 			return;
 		}
 

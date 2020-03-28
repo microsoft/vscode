@@ -11,7 +11,7 @@ import * as model from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
 import { ICell, NotebookCellMetadata, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CursorAtBoundary, CellFocusMode, CellEditState, CellRunState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { EDITOR_TOP_PADDING, EDITOR_TOOLBAR_HEIGHT } from 'vs/workbench/contrib/notebook/browser/constants';
+import { EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_MARGIN } from 'vs/workbench/contrib/notebook/browser/constants';
 import { SearchParams } from 'vs/editor/common/model/textModelSearch';
 
 export const NotebookCellMetadataDefaults = {
@@ -259,7 +259,7 @@ export abstract class BaseCellViewModel extends Disposable {
 			return 0;
 		}
 
-		return this._textEditor.getTopForLineNumber(line) + EDITOR_TOP_PADDING + EDITOR_TOOLBAR_HEIGHT;
+		return this._textEditor.getTopForLineNumber(line) + EDITOR_TOP_MARGIN + EDITOR_TOOLBAR_HEIGHT;
 	}
 
 	cursorAtBoundary(): CursorAtBoundary {

@@ -89,7 +89,7 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 		return this.getSymbolPicks(filter, undefined, token);
 	}
 
-	async getSymbolPicks(filter: string, options: { skipLocal?: boolean, skipScoring?: boolean, delay?: number } | undefined, token: CancellationToken): Promise<Array<ISymbolQuickPickItem>> {
+	async getSymbolPicks(filter: string, options: { skipLocal?: boolean, skipSorting?: boolean, delay?: number } | undefined, token: CancellationToken): Promise<Array<ISymbolQuickPickItem>> {
 		return this.delayer.trigger(async () => {
 			if (token.isCancellationRequested) {
 				return [];
@@ -99,7 +99,7 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 		}, options?.delay);
 	}
 
-	private async doGetSymbolPicks(query: IPreparedQuery, options: { skipLocal?: boolean, skipScoring?: boolean } | undefined, token: CancellationToken): Promise<Array<ISymbolQuickPickItem>> {
+	private async doGetSymbolPicks(query: IPreparedQuery, options: { skipLocal?: boolean, skipSorting?: boolean } | undefined, token: CancellationToken): Promise<Array<ISymbolQuickPickItem>> {
 		const workspaceSymbols = await getWorkspaceSymbols(query.original, token);
 		if (token.isCancellationRequested) {
 			return [];
@@ -130,9 +130,9 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 					continue;
 				}
 
-				// Score by symbol label (unless disabled)
+				// Score by symbol label
 				const symbolLabel = symbol.name;
-				const symbolScore = options?.skipScoring ? FuzzyScore.Default : fuzzyScore(symbolQuery.original, symbolQuery.originalLowercase, 0, symbolLabel, symbolLabel.toLowerCase(), 0, true);
+				const symbolScore = fuzzyScore(symbolQuery.original, symbolQuery.originalLowercase, 0, symbolLabel, symbolLabel.toLowerCase(), 0, true);
 				if (!symbolScore) {
 					continue;
 				}
@@ -148,11 +148,9 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 					}
 				}
 
-				// Score by container if specified (unless disabled)
+				// Score by container if specified
 				let containerScore: FuzzyScore | undefined = undefined;
-				if (options?.skipScoring) {
-					containerScore = FuzzyScore.Default;
-				} else if (containerQuery) {
+				if (containerQuery) {
 					if (containerLabel) {
 						containerScore = fuzzyScore(containerQuery.original, containerQuery.originalLowercase, 0, containerLabel, containerLabel.toLowerCase(), 0, true);
 					}
@@ -184,7 +182,7 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 					score: symbolScore,
 					label: symbolLabelWithIcon,
 					ariaLabel: localize('symbolAriaLabel', "{0}, symbols picker", symbolLabel),
-					highlights: (deprecated || options?.skipScoring) ? undefined : {
+					highlights: deprecated ? undefined : {
 						label: createMatches(symbolScore, symbolLabelWithIcon.length - symbolLabel.length /* Readjust matches to account for codicons in label */),
 						description: createMatches(containerScore)
 					},
@@ -207,7 +205,7 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 		}
 
 		// Sort picks (unless disabled)
-		if (!options?.skipScoring) {
+		if (!options?.skipSorting) {
 			symbolPicks.sort((symbolA, symbolB) => this.compareSymbols(symbolA, symbolB));
 		}
 

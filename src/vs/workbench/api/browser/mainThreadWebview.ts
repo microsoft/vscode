@@ -11,7 +11,7 @@ import { Disposable, DisposableStore, dispose, IDisposable, IReference } from 'v
 import { Schemas } from 'vs/base/common/network';
 import { basename } from 'vs/base/common/path';
 import { isWeb } from 'vs/base/common/platform';
-import { isEqual } from 'vs/base/common/resources';
+import { isEqual, isEqualOrParent } from 'vs/base/common/resources';
 import { escape } from 'vs/base/common/strings';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as modes from 'vs/editor/common/modes';
@@ -35,9 +35,11 @@ import { CustomTextEditorModel } from 'vs/workbench/contrib/customEditor/common/
 import { WebviewExtensionDescription, WebviewIcons } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
 import { ICreateWebViewShowOptions, IWebviewWorkbenchService, WebviewInputOptions } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
+import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IWorkingCopy, IWorkingCopyBackup, IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { extHostNamedCustomer } from '../common/extHostCustomers';
 
@@ -121,6 +123,8 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 	constructor(
 		context: extHostProtocol.IExtHostContext,
 		@IExtensionService extensionService: IExtensionService,
+		@IWorkingCopyService workingCopyService: IWorkingCopyService,
+		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
 		@ICustomEditorService private readonly _customEditorService: ICustomEditorService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@IEditorService private readonly _editorService: IEditorService,
@@ -164,6 +168,20 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 			},
 			resolveWebview: () => { throw new Error('not implemented'); }
 		}));
+
+		workingCopyFileService.registerWorkingCopyProvider((editorResource) => {
+			const matchedWorkingCopies: IWorkingCopy[] = [];
+
+			for (const workingCopy of workingCopyService.workingCopies) {
+				if (workingCopy instanceof MainThreadCustomEditorModel) {
+					if (isEqualOrParent(editorResource, workingCopy.editorResource)) {
+						matchedWorkingCopies.push(workingCopy);
+					}
+				}
+			}
+			return matchedWorkingCopies;
+
+		});
 	}
 
 	public $createWebviewPanel(
@@ -564,6 +582,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 	private _currentEditIndex: number = -1;
 	private _savePoint: number = -1;
 	private readonly _edits: Array<number> = [];
+	private _fromBackup: boolean = false;
 
 	public static async create(
 		instantiationService: IInstantiationService,
@@ -574,7 +593,9 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 		cancellation: CancellationToken,
 	) {
 		const { editable } = await proxy.$createWebviewCustomEditorDocument(resource, viewType, cancellation);
-		return instantiationService.createInstance(MainThreadCustomEditorModel, proxy, viewType, resource, editable, getEditors);
+		const model = instantiationService.createInstance(MainThreadCustomEditorModel, proxy, viewType, resource, editable, getEditors);
+		await model.init();
+		return model;
 	}
 
 	constructor(
@@ -587,12 +608,22 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 		@ILabelService private readonly _labelService: ILabelService,
 		@IFileService private readonly _fileService: IFileService,
 		@IUndoRedoService private readonly _undoService: IUndoRedoService,
+		@IBackupFileService private readonly _backupFileService: IBackupFileService,
 	) {
 		super();
 
 		if (_editable) {
 			this._register(workingCopyService.registerWorkingCopy(this));
 		}
+	}
+
+	get editorResource() {
+		return this._editorResource;
+	}
+
+	async init(): Promise<void> {
+		const backup = await this._backupFileService.resolve<CustomDocumentBackupData>(this.resource);
+		this._fromBackup = !!backup;
 	}
 
 	dispose() {
@@ -624,7 +655,10 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 	}
 
 	public isDirty(): boolean {
-		return this._edits.length > 0 && this._savePoint !== this._currentEditIndex;
+		if (this._edits.length > 0) {
+			return this._savePoint !== this._currentEditIndex;
+		}
+		return this._fromBackup;
 	}
 
 	private readonly _onDidChangeDirty: Emitter<void> = this._register(new Emitter<void>());

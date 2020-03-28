@@ -1093,7 +1093,7 @@ declare module 'vscode' {
 		readonly dimensions: TerminalDimensions;
 	}
 
-	namespace window {
+	export namespace window {
 		/**
 		 * An event which fires when the [dimensions](#Terminal.dimensions) of the terminal change.
 		 */
@@ -1114,15 +1114,121 @@ declare module 'vscode' {
 	//#region Terminal link handlers https://github.com/microsoft/vscode/issues/91606
 
 	export namespace window {
+		/**
+		 * Register a [TerminalLinkHandler](#TerminalLinkHandler) that can be used to intercept and
+		 * handle links that are activated within terminals.
+		 */
 		export function registerTerminalLinkHandler(handler: TerminalLinkHandler): Disposable;
 	}
 
 	export interface TerminalLinkHandler {
 		/**
-		 * @return true when the link was handled (and should not be considered by
-		 * other providers including the default), false when the link was not handled.
+		 * Handles a link that is activated within the terminal.
+		 *
+		 * @return Whether the link was handled, the link was handled this link will not be
+		 * considered by any other extension or by the default built-in link handler.
 		 */
 		handleLink(terminal: Terminal, link: string): ProviderResult<boolean>;
+	}
+
+	//#endregion
+
+	//#region Contribute to terminal environment https://github.com/microsoft/vscode/issues/46696
+
+	export enum EnvironmentVariableMutatorType {
+		/**
+		 * Replace the variable's existing value.
+		 */
+		Replace = 1,
+		/**
+		 * Append to the end of the variable's existing value.
+		 */
+		Append = 2,
+		/**
+		 * Prepend to the start of the variable's existing value.
+		 */
+		Prepend = 3
+	}
+
+	export interface EnvironmentVariableMutator {
+		/**
+		 * The type of mutation that will occur to the variable.
+		 */
+		readonly type: EnvironmentVariableMutatorType;
+
+		/**
+		 * The value to use for the variable.
+		 */
+		readonly value: string;
+	}
+
+	/**
+	 * A collection of mutations that an extension can apply to a process environment.
+	 */
+	export interface EnvironmentVariableCollection {
+		/**
+		 * Replace an environment variable with a value.
+		 *
+		 * Note that an extension can only make a single change to any one variable, so this will
+		 * overwrite any previous calls to replace, append or prepend.
+		 */
+		replace(variable: string, value: string): void;
+
+		/**
+		 * Append a value to an environment variable.
+		 *
+		 * Note that an extension can only make a single change to any one variable, so this will
+		 * overwrite any previous calls to replace, append or prepend.
+		 */
+		append(variable: string, value: string): void;
+
+		/**
+		 * Prepend a value to an environment variable.
+		 *
+		 * Note that an extension can only make a single change to any one variable, so this will
+		 * overwrite any previous calls to replace, append or prepend.
+		 */
+		prepend(variable: string, value: string): void;
+
+		/**
+		 * Gets the mutator that this collection applies to a variable, if any.
+		 */
+		get(variable: string): EnvironmentVariableMutator | undefined;
+
+		/**
+		 * Iterate over each mutator in this collection.
+		 */
+		forEach(callback: (variable: string, mutator: EnvironmentVariableMutator, collection: EnvironmentVariableCollection) => any, thisArg?: any): void;
+
+		/**
+		 * Deletes this collection's mutator for a variable.
+		 */
+		delete(variable: string): void;
+
+		/**
+		 * Clears all mutators from this collection.
+		 */
+		clear(): void;
+
+		/**
+		 * Disposes the collection, if the collection was persisted it will no longer be retained
+		 * across reloads.
+		 */
+		dispose(): void;
+	}
+
+	export namespace window {
+		/**
+		 * Creates or returns the extension's environment variable collection for this workspace,
+		 * enabling changes to be applied to terminal environment variables.
+		 *
+		 * @param persistent Whether the collection should be cached for the workspace and applied
+		 * to the terminal across window reloads. When true the collection will be active
+		 * immediately such when the window reloads. Additionally, this API will return the cached
+		 * version if it exists. The collection will be invalidated when the extension is
+		 * uninstalled or when the collection is disposed. Defaults to false.
+		 */
+		export function getEnvironmentVariableCollection(persistent?: boolean): EnvironmentVariableCollection;
 	}
 
 	//#endregion

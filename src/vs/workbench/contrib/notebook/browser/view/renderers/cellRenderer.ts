@@ -24,7 +24,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_PADDING, NOTEBOOK_CELL_EDITABLE_CONTEXT_KEY, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE_CONTEXT_KEY, NOTEBOOK_CELL_TYPE_CONTEXT_KEY } from 'vs/workbench/contrib/notebook/browser/constants';
+import { EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_PADDING, NOTEBOOK_CELL_EDITABLE_CONTEXT_KEY, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE_CONTEXT_KEY, NOTEBOOK_CELL_TYPE_CONTEXT_KEY, EDITOR_TOP_MARGIN } from 'vs/workbench/contrib/notebook/browser/constants';
 import { ExecuteCellAction, INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/contrib/notebookActions';
 import { CellEditState, CellRenderTemplate, CellRunState, ICellViewModel, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellMenus } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellMenus';
@@ -142,9 +142,9 @@ abstract class AbstractCellRenderer {
 
 			if (templateData.focusIndicator) {
 				if (actions.length) {
-					templateData.focusIndicator.style.top = `${EDITOR_TOOLBAR_HEIGHT + EDITOR_TOP_PADDING}px`;
+					templateData.focusIndicator.style.top = `${EDITOR_TOOLBAR_HEIGHT + EDITOR_TOP_MARGIN}px`;
 				} else {
-					templateData.focusIndicator.style.top = `${EDITOR_TOP_PADDING}px`;
+					templateData.focusIndicator.style.top = `${EDITOR_TOP_MARGIN}px`;
 				}
 			}
 		};
@@ -192,12 +192,13 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		DOM.addClasses(innerContent, 'cell', 'markdown');
 		container.appendChild(innerContent);
 
-		DOM.append(container, DOM.$('.notebook-cell-focus-indicator'));
+		const focusIndicator = DOM.append(container, DOM.$('.notebook-cell-focus-indicator'));
 
 		return {
 			container: container,
 			cellContainer: innerContent,
 			editingContainer: editorContainer,
+			focusIndicator,
 			disposables,
 			toolbar,
 			toJSON: () => { return {}; }

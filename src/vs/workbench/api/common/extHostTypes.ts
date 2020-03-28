@@ -484,6 +484,12 @@ export enum EndOfLine {
 	CRLF = 2
 }
 
+export enum EnvironmentVariableMutatorType {
+	Replace = 1,
+	Append = 2,
+	Prepend = 3
+}
+
 @es5ClassCompat
 export class TextEdit {
 
