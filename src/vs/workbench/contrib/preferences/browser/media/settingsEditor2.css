@@ -64,6 +64,10 @@
 	margin-top: 10px;
 }
 
+.settings-editor > .settings-header > .settings-header-controls .settings-target-container {
+	flex: auto;
+}
+
 .settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget .action-label {
 	opacity: 0.9;
 }
