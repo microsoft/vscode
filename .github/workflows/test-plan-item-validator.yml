@@ -1,0 +1,20 @@
+name: Test Plan Item Validator
+on:
+  issues:
+    types: [edited, labeled]
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Actions
+        uses: actions/checkout@v2
+        with:
+          repository: 'JacksonKearl/vscode-triage-github-actions'
+          ref: v13
+      - name: Run Test Plan Item Validator
+        uses: ./test-plan-item-validator
+        with:
+          token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
+          label: testplan-items
+          comment: Invalid test plan item. See errors below and the [test plan item spec](https://github.com/microsoft/vscode/wiki/Writing-Test-Plan-Items) for more information. This comment will go away when the issues are resolved.
