@@ -17,7 +17,7 @@ jobs:
         uses: actions/checkout@v2
         with:
           repository: 'JacksonKearl/vscode-triage-github-actions'
-          ref: v13
+          ref: v14
       - name: Run Locker
         uses: ./locker
         with:
