@@ -14,7 +14,9 @@ import { timeout } from 'vs/base/common/async';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { TerminalDataBufferer } from 'vs/workbench/contrib/terminal/common/terminalDataBuffering';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Disposable as VSCodeDisposable } from './extHostTypes';
+import { Disposable as VSCodeDisposable, EnvironmentVariableMutatorType } from './extHostTypes';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 
 export interface IExtHostTerminalService extends ExtHostTerminalServiceShape {
 
@@ -35,7 +37,8 @@ export interface IExtHostTerminalService extends ExtHostTerminalServiceShape {
 	attachPtyToTerminal(id: number, pty: vscode.Pseudoterminal): void;
 	getDefaultShell(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string;
 	getDefaultShellArgs(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string[] | string;
-	registerLinkHandler(handler: vscode.TerminalLinkHandler): vscode.Disposable
+	registerLinkHandler(handler: vscode.TerminalLinkHandler): vscode.Disposable;
+	getEnvironmentVariableCollection(extension: IExtensionDescription, persistent?: boolean): vscode.EnvironmentVariableCollection;
 }
 
 export const IExtHostTerminalService = createDecorator<IExtHostTerminalService>('IExtHostTerminalService');
@@ -333,6 +336,8 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	public abstract $getAvailableShells(): Promise<IShellDefinitionDto[]>;
 	public abstract $getDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto>;
 	public abstract $acceptWorkspacePermissionsChanged(isAllowed: boolean): void;
+	public abstract getEnvironmentVariableCollection(extension: IExtensionDescription, persistent?: boolean): vscode.EnvironmentVariableCollection;
+	public abstract $initEnvironmentVariableCollections(collections: [string, ISerializableEnvironmentVariableCollection][]): void;
 
 	public createExtensionTerminal(options: vscode.ExtensionTerminalOptions): vscode.Terminal {
 		const terminal = new ExtHostTerminal(this._proxy, options, options.name);
@@ -637,6 +642,67 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	}
 }
 
+export class EnvironmentVariableCollection implements vscode.EnvironmentVariableCollection {
+	readonly map: Map<string, vscode.EnvironmentVariableMutator> = new Map();
+
+	protected readonly _onDidChangeCollection: Emitter<void> = new Emitter<void>();
+	get onDidChangeCollection(): Event<void> { return this._onDidChangeCollection && this._onDidChangeCollection.event; }
+
+	constructor(
+		readonly persistent: boolean,
+		serialized?: ISerializableEnvironmentVariableCollection
+	) {
+		this.map = new Map(serialized);
+	}
+
+	get size(): number {
+		return this.map.size;
+	}
+
+	replace(variable: string, value: string): void {
+		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Replace });
+	}
+
+	append(variable: string, value: string): void {
+		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Append });
+	}
+
+	prepend(variable: string, value: string): void {
+		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Prepend });
+	}
+
+	private _setIfDiffers(variable: string, mutator: vscode.EnvironmentVariableMutator): void {
+		const current = this.map.get(variable);
+		if (!current || current.value !== mutator.value || current.type !== mutator.type) {
+			this.map.set(variable, mutator);
+			this._onDidChangeCollection.fire();
+		}
+	}
+
+	get(variable: string): vscode.EnvironmentVariableMutator | undefined {
+		return this.map.get(variable);
+	}
+
+	forEach(callback: (variable: string, mutator: vscode.EnvironmentVariableMutator, collection: vscode.EnvironmentVariableCollection) => any, thisArg?: any): void {
+		this.map.forEach((value, key) => callback(key, value, this));
+	}
+
+	delete(variable: string): void {
+		this.map.delete(variable);
+		this._onDidChangeCollection.fire();
+	}
+
+	clear(): void {
+		this.map.clear();
+		this._onDidChangeCollection.fire();
+	}
+
+	dispose(): void {
+		this.map.clear();
+		this._onDidChangeCollection.fire();
+	}
+}
+
 export class WorkerExtHostTerminalService extends BaseExtHostTerminalService {
 	public createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
 		throw new Error('Not implemented');
@@ -668,5 +734,14 @@ export class WorkerExtHostTerminalService extends BaseExtHostTerminalService {
 
 	public $acceptWorkspacePermissionsChanged(isAllowed: boolean): void {
 		// No-op for web worker ext host as workspace permissions aren't used
+	}
+
+	public getEnvironmentVariableCollection(extension: IExtensionDescription, persistent?: boolean): vscode.EnvironmentVariableCollection {
+		// This is not implemented so worker ext host extensions cannot influence terminal envs
+		throw new Error('Not implemented');
+	}
+
+	public $initEnvironmentVariableCollections(collections: [string, ISerializableEnvironmentVariableCollection][]): void {
+		// No-op for web worker ext host as collections aren't used
 	}
 }
