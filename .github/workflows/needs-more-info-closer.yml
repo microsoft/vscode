@@ -1,7 +1,7 @@
 name: Needs More Info Closer
 on:
   schedule:
-    - cron: 30 * * * *
+    - cron: 20 11 * * * # Daily at 4:20am PDT
 
 jobs:
   main:
