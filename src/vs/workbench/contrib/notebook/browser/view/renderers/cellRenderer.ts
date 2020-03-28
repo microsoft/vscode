@@ -192,12 +192,13 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		DOM.addClasses(innerContent, 'cell', 'markdown');
 		container.appendChild(innerContent);
 
-		DOM.append(container, DOM.$('.notebook-cell-focus-indicator'));
+		const focusIndicator = DOM.append(container, DOM.$('.notebook-cell-focus-indicator'));
 
 		return {
 			container: container,
 			cellContainer: innerContent,
 			editingContainer: editorContainer,
+			focusIndicator,
 			disposables,
 			toolbar,
 			toJSON: () => { return {}; }
