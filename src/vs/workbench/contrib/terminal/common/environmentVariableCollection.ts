@@ -105,8 +105,8 @@ function getMissingMutatorsFromArray(
 	}
 
 	// Create a map to help
-	const otherMutatorExtensions = new Map<string, boolean>();
-	other.forEach(m => otherMutatorExtensions.set(m.extensionIdentifier, true));
+	const otherMutatorExtensions = new Set<string>();
+	other.forEach(m => otherMutatorExtensions.add(m.extensionIdentifier));
 
 	// Find entries removed from other
 	const result: IExtensionOwnedEnvironmentVariableMutator[] = [];
