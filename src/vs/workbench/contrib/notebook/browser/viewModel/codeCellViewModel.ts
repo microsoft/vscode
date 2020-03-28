@@ -13,6 +13,7 @@ import { CellEditState, ICellViewModel, CellFindMatch, CodeCellLayoutChangeEvent
 import { CellKind, ICell, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { BaseCellViewModel } from './baseCellViewModel';
 import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
+import { debounce } from 'vs/base/common/decorators';
 
 export class CodeCellViewModel extends BaseCellViewModel implements ICellViewModel {
 	cellKind: CellKind.Code = CellKind.Code;
@@ -36,7 +37,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	private readonly _onDidChangeContent: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 
-	protected readonly _onDidChangeLayout = new Emitter<CodeCellLayoutChangeEvent>();
+	protected readonly _onDidChangeLayout = new Emitter<void>();
 	readonly onDidChangeLayout = this._onDidChangeLayout.event;
 
 	private _editorHeight = 0;
@@ -125,7 +126,12 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			state.totalHeight = true;
 		}
 
-		this._onDidChangeLayout.fire(state);
+		this._fireOnDidChangeLayout();
+	}
+
+	@debounce(100)
+	private _fireOnDidChangeLayout() {
+		this._onDidChangeLayout.fire();
 	}
 
 	hasDynamicHeight() {

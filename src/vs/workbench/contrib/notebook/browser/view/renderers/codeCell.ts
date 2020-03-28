@@ -16,6 +16,7 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebook
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { EDITOR_TOP_PADDING, EDITOR_BOTTOM_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { debounce } from 'vs/base/common/decorators';
 
 interface IMimeTypeRenderer extends IQuickPickItem {
 	index: number;
@@ -196,7 +197,7 @@ export class CodeCell extends Disposable {
 
 			let editorHeight = templateData.editor!.getContentHeight();
 			viewCell.editorHeight = editorHeight;
-			this.relayoutCell();
+			this.relayoutCellDebounced();
 		}));
 
 		if (viewCell.outputs.length > 0) {
@@ -379,6 +380,11 @@ export class CodeCell extends Disposable {
 	}
 
 	relayoutCell() {
+		this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
+	}
+
+	@debounce(500)
+	relayoutCellDebounced() {
 		this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
 	}
 
