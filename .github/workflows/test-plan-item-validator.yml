@@ -11,7 +11,7 @@ jobs:
         uses: actions/checkout@v2
         with:
           repository: 'JacksonKearl/vscode-triage-github-actions'
-          ref: v14
+          ref: v15
       - name: Run Test Plan Item Validator
         uses: ./test-plan-item-validator
         with:
