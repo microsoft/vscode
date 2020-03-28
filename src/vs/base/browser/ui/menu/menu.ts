@@ -9,7 +9,7 @@ import * as strings from 'vs/base/common/strings';
 import { IActionRunner, IAction, Action } from 'vs/base/common/actions';
 import { ActionBar, IActionViewItemProvider, ActionsOrientation, Separator, ActionViewItem, IActionViewItemOptions, BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ResolvedKeybinding, KeyCode } from 'vs/base/common/keyCodes';
-import { addClass, EventType, EventHelper, EventLike, removeTabIndexAndUpdateFocus, isAncestor, hasClass, addDisposableListener, removeClass, append, $, addClasses, removeClasses, clearNode } from 'vs/base/browser/dom';
+import { addClass, EventType, EventHelper, EventLike, removeTabIndexAndUpdateFocus, isAncestor, hasClass, addDisposableListener, removeClass, append, $, addClasses, removeClasses, clearNode, getShadowRoot } from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -653,8 +653,16 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 
 		this.hideScheduler = new RunOnceScheduler(() => {
 			if (this.element && (!isAncestor(document.activeElement, this.element) && this.parentData.submenu === this.mysubmenu)) {
-				this.parentData.parent.focus(false);
-				this.cleanupExistingSubmenu(true);
+				const shadowRoot = getShadowRoot(this.element as Node)?.host;
+				if (shadowRoot) {
+					if (!isAncestor(document.activeElement, shadowRoot.parentNode)) {
+						this.parentData.parent.focus(false);
+						this.cleanupExistingSubmenu(true);
+					}
+				} else {
+					this.parentData.parent.focus(false);
+					this.cleanupExistingSubmenu(true);
+				}
 			}
 		}, 750);
 	}
