@@ -60,7 +60,7 @@ import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { getSizeObserver, IResizeObserver } from 'vs/workbench/contrib/extensions/browser/sizeObserver';
+import { getSizeObserver, IResizeObserver } from 'vs/workbench/contrib/extensions/browser/resizeObserver';
 
 function removeEmbeddedSVGs(documentContent: string): string {
 	const newDocument = new DOMParser().parseFromString(documentContent, 'text/html');

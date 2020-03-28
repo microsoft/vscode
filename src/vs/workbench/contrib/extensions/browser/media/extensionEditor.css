@@ -146,9 +146,6 @@
 	overflow: hidden;
 }
 
-.extension-editor > .header > .details > .actions {
-}
-
 .extension-editor > .header > .details > .actions > .monaco-action-bar {
 	text-align: initial;
 }
