@@ -663,6 +663,7 @@ export class DropDownMenuActionViewItem extends ExtensionActionViewItem {
 export function getContextMenuActions(menuService: IMenuService, contextKeyService: IContextKeyService, instantiationService: IInstantiationService, extension: IExtension | undefined | null): ExtensionAction[][] {
 	const scopedContextKeyService = contextKeyService.createScoped();
 	if (extension) {
+		scopedContextKeyService.createKey<string>('extension', extension.identifier.id);
 		scopedContextKeyService.createKey<boolean>('isBuiltinExtension', extension.type === ExtensionType.System);
 		scopedContextKeyService.createKey<boolean>('extensionHasConfiguration', extension.local && !!extension.local.manifest.contributes && !!extension.local.manifest.contributes.configuration);
 		if (extension.state === ExtensionState.Installed) {

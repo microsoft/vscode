@@ -43,6 +43,7 @@ const barFile = URI.file(platform.isWindows ? 'c:\\Bar' : '/Bar');
 const fooBarFile = URI.file(platform.isWindows ? 'c:\\Foo Bar' : '/Foo Bar');
 const untitledFile = URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' });
 const fooBackupPath = path.join(workspaceBackupPath, 'file', hashPath(fooFile));
+const barBackupPath = path.join(workspaceBackupPath, 'file', hashPath(barFile));
 const untitledBackupPath = path.join(workspaceBackupPath, 'untitled', hashPath(untitledFile));
 
 class TestBackupEnvironmentService extends NativeWorkbenchEnvironmentService {
@@ -282,6 +283,33 @@ suite('BackupFileService', () => {
 			await service.discardBackup(untitledFile);
 			assert.equal(fs.existsSync(untitledBackupPath), false);
 			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 0);
+		});
+	});
+
+	suite('discardBackups', () => {
+		test('text file', async () => {
+			await service.backup(fooFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false));
+			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
+			await service.backup(barFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false));
+			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 2);
+			await service.discardBackups();
+			assert.equal(fs.existsSync(fooBackupPath), false);
+			assert.equal(fs.existsSync(barBackupPath), false);
+			assert.equal(fs.existsSync(path.join(workspaceBackupPath, 'file')), false);
+		});
+
+		test('untitled file', async () => {
+			await service.backup(untitledFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false));
+			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 1);
+			await service.discardBackups();
+			assert.equal(fs.existsSync(untitledBackupPath), false);
+			assert.equal(fs.existsSync(path.join(workspaceBackupPath, 'untitled')), false);
+		});
+
+		test('can backup after discarding all', async () => {
+			await service.discardBackups();
+			await service.backup(untitledFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false));
+			assert.equal(fs.existsSync(workspaceBackupPath), true);
 		});
 	});
 

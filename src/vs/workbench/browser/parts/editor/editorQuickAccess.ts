@@ -127,10 +127,6 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 				iconClasses: getIconClasses(this.modelService, this.modeService, resource),
 				italic: !this.editorGroupService.getGroup(groupId)?.isPinned(editor),
 				buttons: (() => {
-					if (this.pickState.isQuickNavigating) {
-						return undefined; // no actions when quick navigating
-					}
-
 					return [
 						{
 							iconClass: isDirty ? 'dirty-editor codicon-circle-filled' : 'codicon-close',

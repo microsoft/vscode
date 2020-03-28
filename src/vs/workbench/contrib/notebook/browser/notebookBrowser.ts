@@ -40,6 +40,7 @@ export interface CodeCellLayoutInfo {
 	readonly editorHeight: number;
 	readonly editorWidth: number;
 	readonly totalHeight: number;
+	readonly outputContainerOffset: number;
 	readonly outputTotalHeight: number;
 	readonly indicatorHeight: number;
 }
@@ -154,7 +155,7 @@ export interface INotebookEditor {
 	/**
 	 * Layout the cell with a new height
 	 */
-	layoutNotebookCell(cell: ICellViewModel, height: number): void;
+	layoutNotebookCell(cell: ICellViewModel, height: number): Promise<void>;
 
 	/**
 	 * Render the output in webview layer

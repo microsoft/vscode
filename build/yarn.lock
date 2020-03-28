@@ -2458,10 +2458,10 @@ typescript@^3.0.1:
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.5.3.tgz#c830f657f93f1ea846819e929092f5fe5983e977"
   integrity sha512-ACzBtm/PhXBDId6a6sDJfroT2pOWt/oOnk4/dElG5G33ZL776N3Y6/6bKZJBFpd+b05F3Ct9qDjMeJmRWtE2/g==
 
-typescript@^3.9.0-dev.20200316:
-  version "3.9.0-dev.20200316"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.9.0-dev.20200316.tgz#7cbb2fa2eedf58eea27b3250ab38674790ccf999"
-  integrity sha512-MM67isAuvHM4hwfHR4K9NikB7MFD9RjISB5cXhtKmjkpMFO0QNzFmFq061VmsJqoRVpG9N2KE+cm6BJ9dIjrtQ==
+typescript@^3.9.0-dev.20200327:
+  version "3.9.0-dev.20200327"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.9.0-dev.20200327.tgz#52179aae816587f772a0526e91143760f2bee42f"
+  integrity sha512-/TWD/zPvhAcN2Toqx2NBQ+oDVGVj4iqupjWcUAwL45TfcODeHpzszneABR1b/EjHbtUObtLH40vy5Z6rdVvKzg==
 
 typical@^4.0.0:
   version "4.0.0"

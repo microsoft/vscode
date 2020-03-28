@@ -606,7 +606,7 @@ export class FolderMatch extends Disposable {
 			fileMatches = [fileMatches];
 		}
 
-		for (let match of fileMatches) {
+		for (let match of fileMatches as FileMatch[]) {
 			this._fileMatches.delete(match.resource);
 			if (dispose) {
 				match.dispose();

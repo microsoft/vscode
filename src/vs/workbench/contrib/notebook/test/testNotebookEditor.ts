@@ -23,6 +23,9 @@ import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/v
 
 export class TestCell implements ICell {
 	uri: URI;
+	private _onDidChangeContent = new Emitter<void>();
+	onDidChangeContent: Event<void> = this._onDidChangeContent.event;
+
 	private _onDidChangeOutputs = new Emitter<NotebookCellOutputsSplice[]>();
 	onDidChangeOutputs: Event<NotebookCellOutputsSplice[]> = this._onDidChangeOutputs.event;
 	private _onDidChangeLanguage = new Emitter<string>();
@@ -166,8 +169,9 @@ export class TestNotebookEditor implements INotebookEditor {
 		// throw new Error('Method not implemented.');
 		return;
 	}
-	layoutNotebookCell(cell: CellViewModel, height: number): void {
+	async layoutNotebookCell(cell: CellViewModel, height: number): Promise<void> {
 		// throw new Error('Method not implemented.');
+		return;
 	}
 	createInset(cell: CellViewModel, output: IOutput, shadowContent: string, offset: number): void {
 		// throw new Error('Method not implemented.');
@@ -206,7 +210,7 @@ export function withTestNotebook(instantiationService: IInstantiationService, bl
 	});
 	const model = new NotebookEditorModel(notebook);
 	const eventDispatcher = new NotebookEventDispatcher();
-	const viewModel = new NotebookViewModel(viewType, model, eventDispatcher, instantiationService, blukEditService, undoRedoService);
+	const viewModel = new NotebookViewModel(viewType, model, eventDispatcher, null, instantiationService, blukEditService, undoRedoService);
 
 	callback(editor, viewModel);
 

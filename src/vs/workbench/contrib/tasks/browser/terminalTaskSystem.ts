@@ -45,7 +45,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
 import { env as processEnv, cwd as processCwd } from 'vs/base/common/process';
-import { IViewsService } from 'vs/workbench/common/views';
+import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 
 interface TerminalData {
 	terminal: ITerminalInstance;
@@ -201,6 +201,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		private fileService: IFileService,
 		private terminalInstanceService: ITerminalInstanceService,
 		private remotePathService: IRemotePathService,
+		private viewDescriptorService: IViewDescriptorService,
 		taskSystemInfoResolver: TaskSystemInfoResolver,
 	) {
 
@@ -228,16 +229,13 @@ export class TerminalTaskSystem implements ITaskSystem {
 	}
 
 	public run(task: Task, resolver: ITaskResolver, trigger: string = Triggers.command): ITaskExecuteResult {
-		let commonKey = task._id.split('|')[0];
-		let validInstance = task.runOptions && task.runOptions.instanceLimit && this.instances[commonKey] && this.instances[commonKey].instances < task.runOptions.instanceLimit;
-		let instance = this.instances[commonKey] ? this.instances[commonKey].instances : 0;
+		const recentTaskKey = task.getRecentlyUsedKey() ?? '';
+		let validInstance = task.runOptions && task.runOptions.instanceLimit && this.instances[recentTaskKey] && this.instances[recentTaskKey].instances < task.runOptions.instanceLimit;
+		let instance = this.instances[recentTaskKey] ? this.instances[recentTaskKey].instances : 0;
 		this.currentTask = new VerifiedTask(task, resolver, trigger);
-		let taskClone = undefined;
 		if (instance > 0) {
-			taskClone = task.clone();
-			taskClone._id += '|' + this.instances[commonKey].counter.toString();
+			task.instance = this.instances[recentTaskKey].counter;
 		}
-		let taskToExecute = taskClone ?? task;
 		let lastTaskInstance = this.getLastInstance(task);
 		let terminalData = lastTaskInstance ? this.activeTasks[lastTaskInstance.getMapKey()] : undefined;
 		if (terminalData && terminalData.promise && !validInstance) {
@@ -246,15 +244,15 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 
 		try {
-			const executeResult = { kind: TaskExecuteKind.Started, task, started: {}, promise: this.executeTask(taskToExecute, resolver, trigger) };
+			const executeResult = { kind: TaskExecuteKind.Started, task, started: {}, promise: this.executeTask(task, resolver, trigger) };
 			executeResult.promise.then(summary => {
 				this.lastTask = this.currentTask;
 			});
 			if (InMemoryTask.is(task) || !this.isTaskEmpty(task)) {
-				if (!this.instances[commonKey]) {
-					this.instances[commonKey] = new InstanceManager();
+				if (!this.instances[recentTaskKey]) {
+					this.instances[recentTaskKey] = new InstanceManager();
 				}
-				this.instances[commonKey].addInstance();
+				this.instances[recentTaskKey].addInstance();
 			}
 			return executeResult;
 		} catch (error) {
@@ -301,7 +299,8 @@ export class TerminalTaskSystem implements ITaskSystem {
 		if (!terminalData) {
 			return false;
 		}
-		if (this.isTaskVisible(task)) {
+		const isTerminalInPanel: boolean = this.viewDescriptorService.getViewLocation(TERMINAL_VIEW_ID) === ViewContainerLocation.Panel;
+		if (isTerminalInPanel && this.isTaskVisible(task)) {
 			if (this.previousPanelId) {
 				if (this.previousTerminalInstance) {
 					this.terminalService.setActiveInstance(this.previousTerminalInstance);
@@ -313,9 +312,11 @@ export class TerminalTaskSystem implements ITaskSystem {
 			this.previousPanelId = undefined;
 			this.previousTerminalInstance = undefined;
 		} else {
-			this.previousPanelId = this.panelService.getActivePanel()?.getId();
-			if (this.previousPanelId === TERMINAL_VIEW_ID) {
-				this.previousTerminalInstance = this.terminalService.getActiveInstance() ?? undefined;
+			if (isTerminalInPanel) {
+				this.previousPanelId = this.panelService.getActivePanel()?.getId();
+				if (this.previousPanelId === TERMINAL_VIEW_ID) {
+					this.previousTerminalInstance = this.terminalService.getActiveInstance() ?? undefined;
+				}
 			}
 			this.terminalService.setActiveInstance(terminalData.terminal);
 			if (CustomTask.is(task) || ContributedTask.is(task)) {
@@ -343,9 +344,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 
 	public getLastInstance(task: Task): Task | undefined {
 		let lastInstance = undefined;
-		let commonId = task._id.split('|')[0];
+		const recentKey = task.getRecentlyUsedKey();
 		Object.keys(this.activeTasks).forEach((key) => {
-			if (commonId === this.activeTasks[key].task._id.split('|')[0]) {
+			if (recentKey && recentKey === this.activeTasks[key].task.getRecentlyUsedKey()) {
 				lastInstance = this.activeTasks[key].task;
 			}
 		});
@@ -369,11 +370,11 @@ export class TerminalTaskSystem implements ITaskSystem {
 	}
 
 	private removeInstances(task: Task) {
-		let commonKey = task._id.split('|')[0];
-		if (this.instances[commonKey]) {
-			this.instances[commonKey].removeInstance();
-			if (this.instances[commonKey].instances === 0) {
-				delete this.instances[commonKey];
+		const recentTaskKey = task.getRecentlyUsedKey() ?? '';
+		if (this.instances[recentTaskKey]) {
+			this.instances[recentTaskKey].removeInstance();
+			if (this.instances[recentTaskKey].instances === 0) {
+				delete this.instances[recentTaskKey];
 			}
 		}
 	}
@@ -436,7 +437,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		let promises: Promise<ITaskSummary>[] = [];
 		if (task.configurationProperties.dependsOn) {
 			for (const dependency of task.configurationProperties.dependsOn) {
-				let dependencyTask = resolver.resolve(dependency.uri, dependency.task!);
+				let dependencyTask = await resolver.resolve(dependency.uri, dependency.task!);
 				if (dependencyTask) {
 					let key = dependencyTask.getMapKey();
 					let promise = this.activeTasks[key] ? this.activeTasks[key].promise : undefined;

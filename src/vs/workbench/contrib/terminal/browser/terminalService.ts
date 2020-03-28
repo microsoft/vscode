@@ -111,7 +111,7 @@ export class TerminalService implements ITerminalService {
 		this._activeTabIndex = 0;
 		this._isShuttingDown = false;
 		this._findState = new FindReplaceState();
-		lifecycleService.onBeforeShutdown(async event => event.veto(await this._onBeforeShutdown()));
+		lifecycleService.onBeforeShutdown(async event => event.veto(this._onBeforeShutdown()));
 		lifecycleService.onShutdown(() => this._onShutdown());
 		if (this._terminalNativeService) {
 			this._terminalNativeService.onOpenFileRequest(e => this._onOpenFileRequest(e));
@@ -466,7 +466,7 @@ export class TerminalService implements ITerminalService {
 	public async showPanel(focus?: boolean): Promise<void> {
 		const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID) as TerminalViewPane;
 		if (!pane) {
-			await this._panelService.openPanel(TERMINAL_VIEW_ID, focus);
+			await this._viewsService.openView(TERMINAL_VIEW_ID, focus);
 		}
 		if (focus) {
 			// Do the focus call asynchronously as going through the

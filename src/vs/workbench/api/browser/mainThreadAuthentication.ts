@@ -32,6 +32,23 @@ const BUILT_IN_AUTH_DEPENDENTS: AuthDependent[] = [
 	}
 ];
 
+interface AllowedExtension {
+	id: string;
+	name: string;
+}
+
+function readAllowedExtensions(storageService: IStorageService, providerId: string, accountName: string): AllowedExtension[] {
+	let trustedExtensions: AllowedExtension[] = [];
+	try {
+		const trustedExtensionSrc = storageService.get(`${providerId}-${accountName}`, StorageScope.GLOBAL);
+		if (trustedExtensionSrc) {
+			trustedExtensions = JSON.parse(trustedExtensionSrc);
+		}
+	} catch (err) { }
+
+	return trustedExtensions;
+}
+
 export class MainThreadAuthenticationProvider extends Disposable {
 	private _sessionMenuItems = new Map<string, IDisposable[]>();
 	private _accounts = new Map<string, string[]>(); // Map account name to session ids
@@ -48,30 +65,25 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		this.registerCommandsAndContextMenuItems();
 	}
 
-	private setPermissionsForAccount(quickInputService: IQuickInputService, doLogin?: boolean) {
-		const quickPick = quickInputService.createQuickPick();
+	private manageTrustedExtensions(quickInputService: IQuickInputService, storageService: IStorageService, accountName: string) {
+		const quickPick = quickInputService.createQuickPick<{ label: string, extension: AllowedExtension }>();
 		quickPick.canSelectMany = true;
-		const items = this.dependents.map(dependent => {
+		const allowedExtensions = readAllowedExtensions(storageService, this.id, accountName);
+		const items = allowedExtensions.map(extension => {
 			return {
-				label: dependent.label,
-				description: dependent.scopeDescriptions,
-				picked: true,
-				scopes: dependent.scopes
+				label: extension.name,
+				extension
 			};
 		});
 
 		quickPick.items = items;
-		// TODO read from storage and filter is not doLogin
 		quickPick.selectedItems = items;
-		quickPick.title = nls.localize('signInTo', "Sign in to {0}", this.displayName);
-		quickPick.placeholder = nls.localize('accountPermissions', "Choose what features and extensions to authorize to use this account");
+		quickPick.title = nls.localize('manageTrustedExtensions', "Manage Trusted Extensions");
+		quickPick.placeholder = nls.localize('manageExensions', "Choose which extensions can access this account");
 
 		quickPick.onDidAccept(() => {
-			const scopes = quickPick.selectedItems.reduce((previous, current) => previous.concat((current as any).scopes), []);
-			if (scopes.length && doLogin) {
-				this.login(scopes);
-			}
-
+			const updatedAllowedList = quickPick.selectedItems.map(item => item.extension);
+			storageService.store(`${this.id}-${accountName}`, JSON.stringify(updatedAllowedList), StorageScope.GLOBAL);
 			quickPick.dispose();
 		});
 
@@ -87,7 +99,7 @@ export class MainThreadAuthenticationProvider extends Disposable {
 			this._register(CommandsRegistry.registerCommand({
 				id: `signIn${this.id}`,
 				handler: (accessor, args) => {
-					this.setPermissionsForAccount(accessor.get(IQuickInputService), true);
+					this.login(this.dependents.reduce((previous: string[], current) => previous.concat(current.scopes), []));
 				},
 			}));
 
@@ -130,17 +142,24 @@ export class MainThreadAuthenticationProvider extends Disposable {
 			id: `configureSessions${session.id}`,
 			handler: (accessor, args) => {
 				const quickInputService = accessor.get(IQuickInputService);
+				const storageService = accessor.get(IStorageService);
 
 				const quickPick = quickInputService.createQuickPick();
-				const items = [{ label: 'Sign Out' }];
+				const manage = nls.localize('manageTrustedExtensions', "Manage Trusted Extensions");
+				const signOut = nls.localize('signOut', "Sign Out");
+				const items = ([{ label: manage }, { label: signOut }]);
 
 				quickPick.items = items;
 
 				quickPick.onDidAccept(e => {
 					const selected = quickPick.selectedItems[0];
-					if (selected.label === 'Sign Out') {
+					if (selected.label === signOut) {
 						const sessionsForAccount = this._accounts.get(session.accountName);
 						sessionsForAccount?.forEach(sessionId => this.logout(sessionId));
+					}
+
+					if (selected.label === manage) {
+						this.manageTrustedExtensions(quickInputService, storageService, session.accountName);
 					}
 
 					quickPick.dispose();
@@ -185,6 +204,7 @@ export class MainThreadAuthenticationProvider extends Disposable {
 						disposeables.forEach(disposeable => disposeable.dispose());
 						this._sessionMenuItems.delete(accountName);
 					}
+					this._accounts.delete(accountName);
 				}
 			}
 		});
@@ -242,55 +262,45 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		this.authenticationService.sessionsUpdate(id, event);
 	}
 
-	async $getSessionsPrompt(providerId: string, providerName: string, extensionId: string, extensionName: string): Promise<boolean> {
-		const alwaysAllow = this.storageService.get(`${extensionId}-${providerId}`, StorageScope.GLOBAL);
-		if (alwaysAllow) {
-			return alwaysAllow === 'true';
+	async $getSessionsPrompt(providerId: string, accountName: string, providerName: string, extensionId: string, extensionName: string): Promise<boolean> {
+		let allowList = readAllowedExtensions(this.storageService, providerId, accountName);
+		if (allowList.some(extension => extension.id === extensionId)) {
+			return true;
 		}
 
-		const { choice, checkboxChecked } = await this.dialogService.show(
+		const { choice } = await this.dialogService.show(
 			Severity.Info,
-			nls.localize('confirmAuthenticationAccess', "The extension '{0}' is trying to access authentication information from {1}.", extensionName, providerName),
+			nls.localize('confirmAuthenticationAccess', "The extension '{0}' is trying to access authentication information for the {1} account '{2}'.", extensionName, providerName, accountName),
 			[nls.localize('cancel', "Cancel"), nls.localize('allow', "Allow")],
 			{
-				cancelId: 0,
-				checkbox: {
-					label: nls.localize('neverAgain', "Don't Show Again")
-				}
+				cancelId: 0
 			}
 		);
 
 		const allow = choice === 1;
-		if (checkboxChecked) {
-			this.storageService.store(`${extensionId}-${providerId}`, allow ? 'true' : 'false', StorageScope.GLOBAL);
+		if (allow) {
+			allowList = allowList.concat({ id: extensionId, name: extensionName });
+			this.storageService.store(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.GLOBAL);
 		}
 
 		return allow;
 	}
 
-	async $loginPrompt(providerId: string, providerName: string, extensionId: string, extensionName: string): Promise<boolean> {
-		const alwaysAllow = this.storageService.get(`${extensionId}-${providerId}`, StorageScope.GLOBAL);
-		if (alwaysAllow) {
-			return alwaysAllow === 'true';
-		}
-
-		const { choice, checkboxChecked } = await this.dialogService.show(
+	async $loginPrompt(providerName: string, extensionName: string): Promise<boolean> {
+		const { choice } = await this.dialogService.show(
 			Severity.Info,
 			nls.localize('confirmLogin', "The extension '{0}' wants to sign in using {1}.", extensionName, providerName),
-			[nls.localize('cancel', "Cancel"), nls.localize('continue', "Continue")],
+			[nls.localize('cancel', "Cancel"), nls.localize('allow', "Allow")],
 			{
-				cancelId: 0,
-				checkbox: {
-					label: nls.localize('neverAgain', "Don't Show Again")
-				}
+				cancelId: 0
 			}
 		);
 
-		const allow = choice === 1;
-		if (checkboxChecked) {
-			this.storageService.store(`${extensionId}-${providerId}`, allow ? 'true' : 'false', StorageScope.GLOBAL);
-		}
+		return choice === 1;
+	}
 
-		return allow;
+	async $setTrustedExtension(providerId: string, accountName: string, extensionId: string, extensionName: string): Promise<void> {
+		const allowList = readAllowedExtensions(this.storageService, providerId, accountName).concat({ id: extensionId, name: extensionName });
+		this.storageService.store(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.GLOBAL);
 	}
 }

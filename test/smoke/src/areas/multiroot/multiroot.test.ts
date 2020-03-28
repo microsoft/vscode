@@ -45,7 +45,7 @@ export function setup() {
 
 		it('shows results from all folders', async function () {
 			const app = this.app as Application;
-			await app.workbench.quickopen.openQuickOpen('*.*');
+			await app.workbench.quickaccess.openQuickAccess('*.*');
 
 			await app.workbench.quickinput.waitForQuickInputElements(names => names.length === 6);
 			await app.workbench.quickinput.closeQuickInput();

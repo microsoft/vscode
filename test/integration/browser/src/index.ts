@@ -103,7 +103,7 @@ async function launchServer(): Promise<{ endpoint: url.UrlWithStringQuery, serve
 
 	let serverProcess = cp.spawn(
 		serverLocation,
-		['--browser', 'none', '--driver', 'web'],
+		['--browser', 'none', '--driver', 'web', '--enable-proposed-api'],
 		{ env }
 	);
 

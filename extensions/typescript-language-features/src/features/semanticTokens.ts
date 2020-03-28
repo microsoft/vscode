@@ -62,7 +62,7 @@ class DocumentSemanticTokensProvider implements vscode.DocumentSemanticTokensPro
 			return null;
 		}
 
-		const versionBeforeRequest = document.version;
+		let versionBeforeRequest = document.version;
 
 		const response = await (this.client as ExperimentalProtocol.IExtendedTypeScriptServiceClient).execute('encodedSemanticClassifications-full', requestArg, token);
 		if (response.type !== 'response' || !response.body) {
@@ -78,6 +78,10 @@ class DocumentSemanticTokensProvider implements vscode.DocumentSemanticTokensPro
 			// here we cannot return null, because returning null would remove all semantic tokens.
 			// we must throw to indicate that the semantic tokens should not be removed.
 			// using the string busy here because it is not logged to error telemetry if the error text contains busy.
+
+			// as the new request will come in right after our response, we first wait for the document activity to stop
+			await waitForDocumentChangesToEnd(document);
+
 			throw new Error('busy');
 		}
 
@@ -117,6 +121,20 @@ class DocumentSemanticTokensProvider implements vscode.DocumentSemanticTokensPro
 	}
 }
 
+function waitForDocumentChangesToEnd(document: vscode.TextDocument) {
+	let version = document.version;
+	return new Promise((s) => {
+		let iv = setInterval(_ => {
+			if (document.version === version) {
+				clearInterval(iv);
+				s();
+			}
+			version = document.version;
+		}, 400);
+	});
+}
+
+
 // typescript-vscode-sh-plugin encodes type and modifiers in the classification:
 // TSClassification = (TokenType + 1) << 8 + TokenModifier
 
@@ -151,6 +169,7 @@ tokenModifiers[TokenModifier.declaration] = 'declaration';
 tokenModifiers[TokenModifier.readonly] = 'readonly';
 tokenModifiers[TokenModifier.static] = 'static';
 tokenModifiers[TokenModifier.local] = 'local';
+tokenModifiers[TokenModifier.defaultLibrary] = 'defaultLibrary';
 
 // make sure token types and modifiers are complete
 if (tokenTypes.filter(t => !!t).length !== TokenType._) {

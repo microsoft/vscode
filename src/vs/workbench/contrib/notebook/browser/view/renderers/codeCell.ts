@@ -16,6 +16,7 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebook
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { EDITOR_TOP_PADDING, EDITOR_BOTTOM_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { debounce } from 'vs/base/common/decorators';
 
 interface IMimeTypeRenderer extends IQuickPickItem {
 	index: number;
@@ -130,7 +131,12 @@ export class CodeCell extends Disposable {
 			}
 		}));
 
-		this._register(templateData.editor!.onDidChangeCursorSelection(() => {
+		this._register(templateData.editor!.onDidChangeCursorSelection((e) => {
+			if (e.source === 'restoreState') {
+				// do not reveal the cell into view if this selection change was caused by restoring editors...
+				return;
+			}
+
 			const primarySelection = templateData.editor!.getSelection();
 
 			if (primarySelection) {
@@ -191,7 +197,7 @@ export class CodeCell extends Disposable {
 
 			let editorHeight = templateData.editor!.getContentHeight();
 			viewCell.editorHeight = editorHeight;
-			this.relayoutCell();
+			this.relayoutCellDebounced();
 		}));
 
 		if (viewCell.outputs.length > 0) {
@@ -227,7 +233,7 @@ export class CodeCell extends Disposable {
 			if (transformedDisplayOutput.orderedMimeTypes.length > 1) {
 				outputItemDiv.style.position = 'relative';
 				const mimeTypePicker = DOM.$('.multi-mimetype-output');
-				DOM.addClasses(mimeTypePicker, 'codicon', 'codicon-list-selection');
+				DOM.addClasses(mimeTypePicker, 'codicon', 'codicon-code');
 				outputItemDiv.appendChild(mimeTypePicker);
 				this.outputResizeListeners.get(currOutput)!.add(DOM.addStandardDisposableListener(mimeTypePicker, 'mousedown', async e => {
 					e.preventDefault();
@@ -263,8 +269,7 @@ export class CodeCell extends Disposable {
 
 		if (result.shadowContent) {
 			this.viewCell.selfSizeMonitoring = true;
-			let editorHeight = this.viewCell.layoutInfo.editorHeight;
-			this.notebookEditor.createInset(this.viewCell, currOutput, result.shadowContent, editorHeight + 8 + this.viewCell.getOutputOffset(index));
+			this.notebookEditor.createInset(this.viewCell, currOutput, result.shadowContent, this.viewCell.getOutputOffset(index));
 		} else {
 			DOM.addClass(outputItemDiv, 'foreground');
 		}
@@ -375,6 +380,11 @@ export class CodeCell extends Disposable {
 	}
 
 	relayoutCell() {
+		this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
+	}
+
+	@debounce(500)
+	relayoutCellDebounced() {
 		this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
 	}
 

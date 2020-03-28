@@ -127,10 +127,6 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/quickopen",
-			"project": "vscode-workbench"
-		},
-		{
 			"name": "vs/workbench/contrib/userData",
 			"project": "vscode-workbench"
 		},

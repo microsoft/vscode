@@ -32,6 +32,7 @@ export interface IMenuBarOptions {
 	getKeybinding?: (action: IAction) => ResolvedKeybinding | undefined;
 	alwaysOnMnemonics?: boolean;
 	compactMode?: Direction;
+	getCompactMenuActions?: () => IAction[]
 }
 
 export interface MenuBarMenu {
@@ -91,7 +92,7 @@ export class MenuBar extends Disposable {
 	private menuStyle: IMenuStyles | undefined;
 	private overflowLayoutScheduled: IDisposable | undefined = undefined;
 
-	constructor(private container: HTMLElement, private options: IMenuBarOptions = {}, private compactMenuActions?: IAction[]) {
+	constructor(private container: HTMLElement, private options: IMenuBarOptions = {}) {
 		super();
 
 		this.container.setAttribute('role', 'menubar');
@@ -492,9 +493,10 @@ export class MenuBar extends Disposable {
 				this.overflowMenu.buttonElement.style.visibility = 'visible';
 			}
 
-			if (this.compactMenuActions && this.compactMenuActions.length) {
+			const compactMenuActions = this.options.getCompactMenuActions?.();
+			if (compactMenuActions && compactMenuActions.length) {
 				this.overflowMenu.actions.push(new Separator());
-				this.overflowMenu.actions.push(...this.compactMenuActions);
+				this.overflowMenu.actions.push(...compactMenuActions);
 			}
 		} else {
 			DOM.removeNode(this.overflowMenu.buttonElement);

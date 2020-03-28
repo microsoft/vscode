@@ -165,6 +165,10 @@ export class BackupFileService implements IBackupFileService {
 		return this.impl.discardBackup(resource);
 	}
 
+	discardBackups(): Promise<void> {
+		return this.impl.discardBackups();
+	}
+
 	getBackups(): Promise<URI[]> {
 		return this.impl.getBackups();
 	}
@@ -258,6 +262,14 @@ class BackupFileServiceImpl extends Disposable implements IBackupFileService {
 			// Update model
 			model.add(backupResource, versionId, meta);
 		});
+	}
+
+	async discardBackups(): Promise<void> {
+		const model = await this.ready;
+
+		await this.deleteIgnoreFileNotFound(this.backupWorkspacePath);
+
+		model.clear();
 	}
 
 	discardBackup(resource: URI): Promise<void> {
@@ -427,6 +439,10 @@ export class InMemoryBackupFileService implements IBackupFileService {
 
 	async discardBackup(resource: URI): Promise<void> {
 		this.backups.delete(this.toBackupResource(resource).toString());
+	}
+
+	async discardBackups(): Promise<void> {
+		this.backups.clear();
 	}
 
 	toBackupResource(resource: URI): URI {

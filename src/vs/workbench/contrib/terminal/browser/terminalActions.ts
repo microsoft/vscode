@@ -14,17 +14,13 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IQuickInputService, IPickOptions, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { ActionBarContributor } from 'vs/workbench/browser/actions';
-import { TerminalEntry } from 'vs/workbench/contrib/terminal/browser/terminalQuickOpen';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { timeout } from 'vs/base/common/async';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
@@ -35,8 +31,7 @@ import { isWindows } from 'vs/base/common/platform';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { ITerminalInstance, ITerminalService, Direction } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { Action2 } from 'vs/platform/actions/common/actions';
-
-export const TERMINAL_PICKER_PREFIX = 'term ';
+import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalsQuickAccess';
 
 async function getCwdForSplit(configHelper: ITerminalConfigHelper, instance: ITerminalInstance, folders?: IWorkspaceFolder[], commandService?: ICommandService): Promise<string | URI | undefined> {
 	switch (configHelper.config.splitCwd) {
@@ -115,29 +110,6 @@ export class KillTerminalAction extends Action {
 			}
 		}
 		return Promise.resolve(undefined);
-	}
-}
-
-export class QuickKillTerminalAction extends Action {
-
-	public static readonly ID = TERMINAL_COMMAND_ID.QUICK_KILL;
-	public static readonly LABEL = nls.localize('workbench.action.terminal.quickKill', "Kill Terminal Instance");
-
-	constructor(
-		id: string, label: string,
-		private terminalEntry: TerminalEntry,
-		@IQuickOpenService private readonly quickOpenService: IQuickOpenService
-	) {
-		super(id, label, 'terminal-action kill');
-	}
-
-	public async run(event?: any): Promise<any> {
-		const instance = this.terminalEntry.instance;
-		if (instance) {
-			instance.dispose(true);
-		}
-		await timeout(50);
-		return this.quickOpenService.show(TERMINAL_PICKER_PREFIX);
 	}
 }
 
@@ -1022,15 +994,14 @@ export class RenameTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@IQuickOpenService protected quickOpenService: IQuickOpenService,
 		@IQuickInputService protected quickInputService: IQuickInputService,
 		@ITerminalService protected terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
 
-	public async run(entry?: TerminalEntry): Promise<any> {
-		const terminalInstance = entry ? entry.instance : this.terminalService.getActiveInstance();
+	public async run(): Promise<any> {
+		const terminalInstance = this.terminalService.getActiveInstance();
 		if (!terminalInstance) {
 			return Promise.resolve(undefined);
 		}
@@ -1103,64 +1074,21 @@ export class HideTerminalFindWidgetAction extends Action {
 	}
 }
 
-export class QuickOpenActionTermContributor extends ActionBarContributor {
-
-	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService
-	) {
-		super();
-	}
-
-	public getActions(context: any): ReadonlyArray<IAction> {
-		const actions: Action[] = [];
-		if (context.element instanceof TerminalEntry) {
-			actions.push(this.instantiationService.createInstance(RenameTerminalQuickOpenAction, RenameTerminalQuickOpenAction.ID, RenameTerminalQuickOpenAction.LABEL, context.element));
-			actions.push(this.instantiationService.createInstance(QuickKillTerminalAction, QuickKillTerminalAction.ID, QuickKillTerminalAction.LABEL, context.element));
-		}
-		return actions;
-	}
-
-	public hasActions(context: any): boolean {
-		return true;
-	}
-}
-
-export class QuickOpenTermAction extends Action {
+export class QuickAccessTerminalAction extends Action {
 
 	public static readonly ID = TERMINAL_COMMAND_ID.QUICK_OPEN_TERM;
-	public static readonly LABEL = nls.localize('quickOpenTerm', "Switch Active Terminal");
+	public static readonly LABEL = nls.localize('quickAccessTerminal', "Switch Active Terminal");
 
 	constructor(
 		id: string,
 		label: string,
-		@IQuickOpenService private readonly quickOpenService: IQuickOpenService
+		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
 		super(id, label);
 	}
 
-	public run(): Promise<void> {
-		return this.quickOpenService.show(TERMINAL_PICKER_PREFIX);
-	}
-}
-
-export class RenameTerminalQuickOpenAction extends RenameTerminalAction {
-
-	constructor(
-		id: string, label: string,
-		private terminal: TerminalEntry,
-		@IQuickOpenService quickOpenService: IQuickOpenService,
-		@IQuickInputService quickInputService: IQuickInputService,
-		@ITerminalService terminalService: ITerminalService
-	) {
-		super(id, label, quickOpenService, quickInputService, terminalService);
-		this.class = 'codicon codicon-gear';
-	}
-
-	public async run(): Promise<any> {
-		await super.run(this.terminal);
-		// This timeout is needed to make sure the previous quickOpen has time to close before we show the next one
-		await timeout(50);
-		await this.quickOpenService.show(TERMINAL_PICKER_PREFIX);
+	async run(): Promise<void> {
+		this.quickInputService.quickAccess.show(TerminalQuickAccessProvider.PREFIX);
 	}
 }
 

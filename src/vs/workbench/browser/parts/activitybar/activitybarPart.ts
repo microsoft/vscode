@@ -40,6 +40,8 @@ import { getMenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { isWeb } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
+import { getUserDataSyncStore } from 'vs/platform/userDataSync/common/userDataSync';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 interface IPlaceholderViewlet {
 	id: string;
@@ -109,7 +111,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService
+		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super(Parts.ACTIVITYBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 		this.migrateFromOldCachedViewletsValue();
@@ -395,13 +398,16 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			cssClass: 'codicon-settings-gear'
 		});
 
-		const profileAction = new ActivityAction({
-			id: 'workbench.actions.accounts',
-			name: nls.localize('accounts', "Accounts"),
-			cssClass: 'codicon-account'
-		});
+		if (getUserDataSyncStore(this.productService, this.configurationService)) {
+			const profileAction = new ActivityAction({
+				id: 'workbench.actions.accounts',
+				name: nls.localize('accounts', "Accounts"),
+				cssClass: 'codicon-account'
+			});
 
-		this.globalActivityActionBar.push(profileAction);
+			this.globalActivityActionBar.push(profileAction);
+		}
+
 		this.globalActivityActionBar.push(this.globalActivityAction);
 	}
 

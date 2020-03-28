@@ -11,7 +11,7 @@ jobs:
         uses: actions/checkout@v2
         with:
           repository: 'JacksonKearl/vscode-triage-github-actions'
-          ref: v6
+          ref: v15
       - name: Run CopyCat (JacksonKearl/testissues)
         uses: ./copycat
         with:

@@ -72,7 +72,7 @@ export abstract class AbstractEditorNavigationQuickAccessProvider implements IQu
 
 				// Remember view state and update it when the cursor position
 				// changes even later because it could be that the user has
-				// configured quick open to remain open when focus is lost and
+				// configured quick access to remain open when focus is lost and
 				// we always want to restore the current location.
 				let lastKnownEditorViewState = withNullAsUndefined(editor.saveViewState());
 				disposables.add(codeEditor.onDidChangeCursorPosition(() => {

@@ -40,9 +40,9 @@ class SingleModelEditStackData {
 		public changes: TextChange[]
 	) { }
 
-	public append(model: ITextModel, operations: IValidEditOperation[], afterEOL: EndOfLineSequence, afterVersionId: number, afterCursorState: Selection[] | null): void {
-		if (operations.length > 0) {
-			this.changes = compressConsecutiveTextChanges(this.changes, operations.map(op => op.textChange));
+	public append(model: ITextModel, textChanges: TextChange[], afterEOL: EndOfLineSequence, afterVersionId: number, afterCursorState: Selection[] | null): void {
+		if (textChanges.length > 0) {
+			this.changes = compressConsecutiveTextChanges(this.changes, textChanges);
 		}
 		this.afterEOL = afterEOL;
 		this.afterVersionId = afterVersionId;
@@ -168,9 +168,9 @@ export class SingleModelEditStackElement implements IResourceUndoRedoElement {
 		return (this.model === model && this._data instanceof SingleModelEditStackData);
 	}
 
-	public append(model: ITextModel, operations: IValidEditOperation[], afterEOL: EndOfLineSequence, afterVersionId: number, afterCursorState: Selection[] | null): void {
+	public append(model: ITextModel, textChanges: TextChange[], afterEOL: EndOfLineSequence, afterVersionId: number, afterCursorState: Selection[] | null): void {
 		if (this._data instanceof SingleModelEditStackData) {
-			this._data.append(model, operations, afterEOL, afterVersionId, afterCursorState);
+			this._data.append(model, textChanges, afterEOL, afterVersionId, afterCursorState);
 		}
 	}
 
@@ -258,10 +258,10 @@ export class MultiModelEditStackElement implements IWorkspaceUndoRedoElement {
 		return false;
 	}
 
-	public append(model: ITextModel, operations: IValidEditOperation[], afterEOL: EndOfLineSequence, afterVersionId: number, afterCursorState: Selection[] | null): void {
+	public append(model: ITextModel, textChanges: TextChange[], afterEOL: EndOfLineSequence, afterVersionId: number, afterCursorState: Selection[] | null): void {
 		const key = uriGetComparisonKey(model.uri);
 		const editStackElement = this._editStackElementsMap.get(key)!;
-		editStackElement.append(model, operations, afterEOL, afterVersionId, afterCursorState);
+		editStackElement.append(model, textChanges, afterEOL, afterVersionId, afterCursorState);
 	}
 
 	public close(): void {
@@ -355,7 +355,14 @@ export class EditStack {
 		const editStackElement = this._getOrCreateEditStackElement(beforeCursorState);
 		const inverseEditOperations = this._model.applyEdits(editOperations, true);
 		const afterCursorState = EditStack._computeCursorState(cursorStateComputer, inverseEditOperations);
-		editStackElement.append(this._model, inverseEditOperations, getModelEOL(this._model), this._model.getAlternativeVersionId(), afterCursorState);
+		const textChanges = inverseEditOperations.map((op, index) => ({ index: index, textChange: op.textChange }));
+		textChanges.sort((a, b) => {
+			if (a.textChange.oldPosition === b.textChange.oldPosition) {
+				return a.index - b.index;
+			}
+			return a.textChange.oldPosition - b.textChange.oldPosition;
+		});
+		editStackElement.append(this._model, textChanges.map(op => op.textChange), getModelEOL(this._model), this._model.getAlternativeVersionId(), afterCursorState);
 		return afterCursorState;
 	}
 

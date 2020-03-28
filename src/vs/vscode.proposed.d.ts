@@ -1093,7 +1093,7 @@ declare module 'vscode' {
 		readonly dimensions: TerminalDimensions;
 	}
 
-	namespace window {
+	export namespace window {
 		/**
 		 * An event which fires when the [dimensions](#Terminal.dimensions) of the terminal change.
 		 */
@@ -1114,15 +1114,121 @@ declare module 'vscode' {
 	//#region Terminal link handlers https://github.com/microsoft/vscode/issues/91606
 
 	export namespace window {
+		/**
+		 * Register a [TerminalLinkHandler](#TerminalLinkHandler) that can be used to intercept and
+		 * handle links that are activated within terminals.
+		 */
 		export function registerTerminalLinkHandler(handler: TerminalLinkHandler): Disposable;
 	}
 
 	export interface TerminalLinkHandler {
 		/**
-		 * @return true when the link was handled (and should not be considered by
-		 * other providers including the default), false when the link was not handled.
+		 * Handles a link that is activated within the terminal.
+		 *
+		 * @return Whether the link was handled, the link was handled this link will not be
+		 * considered by any other extension or by the default built-in link handler.
 		 */
 		handleLink(terminal: Terminal, link: string): ProviderResult<boolean>;
+	}
+
+	//#endregion
+
+	//#region Contribute to terminal environment https://github.com/microsoft/vscode/issues/46696
+
+	export enum EnvironmentVariableMutatorType {
+		/**
+		 * Replace the variable's existing value.
+		 */
+		Replace = 1,
+		/**
+		 * Append to the end of the variable's existing value.
+		 */
+		Append = 2,
+		/**
+		 * Prepend to the start of the variable's existing value.
+		 */
+		Prepend = 3
+	}
+
+	export interface EnvironmentVariableMutator {
+		/**
+		 * The type of mutation that will occur to the variable.
+		 */
+		readonly type: EnvironmentVariableMutatorType;
+
+		/**
+		 * The value to use for the variable.
+		 */
+		readonly value: string;
+	}
+
+	/**
+	 * A collection of mutations that an extension can apply to a process environment.
+	 */
+	export interface EnvironmentVariableCollection {
+		/**
+		 * Replace an environment variable with a value.
+		 *
+		 * Note that an extension can only make a single change to any one variable, so this will
+		 * overwrite any previous calls to replace, append or prepend.
+		 */
+		replace(variable: string, value: string): void;
+
+		/**
+		 * Append a value to an environment variable.
+		 *
+		 * Note that an extension can only make a single change to any one variable, so this will
+		 * overwrite any previous calls to replace, append or prepend.
+		 */
+		append(variable: string, value: string): void;
+
+		/**
+		 * Prepend a value to an environment variable.
+		 *
+		 * Note that an extension can only make a single change to any one variable, so this will
+		 * overwrite any previous calls to replace, append or prepend.
+		 */
+		prepend(variable: string, value: string): void;
+
+		/**
+		 * Gets the mutator that this collection applies to a variable, if any.
+		 */
+		get(variable: string): EnvironmentVariableMutator | undefined;
+
+		/**
+		 * Iterate over each mutator in this collection.
+		 */
+		forEach(callback: (variable: string, mutator: EnvironmentVariableMutator, collection: EnvironmentVariableCollection) => any, thisArg?: any): void;
+
+		/**
+		 * Deletes this collection's mutator for a variable.
+		 */
+		delete(variable: string): void;
+
+		/**
+		 * Clears all mutators from this collection.
+		 */
+		clear(): void;
+
+		/**
+		 * Disposes the collection, if the collection was persisted it will no longer be retained
+		 * across reloads.
+		 */
+		dispose(): void;
+	}
+
+	export namespace window {
+		/**
+		 * Creates or returns the extension's environment variable collection for this workspace,
+		 * enabling changes to be applied to terminal environment variables.
+		 *
+		 * @param persistent Whether the collection should be cached for the workspace and applied
+		 * to the terminal across window reloads. When true the collection will be active
+		 * immediately such when the window reloads. Additionally, this API will return the cached
+		 * version if it exists. The collection will be invalidated when the extension is
+		 * uninstalled or when the collection is disposed. Defaults to false.
+		 */
+		export function getEnvironmentVariableCollection(persistent?: boolean): EnvironmentVariableCollection;
 	}
 
 	//#endregion
@@ -1449,9 +1555,20 @@ declare module 'vscode' {
 		readonly uri: Uri;
 
 		/**
-		 * Event fired when there are no more references to the `CustomDocument`.
+		 * Is this document representing an untitled file which has never been saved yet.
 		 */
-		readonly onDidDispose: Event<void>;
+		readonly isUntitled: boolean;
+
+		/**
+		 * The version number of this document (it will strictly increase after each
+		 * change, including undo/redo).
+		 */
+		readonly version: number;
+
+		/**
+		 * `true` if there are unpersisted changes.
+		 */
+		readonly isDirty: boolean;
 
 		/**
 		 * List of edits from document open to the document's current state.
@@ -1465,6 +1582,17 @@ declare module 'vscode' {
 		 * or in front of the last entry in `appliedEdits` if the user saves and then hits undo.
 		 */
 		readonly savedEdits: ReadonlyArray<EditType>;
+
+		/**
+		 * `true` if the document has been closed. A closed document isn't synchronized anymore
+		 * and won't be re-used when the same resource is opened again.
+		 */
+		readonly isClosed: boolean;
+
+		/**
+		 * Event fired when there are no more references to the `CustomDocument`.
+		 */
+		readonly onDidDispose: Event<void>;
 	}
 
 	/**
@@ -1674,25 +1802,27 @@ declare module 'vscode' {
 		/**
 		 * Controls if the content of a cell is editable or not.
 		 */
-		editable: boolean;
+		editable?: boolean;
 
 		/**
 		 * Controls if the cell is executable.
 		 * This metadata is ignored for markdown cell.
 		 */
-		runnable: boolean;
+		runnable?: boolean;
 
+		/**
+		 * Execution order information of the cell
+		 */
 		executionOrder?: number;
 	}
 
 	export interface NotebookCell {
 		readonly uri: Uri;
-		handle: number;
+		readonly cellKind: CellKind;
+		readonly source: string;
 		language: string;
-		cellKind: CellKind;
 		outputs: CellOutput[];
-		getContent(): string;
-		metadata?: NotebookCellMetadata;
+		metadata: NotebookCellMetadata;
 	}
 
 	export interface NotebookDocumentMetadata {
@@ -1713,16 +1843,22 @@ declare module 'vscode' {
 		 * Default to true.
 		 */
 		cellRunnable: boolean;
+
 	}
 
 	export interface NotebookDocument {
 		readonly uri: Uri;
 		readonly fileName: string;
 		readonly isDirty: boolean;
+		readonly cells: NotebookCell[];
 		languages: string[];
-		cells: NotebookCell[];
 		displayOrder?: GlobPattern[];
 		metadata?: NotebookDocumentMetadata;
+	}
+
+	export interface NotebookEditorCellEdit {
+		insert(index: number, content: string, language: string, type: CellKind, outputs: CellOutput[], metadata: NotebookCellMetadata | undefined): void;
+		delete(index: number): void;
 	}
 
 	export interface NotebookEditor {
@@ -1741,10 +1877,7 @@ declare module 'vscode' {
 		 */
 		postMessage(message: any): Thenable<boolean>;
 
-		/**
-		 * Create a notebook cell. The cell is not inserted into current document when created. Extensions should insert the cell into the document by [TextDocument.cells](#TextDocument.cells)
-		 */
-		createCell(content: string, language: string, type: CellKind, outputs: CellOutput[], metadata: NotebookCellMetadata | undefined): NotebookCell;
+		edit(callback: (editBuilder: NotebookEditorCellEdit) => void): Thenable<boolean>;
 	}
 
 	export interface NotebookProvider {
@@ -1764,11 +1897,24 @@ declare module 'vscode' {
 		 * @returns HTML fragment. We can probably return `CellOutput` instead of string ?
 		 *
 		 */
-		render(document: NotebookDocument, cell: NotebookCell, output: CellOutput, mimeType: string): string;
+		render(document: NotebookDocument, output: CellOutput, mimeType: string): string;
 		preloads?: Uri[];
 	}
 
-	namespace window {
+	export interface NotebookDocumentChangeEvent {
+
+		/**
+		 * The affected document.
+		 */
+		readonly document: NotebookDocument;
+
+		/**
+		 * An array of content changes.
+		 */
+		// readonly contentChanges: ReadonlyArray<TextDocumentContentChangeEvent>;
+	}
+
+	export namespace notebook {
 		export function registerNotebookProvider(
 			notebookType: string,
 			provider: NotebookProvider
@@ -1777,6 +1923,8 @@ declare module 'vscode' {
 		export function registerNotebookOutputRenderer(type: string, outputSelector: NotebookOutputSelector, renderer: NotebookOutputRenderer): Disposable;
 
 		export let activeNotebookDocument: NotebookDocument | undefined;
+
+		// export const onDidChangeNotebookDocument: Event<NotebookDocumentChangeEvent>;
 	}
 
 	//#endregion
