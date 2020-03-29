@@ -24,6 +24,9 @@ import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { IColorMapping } from 'vs/platform/theme/common/styler';
 import { Renderer, Delegate } from 'vs/workbench/contrib/extensions/browser/extensionsList';
 import { listFocusForeground, listFocusBackground } from 'vs/platform/theme/common/colorRegistry';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 export class ExtensionsGridView extends Disposable {
 
@@ -59,11 +62,20 @@ export class ExtensionsGridView extends Disposable {
 
 		const openExtensionAction = this.instantiationService.createInstance(OpenExtensionAction);
 		openExtensionAction.extension = extension;
-		this.disposableStore.add(dom.addDisposableListener(template.name, 'click', (e: MouseEvent) => {
+		template.name.setAttribute('tabindex', '0');
+
+		const handleEvent = (e: StandardMouseEvent | StandardKeyboardEvent) => {
+			if (e instanceof StandardKeyboardEvent && e.keyCode !== KeyCode.Enter) {
+				return;
+			}
 			openExtensionAction.run(e.ctrlKey || e.metaKey);
 			e.stopPropagation();
 			e.preventDefault();
-		}));
+		};
+
+		this.disposableStore.add(dom.addDisposableListener(template.name, dom.EventType.CLICK, (e: MouseEvent) => handleEvent(new StandardMouseEvent(e))));
+		this.disposableStore.add(dom.addDisposableListener(template.name, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => handleEvent(new StandardKeyboardEvent(e))));
+		this.disposableStore.add(dom.addDisposableListener(extensionContainer, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => handleEvent(new StandardKeyboardEvent(e))));
 
 		this.renderer.renderElement(extension, index, template);
 	}
