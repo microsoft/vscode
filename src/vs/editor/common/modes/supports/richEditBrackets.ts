@@ -271,8 +271,9 @@ const toReversedString = (function () {
 		if (stringBuilder.hasTextDecoder) {
 			// create a Uint16Array and then use a TextDecoder to create a string
 			const arr = new Uint16Array(str.length);
+			let offset = 0;
 			for (let i = str.length - 1; i >= 0; i--) {
-				arr[i] = str.charCodeAt(i);
+				arr[offset++] = str.charCodeAt(i);
 			}
 			return stringBuilder.getPlatformTextDecoder().decode(arr);
 		} else {
