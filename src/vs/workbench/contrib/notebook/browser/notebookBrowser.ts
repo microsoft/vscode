@@ -243,21 +243,26 @@ export interface INotebookEditor {
 	hideFind(): void;
 }
 
-export interface CellRenderTemplate {
+export interface BaseCellRenderTemplate {
 	container: HTMLElement;
 	cellContainer: HTMLElement;
-	editorContainer?: HTMLElement;
 	toolbar: ToolBar;
-	focusIndicator?: HTMLElement;
-	runToolbar?: ToolBar;
-	runButtonContainer?: HTMLElement;
-	executionOrderLabel?: HTMLElement;
-	editingContainer?: HTMLElement;
-	outputContainer?: HTMLElement;
-	editor?: CodeEditorWidget;
-	progressBar?: ProgressBar;
+	focusIndicator: HTMLElement;
 	disposables: DisposableStore;
-	toJSON(): void;
+}
+
+export interface MarkdownCellRenderTemplate extends BaseCellRenderTemplate {
+	editingContainer: HTMLElement;
+}
+
+export interface CodeCellRenderTemplate extends BaseCellRenderTemplate {
+	editorContainer: HTMLElement;
+	runToolbar: ToolBar;
+	runButtonContainer: HTMLElement;
+	executionOrderLabel: HTMLElement;
+	outputContainer: HTMLElement;
+	editor: CodeEditorWidget;
+	progressBar: ProgressBar;
 }
 
 export interface IOutputTransformContribution {
