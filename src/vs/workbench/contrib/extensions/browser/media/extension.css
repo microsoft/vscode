@@ -3,6 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.extension-bookmark-container {
+	position: relative;
+}
+
+.extension-bookmark-container > .extension-bookmark {
+	position: absolute;
+}
+
 .extension-list-item {
 	box-sizing: border-box;
 	width: 100%;

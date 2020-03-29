@@ -68,7 +68,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 	get templateId() { return 'extension'; }
 
 	renderTemplate(root: HTMLElement): ITemplateData {
-		const recommendationWidget = this.instantiationService.createInstance(RecommendationWidget, root);
+		const recommendationWidget = this.instantiationService.createInstance(RecommendationWidget, append(root, $('.extension-bookmark-container')));
 		const element = append(root, $('.extension-list-item'));
 		const iconContainer = append(element, $('.icon-container'));
 		const icon = append(iconContainer, $<HTMLImageElement>('img.icon'));
