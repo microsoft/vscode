@@ -44,7 +44,7 @@
         ]
       },
       {
-        "id": "ini",
+        "id": "properties",
         "filenames": [
           ".npmrc"
         ]
