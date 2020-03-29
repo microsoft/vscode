@@ -1,0 +1,22 @@
+name: Author Verified
+on:
+  schedule:
+    - cron: 20 14 * * * # 4:20pm Zurich
+  issues:
+    types: [labeled, closed]
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Actions
+        uses: actions/checkout@v2
+        with:
+          repository: 'JacksonKearl/vscode-triage-github-actions'
+          ref: v16
+      - name: Run Author Verified
+        uses: ./author-verified
+        with:
+          requestVerificationComment:
+          pendingReleaseLabel: awaiting-insiders-release
+          authorVerificationRequestedLabel: author-verification-requested
