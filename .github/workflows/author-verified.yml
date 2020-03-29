@@ -13,7 +13,7 @@ jobs:
         uses: actions/checkout@v2
         with:
           repository: 'JacksonKearl/vscode-triage-github-actions'
-          ref: v16
+          ref: master # update once stabalized
       - name: Run Author Verified
         uses: ./author-verified
         with:
