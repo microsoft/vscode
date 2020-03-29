@@ -17,6 +17,6 @@ jobs:
       - name: Run Author Verified
         uses: ./author-verified
         with:
-          requestVerificationComment:
+          requestVerificationComment: "The commit resolving this issue has been pulled in to the latest release of [VS Code Insiders](https://code.visualstudio.com/insiders/)!\n\n@${author}, you can help us out by confirming things are working as expected in the latest Insiders release. If things look good, please leave a comment with the text `/verified` to let us know. If not, please ensure you're on version ${commit} of Insiders (today's or later), and leave a comment letting us know what isnt working as expected.\n\nHappy Coding!"
           pendingReleaseLabel: awaiting-insiders-release
           authorVerificationRequestedLabel: author-verification-requested
