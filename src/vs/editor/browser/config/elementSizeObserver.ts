@@ -48,8 +48,8 @@ export class ElementSizeObserver extends Disposable {
 		this.width = -1;
 		this.height = -1;
 		this.resizeObserver = null;
-		this.measureReferenceDomElement(false, dimension);
 		this.measureReferenceDomElementToken = -1;
+		this.measureReferenceDomElement(false, dimension);
 	}
 
 	public dispose(): void {
@@ -69,7 +69,7 @@ export class ElementSizeObserver extends Disposable {
 		if (typeof ResizeObserver !== 'undefined') {
 			if (!this.resizeObserver && this.referenceDomElement) {
 				this.resizeObserver = new ResizeObserver((entries) => {
-					if (entries && entries[0]) {
+					if (entries && entries[0] && entries[0].contentRect) {
 						this.observe({ width: entries[0].contentRect.width, height: entries[0].contentRect.height });
 					} else {
 						this.observe();
@@ -80,7 +80,7 @@ export class ElementSizeObserver extends Disposable {
 		} else {
 			if (this.measureReferenceDomElementToken === -1) {
 				// setInterval type defaults to NodeJS.Timeout instead of number, so specify it as a number
-				this.measureReferenceDomElementToken = setInterval(() => this.observe(), 100) as unknown as number;
+				this.measureReferenceDomElementToken = <number><any>setInterval(() => this.observe(), 100);
 			}
 		}
 	}
