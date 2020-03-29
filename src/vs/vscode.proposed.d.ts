@@ -1666,7 +1666,7 @@ declare module 'vscode' {
 
 	export interface NotebookProvider {
 		resolveNotebook(editor: NotebookEditor): Promise<void>;
-		executeCell(document: NotebookDocument, cell: NotebookCell | undefined): Promise<void>;
+		executeCell(document: NotebookDocument, cell: NotebookCell | undefined, token: CancellationToken): Promise<void>;
 		save(document: NotebookDocument): Promise<boolean>;
 	}
 
