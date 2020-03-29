@@ -212,8 +212,8 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		if (tokenStyleValue === undefined) {
 			return undefined;
 		} else if (typeof tokenStyleValue === 'string') {
-			const { type, modifiers, language } = parseClassifierString(tokenStyleValue);
-			return this.getTokenStyle(type, modifiers, language || '');
+			const { type, modifiers, language } = parseClassifierString(tokenStyleValue, '');
+			return this.getTokenStyle(type, modifiers, language);
 		} else if (typeof tokenStyleValue === 'object') {
 			return tokenStyleValue;
 		}
@@ -248,8 +248,8 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	}
 
 	public getTokenStyleMetadata(typeWithLanguage: string, modifiers: string[], defaultLanguage: string, useDefault = true, definitions: TokenStyleDefinitions = {}): ITokenStyle | undefined {
-		const { type, language } = parseClassifierString(typeWithLanguage);
-		let style = this.getTokenStyle(type, modifiers, language || defaultLanguage, useDefault, definitions);
+		const { type, language } = parseClassifierString(typeWithLanguage, defaultLanguage);
+		let style = this.getTokenStyle(type, modifiers, language, useDefault, definitions);
 		if (!style) {
 			return undefined;
 		}
