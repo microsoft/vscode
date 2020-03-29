@@ -42,6 +42,12 @@
         "filenames": [
           ".npmignore"
         ]
+      },
+      {
+        "id": "ini",
+        "filenames": [
+          ".npmrc"
+        ]
       }
     ],
     "views": {
