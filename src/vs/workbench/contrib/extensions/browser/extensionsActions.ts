@@ -2549,8 +2549,13 @@ export class SyncIgnoredIconAction extends ExtensionAction {
 	}
 
 	update(): void {
-		const isIgnored = !!this.extension && this.configurationService.getValue<string[]>('sync.ignoredExtensions').some(id => areSameExtensions({ id }, this.extension!.identifier));
-		this.class = isIgnored ? SyncIgnoredIconAction.ENABLE_CLASS : SyncIgnoredIconAction.DISABLE_CLASS;
+		this.class = SyncIgnoredIconAction.DISABLE_CLASS;
+		if (this.extension) {
+			const ignoredExtensions = this.configurationService.getValue<string[]>('sync.ignoredExtensions') || [];
+			if (ignoredExtensions.some(id => areSameExtensions({ id }, this.extension!.identifier))) {
+				this.class = SyncIgnoredIconAction.ENABLE_CLASS;
+			}
+		}
 	}
 
 	run(): Promise<any> {
