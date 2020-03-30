@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IGlobalState, SyncResource, IUserDataSynchroniser, IUserDataSyncEnablementService, IUserDataSyncBackupStoreService, ISyncResourceHandle, IStorageValue } from 'vs/platform/userDataSync/common/userDataSync';
+import { SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IGlobalState, SyncResource, IUserDataSynchroniser, IUserDataSyncEnablementService, IUserDataSyncBackupStoreService, ISyncResourceHandle, IStorageValue, ISyncPreviewResult } from 'vs/platform/userDataSync/common/userDataSync';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Event } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -25,7 +25,7 @@ import { IStorageKeysSyncRegistryService, IStorageKey } from 'vs/platform/userDa
 const argvStoragePrefx = 'globalState.argv.';
 const argvProperties: string[] = ['locale'];
 
-interface ISyncPreviewResult {
+interface IGlobalSyncPreviewResult extends ISyncPreviewResult {
 	readonly local: { added: IStringDictionary<IStorageValue>, removed: string[], updated: IStringDictionary<IStorageValue> };
 	readonly remote: IStringDictionary<IStorageValue> | null;
 	readonly localUserData: IGlobalState;
@@ -74,7 +74,11 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 				const localGlobalState = await this.getLocalGlobalState();
 				const remoteGlobalState: IGlobalState = JSON.parse(remoteUserData.syncData.content);
 				const { local, remote } = merge(localGlobalState.storage, remoteGlobalState.storage, null, this.getSyncStorageKeys(), this.logService);
-				await this.apply({ local, remote, remoteUserData, localUserData: localGlobalState, lastSyncUserData });
+				await this.apply({
+					local, remote, remoteUserData, localUserData: localGlobalState, lastSyncUserData,
+					hasLocalChanged: Object.keys(local.added).length > 0 || Object.keys(local.updated).length > 0 || local.removed.length > 0,
+					hasRemoteChanged: remote !== null
+				});
 			}
 
 			// No remote exists to pull
@@ -103,7 +107,11 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			const localUserData = await this.getLocalGlobalState();
 			const lastSyncUserData = await this.getLastSyncUserData();
 			const remoteUserData = await this.getRemoteUserData(lastSyncUserData);
-			await this.apply({ local: { added: {}, removed: [], updated: {} }, remote: localUserData.storage, remoteUserData, localUserData, lastSyncUserData }, true);
+			await this.apply({
+				local: { added: {}, removed: [], updated: {} }, remote: localUserData.storage, remoteUserData, localUserData, lastSyncUserData,
+				hasLocalChanged: false,
+				hasRemoteChanged: true
+			}, true);
 
 			this.logService.info(`${this.syncResourceLogLabel}: Finished pushing UI State.`);
 		} finally {
@@ -159,7 +167,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		return SyncStatus.Idle;
 	}
 
-	private async getPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<ISyncPreviewResult> {
+	protected async getPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<IGlobalSyncPreviewResult> {
 		const remoteGlobalState: IGlobalState = remoteUserData.syncData ? JSON.parse(remoteUserData.syncData.content) : null;
 		const lastSyncGlobalState: IGlobalState = lastSyncUserData && lastSyncUserData.syncData ? JSON.parse(lastSyncUserData.syncData.content) : null;
 
@@ -173,13 +181,14 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 
 		const { local, remote } = merge(localGloablState.storage, remoteGlobalState ? remoteGlobalState.storage : null, lastSyncGlobalState ? lastSyncGlobalState.storage : null, this.getSyncStorageKeys(), this.logService);
 
-		return { local, remote, remoteUserData, localUserData: localGloablState, lastSyncUserData };
+		return {
+			local, remote, remoteUserData, localUserData: localGloablState, lastSyncUserData,
+			hasLocalChanged: Object.keys(local.added).length > 0 || Object.keys(local.updated).length > 0 || local.removed.length > 0,
+			hasRemoteChanged: remote !== null
+		};
 	}
 
-	private async apply({ local, remote, remoteUserData, lastSyncUserData, localUserData }: ISyncPreviewResult, forcePush?: boolean): Promise<void> {
-
-		const hasLocalChanged = Object.keys(local.added).length > 0 || Object.keys(local.updated).length > 0 || local.removed.length > 0;
-		const hasRemoteChanged = remote !== null;
+	private async apply({ local, remote, remoteUserData, lastSyncUserData, localUserData, hasLocalChanged, hasRemoteChanged }: IGlobalSyncPreviewResult, forcePush?: boolean): Promise<void> {
 
 		if (!hasLocalChanged && !hasRemoteChanged) {
 			this.logService.info(`${this.syncResourceLogLabel}: No changes found during synchronizing ui state.`);

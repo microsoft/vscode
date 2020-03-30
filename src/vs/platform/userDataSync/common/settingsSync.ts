@@ -309,7 +309,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser {
 		this.syncPreviewResultPromise = null;
 	}
 
-	private getPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, resolvedConflicts: { key: string, value: any }[]): Promise<IFileSyncPreviewResult> {
+	protected getPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, resolvedConflicts: { key: string, value: any }[] = []): Promise<IFileSyncPreviewResult> {
 		if (!this.syncPreviewResultPromise) {
 			this.syncPreviewResultPromise = createCancelablePromise(token => this.generatePreview(remoteUserData, lastSyncUserData, resolvedConflicts, token));
 		}

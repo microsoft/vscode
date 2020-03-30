@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IUserDataSyncStoreService, SyncResource, SyncStatus, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncStoreService, SyncResource, SyncStatus, IUserDataSyncEnablementService, ISyncPreviewResult } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { AbstractSynchroniser, IRemoteUserData } from 'vs/platform/userDataSync/common/abstractSynchronizer';
@@ -47,6 +47,10 @@ class TestSynchroniser extends AbstractSynchroniser {
 	async stop(): Promise<void> {
 		this.cancelled = true;
 		this.syncBarrier.open();
+	}
+
+	protected async getPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<ISyncPreviewResult> {
+		return { hasLocalChanged: false, hasRemoteChanged: false };
 	}
 
 }

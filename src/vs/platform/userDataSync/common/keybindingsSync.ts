@@ -258,7 +258,7 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 		this.syncPreviewResultPromise = null;
 	}
 
-	private getPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<IFileSyncPreviewResult> {
+	protected getPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<IFileSyncPreviewResult> {
 		if (!this.syncPreviewResultPromise) {
 			this.syncPreviewResultPromise = createCancelablePromise(token => this.generatePreview(remoteUserData, lastSyncUserData, token));
 		}
