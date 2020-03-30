@@ -230,12 +230,12 @@ export class TaskQuickPick extends Disposable {
 		if (tasks.length > 0) {
 			taskQuickPickEntries = tasks.map(task => this.createTaskEntry(task));
 			taskQuickPickEntries.unshift({
-				label: nls.localize('TaskQuickPick.goBack', 'Go back...'),
+				label: nls.localize('TaskQuickPick.goBack', 'Go back ↩'),
 				task: null
 			});
 		} else {
 			taskQuickPickEntries = [{
-				label: nls.localize('TaskQuickPick.noTasksForType', 'No {0} tasks found. Go back...', type),
+				label: nls.localize('TaskQuickPick.noTasksForType', 'No {0} tasks found. Go back ↩', type),
 				task: null
 			}];
 		}

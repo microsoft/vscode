@@ -12,7 +12,6 @@ import { IPath, IWindowConfiguration } from 'vs/platform/windows/common/windows'
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
 import product from 'vs/platform/product/common/product';
-import { serializableToMap } from 'vs/base/common/map';
 import { memoize } from 'vs/base/common/decorators';
 
 export class BrowserWindowConfiguration implements IWindowConfiguration {
@@ -193,7 +192,7 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 
 	constructor(readonly options: IBrowserWorkbenchEnvironmentConstructionOptions) {
 		if (options.workspaceProvider && Array.isArray(options.workspaceProvider.payload)) {
-			this.payload = serializableToMap(options.workspaceProvider.payload);
+			this.payload = new Map(options.workspaceProvider.payload);
 		}
 	}
 

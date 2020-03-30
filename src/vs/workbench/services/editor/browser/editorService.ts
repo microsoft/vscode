@@ -20,7 +20,7 @@ import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, Gr
 import { IResourceEditorInputType, SIDE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { coalesce, distinct } from 'vs/base/common/arrays';
+import { coalesce, distinct, insert } from 'vs/base/common/arrays';
 import { isCodeEditor, isDiffEditor, ICodeEditor, IDiffEditor, isCompositeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorGroupView, IEditorOpeningEvent, EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -476,14 +476,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	private readonly openEditorHandlers: IOpenEditorOverrideHandler[] = [];
 
 	overrideOpenEditor(handler: IOpenEditorOverrideHandler): IDisposable {
-		this.openEditorHandlers.push(handler);
+		const remove = insert(this.openEditorHandlers, handler);
 
-		return toDisposable(() => {
-			const index = this.openEditorHandlers.indexOf(handler);
-			if (index >= 0) {
-				this.openEditorHandlers.splice(index, 1);
-			}
-		});
+		return toDisposable(() => remove());
 	}
 
 	private onGroupWillOpenEditor(group: IEditorGroup, event: IEditorOpeningEvent): void {

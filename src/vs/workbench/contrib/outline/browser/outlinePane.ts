@@ -51,6 +51,7 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
 class RequestState {
 
@@ -176,6 +177,13 @@ class OutlineViewState {
 	private readonly _onDidChange = new Emitter<{ followCursor?: boolean, sortBy?: boolean, filterOnType?: boolean }>();
 	readonly onDidChange = this._onDidChange.event;
 
+	constructor(
+		@IStorageService private readonly _storageService: IStorageService,
+		@IStorageKeysSyncRegistryService storageKeysSyncService: IStorageKeysSyncRegistryService
+	) {
+		storageKeysSyncService.registerStorageKey({ key: 'outline/state', version: 1 });
+	}
+
 	set followCursor(value: boolean) {
 		if (value !== this._followCursor) {
 			this._followCursor = value;
@@ -209,16 +217,16 @@ class OutlineViewState {
 		return this._sortBy;
 	}
 
-	persist(storageService: IStorageService): void {
-		storageService.store('outline/state', JSON.stringify({
+	persist(): void {
+		this._storageService.store('outline/state', JSON.stringify({
 			followCursor: this.followCursor,
 			sortBy: this.sortBy,
 			filterOnType: this.filterOnType,
 		}), StorageScope.WORKSPACE);
 	}
 
-	restore(storageService: IStorageService): void {
-		let raw = storageService.get('outline/state', StorageScope.WORKSPACE);
+	restore(): void {
+		let raw = this._storageService.get('outline/state', StorageScope.WORKSPACE);
 		if (!raw) {
 			return;
 		}
@@ -241,7 +249,7 @@ export class OutlinePane extends ViewPane {
 	private _disposables = new Array<IDisposable>();
 
 	private _editorDisposables = new DisposableStore();
-	private _outlineViewState = new OutlineViewState();
+	private _outlineViewState: OutlineViewState;
 	private _requestOracle?: RequestOracle;
 	private _domNode!: HTMLElement;
 	private _message!: HTMLDivElement;
@@ -262,7 +270,6 @@ export class OutlinePane extends ViewPane {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@IStorageService private readonly _storageService: IStorageService,
 		@ICodeEditorService private readonly _editorService: ICodeEditorService,
 		@IMarkerDecorationsService private readonly _markerDecorationService: IMarkerDecorationsService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -274,7 +281,7 @@ export class OutlinePane extends ViewPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super(options, keybindingService, contextMenuService, _configurationService, contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, telemetryService);
-		this._outlineViewState.restore(this._storageService);
+		this._outlineViewState = this.instantiationService.createInstance(OutlineViewState);
 		this._contextKeyFocused = OutlineViewFocused.bindTo(contextKeyService);
 		this._contextKeyFiltered = OutlineViewFiltered.bindTo(contextKeyService);
 		this._disposables.push(this.onDidFocus(_ => this._contextKeyFocused.set(true)));
@@ -434,7 +441,7 @@ export class OutlinePane extends ViewPane {
 	}
 
 	private _onDidChangeUserState(e: { followCursor?: boolean, sortBy?: boolean, filterOnType?: boolean }) {
-		this._outlineViewState.persist(this._storageService);
+		this._outlineViewState.persist();
 		if (e.followCursor) {
 			// todo@joh update immediately
 		}
