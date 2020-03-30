@@ -24,10 +24,11 @@ export const CANCEL_CELL_COMMAND_ID = 'workbench.notebook.cell.cancelExecution';
 export const CELL_MARGIN = 20;
 export const CELL_RUN_GUTTER = 32; // TODO should be dynamic based on execution order width, and runnable enablement
 
-export const EDITOR_TOOLBAR_HEIGHT = 22;
+export const EDITOR_TOOLBAR_HEIGHT = 20;
+export const BOTTOM_CELL_TOOLBAR_HEIGHT = 32;
 
 // Top margin of editor
-export const EDITOR_TOP_MARGIN = 8;
+export const EDITOR_TOP_MARGIN = 0;
 
 // Top and bottom padding inside the monaco editor in a cell, which are included in `cell.editorHeight`
 export const EDITOR_TOP_PADDING = 8;

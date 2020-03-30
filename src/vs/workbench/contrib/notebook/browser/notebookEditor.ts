@@ -28,7 +28,7 @@ import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/com
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorOptions, IEditorCloseEvent, IEditorMemento } from 'vs/workbench/common/editor';
-import { CELL_MARGIN, CELL_RUN_GUTTER } from 'vs/workbench/contrib/notebook/browser/constants';
+import { CELL_MARGIN, CELL_RUN_GUTTER, EDITOR_TOP_MARGIN } from 'vs/workbench/contrib/notebook/browser/constants';
 import { NotebookFindWidget } from 'vs/workbench/contrib/notebook/browser/contrib/notebookFindWidget';
 import { CellEditState, CellFocusMode, ICellViewModel, INotebookEditor, NotebookLayoutInfo, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorInput, NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
@@ -780,6 +780,12 @@ export const notebookOutputContainerColor = registerColor('notebook.outputContai
 }
 	, nls.localize('notebook.outputContainerBackgroundColor', "The Color of the notebook output container background."));
 
+export const CELL_TOOLBAR_SEPERATOR = registerColor('notebook.cellToolbarSeperator', {
+	dark: Color.fromHex('#808080').transparent(0.35),
+	light: Color.fromHex('#808080').transparent(0.35),
+	hc: contrastBorder
+}, nls.localize('cellToolbarSeperator', "The color of seperator in Cell bottom toolbar"));
+
 
 registerThemingParticipant((theme, collector) => {
 	const color = getExtraColor(theme, embeddedEditorBackground, { dark: 'rgba(0, 0, 0, .4)', extra_dark: 'rgba(200, 235, 255, .064)', light: '#f4f4f4', hc: null });
@@ -826,9 +832,16 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row.selected .notebook-cell-focus-indicator { border-color: ${focusedCellIndicatorColor}; }`);
 	}
 
+	const cellToolbarSeperator = theme.getColor(CELL_TOOLBAR_SEPERATOR);
+	if (cellToolbarSeperator) {
+		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell-bottom-toolbar-container .seperator { background-color: ${cellToolbarSeperator} }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell-bottom-toolbar-container .seperator-short { background-color: ${cellToolbarSeperator} }`);
+	}
+
 	// Cell Margin
-	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row > div.cell { margin: 8px ${CELL_MARGIN}px 0px ${CELL_MARGIN}px; }`);
+	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row > div.cell { margin: ${EDITOR_TOP_MARGIN}px ${CELL_MARGIN}px 0px ${CELL_MARGIN}px; }`);
 	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .output { margin: 0px ${CELL_MARGIN}px 0px ${CELL_MARGIN + CELL_RUN_GUTTER}px }`);
+	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell-bottom-toolbar-container { width: calc(100% - ${CELL_MARGIN * 2 + CELL_RUN_GUTTER}px); margin: 0px ${CELL_MARGIN}px 0px ${CELL_MARGIN + CELL_RUN_GUTTER}px }`);
 
 	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell .cell-editor-container { width: calc(100% - ${CELL_RUN_GUTTER}px); }`);
 	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell .markdown-editor-container { margin-left: ${CELL_RUN_GUTTER}px; }`);

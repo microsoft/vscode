@@ -47,7 +47,7 @@ export class StatefullMarkdownCell extends Disposable {
 
 				if (this.editor) {
 					// not first time, we don't need to create editor or bind listeners
-					this.editingContainer!.style.display = 'block';
+					this.editingContainer!.style.display = 'flex';
 					viewCell.attachTextEditor(this.editor!);
 					if (notebookEditor.getActiveCell() === viewCell) {
 						this.editor!.focus();
@@ -55,7 +55,7 @@ export class StatefullMarkdownCell extends Disposable {
 
 					this.bindEditorListeners(this.editor!.getModel()!);
 				} else {
-					this.editingContainer!.style.display = 'block';
+					this.editingContainer!.style.display = 'flex';
 					this.editingContainer!.innerHTML = '';
 					this.editor = instantiationService.createInstance(CodeEditorWidget, this.editingContainer!, {
 						...editorOptions,

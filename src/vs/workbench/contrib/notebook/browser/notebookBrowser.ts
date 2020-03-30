@@ -44,6 +44,7 @@ export interface CodeCellLayoutInfo {
 	readonly outputContainerOffset: number;
 	readonly outputTotalHeight: number;
 	readonly indicatorHeight: number;
+	readonly bottomToolbarOffset: number;
 }
 
 export interface CodeCellLayoutChangeEvent {
@@ -265,6 +266,7 @@ export interface CodeCellRenderTemplate extends BaseCellRenderTemplate {
 	outputContainer: HTMLElement;
 	editor: CodeEditorWidget;
 	progressBar: ProgressBar;
+	betweenCellContainer: HTMLElement;
 }
 
 export interface IOutputTransformContribution {

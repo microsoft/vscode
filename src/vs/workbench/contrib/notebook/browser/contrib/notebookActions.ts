@@ -113,6 +113,7 @@ export class CancelCellAction extends MenuItemAction {
 	}
 }
 
+
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -485,6 +486,24 @@ registerAction2(class extends InsertCellCommand {
 	}
 });
 
+export class InsertCodeCellAction extends MenuItemAction {
+	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ICommandService commandService: ICommandService
+	) {
+		super(
+			{
+				id: INSERT_CODE_CELL_BELOW_COMMAND_ID,
+				title: localize('notebookActions.insertCodeCellBelow', "Insert Code Cell Below"),
+				// icon: { id: 'codicon/add' },
+			},
+			undefined,
+			{ shouldForwardArgs: true },
+			contextKeyService,
+			commandService);
+	}
+}
+
 registerAction2(class extends InsertCellCommand {
 	constructor() {
 		super(
@@ -519,6 +538,23 @@ registerAction2(class extends InsertCellCommand {
 			'above');
 	}
 });
+
+export class InsertMarkdownCellAction extends MenuItemAction {
+	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ICommandService commandService: ICommandService
+	) {
+		super(
+			{
+				id: INSERT_MARKDOWN_CELL_BELOW_COMMAND_ID,
+				title: localize('notebookActions.insertMarkdownCellBelow', "Insert Markdown Cell Below")
+			},
+			undefined,
+			{ shouldForwardArgs: true },
+			contextKeyService,
+			commandService);
+	}
+}
 
 registerAction2(class extends InsertCellCommand {
 	constructor() {

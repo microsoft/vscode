@@ -202,6 +202,42 @@
 	visibility: visible;
 }
 
+.monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container {
+	position: absolute;
+	display: flex;
+	opacity: 0;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container:hover {
+	opacity: 1;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container .seperator {
+	height: 1px;
+	flex-grow: 1;
+	align-self: center;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container .seperator-short {
+	height: 1px;
+	width: 16px;
+	align-self: center;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container .button {
+	display: flex;
+	margin: 0 8px;
+	align-self: center;
+	align-items: center;
+	white-space: pre;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container span.codicon {
+	text-align: center;
+	font-size: 14px;
+	color: inherit;
+}
+
 .notebook-webview {
 	position: absolute;
 	z-index: 1000000;

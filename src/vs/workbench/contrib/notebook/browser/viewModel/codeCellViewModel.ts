@@ -8,12 +8,11 @@ import * as UUID from 'vs/base/common/uuid';
 import * as model from 'vs/editor/common/model';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_PADDING, CELL_MARGIN, CELL_RUN_GUTTER, EDITOR_TOP_MARGIN } from 'vs/workbench/contrib/notebook/browser/constants';
+import { EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_PADDING, CELL_MARGIN, CELL_RUN_GUTTER, EDITOR_TOP_MARGIN, BOTTOM_CELL_TOOLBAR_HEIGHT } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CellEditState, ICellViewModel, CellFindMatch, CodeCellLayoutChangeEvent, CodeCellLayoutInfo, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind, ICell, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { BaseCellViewModel } from './baseCellViewModel';
 import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
-import { debounce } from 'vs/base/common/decorators';
 
 export class CodeCellViewModel extends BaseCellViewModel implements ICellViewModel {
 	cellKind: CellKind.Code = CellKind.Code;
@@ -88,7 +87,8 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			outputContainerOffset: 0,
 			outputTotalHeight: 0,
 			totalHeight: 0,
-			indicatorHeight: 0
+			indicatorHeight: 0,
+			bottomToolbarOffset: 0
 		};
 
 		this._register(eventDispatcher.onDidChangeLayout((e) => {
@@ -108,9 +108,10 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		// recompute
 		this._ensureOutputsTop();
 		const outputTotalHeight = this._outputsTop!.getTotalValue();
-		const totalHeight = EDITOR_TOOLBAR_HEIGHT + this.editorHeight + EDITOR_TOP_MARGIN + 16 + outputTotalHeight;
+		const totalHeight = EDITOR_TOOLBAR_HEIGHT + this.editorHeight + EDITOR_TOP_MARGIN + outputTotalHeight + BOTTOM_CELL_TOOLBAR_HEIGHT;
 		const indicatorHeight = this.editorHeight + outputTotalHeight;
 		const outputContainerOffset = EDITOR_TOOLBAR_HEIGHT + this.editorHeight;
+		const bottomToolbarOffset = totalHeight - BOTTOM_CELL_TOOLBAR_HEIGHT;
 		const editorWidth = state.outerWidth !== undefined ? state.outerWidth - CELL_MARGIN * 2 - CELL_RUN_GUTTER : 0;
 		this._layoutInfo = {
 			fontInfo: state.font || null,
@@ -119,17 +120,18 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			outputContainerOffset,
 			outputTotalHeight,
 			totalHeight,
-			indicatorHeight
+			indicatorHeight,
+			bottomToolbarOffset: bottomToolbarOffset
 		};
 
 		if (state.editorHeight || state.outputHeight) {
 			state.totalHeight = true;
 		}
 
+		console.log(this._layoutInfo);
 		this._fireOnDidChangeLayout();
 	}
 
-	@debounce(100)
 	private _fireOnDidChangeLayout() {
 		this._onDidChangeLayout.fire();
 	}
@@ -152,7 +154,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	}
 
 	getHeight(lineHeight: number) {
-		return this.lineCount * lineHeight + 16 + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING;
+		return EDITOR_TOOLBAR_HEIGHT + EDITOR_TOP_MARGIN + this.lineCount * lineHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING + BOTTOM_CELL_TOOLBAR_HEIGHT;
 	}
 
 	save() {
