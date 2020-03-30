@@ -729,7 +729,7 @@ declare module 'vscode' {
 	//#region LogLevel: https://github.com/microsoft/vscode/issues/85992
 
 	/**
-	 * The severity level of a log message
+	 * @deprecated DO NOT USE, will be removed
 	 */
 	export enum LogLevel {
 		Trace = 1,
@@ -743,12 +743,12 @@ declare module 'vscode' {
 
 	export namespace env {
 		/**
-		 * Current logging level.
+		 * @deprecated DO NOT USE, will be removed
 		 */
 		export const logLevel: LogLevel;
 
 		/**
-		 * An [event](#Event) that fires when the log level has changed.
+		 * @deprecated DO NOT USE, will be removed
 		 */
 		export const onDidChangeLogLevel: Event<LogLevel>;
 	}
