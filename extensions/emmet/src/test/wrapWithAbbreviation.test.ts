@@ -319,13 +319,15 @@ suite('Tests for Wrap with Abbreviations', () => {
 	test('Wrap maintains href', () => {
 		const contents = `
 			www.google.com
+			https://github.com
 		`;
 		const expectedContents = `
 			<a href="http://www.google.com">www.google.com</a>
+			<a href="https://github.com">https://github.com</a>
 		`;
 
 		return withRandomFileEditor(contents, 'html', (editor, _) => {
-			editor.selections = [new Selection(1, 1, 1, 1)];
+			editor.selections = [new Selection(1, 1, 1, 1), new Selection(2, 1, 2, 1)];
 			const promise = wrapWithAbbreviation({ abbreviation: 'a' });
 			if (!promise) {
 				assert.equal(1, 2, 'Wrap with Abbreviation returned undefined.');
@@ -334,6 +336,32 @@ suite('Tests for Wrap with Abbreviations', () => {
 
 			return promise.then(() => {
 				assert.equal(editor.document.getText(), expectedContents);
+				return Promise.resolve();
+			});
+		});
+	});
+
+	test('Wrap multiline with abbreviation "a" maintains multicursor', () => {
+		const contents = `
+			www.google.com
+			www.google.com
+		`;
+		const expectedContents = `
+			<a href="http://www.google.com">www.google.com</a>
+			<a href="http://www.google.com">www.google.com</a>
+		`;
+
+		return withRandomFileEditor(contents, 'html', (editor, _) => {
+			editor.selections = [new Selection(1, 1, 1, 1), new Selection(2, 1, 2, 1)];
+			const promise = wrapWithAbbreviation({ abbreviation: 'a' });
+			if (!promise) {
+				assert.equal(1, 2, 'Wrap with Abbreviation returned undefined.');
+				return Promise.resolve();
+			}
+
+			return promise.then(() => {
+				assert.equal(editor.document.getText(), expectedContents);
+				assert.equal(editor.selections.length, 2);
 				return Promise.resolve();
 			});
 		});
