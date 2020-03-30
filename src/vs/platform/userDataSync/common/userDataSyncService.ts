@@ -220,7 +220,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		if (!(await this.hasLocalData())) {
 			return false;
 		}
-		for (const synchroniser of this.synchronisers) {
+		for (const synchroniser of [this.settingsSynchroniser, this.keybindingsSynchroniser, this.snippetsSynchroniser, this.extensionsSynchroniser]) {
 			const preview = await synchroniser.getSyncPreview();
 			if (preview.hasLocalChanged || preview.hasRemoteChanged) {
 				return true;
