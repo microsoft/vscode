@@ -10,7 +10,7 @@ import * as resources from 'vs/base/common/resources';
 import { ExtensionMessageCollector, IExtensionPoint, ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ExtensionData, IThemeExtensionPoint, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
 
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 
@@ -128,7 +128,8 @@ export class ThemeRegistry<T extends IThemeData> {
 		private readonly themesExtPoint: IExtensionPoint<IThemeExtensionPoint[]>,
 		private create: (theme: IThemeExtensionPoint, themeLocation: URI, extensionData: ExtensionData) => T,
 		private idRequired = false,
-		private builtInTheme: T | undefined = undefined
+		private builtInTheme: T | undefined = undefined,
+		private isProposedApi = false
 	) {
 		this.extensionThemes = [];
 		this.initialize();
@@ -144,6 +145,10 @@ export class ThemeRegistry<T extends IThemeData> {
 			}
 			this.extensionThemes.length = 0;
 			for (let ext of extensions) {
+				if (this.isProposedApi) {
+					checkProposedApiEnabled(ext.description);
+					return;
+				}
 				let extensionData: ExtensionData = {
 					extensionId: ext.description.identifier.value,
 					extensionPublisher: ext.description.publisher,
