@@ -2155,41 +2155,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-
-	//#region https://github.com/microsoft/vscode/issues/90208
-
-	export interface ExtensionContext {
-		/**
-		 * Get the uri of a resource contained in the extension.
-		 *
-		 * @param relativePath A relative path to a resource contained in the extension.
-		 * @return The uri of the resource.
-		 */
-		asExtensionUri(relativePath: string): Uri;
-
-		/**
-		 *
-		 */
-		readonly extensionUri: Uri;
-	}
-
-	export interface Extension<T> {
-		/**
-		 * Get the uri of a resource contained in the extension.
-		 *
-		 * @param relativePath A relative path to a resource contained in the extension.
-		 * @return The uri of the resource.
-		 */
-		asExtensionUri(relativePath: string): Uri;
-
-		/**
-		 *
-		 */
-		readonly extensionUri: Uri;
-	}
-
-	//#endregion
-
 	//#region https://github.com/microsoft/vscode/issues/86788
 
 	export interface CodeActionProviderMetadata {
@@ -2247,13 +2212,44 @@ declare module 'vscode' {
 
 	//#region https://github.com/microsoft/vscode/issues/90208
 
+	export interface ExtensionContext {
+		/**
+		 * @deprecated THIS API PROPOSAL WILL BE DROPPED
+		 */
+		asExtensionUri(relativePath: string): Uri;
+
+		/**
+		 * The uri of the directory containing the extension.
+		 */
+		readonly extensionUri: Uri;
+	}
+
+	export interface Extension<T> {
+		/**
+		 * @deprecated THIS API PROPOSAL WILL BE DROPPED
+		 */
+		asExtensionUri(relativePath: string): Uri;
+
+		/**
+		 * The uri of the directory containing the extension.
+		 */
+		readonly extensionUri: Uri;
+	}
+
 	export namespace Uri {
 
 		/**
+		 * Create a new uri which path is the result of joining
+		 * the path of the base uri with the provided path fragments.
 		 *
-		 * @param base
-		 * @param pathFragments
-		 * @returns A new uri
+		 * * Note that `joinPath` only affects the path component
+		 * and all other components (scheme, authority, query, and fragment) are
+		 * left as they are.
+		 * * Note that the base uri must have a path; an error is thrown otherwise.
+		 *
+		 * @param base An uri. Must have a path.
+		 * @param pathFragments One more more path fragments
+		 * @returns A new uri which path is joined with the given fragments
 		 */
 		export function joinPath(base: Uri, ...pathFragments: string[]): Uri;
 	}

@@ -39,6 +39,12 @@ const tokenTypeExtPoint = ExtensionsRegistry.registerExtensionPoint<ITokenTypeEx
 					pattern: typeAndModifierIdPattern,
 					patternErrorMessage: nls.localize('contributes.semanticTokenTypes.id.format', 'Identifiers should be in the form letterOrDigit[_-letterOrDigit]*'),
 				},
+				superType: {
+					type: 'string',
+					description: nls.localize('contributes.semanticTokenTypes.superType', 'The super type of the semantic token type'),
+					pattern: typeAndModifierIdPattern,
+					patternErrorMessage: nls.localize('contributes.semanticTokenTypes.superType.format', 'Super types should be in the form letterOrDigit[_-letterOrDigit]*'),
+				},
 				description: {
 					type: 'string',
 					description: nls.localize('contributes.color.description', 'The description of the semantic token type'),
