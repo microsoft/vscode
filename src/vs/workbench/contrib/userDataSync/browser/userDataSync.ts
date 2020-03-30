@@ -282,19 +282,11 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			if (this.activeAccount) {
 				if (event.removed.length) {
 					const activeWasRemoved = !!event.removed.find(removed => removed === this.activeAccount!.id);
-
-					// If the current account was removed, check if another account can be used, otherwise offer to turn off sync
+					// If the current account was removed, offer to turn off sync
 					if (activeWasRemoved) {
-						const accounts = (await this.authenticationService.getSessions(this.userDataSyncStore!.authenticationProviderId) || []);
-						if (accounts.length) {
-							// Show switch dialog here
-							await this.showSwitchAccountPicker(accounts);
-						} else {
-							await this.turnOff();
-							this.setActiveAccount(undefined);
-							return;
-						}
-
+						await this.turnOff();
+						this.setActiveAccount(undefined);
+						return;
 					}
 				}
 
