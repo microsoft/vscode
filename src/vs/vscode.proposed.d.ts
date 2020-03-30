@@ -257,8 +257,9 @@ declare module 'vscode' {
 	}
 
 	export class SemanticTokensBuilder {
-		constructor();
+		constructor(legend?: SemanticTokensLegend);
 		push(line: number, char: number, length: number, tokenType: number, tokenModifiers: number): void;
+		push(range: Range, tokenType: string, tokenModifiers?: string[]): void;
 		build(resultId?: string): SemanticTokens;
 	}
 
