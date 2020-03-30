@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/actions';
-
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
@@ -16,13 +14,13 @@ import { IsFullscreenContext } from 'vs/workbench/browser/contextkeys';
 import { IsMacNativeContext, IsDevelopmentContext } from 'vs/platform/contextkey/common/contextkeys';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IQuickInputButton, IQuickInputService, IQuickPickSeparator, IKeyMods } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputButton, IQuickInputService, IQuickPickSeparator, IKeyMods, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { IRecentWorkspace, IRecentFolder, IRecentFile, IRecent, isRecentFolder, isRecentWorkspace, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { IRecent, isRecentFolder, isRecentWorkspace, IWorkspacesService, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { FileKind } from 'vs/platform/files/common/files';
@@ -31,14 +29,26 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { inQuickPickContext, getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { ResourceMap } from 'vs/base/common/map';
 
 export const inRecentFilesPickerContextKey = 'inRecentFilesPicker';
+
+interface IRecentlyOpenedPick extends IQuickPickItem {
+	resource: URI,
+	openable: IWindowOpenable;
+}
 
 abstract class BaseOpenRecentAction extends Action {
 
 	private readonly removeFromRecentlyOpened: IQuickInputButton = {
 		iconClass: 'codicon-close',
 		tooltip: nls.localize('remove', "Remove from Recently Opened")
+	};
+
+	private readonly dirtyRecentlyOpened: IQuickInputButton = {
+		iconClass: 'codicon-circle-filled',
+		tooltip: nls.localize('dirtyRecentlyOpened', "Workspace With Dirty Files"),
+		alwaysVisible: true
 	};
 
 	constructor(
@@ -59,61 +69,53 @@ abstract class BaseOpenRecentAction extends Action {
 	protected abstract isQuickNavigate(): boolean;
 
 	async run(): Promise<void> {
-		const { workspaces, files } = await this.workspacesService.getRecentlyOpened();
+		const recentlyOpened = await this.workspacesService.getRecentlyOpened();
+		const dirtyWorkspacesAndFolders = await this.workspacesService.getDirtyWorkspaces();
 
-		this.openRecent(workspaces, files);
-	}
+		// Identify all folders and workspaces with dirty files
+		const dirtyFolders = new ResourceMap<boolean>();
+		const dirtyWorkspaces = new ResourceMap<IWorkspaceIdentifier>();
+		for (const backup of dirtyWorkspacesAndFolders) {
+			if (isRecentFolder(backup)) {
+				dirtyFolders.set(backup.folderUri, true);
+			} else {
+				dirtyWorkspaces.set(backup.workspace.configPath, backup.workspace);
+			}
+		}
 
-	private async openRecent(recentWorkspaces: Array<IRecentWorkspace | IRecentFolder>, recentFiles: IRecentFile[]): Promise<void> {
-
-		const toPick = (recent: IRecent, labelService: ILabelService, buttons: IQuickInputButton[] | undefined) => {
-			let openable: IWindowOpenable | undefined;
-			let iconClasses: string[];
-			let fullLabel: string | undefined;
-			let resource: URI | undefined;
-
-			// Folder
+		// Identify all recently opened folders and workspaces
+		const recentFolders = new ResourceMap<boolean>();
+		const recentWorkspaces = new ResourceMap<IWorkspaceIdentifier>();
+		for (const recent of recentlyOpened.workspaces) {
 			if (isRecentFolder(recent)) {
-				resource = recent.folderUri;
-				iconClasses = getIconClasses(this.modelService, this.modeService, resource, FileKind.FOLDER);
-				openable = { folderUri: resource };
-				fullLabel = recent.label || labelService.getWorkspaceLabel(resource, { verbose: true });
+				recentFolders.set(recent.folderUri, true);
+			} else {
+				recentWorkspaces.set(recent.workspace.configPath, recent.workspace);
+			}
+		}
+
+		// Fill in all known recently opened workspaces
+		const workspacePicks: IRecentlyOpenedPick[] = [];
+		for (const recent of recentlyOpened.workspaces) {
+			const isDirty = isRecentFolder(recent) ? dirtyFolders.has(recent.folderUri) : dirtyWorkspaces.has(recent.workspace.configPath);
+
+			workspacePicks.push(this.toQuickPick(recent, isDirty));
+		}
+
+		// Fill any backup workspace that is not yet shown at the end
+		for (const backup of dirtyWorkspacesAndFolders) {
+			if ((isRecentFolder(backup) && recentFolders.has(backup.folderUri)) || (isRecentWorkspace(backup) && recentWorkspaces.has(backup.workspace.configPath))) {
+				continue; // already present
 			}
 
-			// Workspace
-			else if (isRecentWorkspace(recent)) {
-				resource = recent.workspace.configPath;
-				iconClasses = getIconClasses(this.modelService, this.modeService, resource, FileKind.ROOT_FOLDER);
-				openable = { workspaceUri: resource };
-				fullLabel = recent.label || labelService.getWorkspaceLabel(recent.workspace, { verbose: true });
-			}
+			workspacePicks.push(this.toQuickPick(backup, true));
+		}
 
-			// File
-			else {
-				resource = recent.fileUri;
-				iconClasses = getIconClasses(this.modelService, this.modeService, resource, FileKind.FILE);
-				openable = { fileUri: resource };
-				fullLabel = recent.label || labelService.getUriLabel(resource);
-			}
-
-			const { name, parentPath } = splitName(fullLabel);
-
-			return {
-				iconClasses,
-				label: name,
-				description: parentPath,
-				buttons,
-				openable,
-				resource
-			};
-		};
-
-		const workspacePicks = recentWorkspaces.map(workspace => toPick(workspace, this.labelService, !this.isQuickNavigate() ? [this.removeFromRecentlyOpened] : undefined));
-		const filePicks = recentFiles.map(p => toPick(p, this.labelService, !this.isQuickNavigate() ? [this.removeFromRecentlyOpened] : undefined));
+		const filePicks = recentlyOpened.files.map(p => this.toQuickPick(p, false));
 
 		// focus second entry if the first recent workspace is the current workspace
-		const firstEntry = recentWorkspaces[0];
-		let autoFocusSecondEntry: boolean = firstEntry && this.contextService.isCurrentWorkspace(isRecentWorkspace(firstEntry) ? firstEntry.workspace : firstEntry.folderUri);
+		const firstEntry = recentlyOpened.workspaces[0];
+		const autoFocusSecondEntry: boolean = firstEntry && this.contextService.isCurrentWorkspace(isRecentWorkspace(firstEntry) ? firstEntry.workspace : firstEntry.folderUri);
 
 		let keyMods: IKeyMods | undefined;
 
@@ -129,14 +131,58 @@ abstract class BaseOpenRecentAction extends Action {
 			onKeyMods: mods => keyMods = mods,
 			quickNavigate: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : undefined,
 			onDidTriggerItemButton: async context => {
-				await this.workspacesService.removeRecentlyOpened([context.item.resource]);
-				context.removeItem();
+				if (context.button === this.removeFromRecentlyOpened) {
+					await this.workspacesService.removeRecentlyOpened([context.item.resource]);
+					context.removeItem();
+				}
 			}
 		});
 
 		if (pick) {
 			return this.hostService.openWindow([pick.openable], { forceNewWindow: keyMods?.ctrlCmd, forceReuseWindow: keyMods?.alt });
 		}
+	}
+
+	private toQuickPick(recent: IRecent, isDirty: boolean): IRecentlyOpenedPick {
+		let openable: IWindowOpenable | undefined;
+		let iconClasses: string[];
+		let fullLabel: string | undefined;
+		let resource: URI | undefined;
+
+		// Folder
+		if (isRecentFolder(recent)) {
+			resource = recent.folderUri;
+			iconClasses = getIconClasses(this.modelService, this.modeService, resource, FileKind.FOLDER);
+			openable = { folderUri: resource };
+			fullLabel = recent.label || this.labelService.getWorkspaceLabel(resource, { verbose: true });
+		}
+
+		// Workspace
+		else if (isRecentWorkspace(recent)) {
+			resource = recent.workspace.configPath;
+			iconClasses = getIconClasses(this.modelService, this.modeService, resource, FileKind.ROOT_FOLDER);
+			openable = { workspaceUri: resource };
+			fullLabel = recent.label || this.labelService.getWorkspaceLabel(recent.workspace, { verbose: true });
+		}
+
+		// File
+		else {
+			resource = recent.fileUri;
+			iconClasses = getIconClasses(this.modelService, this.modeService, resource, FileKind.FILE);
+			openable = { fileUri: resource };
+			fullLabel = recent.label || this.labelService.getUriLabel(resource);
+		}
+
+		const { name, parentPath } = splitName(fullLabel);
+
+		return {
+			iconClasses,
+			label: name,
+			description: parentPath,
+			buttons: isDirty ? [this.dirtyRecentlyOpened] : [this.removeFromRecentlyOpened],
+			openable,
+			resource
+		};
 	}
 }
 
