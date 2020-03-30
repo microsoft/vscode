@@ -387,7 +387,7 @@ suite('WorkspacesMainService', () => {
 		service.deleteUntitledWorkspaceSync(workspace);
 	});
 
-	test('rewriteWorkspaceFileForNewLocation (unc paths)', async () => {
+	test.skip('rewriteWorkspaceFileForNewLocation (unc paths)', async () => {
 		if (!isWindows) {
 			return Promise.resolve();
 		}
