@@ -149,6 +149,8 @@ export class CodeCell extends Disposable {
 				return;
 			}
 
+			const previousOutputHeight = this.viewCell.layoutInfo.outputTotalHeight;
+
 			if (this.viewCell.outputs.length) {
 				this.templateData.outputContainer!.style.display = 'block';
 			} else {
@@ -197,7 +199,13 @@ export class CodeCell extends Disposable {
 
 			let editorHeight = templateData.editor!.getContentHeight();
 			viewCell.editorHeight = editorHeight;
-			this.relayoutCellDebounced();
+
+			if (previousOutputHeight === 0 || this.viewCell.layoutInfo.outputTotalHeight === 0) {
+				// first execution or removing all outputs
+				this.relayoutCell();
+			} else {
+				this.relayoutCellDebounced();
+			}
 		}));
 
 		if (viewCell.outputs.length > 0) {
