@@ -39,6 +39,7 @@ const ModulesToLookFor = [
 	'@ionic',
 	'vue',
 	'tns-core-modules',
+	'electron',
 	// Other interesting packages
 	'aws-sdk',
 	'aws-amplify',
@@ -210,6 +211,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			"workspace.ionic" : { "classification" : "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": "true" },
 			"workspace.nativeScript" : { "classification" : "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": "true" },
 			"workspace.java.pom" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.electron" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.requirements" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.requirements.star" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.Pipfile" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -417,6 +419,10 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 						} else if ('tns-core-modules' === module) {
 							if ((dependencies && dependencies[module]) || (devDependencies && devDependencies[module])) {
 								tags['workspace.nativescript'] = true;
+							}
+						} else if ('electron' === module) {
+							if ((dependencies && dependencies[module]) || (devDependencies && devDependencies[module])) {
+								tags['workspace.electron'] = true;
 							}
 						} else {
 							if ((dependencies && dependencies[module]) || (devDependencies && devDependencies[module])) {
