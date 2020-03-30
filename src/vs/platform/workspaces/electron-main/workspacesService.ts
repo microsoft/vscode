@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AddFirstParameterToFunctions } from 'vs/base/common/types';
-import { IWorkspacesService, IEnterWorkspaceResult, IWorkspaceFolderCreationData, IWorkspaceIdentifier, IRecentlyOpened, IRecent } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesService, IEnterWorkspaceResult, IWorkspaceFolderCreationData, IWorkspaceIdentifier, IRecentlyOpened, IRecent, IRecentWorkspace, IRecentFolder } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
 import { IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
+import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 
 export class WorkspacesService implements AddFirstParameterToFunctions<IWorkspacesService, Promise<unknown> /* only methods, not events */, number /* window ID */> {
 
@@ -17,7 +18,8 @@ export class WorkspacesService implements AddFirstParameterToFunctions<IWorkspac
 	constructor(
 		@IWorkspacesMainService private readonly workspacesMainService: IWorkspacesMainService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@IWorkspacesHistoryMainService private readonly workspacesHistoryMainService: IWorkspacesHistoryMainService
+		@IWorkspacesHistoryMainService private readonly workspacesHistoryMainService: IWorkspacesHistoryMainService,
+		@IBackupMainService private readonly backupMainService: IBackupMainService
 	) {
 	}
 
@@ -69,6 +71,31 @@ export class WorkspacesService implements AddFirstParameterToFunctions<IWorkspac
 
 	async clearRecentlyOpened(windowId: number): Promise<void> {
 		return this.workspacesHistoryMainService.clearRecentlyOpened();
+	}
+
+	//#endregion
+
+
+	//#region Dirty Workspaces
+
+	async getDirtyWorkspaces(): Promise<Array<IRecentWorkspace | IRecentFolder>> {
+		const dirtyWorkspaces: Array<IRecentWorkspace | IRecentFolder> = [];
+
+		// Workspaces with backups
+		for (const workspace of this.backupMainService.getWorkspaceBackups()) {
+			if ((await this.backupMainService.hasBackups(workspace))) {
+				dirtyWorkspaces.push(workspace);
+			}
+		}
+
+		// Folders with backups
+		for (const folder of this.backupMainService.getFolderBackupPaths()) {
+			if ((await this.backupMainService.hasBackups(folder))) {
+				dirtyWorkspaces.push({ folderUri: folder });
+			}
+		}
+
+		return dirtyWorkspaces;
 	}
 
 	//#endregion

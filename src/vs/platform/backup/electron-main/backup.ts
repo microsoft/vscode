@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
 import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
 
@@ -15,6 +15,12 @@ export interface IWorkspaceBackupInfo {
 	remoteAuthority?: string;
 }
 
+export function isWorkspaceBackupInfo(obj: unknown): obj is IWorkspaceBackupInfo {
+	const candidate = obj as IWorkspaceBackupInfo;
+
+	return candidate && isWorkspaceIdentifier(candidate.workspace);
+}
+
 export interface IBackupMainService {
 	_serviceBrand: undefined;
 
@@ -23,6 +29,8 @@ export interface IBackupMainService {
 	getWorkspaceBackups(): IWorkspaceBackupInfo[];
 	getFolderBackupPaths(): URI[];
 	getEmptyWindowBackupPaths(): IEmptyWindowBackupInfo[];
+
+	hasBackups(backupLocation: IWorkspaceBackupInfo | IEmptyWindowBackupInfo | URI): Promise<boolean>;
 
 	registerWorkspaceBackupSync(workspace: IWorkspaceBackupInfo, migrateFrom?: string): string;
 	registerFolderBackupSync(folderUri: URI): string;

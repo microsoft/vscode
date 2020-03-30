@@ -731,4 +731,32 @@ suite('BackupMainService', () => {
 			}
 		});
 	});
+
+	suite('hasBackups', () => {
+		test('should report if a workspace or folder has backups', async () => {
+			const folderBackupPath = service.registerFolderBackupSync(fooFile);
+
+			const backupWorkspaceInfo = toWorkspaceBackupInfo(fooFile.fsPath);
+			const workspaceBackupPath = service.registerWorkspaceBackupSync(backupWorkspaceInfo);
+
+			assert.equal((await service.hasBackups(fooFile)), false);
+			assert.equal((await service.hasBackups(backupWorkspaceInfo)), false);
+
+			try {
+				await pfs.mkdirp(path.join(folderBackupPath, Schemas.file));
+				await pfs.mkdirp(path.join(workspaceBackupPath, Schemas.untitled));
+			} catch (error) {
+				// ignore - folder might exist already
+			}
+
+			assert.equal((await service.hasBackups(fooFile)), false);
+			assert.equal((await service.hasBackups(backupWorkspaceInfo)), false);
+
+			fs.writeFileSync(path.join(folderBackupPath, Schemas.file, '594a4a9d82a277a899d4713a5b08f504'), '');
+			fs.writeFileSync(path.join(workspaceBackupPath, Schemas.untitled, '594a4a9d82a277a899d4713a5b08f504'), '');
+
+			assert.equal((await service.hasBackups(fooFile)), true);
+			assert.equal((await service.hasBackups(backupWorkspaceInfo)), true);
+		});
+	});
 });

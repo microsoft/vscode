@@ -56,6 +56,7 @@ export class TestDialogMainService implements IDialogMainService {
 }
 
 export class TestBackupMainService implements IBackupMainService {
+
 	_serviceBrand: undefined;
 
 	isHotExitEnabled(): boolean {
@@ -95,6 +96,10 @@ export class TestBackupMainService implements IBackupMainService {
 	}
 
 	unregisterEmptyWindowBackupSync(backupFolder: string): void {
+		throw new Error('Method not implemented.');
+	}
+
+	hasBackups(backupLocation: URI | IWorkspaceBackupInfo | IEmptyWindowBackupInfo): Promise<boolean> {
 		throw new Error('Method not implemented.');
 	}
 }

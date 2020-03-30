@@ -31,18 +31,21 @@ export interface IWorkspacesService {
 
 	_serviceBrand: undefined;
 
-	// Management
+	// Workspaces Management
 	enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | null>;
 	createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier>;
 	deleteUntitledWorkspace(workspace: IWorkspaceIdentifier): Promise<void>;
 	getWorkspaceIdentifier(workspacePath: URI): Promise<IWorkspaceIdentifier>;
 
-	// History
+	// Workspaces History
 	readonly onRecentlyOpenedChange: Event<void>;
 	addRecentlyOpened(recents: IRecent[]): Promise<void>;
 	removeRecentlyOpened(workspaces: URI[]): Promise<void>;
 	clearRecentlyOpened(): Promise<void>;
 	getRecentlyOpened(): Promise<IRecentlyOpened>;
+
+	// Dirty Workspaces
+	getDirtyWorkspaces(): Promise<Array<IRecentWorkspace | IRecentFolder>>;
 }
 
 export interface IRecentlyOpened {
