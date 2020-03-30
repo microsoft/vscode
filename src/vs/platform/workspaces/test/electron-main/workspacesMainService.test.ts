@@ -99,8 +99,8 @@ export class TestBackupMainService implements IBackupMainService {
 		throw new Error('Method not implemented.');
 	}
 
-	hasBackups(backupLocation: URI | IWorkspaceBackupInfo | IEmptyWindowBackupInfo): Promise<boolean> {
-		throw new Error('Method not implemented.');
+	async getDirtyWorkspaces(): Promise<(IWorkspaceIdentifier | URI)[]> {
+		return [];
 	}
 }
 

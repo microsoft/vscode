@@ -388,7 +388,27 @@ export class BackupMainService implements IBackupMainService {
 		return true;
 	}
 
-	hasBackups(backupLocation: IWorkspaceBackupInfo | IEmptyWindowBackupInfo | URI): Promise<boolean> {
+	async getDirtyWorkspaces(): Promise<Array<IWorkspaceIdentifier | URI>> {
+		const dirtyWorkspaces: Array<IWorkspaceIdentifier | URI> = [];
+
+		// Workspaces with backups
+		for (const workspace of this.rootWorkspaces) {
+			if ((await this.hasBackups(workspace))) {
+				dirtyWorkspaces.push(workspace.workspace);
+			}
+		}
+
+		// Folders with backups
+		for (const folder of this.folderWorkspaces) {
+			if ((await this.hasBackups(folder))) {
+				dirtyWorkspaces.push(folder);
+			}
+		}
+
+		return dirtyWorkspaces;
+	}
+
+	private hasBackups(backupLocation: IWorkspaceBackupInfo | IEmptyWindowBackupInfo | URI): Promise<boolean> {
 		let backupPath: string;
 
 		// Folder

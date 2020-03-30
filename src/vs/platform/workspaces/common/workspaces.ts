@@ -45,7 +45,7 @@ export interface IWorkspacesService {
 	getRecentlyOpened(): Promise<IRecentlyOpened>;
 
 	// Dirty Workspaces
-	getDirtyWorkspaces(): Promise<Array<IRecentWorkspace | IRecentFolder>>;
+	getDirtyWorkspaces(): Promise<Array<IWorkspaceIdentifier | URI>>;
 }
 
 export interface IRecentlyOpened {

@@ -20,7 +20,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { IRecent, isRecentFolder, isRecentWorkspace, IWorkspacesService, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IRecent, isRecentFolder, isRecentWorkspace, IWorkspacesService, IWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { FileKind } from 'vs/platform/files/common/files';
@@ -77,10 +77,10 @@ abstract class BaseOpenRecentAction extends Action {
 		const dirtyFolders = new ResourceMap<boolean>();
 		const dirtyWorkspaces = new ResourceMap<IWorkspaceIdentifier>();
 		for (const dirtyWorkspace of dirtyWorkspacesAndFolders) {
-			if (isRecentFolder(dirtyWorkspace)) {
-				dirtyFolders.set(dirtyWorkspace.folderUri, true);
+			if (URI.isUri(dirtyWorkspace)) {
+				dirtyFolders.set(dirtyWorkspace, true);
 			} else {
-				dirtyWorkspaces.set(dirtyWorkspace.workspace.configPath, dirtyWorkspace.workspace);
+				dirtyWorkspaces.set(dirtyWorkspace.configPath, dirtyWorkspace);
 			}
 		}
 
@@ -105,14 +105,11 @@ abstract class BaseOpenRecentAction extends Action {
 
 		// Fill any backup workspace that is not yet shown at the end
 		for (const dirtyWorkspaceOrFolder of dirtyWorkspacesAndFolders) {
-			if (
-				(isRecentFolder(dirtyWorkspaceOrFolder) && recentFolders.has(dirtyWorkspaceOrFolder.folderUri)) ||
-				(isRecentWorkspace(dirtyWorkspaceOrFolder) && recentWorkspaces.has(dirtyWorkspaceOrFolder.workspace.configPath))
-			) {
-				continue; // already present
+			if (URI.isUri(dirtyWorkspaceOrFolder) && !recentFolders.has(dirtyWorkspaceOrFolder)) {
+				workspacePicks.push(this.toQuickPick({ folderUri: dirtyWorkspaceOrFolder }, true));
+			} else if (isWorkspaceIdentifier(dirtyWorkspaceOrFolder) && !recentWorkspaces.has(dirtyWorkspaceOrFolder.configPath)) {
+				workspacePicks.push(this.toQuickPick({ workspace: dirtyWorkspaceOrFolder }, true));
 			}
-
-			workspacePicks.push(this.toQuickPick(dirtyWorkspaceOrFolder, true));
 		}
 
 		const filePicks = recentlyOpened.files.map(p => this.toQuickPick(p, false));

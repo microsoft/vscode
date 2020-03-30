@@ -30,8 +30,6 @@ export interface IBackupMainService {
 	getFolderBackupPaths(): URI[];
 	getEmptyWindowBackupPaths(): IEmptyWindowBackupInfo[];
 
-	hasBackups(backupLocation: IWorkspaceBackupInfo | IEmptyWindowBackupInfo | URI): Promise<boolean>;
-
 	registerWorkspaceBackupSync(workspace: IWorkspaceBackupInfo, migrateFrom?: string): string;
 	registerFolderBackupSync(folderUri: URI): string;
 	registerEmptyWindowBackupSync(backupFolder?: string, remoteAuthority?: string): string;
@@ -39,4 +37,12 @@ export interface IBackupMainService {
 	unregisterWorkspaceBackupSync(workspace: IWorkspaceIdentifier): void;
 	unregisterFolderBackupSync(folderUri: URI): void;
 	unregisterEmptyWindowBackupSync(backupFolder: string): void;
+
+	/**
+	 * All folders or workspaces that are known to have
+	 * backups stored. This call is long running because
+	 * it checks for each backup location if any backups
+	 * are stored.
+	 */
+	getDirtyWorkspaces(): Promise<Array<IWorkspaceIdentifier | URI>>;
 }
