@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/screencast';
+import 'vs/css!./media/actions';
 
 import { Action } from 'vs/base/common/actions';
 import * as nls from 'vs/nls';
@@ -41,7 +41,7 @@ class InspectContextKeysAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<void> {
+	async run(): Promise<void> {
 		const disposables = new DisposableStore();
 
 		const stylesheet = createStyleSheet();
@@ -85,8 +85,6 @@ class InspectContextKeysAction extends Action {
 
 			dispose(disposables);
 		}, null, disposables);
-
-		return Promise.resolve();
 	}
 }
 

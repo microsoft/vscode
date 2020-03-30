@@ -510,6 +510,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			allowJs: true,
 			allowSyntheticDefaultImports: true,
 			allowNonTsExtensions: true,
+			resolveJsonModule: true,
 		};
 	}
 

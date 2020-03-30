@@ -15,6 +15,7 @@ export interface IOpenedWindow {
 	folderUri?: ISingleFolderWorkspaceIdentifier;
 	title: string;
 	filename?: string;
+	dirty: boolean;
 }
 
 export interface IBaseOpenWindowsOptions {

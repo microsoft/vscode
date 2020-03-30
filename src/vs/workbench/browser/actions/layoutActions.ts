@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/actions';
-
 import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Action } from 'vs/base/common/actions';
@@ -24,7 +22,7 @@ import { InEditorZenModeContext, IsCenteredLayoutContext, EditorAreaVisibleConte
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { SideBarVisibleContext } from 'vs/workbench/common/viewlet';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IViewDescriptorService, IViewContainersRegistry, Extensions as ViewContainerExtensions, IViewsService, FocusedViewContext, ViewContainerLocation } from 'vs/workbench/common/views';
+import { IViewDescriptorService, IViewContainersRegistry, Extensions as ViewContainerExtensions, IViewsService, FocusedViewContext, ViewContainerLocation, IViewDescriptor } from 'vs/workbench/common/views';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -55,7 +53,7 @@ export class CloseSidebarAction extends Action {
 	}
 }
 
-registry.registerWorkbenchAction(SyncActionDescriptor.create(CloseSidebarAction, CloseSidebarAction.ID, CloseSidebarAction.LABEL), 'View: Close Side Bar ', viewCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.create(CloseSidebarAction, CloseSidebarAction.ID, CloseSidebarAction.LABEL), 'View: Close Side Bar', viewCategory);
 
 // --- Toggle Activity Bar
 
@@ -237,7 +235,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 
 export class ToggleEditorVisibilityAction extends Action {
 	static readonly ID = 'workbench.action.toggleEditorVisibility';
-	static readonly LABEL = nls.localize('toggleEditor', "Toggle Editor Area");
+	static readonly LABEL = nls.localize('toggleEditor', "Toggle Editor Area Visibility");
 
 	constructor(
 		id: string,
@@ -598,6 +596,49 @@ export class MoveFocusedViewAction extends Action {
 registry.registerWorkbenchAction(SyncActionDescriptor.create(MoveFocusedViewAction, MoveFocusedViewAction.ID, MoveFocusedViewAction.LABEL), 'View: Move Focused View', viewCategory, FocusedViewContext.notEqualsTo(''));
 
 
+// --- Reset View Location with Command
+export class ResetFocusedViewLocationAction extends Action {
+	static readonly ID = 'workbench.action.resetFocusedViewLocation';
+	static readonly LABEL = nls.localize('resetFocusedViewLocation', "Reset Focused View Location");
+
+	constructor(
+		id: string,
+		label: string,
+		@IViewDescriptorService private viewDescriptorService: IViewDescriptorService,
+		@IContextKeyService private contextKeyService: IContextKeyService,
+		@INotificationService private notificationService: INotificationService,
+		@IViewsService private viewsService: IViewsService
+	) {
+		super(id, label);
+	}
+
+	async run(): Promise<void> {
+		const focusedViewId = FocusedViewContext.getValue(this.contextKeyService);
+
+		let viewDescriptor: IViewDescriptor | null = null;
+		if (focusedViewId !== undefined && focusedViewId.trim() !== '') {
+			viewDescriptor = this.viewDescriptorService.getViewDescriptor(focusedViewId);
+		}
+
+		if (!viewDescriptor) {
+			this.notificationService.error(nls.localize('resetFocusedView.error.noFocusedView', "There is no view currently focused."));
+			return;
+		}
+
+		const defaultContainer = this.viewDescriptorService.getDefaultContainer(viewDescriptor.id);
+		if (!defaultContainer || defaultContainer === this.viewDescriptorService.getViewContainer(viewDescriptor.id)) {
+			return;
+		}
+
+		this.viewDescriptorService.moveViewsToContainer([viewDescriptor], defaultContainer);
+		this.viewsService.openView(viewDescriptor.id, true);
+
+	}
+}
+
+registry.registerWorkbenchAction(SyncActionDescriptor.create(ResetFocusedViewLocationAction, ResetFocusedViewLocationAction.ID, ResetFocusedViewLocationAction.LABEL), 'View: Reset Focused View Location', viewCategory, FocusedViewContext.notEqualsTo(''));
+
+
 // --- Resize View
 
 export abstract class BaseResizeViewAction extends Action {
@@ -645,9 +686,8 @@ export class IncreaseViewSizeAction extends BaseResizeViewAction {
 		super(id, label, layoutService);
 	}
 
-	run(): Promise<boolean> {
+	async run(): Promise<void> {
 		this.resizePart(BaseResizeViewAction.RESIZE_INCREMENT);
-		return Promise.resolve(true);
 	}
 }
 
@@ -665,9 +705,8 @@ export class DecreaseViewSizeAction extends BaseResizeViewAction {
 		super(id, label, layoutService);
 	}
 
-	run(): Promise<boolean> {
+	async run(): Promise<void> {
 		this.resizePart(-BaseResizeViewAction.RESIZE_INCREMENT);
-		return Promise.resolve(true);
 	}
 }
 

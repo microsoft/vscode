@@ -563,8 +563,11 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		const disposables = new DisposableStore();
 		const actionsElement = dom.append(hoverElement, $('div.actions'));
 		if (markerHover.marker.severity === MarkerSeverity.Error || markerHover.marker.severity === MarkerSeverity.Warning || markerHover.marker.severity === MarkerSeverity.Info) {
+			const peekProblemLabel = nls.localize('peek problem', "Peek Problem");
+			const peekProblemKeybinding = this._keybindingService.lookupKeybinding(NextMarkerAction.ID);
+			const peekProblemKeybindingLabel = peekProblemKeybinding && peekProblemKeybinding.getLabel();
 			disposables.add(this.renderAction(actionsElement, {
-				label: nls.localize('peek problem', "Peek Problem"),
+				label: peekProblemKeybindingLabel ? nls.localize('titleAndKb', "{0} ({1})", peekProblemLabel, peekProblemKeybindingLabel) : peekProblemLabel,
 				commandId: NextMarkerAction.ID,
 				run: () => {
 					this.hide();
@@ -580,7 +583,6 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		setTimeout(() => quickfixPlaceholderElement.style.opacity = '1', 200);
 		quickfixPlaceholderElement.textContent = nls.localize('checkingForQuickFixes', "Checking for quick fixes...");
 		disposables.add(toDisposable(() => quickfixPlaceholderElement.remove()));
-
 
 		const codeActionsPromise = this.getCodeActions(markerHover.marker);
 		disposables.add(toDisposable(() => codeActionsPromise.cancel()));
@@ -602,8 +604,12 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				}
 			}));
 
+			const quickFixLabel = nls.localize('quick fixes', "Quick Fix...");
+			const quickFixKeybinding = this._keybindingService.lookupKeybinding(QuickFixAction.Id);
+			const quickFixKeybindingLabel = quickFixKeybinding && quickFixKeybinding.getLabel();
+
 			disposables.add(this.renderAction(actionsElement, {
-				label: nls.localize('quick fixes', "Quick Fix..."),
+				label: quickFixKeybindingLabel ? nls.localize('titleAndKb', "{0} ({1})", quickFixLabel, quickFixKeybindingLabel) : quickFixLabel,
 				commandId: QuickFixAction.Id,
 				run: (target) => {
 					showing = true;

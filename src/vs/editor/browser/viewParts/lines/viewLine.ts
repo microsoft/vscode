@@ -616,7 +616,15 @@ class RenderedViewLine implements IRenderedViewLine {
 		if (!r || r.length === 0) {
 			return -1;
 		}
-		return r[0].left;
+		const result = r[0].left;
+		if (this.input.isBasicASCII) {
+			const charOffset = this._characterMapping.getAbsoluteOffsets();
+			const expectedResult = Math.round(this.input.spaceWidth * charOffset[column - 1]);
+			if (Math.abs(expectedResult - result) <= 1) {
+				return expectedResult;
+			}
+		}
+		return result;
 	}
 
 	private _readRawVisibleRangesForRange(domNode: FastDomNode<HTMLElement>, startColumn: number, endColumn: number, context: DomReadingContext): HorizontalRange[] | null {

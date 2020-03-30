@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals } from 'vs/base/common/arrays';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { memoize } from 'vs/base/common/decorators';
 import { Iterable } from 'vs/base/common/iterator';
 import { Lazy } from 'vs/base/common/lazy';
@@ -35,6 +36,7 @@ export function areWebviewInputOptionsEqual(a: WebviewInputOptions, b: WebviewIn
 	return a.enableCommandUris === b.enableCommandUris
 		&& a.enableFindWidget === b.enableFindWidget
 		&& a.allowScripts === b.allowScripts
+		&& a.allowMultipleAPIAcquire === b.allowMultipleAPIAcquire
 		&& a.retainContextWhenHidden === b.retainContextWhenHidden
 		&& a.tryRestoreScrollPosition === b.tryRestoreScrollPosition
 		&& equals(a.localResourceRoots, b.localResourceRoots, isEqual)
@@ -90,6 +92,7 @@ export interface WebviewResolver {
 
 	resolveWebview(
 		webview: WebviewInput,
+		cancellation: CancellationToken,
 	): Promise<void>;
 }
 
@@ -113,10 +116,24 @@ export class LazilyResolvedWebviewEditorInput extends WebviewInput {
 		super(id, viewType, name, webview, webviewService);
 	}
 
+	#resolved = false;
+
 	@memoize
 	public async resolve() {
-		await this._webviewWorkbenchService.resolveWebview(this);
+		if (!this.#resolved) {
+			this.#resolved = true;
+			await this._webviewWorkbenchService.resolveWebview(this);
+		}
 		return super.resolve();
+	}
+
+	protected transfer(other: LazilyResolvedWebviewEditorInput): WebviewInput | undefined {
+		if (!super.transfer(other)) {
+			return;
+		}
+
+		other.#resolved = this.#resolved;
+		return other;
 	}
 }
 
@@ -128,12 +145,12 @@ class RevivalPool {
 		this._awaitingRevival.push({ input, resolve });
 	}
 
-	public reviveFor(reviver: WebviewResolver) {
+	public reviveFor(reviver: WebviewResolver, cancellation: CancellationToken) {
 		const toRevive = this._awaitingRevival.filter(({ input }) => canRevive(reviver, input));
 		this._awaitingRevival = this._awaitingRevival.filter(({ input }) => !canRevive(reviver, input));
 
 		for (const { input, resolve } of toRevive) {
-			reviver.resolveWebview(input).then(resolve);
+			reviver.resolveWebview(input, cancellation).then(resolve);
 		}
 	}
 }
@@ -221,7 +238,7 @@ export class WebviewEditorService implements IWebviewWorkbenchService {
 		reviver: WebviewResolver
 	): IDisposable {
 		this._revivers.add(reviver);
-		this._revivalPool.reviveFor(reviver);
+		this._revivalPool.reviveFor(reviver, CancellationToken.None);
 
 		return toDisposable(() => {
 			this._revivers.delete(reviver);
@@ -245,7 +262,7 @@ export class WebviewEditorService implements IWebviewWorkbenchService {
 	): Promise<boolean> {
 		for (const reviver of this._revivers.values()) {
 			if (canRevive(reviver, webview)) {
-				await reviver.resolveWebview(webview);
+				await reviver.resolveWebview(webview, CancellationToken.None);
 				return true;
 			}
 		}

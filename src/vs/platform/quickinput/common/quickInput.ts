@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IQuickPickItem, IPickOptions, IInputOptions, IQuickNavigateConfiguration, IQuickPick, IQuickInputButton, IInputBox, QuickPickInput } from 'vs/base/parts/quickinput/common/quickInput';
+import { IQuickPickItem, IPickOptions, IInputOptions, IQuickNavigateConfiguration, IQuickPick, IQuickInputButton, IInputBox, QuickPickInput, IKeyMods } from 'vs/base/parts/quickinput/common/quickInput';
 import { IQuickAccessController } from 'vs/platform/quickinput/common/quickAccess';
 
 export * from 'vs/base/parts/quickinput/common/quickInput';
@@ -84,14 +84,14 @@ export interface IQuickInputService {
 
 	/**
 	 * Accept the selected item.
+	 *
+	 * @param keyMods allows to override the state of key
+	 * modifiers that should be present when invoking.
 	 */
-	accept(): Promise<void>;
+	accept(keyMods?: IKeyMods): Promise<void>;
 
 	/**
 	 * Cancels quick input and closes it.
 	 */
 	cancel(): Promise<void>;
-
-	// TODO@Ben remove once quick open is gone
-	hide(focusLost?: boolean): void;
 }

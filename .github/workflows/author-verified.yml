@@ -1,0 +1,28 @@
+name: Author Verified
+on:
+  schedule:
+    - cron: 20 14 * * * # 4:20pm Zurich
+  issues:
+    types: [labeled, closed]
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Actions
+        uses: actions/checkout@v2
+        with:
+          repository: 'JacksonKearl/vscode-triage-github-actions'
+          ref: master # update once stabalized
+          path: ./actions
+      - name: Checkout Repo
+        uses: actions/checkout@v2
+        with:
+          path: ./repo
+          fetch-depth: 0
+      - name: Run Author Verified
+        uses: ./actions/author-verified
+        with:
+          requestVerificationComment: "This bug has been fixed in to the latest release of [VS Code Insiders](https://code.visualstudio.com/insiders/)!\n\n@${author}, you can help us out by confirming things are working as expected in the latest Insiders release. If things look good, please leave a comment with the text `/verified` to let us know. If not, please ensure you're on version ${commit} of Insiders (today's or later - you can use `Help: About` in the command pallete to check), and leave a comment letting us know what isn't working as expected.\n\nHappy Coding!"
+          pendingReleaseLabel: awaiting-insiders-release
+          authorVerificationRequestedLabel: author-verification-requested

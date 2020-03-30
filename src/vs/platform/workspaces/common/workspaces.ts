@@ -18,7 +18,7 @@ import { toSlashes } from 'vs/base/common/extpath';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { ILogService } from 'vs/platform/log/common/log';
-import { Event as CommonEvent } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export const WORKSPACE_EXTENSION = 'code-workspace';
@@ -31,18 +31,21 @@ export interface IWorkspacesService {
 
 	_serviceBrand: undefined;
 
-	// Management
+	// Workspaces Management
 	enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | null>;
 	createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier>;
 	deleteUntitledWorkspace(workspace: IWorkspaceIdentifier): Promise<void>;
 	getWorkspaceIdentifier(workspacePath: URI): Promise<IWorkspaceIdentifier>;
 
-	// History
-	readonly onRecentlyOpenedChange: CommonEvent<void>;
+	// Workspaces History
+	readonly onRecentlyOpenedChange: Event<void>;
 	addRecentlyOpened(recents: IRecent[]): Promise<void>;
 	removeRecentlyOpened(workspaces: URI[]): Promise<void>;
 	clearRecentlyOpened(): Promise<void>;
 	getRecentlyOpened(): Promise<IRecentlyOpened>;
+
+	// Dirty Workspaces
+	getDirtyWorkspaces(): Promise<Array<IWorkspaceIdentifier | URI>>;
 }
 
 export interface IRecentlyOpened {

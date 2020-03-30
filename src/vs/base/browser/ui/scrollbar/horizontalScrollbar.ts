@@ -92,6 +92,10 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 		return e.posy;
 	}
 
+	protected _updateScrollbarSize(size: number): void {
+		this.slider.setHeight(size);
+	}
+
 	public writeScrollPosition(target: INewScrollPosition, scrollPosition: number): void {
 		target.scrollLeft = scrollPosition;
 	}

@@ -8,6 +8,7 @@ import * as scorer from 'vs/base/common/fuzzyScorer';
 import { URI } from 'vs/base/common/uri';
 import { basename, dirname, sep } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
+import { Schemas } from 'vs/base/common/network';
 
 class ResourceAccessorClass implements scorer.IItemAccessor<URI> {
 
@@ -42,15 +43,15 @@ class NullAccessorClass implements scorer.IItemAccessor<URI> {
 }
 
 function _doScore(target: string, query: string, fuzzy: boolean): scorer.Score {
-	return scorer.score(target, query, query.toLowerCase(), fuzzy);
+	return scorer.score(target, scorer.prepareQuery(query), fuzzy);
 }
 
 function scoreItem<T>(item: T, query: string, fuzzy: boolean, accessor: scorer.IItemAccessor<T>, cache: scorer.ScorerCache): scorer.IItemScore {
 	return scorer.scoreItem(item, scorer.prepareQuery(query), fuzzy, accessor, cache);
 }
 
-function compareItemsByScore<T>(itemA: T, itemB: T, query: string, fuzzy: boolean, accessor: scorer.IItemAccessor<T>, cache: scorer.ScorerCache, fallbackComparer?: (itemA: T, itemB: T, query: scorer.IPreparedQuery, accessor: scorer.IItemAccessor<T>) => number): number {
-	return scorer.compareItemsByScore(itemA, itemB, scorer.prepareQuery(query), fuzzy, accessor, cache, fallbackComparer as any);
+function compareItemsByScore<T>(itemA: T, itemB: T, query: string, fuzzy: boolean, accessor: scorer.IItemAccessor<T>, cache: scorer.ScorerCache): number {
+	return scorer.compareItemsByScore(itemA, itemB, scorer.prepareQuery(query), fuzzy, accessor, cache);
 }
 
 const NullAccessor = new NullAccessorClass();
@@ -106,6 +107,42 @@ suite('Fuzzy Scorer', () => {
 		assert.ok(_doScore(target, 'ello', false)[0] > 0);
 		assert.ok(_doScore(target, 'ld', false)[0] > 0);
 		assert.equal(_doScore(target, 'eo', false)[0], 0);
+	});
+
+	test('score (fuzzy, multiple)', function () {
+		const target = 'HeLlo-World';
+
+		const [firstSingleScore, firstSinglePositions] = _doScore(target, 'HelLo', true);
+		const [secondSingleScore, secondSinglePositions] = _doScore(target, 'World', true);
+		const firstAndSecondSinglePositions = [...firstSinglePositions, ...secondSinglePositions];
+
+		let [multiScore, multiPositions] = _doScore(target, 'HelLo World', true);
+
+		function assertScore() {
+			assert.ok(multiScore >= firstSingleScore + secondSingleScore);
+			for (let i = 0; i < multiPositions.length; i++) {
+				assert.equal(multiPositions[i], firstAndSecondSinglePositions[i]);
+			}
+		}
+
+		function assertNoScore() {
+			assert.equal(multiScore, 0);
+			assert.equal(multiPositions.length, 0);
+		}
+
+		assertScore();
+
+		[multiScore, multiPositions] = _doScore(target, 'World HelLo', true);
+		assertScore();
+
+		[multiScore, multiPositions] = _doScore(target, 'World HelLo World', true);
+		assertScore();
+
+		[multiScore, multiPositions] = _doScore(target, 'World HelLo Nothing', true);
+		assertNoScore();
+
+		[multiScore, multiPositions] = _doScore(target, 'More Nothing', true);
+		assertNoScore();
 	});
 
 	test('scoreItem - matches are proper', function () {
@@ -277,6 +314,19 @@ suite('Fuzzy Scorer', () => {
 
 		const res = scoreItem(resource, 'edcda', true, ResourceAccessor, cache);
 		assert.ok(!res.score);
+	});
+
+	test('scoreItem - match if using slash or backslash (local, remote resource)', function () {
+		const localResource = URI.file('abcde/super/duper');
+		const remoteResource = URI.from({ scheme: Schemas.vscodeRemote, path: 'abcde/super/duper' });
+
+		for (const resource of [localResource, remoteResource]) {
+			let res = scoreItem(resource, 'abcde\\super\\duper', true, ResourceAccessor, cache);
+			assert.ok(res.score);
+
+			res = scoreItem(resource, 'abcde/super/duper', true, ResourceAccessor, cache);
+			assert.ok(res.score);
+		}
 	});
 
 	test('compareItemsByScore - identity', function () {
@@ -509,33 +559,13 @@ suite('Fuzzy Scorer', () => {
 		assert.equal(res[2], resourceC);
 	});
 
-	test('compareFilesByScore - allow to provide fallback sorter (bug #31591)', function () {
-		const resourceA = URI.file('virtual/vscode.d.ts');
-		const resourceB = URI.file('vscode/src/vs/vscode.d.ts');
+	test('compareFilesByScore - prefer matches in label over description if scores are otherwise equal', function () {
+		const resourceA = URI.file('parts/quick/arrow-left-dark.svg');
+		const resourceB = URI.file('parts/quickopen/quickopen.ts');
 
-		let query = 'vscode';
+		let query = 'partsquick';
 
-		let res = [resourceA, resourceB].sort((r1, r2) => {
-			return compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache, (r1, r2, query, ResourceAccessor) => {
-				if (r1 as any /* TS fail */ === resourceA) {
-					return -1;
-				}
-
-				return 1;
-			});
-		});
-		assert.equal(res[0], resourceA);
-		assert.equal(res[1], resourceB);
-
-		res = [resourceB, resourceA].sort((r1, r2) => {
-			return compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache, (r1, r2, query, ResourceAccessor) => {
-				if (r1 as any /* TS fail */ === resourceB) {
-					return -1;
-				}
-
-				return 1;
-			});
-		});
+		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceB);
 		assert.equal(res[1], resourceA);
 	});
@@ -826,11 +856,42 @@ suite('Fuzzy Scorer', () => {
 		assert.equal(res[0], resourceB);
 	});
 
-	test('prepareSearchForScoring', () => {
+	test('prepareQuery', () => {
 		assert.equal(scorer.prepareQuery(' f*a ').value, 'fa');
+		assert.equal(scorer.prepareQuery('model Tester.ts').original, 'model Tester.ts');
+		assert.equal(scorer.prepareQuery('model Tester.ts').originalLowercase, 'model Tester.ts'.toLowerCase());
 		assert.equal(scorer.prepareQuery('model Tester.ts').value, 'modelTester.ts');
-		assert.equal(scorer.prepareQuery('Model Tester.ts').lowercase, 'modeltester.ts');
+		assert.equal(scorer.prepareQuery('Model Tester.ts').valueLowercase, 'modeltester.ts');
 		assert.equal(scorer.prepareQuery('ModelTester.ts').containsPathSeparator, false);
 		assert.equal(scorer.prepareQuery('Model' + sep + 'Tester.ts').containsPathSeparator, true);
+
+		// with spaces
+		let query = scorer.prepareQuery('He*llo World');
+		assert.equal(query.original, 'He*llo World');
+		assert.equal(query.value, 'HelloWorld');
+		assert.equal(query.valueLowercase, 'HelloWorld'.toLowerCase());
+		assert.equal(query.values?.length, 2);
+		assert.equal(query.values?.[0].original, 'He*llo');
+		assert.equal(query.values?.[0].value, 'Hello');
+		assert.equal(query.values?.[0].valueLowercase, 'Hello'.toLowerCase());
+		assert.equal(query.values?.[1].original, 'World');
+		assert.equal(query.values?.[1].value, 'World');
+		assert.equal(query.values?.[1].valueLowercase, 'World'.toLowerCase());
+
+		// with spaces that are empty
+		query = scorer.prepareQuery(' Hello   World  	');
+		assert.equal(query.original, ' Hello   World  	');
+		assert.equal(query.originalLowercase, ' Hello   World  	'.toLowerCase());
+		assert.equal(query.value, 'HelloWorld');
+		assert.equal(query.valueLowercase, 'HelloWorld'.toLowerCase());
+		assert.equal(query.values?.length, 2);
+		assert.equal(query.values?.[0].original, 'Hello');
+		assert.equal(query.values?.[0].originalLowercase, 'Hello'.toLowerCase());
+		assert.equal(query.values?.[0].value, 'Hello');
+		assert.equal(query.values?.[0].valueLowercase, 'Hello'.toLowerCase());
+		assert.equal(query.values?.[1].original, 'World');
+		assert.equal(query.values?.[1].originalLowercase, 'World'.toLowerCase());
+		assert.equal(query.values?.[1].value, 'World');
+		assert.equal(query.values?.[1].valueLowercase, 'World'.toLowerCase());
 	});
 });

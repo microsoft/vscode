@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IQuickInputService, IQuickPickItem, IPickOptions, IInputOptions, IQuickNavigateConfiguration, IQuickPick, IQuickInputButton, IInputBox, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPickItem, IPickOptions, IInputOptions, IQuickNavigateConfiguration, IQuickPick, IQuickInputButton, IInputBox, QuickPickInput, IKeyMods } from 'vs/platform/quickinput/common/quickInput';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
@@ -52,7 +52,7 @@ export class QuickInputService extends Themable implements IQuickInputService {
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@ILayoutService protected readonly layoutService: ILayoutService
@@ -154,8 +154,8 @@ export class QuickInputService extends Themable implements IQuickInputService {
 		this.controller.navigate(next, quickNavigate);
 	}
 
-	accept() {
-		return this.controller.accept();
+	accept(keyMods?: IKeyMods) {
+		return this.controller.accept(keyMods);
 	}
 
 	back() {
@@ -164,10 +164,6 @@ export class QuickInputService extends Themable implements IQuickInputService {
 
 	cancel() {
 		return this.controller.cancel();
-	}
-
-	hide(focusLost?: boolean): void {
-		return this.controller.hide(focusLost);
 	}
 
 	protected updateStyles() {

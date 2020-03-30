@@ -182,17 +182,19 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 
 class SelectionTrait<T> extends Trait<T> {
 
-	constructor() {
+	constructor(private setAriaSelected: boolean) {
 		super('selected');
 	}
 
 	renderIndex(index: number, container: HTMLElement): void {
 		super.renderIndex(index, container);
 
-		if (this.contains(index)) {
-			container.setAttribute('aria-selected', 'true');
-		} else {
-			container.setAttribute('aria-selected', 'false');
+		if (this.setAriaSelected) {
+			if (this.contains(index)) {
+				container.setAttribute('aria-selected', 'true');
+			} else {
+				container.setAttribute('aria-selected', 'false');
+			}
 		}
 	}
 }
@@ -852,6 +854,7 @@ export interface IListOptions<T> {
 	readonly mouseSupport?: boolean;
 	readonly horizontalScrolling?: boolean;
 	readonly ariaProvider?: IAriaProvider<T>;
+	readonly additionalScrollHeight?: number;
 }
 
 export interface IListStyles {
@@ -1108,6 +1111,7 @@ class ListViewDragAndDrop<T> implements IListViewDragAndDrop<T> {
 export interface IListOptionsUpdate {
 	readonly enableKeyboardNavigation?: boolean;
 	readonly automaticKeyboardNavigation?: boolean;
+	readonly additionalScrollHeight?: number;
 }
 
 export class List<T> implements ISpliceable<T>, IDisposable {
@@ -1198,7 +1202,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		renderers: IListRenderer<any /* TODO@joao */, any>[],
 		private _options: IListOptions<T> = DefaultOptions
 	) {
-		this.selection = new SelectionTrait();
+		this.selection = new SelectionTrait(this._options.ariaRole !== 'listbox');
 		this.focus = new Trait('focused');
 
 		mixin(_options, defaultStyles, false);
@@ -1287,6 +1291,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		if (this.typeLabelController) {
 			this.typeLabelController.updateOptions(this._options);
 		}
+
+		if (optionsUpdate.additionalScrollHeight !== undefined) {
+			this.view.updateOptions(optionsUpdate);
+		}
 	}
 
 	get options(): IListOptions<T> {
@@ -1314,7 +1322,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	updateElementHeight(index: number, size: number): void {
-		this.view.updateElementHeight(index, size);
+		this.view.updateElementHeight(index, size, null);
 	}
 
 	rerender(): void {
@@ -1501,9 +1509,13 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	focusFirst(browserEvent?: UIEvent, filter?: (element: T) => boolean): void {
+		this.focusNth(0, browserEvent, filter);
+	}
+
+	focusNth(n: number, browserEvent?: UIEvent, filter?: (element: T) => boolean): void {
 		if (this.length === 0) { return; }
 
-		const index = this.findNextIndex(0, false, filter);
+		const index = this.findNextIndex(n, false, filter);
 
 		if (index > -1) {
 			this.setFocus([index], browserEvent);

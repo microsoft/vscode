@@ -19,6 +19,8 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { Schemas } from 'vs/base/common/network';
 import product from 'vs/platform/product/common/product';
+import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 suite('Extension Gallery Service', () => {
 	const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'extensiongalleryservice');
@@ -52,11 +54,12 @@ suite('Extension Gallery Service', () => {
 	test('marketplace machine id', () => {
 		const args = ['--user-data-dir', marketplaceHome];
 		const environmentService = new EnvironmentService(parseArgs(args, OPTIONS), process.execPath);
+		const storageService: IStorageService = new TestStorageService();
 
-		return resolveMarketplaceHeaders(product.version, environmentService, fileService).then(headers => {
+		return resolveMarketplaceHeaders(product.version, environmentService, fileService, storageService).then(headers => {
 			assert.ok(isUUID(headers['X-Market-User-Id']));
 
-			return resolveMarketplaceHeaders(product.version, environmentService, fileService).then(headers2 => {
+			return resolveMarketplaceHeaders(product.version, environmentService, fileService, storageService).then(headers2 => {
 				assert.equal(headers['X-Market-User-Id'], headers2['X-Market-User-Id']);
 			});
 		});

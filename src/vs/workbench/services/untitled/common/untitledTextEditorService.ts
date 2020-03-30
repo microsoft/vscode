@@ -219,11 +219,13 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 	}
 
 	private registerModel(model: UntitledTextEditorModel): void {
-		const modelDisposables = new DisposableStore();
-		modelDisposables.add(model.onDidChangeDirty(() => this._onDidChangeDirty.fire(model)));
-		modelDisposables.add(model.onDidChangeName(() => this._onDidChangeLabel.fire(model)));
-		modelDisposables.add(model.onDidChangeEncoding(() => this._onDidChangeEncoding.fire(model)));
-		modelDisposables.add(model.onDispose(() => this._onDidDispose.fire(model)));
+
+		// Install model listeners
+		const modelListeners = new DisposableStore();
+		modelListeners.add(model.onDidChangeDirty(() => this._onDidChangeDirty.fire(model)));
+		modelListeners.add(model.onDidChangeName(() => this._onDidChangeLabel.fire(model)));
+		modelListeners.add(model.onDidChangeEncoding(() => this._onDidChangeEncoding.fire(model)));
+		modelListeners.add(model.onDispose(() => this._onDidDispose.fire(model)));
 
 		// Remove from cache on dispose
 		Event.once(model.onDispose)(() => {
@@ -232,11 +234,17 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 			this.mapResourceToModel.delete(model.resource);
 
 			// Listeners
-			modelDisposables.dispose();
+			modelListeners.dispose();
 		});
 
 		// Add to cache
 		this.mapResourceToModel.set(model.resource, model);
+
+		// If the model is dirty right from the beginning,
+		// make sure to emit this as an event
+		if (model.isDirty()) {
+			this._onDidChangeDirty.fire(model);
+		}
 	}
 }
 

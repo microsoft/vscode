@@ -129,10 +129,6 @@ export class StandaloneQuickInputServiceImpl implements IQuickInputService {
 	cancel(): Promise<void> {
 		return this.activeService.cancel();
 	}
-
-	hide(focusLost?: boolean | undefined): void {
-		return this.activeService.hide(focusLost);
-	}
 }
 
 export class QuickInputEditorContribution implements IEditorContribution {

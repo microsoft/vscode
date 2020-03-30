@@ -65,7 +65,8 @@ export class ElectronMainService implements IElectronMainService {
 			workspace: window.openedWorkspace,
 			folderUri: window.openedFolderUri,
 			title: window.win.getTitle(),
-			filename: window.getRepresentedFilename()
+			filename: window.getRepresentedFilename(),
+			dirty: window.isDocumentEdited()
 		}));
 	}
 
@@ -271,7 +272,7 @@ export class ElectronMainService implements IElectronMainService {
 	async setDocumentEdited(windowId: number | undefined, edited: boolean): Promise<void> {
 		const window = this.windowById(windowId);
 		if (window) {
-			window.win.setDocumentEdited(edited);
+			window.setDocumentEdited(edited);
 		}
 	}
 
@@ -332,7 +333,11 @@ export class ElectronMainService implements IElectronMainService {
 	}
 
 	async closeWindow(windowId: number | undefined): Promise<void> {
-		const window = this.windowById(windowId);
+		this.closeWindowById(windowId, windowId);
+	}
+
+	async closeWindowById(currentWindowId: number | undefined, targetWindowId?: number | undefined): Promise<void> {
+		const window = this.windowById(targetWindowId);
 		if (window) {
 			return window.win.close();
 		}

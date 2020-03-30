@@ -269,7 +269,7 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 				return options.ariaProvider!.getRole!(el.element as T);
 			} : () => 'treeitem',
 			isChecked: options.ariaProvider!.isChecked ? (e) => {
-				return options.ariaProvider?.isChecked!(e.element as T);
+				return !!(options.ariaProvider?.isChecked!(e.element as T));
 			} : undefined
 		},
 		ariaRole: ListAriaRootRole.TREE,
@@ -791,7 +791,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 		this.refreshPromises.set(node, result);
 
-		return result.finally(() => this.refreshPromises.delete(node));
+		return result.finally(() => { this.refreshPromises.delete(node); });
 	}
 
 	private _onDidChangeCollapseState({ node, deep }: ICollapseStateChangeEvent<IAsyncDataTreeNode<TInput, T> | null, any>): void {

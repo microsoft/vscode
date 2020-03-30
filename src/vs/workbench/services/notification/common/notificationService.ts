@@ -11,6 +11,7 @@ import { Event } from 'vs/base/common/event';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IAction, Action } from 'vs/base/common/actions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
 export class NotificationService extends Disposable implements INotificationService {
 
@@ -19,7 +20,10 @@ export class NotificationService extends Disposable implements INotificationServ
 	private _model: INotificationsModel = this._register(new NotificationsModel());
 	get model(): INotificationsModel { return this._model; }
 
-	constructor(@IStorageService private readonly storageService: IStorageService) {
+	constructor(
+		@IStorageService private readonly storageService: IStorageService,
+		@IStorageKeysSyncRegistryService private readonly storageKeysSyncRegistryService: IStorageKeysSyncRegistryService
+	) {
 		super();
 	}
 
@@ -64,10 +68,15 @@ export class NotificationService extends Disposable implements INotificationServ
 		let handle: INotificationHandle;
 		if (notification.neverShowAgain) {
 			const scope = notification.neverShowAgain.scope === NeverShowAgainScope.WORKSPACE ? StorageScope.WORKSPACE : StorageScope.GLOBAL;
+			const id = notification.neverShowAgain.id;
+
+			// opt-in to syncing if global
+			if (scope === StorageScope.GLOBAL) {
+				this.storageKeysSyncRegistryService.registerStorageKey({ key: id, version: 1 });
+			}
 
 			// If the user already picked to not show the notification
 			// again, we return with a no-op notification here
-			const id = notification.neverShowAgain.id;
 			if (this.storageService.getBoolean(id, scope)) {
 				return new NoOpNotification();
 			}
@@ -115,10 +124,15 @@ export class NotificationService extends Disposable implements INotificationServ
 		// Handle neverShowAgain option accordingly
 		if (options?.neverShowAgain) {
 			const scope = options.neverShowAgain.scope === NeverShowAgainScope.WORKSPACE ? StorageScope.WORKSPACE : StorageScope.GLOBAL;
+			const id = options.neverShowAgain.id;
+
+			// opt-in to syncing if global
+			if (scope === StorageScope.GLOBAL) {
+				this.storageKeysSyncRegistryService.registerStorageKey({ key: id, version: 1 });
+			}
 
 			// If the user already picked to not show the notification
 			// again, we return with a no-op notification here
-			const id = options.neverShowAgain.id;
 			if (this.storageService.getBoolean(id, scope)) {
 				return new NoOpNotification();
 			}
