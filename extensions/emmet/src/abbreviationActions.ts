@@ -570,35 +570,44 @@ function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: Ex
 		return Promise.resolve(false);
 	}
 
-	// Snippet to replace at multiple cursors are not the same
-	// `editor.insertSnippet` will have to be called for each instance separately
-	// We will not be able to maintain multiple cursors after snippet insertion
-	let insertPromises: Thenable<boolean>[] = [];
-	if (!insertSameSnippet) {
-		expandAbbrList.sort((a: ExpandAbbreviationInput, b: ExpandAbbreviationInput) => { return b.rangeToReplace.start.compareTo(a.rangeToReplace.start); }).forEach((expandAbbrInput: ExpandAbbreviationInput) => {
-			let expandedText = expandAbbr(expandAbbrInput);
-			if (expandedText) {
-				insertPromises.push(editor.insertSnippet(new vscode.SnippetString(expandedText), expandAbbrInput.rangeToReplace, { undoStopBefore: false, undoStopAfter: false }));
-			}
-		});
-		if (insertPromises.length === 0) {
-			return Promise.resolve(false);
-		}
-		return Promise.all(insertPromises).then(() => Promise.resolve(true));
+	const expandedAbbrList = expandAbbrList
+		.map(expandAbbrInput => {
+			return {
+				expandedText: expandAbbr(expandAbbrInput),
+				rangeToReplace: expandAbbrInput.rangeToReplace
+			};
+		})
+		.filter(expandedInput => expandedInput.expandedText)
+		.sort((a, b) => { return b.rangeToReplace.start.compareTo(a.rangeToReplace.start); });
+	const numberOfDifferentSnippets = expandedAbbrList
+		.map(expandedInput => expandedInput.expandedText)
+		.filter((expandedText, index, array) => array.indexOf(expandedText) === index)
+		.length;
+
+	if (numberOfDifferentSnippets === 0) {
+		return Promise.resolve(false);
 	}
 
 	// Snippet to replace at all cursors are the same
 	// We can pass all ranges to `editor.insertSnippet` in a single call so that
 	// all cursors are maintained after snippet insertion
-	const anyExpandAbbrInput = expandAbbrList[0];
-	let expandedText = expandAbbr(anyExpandAbbrInput);
-	let allRanges = expandAbbrList.map(value => {
-		return new vscode.Range(value.rangeToReplace.start.line, value.rangeToReplace.start.character, value.rangeToReplace.end.line, value.rangeToReplace.end.character);
-	});
-	if (expandedText) {
+	if (insertSameSnippet && numberOfDifferentSnippets === 1) {
+		const expandedText = expandedAbbrList[0].expandedText;
+		const allRanges = expandAbbrList.map(value => {
+			return new vscode.Range(value.rangeToReplace.start.line, value.rangeToReplace.start.character, value.rangeToReplace.end.line, value.rangeToReplace.end.character);
+		});
+
 		return editor.insertSnippet(new vscode.SnippetString(expandedText), allRanges);
 	}
-	return Promise.resolve(false);
+
+	// Snippet to replace at multiple cursors are not the same
+	// `editor.insertSnippet` will have to be called for each instance separately
+	// We will not be able to maintain multiple cursors after snippet insertion
+	let insertPromises: Thenable<boolean>[] = [];
+	expandedAbbrList.forEach(expandedInput => {
+		insertPromises.push(editor.insertSnippet(new vscode.SnippetString(expandedInput.expandedText), expandedInput.rangeToReplace, { undoStopBefore: false, undoStopAfter: false }));
+	});
+	return Promise.all(insertPromises).then(() => Promise.resolve(true));
 }
 
 /**
@@ -638,27 +647,12 @@ function expandAbbr(input: ExpandAbbreviationInput, isPreviewing: boolean = fals
 					wrappingNode = wrappingNode.children[wrappingNode.children.length - 1];
 				}
 
-				// If wrapping with a block element, insert newline in the text to wrap.
 				if (wrappingNode) {
 					wrappingNode.value = isPreviewing ? wrappingNode.value : selectedTextPlaceholder;
+
+					// If wrapping with a block element, insert newline in the text to wrap.
 					if (inlineElements.indexOf(wrappingNode.name) === -1 && (expandOptions['profile'].hasOwnProperty('format') ? expandOptions['profile'].format : true)) {
 						wrappingNode.value = '\n\t' + wrappingNode.value + '\n';
-					}
-
-					// Fixes #54711
-					if (wrappingNode.name === 'a' && !isPreviewing) {
-						let hrefAtt = wrappingNode.attributes.filter((a: any) => a.name === 'href')[0];
-						if (hrefAtt && hrefAtt.value) {
-							// $TM_SELECTED_TEXT doesn't maintain the prefix correctly, so we need to strip it out here and add it in manually.
-							var prefix = '';
-							var index = hrefAtt.value.indexOf(input.textToWrap);
-							if (index > 0) {
-								prefix = hrefAtt.value.substring(0, index);
-							}
-
-							// Replace a *valid* href with $TM_SELECTED_TEXT so that multi-cursor mode works correctly.
-							hrefAtt.value = prefix + selectedTextPlaceholder;
-						}
 					}
 				}
 			}
