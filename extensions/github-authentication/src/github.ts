@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import * as uuid from 'uuid';
 import { keychain } from './common/keychain';
 import { GitHubServer } from './githubServer';
 import Logger from './common/logger';
@@ -122,7 +123,7 @@ export class GitHubAuthenticationProvider {
 	private async tokenToSession(token: string, scopes: string[]): Promise<vscode.AuthenticationSession> {
 		const userInfo = await this._githubServer.getUserInfo(token);
 		return {
-			id: userInfo.id,
+			id: uuid(),
 			getAccessToken: () => Promise.resolve(token),
 			accountName: userInfo.accountName,
 			scopes: scopes
