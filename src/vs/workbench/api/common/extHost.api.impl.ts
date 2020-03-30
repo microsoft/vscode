@@ -258,14 +258,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get appName() { return initData.environment.appName; },
 			get appRoot() { return initData.environment.appRoot!.fsPath; },
 			get uriScheme() { return initData.environment.appUriScheme; },
-			get logLevel() {
-				checkProposedApiEnabled(extension);
-				return typeConverters.LogLevel.to(extHostLogService.getLevel());
-			},
-			get onDidChangeLogLevel() {
-				checkProposedApiEnabled(extension);
-				return Event.map(extHostLogService.onDidChangeLogLevel, l => typeConverters.LogLevel.to(l));
-			},
 			get clipboard(): vscode.Clipboard {
 				return extHostClipboard;
 			},
@@ -287,7 +279,18 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			get uiKind() {
 				return initData.uiKind;
-			}
+			},
+
+			...{
+				get logLevel() {
+					checkProposedApiEnabled(extension);
+					return typeConverters.LogLevel.to(extHostLogService.getLevel());
+				},
+				get onDidChangeLogLevel() {
+					checkProposedApiEnabled(extension);
+					return Event.map(extHostLogService.onDidChangeLogLevel, l => typeConverters.LogLevel.to(l));
+				},
+			} as {}
 		};
 		if (!initData.environment.extensionTestsLocationURI) {
 			// allow to patch env-function when running tests
