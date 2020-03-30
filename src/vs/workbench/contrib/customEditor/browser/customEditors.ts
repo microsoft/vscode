@@ -330,10 +330,10 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 			return;
 		}
 
-		// See if the new resource can be opened in a custom editor
-		if (!this.getAllCustomEditors(newResource).allEditors
-			.some(editor => editor.priority !== CustomEditorPriority.option)
-		) {
+		const possibleEditors = this.getAllCustomEditors(newResource);
+
+		// See if we have any non-optional custom editor for this resource
+		if (!possibleEditors.allEditors.some(editor => editor.priority !== CustomEditorPriority.option)) {
 			return;
 		}
 
@@ -359,19 +359,25 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 			return;
 		}
 
-		// If there is, show a single prompt for all editors to see if the user wants to re-open them
-		//
-		// TODO: instead of prompting eagerly, it'd likly be better to replace all the editors with
-		// ones that would prompt when they first become visible
-		await new Promise(resolve => setTimeout(resolve, 50));
-		const pickedViewType = await this.showOpenWithPrompt(newResource);
-		if (!pickedViewType) {
+		let viewType: string | undefined;
+		if (possibleEditors.defaultEditor) {
+			viewType = possibleEditors.defaultEditor.id;
+		} else {
+			// If there is, show a single prompt for all editors to see if the user wants to re-open them
+			//
+			// TODO: instead of prompting eagerly, it'd likly be better to replace all the editors with
+			// ones that would prompt when they first become visible
+			await new Promise(resolve => setTimeout(resolve, 50));
+			viewType = await this.showOpenWithPrompt(newResource);
+		}
+
+		if (!viewType) {
 			return;
 		}
 
 		for (const [group, entries] of editorsToReplace) {
 			this.editorService.replaceEditors(entries.map(editor => {
-				const replacement = this.createInput(newResource, pickedViewType, group);
+				const replacement = this.createInput(newResource, viewType!, group);
 				return {
 					editor,
 					replacement,
