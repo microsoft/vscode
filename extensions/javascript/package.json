@@ -99,7 +99,9 @@
           "variable": ["variable.other.readwrite.js"],
           "variable.readonly": ["variable.other.constant.object.js"],
           "function": ["entity.name.function.js"],
-          "namespace": ["entity.name.type.module.js"]
+          "namespace": ["entity.name.type.module.js"],
+          "variable.defaultLibrary": ["support.variable.js"],
+          "function.defaultLibrary": ["support.function.js"]
         }
       },
       {
@@ -110,7 +112,9 @@
           "variable": ["variable.other.readwrite.jsx"],
           "variable.readonly": ["variable.other.constant.object.jsx"],
           "function": ["entity.name.function.jsx"],
-          "namespace": ["entity.name.type.module.jsx"]
+          "namespace": ["entity.name.type.module.jsx"],
+          "variable.defaultLibrary": ["support.variable.js"],
+          "function.defaultLibrary": ["support.function.js"]
         }
       }
     ],
