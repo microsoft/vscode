@@ -2462,8 +2462,8 @@ export class SemanticTokensBuilder {
 		this._prevChar = char;
 	}
 
-	public build(): Uint32Array {
-		return new Uint32Array(this._data);
+	public build(resultId?: string): SemanticTokens {
+		return new SemanticTokens(new Uint32Array(this._data), resultId);
 	}
 }
 
