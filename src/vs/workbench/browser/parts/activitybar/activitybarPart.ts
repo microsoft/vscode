@@ -115,8 +115,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		@IProductService private readonly productService: IProductService
 	) {
 		super(Parts.ACTIVITYBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
-		this.migrateFromOldCachedViewletsValue();
 		storageKeysSyncRegistryService.registerStorageKey({ key: ActivitybarPart.PINNED_VIEWLETS, version: 1 });
+		this.migrateFromOldCachedViewletsValue();
 
 		this.cachedViewlets = this.getCachedViewlets();
 		for (const cachedViewlet of this.cachedViewlets) {

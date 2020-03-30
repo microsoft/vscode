@@ -364,4 +364,17 @@ suite('GlobalStateMerge', () => {
 		assert.deepEqual(actual.remote, local);
 	});
 
+	test('merge when a local value is not yet registered', async () => {
+		const base = { 'a': { version: 1, value: 'a' }, 'b': { version: 1, value: 'b' } };
+		const local = { 'a': { version: 1, value: 'a' } };
+		const remote = { 'b': { version: 1, value: 'b' }, 'a': { version: 1, value: 'a' } };
+
+		const actual = merge(local, remote, base, [{ key: 'a', version: 1 }], new NullLogService());
+
+		assert.deepEqual(actual.local.added, {});
+		assert.deepEqual(actual.local.updated, {});
+		assert.deepEqual(actual.local.removed, []);
+		assert.deepEqual(actual.remote, null);
+	});
+
 });

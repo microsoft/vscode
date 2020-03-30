@@ -338,13 +338,14 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService
 	) {
 		const globalViewsStateStorageId = `${viewletStateStorageId}.hidden`;
+		storageKeysSyncRegistryService.registerStorageKey({ key: globalViewsStateStorageId, version: 1 });
 		const viewStates = PersistentContributableViewsModel.loadViewsStates(viewletStateStorageId, globalViewsStateStorageId, storageService);
 
 		super(container, viewDescriptorService, viewStates);
 
+		this.storageService = storageService;
 		this.workspaceViewsStateStorageId = viewletStateStorageId;
 		this.globalViewsStateStorageId = globalViewsStateStorageId;
-		this.storageService = storageService;
 
 		this._register(Event.any(
 			this.onDidAdd,
@@ -353,7 +354,6 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 			Event.map(this.onDidChangeViewState, viewDescriptorRef => [viewDescriptorRef]))
 			(viewDescriptorRefs => this.saveViewsStates()));
 
-		storageKeysSyncRegistryService.registerStorageKey({ key: this.globalViewsStateStorageId, version: 1 });
 		this._globalViewsStatesValue = this.getStoredGlobalViewsStatesValue();
 		this._register(this.storageService.onDidChangeStorage(e => this.onDidStorageChange(e)));
 	}

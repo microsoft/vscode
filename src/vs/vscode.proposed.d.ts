@@ -726,6 +726,35 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region LogLevel: https://github.com/microsoft/vscode/issues/85992
+
+	/**
+	 * @deprecated DO NOT USE, will be removed
+	 */
+	export enum LogLevel {
+		Trace = 1,
+		Debug = 2,
+		Info = 3,
+		Warning = 4,
+		Error = 5,
+		Critical = 6,
+		Off = 7
+	}
+
+	export namespace env {
+		/**
+		 * @deprecated DO NOT USE, will be removed
+		 */
+		export const logLevel: LogLevel;
+
+		/**
+		 * @deprecated DO NOT USE, will be removed
+		 */
+		export const onDidChangeLogLevel: Event<LogLevel>;
+	}
+
+	//#endregion
+
 	//#region Joao: SCM validation
 
 	/**
