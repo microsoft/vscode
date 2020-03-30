@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/actions';
+
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
@@ -46,7 +48,7 @@ abstract class BaseOpenRecentAction extends Action {
 	};
 
 	private readonly dirtyRecentlyOpened: IQuickInputButton = {
-		iconClass: 'codicon-circle-filled',
+		iconClass: 'dirty-workspace codicon-circle-filled',
 		tooltip: nls.localize('dirtyRecentlyOpened', "Workspace With Dirty Files"),
 		alwaysVisible: true
 	};

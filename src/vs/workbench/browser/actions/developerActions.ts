@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/screencast';
+import 'vs/css!./media/actions';
 
 import { Action } from 'vs/base/common/actions';
 import * as nls from 'vs/nls';

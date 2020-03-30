@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.quick-input-list .quick-input-list-entry.has-actions:hover .quick-input-list-entry-action-bar .action-label.dirty-workspace::before {
+	content: "\ea76"; /* Close icon flips between black dot and "X" for dirty workspaces */
+}
+
 .monaco-workbench .screencast-mouse {
 	position: absolute;
 	border: 2px solid red;
