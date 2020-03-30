@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/extension';
-import { localize } from 'vs/nls';
 import { append, $, addClass, removeClass, toggleClass } from 'vs/base/browser/dom';
 import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 import { IAction } from 'vs/base/common/actions';
@@ -15,15 +14,13 @@ import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { Event } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IExtension, ExtensionContainers, ExtensionState, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { InstallAction, UpdateAction, ManageExtensionAction, ReloadAction, MaliciousStatusLabelAction, ExtensionActionViewItem, StatusLabelAction, RemoteInstallAction, SystemDisabledWarningAction, ExtensionToolTipAction, LocalInstallAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { InstallAction, UpdateAction, ManageExtensionAction, ReloadAction, MaliciousStatusLabelAction, ExtensionActionViewItem, StatusLabelAction, RemoteInstallAction, SystemDisabledWarningAction, ExtensionToolTipAction, LocalInstallAction, SyncIgnoredIconAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { Label, RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteBadgeWidget, TooltipWidget, ExtensionPackCountWidget as ExtensionPackBadgeWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { isLanguagePackExtension, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { CodiconLabel } from 'vs/base/browser/ui/codiconLabel/codiconLabel';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 
 export interface IExtensionsViewState {
 	onFocus: Event<IExtension>;
@@ -38,7 +35,6 @@ export interface ITemplateData {
 	installCount: HTMLElement;
 	ratings: HTMLElement;
 	author: HTMLElement;
-	syncIgnored: HTMLElement;
 	description: HTMLElement;
 	extension: IExtension | null;
 	disposables: IDisposable[];
@@ -62,7 +58,6 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) { }
 
 	get templateId() { return 'extension'; }
@@ -85,9 +80,6 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const description = append(details, $('.description.ellipsis'));
 		const footer = append(details, $('.footer'));
 		const author = append(footer, $('.author.ellipsis'));
-		const syncIgnored = append(footer, $('.sync-ignored.ellipsis'));
-		const syncIgnoredLabel = new CodiconLabel(syncIgnored);
-		syncIgnoredLabel.text = '$(eye-closed) ' + localize('extensionSyncIgnoredLabel', 'Sync: Ignored');
 		const actionbar = new ActionBar(footer, {
 			animated: false,
 			actionViewItemProvider: (action: IAction) => {
@@ -103,6 +95,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const reloadAction = this.instantiationService.createInstance(ReloadAction);
 		const actions = [
 			this.instantiationService.createInstance(StatusLabelAction),
+			this.instantiationService.createInstance(SyncIgnoredIconAction),
 			this.instantiationService.createInstance(UpdateAction),
 			reloadAction,
 			this.instantiationService.createInstance(InstallAction),
@@ -130,7 +123,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const disposables = combinedDisposable(...actions, ...widgets, actionbar, extensionContainers, extensionTooltipAction);
 
 		return {
-			root, element, icon, name, installCount, syncIgnored, ratings, author, description, disposables: [disposables], actionbar,
+			root, element, icon, name, installCount, ratings, author, description, disposables: [disposables], actionbar,
 			extensionDisposables: [],
 			set extension(extension: IExtension) {
 				extensionContainers.extension = extension;
@@ -209,24 +202,9 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			}
 		}, this, data.extensionDisposables);
 
-
-		this.updateExtensionIgnored(extension, data);
-		this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectedKeys.includes('sync.ignoredExtensions')) {
-				this.updateExtensionIgnored(extension, data);
-			}
-		}, data.extensionDisposables);
 	}
 
 	disposeTemplate(data: ITemplateData): void {
 		data.disposables = dispose(data.disposables);
-	}
-
-	private updateExtensionIgnored(extension: IExtension, data: ITemplateData): void {
-		data.syncIgnored.style.display = this.extensionIsIgnored(extension.identifier) ? 'block' : 'none';
-	}
-
-	private extensionIsIgnored(identifier: IExtensionIdentifier): boolean {
-		return this.configurationService.getValue<string[]>('sync.ignoredExtensions').some(id => areSameExtensions({ id }, identifier));
 	}
 }

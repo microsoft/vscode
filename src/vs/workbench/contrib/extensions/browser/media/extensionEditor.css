@@ -154,14 +154,30 @@
 	justify-content: flex-start;
 }
 
-.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .action-label {
-	font-weight: 600;
-	margin: 4px 8px 4px 0px;
-	padding: 1px 6px;
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .extension-action {
+	margin-right: 8px;
 }
 
-.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .extension-action {
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .extension-action.label {
+	font-weight: 600;
+	padding: 1px 6px;
 	max-width: 300px;
+}
+
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .action-label.system-disable {
+	margin-right: 0;
+}
+
+.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.extension-status-label,
+.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.disable-status,
+.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.malicious-status {
+	font-weight: normal;
+}
+
+.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.extension-status-label:hover,
+.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.disable-status:hover,
+.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.malicious-status:hover {
+	opacity: 0.9;
 }
 
 .extension-editor > .header > .details > .subtext-container {
@@ -189,34 +205,6 @@
 	margin-left: 4px;
 	padding-top: 0;
 	padding-bottom: 2px;
-}
-
-.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .action-label.disable-status {
-	margin-left: 0;
-	margin-top: 6px;
-	padding-left: 0;
-}
-
-.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .action-label.system-disable {
-	margin-right: 0.15em;
-}
-
-.monaco-action-bar .action-item .action-label.system-disable.codicon {
-	opacity: 1;
-	height: 18px;
-	width: 10px;
-}
-
-.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.extension-status-label,
-.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.disable-status,
-.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.malicious-status {
-	font-weight: normal;
-}
-
-.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.extension-status-label:hover,
-.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.disable-status:hover,
-.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.malicious-status:hover {
-	opacity: 0.9;
 }
 
 .extension-editor > .header.recommended > .details > .recommendation > .monaco-action-bar .actions-container {
