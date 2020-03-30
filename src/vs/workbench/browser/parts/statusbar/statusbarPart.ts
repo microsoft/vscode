@@ -359,9 +359,9 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	) {
 		super(Parts.STATUSBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 
+		storageKeysSyncRegistryService.registerStorageKey({ key: StatusbarViewModel.HIDDEN_ENTRIES_KEY, version: 1 });
 		this.viewModel = this._register(new StatusbarViewModel(storageService));
 		this.onDidChangeEntryVisibility = this.viewModel.onDidChangeEntryVisibility;
-		storageKeysSyncRegistryService.registerStorageKey({ key: StatusbarViewModel.HIDDEN_ENTRIES_KEY, version: 1 });
 
 		this.registerListeners();
 	}

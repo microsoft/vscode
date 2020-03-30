@@ -51,8 +51,16 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 	) {
 		super(SyncResource.GlobalState, fileService, environmentService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService);
 		this._register(this.fileService.watch(dirname(this.environmentService.argvResource)));
-		this._register(Event.filter(this.fileService.onDidFilesChange, e => e.contains(this.environmentService.argvResource))(() => this._onDidChangeLocal.fire()));
-		this._register(Event.filter(this.storageService.onDidChangeStorage, e => storageKeysSyncRegistryService.storageKeys.some(({ key }) => e.key === key))(() => this._onDidChangeLocal.fire()));
+		this._register(
+			Event.any(
+				/* Locale change */
+				Event.filter(this.fileService.onDidFilesChange, e => e.contains(this.environmentService.argvResource)),
+				/* Storage change */
+				Event.filter(this.storageService.onDidChangeStorage, e => storageKeysSyncRegistryService.storageKeys.some(({ key }) => e.key === key)),
+				/* Storage key registered */
+				this.storageKeysSyncRegistryService.onDidChangeStorageKeys
+			)((() => this._onDidChangeLocal.fire()))
+		);
 	}
 
 	async pull(): Promise<void> {
