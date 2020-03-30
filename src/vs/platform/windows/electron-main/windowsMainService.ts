@@ -458,7 +458,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		if (openConfig.initialStartup && !openConfig.cli.extensionDevelopmentPath && !openConfig.cli['disable-restore-windows']) {
 
 			// Untitled workspaces are always restored
-			workspacesToRestore = [...this.workspacesMainService.getUntitledWorkspacesSync()];
+			workspacesToRestore = this.workspacesMainService.getUntitledWorkspacesSync();
 			workspacesToOpen.push(...workspacesToRestore);
 
 			// Empty windows with backups are always restored
