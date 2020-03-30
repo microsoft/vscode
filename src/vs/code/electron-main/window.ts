@@ -26,7 +26,6 @@ import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import * as perf from 'vs/base/common/performance';
 import { resolveMarketplaceHeaders } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
-import { endsWith } from 'vs/base/common/strings';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
@@ -367,7 +366,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this._win.webContents.session.webRequest.onBeforeRequest(null!, (details, callback) => {
 			if (details.url.indexOf('.svg') > 0) {
 				const uri = URI.parse(details.url);
-				if (uri && !uri.scheme.match(/file/i) && endsWith(uri.path, '.svg')) {
+				if (uri && !uri.scheme.match(/file/i) && uri.path.endsWith('.svg')) {
 					return callback({ cancel: true });
 				}
 			}

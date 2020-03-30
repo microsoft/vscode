@@ -405,14 +405,14 @@ function location(recent: IRecent): URI {
 	return recent.workspace.configPath;
 }
 
-function indexOfWorkspace(arr: IRecent[], workspace: IWorkspaceIdentifier): number {
-	return arrays.firstIndex(arr, w => isRecentWorkspace(w) && w.workspace.id === workspace.id);
+function indexOfWorkspace(arr: IRecent[], candidate: IWorkspaceIdentifier): number {
+	return arr.findIndex(workspace => isRecentWorkspace(workspace) && workspace.workspace.id === candidate.id);
 }
 
-function indexOfFolder(arr: IRecent[], folderURI: ISingleFolderWorkspaceIdentifier): number {
-	return arrays.firstIndex(arr, f => isRecentFolder(f) && areResourcesEqual(f.folderUri, folderURI));
+function indexOfFolder(arr: IRecent[], candidate: ISingleFolderWorkspaceIdentifier): number {
+	return arr.findIndex(folder => isRecentFolder(folder) && areResourcesEqual(folder.folderUri, candidate));
 }
 
-function indexOfFile(arr: IRecentFile[], fileURI: URI): number {
-	return arrays.firstIndex(arr, f => areResourcesEqual(f.fileUri, fileURI));
+function indexOfFile(arr: IRecentFile[], candidate: URI): number {
+	return arr.findIndex(file => areResourcesEqual(file.fileUri, candidate));
 }

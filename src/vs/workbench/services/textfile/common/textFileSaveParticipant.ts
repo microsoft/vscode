@@ -11,6 +11,7 @@ import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/
 import { ITextFileSaveParticipant, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { insert } from 'vs/base/common/arrays';
 
 export class TextFileSaveParticipant extends Disposable {
 
@@ -24,9 +25,9 @@ export class TextFileSaveParticipant extends Disposable {
 	}
 
 	addSaveParticipant(participant: ITextFileSaveParticipant): IDisposable {
-		this.saveParticipants.push(participant);
+		const remove = insert(this.saveParticipants, participant);
 
-		return toDisposable(() => this.saveParticipants.splice(this.saveParticipants.indexOf(participant), 1));
+		return toDisposable(() => remove());
 	}
 
 	participate(model: ITextFileEditorModel, context: { reason: SaveReason; }, token: CancellationToken): Promise<void> {

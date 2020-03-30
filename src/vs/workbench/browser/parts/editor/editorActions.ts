@@ -18,7 +18,6 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { values } from 'vs/base/common/map';
 import { ItemActivation, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { AllEditorsByMostRecentlyUsedQuickAccess, ActiveGroupEditorsByMostRecentlyUsedQuickAccess, AllEditorsByAppearanceQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
 
@@ -578,7 +577,7 @@ export abstract class BaseCloseAllAction extends Action {
 			dirtyEditorsToConfirm.add(name);
 		}
 
-		const confirm = await this.fileDialogService.showSaveConfirm(values(dirtyEditorsToConfirm));
+		const confirm = await this.fileDialogService.showSaveConfirm(Array.from(dirtyEditorsToConfirm.values()));
 		if (confirm === ConfirmResult.CANCEL) {
 			return;
 		}
