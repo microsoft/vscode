@@ -61,7 +61,8 @@ abstract class BaseOpenRecentAction extends Action {
 		private keybindingService: IKeybindingService,
 		private modelService: IModelService,
 		private modeService: IModeService,
-		private hostService: IHostService
+		private hostService: IHostService,
+		private dialogService: IDialogService
 	) {
 		super(id, label);
 	}
@@ -75,11 +76,11 @@ abstract class BaseOpenRecentAction extends Action {
 		// Identify all folders and workspaces with dirty files
 		const dirtyFolders = new ResourceMap<boolean>();
 		const dirtyWorkspaces = new ResourceMap<IWorkspaceIdentifier>();
-		for (const backup of dirtyWorkspacesAndFolders) {
-			if (isRecentFolder(backup)) {
-				dirtyFolders.set(backup.folderUri, true);
+		for (const dirtyWorkspace of dirtyWorkspacesAndFolders) {
+			if (isRecentFolder(dirtyWorkspace)) {
+				dirtyFolders.set(dirtyWorkspace.folderUri, true);
 			} else {
-				dirtyWorkspaces.set(backup.workspace.configPath, backup.workspace);
+				dirtyWorkspaces.set(dirtyWorkspace.workspace.configPath, dirtyWorkspace.workspace);
 			}
 		}
 
@@ -103,12 +104,15 @@ abstract class BaseOpenRecentAction extends Action {
 		}
 
 		// Fill any backup workspace that is not yet shown at the end
-		for (const backup of dirtyWorkspacesAndFolders) {
-			if ((isRecentFolder(backup) && recentFolders.has(backup.folderUri)) || (isRecentWorkspace(backup) && recentWorkspaces.has(backup.workspace.configPath))) {
+		for (const dirtyWorkspaceOrFolder of dirtyWorkspacesAndFolders) {
+			if (
+				(isRecentFolder(dirtyWorkspaceOrFolder) && recentFolders.has(dirtyWorkspaceOrFolder.folderUri)) ||
+				(isRecentWorkspace(dirtyWorkspaceOrFolder) && recentWorkspaces.has(dirtyWorkspaceOrFolder.workspace.configPath))
+			) {
 				continue; // already present
 			}
 
-			workspacePicks.push(this.toQuickPick(backup, true));
+			workspacePicks.push(this.toQuickPick(dirtyWorkspaceOrFolder, true));
 		}
 
 		const filePicks = recentlyOpened.files.map(p => this.toQuickPick(p, false));
@@ -131,9 +135,26 @@ abstract class BaseOpenRecentAction extends Action {
 			onKeyMods: mods => keyMods = mods,
 			quickNavigate: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : undefined,
 			onDidTriggerItemButton: async context => {
+
+				// Remove
 				if (context.button === this.removeFromRecentlyOpened) {
 					await this.workspacesService.removeRecentlyOpened([context.item.resource]);
 					context.removeItem();
+				}
+
+				// Dirty Workspace
+				else if (context.button === this.dirtyRecentlyOpened) {
+					const result = await this.dialogService.confirm({
+						type: 'question',
+						title: nls.localize('dirtyWorkspace', "Workspace with Dirty Files"),
+						message: nls.localize('dirtyWorkspaceConfirm', "Do you want to open the workspace to review the dirty files?"),
+						detail: nls.localize('dirtyWorkspaceConfirmDetail', "Workspaces with dirty files cannot be removed until all dirty files have been saved or reverted.")
+					});
+
+					if (result.confirmed) {
+						this.hostService.openWindow([context.item.openable]);
+						this.quickInputService.cancel();
+					}
 				}
 			}
 		});
@@ -201,9 +222,10 @@ export class OpenRecentAction extends BaseOpenRecentAction {
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
 		@ILabelService labelService: ILabelService,
-		@IHostService hostService: IHostService
+		@IHostService hostService: IHostService,
+		@IDialogService dialogService: IDialogService
 	) {
-		super(id, label, workspacesService, quickInputService, contextService, labelService, keybindingService, modelService, modeService, hostService);
+		super(id, label, workspacesService, quickInputService, contextService, labelService, keybindingService, modelService, modeService, hostService, dialogService);
 	}
 
 	protected isQuickNavigate(): boolean {
@@ -226,9 +248,10 @@ class QuickPickRecentAction extends BaseOpenRecentAction {
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
 		@ILabelService labelService: ILabelService,
-		@IHostService hostService: IHostService
+		@IHostService hostService: IHostService,
+		@IDialogService dialogService: IDialogService
 	) {
-		super(id, label, workspacesService, quickInputService, contextService, labelService, keybindingService, modelService, modeService, hostService);
+		super(id, label, workspacesService, quickInputService, contextService, labelService, keybindingService, modelService, modeService, hostService, dialogService);
 	}
 
 	protected isQuickNavigate(): boolean {
