@@ -14,7 +14,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { isEqual, basenameOrAuthority, basename, joinPath, dirname } from 'vs/base/common/resources';
 import { tildify, getPathLabel } from 'vs/base/common/labels';
-import { ltrim, endsWith } from 'vs/base/common/strings';
+import { ltrim } from 'vs/base/common/strings';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, WORKSPACE_EXTENSION, toWorkspaceIdentifier, isWorkspaceIdentifier, isUntitledWorkspace } from 'vs/platform/workspaces/common/workspaces';
 import { ILabelService, ResourceLabelFormatter, ResourceLabelFormatting, IFormatterChangeEvent } from 'vs/platform/label/common/label';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
@@ -200,7 +200,7 @@ export class LabelService extends Disposable implements ILabelService {
 
 			// Workspace: Saved
 			let filename = basename(workspace.configPath);
-			if (endsWith(filename, WORKSPACE_EXTENSION)) {
+			if (filename.endsWith(WORKSPACE_EXTENSION)) {
 				filename = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
 			}
 			let label;
@@ -275,7 +275,7 @@ export class LabelService extends Disposable implements ILabelService {
 
 	private appendSeparatorIfMissing(label: string, formatting: ResourceLabelFormatting): string {
 		let appendedLabel = label;
-		if (!endsWith(label, formatting.separator)) {
+		if (!label.endsWith(formatting.separator)) {
 			appendedLabel += formatting.separator;
 		}
 		return appendedLabel;

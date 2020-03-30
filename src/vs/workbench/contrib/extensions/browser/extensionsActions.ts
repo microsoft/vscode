@@ -139,6 +139,10 @@ function getRelativeDateLabel(date: Date): string {
 }
 
 export abstract class ExtensionAction extends Action implements IExtensionContainer {
+	static readonly EXTENSION_ACTION_CLASS = 'extension-action';
+	static readonly TEXT_ACTION_CLASS = `${ExtensionAction.EXTENSION_ACTION_CLASS} text`;
+	static readonly LABEL_ACTION_CLASS = `${ExtensionAction.EXTENSION_ACTION_CLASS} label`;
+	static readonly ICON_ACTION_CLASS = `${ExtensionAction.EXTENSION_ACTION_CLASS} icon`;
 	private _extension: IExtension | null = null;
 	get extension(): IExtension | null { return this._extension; }
 	set extension(extension: IExtension | null) { this._extension = extension; this.update(); }
@@ -150,9 +154,8 @@ export class InstallAction extends ExtensionAction {
 	private static readonly INSTALL_LABEL = localize('install', "Install");
 	private static readonly INSTALLING_LABEL = localize('installing', "Installing");
 
-	private static readonly Class = 'extension-action prominent install';
-	private static readonly InstallingClass = 'extension-action install installing';
-
+	private static readonly Class = `${ExtensionAction.LABEL_ACTION_CLASS} prominent install`;
+	private static readonly InstallingClass = `${ExtensionAction.LABEL_ACTION_CLASS} install installing`;
 
 	private _manifest: IExtensionManifest | null = null;
 	set manifest(manifest: IExtensionManifest) {
@@ -289,8 +292,8 @@ export abstract class InstallInOtherServerAction extends ExtensionAction {
 	protected static readonly INSTALL_LABEL = localize('install', "Install");
 	protected static readonly INSTALLING_LABEL = localize('installing', "Installing");
 
-	private static readonly Class = 'extension-action prominent install';
-	private static readonly InstallingClass = 'extension-action install installing';
+	private static readonly Class = `${ExtensionAction.LABEL_ACTION_CLASS} prominent install`;
+	private static readonly InstallingClass = `${ExtensionAction.LABEL_ACTION_CLASS} install installing`;
 
 	updateWhenCounterExtensionChanges: boolean = true;
 
@@ -382,8 +385,8 @@ export class UninstallAction extends ExtensionAction {
 	private static readonly UninstallLabel = localize('uninstallAction', "Uninstall");
 	private static readonly UninstallingLabel = localize('Uninstalling', "Uninstalling");
 
-	private static readonly UninstallClass = 'extension-action uninstall';
-	private static readonly UnInstallingClass = 'extension-action uninstall uninstalling';
+	private static readonly UninstallClass = `${ExtensionAction.LABEL_ACTION_CLASS} uninstall`;
+	private static readonly UnInstallingClass = `${ExtensionAction.LABEL_ACTION_CLASS} uninstall uninstalling`;
 
 	constructor(
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
@@ -438,7 +441,7 @@ export class UninstallAction extends ExtensionAction {
 
 export class CombinedInstallAction extends ExtensionAction {
 
-	private static readonly NoExtensionClass = 'extension-action prominent install no-extension';
+	private static readonly NoExtensionClass = `${ExtensionAction.LABEL_ACTION_CLASS} prominent install no-extension`;
 	private installAction: InstallAction;
 	private uninstallAction: UninstallAction;
 
@@ -505,7 +508,7 @@ export class CombinedInstallAction extends ExtensionAction {
 
 export class UpdateAction extends ExtensionAction {
 
-	private static readonly EnabledClass = 'extension-action prominent update';
+	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} prominent update`;
 	private static readonly DisabledClass = `${UpdateAction.EnabledClass} disabled`;
 
 	constructor(
@@ -663,6 +666,7 @@ export class DropDownMenuActionViewItem extends ExtensionActionViewItem {
 export function getContextMenuActions(menuService: IMenuService, contextKeyService: IContextKeyService, instantiationService: IInstantiationService, extension: IExtension | undefined | null): ExtensionAction[][] {
 	const scopedContextKeyService = contextKeyService.createScoped();
 	if (extension) {
+		scopedContextKeyService.createKey<string>('extension', extension.identifier.id);
 		scopedContextKeyService.createKey<boolean>('isBuiltinExtension', extension.type === ExtensionType.System);
 		scopedContextKeyService.createKey<boolean>('extensionHasConfiguration', extension.local && !!extension.local.manifest.contributes && !!extension.local.manifest.contributes.configuration);
 		if (extension.state === ExtensionState.Installed) {
@@ -681,7 +685,8 @@ export function getContextMenuActions(menuService: IMenuService, contextKeyServi
 export class ManageExtensionAction extends ExtensionDropDownAction {
 
 	static readonly ID = 'extensions.manage';
-	private static readonly Class = 'extension-action manage codicon-gear';
+
+	private static readonly Class = `${ExtensionAction.ICON_ACTION_CLASS} manage codicon-gear`;
 	private static readonly HideManageExtensionClass = `${ManageExtensionAction.Class} hide`;
 
 	constructor(
@@ -952,8 +957,8 @@ export class DisableGloballyAction extends ExtensionAction {
 
 export abstract class ExtensionEditorDropDownAction extends ExtensionDropDownAction {
 
-	private static readonly EnabledClass = 'extension-action extension-editor-dropdown-action';
-	private static readonly EnabledDropDownClass = 'extension-action extension-editor-dropdown-action dropdown enable';
+	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} extension-editor-dropdown-action`;
+	private static readonly EnabledDropDownClass = `${ExtensionEditorDropDownAction.EnabledClass} dropdown enable`;
 	private static readonly DisabledClass = `${ExtensionEditorDropDownAction.EnabledClass} disabled`;
 
 	constructor(
@@ -1161,7 +1166,7 @@ export class UpdateAllAction extends Action {
 
 export class ReloadAction extends ExtensionAction {
 
-	private static readonly EnabledClass = 'extension-action reload';
+	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} reload`;
 	private static readonly DisabledClass = `${ReloadAction.EnabledClass} disabled`;
 
 	updateWhenCounterExtensionChanges: boolean = true;
@@ -1302,9 +1307,8 @@ export class SetColorThemeAction extends ExtensionAction {
 		return colorThemes.filter(c => c.extensionData && ExtensionIdentifier.equals(c.extensionData.extensionId, extension.identifier.id));
 	}
 
-	private static readonly EnabledClass = 'extension-action theme';
+	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} theme`;
 	private static readonly DisabledClass = `${SetColorThemeAction.EnabledClass} disabled`;
-
 
 	constructor(
 		private readonly colorThemes: IWorkbenchColorTheme[],
@@ -1364,9 +1368,8 @@ export class SetColorThemeAction extends ExtensionAction {
 
 export class SetFileIconThemeAction extends ExtensionAction {
 
-	private static readonly EnabledClass = 'extension-action theme';
+	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} theme`;
 	private static readonly DisabledClass = `${SetFileIconThemeAction.EnabledClass} disabled`;
-
 
 	static getFileIconThemes(fileIconThemes: IWorkbenchFileIconTheme[], extension: IExtension): IWorkbenchFileIconTheme[] {
 		return fileIconThemes.filter(c => c.extensionData && ExtensionIdentifier.equals(c.extensionData.extensionId, extension.identifier.id));
@@ -1789,7 +1792,6 @@ export class UndoIgnoreExtensionRecommendationAction extends Action {
 	}
 }
 
-
 export class ShowRecommendedKeymapExtensionsAction extends Action {
 
 	static readonly ID = 'workbench.extensions.action.showRecommendedKeymapExtensions';
@@ -2183,7 +2185,6 @@ export class ConfigureWorkspaceRecommendedExtensionsAction extends AbstractConfi
 	static readonly ID = 'workbench.extensions.action.configureWorkspaceRecommendedExtensions';
 	static readonly LABEL = localize('configureWorkspaceRecommendedExtensions', "Configure Recommended Extensions (Workspace)");
 
-
 	constructor(
 		id: string,
 		label: string,
@@ -2218,7 +2219,6 @@ export class ConfigureWorkspaceFolderRecommendedExtensionsAction extends Abstrac
 
 	static readonly ID = 'workbench.extensions.action.configureWorkspaceFolderRecommendedExtensions';
 	static readonly LABEL = localize('configureWorkspaceFolderRecommendedExtensions', "Configure Recommended Extensions (Workspace Folder)");
-
 
 	constructor(
 		id: string,
@@ -2410,7 +2410,7 @@ export class AddToWorkspaceRecommendationsAction extends AbstractConfigureRecomm
 
 export class StatusLabelAction extends Action implements IExtensionContainer {
 
-	private static readonly ENABLED_CLASS = 'extension-status-label';
+	private static readonly ENABLED_CLASS = `${ExtensionAction.TEXT_ACTION_CLASS} extension-status-label`;
 	private static readonly DISABLED_CLASS = `${StatusLabelAction.ENABLED_CLASS} hide`;
 
 	private initialStatus: ExtensionState | null = null;
@@ -2512,7 +2512,7 @@ export class StatusLabelAction extends Action implements IExtensionContainer {
 
 export class MaliciousStatusLabelAction extends ExtensionAction {
 
-	private static readonly Class = 'malicious-status';
+	private static readonly Class = `${ExtensionAction.TEXT_ACTION_CLASS} malicious-status`;
 
 	constructor(long: boolean) {
 		const tooltip = localize('malicious tooltip', "This extension was reported to be problematic.");
@@ -2534,9 +2534,38 @@ export class MaliciousStatusLabelAction extends ExtensionAction {
 	}
 }
 
+export class SyncIgnoredIconAction extends ExtensionAction {
+
+	private static readonly ENABLE_CLASS = `${ExtensionAction.ICON_ACTION_CLASS} codicon-eye-closed`;
+	private static readonly DISABLE_CLASS = `${SyncIgnoredIconAction.ENABLE_CLASS} hide`;
+
+	constructor(
+		@IConfigurationService private readonly configurationService: IConfigurationService
+	) {
+		super('extensions.syncignore', '', SyncIgnoredIconAction.DISABLE_CLASS, false);
+		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectedKeys.includes('sync.ignoredExtensions'))(() => this.update()));
+		this.update();
+		this.tooltip = localize('syncingore.label', "This extension is ignored during sync.");
+	}
+
+	update(): void {
+		this.class = SyncIgnoredIconAction.DISABLE_CLASS;
+		if (this.extension) {
+			const ignoredExtensions = this.configurationService.getValue<string[]>('sync.ignoredExtensions') || [];
+			if (ignoredExtensions.some(id => areSameExtensions({ id }, this.extension!.identifier))) {
+				this.class = SyncIgnoredIconAction.ENABLE_CLASS;
+			}
+		}
+	}
+
+	run(): Promise<any> {
+		return Promise.resolve();
+	}
+}
+
 export class ExtensionToolTipAction extends ExtensionAction {
 
-	private static readonly Class = 'disable-status';
+	private static readonly Class = `${ExtensionAction.TEXT_ACTION_CLASS} disable-status`;
 
 	updateWhenCounterExtensionChanges: boolean = true;
 	private _runningExtensions: IExtensionDescription[] | null = null;
@@ -2613,7 +2642,7 @@ export class ExtensionToolTipAction extends ExtensionAction {
 
 export class SystemDisabledWarningAction extends ExtensionAction {
 
-	private static readonly CLASS = 'system-disable';
+	private static readonly CLASS = `${ExtensionAction.ICON_ACTION_CLASS} system-disable`;
 	private static readonly WARNING_CLASS = `${SystemDisabledWarningAction.CLASS} codicon-warning`;
 	private static readonly INFO_CLASS = `${SystemDisabledWarningAction.CLASS} codicon-info`;
 
@@ -2704,7 +2733,6 @@ export class DisableAllAction extends Action {
 	static readonly ID = 'workbench.extensions.action.disableAll';
 	static readonly LABEL = localize('disableAll', "Disable All Installed Extensions");
 
-
 	constructor(
 		id: string = DisableAllAction.ID, label: string = DisableAllAction.LABEL,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
@@ -2728,7 +2756,6 @@ export class DisableAllWorkspaceAction extends Action {
 
 	static readonly ID = 'workbench.extensions.action.disableAllWorkspace';
 	static readonly LABEL = localize('disableAllWorkspace', "Disable All Installed Extensions for this Workspace");
-
 
 	constructor(
 		id: string = DisableAllWorkspaceAction.ID, label: string = DisableAllWorkspaceAction.LABEL,
@@ -2756,7 +2783,6 @@ export class EnableAllAction extends Action {
 	static readonly ID = 'workbench.extensions.action.enableAll';
 	static readonly LABEL = localize('enableAll', "Enable All Extensions");
 
-
 	constructor(
 		id: string = EnableAllAction.ID, label: string = EnableAllAction.LABEL,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
@@ -2780,7 +2806,6 @@ export class EnableAllWorkspaceAction extends Action {
 
 	static readonly ID = 'workbench.extensions.action.enableAllWorkspace';
 	static readonly LABEL = localize('enableAllWorkspace', "Enable All Extensions for this Workspace");
-
 
 	constructor(
 		id: string = EnableAllWorkspaceAction.ID, label: string = EnableAllWorkspaceAction.LABEL,
@@ -3186,49 +3211,49 @@ export const extensionButtonProminentHoverBackground = registerColor('extensionB
 registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 	const foregroundColor = theme.getColor(foreground);
 	if (foregroundColor) {
-		collector.addRule(`.extension .monaco-action-bar .action-item .action-label.extension-action.built-in-status { border-color: ${foregroundColor}; }`);
+		collector.addRule(`.extension-list-item .monaco-action-bar .action-item .action-label.extension-action.built-in-status { border-color: ${foregroundColor}; }`);
 		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action.built-in-status { border-color: ${foregroundColor}; }`);
 	}
 
 	const buttonBackgroundColor = theme.getColor(buttonBackground);
 	if (buttonBackgroundColor) {
-		collector.addRule(`.extension .monaco-action-bar .action-item .action-label.extension-action { background-color: ${buttonBackgroundColor}; }`);
-		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action { background-color: ${buttonBackgroundColor}; }`);
+		collector.addRule(`.extension-list-item .monaco-action-bar .action-item .action-label.extension-action.label { background-color: ${buttonBackgroundColor}; }`);
+		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action.label { background-color: ${buttonBackgroundColor}; }`);
 	}
 
 	const buttonForegroundColor = theme.getColor(buttonForeground);
 	if (buttonForegroundColor) {
-		collector.addRule(`.extension .monaco-action-bar .action-item .action-label.extension-action { color: ${buttonForegroundColor}; }`);
-		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action { color: ${buttonForegroundColor}; }`);
+		collector.addRule(`.extension-list-item .monaco-action-bar .action-item .action-label.extension-action.label { color: ${buttonForegroundColor}; }`);
+		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action.label { color: ${buttonForegroundColor}; }`);
 	}
 
 	const buttonHoverBackgroundColor = theme.getColor(buttonHoverBackground);
 	if (buttonHoverBackgroundColor) {
-		collector.addRule(`.extension .monaco-action-bar .action-item:hover .action-label.extension-action { background-color: ${buttonHoverBackgroundColor}; }`);
-		collector.addRule(`.extension-editor .monaco-action-bar .action-item:hover .action-label.extension-action { background-color: ${buttonHoverBackgroundColor}; }`);
-	}
-
-	const contrastBorderColor = theme.getColor(contrastBorder);
-	if (contrastBorderColor) {
-		collector.addRule(`.extension .monaco-action-bar .action-item .action-label.extension-action { border: 1px solid ${contrastBorderColor}; }`);
-		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action { border: 1px solid ${contrastBorderColor}; }`);
+		collector.addRule(`.extension-list-item .monaco-action-bar .action-item:hover .action-label.extension-action.label { background-color: ${buttonHoverBackgroundColor}; }`);
+		collector.addRule(`.extension-editor .monaco-action-bar .action-item:hover .action-label.extension-action.label { background-color: ${buttonHoverBackgroundColor}; }`);
 	}
 
 	const extensionButtonProminentBackgroundColor = theme.getColor(extensionButtonProminentBackground);
 	if (extensionButtonProminentBackground) {
-		collector.addRule(`.extension .monaco-action-bar .action-item .action-label.extension-action.prominent { background-color: ${extensionButtonProminentBackgroundColor}; }`);
-		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action.prominent { background-color: ${extensionButtonProminentBackgroundColor}; }`);
+		collector.addRule(`.extension-list-item .monaco-action-bar .action-item .action-label.extension-action.label.prominent { background-color: ${extensionButtonProminentBackgroundColor}; }`);
+		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action.label.prominent { background-color: ${extensionButtonProminentBackgroundColor}; }`);
 	}
 
 	const extensionButtonProminentForegroundColor = theme.getColor(extensionButtonProminentForeground);
 	if (extensionButtonProminentForeground) {
-		collector.addRule(`.extension .monaco-action-bar .action-item .action-label.extension-action.prominent { color: ${extensionButtonProminentForegroundColor}; }`);
-		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action.prominent { color: ${extensionButtonProminentForegroundColor}; }`);
+		collector.addRule(`.extension-list-item .monaco-action-bar .action-item .action-label.extension-action.label.prominent { color: ${extensionButtonProminentForegroundColor}; }`);
+		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action.label.prominent { color: ${extensionButtonProminentForegroundColor}; }`);
 	}
 
 	const extensionButtonProminentHoverBackgroundColor = theme.getColor(extensionButtonProminentHoverBackground);
 	if (extensionButtonProminentHoverBackground) {
-		collector.addRule(`.extension .monaco-action-bar .action-item:hover .action-label.extension-action.prominent { background-color: ${extensionButtonProminentHoverBackgroundColor}; }`);
-		collector.addRule(`.extension-editor .monaco-action-bar .action-item:hover .action-label.extension-action.prominent { background-color: ${extensionButtonProminentHoverBackgroundColor}; }`);
+		collector.addRule(`.extension-list-item .monaco-action-bar .action-item:hover .action-label.extension-action.label.prominent { background-color: ${extensionButtonProminentHoverBackgroundColor}; }`);
+		collector.addRule(`.extension-editor .monaco-action-bar .action-item:hover .action-label.extension-action.label.prominent { background-color: ${extensionButtonProminentHoverBackgroundColor}; }`);
+	}
+
+	const contrastBorderColor = theme.getColor(contrastBorder);
+	if (contrastBorderColor) {
+		collector.addRule(`.extension-list-item .monaco-action-bar .action-item .action-label.extension-action { border: 1px solid ${contrastBorderColor}; }`);
+		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action { border: 1px solid ${contrastBorderColor}; }`);
 	}
 });

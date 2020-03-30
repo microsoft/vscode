@@ -154,14 +154,30 @@
 	justify-content: flex-start;
 }
 
-.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .action-label {
-	font-weight: 600;
-	margin: 4px 8px 4px 0px;
-	padding: 1px 6px;
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .extension-action {
+	margin-right: 8px;
 }
 
-.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .extension-action {
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .extension-action.label {
+	font-weight: 600;
+	padding: 1px 6px;
 	max-width: 300px;
+}
+
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .action-label.system-disable {
+	margin-right: 0;
+}
+
+.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.extension-status-label,
+.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.disable-status,
+.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.malicious-status {
+	font-weight: normal;
+}
+
+.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.extension-status-label:hover,
+.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.disable-status:hover,
+.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.malicious-status:hover {
+	opacity: 0.9;
 }
 
 .extension-editor > .header > .details > .subtext-container {
@@ -183,11 +199,16 @@
 	margin-top: 5px;
 	margin-right: 4px;
 }
+
 .extension-editor > .header > .details > .subtext-container > .monaco-action-bar .action-label {
 	margin-top: 4px;
 	margin-left: 4px;
 	padding-top: 0;
 	padding-bottom: 2px;
+}
+
+.extension-editor > .header.recommended > .details > .recommendation > .monaco-action-bar .actions-container {
+	justify-content: flex-start;
 }
 
 .extension-editor > .body {
@@ -245,6 +266,52 @@
 
 .extension-editor > .body > .content > .nocontent {
 	margin-left: 20px;
+}
+
+.extension-editor > .body > .content > .extension-pack-readme {
+	height: 100%;
+}
+
+.extension-editor > .body > .content > .extension-pack-readme > .extension-pack {
+	height: 224px;
+	padding-left: 20px;
+}
+
+.extension-editor > .body > .content > .extension-pack-readme.narrow > .extension-pack {
+	height: 142px;
+}
+
+.extension-editor > .body > .content > .extension-pack-readme > .readme-content {
+	height: calc(100% - 224px);
+}
+
+.extension-editor > .body > .content > .extension-pack-readme.narrow > .readme-content {
+	height: calc(100% - 142px);
+}
+
+.extension-editor > .body > .content > .extension-pack-readme > .extension-pack > .header,
+.extension-editor > .body > .content > .extension-pack-readme > .extension-pack > .footer {
+	margin-bottom: 10px;
+	margin-right: 30px;
+	font-weight: bold;
+	font-size: 120%;
+	border-bottom: 1px solid rgba(128, 128, 128, 0.22);
+	padding: 4px 6px;
+	line-height: 22px;
+}
+
+.extension-editor > .body > .content > .extension-pack-readme > .extension-pack > .extension-pack-content {
+	height: calc(100% - 60px);
+}
+
+.extension-editor > .body > .content > .extension-pack-readme > .extension-pack > .extension-pack-content > .monaco-scrollable-element {
+	height: 100%;
+}
+
+.extension-editor > .body > .content .extension-pack-readme > .extension-pack > .extension-pack-content > .monaco-scrollable-element > .subcontent {
+	height: 100%;
+	overflow-y: scroll;
+	box-sizing: border-box;
 }
 
 .extension-editor > .body > .content > .monaco-scrollable-element > .subcontent {
@@ -397,4 +464,26 @@
 	font-size: 90%;
 	font-weight: 600;
 	opacity: 0.6;
+}
+
+.extension-editor .extensions-grid-view {
+	display: flex;
+	flex-wrap: wrap;
+}
+
+.extension-editor .extensions-grid-view > .extension-container {
+	margin: 0 10px 20px 0;
+}
+
+.extension-editor .extensions-grid-view .extension-list-item {
+	cursor: default;
+}
+
+.extension-editor .extensions-grid-view .extension-list-item > .details .header > .name {
+	cursor: pointer;
+}
+
+.extension-editor .extensions-grid-view > .extension-container:focus > .extension-list-item > .details .header > .name,
+.extension-editor .extensions-grid-view > .extension-container:focus > .extension-list-item > .details .header > .name:hover {
+	text-decoration: underline;
 }

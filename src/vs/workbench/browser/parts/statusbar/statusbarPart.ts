@@ -31,7 +31,6 @@ import { coalesce, find } from 'vs/base/common/arrays';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ToggleStatusbarVisibilityAction } from 'vs/workbench/browser/actions/layoutActions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import { values } from 'vs/base/common/map';
 import { assertIsDefined } from 'vs/base/common/types';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Command } from 'vs/editor/common/modes';
@@ -227,7 +226,7 @@ class StatusbarViewModel extends Disposable {
 
 	private saveState(): void {
 		if (this.hidden.size > 0) {
-			this.storageService.store(StatusbarViewModel.HIDDEN_ENTRIES_KEY, JSON.stringify(values(this.hidden)), StorageScope.GLOBAL);
+			this.storageService.store(StatusbarViewModel.HIDDEN_ENTRIES_KEY, JSON.stringify(Array.from(this.hidden.values())), StorageScope.GLOBAL);
 		} else {
 			this.storageService.remove(StatusbarViewModel.HIDDEN_ENTRIES_KEY, StorageScope.GLOBAL);
 		}

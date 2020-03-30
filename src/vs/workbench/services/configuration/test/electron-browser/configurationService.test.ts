@@ -31,7 +31,7 @@ import { JSONEditingService } from 'vs/workbench/services/configuration/common/j
 import { createHash } from 'crypto';
 import { Schemas } from 'vs/base/common/network';
 import { originalFSPath, joinPath } from 'vs/base/common/resources';
-import { isLinux } from 'vs/base/common/platform';
+import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -1123,7 +1123,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	});
 
 	test('deleting workspace settings', async () => {
-		if (isLinux) {
+		if (!isMacintosh) {
 			return;
 		}
 		fs.writeFileSync(globalSettingsFile, '{ "configurationService.folder.testSetting": "userValue" }');

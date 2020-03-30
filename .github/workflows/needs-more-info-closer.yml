@@ -1,0 +1,21 @@
+name: Needs More Info Closer
+on:
+  schedule:
+    - cron: 20 11 * * * # 4:20am Redmond
+# on: repository_dispatch
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Actions
+        uses: actions/checkout@v2
+        with:
+          repository: 'JacksonKearl/vscode-triage-github-actions'
+          ref: v16
+      - name: Run Needs More Info Closer
+        uses: ./needs-more-info-closer
+        with:
+          label: needs more info
+          days: 7
+          comment: "This issue has been closed automatically because it needs more information and has not had recent activity. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines.\n\nHappy Coding!"

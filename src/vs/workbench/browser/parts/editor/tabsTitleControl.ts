@@ -56,6 +56,11 @@ type AugmentedLabel = IEditorInputLabel & { editor: IEditorInput };
 
 export class TabsTitleControl extends TitleControl {
 
+	private static readonly SCROLLBAR_SIZES = {
+		default: 3,
+		large: 10
+	};
+
 	private titleContainer: HTMLElement | undefined;
 	private tabsContainer: HTMLElement | undefined;
 	private editorToolbarContainer: HTMLElement | undefined;
@@ -103,6 +108,16 @@ export class TabsTitleControl extends TitleControl {
 		(async () => this.path = await this.remotePathService.path)();
 	}
 
+	protected registerListeners(): void {
+		super.registerListeners();
+
+		this._register(this.accessor.onDidEditorPartOptionsChange(e => {
+			if (e.oldPartOptions.titleScrollbarSizing !== e.newPartOptions.titleScrollbarSizing) {
+				this.updateTabsScrollbarSizing();
+			}
+		}));
+	}
+
 	protected create(parent: HTMLElement): void {
 		this.titleContainer = parent;
 
@@ -143,10 +158,10 @@ export class TabsTitleControl extends TitleControl {
 	private createTabsScrollbar(scrollable: HTMLElement): ScrollableElement {
 		const tabsScrollbar = new ScrollableElement(scrollable, {
 			horizontal: ScrollbarVisibility.Auto,
+			horizontalScrollbarSize: this.getTabsScrollbarSizing(),
 			vertical: ScrollbarVisibility.Hidden,
 			scrollYToX: true,
-			useShadows: false,
-			horizontalScrollbarSize: 3
+			useShadows: false
 		});
 
 		tabsScrollbar.onScroll(e => {
@@ -154,6 +169,20 @@ export class TabsTitleControl extends TitleControl {
 		});
 
 		return tabsScrollbar;
+	}
+
+	private updateTabsScrollbarSizing(): void {
+		this.tabsScrollbar?.updateOptions({
+			horizontalScrollbarSize: this.getTabsScrollbarSizing()
+		});
+	}
+
+	private getTabsScrollbarSizing(): number {
+		if (this.accessor.partOptions.titleScrollbarSizing !== 'large') {
+			return TabsTitleControl.SCROLLBAR_SIZES.default;
+		}
+
+		return TabsTitleControl.SCROLLBAR_SIZES.large;
 	}
 
 	private updateBreadcrumbsControl(): void {

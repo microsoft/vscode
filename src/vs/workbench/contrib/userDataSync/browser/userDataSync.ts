@@ -52,7 +52,6 @@ import { fromNow } from 'vs/base/common/date';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { timeout } from 'vs/base/common/async';
 import { distinct } from 'vs/base/common/arrays';
 
 const enum AuthStatus {
@@ -605,7 +604,17 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				case 0: this.openerService.open(URI.parse('https://aka.ms/vscode-settings-sync-help')); return;
 				case 2: return;
 			}
+		} else if (skipAccountPick) {
+			const result = await this.dialogService.confirm({
+				type: 'info',
+				message: localize('turn on sync confirmation', "Do you want to turn on preferences sync?"),
+				primaryButton: localize('turn on', "Turn On")
+			});
+			if (!result.confirmed) {
+				return;
+			}
 		}
+
 		return new Promise((c, e) => {
 			const disposables: DisposableStore = new DisposableStore();
 			const quickPick = this.quickInputService.createQuickPick<ConfigureSyncQuickPickItem>();
@@ -1025,7 +1034,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			constructor() {
 				super({
 					id: 'workbench.userData.actions.syncStatus',
-					title: localize('sync is on', "Preferences sync is on"),
+					title: localize('sync is on', "Preferences Sync is On"),
 					menu: [
 						{
 							id: MenuId.GlobalActivity,
@@ -1074,8 +1083,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					quickPick.items = items;
 					disposables.add(quickPick.onDidAccept(() => {
 						if (quickPick.selectedItems[0] && quickPick.selectedItems[0].id) {
-							// Introduce timeout as workaround - #91661 #91740
-							timeout(0).then(() => commandService.executeCommand(quickPick.selectedItems[0].id!));
+							commandService.executeCommand(quickPick.selectedItems[0].id);
 						}
 						quickPick.hide();
 					}));

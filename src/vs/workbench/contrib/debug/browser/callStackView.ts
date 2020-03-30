@@ -663,10 +663,10 @@ class CallStackDelegate implements IListVirtualDelegate<CallStackItem> {
 
 	getHeight(element: CallStackItem): number {
 		if (element instanceof StackFrame && element.presentationHint === 'label') {
-			return 12;
+			return 16;
 		}
 		if (element instanceof ThreadAndSessionIds || element instanceof Array) {
-			return 12;
+			return 16;
 		}
 
 		return 22;

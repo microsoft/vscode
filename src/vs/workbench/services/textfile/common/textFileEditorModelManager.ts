@@ -9,7 +9,7 @@ import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { dispose, IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ITextFileEditorModel, ITextFileEditorModelManager, ITextFileEditorModelLoadOrCreateOptions, ITextFileLoadEvent, ITextFileSaveEvent, ITextFileSaveParticipant, IResolvedTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileEditorModel, ITextFileEditorModelManager, ITextFileEditorModelLoadOrCreateOptions, ITextFileLoadEvent, ITextFileSaveEvent, ITextFileSaveParticipant } from 'vs/workbench/services/textfile/common/textfiles';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ResourceMap } from 'vs/base/common/map';
@@ -388,7 +388,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		return this.saveParticipants.addSaveParticipant(participant);
 	}
 
-	runSaveParticipants(model: IResolvedTextFileEditorModel, context: { reason: SaveReason; }, token: CancellationToken): Promise<void> {
+	runSaveParticipants(model: ITextFileEditorModel, context: { reason: SaveReason; }, token: CancellationToken): Promise<void> {
 		return this.saveParticipants.participate(model, context, token);
 	}
 

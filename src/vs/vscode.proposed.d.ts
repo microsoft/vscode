@@ -247,222 +247,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Semantic tokens: https://github.com/microsoft/vscode/issues/86415
-
-	export class SemanticTokensLegend {
-		public readonly tokenTypes: string[];
-		public readonly tokenModifiers: string[];
-
-		constructor(tokenTypes: string[], tokenModifiers: string[]);
-	}
-
-	export class SemanticTokensBuilder {
-		constructor();
-		push(line: number, char: number, length: number, tokenType: number, tokenModifiers: number): void;
-		build(): Uint32Array;
-	}
-
-	export class SemanticTokens {
-		/**
-		 * The result id of the tokens.
-		 *
-		 * This is the id that will be passed to `DocumentSemanticTokensProvider.provideDocumentSemanticTokensEdits` (if implemented).
-		 */
-		readonly resultId?: string;
-		readonly data: Uint32Array;
-
-		constructor(data: Uint32Array, resultId?: string);
-	}
-
-	export class SemanticTokensEdits {
-		/**
-		 * The result id of the tokens.
-		 *
-		 * This is the id that will be passed to `DocumentSemanticTokensProvider.provideDocumentSemanticTokensEdits` (if implemented).
-		 */
-		readonly resultId?: string;
-		readonly edits: SemanticTokensEdit[];
-
-		constructor(edits: SemanticTokensEdit[], resultId?: string);
-	}
-
-	export class SemanticTokensEdit {
-		readonly start: number;
-		readonly deleteCount: number;
-		readonly data?: Uint32Array;
-
-		constructor(start: number, deleteCount: number, data?: Uint32Array);
-	}
-
-	/**
-	 * The document semantic tokens provider interface defines the contract between extensions and
-	 * semantic tokens.
-	 */
-	export interface DocumentSemanticTokensProvider {
-		/**
-		 * An optional event to signal that the semantic tokens from this provider have changed.
-		 */
-		onDidChangeSemanticTokens?: Event<void>;
-
-		/**
-		 * A file can contain many tokens, perhaps even hundreds of thousands of tokens. Therefore, to improve
-		 * the memory consumption around describing semantic tokens, we have decided to avoid allocating an object
-		 * for each token and we represent tokens from a file as an array of integers. Furthermore, the position
-		 * of each token is expressed relative to the token before it because most tokens remain stable relative to
-		 * each other when edits are made in a file.
-		 *
-		 * ---
-		 * In short, each token takes 5 integers to represent, so a specific token `i` in the file consists of the following array indices:
-		 *  - at index `5*i`   - `deltaLine`: token line number, relative to the previous token
-		 *  - at index `5*i+1` - `deltaStart`: token start character, relative to the previous token (relative to 0 or the previous token's start if they are on the same line)
-		 *  - at index `5*i+2` - `length`: the length of the token. A token cannot be multiline.
-		 *  - at index `5*i+3` - `tokenType`: will be looked up in `SemanticTokensLegend.tokenTypes`. We currently ask that `tokenType` < 65536.
-		 *  - at index `5*i+4` - `tokenModifiers`: each set bit will be looked up in `SemanticTokensLegend.tokenModifiers`
-		 *
-		 * ---
-		 * ### How to encode tokens
-		 *
-		 * Here is an example for encoding a file with 3 tokens in a uint32 array:
-		 * ```
-		 *    { line: 2, startChar:  5, length: 3, tokenType: "property",  tokenModifiers: ["private", "static"] },
-		 *    { line: 2, startChar: 10, length: 4, tokenType: "type",      tokenModifiers: [] },
-		 *    { line: 5, startChar:  2, length: 7, tokenType: "class",     tokenModifiers: [] }
-		 * ```
-		 *
-		 * 1. First of all, a legend must be devised. This legend must be provided up-front and capture all possible token types.
-		 * For this example, we will choose the following legend which must be passed in when registering the provider:
-		 * ```
-		 *    tokenTypes: ['property', 'type', 'class'],
-		 *    tokenModifiers: ['private', 'static']
-		 * ```
-		 *
-		 * 2. The first transformation step is to encode `tokenType` and `tokenModifiers` as integers using the legend. Token types are looked
-		 * up by index, so a `tokenType` value of `1` means `tokenTypes[1]`. Multiple token modifiers can be set by using bit flags,
-		 * so a `tokenModifier` value of `3` is first viewed as binary `0b00000011`, which means `[tokenModifiers[0], tokenModifiers[1]]` because
-		 * bits 0 and 1 are set. Using this legend, the tokens now are:
-		 * ```
-		 *    { line: 2, startChar:  5, length: 3, tokenType: 0, tokenModifiers: 3 },
-		 *    { line: 2, startChar: 10, length: 4, tokenType: 1, tokenModifiers: 0 },
-		 *    { line: 5, startChar:  2, length: 7, tokenType: 2, tokenModifiers: 0 }
-		 * ```
-		 *
-		 * 3. The next step is to represent each token relative to the previous token in the file. In this case, the second token
-		 * is on the same line as the first token, so the `startChar` of the second token is made relative to the `startChar`
-		 * of the first token, so it will be `10 - 5`. The third token is on a different line than the second token, so the
-		 * `startChar` of the third token will not be altered:
-		 * ```
-		 *    { deltaLine: 2, deltaStartChar: 5, length: 3, tokenType: 0, tokenModifiers: 3 },
-		 *    { deltaLine: 0, deltaStartChar: 5, length: 4, tokenType: 1, tokenModifiers: 0 },
-		 *    { deltaLine: 3, deltaStartChar: 2, length: 7, tokenType: 2, tokenModifiers: 0 }
-		 * ```
-		 *
-		 * 4. Finally, the last step is to inline each of the 5 fields for a token in a single array, which is a memory friendly representation:
-		 * ```
-		 *    // 1st token,  2nd token,  3rd token
-		 *    [  2,5,3,0,3,  0,5,4,1,0,  3,2,7,2,0 ]
-		 * ```
-		 *
-		 * *NOTE*: When doing edits, it is possible that multiple edits occur until VS Code decides to invoke the semantic tokens provider.
-		 * *NOTE*: If the provider cannot temporarily compute semantic tokens, it can indicate this by throwing an error with the message 'Busy'.
-		 */
-		provideDocumentSemanticTokens(document: TextDocument, token: CancellationToken): ProviderResult<SemanticTokens>;
-
-		/**
-		 * Instead of always returning all the tokens in a file, it is possible for a `DocumentSemanticTokensProvider` to implement
-		 * this method (`updateSemanticTokens`) and then return incremental updates to the previously provided semantic tokens.
-		 *
-		 * ---
-		 * ### How tokens change when the document changes
-		 *
-		 * Let's look at how tokens might change.
-		 *
-		 * Continuing with the above example, suppose a new line was inserted at the top of the file.
-		 * That would make all the tokens move down by one line (notice how the line has changed for each one):
-		 * ```
-		 *    { line: 3, startChar:  5, length: 3, tokenType: "property", tokenModifiers: ["private", "static"] },
-		 *    { line: 3, startChar: 10, length: 4, tokenType: "type",     tokenModifiers: [] },
-		 *    { line: 6, startChar:  2, length: 7, tokenType: "class",    tokenModifiers: [] }
-		 * ```
-		 * The integer encoding of the tokens does not change substantially because of the delta-encoding of positions:
-		 * ```
-		 *    // 1st token,  2nd token,  3rd token
-		 *    [  3,5,3,0,3,  0,5,4,1,0,  3,2,7,2,0 ]
-		 * ```
-		 * It is possible to express these new tokens in terms of an edit applied to the previous tokens:
-		 * ```
-		 *    [  2,5,3,0,3,  0,5,4,1,0,  3,2,7,2,0 ] // old tokens
-		 *    [  3,5,3,0,3,  0,5,4,1,0,  3,2,7,2,0 ] // new tokens
-		 *
-		 *    edit: { start:  0, deleteCount: 1, data: [3] } // replace integer at offset 0 with 3
-		 * ```
-		 *
-		 * Furthermore, let's assume that a new token has appeared on line 4:
-		 * ```
-		 *    { line: 3, startChar:  5, length: 3, tokenType: "property", tokenModifiers: ["private", "static"] },
-		 *    { line: 3, startChar: 10, length: 4, tokenType: "type",      tokenModifiers: [] },
-		 *    { line: 4, startChar:  3, length: 5, tokenType: "property", tokenModifiers: ["static"] },
-		 *    { line: 6, startChar:  2, length: 7, tokenType: "class",    tokenModifiers: [] }
-		 * ```
-		 * The integer encoding of the tokens is:
-		 * ```
-		 *    // 1st token,  2nd token,  3rd token,  4th token
-		 *    [  3,5,3,0,3,  0,5,4,1,0,  1,3,5,0,2,  2,2,7,2,0, ]
-		 * ```
-		 * Again, it is possible to express these new tokens in terms of an edit applied to the previous tokens:
-		 * ```
-		 *    [  3,5,3,0,3,  0,5,4,1,0,  3,2,7,2,0 ]               // old tokens
-		 *    [  3,5,3,0,3,  0,5,4,1,0,  1,3,5,0,2,  2,2,7,2,0, ]  // new tokens
-		 *
-		 *    edit: { start: 10, deleteCount: 1, data: [1,3,5,0,2,2] } // replace integer at offset 10 with [1,3,5,0,2,2]
-		 * ```
-		 *
-		 * *NOTE*: If the provider cannot compute `SemanticTokensEdits`, it can "give up" and return all the tokens in the document again.
-		 * *NOTE*: All edits in `SemanticTokensEdits` contain indices in the old integers array, so they all refer to the previous result state.
-		 */
-		provideDocumentSemanticTokensEdits?(document: TextDocument, previousResultId: string, token: CancellationToken): ProviderResult<SemanticTokens | SemanticTokensEdits>;
-	}
-
-	/**
-	 * The document range semantic tokens provider interface defines the contract between extensions and
-	 * semantic tokens.
-	 */
-	export interface DocumentRangeSemanticTokensProvider {
-		/**
-		 * See [provideDocumentSemanticTokens](#DocumentSemanticTokensProvider.provideDocumentSemanticTokens).
-		 */
-		provideDocumentRangeSemanticTokens(document: TextDocument, range: Range, token: CancellationToken): ProviderResult<SemanticTokens>;
-	}
-
-	export namespace languages {
-		/**
-		 * Register a semantic tokens provider for a whole document.
-		 *
-		 * Multiple providers can be registered for a language. In that case providers are sorted
-		 * by their [score](#languages.match) and the best-matching provider is used. Failure
-		 * of the selected provider will cause a failure of the whole operation.
-		 *
-		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider A document semantic tokens provider.
-		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
-		 */
-		export function registerDocumentSemanticTokensProvider(selector: DocumentSelector, provider: DocumentSemanticTokensProvider, legend: SemanticTokensLegend): Disposable;
-
-		/**
-		 * Register a semantic tokens provider for a document range.
-		 *
-		 * Multiple providers can be registered for a language. In that case providers are sorted
-		 * by their [score](#languages.match) and the best-matching provider is used. Failure
-		 * of the selected provider will cause a failure of the whole operation.
-		 *
-		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider A document range semantic tokens provider.
-		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
-		 */
-		export function registerDocumentRangeSemanticTokensProvider(selector: DocumentSelector, provider: DocumentRangeSemanticTokensProvider, legend: SemanticTokensLegend): Disposable;
-	}
-
-	//#endregion
-
 	//#region editor insets: https://github.com/microsoft/vscode/issues/85682
 
 	export interface WebviewEditorInset {
@@ -942,35 +726,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region LogLevel: https://github.com/microsoft/vscode/issues/85992
-
-	/**
-	 * The severity level of a log message
-	 */
-	export enum LogLevel {
-		Trace = 1,
-		Debug = 2,
-		Info = 3,
-		Warning = 4,
-		Error = 5,
-		Critical = 6,
-		Off = 7
-	}
-
-	export namespace env {
-		/**
-		 * Current logging level.
-		 */
-		export const logLevel: LogLevel;
-
-		/**
-		 * An [event](#Event) that fires when the log level has changed.
-		 */
-		export const onDidChangeLogLevel: Event<LogLevel>;
-	}
-
-	//#endregion
-
 	//#region Joao: SCM validation
 
 	/**
@@ -1093,7 +848,7 @@ declare module 'vscode' {
 		readonly dimensions: TerminalDimensions;
 	}
 
-	namespace window {
+	export namespace window {
 		/**
 		 * An event which fires when the [dimensions](#Terminal.dimensions) of the terminal change.
 		 */
@@ -1114,15 +869,121 @@ declare module 'vscode' {
 	//#region Terminal link handlers https://github.com/microsoft/vscode/issues/91606
 
 	export namespace window {
+		/**
+		 * Register a [TerminalLinkHandler](#TerminalLinkHandler) that can be used to intercept and
+		 * handle links that are activated within terminals.
+		 */
 		export function registerTerminalLinkHandler(handler: TerminalLinkHandler): Disposable;
 	}
 
 	export interface TerminalLinkHandler {
 		/**
-		 * @return true when the link was handled (and should not be considered by
-		 * other providers including the default), false when the link was not handled.
+		 * Handles a link that is activated within the terminal.
+		 *
+		 * @return Whether the link was handled, the link was handled this link will not be
+		 * considered by any other extension or by the default built-in link handler.
 		 */
 		handleLink(terminal: Terminal, link: string): ProviderResult<boolean>;
+	}
+
+	//#endregion
+
+	//#region Contribute to terminal environment https://github.com/microsoft/vscode/issues/46696
+
+	export enum EnvironmentVariableMutatorType {
+		/**
+		 * Replace the variable's existing value.
+		 */
+		Replace = 1,
+		/**
+		 * Append to the end of the variable's existing value.
+		 */
+		Append = 2,
+		/**
+		 * Prepend to the start of the variable's existing value.
+		 */
+		Prepend = 3
+	}
+
+	export interface EnvironmentVariableMutator {
+		/**
+		 * The type of mutation that will occur to the variable.
+		 */
+		readonly type: EnvironmentVariableMutatorType;
+
+		/**
+		 * The value to use for the variable.
+		 */
+		readonly value: string;
+	}
+
+	/**
+	 * A collection of mutations that an extension can apply to a process environment.
+	 */
+	export interface EnvironmentVariableCollection {
+		/**
+		 * Replace an environment variable with a value.
+		 *
+		 * Note that an extension can only make a single change to any one variable, so this will
+		 * overwrite any previous calls to replace, append or prepend.
+		 */
+		replace(variable: string, value: string): void;
+
+		/**
+		 * Append a value to an environment variable.
+		 *
+		 * Note that an extension can only make a single change to any one variable, so this will
+		 * overwrite any previous calls to replace, append or prepend.
+		 */
+		append(variable: string, value: string): void;
+
+		/**
+		 * Prepend a value to an environment variable.
+		 *
+		 * Note that an extension can only make a single change to any one variable, so this will
+		 * overwrite any previous calls to replace, append or prepend.
+		 */
+		prepend(variable: string, value: string): void;
+
+		/**
+		 * Gets the mutator that this collection applies to a variable, if any.
+		 */
+		get(variable: string): EnvironmentVariableMutator | undefined;
+
+		/**
+		 * Iterate over each mutator in this collection.
+		 */
+		forEach(callback: (variable: string, mutator: EnvironmentVariableMutator, collection: EnvironmentVariableCollection) => any, thisArg?: any): void;
+
+		/**
+		 * Deletes this collection's mutator for a variable.
+		 */
+		delete(variable: string): void;
+
+		/**
+		 * Clears all mutators from this collection.
+		 */
+		clear(): void;
+
+		/**
+		 * Disposes the collection, if the collection was persisted it will no longer be retained
+		 * across reloads.
+		 */
+		dispose(): void;
+	}
+
+	export namespace window {
+		/**
+		 * Creates or returns the extension's environment variable collection for this workspace,
+		 * enabling changes to be applied to terminal environment variables.
+		 *
+		 * @param persistent Whether the collection should be cached for the workspace and applied
+		 * to the terminal across window reloads. When true the collection will be active
+		 * immediately such when the window reloads. Additionally, this API will return the cached
+		 * version if it exists. The collection will be invalidated when the extension is
+		 * uninstalled or when the collection is disposed. Defaults to false.
+		 */
+		export function getEnvironmentVariableCollection(persistent?: boolean): EnvironmentVariableCollection;
 	}
 
 	//#endregion
@@ -1776,7 +1637,7 @@ declare module 'vscode' {
 
 	export interface NotebookProvider {
 		resolveNotebook(editor: NotebookEditor): Promise<void>;
-		executeCell(document: NotebookDocument, cell: NotebookCell | undefined): Promise<void>;
+		executeCell(document: NotebookDocument, cell: NotebookCell | undefined, token: CancellationToken): Promise<void>;
 		save(document: NotebookDocument): Promise<boolean>;
 	}
 
@@ -2049,41 +1910,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-
-	//#region https://github.com/microsoft/vscode/issues/90208
-
-	export interface ExtensionContext {
-		/**
-		 * Get the uri of a resource contained in the extension.
-		 *
-		 * @param relativePath A relative path to a resource contained in the extension.
-		 * @return The uri of the resource.
-		 */
-		asExtensionUri(relativePath: string): Uri;
-
-		/**
-		 *
-		 */
-		readonly extensionUri: Uri;
-	}
-
-	export interface Extension<T> {
-		/**
-		 * Get the uri of a resource contained in the extension.
-		 *
-		 * @param relativePath A relative path to a resource contained in the extension.
-		 * @return The uri of the resource.
-		 */
-		asExtensionUri(relativePath: string): Uri;
-
-		/**
-		 *
-		 */
-		readonly extensionUri: Uri;
-	}
-
-	//#endregion
-
 	//#region https://github.com/microsoft/vscode/issues/86788
 
 	export interface CodeActionProviderMetadata {
@@ -2141,13 +1967,44 @@ declare module 'vscode' {
 
 	//#region https://github.com/microsoft/vscode/issues/90208
 
+	export interface ExtensionContext {
+		/**
+		 * @deprecated THIS API PROPOSAL WILL BE DROPPED
+		 */
+		asExtensionUri(relativePath: string): Uri;
+
+		/**
+		 * The uri of the directory containing the extension.
+		 */
+		readonly extensionUri: Uri;
+	}
+
+	export interface Extension<T> {
+		/**
+		 * @deprecated THIS API PROPOSAL WILL BE DROPPED
+		 */
+		asExtensionUri(relativePath: string): Uri;
+
+		/**
+		 * The uri of the directory containing the extension.
+		 */
+		readonly extensionUri: Uri;
+	}
+
 	export namespace Uri {
 
 		/**
+		 * Create a new uri which path is the result of joining
+		 * the path of the base uri with the provided path fragments.
 		 *
-		 * @param base
-		 * @param pathFragments
-		 * @returns A new uri
+		 * * Note that `joinPath` only affects the path component
+		 * and all other components (scheme, authority, query, and fragment) are
+		 * left as they are.
+		 * * Note that the base uri must have a path; an error is thrown otherwise.
+		 *
+		 * @param base An uri. Must have a path.
+		 * @param pathFragments One more more path fragments
+		 * @returns A new uri which path is joined with the given fragments
 		 */
 		export function joinPath(base: Uri, ...pathFragments: string[]): Uri;
 	}

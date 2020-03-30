@@ -11,8 +11,8 @@ import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/commo
 import { InputFocusedContext, InputFocusedContextKey, IsDevelopmentContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { COPY_CELL_DOWN_COMMAND_ID, COPY_CELL_UP_COMMAND_ID, DELETE_CELL_COMMAND_ID, EDIT_CELL_COMMAND_ID, EXECUTE_CELL_COMMAND_ID, INSERT_CODE_CELL_ABOVE_COMMAND_ID, INSERT_CODE_CELL_BELOW_COMMAND_ID, INSERT_MARKDOWN_CELL_ABOVE_COMMAND_ID, INSERT_MARKDOWN_CELL_BELOW_COMMAND_ID, MOVE_CELL_DOWN_COMMAND_ID, MOVE_CELL_UP_COMMAND_ID, SAVE_CELL_COMMAND_ID, NOTEBOOK_CELL_TYPE_CONTEXT_KEY, NOTEBOOK_EDITABLE_CONTEXT_KEY, NOTEBOOK_CELL_EDITABLE_CONTEXT_KEY, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE_CONTEXT_KEY } from 'vs/workbench/contrib/notebook/browser/constants';
-import { CellRenderTemplate, CellEditState, ICellViewModel, INotebookEditor, KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, NOTEBOOK_EDITOR_FOCUSED, CellRunState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { COPY_CELL_DOWN_COMMAND_ID, COPY_CELL_UP_COMMAND_ID, DELETE_CELL_COMMAND_ID, EDIT_CELL_COMMAND_ID, EXECUTE_CELL_COMMAND_ID, INSERT_CODE_CELL_ABOVE_COMMAND_ID, INSERT_CODE_CELL_BELOW_COMMAND_ID, INSERT_MARKDOWN_CELL_ABOVE_COMMAND_ID, INSERT_MARKDOWN_CELL_BELOW_COMMAND_ID, MOVE_CELL_DOWN_COMMAND_ID, MOVE_CELL_UP_COMMAND_ID, SAVE_CELL_COMMAND_ID, NOTEBOOK_CELL_TYPE_CONTEXT_KEY, NOTEBOOK_EDITABLE_CONTEXT_KEY, NOTEBOOK_CELL_EDITABLE_CONTEXT_KEY, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE_CONTEXT_KEY, CANCEL_CELL_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/constants';
+import { BaseCellRenderTemplate, CellEditState, ICellViewModel, INotebookEditor, KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, NOTEBOOK_EDITOR_FOCUSED, CellRunState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
 import { CellKind, NOTEBOOK_EDITOR_CURSOR_BOUNDARY } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -56,6 +56,27 @@ registerAction2(class extends Action2 {
 	}
 });
 
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: CANCEL_CELL_COMMAND_ID,
+			title: localize('notebookActions.cancel', "Cancel Execution"),
+			icon: { id: 'codicon/stop' }
+		});
+	}
+
+	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext): Promise<void> {
+		if (!context) {
+			context = getActiveCellContext(accessor);
+			if (!context) {
+				return;
+			}
+		}
+
+		context.cell.currentTokenSource?.cancel();
+	}
+});
+
 export class ExecuteCellAction extends MenuItemAction {
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -66,6 +87,24 @@ export class ExecuteCellAction extends MenuItemAction {
 				id: EXECUTE_CELL_COMMAND_ID,
 				title: localize('notebookActions.executeCell', "Execute Cell"),
 				icon: { id: 'codicon/play' }
+			},
+			undefined,
+			{ shouldForwardArgs: true },
+			contextKeyService,
+			commandService);
+	}
+}
+
+export class CancelCellAction extends MenuItemAction {
+	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ICommandService commandService: ICommandService
+	) {
+		super(
+			{
+				id: CANCEL_CELL_COMMAND_ID,
+				title: localize('notebookActions.CancelCell', "Cancel Execution"),
+				icon: { id: 'codicon/stop' }
 			},
 			undefined,
 			{ shouldForwardArgs: true },
@@ -321,7 +360,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext): Promise<void> {
 		return changeActiveCellToKind(CellKind.Markdown, accessor);
 	}
 });
@@ -384,12 +423,12 @@ async function changeActiveCellToKind(kind: CellKind, accessor: ServicesAccessor
 		return;
 	}
 
-	editor.focusNotebookCell(newCell, false);
+	editor.focusNotebookCell(newCell, true);
 	editor.deleteNotebookCell(activeCell);
 }
 
 export interface INotebookCellActionContext {
-	cellTemplate?: CellRenderTemplate;
+	cellTemplate?: BaseCellRenderTemplate;
 	cell: ICellViewModel;
 	notebookEditor: INotebookEditor;
 }

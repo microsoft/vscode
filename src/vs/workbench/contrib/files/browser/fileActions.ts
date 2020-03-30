@@ -44,7 +44,7 @@ import { triggerDownload, asDomUri } from 'vs/base/browser/dom';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IWorkingCopyService, IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { sequence } from 'vs/base/common/async';
+import { sequence, timeout } from 'vs/base/common/async';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { once } from 'vs/base/common/functional';
 
@@ -499,7 +499,10 @@ export class GlobalCompareResourcesAction extends Action {
 				return undefined;
 			});
 
-			once(this.quickInputService.onHide)((() => toDispose.dispose()));
+			once(this.quickInputService.onHide)((async () => {
+				await timeout(0); // prevent race condition with editor
+				toDispose.dispose();
+			}));
 
 			// Bring up quick access
 			this.quickInputService.quickAccess.show('', { itemActivation: ItemActivation.SECOND });

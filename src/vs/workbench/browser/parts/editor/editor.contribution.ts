@@ -275,7 +275,7 @@ quickAccessRegistry.registerQuickAccessProvider({
 	prefix: ActiveGroupEditorsByMostRecentlyUsedQuickAccess.PREFIX,
 	contextKey: editorPickerContextKey,
 	placeholder: nls.localize('editorQuickAccessPlaceholder', "Type the name of an editor to open it."),
-	helpEntries: [{ description: nls.localize('activeGroupEditorsByMostRecentlyUsedQuickAccess', "Show Editors in Active Group by Most Recently Used."), needsEditor: false }]
+	helpEntries: [{ description: nls.localize('activeGroupEditorsByMostRecentlyUsedQuickAccess', "Show Editors in Active Group by Most Recently Used"), needsEditor: false }]
 });
 
 quickAccessRegistry.registerQuickAccessProvider({

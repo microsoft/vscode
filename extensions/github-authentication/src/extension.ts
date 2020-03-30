@@ -24,6 +24,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			try {
 				const session = await loginService.login(scopeList.join(' '));
 				Logger.info('Login success!');
+				onDidChangeSessions.fire({ added: [session.id], removed: [], changed: [] });
 				return session;
 			} catch (e) {
 				vscode.window.showErrorMessage(`Sign in failed: ${e}`);
@@ -32,7 +33,8 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 		},
 		logout: async (id: string) => {
-			return loginService.logout(id);
+			await loginService.logout(id);
+			onDidChangeSessions.fire({ added: [], removed: [id], changed: [] });
 		}
 	});
 

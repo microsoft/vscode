@@ -17,7 +17,7 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { AbstractTextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
 import { OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, IOutputChannel, CONTEXT_ACTIVE_LOG_OUTPUT, CONTEXT_OUTPUT_SCROLL_LOCK } from 'vs/workbench/contrib/output/common/output';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -34,6 +34,9 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 import { groupBy } from 'vs/base/common/arrays';
+import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
+import { addClass } from 'vs/base/browser/dom';
 
 export class OutputViewPane extends ViewPane {
 
@@ -87,6 +90,7 @@ export class OutputViewPane extends ViewPane {
 
 	renderBody(container: HTMLElement): void {
 		this.editor.create(container);
+		addClass(container, 'output-view');
 		const codeEditor = <ICodeEditor>this.editor.getControl();
 		codeEditor.setAriaOptions({ role: 'document', activeDescendant: undefined });
 		this._register(codeEditor.onDidChangeModelContent(() => {
@@ -318,3 +322,17 @@ class SwitchOutputActionViewItem extends SelectActionViewItem {
 		this.setOptions(options.map((label, index) => <ISelectOptionItem>{ text: label, isDisabled: (index === separatorIndex ? true : false) }), Math.max(0, selected));
 	}
 }
+
+registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
+	// Sidebar background for the output view
+	const sidebarBackground = theme.getColor(SIDE_BAR_BACKGROUND);
+	if (sidebarBackground && sidebarBackground !== theme.getColor(editorBackground)) {
+		collector.addRule(`
+			.monaco-workbench .part.sidebar .output-view .monaco-editor,
+			.monaco-workbench .part.sidebar .output-view .monaco-editor .margin,
+			.monaco-workbench .part.sidebar .output-view .monaco-editor .monaco-editor-background {
+				background-color: ${sidebarBackground};
+			}
+		`);
+	}
+});

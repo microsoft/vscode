@@ -27,7 +27,7 @@ import { IReadTextFileOptions, ITextFileStreamContent, ITextFileService } from '
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { IOpenedWindow, IOpenEmptyWindowOptions, IWindowOpenable, IOpenWindowOptions } from 'vs/platform/windows/common/windows';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
-import { LogLevel } from 'vs/platform/log/common/log';
+import { LogLevel, ILogService } from 'vs/platform/log/common/log';
 import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { UTF16le, UTF16be, UTF8_with_bom } from 'vs/base/node/encoding';
@@ -74,7 +74,8 @@ export class TestTextFileService extends NativeTextFileService {
 		@ITextModelService textModelService: ITextModelService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IRemotePathService remotePathService: IRemotePathService,
-		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService
+		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
+		@ILogService logService: ILogService
 	) {
 		super(
 			fileService,
@@ -91,7 +92,8 @@ export class TestTextFileService extends NativeTextFileService {
 			textModelService,
 			codeEditorService,
 			remotePathService,
-			workingCopyFileService
+			workingCopyFileService,
+			logService
 		);
 	}
 

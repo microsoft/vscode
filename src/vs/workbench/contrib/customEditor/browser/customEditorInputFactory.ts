@@ -78,7 +78,7 @@ export class CustomEditorInputFactory extends WebviewEditorInputFactory {
 			return webview;
 		});
 
-		const customInput = this._instantiationService.createInstance(CustomEditorInput, URI.from((data as any).editorResource), data.viewType, id, webview);
+		const customInput = this._instantiationService.createInstance(CustomEditorInput, URI.from((data as any).editorResource), data.viewType, id, webview, false);
 		if (typeof data.group === 'number') {
 			customInput.updateGroup(data.group);
 		}
@@ -90,12 +90,12 @@ export class CustomEditorInputFactory extends WebviewEditorInputFactory {
 			const webviewService = accessor.get<IWebviewService>(IWebviewService);
 			const backupFileService = accessor.get<IBackupFileService>(IBackupFileService);
 
-			const backup = await backupFileService.resolve(resource);
-			if (!backup) {
+			const backup = await backupFileService.resolve<CustomDocumentBackupData>(resource);
+			if (!backup?.meta) {
 				throw new Error(`No backup found for custom editor: ${resource}`);
 			}
 
-			const backupData = backup.meta as CustomDocumentBackupData;
+			const backupData = backup.meta;
 			const id = backupData.webview.id;
 
 			const webview = new Lazy(() => {
@@ -112,7 +112,7 @@ export class CustomEditorInputFactory extends WebviewEditorInputFactory {
 				return webview;
 			});
 
-			const editor = instantiationService.createInstance(CustomEditorInput, URI.revive(backupData.editorResource), backupData.viewType, id, webview);
+			const editor = instantiationService.createInstance(CustomEditorInput, URI.revive(backupData.editorResource), backupData.viewType, id, webview, true);
 			editor.updateGroup(0);
 			return editor;
 		});

@@ -15,6 +15,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
 import { Iterable } from 'vs/base/common/iterator';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -24,9 +25,9 @@ export const INotebookService = createDecorator<INotebookService>('notebookServi
 
 export interface IMainNotebookController {
 	resolveNotebook(viewType: string, uri: URI): Promise<NotebookTextModel | undefined>;
-	executeNotebook(viewType: string, uri: URI): Promise<void>;
+	executeNotebook(viewType: string, uri: URI, token: CancellationToken): Promise<void>;
 	onDidReceiveMessage(uri: URI, message: any): void;
-	executeNotebookCell(uri: URI, handle: number): Promise<void>;
+	executeNotebookCell(uri: URI, handle: number, token: CancellationToken): Promise<void>;
 	destoryNotebookDocument(notebook: INotebookTextModel): Promise<void>;
 	save(uri: URI): Promise<boolean>;
 }
@@ -42,7 +43,7 @@ export interface INotebookService {
 	getRendererInfo(handle: number): INotebookRendererInfo | undefined;
 	resolveNotebook(viewType: string, uri: URI): Promise<NotebookTextModel | undefined>;
 	executeNotebook(viewType: string, uri: URI): Promise<void>;
-	executeNotebookCell(viewType: string, uri: URI, handle: number): Promise<void>;
+	executeNotebookCell(viewType: string, uri: URI, handle: number, token: CancellationToken): Promise<void>;
 
 	getContributedNotebookProviders(resource: URI): readonly NotebookProviderInfo[];
 	getNotebookProviderResourceRoots(): URI[];
@@ -246,16 +247,16 @@ export class NotebookService extends Disposable implements INotebookService {
 		let provider = this._notebookProviders.get(viewType);
 
 		if (provider) {
-			return provider.controller.executeNotebook(viewType, uri);
+			return provider.controller.executeNotebook(viewType, uri, new CancellationTokenSource().token); // Cancellation for notebooks - TODO
 		}
 
 		return;
 	}
 
-	async executeNotebookCell(viewType: string, uri: URI, handle: number): Promise<void> {
+	async executeNotebookCell(viewType: string, uri: URI, handle: number, token: CancellationToken): Promise<void> {
 		const provider = this._notebookProviders.get(viewType);
 		if (provider) {
-			await provider.controller.executeNotebookCell(uri, handle);
+			await provider.controller.executeNotebookCell(uri, handle, token);
 		}
 	}
 

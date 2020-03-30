@@ -454,16 +454,14 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		//
 		// These are windows to restore because of hot-exit or from previous session (only performed once on startup!)
 		//
-		let foldersToRestore: URI[] = [];
 		let workspacesToRestore: IWorkspacePathToOpen[] = [];
 		if (openConfig.initialStartup && !openConfig.cli.extensionDevelopmentPath && !openConfig.cli['disable-restore-windows']) {
-			let foldersToRestore = this.backupMainService.getFolderBackupPaths();
-			foldersToOpen.push(...foldersToRestore.map(f => ({ folderUri: f, remoteAuhority: getRemoteAuthority(f) })));
 
-			// collect from workspaces with hot-exit backups and from previous window session
-			workspacesToRestore = [...this.backupMainService.getWorkspaceBackups(), ...this.workspacesMainService.getUntitledWorkspacesSync()];
+			// Untitled workspaces are always restored
+			workspacesToRestore = this.workspacesMainService.getUntitledWorkspacesSync();
 			workspacesToOpen.push(...workspacesToRestore);
 
+			// Empty windows with backups are always restored
 			emptyToRestore.push(...this.backupMainService.getEmptyWindowBackupPaths());
 		} else {
 			emptyToRestore.length = 0;
@@ -495,7 +493,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 					const usedWindow = usedWindows[i];
 					if (
 						(usedWindow.openedWorkspace && workspacesToRestore.some(workspace => usedWindow.openedWorkspace && workspace.workspace.id === usedWindow.openedWorkspace.id)) ||	// skip over restored workspace
-						(usedWindow.openedFolderUri && foldersToRestore.some(uri => isEqual(uri, usedWindow.openedFolderUri))) ||															// skip over restored folder
 						(usedWindow.backupPath && emptyToRestore.some(empty => usedWindow.backupPath && empty.backupFolder === basename(usedWindow.backupPath)))							// skip over restored empty window
 					) {
 						continue;

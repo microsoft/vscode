@@ -9224,10 +9224,10 @@ typescript@^2.6.2:
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-2.6.2.tgz#3c5b6fd7f6de0914269027f03c0946758f7673a4"
   integrity sha1-PFtv1/beCRQmkCfwPAlGdY92c6Q=
 
-typescript@^3.9.0-dev.20200316:
-  version "3.9.0-dev.20200316"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.9.0-dev.20200316.tgz#7cbb2fa2eedf58eea27b3250ab38674790ccf999"
-  integrity sha512-MM67isAuvHM4hwfHR4K9NikB7MFD9RjISB5cXhtKmjkpMFO0QNzFmFq061VmsJqoRVpG9N2KE+cm6BJ9dIjrtQ==
+typescript@^3.9.0-dev.20200327:
+  version "3.9.0-dev.20200327"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.9.0-dev.20200327.tgz#52179aae816587f772a0526e91143760f2bee42f"
+  integrity sha512-/TWD/zPvhAcN2Toqx2NBQ+oDVGVj4iqupjWcUAwL45TfcODeHpzszneABR1b/EjHbtUObtLH40vy5Z6rdVvKzg==
 
 uc.micro@^1.0.1, uc.micro@^1.0.3:
   version "1.0.3"

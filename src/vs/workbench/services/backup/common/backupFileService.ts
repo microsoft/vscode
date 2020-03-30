@@ -14,7 +14,7 @@ import { IResolvedBackup, IBackupFileService } from 'vs/workbench/services/backu
 import { IFileService, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { createTextBufferFactoryFromStream, createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
-import { keys, ResourceMap } from 'vs/base/common/map';
+import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -165,6 +165,10 @@ export class BackupFileService implements IBackupFileService {
 		return this.impl.discardBackup(resource);
 	}
 
+	discardBackups(): Promise<void> {
+		return this.impl.discardBackups();
+	}
+
 	getBackups(): Promise<URI[]> {
 		return this.impl.getBackups();
 	}
@@ -258,6 +262,14 @@ class BackupFileServiceImpl extends Disposable implements IBackupFileService {
 			// Update model
 			model.add(backupResource, versionId, meta);
 		});
+	}
+
+	async discardBackups(): Promise<void> {
+		const model = await this.ready;
+
+		await this.deleteIgnoreFileNotFound(this.backupWorkspacePath);
+
+		model.clear();
 	}
 
 	discardBackup(resource: URI): Promise<void> {
@@ -422,11 +434,15 @@ export class InMemoryBackupFileService implements IBackupFileService {
 	}
 
 	async getBackups(): Promise<URI[]> {
-		return keys(this.backups).map(key => URI.parse(key));
+		return Array.from(this.backups.keys()).map(key => URI.parse(key));
 	}
 
 	async discardBackup(resource: URI): Promise<void> {
 		this.backups.delete(this.toBackupResource(resource).toString());
+	}
+
+	async discardBackups(): Promise<void> {
+		this.backups.clear();
 	}
 
 	toBackupResource(resource: URI): URI {

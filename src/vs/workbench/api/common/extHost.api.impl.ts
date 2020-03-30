@@ -258,14 +258,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get appName() { return initData.environment.appName; },
 			get appRoot() { return initData.environment.appRoot!.fsPath; },
 			get uriScheme() { return initData.environment.appUriScheme; },
-			get logLevel() {
-				checkProposedApiEnabled(extension);
-				return typeConverters.LogLevel.to(extHostLogService.getLevel());
-			},
-			get onDidChangeLogLevel() {
-				checkProposedApiEnabled(extension);
-				return Event.map(extHostLogService.onDidChangeLogLevel, l => typeConverters.LogLevel.to(l));
-			},
 			get clipboard(): vscode.Clipboard {
 				return extHostClipboard;
 			},
@@ -287,7 +279,18 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			get uiKind() {
 				return initData.uiKind;
-			}
+			},
+
+			...{
+				get logLevel() {
+					checkProposedApiEnabled(extension);
+					return typeConverters.LogLevel.to(extHostLogService.getLevel());
+				},
+				get onDidChangeLogLevel() {
+					checkProposedApiEnabled(extension);
+					return Event.map(extHostLogService.onDidChangeLogLevel, l => typeConverters.LogLevel.to(l));
+				},
+			} as {}
 		};
 		if (!initData.environment.extensionTestsLocationURI) {
 			// allow to patch env-function when running tests
@@ -388,11 +391,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostLanguageFeatures.registerOnTypeFormattingEditProvider(extension, checkSelector(selector), provider, [firstTriggerCharacter].concat(moreTriggerCharacters));
 			},
 			registerDocumentSemanticTokensProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentSemanticTokensProvider, legend: vscode.SemanticTokensLegend): vscode.Disposable {
-				checkProposedApiEnabled(extension);
 				return extHostLanguageFeatures.registerDocumentSemanticTokensProvider(extension, checkSelector(selector), provider, legend);
 			},
 			registerDocumentRangeSemanticTokensProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentRangeSemanticTokensProvider, legend: vscode.SemanticTokensLegend): vscode.Disposable {
-				checkProposedApiEnabled(extension);
 				return extHostLanguageFeatures.registerDocumentRangeSemanticTokensProvider(extension, checkSelector(selector), provider, legend);
 			},
 			registerSignatureHelpProvider(selector: vscode.DocumentSelector, provider: vscode.SignatureHelpProvider, firstItem?: string | vscode.SignatureHelpProviderMetadata, ...remaining: string[]): vscode.Disposable {
@@ -486,6 +487,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			onDidWriteTerminalData(listener, thisArg?, disposables?) {
 				checkProposedApiEnabled(extension);
 				return extHostTerminalService.onDidWriteTerminalData(listener, thisArg, disposables);
+			},
+			getEnvironmentVariableCollection(persistent?: boolean): vscode.EnvironmentVariableCollection {
+				checkProposedApiEnabled(extension);
+				return extHostTerminalService.getEnvironmentVariableCollection(extension, persistent);
 			},
 			get state() {
 				return extHostWindow.state;
@@ -957,6 +962,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			DocumentLink: extHostTypes.DocumentLink,
 			DocumentSymbol: extHostTypes.DocumentSymbol,
 			EndOfLine: extHostTypes.EndOfLine,
+			EnvironmentVariableMutatorType: extHostTypes.EnvironmentVariableMutatorType,
 			EvaluatableExpression: extHostTypes.EvaluatableExpression,
 			EventEmitter: Emitter,
 			ExtensionKind: extHostTypes.ExtensionKind,

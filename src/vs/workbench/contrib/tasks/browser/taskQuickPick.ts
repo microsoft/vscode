@@ -63,9 +63,8 @@ export class TaskQuickPick extends Disposable {
 
 	private createTaskEntry(task: Task | ConfiguringTask): TaskTwoLevelQuickPickEntry {
 		let entryLabel = this.guessTaskLabel(task);
-		let commonKey = task._id.split('|');
-		if (commonKey.length > 1) {
-			entryLabel = entryLabel + ' (' + commonKey[1] + ')';
+		if (!ConfiguringTask.is(task) && task.instance) {
+			entryLabel += + ' (' + task.instance + ')';
 		}
 		const entry: TaskTwoLevelQuickPickEntry = { label: entryLabel, description: this.taskService.getTaskDescription(task), task, detail: this.showDetail() ? task.configurationProperties.detail : undefined };
 		entry.buttons = [{ iconClass: 'codicon-gear', tooltip: nls.localize('configureTask', "Configure Task") }];
@@ -108,11 +107,14 @@ export class TaskQuickPick extends Disposable {
 			const workspaceFolder = configuredTasks[j].getWorkspaceFolder()?.uri.toString();
 			const definition = configuredTasks[j].getDefinition()?._key;
 			const recentKey = configuredTasks[j].getRecentlyUsedKey();
-			if (!recentTasks.find((value) => {
+			const findIndex = recentTasks.findIndex((value) => {
 				return (workspaceFolder && definition && value.getWorkspaceFolder()?.uri.toString() === workspaceFolder && value.getDefinition()?._key === definition)
 					|| (recentKey && value.getRecentlyUsedKey() === recentKey);
-			})) {
+			});
+			if (findIndex === -1) {
 				dedupedConfiguredTasks.push(configuredTasks[j]);
+			} else {
+				recentTasks[findIndex] = configuredTasks[j];
 			}
 		}
 		dedupedConfiguredTasks = dedupedConfiguredTasks.sort((a, b) => this.sorter.compare(a, b));
@@ -127,11 +129,12 @@ export class TaskQuickPick extends Disposable {
 		const configuredTasks: (Task | ConfiguringTask)[] = this.handleFolderTaskResult(await this.taskService.getWorkspaceTasks());
 		const extensionTaskTypes = this.taskService.taskTypes();
 		this.topLevelEntries = [];
+		// Dedupe will update recent tasks if they've changed in tasks.json.
+		let dedupedConfiguredTasks: (Task | ConfiguringTask)[] = this.dedupeConfiguredAndRecent(recentTasks, configuredTasks);
 		if (recentTasks.length > 0) {
 			this.createEntriesForGroup(this.topLevelEntries, recentTasks, nls.localize('recentlyUsed', 'recently used'));
 		}
 		if (configuredTasks.length > 0) {
-			let dedupedConfiguredTasks: (Task | ConfiguringTask)[] = this.dedupeConfiguredAndRecent(recentTasks, configuredTasks);
 			if (dedupedConfiguredTasks.length > 0) {
 				this.createEntriesForGroup(this.topLevelEntries, dedupedConfiguredTasks, nls.localize('configured', 'configured'));
 			}
@@ -231,12 +234,12 @@ export class TaskQuickPick extends Disposable {
 		if (tasks.length > 0) {
 			taskQuickPickEntries = tasks.map(task => this.createTaskEntry(task));
 			taskQuickPickEntries.unshift({
-				label: nls.localize('TaskQuickPick.goBack', 'Go back...'),
+				label: nls.localize('TaskQuickPick.goBack', 'Go back ↩'),
 				task: null
 			});
 		} else {
 			taskQuickPickEntries = [{
-				label: nls.localize('TaskQuickPick.noTasksForType', 'No {0} tasks found. Go back...', type),
+				label: nls.localize('TaskQuickPick.noTasksForType', 'No {0} tasks found. Go back ↩', type),
 				task: null
 			}];
 		}

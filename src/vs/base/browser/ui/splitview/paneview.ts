@@ -105,7 +105,7 @@ export abstract class Pane extends Disposable implements IView {
 	get minimumSize(): number {
 		const headerSize = this.headerSize;
 		const expanded = !this.headerVisible || this.isExpanded();
-		const minimumBodySize = expanded ? this._minimumBodySize : this._orientation === Orientation.HORIZONTAL ? 50 : 0;
+		const minimumBodySize = expanded ? this.minimumBodySize : this._orientation === Orientation.HORIZONTAL ? 50 : 0;
 
 		return headerSize + minimumBodySize;
 	}
@@ -113,7 +113,7 @@ export abstract class Pane extends Disposable implements IView {
 	get maximumSize(): number {
 		const headerSize = this.headerSize;
 		const expanded = !this.headerVisible || this.isExpanded();
-		const maximumBodySize = expanded ? this._maximumBodySize : this._orientation === Orientation.HORIZONTAL ? 50 : 0;
+		const maximumBodySize = expanded ? this.maximumBodySize : this._orientation === Orientation.HORIZONTAL ? 50 : 0;
 
 		return headerSize + maximumBodySize;
 	}
@@ -214,7 +214,11 @@ export abstract class Pane extends Disposable implements IView {
 			.event(() => this.setExpanded(true), null));
 
 		this._register(domEvent(this.header, 'click')
-			(() => this.setExpanded(!this.isExpanded()), null));
+			(e => {
+				if (!e.defaultPrevented) {
+					this.setExpanded(!this.isExpanded());
+				}
+			}, null));
 
 		this.body = append(this.element, $('.pane-body'));
 		this.renderBody(this.body);

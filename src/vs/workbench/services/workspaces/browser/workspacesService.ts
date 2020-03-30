@@ -139,7 +139,7 @@ export class BrowserWorkspacesService extends Disposable implements IWorkspacesS
 		const storedWorkspaceFolder: IStoredWorkspaceFolder[] = [];
 		if (folders) {
 			for (const folder of folders) {
-				storedWorkspaceFolder.push(getStoredWorkspaceFolder(folder.uri, folder.name, this.environmentService.untitledWorkspacesHome));
+				storedWorkspaceFolder.push(getStoredWorkspaceFolder(folder.uri, true, folder.name, this.environmentService.untitledWorkspacesHome));
 			}
 		}
 
@@ -162,6 +162,15 @@ export class BrowserWorkspacesService extends Disposable implements IWorkspacesS
 
 	async getWorkspaceIdentifier(workspacePath: URI): Promise<IWorkspaceIdentifier> {
 		return getWorkspaceIdentifier(workspacePath);
+	}
+
+	//#endregion
+
+
+	//#region Dirty Workspaces
+
+	async getDirtyWorkspaces(): Promise<Array<IWorkspaceIdentifier | URI>> {
+		return []; // Currently not supported in web
 	}
 
 	//#endregion
