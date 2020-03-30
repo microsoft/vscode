@@ -726,35 +726,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region LogLevel: https://github.com/microsoft/vscode/issues/85992
-
-	/**
-	 * The severity level of a log message
-	 */
-	export enum LogLevel {
-		Trace = 1,
-		Debug = 2,
-		Info = 3,
-		Warning = 4,
-		Error = 5,
-		Critical = 6,
-		Off = 7
-	}
-
-	export namespace env {
-		/**
-		 * Current logging level.
-		 */
-		export const logLevel: LogLevel;
-
-		/**
-		 * An [event](#Event) that fires when the log level has changed.
-		 */
-		export const onDidChangeLogLevel: Event<LogLevel>;
-	}
-
-	//#endregion
-
 	//#region Joao: SCM validation
 
 	/**
