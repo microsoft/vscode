@@ -211,7 +211,7 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 			let previewResult = await this.syncPreviewResultPromise!;
 			this.cancel();
 			previewResult.resolvedConflicts[key] = content || null;
-			this.syncPreviewResultPromise = createCancelablePromise(token => this.generatePreview(previewResult.local, previewResult.remoteUserData, previewResult.lastSyncUserData, previewResult.resolvedConflicts, token));
+			this.syncPreviewResultPromise = createCancelablePromise(token => this.doGeneratePreview(previewResult.local, previewResult.remoteUserData, previewResult.lastSyncUserData, previewResult.resolvedConflicts, token));
 			previewResult = await this.syncPreviewResultPromise;
 			this.setConflicts(previewResult.conflicts);
 			if (!this.conflicts.length) {
@@ -258,8 +258,7 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 
 	protected getPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<ISinppetsSyncPreviewResult> {
 		if (!this.syncPreviewResultPromise) {
-			this.syncPreviewResultPromise = createCancelablePromise(token => this.getSnippetsFileContents()
-				.then(local => this.generatePreview(local, remoteUserData, lastSyncUserData, {}, token)));
+			this.syncPreviewResultPromise = createCancelablePromise(token => this.generatePreview(remoteUserData, lastSyncUserData, token));
 		}
 		return this.syncPreviewResultPromise;
 	}
@@ -278,7 +277,12 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 		}
 	}
 
-	private async generatePreview(local: IStringDictionary<IFileContent>, remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, resolvedConflicts: IStringDictionary<string | null>, token: CancellationToken): Promise<ISinppetsSyncPreviewResult> {
+	protected async generatePreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken = CancellationToken.None): Promise<ISinppetsSyncPreviewResult> {
+		return this.getSnippetsFileContents()
+			.then(local => this.doGeneratePreview(local, remoteUserData, lastSyncUserData, {}, token));
+	}
+
+	private async doGeneratePreview(local: IStringDictionary<IFileContent>, remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, resolvedConflicts: IStringDictionary<string | null> = {}, token: CancellationToken = CancellationToken.None): Promise<ISinppetsSyncPreviewResult> {
 		const localSnippets = this.toSnippetsContents(local);
 		const remoteSnippets: IStringDictionary<string> | null = remoteUserData.syncData ? this.parseSnippets(remoteUserData.syncData) : null;
 		const lastSyncSnippets: IStringDictionary<string> | null = lastSyncUserData ? this.parseSnippets(lastSyncUserData.syncData!) : null;

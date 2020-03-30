@@ -151,7 +151,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 
 		const lastSyncUserData = await this.getLastSyncUserData();
 		const remoteUserData = await this.getRemoteUserData(lastSyncUserData);
-		return this.getPreview(remoteUserData, lastSyncUserData);
+		return this.generatePreview(remoteUserData, lastSyncUserData);
 	}
 
 	protected async doSync(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<SyncStatus> {
@@ -295,7 +295,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 
 	protected abstract readonly version: number;
 	protected abstract performSync(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<SyncStatus>;
-	protected abstract getPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<ISyncPreviewResult>;
+	protected abstract generatePreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<ISyncPreviewResult>;
 }
 
 export interface IFileSyncPreviewResult extends ISyncPreviewResult {

@@ -49,7 +49,7 @@ class TestSynchroniser extends AbstractSynchroniser {
 		this.syncBarrier.open();
 	}
 
-	protected async getPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<ISyncPreviewResult> {
+	protected async generatePreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<ISyncPreviewResult> {
 		return { hasLocalChanged: false, hasRemoteChanged: false };
 	}
 
