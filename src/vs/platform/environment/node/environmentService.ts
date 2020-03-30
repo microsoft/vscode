@@ -233,6 +233,18 @@ export class EnvironmentService implements IEnvironmentService {
 		return false;
 	}
 
+	get extensionEnabledProposedApi(): string[] | undefined {
+		if (Array.isArray(this.args['enable-proposed-api'])) {
+			return this.args['enable-proposed-api'];
+		}
+
+		if ('enable-proposed-api' in this.args) {
+			return [];
+		}
+
+		return undefined;
+	}
+
 	@memoize
 	get debugExtensionHost(): IExtensionHostDebugParams { return parseExtensionHostPort(this._args, this.isBuilt); }
 	@memoize

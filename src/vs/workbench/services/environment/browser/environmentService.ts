@@ -69,6 +69,7 @@ interface IExtensionHostDebugEnvironment {
 	isExtensionDevelopment: boolean;
 	extensionDevelopmentLocationURI?: URI[];
 	extensionTestsLocationURI?: URI;
+	extensionEnabledProposedApi?: string[];
 }
 
 export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironmentService {
@@ -156,6 +157,14 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 		return this._extensionHostDebugEnvironment.extensionTestsLocationURI;
 	}
 
+	get extensionEnabledProposedApi(): string[] | undefined {
+		if (!this._extensionHostDebugEnvironment) {
+			this._extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
+		}
+
+		return this._extensionHostDebugEnvironment.extensionEnabledProposedApi;
+	}
+
 	@memoize
 	get webviewExternalEndpoint(): string {
 		// TODO: get fallback from product.json
@@ -215,6 +224,9 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 					case 'inspect-brk-extensions':
 						extensionHostDebugEnvironment.params.port = parseInt(value);
 						extensionHostDebugEnvironment.params.break = true;
+						break;
+					case 'enableProposedApi':
+						extensionHostDebugEnvironment.extensionEnabledProposedApi = [];
 						break;
 				}
 			}
