@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/863fe48831356e0d459cc71c1e7d72c41b7e1b42",
+	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/dd81cfb5b08015f35b5617751d27c5584198393b",
 	"name": "TypeScript",
 	"scopeName": "source.ts",
 	"patterns": [
@@ -15,6 +15,11 @@
 			"include": "#statements"
 		},
 		{
+			"include": "#shebang"
+		}
+	],
+	"repository": {
+		"shebang": {
 			"name": "comment.line.shebang.ts",
 			"match": "\\A(#!).*(?=$)",
 			"captures": {
@@ -22,9 +27,7 @@
 					"name": "punctuation.definition.comment.ts"
 				}
 			}
-		}
-	],
-	"repository": {
+		},
 		"statements": {
 			"patterns": [
 				{
