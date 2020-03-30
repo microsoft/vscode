@@ -296,8 +296,31 @@ suite('TokensStore', () => {
 		assert.equal(lineTokens.getCount(), 3);
 	});
 
-	// tokensStore.ts:878 ==> INSIDE PARTIAL SET: PIECES: [(5,5-10)]
-	// tokensStore.ts:894 ==> AFTER PARTIAL SET: PIECES: [(10,5-10),(15,5-10),(20,5-10),(25,5-10),(30,5-10),(35,5-10)], [(5,5-10)]
-	// tokensStore.ts:878 ==> INSIDE PARTIAL SET: PIECES: [(10,5-10),(15,5-10)], [(5,5-10)]
-	// tokensStore.ts:894 ==> AFTER PARTIAL SET: PIECES: [(20,5-10),(25,5-10),(30,5-10),(35,5-10),(40,5-10)], [(10,5-10),(15,5-10)], [(5,5-10)]
+	test('partial tokens 3', () => {
+		const store = new TokensStore2();
+
+		// setPartial: [1,1 -> 31,2], [(5,5-10),(10,5-10),(15,5-10),(20,5-10),(25,5-10),(30,5-10)]
+		store.setPartial(new Range(1, 1, 31, 2), [
+			new MultilineTokens2(5, new SparseEncodedTokens(new Uint32Array([
+				0, 5, 10, 1,
+				5, 5, 10, 2,
+				10, 5, 10, 3,
+				15, 5, 10, 4,
+				20, 5, 10, 5,
+				25, 5, 10, 6,
+			])))
+		]);
+
+		// setPartial: [11,1 -> 16,2], [(15,5-10),(20,5-10)]
+		store.setPartial(new Range(11, 1, 16, 2), [
+			new MultilineTokens2(10, new SparseEncodedTokens(new Uint32Array([
+				0, 5, 10, 3,
+				5, 5, 10, 4,
+			])))
+		]);
+
+		const lineTokens = store.addSemanticTokens(5, new LineTokens(new Uint32Array([12, 1]), `enum Enum1 {`));
+		assert.equal(lineTokens.getCount(), 3);
+	});
+
 });

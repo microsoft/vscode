@@ -140,6 +140,14 @@ export class SparseEncodedTokens {
 		this._tokenCount = tokens.length / 4;
 	}
 
+	public toString(startLineNumber: number): string {
+		let pieces: string[] = [];
+		for (let i = 0; i < this._tokenCount; i++) {
+			pieces.push(`(${this._getDeltaLine(i) + startLineNumber},${this._getStartCharacter(i)}-${this._getEndCharacter(i)})`);
+		}
+		return `[${pieces.join(',')}]`;
+	}
+
 	public getMaxDeltaLine(): number {
 		const tokenCount = this._getTokenCount();
 		if (tokenCount === 0) {
@@ -229,8 +237,8 @@ export class SparseEncodedTokens {
 			const tokenMetadata = tokens[srcOffset + 3];
 
 			if (
-				(tokenDeltaLine > startDeltaLine || (tokenDeltaLine === startDeltaLine && tokenStartCharacter >= startChar))
-				&& (tokenDeltaLine < endDeltaLine || (tokenDeltaLine === endDeltaLine && tokenEndCharacter <= endChar))
+				(tokenDeltaLine > startDeltaLine || (tokenDeltaLine === startDeltaLine && tokenEndCharacter >= startChar))
+				&& (tokenDeltaLine < endDeltaLine || (tokenDeltaLine === endDeltaLine && tokenStartCharacter <= endChar))
 			) {
 				hasDeletedTokens = true;
 			} else {
@@ -252,6 +260,45 @@ export class SparseEncodedTokens {
 		this._tokenCount = newTokenCount;
 
 		return firstDeltaLine;
+	}
+
+	public split(startDeltaLine: number, startChar: number, endDeltaLine: number, endChar: number): [SparseEncodedTokens, SparseEncodedTokens, number] {
+		const tokens = this._tokens;
+		const tokenCount = this._tokenCount;
+		let aTokens: number[] = [];
+		let bTokens: number[] = [];
+		let destTokens: number[] = aTokens;
+		let destOffset = 0;
+		let destFirstDeltaLine: number = 0;
+		for (let i = 0; i < tokenCount; i++) {
+			const srcOffset = 4 * i;
+			const tokenDeltaLine = tokens[srcOffset];
+			const tokenStartCharacter = tokens[srcOffset + 1];
+			const tokenEndCharacter = tokens[srcOffset + 2];
+			const tokenMetadata = tokens[srcOffset + 3];
+
+			if ((tokenDeltaLine > startDeltaLine || (tokenDeltaLine === startDeltaLine && tokenEndCharacter >= startChar))) {
+				if ((tokenDeltaLine < endDeltaLine || (tokenDeltaLine === endDeltaLine && tokenStartCharacter <= endChar))) {
+					// this token is touching the range
+					continue;
+				} else {
+					// this token is after the range
+					if (destTokens !== bTokens) {
+						// this token is the first token after the range
+						destTokens = bTokens;
+						destOffset = 0;
+						destFirstDeltaLine = tokenDeltaLine;
+					}
+				}
+			}
+
+			destTokens[destOffset++] = tokenDeltaLine - destFirstDeltaLine;
+			destTokens[destOffset++] = tokenStartCharacter;
+			destTokens[destOffset++] = tokenEndCharacter;
+			destTokens[destOffset++] = tokenMetadata;
+		}
+
+		return [new SparseEncodedTokens(new Uint32Array(aTokens)), new SparseEncodedTokens(new Uint32Array(bTokens)), destFirstDeltaLine];
 	}
 
 	public acceptDeleteRange(horizontalShiftForFirstLineTokens: number, startDeltaLine: number, startCharacter: number, endDeltaLine: number, endCharacter: number): void {
@@ -518,6 +565,10 @@ export class MultilineTokens2 {
 		this.endLineNumber = this.startLineNumber + this.tokens.getMaxDeltaLine();
 	}
 
+	public toString(): string {
+		return this.tokens.toString(this.startLineNumber);
+	}
+
 	private _updateEndLineNumber(): void {
 		this.endLineNumber = this.startLineNumber + this.tokens.getMaxDeltaLine();
 	}
@@ -547,6 +598,17 @@ export class MultilineTokens2 {
 
 		this.startLineNumber += this.tokens.removeTokens(startLineIndex, range.startColumn - 1, endLineIndex, range.endColumn - 1);
 		this._updateEndLineNumber();
+	}
+
+	public split(range: Range): [MultilineTokens2, MultilineTokens2] {
+		// split tokens to two:
+		// a) all the tokens before `range`
+		// b) all the tokens after `range`
+		const startLineIndex = range.startLineNumber - this.startLineNumber;
+		const endLineIndex = range.endLineNumber - this.startLineNumber;
+
+		const [a, b, bDeltaLine] = this.tokens.split(startLineIndex, range.startColumn - 1, endLineIndex, range.endColumn - 1);
+		return [new MultilineTokens2(this.startLineNumber, a), new MultilineTokens2(this.startLineNumber + bDeltaLine, b)];
 	}
 
 	public applyEdit(range: IRange, text: string): void {
@@ -837,32 +899,59 @@ export class TokensStore2 {
 			return _range;
 		}
 		const range = _range.plusRange(_firstRange).plusRange(_lastRange);
-		let insertIndex = this._pieces.length;
+		let insertPosition: { index: number; } | null = null;
 		for (let i = 0, len = this._pieces.length; i < len; i++) {
 			const piece = this._pieces[i];
 			if (piece.endLineNumber < range.startLineNumber) {
+				// this piece is before the range
 				continue;
 			}
+
 			if (piece.startLineNumber > range.endLineNumber) {
-				insertIndex = Math.min(i, insertIndex);
+				// this piece is after the range, so mark the spot before this piece
+				// as a good insertion position and stop looping
+				insertPosition = insertPosition || { index: i };
 				break;
 			}
+
+			// this piece might intersect with the range
 			piece.removeTokens(range);
 
 			if (piece.isEmpty()) {
+				// remove the piece if it became empty
 				this._pieces.splice(i, 1);
 				i--;
 				len--;
-				insertIndex--;
 				continue;
 			}
 
-			if (piece.startLineNumber >= range.endLineNumber) {
-				insertIndex = Math.min(i, insertIndex);
+			if (piece.endLineNumber < range.startLineNumber) {
+				// after removal, this piece is before the range
+				continue;
 			}
+
+			if (piece.startLineNumber > range.endLineNumber) {
+				// after removal, this piece is after the range
+				insertPosition = insertPosition || { index: i };
+				continue;
+			}
+
+			// after removal, this piece contains the range
+			const [a, b] = piece.split(range);
+			this._pieces.splice(i, 1, a, b);
+			i++;
+			len++;
+
+			insertPosition = insertPosition || { index: i };
 		}
 
-		this._pieces = arrays.arrayInsert(this._pieces, insertIndex, pieces);
+		insertPosition = insertPosition || { index: this._pieces.length };
+
+		this._pieces = arrays.arrayInsert(this._pieces, insertPosition.index, pieces);
+
+		// console.log(`I HAVE ${this._pieces.length} pieces`);
+		// console.log(`${this._pieces.map(p => p.toString()).join(', ')}`);
+
 		return range;
 	}
 
