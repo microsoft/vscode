@@ -8,7 +8,7 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/sizeObserver';
-import { INotebookEditor, CellRenderTemplate, CellFocusMode, CellEditState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor, MarkdownCellRenderTemplate, CellFocusMode, CellEditState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { raceCancellation } from 'vs/base/common/async';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
@@ -26,7 +26,7 @@ export class StatefullMarkdownCell extends Disposable {
 	constructor(
 		private notebookEditor: INotebookEditor,
 		private viewCell: MarkdownCellViewModel,
-		private templateData: CellRenderTemplate,
+		private templateData: MarkdownCellRenderTemplate,
 		editorOptions: IEditorOptions,
 		instantiationService: IInstantiationService
 	) {

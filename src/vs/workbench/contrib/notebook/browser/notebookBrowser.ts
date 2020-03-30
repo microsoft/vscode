@@ -6,6 +6,7 @@
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -13,10 +14,10 @@ import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { Range } from 'vs/editor/common/core/range';
 import { FindMatch } from 'vs/editor/common/model';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
-import { IModelDecorationsChangeAccessor, NotebookViewModel, CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { CellKind, IOutput, IRenderOutput, NotebookCellMetadata, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NOTEBOOK_EDITABLE_CONTEXT_KEY } from 'vs/workbench/contrib/notebook/browser/constants';
+import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
+import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
+import { CellKind, IOutput, IRenderOutput, NotebookCellMetadata, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('notebookFindWidgetFocused', false);
 
@@ -69,7 +70,8 @@ export interface ICellViewModel {
 	uri: URI;
 	cellKind: CellKind;
 	editState: CellEditState;
-	runState: CellRunState;
+	readonly runState: CellRunState;
+	currentTokenSource: CancellationTokenSource | undefined;
 	focusMode: CellFocusMode;
 	getText(): string;
 	metadata: NotebookCellMetadata | undefined;
@@ -243,21 +245,26 @@ export interface INotebookEditor {
 	hideFind(): void;
 }
 
-export interface CellRenderTemplate {
+export interface BaseCellRenderTemplate {
 	container: HTMLElement;
 	cellContainer: HTMLElement;
-	editorContainer?: HTMLElement;
 	toolbar: ToolBar;
-	focusIndicator?: HTMLElement;
-	runToolbar?: ToolBar;
-	runButtonContainer?: HTMLElement;
-	executionOrderLabel?: HTMLElement;
-	editingContainer?: HTMLElement;
-	outputContainer?: HTMLElement;
-	editor?: CodeEditorWidget;
-	progressBar?: ProgressBar;
+	focusIndicator: HTMLElement;
 	disposables: DisposableStore;
-	toJSON(): void;
+}
+
+export interface MarkdownCellRenderTemplate extends BaseCellRenderTemplate {
+	editingContainer: HTMLElement;
+}
+
+export interface CodeCellRenderTemplate extends BaseCellRenderTemplate {
+	editorContainer: HTMLElement;
+	runToolbar: ToolBar;
+	runButtonContainer: HTMLElement;
+	executionOrderLabel: HTMLElement;
+	outputContainer: HTMLElement;
+	editor: CodeEditorWidget;
+	progressBar: ProgressBar;
 }
 
 export interface IOutputTransformContribution {

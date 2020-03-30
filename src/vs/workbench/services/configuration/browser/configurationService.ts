@@ -203,7 +203,7 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 						return;
 					}
 				} catch (e) { /* Ignore */ }
-				storedFoldersToAdd.push(getStoredWorkspaceFolder(folderURI, folderToAdd.name, workspaceConfigFolder, slashForPath));
+				storedFoldersToAdd.push(getStoredWorkspaceFolder(folderURI, false, folderToAdd.name, workspaceConfigFolder, slashForPath));
 			}));
 
 			// Apply to array of newStoredFolders

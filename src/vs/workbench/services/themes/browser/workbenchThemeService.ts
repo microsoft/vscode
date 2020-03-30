@@ -263,7 +263,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			if (e.affectsConfiguration(ThemeSettings.PREFERRED_HC_THEME) && this.getPreferredColorScheme() === HIGH_CONTRAST) {
 				this.applyPreferredColorTheme(HIGH_CONTRAST);
 			}
-			if (e.affectsConfiguration(ThemeSettings.ICON_THEME)) {
+			if (e.affectsConfiguration(ThemeSettings.FILE_ICON_THEME)) {
 				this.restoreFileIconTheme();
 			}
 			if (e.affectsConfiguration(ThemeSettings.PRODUCT_ICON_THEME)) {
