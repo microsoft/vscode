@@ -22,7 +22,13 @@ export interface IQuickAccessOptions {
 	 * Allows to configure a different item activation strategy.
 	 * By default the first item in the list will get activated.
 	 */
-	itemActivation?: ItemActivation
+	itemActivation?: ItemActivation;
+
+	/**
+	 * Wether to take the input value as is and not restore it
+	 * from any existing value if quick access is visible.
+	 */
+	preserveValue?: boolean;
 }
 
 export interface IQuickAccessController {
