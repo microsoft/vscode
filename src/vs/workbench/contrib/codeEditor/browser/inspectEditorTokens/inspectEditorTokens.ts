@@ -551,9 +551,9 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		} else if (TokenStylingRule.is(definition)) {
 			const scope = theme.getTokenStylingRuleScope(definition);
 			if (scope === 'setting') {
-				return `User settings: ${definition.selector.selectorString} - ${this._renderStyleProperty(definition.style, property)}`;
+				return `User settings: ${definition.selector.id} - ${this._renderStyleProperty(definition.style, property)}`;
 			} else if (scope === 'theme') {
-				return `Color theme: ${definition.selector.selectorString} - ${this._renderStyleProperty(definition.style, property)}`;
+				return `Color theme: ${definition.selector.id} - ${this._renderStyleProperty(definition.style, property)}`;
 			}
 			return '';
 		} else {

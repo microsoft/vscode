@@ -12,7 +12,7 @@ import { ExtHostAuthenticationShape, ExtHostContext, IExtHostContext, MainContex
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import Severity from 'vs/base/common/severity';
-import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { MenuRegistry, MenuId, IMenuItem } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
@@ -53,6 +53,7 @@ export class MainThreadAuthenticationProvider extends Disposable {
 	private _sessionMenuItems = new Map<string, IDisposable[]>();
 	private _accounts = new Map<string, string[]>(); // Map account name to session ids
 	private _sessions = new Map<string, string>(); // Map account id to name
+	private _signInMenuItem: IMenuItem | undefined;
 
 	constructor(
 		private readonly _proxy: ExtHostAuthenticationShape,
@@ -94,7 +95,9 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		quickPick.show();
 	}
 
-	private registerCommandsAndContextMenuItems(): void {
+	private async registerCommandsAndContextMenuItems(): Promise<void> {
+		const sessions = await this._proxy.$getSessions(this.id);
+
 		if (this.dependents.length) {
 			this._register(CommandsRegistry.registerCommand({
 				id: `signIn${this.id}`,
@@ -103,19 +106,21 @@ export class MainThreadAuthenticationProvider extends Disposable {
 				},
 			}));
 
-			this._register(MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
+			this._signInMenuItem = {
 				group: '2_providers',
 				command: {
 					id: `signIn${this.id}`,
-					title: nls.localize('addAccount', "Sign in to {0}", this.displayName)
+					title: sessions.length
+						? nls.localize('addAnotherAccount', "Sign in to another {0} account", this.displayName)
+						: nls.localize('addAccount', "Sign in to {0}", this.displayName)
 				},
 				order: 3
-			}));
+			};
+
+			this._register(MenuRegistry.appendMenuItem(MenuId.AccountsContext, this._signInMenuItem));
 		}
 
-		this._proxy.$getSessions(this.id).then(sessions => {
-			sessions.forEach(session => this.registerSession(session));
-		});
+		sessions.forEach(session => this.registerSession(session));
 	}
 
 	private registerSession(session: modes.AuthenticationSession) {
@@ -205,11 +210,19 @@ export class MainThreadAuthenticationProvider extends Disposable {
 						this._sessionMenuItems.delete(accountName);
 					}
 					this._accounts.delete(accountName);
+
+					if (this._signInMenuItem) {
+						this._signInMenuItem.command.title = nls.localize('addAccount', "Sign in to {0}", this.displayName);
+					}
 				}
 			}
 		});
 
 		addedSessions.forEach(session => this.registerSession(session));
+
+		if (addedSessions.length && this._signInMenuItem) {
+			this._signInMenuItem.command.title = nls.localize('addAnotherAccount', "Sign in to another {0} account", this.displayName);
+		}
 	}
 
 	login(scopes: string[]): Promise<modes.AuthenticationSession> {

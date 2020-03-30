@@ -142,7 +142,9 @@ export class GitHubAuthenticationProvider {
 	public async logout(id: string) {
 		const sessionIndex = this._sessions.findIndex(session => session.id === id);
 		if (sessionIndex > -1) {
-			this._sessions.splice(sessionIndex, 1);
+			const session = this._sessions.splice(sessionIndex, 1)[0];
+			const token = await session.getAccessToken();
+			await this._githubServer.revokeToken(token);
 		}
 
 		this.storeSessions();
