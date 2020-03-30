@@ -200,7 +200,7 @@ export class CodeCell extends Disposable {
 			let editorHeight = templateData.editor!.getContentHeight();
 			viewCell.editorHeight = editorHeight;
 
-			if (previousOutputHeight === 0 || this.viewCell.layoutInfo.outputTotalHeight === 0) {
+			if (previousOutputHeight === 0 || this.viewCell.outputs.length === 0) {
 				// first execution or removing all outputs
 				this.relayoutCell();
 			} else {
