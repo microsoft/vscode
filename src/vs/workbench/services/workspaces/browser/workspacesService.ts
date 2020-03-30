@@ -165,6 +165,15 @@ export class BrowserWorkspacesService extends Disposable implements IWorkspacesS
 	}
 
 	//#endregion
+
+
+	//#region Dirty Workspaces
+
+	async getDirtyWorkspaces(): Promise<Array<IWorkspaceIdentifier | URI>> {
+		return []; // Currently not supported in web
+	}
+
+	//#endregion
 }
 
 registerSingleton(IWorkspacesService, BrowserWorkspacesService, true);

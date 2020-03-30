@@ -9,7 +9,7 @@ import * as path from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
 import { writeFileSync, writeFile, readFile, readdir, exists, rimraf, rename, RimRafMode } from 'vs/base/node/pfs';
 import * as arrays from 'vs/base/common/arrays';
-import { IBackupMainService, IWorkspaceBackupInfo } from 'vs/platform/backup/electron-main/backup';
+import { IBackupMainService, IWorkspaceBackupInfo, isWorkspaceBackupInfo } from 'vs/platform/backup/electron-main/backup';
 import { IBackupWorkspacesFormat, IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -255,7 +255,7 @@ export class BackupMainService implements IBackupMainService {
 				seenIds.add(workspace.id);
 
 				const backupPath = this.getBackupPath(workspace.id);
-				const hasBackups = await this.hasBackups(backupPath);
+				const hasBackups = await this.doHasBackups(backupPath);
 
 				// If the workspace has no backups, ignore it
 				if (hasBackups) {
@@ -287,7 +287,7 @@ export class BackupMainService implements IBackupMainService {
 				seenIds.add(key);
 
 				const backupPath = this.getBackupPath(this.getFolderHash(folderURI));
-				const hasBackups = await this.hasBackups(backupPath);
+				const hasBackups = await this.doHasBackups(backupPath);
 
 				// If the folder has no backups, ignore it
 				if (hasBackups) {
@@ -325,7 +325,7 @@ export class BackupMainService implements IBackupMainService {
 				seenIds.add(backupFolder);
 
 				const backupPath = this.getBackupPath(backupFolder);
-				if (await this.hasBackups(backupPath)) {
+				if (await this.doHasBackups(backupPath)) {
 					result.push(backupInfo);
 				} else {
 					await this.deleteStaleBackup(backupPath);
@@ -388,7 +388,48 @@ export class BackupMainService implements IBackupMainService {
 		return true;
 	}
 
-	private async hasBackups(backupPath: string): Promise<boolean> {
+	async getDirtyWorkspaces(): Promise<Array<IWorkspaceIdentifier | URI>> {
+		const dirtyWorkspaces: Array<IWorkspaceIdentifier | URI> = [];
+
+		// Workspaces with backups
+		for (const workspace of this.rootWorkspaces) {
+			if ((await this.hasBackups(workspace))) {
+				dirtyWorkspaces.push(workspace.workspace);
+			}
+		}
+
+		// Folders with backups
+		for (const folder of this.folderWorkspaces) {
+			if ((await this.hasBackups(folder))) {
+				dirtyWorkspaces.push(folder);
+			}
+		}
+
+		return dirtyWorkspaces;
+	}
+
+	private hasBackups(backupLocation: IWorkspaceBackupInfo | IEmptyWindowBackupInfo | URI): Promise<boolean> {
+		let backupPath: string;
+
+		// Folder
+		if (URI.isUri(backupLocation)) {
+			backupPath = this.getBackupPath(this.getFolderHash(backupLocation));
+		}
+
+		// Workspace
+		else if (isWorkspaceBackupInfo(backupLocation)) {
+			backupPath = this.getBackupPath(backupLocation.workspace.id);
+		}
+
+		// Empty
+		else {
+			backupPath = backupLocation.backupFolder;
+		}
+
+		return this.doHasBackups(backupPath);
+	}
+
+	private async doHasBackups(backupPath: string): Promise<boolean> {
 		try {
 			const backupSchemas = await readdir(backupPath);
 
