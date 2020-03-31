@@ -164,6 +164,10 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	public async resolve(): Promise<null> {
 		await super.resolve();
 
+		if (this.isDisposed()) {
+			return null;
+		}
+
 		if (!this._modelRef) {
 			this._modelRef = this._register(assertIsDefined(await this.customEditorService.models.tryRetain(this.resource, this.viewType)));
 			this._register(this._modelRef.object.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
