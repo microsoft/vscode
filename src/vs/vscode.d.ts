@@ -7072,7 +7072,7 @@ declare module 'vscode' {
 	 * This gives extensions full control over actions such as edit, save, and backup.
 	 *
 	 * You should use this type of custom editor when dealing with binary files or more complex scenarios. For simple
-	 * text based documents, use [`WebviewTextEditorProvider`](#WebviewTextEditorProvider) instead.
+	 * text based documents, use [`CustomTextEditorProvider`](#CustomTextEditorProvider) instead.
 	 *
 	 * @param EditType Type of edits used by the editors of this provider.
 	 */
