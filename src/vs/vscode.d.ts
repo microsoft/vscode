@@ -7006,7 +7006,7 @@ declare module 'vscode' {
 	 */
 	class CustomDocument<EditType = unknown> {
 		/**
-		 * @param uri The associated viewType for this document.
+		 * @param uri The associated resource for this document.
 		 */
 		constructor(uri: Uri);
 
