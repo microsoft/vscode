@@ -93,25 +93,26 @@ export class CodeCell extends Disposable {
 			templateData.editor?.getModel()?.setMode(mode.languageIdentifier);
 		}));
 
-		let cellWidthResizeObserver = getResizesObserver(templateData.editorContainer!, {
-			width: width,
-			height: totalHeight
-		}, () => {
-			let newWidth = cellWidthResizeObserver.getWidth();
-			let realContentHeight = templateData.editor!.getContentHeight();
-			templateData.editor?.layout(
-				{
-					width: newWidth,
-					height: realContentHeight
-				}
-			);
+		this._register(viewCell.onDidChangeLayout((e) => {
+			if (e.outerWidth === undefined) {
+				return;
+			}
 
-			viewCell.editorHeight = realContentHeight;
-			this.relayoutCell();
-		});
+			const layoutInfo = templateData.editor!.getLayoutInfo();
+			const realContentHeight = templateData.editor!.getContentHeight();
 
-		cellWidthResizeObserver.startObserving();
-		this._register(cellWidthResizeObserver);
+			if (layoutInfo.width !== viewCell.layoutInfo.editorWidth) {
+				templateData.editor?.layout(
+					{
+						width: viewCell.layoutInfo.editorWidth,
+						height: realContentHeight
+					}
+				);
+
+				viewCell.editorHeight = realContentHeight;
+				this.relayoutCell();
+			}
+		}));
 
 		this._register(templateData.editor!.onDidContentSizeChange((e) => {
 			if (e.contentHeightChanged) {

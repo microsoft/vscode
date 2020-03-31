@@ -36,7 +36,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	private readonly _onDidChangeContent: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 
-	protected readonly _onDidChangeLayout = new Emitter<void>();
+	protected readonly _onDidChangeLayout = new Emitter<CodeCellLayoutChangeEvent>();
 	readonly onDidChangeLayout = this._onDidChangeLayout.event;
 
 	private _editorHeight = 0;
@@ -83,7 +83,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		this._layoutInfo = {
 			fontInfo: initialNotebookLayoutInfo?.fontInfo || null,
 			editorHeight: 0,
-			editorWidth: 0,
+			editorWidth: initialNotebookLayoutInfo !== undefined ? initialNotebookLayoutInfo!.width - CELL_MARGIN * 2 - CELL_RUN_GUTTER : 0,
 			outputContainerOffset: 0,
 			outputTotalHeight: 0,
 			totalHeight: 0,
@@ -112,7 +112,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		const indicatorHeight = this.editorHeight + outputTotalHeight;
 		const outputContainerOffset = EDITOR_TOOLBAR_HEIGHT + EDITOR_TOP_MARGIN + this.editorHeight;
 		const bottomToolbarOffset = totalHeight - BOTTOM_CELL_TOOLBAR_HEIGHT;
-		const editorWidth = state.outerWidth !== undefined ? state.outerWidth - CELL_MARGIN * 2 - CELL_RUN_GUTTER : 0;
+		const editorWidth = state.outerWidth !== undefined ? state.outerWidth - CELL_MARGIN * 2 - CELL_RUN_GUTTER : this._layoutInfo?.editorWidth;
 		this._layoutInfo = {
 			fontInfo: state.font || null,
 			editorHeight: this._editorHeight,
@@ -128,11 +128,11 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			state.totalHeight = true;
 		}
 
-		this._fireOnDidChangeLayout();
+		this._fireOnDidChangeLayout(state);
 	}
 
-	private _fireOnDidChangeLayout() {
-		this._onDidChangeLayout.fire();
+	private _fireOnDidChangeLayout(state: CodeCellLayoutChangeEvent) {
+		this._onDidChangeLayout.fire(state);
 	}
 
 	hasDynamicHeight() {
