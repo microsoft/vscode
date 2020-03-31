@@ -41,7 +41,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 	}
 
 	protected provideWithoutTextEditor(picker: IQuickPick<IGotoSymbolQuickPickItem>): IDisposable {
-		const label = localize('cannotRunGotoSymbolWithoutEditor', "Open a text editor first to go to a symbol.");
+		const label = localize('cannotRunGotoSymbolWithoutEditor', "To go to a symbol, first open a text editor with symbol information.");
 
 		picker.items = [{ label, index: 0, kind: SymbolKind.String }];
 		picker.ariaLabel = label;
@@ -70,7 +70,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 		const disposables = new DisposableStore();
 
 		// Generic pick for not having any symbol information
-		const label = localize('cannotRunGotoSymbolWithoutSymbolProvider', "Open a text editor with symbol information first to go to a symbol.");
+		const label = localize('cannotRunGotoSymbolWithoutSymbolProvider', "The active text editor does not provide symbol information.");
 		picker.items = [{ label, index: 0, kind: SymbolKind.String }];
 		picker.ariaLabel = label;
 
