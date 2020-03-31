@@ -269,16 +269,16 @@ class WebviewDocumentStore {
 		return this._documents.get(this.key(viewType, resource));
 	}
 
-	public add(document: extHostTypes.CustomDocument) {
-		const key = this.key(document.viewType, document.uri);
+	public add(viewType: string, document: extHostTypes.CustomDocument) {
+		const key = this.key(viewType, document.uri);
 		if (this._documents.has(key)) {
-			throw new Error(`Document already exists for viewType:${document.viewType} resource:${document.uri}`);
+			throw new Error(`Document already exists for viewType:${viewType} resource:${document.uri}`);
 		}
 		this._documents.set(key, document);
 	}
 
-	public delete(document: extHostTypes.CustomDocument) {
-		const key = this.key(document.viewType, document.uri);
+	public delete(viewType: string, document: extHostTypes.CustomDocument) {
+		const key = this.key(viewType, document.uri);
 		this._documents.delete(key);
 	}
 
@@ -414,7 +414,7 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
 				disposables.add(provider.editingDelegate.onDidEdit(e => {
 					const document = e.document;
 					const editId = (document as extHostTypes.CustomDocument)._addEdit(e.edit);
-					this._proxy.$onDidEdit(document.uri, document.viewType, editId, e.label);
+					this._proxy.$onDidEdit(document.uri, viewType, editId, e.label);
 				}));
 			}
 		}
@@ -516,7 +516,7 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
 
 		const revivedResource = URI.revive(resource);
 		const document = await entry.provider.openCustomDocument(revivedResource, cancellation);
-		this._documents.add(document as extHostTypes.CustomDocument);
+		this._documents.add(viewType, document as extHostTypes.CustomDocument);
 		return {
 			editable: !!entry.provider.editingDelegate,
 		};
@@ -534,7 +534,7 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
 
 		const revivedResource = URI.revive(resource);
 		const document = this.getCustomDocument(viewType, revivedResource);
-		this._documents.delete(document);
+		this._documents.delete(viewType, document);
 		document._dispose();
 	}
 

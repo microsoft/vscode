@@ -2747,7 +2747,6 @@ export class CustomDocument<EditType = unknown> implements vscode.CustomDocument
 
 	readonly #edits = new Cache<EditType>('edits');
 
-	readonly #viewType: string;
 	readonly #uri: vscode.Uri;
 
 	#editState: EditState = {
@@ -2758,14 +2757,11 @@ export class CustomDocument<EditType = unknown> implements vscode.CustomDocument
 	#isDisposed = false;
 	#version = 1;
 
-	constructor(viewType: string, uri: vscode.Uri) {
-		this.#viewType = viewType;
+	constructor(uri: vscode.Uri) {
 		this.#uri = uri;
 	}
 
 	//#region Public API
-
-	public get viewType(): string { return this.#viewType; }
 
 	public get uri(): vscode.Uri { return this.#uri; }
 
