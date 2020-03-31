@@ -62,11 +62,7 @@ export class TaskQuickPick extends Disposable {
 	}
 
 	private createTaskEntry(task: Task | ConfiguringTask): TaskTwoLevelQuickPickEntry {
-		let entryLabel = this.guessTaskLabel(task);
-		if (!ConfiguringTask.is(task) && task.instance) {
-			entryLabel += + ' (' + task.instance + ')';
-		}
-		const entry: TaskTwoLevelQuickPickEntry = { label: entryLabel, description: this.taskService.getTaskDescription(task), task, detail: this.showDetail() ? task.configurationProperties.detail : undefined };
+		const entry: TaskTwoLevelQuickPickEntry = { label: this.guessTaskLabel(task), description: this.taskService.getTaskDescription(task), task, detail: this.showDetail() ? task.configurationProperties.detail : undefined };
 		entry.buttons = [{ iconClass: 'codicon-gear', tooltip: nls.localize('configureTask', "Configure Task") }];
 		return entry;
 	}
