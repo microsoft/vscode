@@ -390,7 +390,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 	}
 }
 
-export const customEditorsAssociationsKey = 'workbench.experimental.editorAssociations';
+export const customEditorsAssociationsKey = 'workbench.editorAssociations';
 
 export type CustomEditorAssociation = CustomEditorSelector & {
 	readonly viewType: string;
