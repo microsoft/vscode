@@ -107,6 +107,7 @@ export class CodeCell extends Disposable {
 			);
 
 			viewCell.editorHeight = realContentHeight;
+			this.relayoutCell();
 		});
 
 		cellWidthResizeObserver.startObserving();
