@@ -96,7 +96,7 @@
 			"@author"
 		],
 		"action": "updateLabels",
-		"addLabel": "verified",
+		"addLabel": "author-verified",
 		"removeLabel": "author-verification-requested",
 		"requireLabel": "author-verification-requested",
 		"disallowLabel": "awaiting-insiders-release"
