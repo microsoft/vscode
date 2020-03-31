@@ -439,11 +439,16 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		this.updateForRunState(element, templateData, runStateKey);
 		elementDisposable.add(element.onDidChangeCellRunState(() => this.updateForRunState(element, templateData, runStateKey)));
 
-		function renderExecutionOrder() {
-			const executionOrdeerLabel = typeof element.metadata?.executionOrder === 'number' ? `[ ${element.metadata.executionOrder} ]` :
-				'[   ]';
-			templateData.executionOrderLabel.innerText = executionOrdeerLabel;
-		}
+		const renderExecutionOrder = () => {
+			const hasExecutionOrder = this.notebookEditor.viewModel!.notebookDocument.metadata?.hasExecutionOrder;
+			if (hasExecutionOrder) {
+				const executionOrdeerLabel = typeof element.metadata?.executionOrder === 'number' ? `[ ${element.metadata.executionOrder} ]` :
+					'[   ]';
+				templateData.executionOrderLabel.innerText = executionOrdeerLabel;
+			} else {
+				templateData.executionOrderLabel.innerText = '';
+			}
+		};
 
 		contextKeyService.createKey(NOTEBOOK_CELL_TYPE_CONTEXT_KEY, 'code');
 		contextKeyService.createKey(NOTEBOOK_VIEW_TYPE, element.viewType);

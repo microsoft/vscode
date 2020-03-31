@@ -1301,7 +1301,7 @@ declare module 'vscode' {
 		runnable?: boolean;
 
 		/**
-		 * Execution order information of the cell
+		 * The order in which this cell was executed.
 		 */
 		executionOrder?: number;
 	}
@@ -1318,22 +1318,27 @@ declare module 'vscode' {
 	export interface NotebookDocumentMetadata {
 		/**
 		 * Controls if users can add or delete cells
-		 * Default to true
+		 * Defaults to true
 		 */
 		editable: boolean;
 
 		/**
 		 * Default value for [cell editable metadata](#NotebookCellMetadata.editable).
-		 * Default to true.
+		 * Defaults to true.
 		 */
 		cellEditable: boolean;
 
 		/**
 		 * Default value for [cell runnable metadata](#NotebookCellMetadata.runnable).
-		 * Default to true.
+		 * Defaults to true.
 		 */
 		cellRunnable: boolean;
 
+		/**
+		 * Whether the [execution order](#NotebookCellMetadata.executionOrder) indicator will be displayed.
+		 * Defaults to true.
+		 */
+		hasExecutionOrder: boolean;
 	}
 
 	export interface NotebookDocument {

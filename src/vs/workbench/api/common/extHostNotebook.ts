@@ -41,7 +41,8 @@ function getObservable<T extends Object>(obj: T): IObservable<T> {
 const notebookDocumentMetadataDefaults: vscode.NotebookDocumentMetadata = {
 	editable: true,
 	cellEditable: true,
-	cellRunnable: true
+	cellRunnable: true,
+	hasExecutionOrder: true
 };
 
 export class ExtHostCell extends Disposable implements vscode.NotebookCell {
