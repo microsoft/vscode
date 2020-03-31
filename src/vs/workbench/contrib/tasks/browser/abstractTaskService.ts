@@ -2596,6 +2596,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return result;
 	}
 
+	private configHasTasks(taskConfig?: TaskConfig.ExternalTaskRunnerConfiguration): boolean {
+		return !!taskConfig && !!taskConfig.tasks && taskConfig.tasks.length > 0;
+	}
+
 	private openTaskFile(resource: URI, taskSource: string) {
 		let configFileCreated = false;
 		this.fileService.resolve(resource).then((stat) => stat, () => undefined).then(async (stat) => {
@@ -2604,9 +2608,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			let tasksExistInFile: boolean;
 			let target: ConfigurationTarget;
 			switch (taskSource) {
-				case TaskSourceKind.User: tasksExistInFile = !!configValue.userValue; target = ConfigurationTarget.USER; break;
-				case TaskSourceKind.WorkspaceFile: tasksExistInFile = !!configValue.workspaceValue; target = ConfigurationTarget.WORKSPACE; break;
-				default: tasksExistInFile = !!configValue.value; target = ConfigurationTarget.WORKSPACE_FOLDER;
+				case TaskSourceKind.User: tasksExistInFile = this.configHasTasks(configValue.userValue); target = ConfigurationTarget.USER; break;
+				case TaskSourceKind.WorkspaceFile: tasksExistInFile = this.configHasTasks(configValue.workspaceValue); target = ConfigurationTarget.WORKSPACE; break;
+				default: tasksExistInFile = this.configHasTasks(configValue.value); target = ConfigurationTarget.WORKSPACE_FOLDER;
 			}
 			let content;
 			if (!tasksExistInFile) {
