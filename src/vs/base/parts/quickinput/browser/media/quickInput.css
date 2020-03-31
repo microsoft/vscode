@@ -246,8 +246,8 @@
 
 .quick-input-list .quick-input-list-entry-action-bar .action-label.codicon {
 	margin: 0;
-	width: 19px;
 	height: 100%;
+	padding: 0 2px;
 	vertical-align: middle;
 }
 
