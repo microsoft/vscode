@@ -1418,12 +1418,13 @@ export class CommandCenter {
 			opts.signoff = true;
 		}
 
+		const isMergeInProgress = await repository.isMergeInProgress();
 		const smartCommitChanges = config.get<'all' | 'tracked'>('smartCommitChanges');
 
 		if (
 			(
 				// no changes
-				(noStagedChanges && noUnstagedChanges)
+				(noStagedChanges && noUnstagedChanges && !isMergeInProgress)
 				// or no staged changes and not `all`
 				|| (!opts.all && noStagedChanges)
 				// no staged changes and no tracked unstaged changes

@@ -954,6 +954,12 @@ export class Repository implements Disposable {
 		return this.run(Operation.MergeBase, () => this.repository.getMergeBase(ref1, ref2));
 	}
 
+	async isMergeInProgress(): Promise<boolean> {
+		const mergeHeadPath = path.join(this.repository.dotGit, 'MERGE_HEAD');
+
+		return new Promise<boolean>(c => fs.exists(mergeHeadPath, c));
+	}
+
 	async hashObject(data: string): Promise<string> {
 		return this.run(Operation.HashObject, () => this.repository.hashObject(data));
 	}
