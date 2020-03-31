@@ -175,7 +175,7 @@ export class BackLayerWebView extends Disposable {
 							type: 'dimension',
 							id: id,
 							data: {
-								height: entry.contentRect.height + ${outputNodePadding}
+								height: entry.contentRect.height + ${outputNodePadding} * 2
 							}
 						});
 				}
