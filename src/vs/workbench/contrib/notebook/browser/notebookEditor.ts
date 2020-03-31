@@ -611,12 +611,20 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 	async moveCellDown(cell: ICellViewModel): Promise<void> {
 		const index = this.notebookViewModel!.getViewCellIndex(cell);
+		if (index === this.notebookViewModel!.viewCells.length - 1) {
+			return;
+		}
+
 		const newIdx = index + 1;
 		return this.moveCellToIndex(index, newIdx);
 	}
 
 	async moveCellUp(cell: ICellViewModel): Promise<void> {
 		const index = this.notebookViewModel!.getViewCellIndex(cell);
+		if (index === 0) {
+			return;
+		}
+
 		const newIdx = index - 1;
 		return this.moveCellToIndex(index, newIdx);
 	}
