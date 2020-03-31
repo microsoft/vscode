@@ -2815,11 +2815,11 @@ export class CustomDocument<EditType = unknown> implements vscode.CustomDocument
 
 	/** @internal*/ _addEdit(edit: EditType): number {
 		const id = this.#edits.add([edit]);
-		this.#editState = {
-			allEdits: [...this.#editState.allEdits.slice(0, this.#editState.currentIndex), id],
+		this._updateEditState({
+			allEdits: [...this.#editState.allEdits.slice(0, this.#editState.currentIndex + 1), id],
 			currentIndex: this.#editState.currentIndex + 1,
 			saveIndex: this.#editState.saveIndex,
-		};
+		});
 		return id;
 	}
 }
