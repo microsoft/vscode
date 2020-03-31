@@ -40,6 +40,7 @@ export interface NotebookDocumentMetadata {
 	editable: boolean;
 	cellEditable?: boolean;
 	cellRunnable?: boolean;
+	hasExecutionOrder?: boolean;
 }
 
 export interface NotebookCellMetadata {

@@ -117,7 +117,7 @@ class DocumentSemanticTokensProvider implements vscode.DocumentSemanticTokensPro
 				builder.push(line, startCharacter, endCharacter - startCharacter, tokenType, tokenModifiers);
 			}
 		}
-		return new vscode.SemanticTokens(builder.build());
+		return builder.build();
 	}
 }
 

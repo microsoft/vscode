@@ -1793,13 +1793,30 @@ export class TextModel extends Disposable implements model.ITextModel {
 		}
 	}
 
-	public setSemanticTokens(tokens: MultilineTokens2[] | null): void {
-		this._tokens2.set(tokens);
+	public setSemanticTokens(tokens: MultilineTokens2[] | null, isComplete: boolean): void {
+		this._tokens2.set(tokens, isComplete);
 
 		this._emitModelTokensChangedEvent({
 			tokenizationSupportChanged: false,
 			semanticTokensApplied: tokens !== null,
 			ranges: [{ fromLineNumber: 1, toLineNumber: this.getLineCount() }]
+		});
+	}
+
+	public hasSemanticTokens(): boolean {
+		return this._tokens2.isComplete();
+	}
+
+	public setPartialSemanticTokens(range: Range, tokens: MultilineTokens2[]): void {
+		if (this.hasSemanticTokens()) {
+			return;
+		}
+		const changedRange = this._tokens2.setPartial(range, tokens);
+
+		this._emitModelTokensChangedEvent({
+			tokenizationSupportChanged: false,
+			semanticTokensApplied: true,
+			ranges: [{ fromLineNumber: changedRange.startLineNumber, toLineNumber: changedRange.endLineNumber }]
 		});
 	}
 

@@ -15,6 +15,7 @@ import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { CellEditType, CellUri, diff, ICellEditOperation, ICellInsertEdit, IErrorOutput, INotebookDisplayOrder, INotebookEditData, IOrderedMimeType, IStreamOutput, ITransformedDisplayOutputDto, mimeTypeSupportedByCore, NotebookCellsChangedEvent, NotebookCellsSplice2, sortMimeTypes, ICellDeleteEdit } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Disposable as VSCodeDisposable } from './extHostTypes';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 interface IObservable<T> {
 	proxy: T;
@@ -40,7 +41,8 @@ function getObservable<T extends Object>(obj: T): IObservable<T> {
 const notebookDocumentMetadataDefaults: vscode.NotebookDocumentMetadata = {
 	editable: true,
 	cellEditable: true,
-	cellRunnable: true
+	cellRunnable: true,
+	hasExecutionOrder: true
 };
 
 export class ExtHostCell extends Disposable implements vscode.NotebookCell {
@@ -686,7 +688,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		return Promise.resolve(undefined);
 	}
 
-	async $executeNotebook(viewType: string, uri: UriComponents, cellHandle: number | undefined): Promise<void> {
+	async $executeNotebook(viewType: string, uri: UriComponents, cellHandle: number | undefined, token: CancellationToken): Promise<void> {
 		let provider = this._notebookProviders.get(viewType);
 
 		if (!provider) {
@@ -700,7 +702,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		}
 
 		let cell = cellHandle !== undefined ? document.getCell(cellHandle) : undefined;
-		return provider.provider.executeCell(document!, cell);
+		return provider.provider.executeCell(document!, cell, token);
 	}
 
 	async $saveNotebook(viewType: string, uri: UriComponents): Promise<boolean> {

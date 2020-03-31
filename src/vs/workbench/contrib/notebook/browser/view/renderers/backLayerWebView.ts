@@ -5,7 +5,6 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
-import * as path from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -18,6 +17,7 @@ import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { CELL_MARGIN, CELL_RUN_GUTTER } from 'vs/workbench/contrib/notebook/browser/constants';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 export interface IDimentionMessage {
 	__vscode_notebook_message: boolean;
@@ -103,7 +103,8 @@ export class BackLayerWebView extends Disposable {
 		this.element.style.position = 'absolute';
 		this.element.style.margin = `0px 0 0px ${CELL_MARGIN}px`;
 
-		const loader = URI.file(path.join(environmentSerice.appRoot, '/out/vs/loader.js')).with({ scheme: WebviewResourceScheme });
+		const pathsPath = getPathFromAmdModule(require, 'vs/loader.js');
+		const loader = URI.file(pathsPath).with({ scheme: WebviewResourceScheme });
 
 		const outputNodePadding = 8;
 		let content = /* html */`

@@ -175,7 +175,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 		const storedWorkspaceFolder: IStoredWorkspaceFolder[] = [];
 
 		for (const folder of folders) {
-			storedWorkspaceFolder.push(getStoredWorkspaceFolder(folder.uri, folder.name, untitledWorkspaceConfigFolder));
+			storedWorkspaceFolder.push(getStoredWorkspaceFolder(folder.uri, true, folder.name, untitledWorkspaceConfigFolder));
 		}
 
 		return {
