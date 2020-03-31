@@ -311,7 +311,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: 'workbench.action.executeNotebook',
 		title: localize('notebookActions.menu.executeNotebook', "Execute Notebook (Run all cells)"),
-		icon: { id: 'codicon/debug-start' }
+		icon: { id: 'codicon/run-all' }
 	},
 	order: -1,
 	group: 'navigation',
@@ -323,7 +323,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: 'workbench.action.executeNotebookCell',
 		title: localize('notebookActions.menu.execute', "Execute Notebook Cell"),
-		icon: { id: 'codicon/debug-continue' }
+		icon: { id: 'codicon/run' }
 	},
 	order: -1,
 	group: 'navigation',
@@ -645,7 +645,7 @@ registerAction2(class extends Action2 {
 					order: CellToolbarOrder.DeleteCell,
 					when: ContextKeyExpr.equals(NOTEBOOK_EDITABLE_CONTEXT_KEY, true)
 				},
-				icon: { id: 'codicon/x' }
+				icon: { id: 'codicon/trash' }
 			});
 	}
 
