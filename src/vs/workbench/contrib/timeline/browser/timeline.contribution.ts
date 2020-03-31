@@ -42,7 +42,10 @@ configurationRegistry.registerConfiguration({
 	type: 'object',
 	properties: {
 		'timeline.excludeSources': {
-			type: 'array',
+			type: 'object',
+			additionalProperties: {
+				type: 'boolean'
+			},
 			description: localize('timeline.excludeSources', "Experimental: An array of Timeline sources that should be excluded from the Timeline view"),
 			default: null
 		},

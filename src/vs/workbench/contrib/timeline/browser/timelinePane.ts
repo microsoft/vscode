@@ -36,7 +36,6 @@ import { ContextAwareMenuEntryActionViewItem, createAndFillInContextMenuActions 
 import { MenuItemAction, IMenuService, MenuId, registerAction2, Action2, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { fromNow } from 'vs/base/common/date';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { Iterable } from 'vs/base/common/iterator';
 import { Schemas } from 'vs/base/common/network';
 
@@ -86,6 +85,11 @@ function updateRelativeTime(item: TimelineItem, lastRelativeTime: string | undef
 	}
 
 	return lastRelativeTime;
+}
+
+function convertExcludedSourcesToSet(excludedSources: { [source: string]: boolean }) {
+	const excluded = Object.entries(excludedSources).filter(([_, excluded]) => excluded).map(([source]) => source);
+	return new Set(excluded);
 }
 
 interface TimelineActionContext {
@@ -237,7 +241,7 @@ export class TimelinePane extends ViewPane {
 
 		this.followActiveEditorContext = TimelineFollowActiveEditorContext.bindTo(this.contextKeyService);
 
-		this.excludedSources = new Set(configurationService.getValue('timeline.excludeSources'));
+		this.excludedSources = convertExcludedSourcesToSet(configurationService.getValue('timeline.excludeSources') ?? {});
 		configurationService.onDidChangeConfiguration(this.onConfigurationChanged, this);
 
 		this._register(timelineService.onDidChangeProviders(this.onProvidersChanged, this));
@@ -286,7 +290,7 @@ export class TimelinePane extends ViewPane {
 			return;
 		}
 
-		this.excludedSources = new Set(this.configurationService.getValue('timeline.excludeSources'));
+		this.excludedSources = convertExcludedSourcesToSet(this.configurationService.getValue('timeline.excludeSources') ?? {});
 
 		const missing = this.timelineService.getSources()
 			.filter(({ id }) => !this.excludedSources.has(id) && !this.timelinesBySource.has(id));
@@ -1157,7 +1161,7 @@ class TimelinePaneCommands extends Disposable {
 	private updateTimelineSourceFilters() {
 		this.sourceDisposables.clear();
 
-		const excluded = new Set(this.configurationService.getValue<string[] | undefined>('timeline.excludeSources') ?? []);
+		const excludedSourcesSet = convertExcludedSourcesToSet(this.configurationService.getValue('timeline.excludeSources') ?? {});
 
 		for (const source of this.timelineService.getSources()) {
 			this.sourceDisposables.add(registerAction2(class extends Action2 {
@@ -1170,18 +1174,23 @@ class TimelinePaneCommands extends Disposable {
 							id: MenuId.TimelineTitle,
 							group: '2_sources',
 						},
-						toggled: ContextKeyExpr.regex(`config.timeline.excludeSources`, new RegExp(`\\b${escapeRegExpCharacters(source.id)}\\b`)).negate()
+						toggled: ContextKeyExpr.notEquals(`config.timeline.excludeSources.${source.id}`, true)
 					});
 				}
 				run(accessor: ServicesAccessor, ...args: any[]) {
-					if (excluded.has(source.id)) {
-						excluded.delete(source.id);
+					if (excludedSourcesSet.has(source.id)) {
+						excludedSourcesSet.delete(source.id);
 					} else {
-						excluded.add(source.id);
+						excludedSourcesSet.add(source.id);
 					}
 
 					const configurationService = accessor.get(IConfigurationService);
-					configurationService.updateValue('timeline.excludeSources', [...excluded.keys()]);
+					const excludeSources: { [source: string]: boolean } = {};
+					for (const source of excludedSourcesSet) {
+						excludeSources[source] = true;
+					}
+
+					configurationService.updateValue('timeline.excludeSources', excludeSources);
 				}
 			}));
 		}
