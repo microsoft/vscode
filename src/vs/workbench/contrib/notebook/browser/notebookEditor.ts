@@ -148,6 +148,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		this.createBody(this.rootElement);
 		this.generateFontInfo();
 		this.editorFocus = NOTEBOOK_EDITOR_FOCUSED.bindTo(this.contextKeyService);
+		this.editorFocus.set(true);
 		this._register(this.onDidFocus(() => {
 			this.editorFocus?.set(true);
 		}));
