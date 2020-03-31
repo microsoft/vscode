@@ -7,7 +7,6 @@ import * as crypto from 'crypto';
 import * as https from 'https';
 import * as querystring from 'querystring';
 import * as vscode from 'vscode';
-import * as uuid from 'uuid';
 import { createServer, startServer } from './authServer';
 import { keychain } from './keychain';
 import Logger from './logger';
@@ -408,7 +407,7 @@ export class AzureActiveDirectoryService {
 			accessToken: json.access_token,
 			refreshToken: json.refresh_token,
 			scope,
-			sessionId: `${claims.tid}/${(claims.oid || (claims.altsecid || '' + claims.ipd || ''))}/${uuid()}`,
+			sessionId: `${claims.tid}/${(claims.oid || (claims.altsecid || '' + claims.ipd || ''))}/${scope}`,
 			accountName: claims.email || claims.unique_name || 'user@example.com'
 		};
 	}

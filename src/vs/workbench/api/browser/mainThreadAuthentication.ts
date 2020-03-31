@@ -35,7 +35,6 @@ const BUILT_IN_AUTH_DEPENDENTS: AuthDependent[] = [
 interface AllowedExtension {
 	id: string;
 	name: string;
-	sessionIds?: string[];
 }
 
 function readAllowedExtensions(storageService: IStorageService, providerId: string, accountName: string): AllowedExtension[] {
@@ -86,16 +85,6 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		quickPick.onDidAccept(() => {
 			const updatedAllowedList = quickPick.selectedItems.map(item => item.extension);
 			storageService.store(`${this.id}-${accountName}`, JSON.stringify(updatedAllowedList), StorageScope.GLOBAL);
-
-			// Remove sessions of untrusted extensions
-			const deselectedItems = items.filter(item => !quickPick.selectedItems.includes(item));
-			deselectedItems.forEach(item => {
-				const extensionData = allowedExtensions.find(extension => item.extension.id === extension.id);
-				extensionData?.sessionIds?.forEach(sessionId => {
-					this.logout(sessionId);
-				});
-			});
-
 			quickPick.dispose();
 		});
 
@@ -286,19 +275,9 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		this.authenticationService.sessionsUpdate(id, event);
 	}
 
-	async $getSessionsPrompt(providerId: string, accountName: string, sessionId: string, providerName: string, extensionId: string, extensionName: string): Promise<boolean> {
-		const allowList = readAllowedExtensions(this.storageService, providerId, accountName);
-		const extensionData = allowList.find(extension => extension.id === extensionId);
-		if (extensionData) {
-			if (!extensionData.sessionIds) {
-				extensionData.sessionIds = [];
-			}
-
-			if (!extensionData.sessionIds.find(id => id === sessionId)) {
-				extensionData.sessionIds.push(sessionId);
-				this.storageService.store(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.GLOBAL);
-			}
-
+	async $getSessionsPrompt(providerId: string, accountName: string, providerName: string, extensionId: string, extensionName: string): Promise<boolean> {
+		let allowList = readAllowedExtensions(this.storageService, providerId, accountName);
+		if (allowList.some(extension => extension.id === extensionId)) {
 			return true;
 		}
 
@@ -313,7 +292,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 		const allow = choice === 1;
 		if (allow) {
-			allowList.push({ id: extensionId, name: extensionName, sessionIds: [sessionId] });
+			allowList = allowList.concat({ id: extensionId, name: extensionName });
 			this.storageService.store(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.GLOBAL);
 		}
 
@@ -334,10 +313,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	}
 
 	async $setTrustedExtension(providerId: string, accountName: string, extensionId: string, extensionName: string): Promise<void> {
-		const allowList = readAllowedExtensions(this.storageService, providerId, accountName);
-		if (!allowList.find(allowed => allowed.id === extensionId)) {
-			allowList.push({ id: extensionId, name: extensionName, sessionIds: [] });
-			this.storageService.store(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.GLOBAL);
-		}
+		const allowList = readAllowedExtensions(this.storageService, providerId, accountName).concat({ id: extensionId, name: extensionName });
+		this.storageService.store(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.GLOBAL);
 	}
 }
