@@ -402,7 +402,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		const configuration = this.configuration;
 
 		// Just return all history entries if not searching
-		if (!query.value) {
+		if (!query.normalized) {
 			return this.historyService.getHistory().map(editor => this.createAnythingPick(editor, configuration));
 		}
 
@@ -448,9 +448,9 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	//#region File Search
 
-	private fileQueryDelayer = this._register(new ThrottledDelayer<URI[]>(AnythingQuickAccessProvider.TYPING_SEARCH_DELAY));
+	private readonly fileQueryDelayer = this._register(new ThrottledDelayer<URI[]>(AnythingQuickAccessProvider.TYPING_SEARCH_DELAY));
 
-	private fileQueryBuilder = this.instantiationService.createInstance(QueryBuilder);
+	private readonly fileQueryBuilder = this.instantiationService.createInstance(QueryBuilder);
 
 	private createFileQueryCache(): FileQueryCacheState {
 		return new FileQueryCacheState(
@@ -462,7 +462,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 	}
 
 	private async getFilePicks(query: IPreparedQuery, excludes: ResourceMap<boolean>, token: CancellationToken): Promise<Array<IAnythingQuickPickItem>> {
-		if (!query.value) {
+		if (!query.normalized) {
 			return [];
 		}
 
@@ -692,9 +692,9 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 	private async getWorkspaceSymbolPicks(query: IPreparedQuery, token: CancellationToken): Promise<Array<IAnythingQuickPickItem>> {
 		const configuration = this.configuration;
 		if (
-			!query.value ||						// we need a value for search for
-			!configuration.includeSymbols ||	// we need to enable symbols in search
-			this.pickState.lastRange			// a range is an indicator for just searching for files
+			!query.normalized ||	// we need a value for search for
+			!configuration.includeSymbols ||		// we need to enable symbols in search
+			this.pickState.lastRange				// a range is an indicator for just searching for files
 		) {
 			return [];
 		}
