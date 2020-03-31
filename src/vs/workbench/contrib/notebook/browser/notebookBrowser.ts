@@ -252,6 +252,7 @@ export interface BaseCellRenderTemplate {
 	toolbar: ToolBar;
 	focusIndicator: HTMLElement;
 	disposables: DisposableStore;
+	toJSON: () => any;
 }
 
 export interface MarkdownCellRenderTemplate extends BaseCellRenderTemplate {

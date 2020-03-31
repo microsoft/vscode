@@ -234,6 +234,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 			focusIndicator,
 			disposables,
 			toolbar,
+			toJSON: () => { return {}; }
 		};
 	}
 
@@ -358,7 +359,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			editor,
 			disposables,
 			betweenCellContainer: betweenCellContainer,
-			// betweenCellToolbar: betweenCellActionsToolbar
+			toJSON: () => { return {}; }
 		};
 	}
 
