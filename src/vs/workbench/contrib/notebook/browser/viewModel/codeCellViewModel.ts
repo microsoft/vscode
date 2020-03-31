@@ -128,7 +128,6 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			state.totalHeight = true;
 		}
 
-		console.log(this._layoutInfo);
 		this._fireOnDidChangeLayout();
 	}
 
