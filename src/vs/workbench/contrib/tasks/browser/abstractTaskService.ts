@@ -1240,7 +1240,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 	}
 
-	private getResourceForTask(task: CustomTask | ContributedTask): URI {
+	private getResourceForTask(task: CustomTask | ConfiguringTask | ContributedTask): URI {
 		if (CustomTask.is(task)) {
 			let uri = this.getResourceForKind(task._source.kind);
 			if (!uri) {
@@ -1257,7 +1257,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 	}
 
-	public openConfig(task: CustomTask | undefined): Promise<void> {
+	public openConfig(task: CustomTask | ConfiguringTask | undefined): Promise<void> {
 		let resource: URI | undefined;
 		if (task) {
 			resource = this.getResourceForTask(task);

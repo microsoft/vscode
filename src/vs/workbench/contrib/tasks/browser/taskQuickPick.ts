@@ -163,7 +163,7 @@ export class TaskQuickPick extends Disposable {
 			this.quickInputService.cancel();
 			if (ContributedTask.is(task)) {
 				this.taskService.customize(task, undefined, true);
-			} else if (CustomTask.is(task)) {
+			} else if (CustomTask.is(task) || ConfiguringTask.is(task)) {
 				this.taskService.openConfig(task);
 			}
 		});
