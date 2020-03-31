@@ -353,7 +353,7 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 					if (selector.language !== language) {
 						return -1;
 					}
-					score += 100;
+					score += 10;
 				}
 				if (selector.type !== TOKEN_TYPE_WILDCARD) {
 					const hierarchy = this.getTypeHierarchy(type);

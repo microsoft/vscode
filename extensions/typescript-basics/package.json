@@ -88,7 +88,9 @@
           "variable": ["variable.other.readwrite.ts"],
           "variable.readonly": ["variable.other.constant.object.ts"],
           "function": ["entity.name.function.ts"],
-          "namespace": ["entity.name.type.module.ts"]
+          "namespace": ["entity.name.type.module.ts"],
+          "variable.defaultLibrary": ["support.variable.ts"],
+          "function.defaultLibrary": ["support.function.ts"]
         }
       },
       {
@@ -99,7 +101,9 @@
           "variable": ["variable.other.readwrite.tsx"],
           "variable.readonly": ["variable.other.constant.object.tsx"],
           "function": ["entity.name.function.tsx"],
-          "namespace": ["entity.name.type.module.tsx"]
+          "namespace": ["entity.name.type.module.tsx"],
+          "variable.defaultLibrary": ["support.variable.tsx"],
+          "function.defaultLibrary": ["support.function.tsx"]
         }
       }
     ],

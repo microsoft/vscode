@@ -401,9 +401,9 @@ suite('Paths (Node Implementation)', () => {
 		];
 		resolveTests.forEach((test) => {
 			const resolve = test[0];
-			//@ts-ignore
+			//@ts-expect-error
 			test[1].forEach((test) => {
-				//@ts-ignore
+				//@ts-expect-error
 				const actual = resolve.apply(null, test[0]);
 				let actualAlt;
 				const os = resolve === path.win32.resolve ? 'win32' : 'posix';
@@ -579,9 +579,9 @@ suite('Paths (Node Implementation)', () => {
 		];
 		relativeTests.forEach((test) => {
 			const relative = test[0];
-			//@ts-ignore
+			//@ts-expect-error
 			test[1].forEach((test) => {
-				//@ts-ignore
+				//@ts-expect-error
 				const actual = relative(test[0], test[1]);
 				const expected = test[2];
 				const os = relative === path.win32.relative ? 'win32' : 'posix';
