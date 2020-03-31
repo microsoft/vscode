@@ -14,7 +14,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { IExtensionManagementService, IExtensionGalleryService, IGalleryExtension, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionGalleryService, IGalleryExtension, ILocalExtension, IGlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -44,8 +44,12 @@ import { buildTelemetryMessage } from 'vs/platform/telemetry/node/telemetry';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { NativeStorageService } from 'vs/platform/storage/node/storageService';
+import { SQLiteStorageDatabase } from 'vs/base/parts/storage/node/storage';
 
 const notFound = (id: string) => localize('notFound', "Extension '{0}' not found.", id);
 const notInstalled = (id: string) => localize('notInstalled', "Extension '{0}' is not installed.", id);
@@ -69,21 +73,21 @@ export function getIdAndVersion(id: string): [string, string | undefined] {
 	return [adoptToGalleryExtensionId(id), undefined];
 }
 
-
 export class Main {
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
-		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService
+		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
+		@IGlobalExtensionEnablementService private readonly globalExtensionEnablementService: IGlobalExtensionEnablementService
 	) { }
 
 	async run(argv: ParsedArgs): Promise<void> {
 		if (argv['install-source']) {
 			await this.setInstallSource(argv['install-source']);
 		} else if (argv['list-extensions']) {
-			await this.listExtensions(!!argv['show-versions'], argv['category']);
+			await this.listExtensions(!!argv['show-versions'], argv['category'], argv['state']);
 		} else if (argv['install-extension']) {
 			await this.installExtensions(argv['install-extension'], !!argv['force']);
 		} else if (argv['uninstall-extension']) {
@@ -99,10 +103,13 @@ export class Main {
 		return writeFile(this.environmentService.installSourcePath, installSource.slice(0, 30));
 	}
 
-	private async listExtensions(showVersions: boolean, category?: string): Promise<void> {
-		let extensions = await this.extensionManagementService.getInstalled(ExtensionType.User);
+	private async listExtensions(showVersions: boolean, category?: string, state?: string): Promise<void> {
 		// TODO: we should save this array in a common place so that the command and extensionQuery can use it that way changing it is easier
+		const states = ['enabled', 'disabled'];
 		const categories = ['"programming languages"', 'snippets', 'linters', 'themes', 'debuggers', 'formatters', 'keymaps', '"scm providers"', 'other', '"extension packs"', '"language packs"'];
+
+		let extensions = await this.extensionManagementService.getInstalled(ExtensionType.User);
+
 		if (category && category !== '') {
 			if (categories.indexOf(category.toLowerCase()) < 0) {
 				console.log('Invalid category please enter a valid category. To list valid categories run --category without a category specified');
@@ -122,6 +129,29 @@ export class Main {
 			});
 			return;
 		}
+
+		if (state && state !== '') {
+			if (states.indexOf(state.toLowerCase()) < 0) {
+				console.log('Invalid state please enter a valid state. Allowed values are \'enabled\', \'disabled\'.');
+				return;
+			}
+
+			// Get the list of disabled extensions
+			const disabledExtensions = await this.globalExtensionEnablementService.getDisabledExtensions();
+			const disabledExtensionIds = disabledExtensions.map(e => e.id);
+
+			if (state === 'enabled') {
+				// Remove disabled extensions
+				extensions = extensions.filter(e => disabledExtensionIds.indexOf(e.identifier.id) === -1);
+			} else if (state === 'disabled') {
+				// Remove enabled extensions
+				extensions = extensions.filter(e => disabledExtensionIds.indexOf(e.identifier.id) !== -1);
+			}
+		} else if (state === '') {
+			console.log('Possible States: enabled, disabled');
+			return;
+		}
+
 		extensions.forEach(e => console.log(getId(e.manifest, showVersions)));
 	}
 
@@ -293,6 +323,7 @@ export class Main {
 }
 
 const eventPrefix = 'monacoworkbench';
+const globalStorageName = 'state.vscdb';
 
 export async function main(argv: ParsedArgs): Promise<void> {
 	const services = new ServiceCollection();
@@ -305,6 +336,13 @@ export async function main(argv: ParsedArgs): Promise<void> {
 
 	await Promise.all<void | undefined>([environmentService.appSettingsHome.fsPath, environmentService.extensionsPath]
 		.map((path): undefined | Promise<void> => path ? mkdirp(path) : undefined));
+
+	// Storage
+	const storageDatabase = new SQLiteStorageDatabase(path.join(environmentService.globalStorageHome, globalStorageName));
+	const storageService = new NativeStorageService(storageDatabase, logService, environmentService);
+	await storageService.initialize();
+	services.set(IStorageService, storageService);
+	disposables.add(toDisposable(() => storageService.flush()));
 
 	// Files
 	const fileService = new FileService(logService);
@@ -335,10 +373,10 @@ export async function main(argv: ParsedArgs): Promise<void> {
 
 		const services = new ServiceCollection();
 
-
 		services.set(IRequestService, new SyncDescriptor(RequestService));
-		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
+		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
+		services.set(IGlobalExtensionEnablementService, new SyncDescriptor(GlobalExtensionEnablementService));
 
 		const appenders: AppInsightsAppender[] = [];
 		if (isBuilt && !extensionDevelopmentLocationURI && !envService.args['disable-telemetry'] && product.enableTelemetry) {
