@@ -909,7 +909,7 @@ declare module 'vscode' {
 		/**
 		 * Handles a link that is activated within the terminal.
 		 *
-		 * @return Whether the link was handled, the link was handled this link will not be
+		 * @return Whether the link was handled, if the link was handled this link will not be
 		 * considered by any other extension or by the default built-in link handler.
 		 */
 		handleLink(terminal: Terminal, link: string): ProviderResult<boolean>;
