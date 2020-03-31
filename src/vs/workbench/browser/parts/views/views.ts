@@ -109,8 +109,7 @@ export class ContributableViewsModel extends Disposable {
 		const added: IAddedViewDescriptorRef[] = [];
 		const removed: IViewDescriptorRef[] = [];
 
-		for (const { id, visible, size } of viewDescriptors) {
-			const { visibleIndex, viewDescriptor, state } = this.find(id);
+		for (const { visibleIndex, viewDescriptor, state, visible, size } of viewDescriptors.map(({ id, visible, size }) => ({ ...this.find(id), visible, size }))) {
 
 			if (!viewDescriptor.canToggleVisibility) {
 				throw new Error(`Can't toggle this view's visibility`);
