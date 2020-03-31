@@ -583,13 +583,16 @@ function _makeFsPath(uri: URI, keepDriveLetterCasing: boolean): string {
 		// unc path: file://shares/c$/far/boo
 		value = `//${uri.authority}${uri.path}`;
 	} else if (
-		!keepDriveLetterCasing
-		&& uri.path.charCodeAt(0) === CharCode.Slash
+		uri.path.charCodeAt(0) === CharCode.Slash
 		&& (uri.path.charCodeAt(1) >= CharCode.A && uri.path.charCodeAt(1) <= CharCode.Z || uri.path.charCodeAt(1) >= CharCode.a && uri.path.charCodeAt(1) <= CharCode.z)
 		&& uri.path.charCodeAt(2) === CharCode.Colon
 	) {
-		// windows drive letter: file:///c:/far/boo
-		value = uri.path[1].toLowerCase() + uri.path.substr(2);
+		if (!keepDriveLetterCasing) {
+			// windows drive letter: file:///c:/far/boo
+			value = uri.path[1].toLowerCase() + uri.path.substr(2);
+		} else {
+			value = uri.path.substr(1);
+		}
 	} else {
 		// other path
 		value = uri.path;
