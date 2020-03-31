@@ -194,7 +194,8 @@ export class TaskQuickPick extends Disposable {
 				picker.dispose();
 				return this.toTask(firstLevelTask);
 			} else {
-				return;
+				picker.dispose();
+				return firstLevelTask;
 			}
 		} while (1);
 		return;
