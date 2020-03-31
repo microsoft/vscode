@@ -6862,7 +6862,7 @@ declare module 'vscode' {
 		 *
 		 * @return Thenable indicating that the custom editor has been resolved.
 		 */
-		resolveCustomTextEditor(document: TextDocument, webviewPanel: WebviewPanel, token: CancellationToken): Thenable<void>;
+		resolveCustomTextEditor(document: TextDocument, webviewPanel: WebviewPanel, token: CancellationToken): Thenable<void> | void;
 	}
 
 	/**
@@ -7091,7 +7091,7 @@ declare module 'vscode' {
 		 *
 		 * @return The custom document.
 		 */
-		openCustomDocument(uri: Uri, token: CancellationToken): Thenable<CustomDocument<EditType>>;
+		openCustomDocument(uri: Uri, token: CancellationToken): Thenable<CustomDocument<EditType>> | CustomDocument<EditType>;
 
 		/**
 		 * Resolve a custom editor for a given resource.
@@ -7106,9 +7106,9 @@ declare module 'vscode' {
 		 * @param webviewPanel Webview to resolve.
 		 * @param token A cancellation token that indicates the result is no longer needed.
 		 *
-		 * @return Thenable indicating that the custom editor has been resolved.
+		 * @return Optional thenable indicating that the custom editor has been resolved.
 		 */
-		resolveCustomEditor(document: CustomDocument<EditType>, webviewPanel: WebviewPanel, token: CancellationToken): Thenable<void>;
+		resolveCustomEditor(document: CustomDocument<EditType>, webviewPanel: WebviewPanel, token: CancellationToken): Thenable<void> | void;
 
 		/**
 		 * Defines the editing capability of the provider.
