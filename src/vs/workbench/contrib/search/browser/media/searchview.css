@@ -258,7 +258,7 @@
 }
 
 /* Adjusts spacing in high contrast mode so that actions are vertically centered */
-.hc-black .monaco-list .monaco-list-row .monaco-action-bar .action-label {
+.hc-black .search-view .monaco-list .monaco-list-row .monaco-action-bar .action-label {
 	margin-top: 2px;
 }
 
