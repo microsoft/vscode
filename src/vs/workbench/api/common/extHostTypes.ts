@@ -20,12 +20,10 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { Schemas } from 'vs/base/common/network';
 
 function es5ClassCompat(target: Function): any {
-	///@ts-ignore
+	///@ts-expect-error
 	function _() { return Reflect.construct(target, arguments, this.constructor); }
 	Object.defineProperty(_, 'name', Object.getOwnPropertyDescriptor(target, 'name')!);
-	///@ts-ignore
 	Object.setPrototypeOf(_, target);
-	///@ts-ignore
 	Object.setPrototypeOf(_.prototype, target.prototype);
 	return _;
 }

@@ -20,7 +20,6 @@ export interface IRPCProtocol {
 	assertRegistered(identifiers: ProxyIdentifier<any>[]): void;
 }
 
-// @ts-ignore
 export class ProxyIdentifier<T> {
 	public static count = 0;
 	_proxyIdentifierBrand: void;
