@@ -22,7 +22,7 @@ import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, 
 import {
 	ShowEnabledExtensionsAction, ShowInstalledExtensionsAction, ShowRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowDisabledExtensionsAction,
 	ShowOutdatedExtensionsAction, ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction, CheckForUpdatesAction, DisableAllAction, EnableAllAction,
-	EnableAutoUpdateAction, DisableAutoUpdateAction, ShowBuiltInExtensionsAction, InstallVSIXAction
+	EnableAutoUpdateAction, DisableAutoUpdateAction, ShowBuiltInExtensionsAction, InstallVSIXAction, toExtensionDescription
 } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
@@ -58,6 +58,9 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { MementoObject } from 'vs/workbench/common/memento';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { DragAndDropObserver } from 'vs/workbench/browser/dnd';
+import { URI } from 'vs/base/common/uri';
+import { PANEL_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 
 const NonEmptyWorkspaceContext = new RawContextKey<boolean>('nonEmptyWorkspace', false);
 const DefaultViewsContext = new RawContextKey<boolean>('defaultExtensionViews', true);
@@ -341,6 +344,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 	private readonly searchViewletState: MementoObject;
 
 	constructor(
+		@IHostService private readonly hostService: IHostService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IProgressService private readonly progressService: IProgressService,
@@ -396,8 +400,11 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		addClass(parent, 'extensions-viewlet');
 		this.root = parent;
 
-		const header = append(this.root, $('.header'));
+		const overlay = append(this.root, $('.overlay'));
+		const overlayBackgroundColor = this.getColor(PANEL_DRAG_AND_DROP_BACKGROUND) ?? '';
+		overlay.style.backgroundColor = overlayBackgroundColor;
 
+		const header = append(this.root, $('.header'));
 		const placeholder = localize('searchExtensions', "Search Extensions in Marketplace");
 		const searchValue = this.searchViewletState['query.value'] ? this.searchViewletState['query.value'] : '';
 
@@ -429,6 +436,54 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 			if (visible) {
 				this.searchBox!.focus();
 			}
+		}));
+
+		// Register DragAndDrop support
+		this._register(new DragAndDropObserver(this.root, {
+			onDragEnd: (e: DragEvent) => overlay.style.visibility = 'hidden',
+			onDragEnter: (e: DragEvent) => overlay.style.visibility = 'visible',
+			onDragLeave: (e: DragEvent) => overlay.style.visibility = 'hidden',
+			onDragOver: (e: DragEvent) => {
+				if (e.dataTransfer) {
+					e.dataTransfer.dropEffect = 'copy';
+				}
+			},
+			onDrop: (e: DragEvent) => {
+				overlay.style.visibility = 'hidden';
+
+				if (e.dataTransfer) {
+					if (e.dataTransfer.files.length > 0) {
+						let vsixPaths: URI[] = [];
+						for (let index = 0; index < e.dataTransfer.files.length; index++) {
+							console.log(`Installing ${e.dataTransfer.files.item(index)!.path}`);
+							vsixPaths.push(URI.parse(e.dataTransfer.files.item(index)!.path));
+						}
+
+						this.progress(
+							Promise.all(vsixPaths.map(vsix => this.extensionManagementService.install(vsix)))
+								.then(extensions => {
+									for (const extension of extensions) {
+										const requireReload = !(extension && this.extensionService.canAddExtension(toExtensionDescription(extension)));
+										const message = requireReload ? localize('InstallVSIXAction.successReload', "Please reload Visual Studio Code to complete installing the extension {0}.", extension.manifest.displayName || extension.manifest.name)
+											: localize('InstallVSIXAction.success', "Completed installing the extension {0}.", extension.manifest.displayName || extension.manifest.name);
+										const actions = requireReload ? [{
+											label: localize('InstallVSIXAction.reloadNow', "Reload Now"),
+											run: () => this.hostService.reload()
+										}] : [];
+										this.notificationService.prompt(
+											Severity.Info,
+											message,
+											actions,
+											{ sticky: true }
+										);
+									}
+
+									// Navigate to the installed extensions
+									return this.instantiationService.createInstance(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, ShowInstalledExtensionsAction.LABEL).run();
+								}));
+					}
+				}
+			},
 		}));
 
 		super.create(append(this.root, $('.extensions')));
