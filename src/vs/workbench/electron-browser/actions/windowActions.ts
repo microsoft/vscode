@@ -191,6 +191,7 @@ export abstract class BaseSwitchWindow extends Action {
 			return {
 				payload: win.id,
 				label: win.title,
+				ariaLabel: win.dirty ? nls.localize('windowDirtyAriaLabel', "{0}, dirty window, windows picker", win.title) : nls.localize('windowAriaLabel', "{0}, windows picker", win.title),
 				iconClasses: getIconClasses(this.modelService, this.modeService, resource, fileKind),
 				description: (currentWindowId === win.id) ? nls.localize('current', "Current Window") : undefined,
 				buttons: currentWindowId !== win.id ? win.dirty ? [this.closeDirtyWindowAction] : [this.closeWindowAction] : undefined

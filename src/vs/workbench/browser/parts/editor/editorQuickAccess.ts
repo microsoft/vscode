@@ -136,10 +136,12 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 				label: editor.getName(),
 				ariaLabel: (() => {
 					if (mapGroupIdToGroupAriaLabel.size > 1) {
-						return localize('entryAriaLabelWithGroup', "{0}, {1}, editors picker", editor.getName(), mapGroupIdToGroupAriaLabel.get(groupId));
+						return isDirty ?
+							localize('entryAriaLabelWithGroupDirty', "{0}, dirty, {1}, editors picker", editor.getName(), mapGroupIdToGroupAriaLabel.get(groupId)) :
+							localize('entryAriaLabelWithGroup', "{0}, {1}, editors picker", editor.getName(), mapGroupIdToGroupAriaLabel.get(groupId));
 					}
 
-					return localize('entryAriaLabel', "{0}, editors picker", editor.getName());
+					return isDirty ? localize('entryAriaLabelDirty', "{0}, dirty, editors picker", editor.getName()) : localize('entryAriaLabel', "{0}, editors picker", editor.getName());
 				})(),
 				description: editor.getDescription(),
 				iconClasses: getIconClasses(this.modelService, this.modeService, resource),
