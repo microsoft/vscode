@@ -16,7 +16,6 @@ import { OutlineModel, OutlineElement } from 'vs/editor/contrib/documentSymbols/
 import { values } from 'vs/base/common/collections';
 import { trim, format } from 'vs/base/common/strings';
 import { fuzzyScore, FuzzyScore, createMatches } from 'vs/base/common/filters';
-import { assign } from 'vs/base/common/objects';
 import { prepareQuery, IPreparedQuery } from 'vs/base/common/fuzzyScorer';
 
 export interface IGotoSymbolQuickPickItem extends IQuickPickItem {
@@ -37,7 +36,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 	static PREFIX_BY_CATEGORY = `${AbstractGotoSymbolQuickAccessProvider.PREFIX}${AbstractGotoSymbolQuickAccessProvider.SCOPE_PREFIX}`;
 
 	constructor(protected options?: IGotoSymbolQuickAccessProviderOptions) {
-		super(assign(options, { canAcceptInBackground: true }));
+		super({ ...options, canAcceptInBackground: true });
 	}
 
 	protected provideWithoutTextEditor(picker: IQuickPick<IGotoSymbolQuickPickItem>): IDisposable {
