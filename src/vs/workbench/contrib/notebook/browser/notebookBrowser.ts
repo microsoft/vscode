@@ -14,7 +14,7 @@ import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { Range } from 'vs/editor/common/core/range';
 import { FindMatch } from 'vs/editor/common/model';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { NOTEBOOK_EDITABLE_CONTEXT_KEY } from 'vs/workbench/contrib/notebook/browser/constants';
+import { NOTEBOOK_EDITABLE_CONTEXT_KEY, NOTEBOOK_EXECUTING_KEY } from 'vs/workbench/contrib/notebook/browser/constants';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { CellKind, IOutput, IRenderOutput, NotebookCellMetadata, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -23,6 +23,7 @@ export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey
 
 export const NOTEBOOK_EDITOR_FOCUSED = new RawContextKey<boolean>('notebookEditorFocused', false);
 export const NOTEBOOK_EDITOR_EDITABLE = new RawContextKey<boolean>(NOTEBOOK_EDITABLE_CONTEXT_KEY, true);
+export const NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK = new RawContextKey<boolean>(NOTEBOOK_EXECUTING_KEY, false);
 
 export interface NotebookLayoutInfo {
 	width: number;
@@ -149,6 +150,21 @@ export interface INotebookEditor {
 	 * Execute the given notebook cell
 	 */
 	executeNotebookCell(cell: ICellViewModel): Promise<void>;
+
+	/**
+	 * Cancel the cell execution
+	 */
+	cancelNotebookCellExecution(cell: ICellViewModel): void;
+
+	/**
+	 * Executes all notebook cells in order
+	 */
+	executeNotebook(): Promise<void>;
+
+	/**
+	 * Cancel the notebook execution
+	 */
+	cancelNotebookExecution(): void;
 
 	/**
 	 * Get current active cell

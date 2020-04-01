@@ -18,7 +18,10 @@ export const COPY_CELL_UP_COMMAND_ID = 'workbench.notebook.cell.copyUp';
 export const COPY_CELL_DOWN_COMMAND_ID = 'workbench.notebook.cell.copyDown';
 
 export const EXECUTE_CELL_COMMAND_ID = 'workbench.notebook.cell.execute';
+export const EXECUTE_ACTIVE_CELL_COMMAND_ID = 'workbench.notebook.cell.executeActive';
 export const CANCEL_CELL_COMMAND_ID = 'workbench.notebook.cell.cancelExecution';
+export const EXECUTE_NOTEBOOK_COMMAND_ID = 'workbench.notebook.executeNotebook';
+export const CANCEL_NOTEBOOK_COMMAND_ID = 'workbench.notebook.cancelExecution';
 
 // Cell sizing related
 export const CELL_MARGIN = 20;
@@ -44,3 +47,4 @@ export const NOTEBOOK_CELL_RUN_STATE_CONTEXT_KEY = 'notebookCellRunState'; // id
 
 // Notebook context keys
 export const NOTEBOOK_EDITABLE_CONTEXT_KEY = 'notebookEditable';
+export const NOTEBOOK_EXECUTING_KEY = 'notebookExecuting';
