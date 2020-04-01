@@ -79,8 +79,8 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: CANCEL_CELL_COMMAND_ID,
-			title: localize('notebookActions.cancel', "Cancel Execution"),
-			icon: { id: 'codicon/stop' }
+			title: localize('notebookActions.cancel', "Stop Execution"),
+			icon: { id: 'codicon/debug-stop' }
 		});
 	}
 
@@ -123,7 +123,7 @@ export class CancelCellAction extends MenuItemAction {
 			{
 				id: CANCEL_CELL_COMMAND_ID,
 				title: localize('notebookActions.CancelCell', "Cancel Execution"),
-				icon: { id: 'codicon/stop' }
+				icon: { id: 'codicon/debug-stop' }
 			},
 			undefined,
 			{ shouldForwardArgs: true },
@@ -351,8 +351,8 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: CANCEL_NOTEBOOK_COMMAND_ID,
-		title: localize('notebookActions.menu.cancelNotebook', "Cancel Notebook Execution"),
-		icon: { id: 'codicon/stop' }
+		title: localize('notebookActions.menu.cancelNotebook', "Stop Notebook Execution"),
+		icon: { id: 'codicon/debug-stop' }
 	},
 	order: -1,
 	group: 'navigation',
@@ -366,7 +366,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		title: localize('notebookActions.menu.execute', "Execute Notebook Cell"),
 		icon: { id: 'codicon/run' }
 	},
-	order: -1,
+	order: 0,
 	group: 'navigation',
 	when: NOTEBOOK_EDITOR_FOCUSED
 });
