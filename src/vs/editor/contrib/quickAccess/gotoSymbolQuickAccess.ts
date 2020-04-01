@@ -221,10 +221,12 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 			const symbolLabel = trim(symbol.name);
 
 			let containerLabel = symbol.containerName;
-			if (containerLabel && options?.extraContainerLabel) {
-				containerLabel = `${options.extraContainerLabel} • ${containerLabel}`;
-			} else {
-				containerLabel = options?.extraContainerLabel;
+			if (options?.extraContainerLabel) {
+				if (containerLabel) {
+					containerLabel = `${options.extraContainerLabel} • ${containerLabel}`;
+				} else {
+					containerLabel = options.extraContainerLabel;
+				}
 			}
 
 			let symbolScore: FuzzyScore | undefined = undefined;
