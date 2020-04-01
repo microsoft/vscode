@@ -190,6 +190,16 @@ namespace schema {
 				type: 'array',
 				items: menuItem
 			},
+			'scm/resourceFolder/context': {
+				description: localize('menus.resourceFolderContext', "The Source Control resource folder context menu"),
+				type: 'array',
+				items: menuItem
+			},
+			'scm/change/title': {
+				description: localize('menus.changeTitle', "The Source Control inline change menu"),
+				type: 'array',
+				items: menuItem
+			},
 			'view/title': {
 				description: localize('view.viewTitle', "The contributed view title menu"),
 				type: 'array',
