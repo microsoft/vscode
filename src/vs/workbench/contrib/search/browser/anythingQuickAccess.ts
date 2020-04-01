@@ -268,6 +268,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		}
 
 		// Remember as last filter
+		const lastWasFiltering = !!this.pickState.lastOriginalFilter;
 		this.pickState.lastOriginalFilter = originalFilter;
 		this.pickState.lastFilter = filter;
 
@@ -286,18 +287,28 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			}
 		}
 
-		return this.doGetPicks(filter, disposables, token);
+		// `enableEditorSymbolSearch`: this will enable local editor symbol
+		// search if the filter value includes `@` character. We only want
+		// to enable this support though if the user was filtering in the
+		// picker because this feature depends on an active item in the result
+		// list to get symbols from. If we would simply trigger editor symbol
+		// search without prior filtering, you could not paste a file name
+		// including the `@` character to open it (e.g. /some/file@path)
+		// refs: https://github.com/microsoft/vscode/issues/93845
+		return this.doGetPicks(filter, { enableEditorSymbolSearch: lastWasFiltering }, disposables, token);
 	}
 
-	private doGetPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Picks<IAnythingQuickPickItem> | Promise<Picks<IAnythingQuickPickItem>> | FastAndSlowPicks<IAnythingQuickPickItem> | null {
+	private doGetPicks(filter: string, options: { enableEditorSymbolSearch: boolean }, disposables: DisposableStore, token: CancellationToken): Picks<IAnythingQuickPickItem> | Promise<Picks<IAnythingQuickPickItem>> | FastAndSlowPicks<IAnythingQuickPickItem> {
 		const query = prepareQuery(filter);
 
 		// Return early if we have editor symbol picks. We support this by:
 		// - having a previously active global pick (e.g. a file)
 		// - the user typing `@` to start the local symbol query
-		const editorSymbolPicks = this.getEditorSymbolPicks(query, disposables, token);
-		if (editorSymbolPicks) {
-			return editorSymbolPicks;
+		if (options.enableEditorSymbolSearch) {
+			const editorSymbolPicks = this.getEditorSymbolPicks(query, disposables, token);
+			if (editorSymbolPicks) {
+				return editorSymbolPicks;
+			}
 		}
 
 		// If we have a known last active editor symbol pick, we try to restore
@@ -716,7 +727,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 	private readonly editorSymbolsQuickAccess = this.instantiationService.createInstance(GotoSymbolQuickAccessProvider);
 
 	private getEditorSymbolPicks(query: IPreparedQuery, disposables: DisposableStore, token: CancellationToken): Promise<Picks<IAnythingQuickPickItem>> | null {
-		const filter = query.original.split(GotoSymbolQuickAccessProvider.PREFIX)[1]?.trim();
+		const filterSegments = query.original.split(GotoSymbolQuickAccessProvider.PREFIX);
+		const filter = filterSegments.length > 1 ? filterSegments[filterSegments.length - 1].trim() : undefined;
 		if (typeof filter !== 'string') {
 			return null; // we need to be searched for editor symbols via `@`
 		}
