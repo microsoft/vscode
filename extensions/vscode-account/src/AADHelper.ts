@@ -169,10 +169,17 @@ export class AzureActiveDirectoryService {
 				}
 			} else {
 				if (this._tokens.length) {
-					// Log out all
+					// Log out all, remove all local data
 					removedIds = this._tokens.map(token => token.sessionId);
-					Logger.info('No tokens in memory, clearing keychain data');
-					await this.clearSessions();
+					Logger.info('No stored keychain data, clearing local data');
+
+					this._tokens = [];
+
+					this._refreshTimeouts.forEach(timeout => {
+						clearTimeout(timeout);
+					});
+
+					this._refreshTimeouts.clear();
 				}
 			}
 
