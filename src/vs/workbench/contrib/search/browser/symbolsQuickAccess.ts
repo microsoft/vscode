@@ -19,9 +19,6 @@ import { Range } from 'vs/editor/common/core/range';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { IKeyMods } from 'vs/platform/quickinput/common/quickInput';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { createResourceExcludeMatcher } from 'vs/workbench/services/search/common/search';
-import { ResourceMap } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { getSelectionSearchString } from 'vs/editor/contrib/find/findController';
@@ -52,8 +49,6 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 
 	private delayer = this._register(new ThrottledDelayer<ISymbolQuickPickItem[]>(SymbolsQuickAccessProvider.TYPING_SEARCH_DELAY));
 
-	private readonly resourceExcludeMatcher = this._register(createResourceExcludeMatcher(this.instantiationService, this.configurationService));
-
 	get defaultFilterValue(): string | undefined {
 
 		// Prefer the word under the cursor in the active editor as default filter
@@ -70,7 +65,6 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService
 	) {
 		super(SymbolsQuickAccessProvider.PREFIX, { canAcceptInBackground: true });
@@ -119,7 +113,6 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 
 		// Convert to symbol picks and apply filtering
 		const openSideBySideDirection = this.configuration.openSideBySideDirection;
-		const symbolsExcludedByResource = new ResourceMap<boolean>();
 		for (const [provider, symbols] of workspaceSymbols) {
 			for (const symbol of symbols) {
 
@@ -156,19 +149,6 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 					}
 
 					if (!containerScore) {
-						continue;
-					}
-				}
-
-				// Filter out symbols that match the global resource filter
-				if (symbolUri) {
-					let excludeSymbolByResource = symbolsExcludedByResource.get(symbolUri);
-					if (typeof excludeSymbolByResource === 'undefined') {
-						excludeSymbolByResource = this.resourceExcludeMatcher.matches(symbolUri);
-						symbolsExcludedByResource.set(symbolUri, excludeSymbolByResource);
-					}
-
-					if (excludeSymbolByResource) {
 						continue;
 					}
 				}
