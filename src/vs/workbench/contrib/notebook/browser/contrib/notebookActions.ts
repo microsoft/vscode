@@ -37,6 +37,8 @@ const CANCEL_CELL_COMMAND_ID = 'workbench.notebook.cell.cancelExecution';
 const EXECUTE_NOTEBOOK_COMMAND_ID = 'workbench.notebook.executeNotebook';
 const CANCEL_NOTEBOOK_COMMAND_ID = 'workbench.notebook.cancelExecution';
 
+const NOTEBOOK_ACTIONS_CATEGORY = localize('notebookActions.category', "Notebook");
+
 const enum CellToolbarOrder {
 	MoveCellUp,
 	MoveCellDown,
@@ -50,7 +52,8 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: EXECUTE_CELL_COMMAND_ID,
-			title: localize('notebookActions.execute', "Execute Notebook Cell"),
+			category: NOTEBOOK_ACTIONS_CATEGORY,
+			title: localize('notebookActions.execute', "Execute Cell"),
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext),
 				primary: KeyMod.WinCtrl | KeyCode.Enter,
@@ -59,7 +62,8 @@ registerAction2(class extends Action2 {
 				},
 				weight: KeybindingWeight.WorkbenchContrib
 			},
-			icon: { id: 'codicon/play' }
+			icon: { id: 'codicon/play' },
+			f1: true
 		});
 	}
 
@@ -551,6 +555,7 @@ registerAction2(class extends InsertCellCommand {
 			{
 				id: INSERT_CODE_CELL_BELOW_COMMAND_ID,
 				title: localize('notebookActions.insertCodeCellBelow', "Insert Code Cell Below"),
+				category: NOTEBOOK_ACTIONS_CATEGORY,
 				icon: { id: 'codicon/add' },
 				menu: {
 					id: MenuId.NotebookCellTitle,
@@ -561,7 +566,8 @@ registerAction2(class extends InsertCellCommand {
 						icon: { id: 'codicon/add' },
 					},
 					when: ContextKeyExpr.equals(NOTEBOOK_EDITABLE_CONTEXT_KEY, true)
-				}
+				},
+				f1: true
 			},
 			CellKind.Code,
 			'below');
@@ -681,12 +687,14 @@ registerAction2(class extends Action2 {
 			{
 				id: DELETE_CELL_COMMAND_ID,
 				title: localize('notebookActions.deleteCell', "Delete Cell"),
+				category: NOTEBOOK_ACTIONS_CATEGORY,
 				menu: {
 					id: MenuId.NotebookCellTitle,
 					order: CellToolbarOrder.DeleteCell,
 					when: ContextKeyExpr.equals(NOTEBOOK_EDITABLE_CONTEXT_KEY, true)
 				},
-				icon: { id: 'codicon/trash' }
+				icon: { id: 'codicon/trash' },
+				f1: true
 			});
 	}
 
@@ -720,6 +728,7 @@ registerAction2(class extends Action2 {
 			{
 				id: MOVE_CELL_UP_COMMAND_ID,
 				title: localize('notebookActions.moveCellUp', "Move Cell Up"),
+				category: NOTEBOOK_ACTIONS_CATEGORY,
 				icon: { id: 'codicon/arrow-up' },
 				menu: {
 					id: MenuId.NotebookCellTitle,
@@ -731,6 +740,7 @@ registerAction2(class extends Action2 {
 					},
 					when: ContextKeyExpr.equals(NOTEBOOK_EDITABLE_CONTEXT_KEY, true)
 				},
+				f1: true
 			});
 	}
 
@@ -752,6 +762,7 @@ registerAction2(class extends Action2 {
 			{
 				id: MOVE_CELL_DOWN_COMMAND_ID,
 				title: localize('notebookActions.moveCellDown', "Move Cell Down"),
+				category: NOTEBOOK_ACTIONS_CATEGORY,
 				icon: { id: 'codicon/arrow-down' },
 				menu: {
 					id: MenuId.NotebookCellTitle,
@@ -763,6 +774,7 @@ registerAction2(class extends Action2 {
 					},
 					when: ContextKeyExpr.equals(NOTEBOOK_EDITABLE_CONTEXT_KEY, true)
 				},
+				f1: true
 			});
 	}
 
@@ -970,6 +982,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'workbench.action.notebook.testResize',
 			title: 'Notebook Test Cell Resize',
+			category: NOTEBOOK_ACTIONS_CATEGORY,
 			keybinding: {
 				when: IsDevelopmentContext,
 				primary: undefined,
