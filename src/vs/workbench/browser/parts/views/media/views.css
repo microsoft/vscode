@@ -53,8 +53,9 @@
 	width: 100%;
 	height: 100%;
 	padding: 0 20px 0 20px;
-	position: absolute;
 	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
 }
 
 .monaco-workbench .pane > .pane-body:not(.welcome) > .welcome-view,

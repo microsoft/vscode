@@ -437,42 +437,46 @@ export abstract class ViewPane extends Pane implements IView {
 					continue;
 				}
 
-				const p = append(this.viewWelcomeContainer, $('p'));
 				const linkedText = parseLinkedText(line);
 
-				for (const node of linkedText.nodes) {
-					if (typeof node === 'string') {
-						append(p, document.createTextNode(node));
-					} else if (linkedText.nodes.length === 1) {
-						const button = new Button(p, { title: node.title });
-						button.label = node.label;
-						button.onDidClick(_ => {
-							this.telemetryService.publicLog2<{ viewId: string, uri: string }, WelcomeActionClassification>('views.welcomeAction', { viewId: this.id, uri: node.href });
-							this.openerService.open(node.href);
-						}, null, disposables);
-						disposables.add(button);
-						disposables.add(attachButtonStyler(button, this.themeService));
+				if (linkedText.nodes.length === 1 && typeof linkedText.nodes[0] !== 'string') {
+					const node = linkedText.nodes[0];
+					const button = new Button(this.viewWelcomeContainer, { title: node.title });
+					button.label = node.label;
+					button.onDidClick(_ => {
+						this.telemetryService.publicLog2<{ viewId: string, uri: string }, WelcomeActionClassification>('views.welcomeAction', { viewId: this.id, uri: node.href });
+						this.openerService.open(node.href);
+					}, null, disposables);
+					disposables.add(button);
+					disposables.add(attachButtonStyler(button, this.themeService));
 
-						if (preconditions) {
-							const precondition = preconditions[buttonIndex];
+					if (preconditions) {
+						const precondition = preconditions[buttonIndex];
 
-							if (precondition) {
-								const updateEnablement = () => button.enabled = this.contextKeyService.contextMatchesRules(precondition);
-								updateEnablement();
+						if (precondition) {
+							const updateEnablement = () => button.enabled = this.contextKeyService.contextMatchesRules(precondition);
+							updateEnablement();
 
-								const keys = new Set();
-								precondition.keys().forEach(key => keys.add(key));
-								const onDidChangeContext = Event.filter(this.contextKeyService.onDidChangeContext, e => e.affectsSome(keys));
-								onDidChangeContext(updateEnablement, null, disposables);
-							}
+							const keys = new Set();
+							precondition.keys().forEach(key => keys.add(key));
+							const onDidChangeContext = Event.filter(this.contextKeyService.onDidChangeContext, e => e.affectsSome(keys));
+							onDidChangeContext(updateEnablement, null, disposables);
 						}
+					}
 
-						buttonIndex++;
-					} else {
-						const link = this.instantiationService.createInstance(Link, node);
-						append(p, link.el);
-						disposables.add(link);
-						disposables.add(attachLinkStyler(link, this.themeService));
+					buttonIndex++;
+				} else {
+					const p = append(this.viewWelcomeContainer, $('p'));
+
+					for (const node of linkedText.nodes) {
+						if (typeof node === 'string') {
+							append(p, document.createTextNode(node));
+						} else {
+							const link = this.instantiationService.createInstance(Link, node);
+							append(p, link.el);
+							disposables.add(link);
+							disposables.add(attachLinkStyler(link, this.themeService));
+						}
 					}
 				}
 			}
