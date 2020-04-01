@@ -18,6 +18,7 @@ import { NOTEBOOK_EDITABLE_CONTEXT_KEY } from 'vs/workbench/contrib/notebook/bro
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { CellKind, IOutput, IRenderOutput, NotebookCellMetadata, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 
 export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('notebookFindWidgetFocused', false);
 
@@ -87,6 +88,8 @@ export interface INotebookEditor {
 	viewModel: NotebookViewModel | undefined;
 
 	isNotebookEditor: boolean;
+
+	getInnerWebview(): Webview | undefined;
 
 	/**
 	 * Focus the notebook editor cell list

@@ -43,6 +43,7 @@ import { CellViewModel, IModelDecorationsChangeAccessor, INotebookEditorViewStat
 import { CellKind, CellUri, IOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 
 const $ = DOM.$;
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
@@ -233,6 +234,10 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 	getControl() {
 		return this.control;
+	}
+
+	getInnerWebview(): Webview | undefined {
+		return this.webview?.webview;
 	}
 
 	onHide() {

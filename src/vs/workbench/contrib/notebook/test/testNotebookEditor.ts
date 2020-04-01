@@ -20,6 +20,7 @@ import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
+import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 
 export class TestCell implements ICell {
 	uri: URI;
@@ -80,6 +81,9 @@ export class TestNotebookEditor implements INotebookEditor {
 
 	constructor(
 	) { }
+	getInnerWebview(): Webview | undefined {
+		throw new Error('Method not implemented.');
+	}
 
 	executeNotebookCell(cell: ICellViewModel): Promise<void> {
 		throw new Error('Method not implemented.');
