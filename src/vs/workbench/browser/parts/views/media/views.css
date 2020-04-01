@@ -52,7 +52,6 @@
 .monaco-workbench .pane > .pane-body > .welcome-view {
 	width: 100%;
 	height: 100%;
-	padding: 0 20px 0 20px;
 	box-sizing: border-box;
 	display: flex;
 	flex-direction: column;
@@ -68,6 +67,15 @@
 	margin-left: auto;
 	margin-right: auto;
 	display: block;
+}
+
+.monaco-workbench .pane > .pane-body .welcome-view-content {
+	padding: 0 20px 0 20px;
+	box-sizing: border-box;
+}
+
+.monaco-workbench .pane > .pane-body .welcome-view-content > *:last-child {
+	margin-bottom: 1em;
 }
 
 .customview-tree .monaco-list-row .monaco-tl-contents.align-icon-with-twisty::before {
