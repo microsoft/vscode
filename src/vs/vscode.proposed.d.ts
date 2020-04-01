@@ -1320,25 +1320,25 @@ declare module 'vscode' {
 		 * Controls if users can add or delete cells
 		 * Defaults to true
 		 */
-		editable: boolean;
+		editable?: boolean;
 
 		/**
 		 * Default value for [cell editable metadata](#NotebookCellMetadata.editable).
 		 * Defaults to true.
 		 */
-		cellEditable: boolean;
+		cellEditable?: boolean;
 
 		/**
 		 * Default value for [cell runnable metadata](#NotebookCellMetadata.runnable).
 		 * Defaults to true.
 		 */
-		cellRunnable: boolean;
+		cellRunnable?: boolean;
 
 		/**
 		 * Whether the [execution order](#NotebookCellMetadata.executionOrder) indicator will be displayed.
 		 * Defaults to true.
 		 */
-		hasExecutionOrder: boolean;
+		hasExecutionOrder?: boolean;
 	}
 
 	export interface NotebookDocument {
@@ -1348,7 +1348,7 @@ declare module 'vscode' {
 		readonly cells: NotebookCell[];
 		languages: string[];
 		displayOrder?: GlobPattern[];
-		metadata?: NotebookDocumentMetadata;
+		metadata: NotebookDocumentMetadata;
 	}
 
 	export interface NotebookEditorCellEdit {

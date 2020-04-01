@@ -13,7 +13,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { CellKind, CellOutputKind, ExtHostNotebookShape, IMainContext, MainContext, MainThreadNotebookShape, NotebookCellOutputsSplice } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { CellEditType, CellUri, diff, ICellEditOperation, ICellInsertEdit, IErrorOutput, INotebookDisplayOrder, INotebookEditData, IOrderedMimeType, IStreamOutput, ITransformedDisplayOutputDto, mimeTypeSupportedByCore, NotebookCellsChangedEvent, NotebookCellsSplice2, sortMimeTypes, ICellDeleteEdit } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellUri, diff, ICellEditOperation, ICellInsertEdit, IErrorOutput, INotebookDisplayOrder, INotebookEditData, IOrderedMimeType, IStreamOutput, ITransformedDisplayOutputDto, mimeTypeSupportedByCore, NotebookCellsChangedEvent, NotebookCellsSplice2, sortMimeTypes, ICellDeleteEdit, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Disposable as VSCodeDisposable } from './extHostTypes';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
@@ -37,13 +37,6 @@ function getObservable<T extends Object>(obj: T): IObservable<T> {
 		onDidChange: onDidChange.event
 	};
 }
-
-const notebookDocumentMetadataDefaults: vscode.NotebookDocumentMetadata = {
-	editable: true,
-	cellEditable: true,
-	cellRunnable: true,
-	hasExecutionOrder: true
-};
 
 export class ExtHostCell extends Disposable implements vscode.NotebookCell {
 
@@ -82,7 +75,7 @@ export class ExtHostCell extends Disposable implements vscode.NotebookCell {
 		this.originalSource = this._content.split(/\r|\n|\r\n/g);
 		this._outputs = outputs;
 
-		const observableMetadata = getObservable(_metadata || {} as any);
+		const observableMetadata = getObservable(_metadata || {});
 		this._metadata = observableMetadata.proxy;
 		this._metadataChangeListener = this._register(observableMetadata.onDidChange(() => {
 			this.updateMetadata();
@@ -117,8 +110,9 @@ export class ExtHostCell extends Disposable implements vscode.NotebookCell {
 	}
 
 	set metadata(newMetadata: vscode.NotebookCellMetadata) {
+		// Don't apply metadata defaults here, 'undefined' means 'inherit from document metadata'
 		this._metadataChangeListener.dispose();
-		const observableMetadata = getObservable(newMetadata || {} as any); // TODO defaults
+		const observableMetadata = getObservable(newMetadata);
 		this._metadata = observableMetadata.proxy;
 		this._metadataChangeListener = this._register(observableMetadata.onDidChange(() => {
 			this.updateMetadata();
@@ -177,15 +171,24 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 		this._proxy.$updateNotebookLanguages(this.viewType, this.uri, this._languages);
 	}
 
-	private _metadata: vscode.NotebookDocumentMetadata | undefined = notebookDocumentMetadataDefaults;
+	private _metadata: Required<vscode.NotebookDocumentMetadata> = notebookDocumentMetadataDefaults;
+	private _metadataChangeListener: IDisposable;
 
 	get metadata() {
 		return this._metadata;
 	}
 
-	set metadata(newMetadata: vscode.NotebookDocumentMetadata | undefined) {
-		this._metadata = newMetadata || notebookDocumentMetadataDefaults;
-		this._proxy.$updateNotebookMetadata(this.viewType, this.uri, this._metadata);
+	set metadata(newMetadata: Required<vscode.NotebookDocumentMetadata>) {
+		this._metadataChangeListener.dispose();
+		newMetadata = {
+			...notebookDocumentMetadataDefaults,
+			...newMetadata
+		};
+		const observableMetadata = getObservable(newMetadata);
+		this._metadata = observableMetadata.proxy;
+		this._metadataChangeListener = this._register(observableMetadata.onDidChange(() => {
+			this.updateMetadata();
+		}));
 	}
 
 	private _displayOrder: string[] = [];
@@ -212,6 +215,16 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 		public renderingHandler: ExtHostNotebookOutputRenderingHandler
 	) {
 		super();
+
+		const observableMetadata = getObservable(notebookDocumentMetadataDefaults);
+		this._metadata = observableMetadata.proxy;
+		this._metadataChangeListener = this._register(observableMetadata.onDidChange(() => {
+			this.updateMetadata();
+		}));
+	}
+
+	private updateMetadata() {
+		this._proxy.$updateNotebookMetadata(this.viewType, this.uri, this._metadata);
 	}
 
 	dispose() {
