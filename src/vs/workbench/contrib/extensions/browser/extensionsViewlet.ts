@@ -474,34 +474,36 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 								}
 							}
 
-							this.progress(
-								Promise.all(vsixPaths.map(vsix => this.extensionManagementService.install(vsix)))
-									.then(extensions => {
-										// TODO: There is some code duplication here with the 'Install from VSIX' action
-										for (const extension of extensions) {
-											const requireReload = !(extension && this.extensionService.canAddExtension(toExtensionDescription(extension)));
-											const message = requireReload ? localize('InstallVSIXAction.successReload', "Please reload Visual Studio Code to complete installing the extension {0}.", extension.manifest.displayName || extension.manifest.name)
-												: localize('InstallVSIXAction.success', "Completed installing the extension {0}.", extension.manifest.displayName || extension.manifest.name);
-											const actions = requireReload ? [{
-												label: localize('InstallVSIXAction.reloadNow', "Reload Now"),
-												run: () => this.hostService.reload()
-											}] : [];
-											this.notificationService.prompt(
-												Severity.Info,
-												message,
-												actions,
-												{ sticky: true }
-											);
-										}
+							if (vsixPaths.length > 0) {
+								this.progress(
+									Promise.all(vsixPaths.map(vsix => this.extensionManagementService.install(vsix)))
+										.then(extensions => {
+											// TODO: There is some code duplication here with the 'Install from VSIX' action
+											for (const extension of extensions) {
+												const requireReload = !(extension && this.extensionService.canAddExtension(toExtensionDescription(extension)));
+												const message = requireReload ? localize('InstallVSIXAction.successReload', "Please reload Visual Studio Code to complete installing the extension {0}.", extension.manifest.displayName || extension.manifest.name)
+													: localize('InstallVSIXAction.success', "Completed installing the extension {0}.", extension.manifest.displayName || extension.manifest.name);
+												const actions = requireReload ? [{
+													label: localize('InstallVSIXAction.reloadNow', "Reload Now"),
+													run: () => this.hostService.reload()
+												}] : [];
+												this.notificationService.prompt(
+													Severity.Info,
+													message,
+													actions,
+													{ sticky: true }
+												);
+											}
 
-										// Reset the searchBox value in order to force the list of
-										// installed extensions to be refreshed in case the current
-										// view is @installed.
-										this.searchBox?.setValue('');
+											// Reset the searchBox value in order to force the list of
+											// installed extensions to be refreshed in case the current
+											// view is @installed.
+											this.searchBox?.setValue('');
 
-										// Navigate to the installed extensions
-										return this.instantiationService.createInstance(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, ShowInstalledExtensionsAction.LABEL).run();
-									}));
+											// Navigate to the installed extensions
+											return this.instantiationService.createInstance(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, ShowInstalledExtensionsAction.LABEL).run();
+										}));
+							}
 						}
 					}
 				}
