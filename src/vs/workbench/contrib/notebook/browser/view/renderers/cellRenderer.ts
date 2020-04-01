@@ -84,6 +84,7 @@ export class CodiconActionViewItem extends ContextAwareMenuEntryActionViewItem {
 
 abstract class AbstractCellRenderer {
 	protected editorOptions: IEditorOptions;
+	private actionRunner = new ActionRunner();
 
 	constructor(
 		protected readonly instantiationService: IInstantiationService,
@@ -136,6 +137,45 @@ abstract class AbstractCellRenderer {
 
 		toolbar.getContainer().style.height = `${BOTTOM_CELL_TOOLBAR_HEIGHT}px`;
 		return toolbar;
+	}
+
+	protected setupBetweenCellToolbarActions(element: CodeCellViewModel | MarkdownCellViewModel, templateData: BaseCellRenderTemplate, disposables: DisposableStore, context: INotebookCellActionContext): void {
+		const container = templateData.bottomCellContainer;
+		container.innerHTML = '';
+		container.style.height = `${BOTTOM_CELL_TOOLBAR_HEIGHT}px`;
+
+		DOM.append(container, $('.seperator'));
+		const addCodeCell = DOM.append(container, $('span.button'));
+		addCodeCell.innerHTML = renderCodicons(escape(`$(add) Code `));
+		const insertCellBelow = this.instantiationService.createInstance(InsertCodeCellAction);
+
+		disposables.add(DOM.addDisposableListener(addCodeCell, DOM.EventType.CLICK, () => {
+			this.actionRunner.run(insertCellBelow, context);
+		}));
+
+		DOM.append(container, $('.seperator-short'));
+		const addMarkdownCell = DOM.append(container, $('span.button'));
+		addMarkdownCell.innerHTML = renderCodicons(escape('$(add) Markdown '));
+		const insertMarkdownBelow = this.instantiationService.createInstance(InsertMarkdownCellAction);
+		disposables.add(DOM.addDisposableListener(addMarkdownCell, DOM.EventType.CLICK, () => {
+			this.actionRunner.run(insertMarkdownBelow, context);
+		}));
+
+		DOM.append(container, $('.seperator'));
+
+		if (element instanceof CodeCellViewModel) {
+			const bottomToolbarOffset = element.layoutInfo.bottomToolbarOffset;
+			container.style.top = `${bottomToolbarOffset}px`;
+
+			disposables.add(element.onDidChangeLayout(() => {
+				const bottomToolbarOffset = element.layoutInfo.bottomToolbarOffset;
+				container.style.top = `${bottomToolbarOffset}px`;
+			}));
+		} else {
+			container.style.position = 'static';
+			container.style.height = '22px';
+		}
+
 	}
 
 	protected createToolbar(container: HTMLElement): ToolBar {
@@ -226,6 +266,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		container.appendChild(innerContent);
 
 		const focusIndicator = DOM.append(container, DOM.$('.notebook-cell-focus-indicator'));
+		const bottomCellContainer = DOM.append(container, $('.cell-bottom-toolbar-container'));
 
 		return {
 			container,
@@ -234,6 +275,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 			focusIndicator,
 			disposables,
 			toolbar,
+			bottomCellContainer: bottomCellContainer,
 			toJSON: () => { return {}; }
 		};
 	}
@@ -276,13 +318,17 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 			}));
 
 			this.setupCellToolbarActions(contextKeyService, templateData, elementDisposable);
+
+			const toolbarContext = <INotebookCellActionContext>{
+				cell: element,
+				notebookEditor: this.notebookEditor,
+				$mid: 12
+			};
+			templateData.toolbar.context = toolbarContext;
+
+			this.setupBetweenCellToolbarActions(element, templateData, elementDisposable, toolbarContext);
 		}
 
-		templateData.toolbar.context = <INotebookCellActionContext>{
-			cell: element,
-			notebookEditor: this.notebookEditor,
-			$mid: 12
-		};
 	}
 
 	disposeTemplate(templateData: MarkdownCellRenderTemplate): void {
@@ -299,8 +345,6 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 export class CodeCellRenderer extends AbstractCellRenderer implements IListRenderer<CodeCellViewModel, CodeCellRenderTemplate> {
 	static readonly TEMPLATE_ID = 'code_cell';
 	private disposables: Map<ICellViewModel, DisposableStore> = new Map();
-	private actionRunner = new ActionRunner();
-
 
 	constructor(
 		protected notebookEditor: INotebookEditor,
@@ -329,7 +373,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const runToolbar = this.createToolbar(runButtonContainer);
 		disposables.add(runToolbar);
 
-		const betweenCellContainer = DOM.append(container, $('.cell-bottom-toolbar-container'));
+		const bottomCellContainer = DOM.append(container, $('.cell-bottom-toolbar-container'));
 
 		const executionOrderLabel = DOM.append(runButtonContainer, $('div.execution-count-label'));
 
@@ -365,42 +409,9 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			outputContainer,
 			editor,
 			disposables,
-			betweenCellContainer: betweenCellContainer,
+			bottomCellContainer: bottomCellContainer,
 			toJSON: () => { return {}; }
 		};
-	}
-
-	protected setupBetweenCellToolbarActions(element: CodeCellViewModel, templateData: CodeCellRenderTemplate, disposables: DisposableStore, context: INotebookCellActionContext): void {
-		const container = templateData.betweenCellContainer;
-		container.innerHTML = '';
-		container.style.height = `${BOTTOM_CELL_TOOLBAR_HEIGHT}px`;
-
-		DOM.append(container, $('.seperator'));
-		const addCodeCell = DOM.append(container, $('span.button'));
-		addCodeCell.innerHTML = renderCodicons(escape(`$(add) Code `));
-		const insertCellBelow = this.instantiationService.createInstance(InsertCodeCellAction);
-
-		disposables.add(DOM.addDisposableListener(addCodeCell, DOM.EventType.CLICK, () => {
-			this.actionRunner.run(insertCellBelow, context);
-		}));
-
-		DOM.append(container, $('.seperator-short'));
-		const addMarkdownCell = DOM.append(container, $('span.button'));
-		addMarkdownCell.innerHTML = renderCodicons(escape('$(add) Markdown '));
-		const insertMarkdownBelow = this.instantiationService.createInstance(InsertMarkdownCellAction);
-		disposables.add(DOM.addDisposableListener(addMarkdownCell, DOM.EventType.CLICK, () => {
-			this.actionRunner.run(insertMarkdownBelow, context);
-		}));
-
-		DOM.append(container, $('.seperator'));
-
-		const bottomToolbarOffset = element.layoutInfo.bottomToolbarOffset;
-		container.style.top = `${bottomToolbarOffset}px`;
-
-		disposables.add(element.onDidChangeLayout(() => {
-			const bottomToolbarOffset = element.layoutInfo.bottomToolbarOffset;
-			container.style.top = `${bottomToolbarOffset}px`;
-		}));
 	}
 
 	private updateForRunState(element: CodeCellViewModel, templateData: CodeCellRenderTemplate, runStateKey: IContextKey<string>): void {
