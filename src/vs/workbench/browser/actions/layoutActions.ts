@@ -549,10 +549,16 @@ export class MoveFocusedViewAction extends Action {
 			label: nls.localize('sidebar', "Side Bar")
 		});
 
-		items.push({
-			id: '_.sidebar.newcontainer',
-			label: nls.localize('moveFocusedView.newContainerInSidebar', "New Container in Side Bar")
-		});
+		const currentContainer = this.viewDescriptorService.getViewContainer(focusedViewId)!;
+		const currentLocation = this.viewDescriptorService.getViewLocation(focusedViewId)!;
+		const isViewSolo = this.viewDescriptorService.getViewDescriptors(currentContainer).allViewDescriptors.length === 1;
+
+		if (!(isViewSolo && currentLocation === ViewContainerLocation.Sidebar)) {
+			items.push({
+				id: '_.sidebar.newcontainer',
+				label: nls.localize('moveFocusedView.newContainerInSidebar', "New Container in Side Bar")
+			});
+		}
 
 		const pinnedViewlets = this.activityBarService.getPinnedViewletIds();
 		items.push(...pinnedViewlets
@@ -574,10 +580,13 @@ export class MoveFocusedViewAction extends Action {
 			type: 'separator',
 			label: nls.localize('panel', "Panel")
 		});
-		items.push({
-			id: '_.panel.newcontainer',
-			label: nls.localize('moveFocusedView.newContainerInPanel', "New Container in Panel"),
-		});
+
+		if (!(isViewSolo && currentLocation === ViewContainerLocation.Panel)) {
+			items.push({
+				id: '_.panel.newcontainer',
+				label: nls.localize('moveFocusedView.newContainerInPanel', "New Container in Panel"),
+			});
+		}
 
 		const pinnedPanels = this.panelService.getPinnedPanels();
 		items.push(...pinnedPanels
