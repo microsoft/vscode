@@ -240,7 +240,9 @@ export class TaskQuickPick extends Disposable {
 		let taskQuickPickEntries: QuickPickInput<TaskTwoLevelQuickPickEntry>[];
 		if (tasks.length > 0) {
 			taskQuickPickEntries = tasks.map(task => this.createTaskEntry(task));
-			taskQuickPickEntries.unshift({
+			taskQuickPickEntries.push({
+				type: 'separator'
+			}, {
 				label: nls.localize('TaskQuickPick.goBack', 'Go back ↩'),
 				task: null
 			});
