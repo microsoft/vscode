@@ -290,6 +290,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			const cellOptions = options.cellOptions;
 			const cell = this.notebookViewModel!.viewCells.find(cell => cell.uri.toString() === cellOptions.resource.toString());
 			if (cell) {
+				this.selectElement(cell);
 				this.revealInCenterIfOutsideViewport(cell);
 				const editor = this.renderedEditors.get(cell)!;
 				if (editor) {
