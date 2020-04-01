@@ -8,7 +8,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IQuickPickSeparator, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IPickerQuickAccessItem, PickerQuickAccessProvider } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IViewDescriptorService, IViewsService, ViewContainer, IViewsRegistry, Extensions as ViewExtensions, IViewContainersRegistry } from 'vs/workbench/common/views';
+import { IViewDescriptorService, IViewsService, ViewContainer, Extensions as ViewExtensions, IViewContainersRegistry } from 'vs/workbench/common/views';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IPanelService, IPanelIdentifier } from 'vs/workbench/services/panel/common/panelService';
@@ -91,9 +91,9 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 		const viewEntries: Array<IViewQuickPickItem> = [];
 
 		const getViewEntriesForViewlet = (viewlet: ViewletDescriptor, viewContainer: ViewContainer): IViewQuickPickItem[] => {
-			const views = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).getViews(viewContainer);
+			const viewDescriptors = this.viewDescriptorService.getViewDescriptors(viewContainer);
 			const result: IViewQuickPickItem[] = [];
-			for (const view of views) {
+			for (const view of viewDescriptors.allViewDescriptors) {
 				if (this.contextKeyService.contextMatchesRules(view.when)) {
 					result.push({
 						label: view.name,
