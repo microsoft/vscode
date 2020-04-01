@@ -13,7 +13,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
-import { prepareQuery, scoreItem, compareItemsByScore, ScorerCache } from 'vs/base/common/fuzzyScorer';
+import { prepareQuery, scoreItemFuzzy, compareItemsByFuzzyScore, FuzzyScorerCache } from 'vs/base/common/fuzzyScorer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
@@ -23,7 +23,7 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 
 	private readonly pickState = new class {
 
-		scorerCache: ScorerCache = Object.create(null);
+		scorerCache: FuzzyScorerCache = Object.create(null);
 		isQuickNavigating: boolean | undefined = undefined;
 
 		reset(isQuickNavigating: boolean): void {
@@ -67,7 +67,7 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 			}
 
 			// Score on label and description
-			const itemScore = scoreItem(entry, query, true, quickPickItemScorerAccessor, this.pickState.scorerCache);
+			const itemScore = scoreItemFuzzy(entry, query, true, quickPickItemScorerAccessor, this.pickState.scorerCache);
 			if (!itemScore.score) {
 				return false;
 			}
@@ -86,7 +86,7 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 					return groups.indexOf(entryA.groupId) - groups.indexOf(entryB.groupId); // older groups first
 				}
 
-				return compareItemsByScore(entryA, entryB, query, true, quickPickItemScorerAccessor, this.pickState.scorerCache);
+				return compareItemsByFuzzyScore(entryA, entryB, query, true, quickPickItemScorerAccessor, this.pickState.scorerCache);
 			});
 		}
 
