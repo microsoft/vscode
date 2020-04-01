@@ -123,11 +123,15 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 					continue;
 				}
 
-				// Score by symbol label
 				const symbolLabel = symbol.name;
-				const symbolScore = fuzzyScore(symbolQuery.original, symbolQuery.originalLowercase, 0, symbolLabel, symbolLabel.toLowerCase(), 0, true);
-				if (!symbolScore) {
-					continue;
+
+				// Score by symbol label if searching
+				let symbolScore: FuzzyScore | undefined;
+				if (symbolQuery.original.length > 0) {
+					symbolScore = fuzzyScore(symbolQuery.original, symbolQuery.originalLowercase, 0, symbolLabel, symbolLabel.toLowerCase(), 0, true);
+					if (!symbolScore) {
+						continue;
+					}
 				}
 
 				const symbolUri = symbol.location.uri;
@@ -141,9 +145,9 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 					}
 				}
 
-				// Score by container if specified
+				// Score by container if specified and searching
 				let containerScore: FuzzyScore | undefined = undefined;
-				if (containerQuery) {
+				if (containerQuery && containerQuery.original.length > 0) {
 					if (containerLabel) {
 						containerScore = fuzzyScore(containerQuery.original, containerQuery.originalLowercase, 0, containerLabel, containerLabel.toLowerCase(), 0, true);
 					}
