@@ -6866,41 +6866,70 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Defines the editing capability of a custom editor. This allows the custom editor to hook into standard
-	 * editor events such as `undo` or `save`.
+	 * Implements the editing functionality of a custom editor.
+	 *
+	 * This delegate is how custom editors hook into standard VS Code operations such as save and undo. The delegate
+	 * is also how custom editors notify VS Code that an edit has taken place.
 	 *
 	 * @param EditType Type of edits used for the documents this delegate handles.
 	 */
 	interface CustomEditorEditingDelegate<EditType = unknown> {
 		/**
-		 * Save the resource.
+		 * Save the resource for a custom editor.
+		 *
+		 * This method is invoked by VS Code when the user saves a custom editor. This can happen when the user
+		 * triggers save while the custom editor is active, by commands such as `save all`, or by auto save if enabled.
+		 *
+		 * To implement `save`, the delegate must persist the custom editor. This usually means writing the
+		 * file data for the custom document to disk. After `save` completes, any associated editor instances will
+		 * no longer be marked as dirty.
 		 *
 		 * @param document Document to save.
 		 * @param cancellation Token that signals the save is no longer required (for example, if another save was triggered).
 		 *
-		 * @return Thenable signaling that the save has completed.
+		 * @return Thenable signaling that saving has completed.
 		 */
 		save(document: CustomDocument<EditType>, cancellation: CancellationToken): Thenable<void>;
 
 		/**
-		 * Save the existing resource at a new path.
+		 * Save the resource for a custom editor to a different location.
+		 *
+		 * This method is invoked by VS Code when the user triggers `save as` on a custom editor.
+		 *
+		 * To implement `saveAs`, the delegate must persist the custom editor to `targetResource`. The
+		 * existing editor will remain open after `saveAs` completes.
 		 *
 		 * @param document Document to save.
 		 * @param targetResource Location to save to.
 		 *
-		 * @return Thenable signaling that the save has completed.
+		 * @return Thenable signaling that saving has completed.
 		 */
 		saveAs(document: CustomDocument<EditType>, targetResource: Uri): Thenable<void>;
 
 		/**
-		 * Event triggered by extensions to signal to VS Code that an edit has occurred.
+		 * Signal that an edit has occurred inside a custom editor.
+		 *
+		 * This event must be fired by your extension whenever an edit happens in a custom editor. An edit can be
+		 * anything from changing some text, to cropping an image, to reordering a list.  Your extension is free to
+		 * define what an edit is and what data is stored on each edit.
+		 *
+		 * VS Code uses edits to determine if a custom editor is dirty or not. VS Code also passes the edit objects back
+		 * to your extension when triggers undo, redo, or revert (using the `undoEdits`, `applyEdits`, and `revert`
+		 * methods of `CustomEditorEditingDelegate`)
 		 */
 		readonly onDidEdit: Event<CustomDocumentEditEvent<EditType>>;
 
 		/**
-		 * Apply a set of edits.
+		 * Apply a list of edits to a custom editor.
 		 *
-		 * Note that is not invoked when `onDidEdit` is called because `onDidEdit` implies also updating the view to reflect the edit.
+		 * This method is invoked by VS Code when the user triggers `redo` in a custom editor.
+		 *
+		 * To implement `applyEdits`, the delegate must make sure all editor instances (webviews) for `document`
+		 * are updated to render the document's new state (that is, every webview must be updated to show the document
+		 * after applying `edits` to it).
+		 *
+		 * Note that `applyEdits` not invoked when `onDidEdit` is called because `onDidEdit` implies that your extension
+		 * has also updated its editor instances to reflect the edit that just occurred.
 		 *
 		 * @param document Document to apply edits to.
 		 * @param edit Array of edits. Sorted from oldest to most recent.
@@ -6910,9 +6939,13 @@ declare module 'vscode' {
 		applyEdits(document: CustomDocument<EditType>, edits: ReadonlyArray<EditType>): Thenable<void>;
 
 		/**
-		 * Undo a set of edits.
+		 * Undo a list of edits to a custom editor.
 		 *
-		 * This is triggered when a user undoes an edit.
+		 * This method is invoked by VS Code when the user triggers `undo` in a custom editor.
+		 *
+		 * To implement `undoEdits`, the delegate must make sure all editor instances (webviews) for `document`
+		 * are updated to render the document's new state (that is, every webview must be updated to show the document
+		 * after undoing `edits` from it).
 		 *
 		 * @param document Document to undo edits from.
 		 * @param edit Array of edits. Sorted from most recent to oldest.
@@ -6922,10 +6955,20 @@ declare module 'vscode' {
 		undoEdits(document: CustomDocument<EditType>, edits: ReadonlyArray<EditType>): Thenable<void>;
 
 		/**
-		 * Revert the file to its last saved state.
+		 * Revert a custom editor to its last saved state.
+		 *
+		 * This method is invoked by VS Code when the user triggers `File: Revert File` in a custom editor. (Note that
+		 * this is only used using VS Code's `File: Revert File` command and not on a `git revert` of the file).
+		 *
+		 * To implement `revert`, the delegate must make sure all editor instances (webviews) for `document`
+		 * are displaying the document in the same state is saved in. This usually means reloading the file from the
+		 * workspace.
+		 *
+		 * During `revert`, your extension should also clear any backups for the custom editor. Backups are only needed
+		 * when there is a difference between an editor's state in VS Code and its save state on disk.
 		 *
 		 * @param document Document to revert.
-		 * @param edits Added or applied edits.
+		 * @param edits Added or removed edits to get back to the saved state.
 		 *
 		 * @return Thenable signaling that the change has completed.
 		 */
@@ -6967,8 +7010,13 @@ declare module 'vscode' {
 		/**
 		 * Object that describes the edit.
 		 *
+		 * Edit objects are controlled entirely by your extension. Your extension should store whatever information it
+		 * needs to on the edit to understand what type of edit was made, how to render that edit, and how to save that
+		 * edit to disk.
+		 *
 		 * Edit objects are passed back to your extension in `CustomEditorEditingDelegate.undoEdits`,
-		 * `CustomEditorEditingDelegate.applyEdits`, and `CustomEditorEditingDelegate.revert`.
+		 * `CustomEditorEditingDelegate.applyEdits`, and `CustomEditorEditingDelegate.revert`. They can also be accessed
+		 * using [`CustomDocument.appliedEdits`](#CustomDocument.appliedEdits) and [`CustomDocument.savedEdits`](#CustomDocument.savedEdits).
 		 */
 		readonly edit: EditType;
 
@@ -6998,9 +7046,8 @@ declare module 'vscode' {
 	/**
 	 * Represents a custom document used by a [`CustomEditorProvider`](#CustomEditorProvider).
 	 *
-	 * All custom documents must subclass `CustomDocument`. Custom documents are only used within a given
-	 * `CustomEditorProvider`. The lifecycle of a `CustomDocument` is managed by VS Code. When no more references
-	 * remain to a `CustomDocument`, it is disposed of.
+	 * Custom documents are only used within a given `CustomEditorProvider`. The lifecycle of a `CustomDocument` is
+	 * managed by VS Code. When no more references remain to a `CustomDocument`, it is disposed of.
 	 *
 	 * @param EditType Type of edits used in this document.
 	 */
