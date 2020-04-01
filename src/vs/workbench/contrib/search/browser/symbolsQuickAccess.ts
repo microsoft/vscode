@@ -181,7 +181,7 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 					resource: symbolUri,
 					score: symbolScore,
 					label: symbolLabelWithIcon,
-					ariaLabel: localize('symbolAriaLabel', "{0}, symbols picker", symbolLabel),
+					ariaLabel: symbolLabel,
 					highlights: deprecated ? undefined : {
 						label: createMatches(symbolScore, symbolLabelWithIcon.length - symbolLabel.length /* Readjust matches to account for codicons in label */),
 						description: createMatches(containerScore)

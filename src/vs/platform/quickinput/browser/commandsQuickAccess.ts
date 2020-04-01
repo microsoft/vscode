@@ -122,8 +122,8 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 			const commandPick = filteredCommandPicks[i];
 			const keybinding = this.keybindingService.lookupKeybinding(commandPick.commandId);
 			const ariaLabel = keybinding ?
-				localize('commandPickAriaLabelWithKeybinding', "{0}, {1}, commands picker", commandPick.label, keybinding.getAriaLabel()) :
-				localize('commandPickAriaLabel', "{0}, commands picker", commandPick.label);
+				localize('commandPickAriaLabelWithKeybinding', "{0}, {1}", commandPick.label, keybinding.getAriaLabel()) :
+				commandPick.label;
 
 			// Separator: recently used
 			if (i === 0 && this.commandsHistory.peek(commandPick.commandId)) {

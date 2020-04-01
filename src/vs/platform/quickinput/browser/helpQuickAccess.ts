@@ -77,7 +77,6 @@ export class HelpQuickAccessProvider implements IQuickAccessProvider {
 				(helpEntry.needsEditor ? editorProviders : globalProviders).push({
 					prefix,
 					label,
-					ariaLabel: localize('entryAriaLabel', "{0}, quick access help picker", label),
 					description: helpEntry.description
 				});
 			}

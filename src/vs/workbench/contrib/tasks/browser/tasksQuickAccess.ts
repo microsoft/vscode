@@ -55,7 +55,6 @@ export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQ
 			}
 			const task: Task | ConfiguringTask | string = (<TaskTwoLevelQuickPickEntry>entry).task!;
 			const quickAccessEntry: IPickerQuickAccessItem = <TaskTwoLevelQuickPickEntry>entry;
-			quickAccessEntry.ariaLabel = localize('entryAriaLabel', "{0}, tasks picker", entry.label!);
 			quickAccessEntry.highlights = { label: highlights };
 			quickAccessEntry.trigger = () => {
 				if (ContributedTask.is(task)) {

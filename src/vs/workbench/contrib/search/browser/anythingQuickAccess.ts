@@ -834,13 +834,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		return {
 			resource,
 			label,
-			ariaLabel: (() => {
-				if (isEditorHistoryEntry) {
-					return isDirty ? localize('historyPickAriaLabelDirty', "{0}, dirty, recently opened", label) : localize('historyPickAriaLabel', "{0}, recently opened", label);
-				}
-
-				return isDirty ? localize('filePickAriaLabelDirty', "{0}, dirty, file picker", label) : localize('filePickAriaLabel', "{0}, file picker", label);
-			})(),
+			ariaLabel: isDirty ? localize('filePickAriaLabelDirty', "{0}, dirty", label) : label,
 			description,
 			iconClasses: getIconClasses(this.modelService, this.modeService, resource),
 			buttons: (() => {

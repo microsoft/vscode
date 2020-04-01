@@ -256,7 +256,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 					kind: symbol.kind,
 					score: symbolScore,
 					label: symbolLabelWithIcon,
-					ariaLabel: localize('symbolsAriaLabel', "{0}, symbols picker", symbolLabel),
+					ariaLabel: symbolLabel,
 					description: containerLabel,
 					highlights: deprecated ? undefined : {
 						label: createMatches(symbolScore, symbolLabelWithIcon.length - symbolLabel.length /* Readjust matches to account for codicons in label */),
