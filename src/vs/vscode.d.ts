@@ -6928,11 +6928,13 @@ declare module 'vscode' {
 		 * are updated to render the document's new state (that is, every webview must be updated to show the document
 		 * after applying `edits` to it).
 		 *
-		 * Note that `applyEdits` not invoked when `onDidEdit` is called because `onDidEdit` implies that your extension
-		 * has also updated its editor instances to reflect the edit that just occurred.
+		 * Note that `applyEdits` not invoked when `onDidEdit` is fired by your extension because `onDidEdit` implies
+		 * that your extension has also updated its editor instances (webviews) to reflect the edit that just occurred.
 		 *
 		 * @param document Document to apply edits to.
-		 * @param edit Array of edits. Sorted from oldest to most recent.
+		 * @param edit Array of edits. Sorted from oldest to most recent. Use [`document.appliedEdits`](#CustomDocument.appliedEdits)
+		 * to get the full set of edits applied to the file (when `applyEdits` is called `appliedEdits` will already include
+		 * the newly applied edit at the end).
 		 *
 		 * @return Thenable signaling that the change has completed.
 		 */
@@ -6948,7 +6950,9 @@ declare module 'vscode' {
 		 * after undoing `edits` from it).
 		 *
 		 * @param document Document to undo edits from.
-		 * @param edit Array of edits. Sorted from most recent to oldest.
+		 * @param edit Array of edits. Sorted from most recent to oldest. Use [`document.appliedEdits`](#CustomDocument.appliedEdits)
+		 * to get the full set of edits applied to the file (when `undoEdits` is called, `appliedEdits` will already include
+		 * have the undone edits removed).
 		 *
 		 * @return Thenable signaling that the change has completed.
 		 */
@@ -6968,11 +6972,13 @@ declare module 'vscode' {
 		 * when there is a difference between an editor's state in VS Code and its save state on disk.
 		 *
 		 * @param document Document to revert.
-		 * @param edits Added or removed edits to get back to the saved state.
+		 * @param revert Object with added or removed edits to get back to the saved state. Use [`document.appliedEdits`](#CustomDocument.appliedEdits)
+		 * to get the full set of edits applied to the file (when `revet` is called, `appliedEdits` will already have
+		 * removed any edits undone by the revert and added any edits applied by the revert).
 		 *
 		 * @return Thenable signaling that the change has completed.
 		 */
-		revert(document: CustomDocument<EditType>, edits: CustomDocumentRevert<EditType>): Thenable<void>;
+		revert(document: CustomDocument<EditType>, revert: CustomDocumentRevert<EditType>): Thenable<void>;
 
 		/**
 		 * Back up the resource in its current state.
