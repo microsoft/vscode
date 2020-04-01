@@ -504,6 +504,37 @@ export class ResetViewLocationsAction extends Action {
 
 registry.registerWorkbenchAction(SyncActionDescriptor.create(ResetViewLocationsAction, ResetViewLocationsAction.ID, ResetViewLocationsAction.LABEL), 'View: Reset View Locations', viewCategory);
 
+// --- Toggle View with Command
+export abstract class ToggleViewAction extends Action {
+
+	constructor(
+		id: string,
+		label: string,
+		private readonly viewId: string,
+		protected viewsService: IViewsService,
+		protected viewDescriptorService: IViewDescriptorService,
+		protected contextKeyService: IContextKeyService,
+		private layoutService: IWorkbenchLayoutService,
+		cssClass?: string
+	) {
+		super(id, label, cssClass);
+	}
+
+	async run(): Promise<void> {
+		const focusedViewId = FocusedViewContext.getValue(this.contextKeyService);
+
+		if (focusedViewId === this.viewId) {
+			if (this.viewDescriptorService.getViewLocation(this.viewId) === ViewContainerLocation.Sidebar) {
+				this.layoutService.setSideBarHidden(true);
+			} else {
+				this.layoutService.setPanelHidden(true);
+			}
+		} else {
+			this.viewsService.openView(this.viewId, true);
+		}
+	}
+}
+
 // --- Move View with Command
 export class MoveFocusedViewAction extends Action {
 	static readonly ID = 'workbench.action.moveFocusedView';
