@@ -37,7 +37,6 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { TrackedRangeStickiness, ITextModel } from 'vs/editor/common/model';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import * as platform from 'vs/base/common/platform';
-import { SuggestRangeHighlighter } from 'vs/editor/contrib/suggest/suggestRangeHighlighter';
 import { MenuRegistry } from 'vs/platform/actions/common/actions';
 
 // sticky suggest widget which doesn't disappear on focus out and such
@@ -233,9 +232,6 @@ export class SuggestController implements IEditorContribution {
 		};
 		this._toDispose.add(this.editor.onDidChangeConfiguration(() => updateFromConfig()));
 		updateFromConfig();
-
-		// create range highlighter
-		this._toDispose.add(new SuggestRangeHighlighter(this));
 	}
 
 	dispose(): void {

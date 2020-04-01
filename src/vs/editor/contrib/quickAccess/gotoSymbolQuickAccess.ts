@@ -16,7 +16,6 @@ import { OutlineModel, OutlineElement } from 'vs/editor/contrib/documentSymbols/
 import { values } from 'vs/base/common/collections';
 import { trim, format } from 'vs/base/common/strings';
 import { fuzzyScore, FuzzyScore, createMatches } from 'vs/base/common/filters';
-import { assign } from 'vs/base/common/objects';
 import { prepareQuery, IPreparedQuery } from 'vs/base/common/fuzzyScorer';
 
 export interface IGotoSymbolQuickPickItem extends IQuickPickItem {
@@ -37,11 +36,11 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 	static PREFIX_BY_CATEGORY = `${AbstractGotoSymbolQuickAccessProvider.PREFIX}${AbstractGotoSymbolQuickAccessProvider.SCOPE_PREFIX}`;
 
 	constructor(protected options?: IGotoSymbolQuickAccessProviderOptions) {
-		super(assign(options, { canAcceptInBackground: true }));
+		super({ ...options, canAcceptInBackground: true });
 	}
 
 	protected provideWithoutTextEditor(picker: IQuickPick<IGotoSymbolQuickPickItem>): IDisposable {
-		const label = localize('cannotRunGotoSymbolWithoutEditor', "Open a text editor first to go to a symbol.");
+		const label = localize('cannotRunGotoSymbolWithoutEditor', "To go to a symbol, first open a text editor with symbol information.");
 
 		picker.items = [{ label, index: 0, kind: SymbolKind.String }];
 		picker.ariaLabel = label;
@@ -70,7 +69,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 		const disposables = new DisposableStore();
 
 		// Generic pick for not having any symbol information
-		const label = localize('cannotRunGotoSymbolWithoutSymbolProvider', "Open a text editor with symbol information first to go to a symbol.");
+		const label = localize('cannotRunGotoSymbolWithoutSymbolProvider', "The active text editor does not provide symbol information.");
 		picker.items = [{ label, index: 0, kind: SymbolKind.String }];
 		picker.ariaLabel = label;
 

@@ -80,6 +80,9 @@ export interface ICodeWindow extends IDisposable {
 	setRepresentedFilename(name: string): void;
 	getRepresentedFilename(): string | undefined;
 
+	setDocumentEdited(edited: boolean): void;
+	isDocumentEdited(): boolean;
+
 	handleTitleDoubleClick(): void;
 
 	updateTouchBar(items: ISerializableCommandAction[][]): void;

@@ -238,7 +238,7 @@ export class WordOperations {
 			const left = lineContent.charCodeAt(column - 2);
 			const right = lineContent.charCodeAt(column - 1);
 
-			if (left !== CharCode.Underline && right === CharCode.Underline) {
+			if (left === CharCode.Underline && right !== CharCode.Underline) {
 				// snake_case_variables
 				return new Position(lineNumber, column);
 			}
@@ -340,7 +340,7 @@ export class WordOperations {
 			const left = lineContent.charCodeAt(column - 2);
 			const right = lineContent.charCodeAt(column - 1);
 
-			if (left === CharCode.Underline && right !== CharCode.Underline) {
+			if (left !== CharCode.Underline && right === CharCode.Underline) {
 				// snake_case_variables
 				return new Position(lineNumber, column);
 			}

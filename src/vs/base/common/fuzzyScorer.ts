@@ -25,15 +25,15 @@ export function score(target: string, query: IPreparedQuery, fuzzy: boolean): Sc
 		return scoreMultiple(target, query.values, fuzzy);
 	}
 
-	return scoreSingle(target, query.value, query.valueLowercase, fuzzy);
+	return scoreSingle(target, query.normalized, query.normalizedLowercase, fuzzy);
 }
 
 function scoreMultiple(target: string, query: IPreparedQueryPiece[], fuzzy: boolean): Score {
 	let totalScore = NO_MATCH;
 	const totalPositions: number[] = [];
 
-	for (const { value, valueLowercase } of query) {
-		const [scoreValue, positions] = scoreSingle(target, value, valueLowercase, fuzzy);
+	for (const { normalized, normalizedLowercase } of query) {
+		const [scoreValue, positions] = scoreSingle(target, normalized, normalizedLowercase, fuzzy);
 		if (scoreValue === NO_MATCH) {
 			// if a single query value does not match, return with
 			// no score entirely, we require all queries to match
@@ -338,11 +338,26 @@ const LABEL_CAMELCASE_SCORE = 1 << 16;
 const LABEL_SCORE_THRESHOLD = 1 << 15;
 
 export interface IPreparedQueryPiece {
+
+	/**
+	 * The original query as provided as input.
+	 */
 	original: string;
 	originalLowercase: string;
 
-	value: string;
-	valueLowercase: string;
+	/**
+	 * Original normalized to platform separators:
+	 * - Windows: \
+	 * - Posix: /
+	 */
+	pathNormalized: string;
+
+	/**
+	 * In addition to the normalized path, will have
+	 * whitespace and wildcards removed.
+	 */
+	normalized: string;
+	normalizedLowercase: string;
 }
 
 export interface IPreparedQuery extends IPreparedQueryPiece {
@@ -364,17 +379,21 @@ export function prepareQuery(original: string): IPreparedQuery {
 	}
 
 	const originalLowercase = original.toLowerCase();
-	const value = prepareQueryValue(original);
-	const valueLowercase = value.toLowerCase();
-	const containsPathSeparator = value.indexOf(sep) >= 0;
+	const { pathNormalized, normalized, normalizedLowercase } = normalizeQuery(original);
+	const containsPathSeparator = pathNormalized.indexOf(sep) >= 0;
 
 	let values: IPreparedQueryPiece[] | undefined = undefined;
 
 	const originalSplit = original.split(MULTIPL_QUERY_VALUES_SEPARATOR);
 	if (originalSplit.length > 1) {
 		for (const originalPiece of originalSplit) {
-			const valuePiece = prepareQueryValue(originalPiece);
-			if (valuePiece) {
+			const {
+				pathNormalized: pathNormalizedPiece,
+				normalized: normalizedPiece,
+				normalizedLowercase: normalizedLowercasePiece
+			} = normalizeQuery(originalPiece);
+
+			if (normalizedPiece) {
 				if (!values) {
 					values = [];
 				}
@@ -382,29 +401,36 @@ export function prepareQuery(original: string): IPreparedQuery {
 				values.push({
 					original: originalPiece,
 					originalLowercase: originalPiece.toLowerCase(),
-					value: valuePiece,
-					valueLowercase: valuePiece.toLowerCase()
+					pathNormalized: pathNormalizedPiece,
+					normalized: normalizedPiece,
+					normalizedLowercase: normalizedLowercasePiece
 				});
 			}
 		}
 	}
 
-	return { original, originalLowercase, value, valueLowercase, values, containsPathSeparator };
+	return { original, originalLowercase, pathNormalized, normalized, normalizedLowercase, values, containsPathSeparator };
 }
 
-function prepareQueryValue(original: string): string {
-	let value = stripWildcards(original).replace(/\s/g, ''); // get rid of all wildcards and whitespace
+function normalizeQuery(original: string): { pathNormalized: string, normalized: string, normalizedLowercase: string } {
+	let pathNormalized: string;
 	if (isWindows) {
-		value = value.replace(/\//g, sep); // Help Windows users to search for paths when using slash
+		pathNormalized = original.replace(/\//g, sep); // Help Windows users to search for paths when using slash
 	} else {
-		value = value.replace(/\\/g, sep); // Help macOS/Linux users to search for paths when using backslash
+		pathNormalized = original.replace(/\\/g, sep); // Help macOS/Linux users to search for paths when using backslash
 	}
 
-	return value;
+	const normalized = stripWildcards(pathNormalized).replace(/\s/g, '');
+
+	return {
+		pathNormalized,
+		normalized,
+		normalizedLowercase: normalized.toLowerCase()
+	};
 }
 
 export function scoreItem<T>(item: T, query: IPreparedQuery, fuzzy: boolean, accessor: IItemAccessor<T>, cache: ScorerCache): IItemScore {
-	if (!item || !query.value) {
+	if (!item || !query.normalized) {
 		return NO_ITEM_SCORE; // we need an item and query to score on at least
 	}
 
@@ -417,9 +443,9 @@ export function scoreItem<T>(item: T, query: IPreparedQuery, fuzzy: boolean, acc
 
 	let cacheHash: string;
 	if (description) {
-		cacheHash = `${label}${description}${query.value}${fuzzy}`;
+		cacheHash = `${label}${description}${query.normalized}${fuzzy}`;
 	} else {
-		cacheHash = `${label}${query.value}${fuzzy}`;
+		cacheHash = `${label}${query.normalized}${fuzzy}`;
 	}
 
 	const cached = cache[cacheHash];
@@ -455,7 +481,7 @@ function createMatches(offsets: undefined | number[]): IMatch[] {
 function doScoreItem(label: string, description: string | undefined, path: string | undefined, query: IPreparedQuery, fuzzy: boolean): IItemScore {
 
 	// 1.) treat identity matches on full path highest
-	if (path && (isLinux ? query.original === path : equalsIgnoreCase(query.original, path))) {
+	if (path && (isLinux ? query.pathNormalized === path : equalsIgnoreCase(query.pathNormalized, path))) {
 		return { score: PATH_IDENTITY_SCORE, labelMatch: [{ start: 0, end: label.length }], descriptionMatch: description ? [{ start: 0, end: description.length }] : undefined };
 	}
 
@@ -464,13 +490,13 @@ function doScoreItem(label: string, description: string | undefined, path: strin
 	if (preferLabelMatches) {
 
 		// 2.) treat prefix matches on the label second highest
-		const prefixLabelMatch = matchesPrefix(query.value, label);
+		const prefixLabelMatch = matchesPrefix(query.normalized, label);
 		if (prefixLabelMatch) {
 			return { score: LABEL_PREFIX_SCORE, labelMatch: prefixLabelMatch };
 		}
 
 		// 3.) treat camelcase matches on the label third highest
-		const camelcaseLabelMatch = matchesCamelCase(query.value, label);
+		const camelcaseLabelMatch = matchesCamelCase(query.normalized, label);
 		if (camelcaseLabelMatch) {
 			return { score: LABEL_CAMELCASE_SCORE, labelMatch: camelcaseLabelMatch };
 		}
@@ -702,17 +728,17 @@ function fallbackCompare<T>(itemA: T, itemB: T, query: IPreparedQuery, accessor:
 
 	// compare by label
 	if (labelA !== labelB) {
-		return compareAnything(labelA, labelB, query.value);
+		return compareAnything(labelA, labelB, query.normalized);
 	}
 
 	// compare by description
 	if (descriptionA && descriptionB && descriptionA !== descriptionB) {
-		return compareAnything(descriptionA, descriptionB, query.value);
+		return compareAnything(descriptionA, descriptionB, query.normalized);
 	}
 
 	// compare by path
 	if (pathA && pathB && pathA !== pathB) {
-		return compareAnything(pathA, pathB, query.value);
+		return compareAnything(pathA, pathB, query.normalized);
 	}
 
 	// equal

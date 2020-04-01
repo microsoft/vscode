@@ -14,7 +14,7 @@ import { IResolvedBackup, IBackupFileService } from 'vs/workbench/services/backu
 import { IFileService, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { createTextBufferFactoryFromStream, createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
-import { keys, ResourceMap } from 'vs/base/common/map';
+import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -434,7 +434,7 @@ export class InMemoryBackupFileService implements IBackupFileService {
 	}
 
 	async getBackups(): Promise<URI[]> {
-		return keys(this.backups).map(key => URI.parse(key));
+		return Array.from(this.backups.keys()).map(key => URI.parse(key));
 	}
 
 	async discardBackup(resource: URI): Promise<void> {

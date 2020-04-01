@@ -1,7 +1,8 @@
 name: Needs More Info Closer
 on:
   schedule:
-    - cron: 20 11 * * * # Daily at 4:20am PDT
+    - cron: 20 11 * * * # 4:20am Redmond
+# on: repository_dispatch
 
 jobs:
   main:
@@ -11,11 +12,10 @@ jobs:
         uses: actions/checkout@v2
         with:
           repository: 'JacksonKearl/vscode-triage-github-actions'
-          ref: v15
+          ref: v18
       - name: Run Needs More Info Closer
         uses: ./needs-more-info-closer
         with:
-          token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
           label: needs more info
           days: 7
           comment: "This issue has been closed automatically because it needs more information and has not had recent activity. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines.\n\nHappy Coding!"

@@ -100,7 +100,7 @@ const getIdentityTitle = (label: string, authenticationProviderId: string, accou
 };
 const turnOnSyncCommand = { id: 'workbench.userData.actions.syncStart', title: localize('turn on sync with category', "Preferences Sync: Turn on...") };
 const signInCommand = { id: 'workbench.userData.actions.signin', title: localize('sign in', "Preferences Sync: Sign in to sync") };
-const stopSyncCommand = { id: 'workbench.userData.actions.stopSync', title(authenticationProviderId: string, account: AuthenticationSession | undefined, authenticationService: IAuthenticationService) { return getIdentityTitle(localize('stop sync', "Preferences Sync: Turn off"), authenticationProviderId, account, authenticationService); } };
+const stopSyncCommand = { id: 'workbench.userData.actions.stopSync', title(authenticationProviderId: string, account: AuthenticationSession | undefined, authenticationService: IAuthenticationService) { return getIdentityTitle(localize('stop sync', "Preferences Sync: Turn Off"), authenticationProviderId, account, authenticationService); } };
 const resolveSettingsConflictsCommand = { id: 'workbench.userData.actions.resolveSettingsConflicts', title: localize('showConflicts', "Preferences Sync: Show Settings Conflicts") };
 const resolveKeybindingsConflictsCommand = { id: 'workbench.userData.actions.resolveKeybindingsConflicts', title: localize('showKeybindingsConflicts', "Preferences Sync: Show Keybindings Conflicts") };
 const resolveSnippetsConflictsCommand = { id: 'workbench.userData.actions.resolveSnippetsConflicts', title: localize('showSnippetsConflicts', "Preferences Sync: Show User Snippets Conflicts") };
@@ -123,6 +123,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	private readonly badgeDisposable = this._register(new MutableDisposable());
 	private readonly signInNotificationDisposable = this._register(new MutableDisposable());
 	private _activeAccount: AuthenticationSession | undefined;
+	private loginInProgress: boolean = false;
 
 	constructor(
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
@@ -279,22 +280,18 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	private async onDidChangeSessions(e: { providerId: string, event: AuthenticationSessionsChangeEvent }): Promise<void> {
 		const { providerId, event } = e;
 		if (providerId === this.userDataSyncStore!.authenticationProviderId) {
+			if (this.loginInProgress) {
+				return;
+			}
+
 			if (this.activeAccount) {
 				if (event.removed.length) {
 					const activeWasRemoved = !!event.removed.find(removed => removed === this.activeAccount!.id);
-
-					// If the current account was removed, check if another account can be used, otherwise offer to turn off sync
+					// If the current account was removed, offer to turn off sync
 					if (activeWasRemoved) {
-						const accounts = (await this.authenticationService.getSessions(this.userDataSyncStore!.authenticationProviderId) || []);
-						if (accounts.length) {
-							// Show switch dialog here
-							await this.showSwitchAccountPicker(accounts);
-						} else {
-							await this.turnOff();
-							this.setActiveAccount(undefined);
-							return;
-						}
-
+						await this.turnOff();
+						this.setActiveAccount(undefined);
+						return;
 					}
 				}
 
@@ -815,7 +812,9 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private async signIn(): Promise<void> {
 		try {
+			this.loginInProgress = true;
 			await this.setActiveAccount(await this.authenticationService.login(this.userDataSyncStore!.authenticationProviderId, ['https://management.core.windows.net/.default', 'offline_access']));
+			this.loginInProgress = false;
 		} catch (e) {
 			this.notificationService.error(localize('loginFailed', "Logging in failed: {0}", e));
 			throw e;
@@ -1034,7 +1033,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			constructor() {
 				super({
 					id: 'workbench.userData.actions.syncStatus',
-					title: localize('sync is on', "Preferences sync is on"),
+					title: localize('sync is on', "Preferences Sync is On"),
 					menu: [
 						{
 							id: MenuId.GlobalActivity,

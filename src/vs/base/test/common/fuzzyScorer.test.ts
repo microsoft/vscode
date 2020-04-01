@@ -857,41 +857,58 @@ suite('Fuzzy Scorer', () => {
 	});
 
 	test('prepareQuery', () => {
-		assert.equal(scorer.prepareQuery(' f*a ').value, 'fa');
+		assert.equal(scorer.prepareQuery(' f*a ').normalized, 'fa');
 		assert.equal(scorer.prepareQuery('model Tester.ts').original, 'model Tester.ts');
 		assert.equal(scorer.prepareQuery('model Tester.ts').originalLowercase, 'model Tester.ts'.toLowerCase());
-		assert.equal(scorer.prepareQuery('model Tester.ts').value, 'modelTester.ts');
-		assert.equal(scorer.prepareQuery('Model Tester.ts').valueLowercase, 'modeltester.ts');
+		assert.equal(scorer.prepareQuery('model Tester.ts').normalized, 'modelTester.ts');
+		assert.equal(scorer.prepareQuery('Model Tester.ts').normalizedLowercase, 'modeltester.ts');
 		assert.equal(scorer.prepareQuery('ModelTester.ts').containsPathSeparator, false);
 		assert.equal(scorer.prepareQuery('Model' + sep + 'Tester.ts').containsPathSeparator, true);
 
 		// with spaces
 		let query = scorer.prepareQuery('He*llo World');
 		assert.equal(query.original, 'He*llo World');
-		assert.equal(query.value, 'HelloWorld');
-		assert.equal(query.valueLowercase, 'HelloWorld'.toLowerCase());
+		assert.equal(query.normalized, 'HelloWorld');
+		assert.equal(query.normalizedLowercase, 'HelloWorld'.toLowerCase());
 		assert.equal(query.values?.length, 2);
 		assert.equal(query.values?.[0].original, 'He*llo');
-		assert.equal(query.values?.[0].value, 'Hello');
-		assert.equal(query.values?.[0].valueLowercase, 'Hello'.toLowerCase());
+		assert.equal(query.values?.[0].normalized, 'Hello');
+		assert.equal(query.values?.[0].normalizedLowercase, 'Hello'.toLowerCase());
 		assert.equal(query.values?.[1].original, 'World');
-		assert.equal(query.values?.[1].value, 'World');
-		assert.equal(query.values?.[1].valueLowercase, 'World'.toLowerCase());
+		assert.equal(query.values?.[1].normalized, 'World');
+		assert.equal(query.values?.[1].normalizedLowercase, 'World'.toLowerCase());
 
 		// with spaces that are empty
 		query = scorer.prepareQuery(' Hello   World  	');
 		assert.equal(query.original, ' Hello   World  	');
 		assert.equal(query.originalLowercase, ' Hello   World  	'.toLowerCase());
-		assert.equal(query.value, 'HelloWorld');
-		assert.equal(query.valueLowercase, 'HelloWorld'.toLowerCase());
+		assert.equal(query.normalized, 'HelloWorld');
+		assert.equal(query.normalizedLowercase, 'HelloWorld'.toLowerCase());
 		assert.equal(query.values?.length, 2);
 		assert.equal(query.values?.[0].original, 'Hello');
 		assert.equal(query.values?.[0].originalLowercase, 'Hello'.toLowerCase());
-		assert.equal(query.values?.[0].value, 'Hello');
-		assert.equal(query.values?.[0].valueLowercase, 'Hello'.toLowerCase());
+		assert.equal(query.values?.[0].normalized, 'Hello');
+		assert.equal(query.values?.[0].normalizedLowercase, 'Hello'.toLowerCase());
 		assert.equal(query.values?.[1].original, 'World');
 		assert.equal(query.values?.[1].originalLowercase, 'World'.toLowerCase());
-		assert.equal(query.values?.[1].value, 'World');
-		assert.equal(query.values?.[1].valueLowercase, 'World'.toLowerCase());
+		assert.equal(query.values?.[1].normalized, 'World');
+		assert.equal(query.values?.[1].normalizedLowercase, 'World'.toLowerCase());
+
+		// Path related
+		if (isWindows) {
+			assert.equal(scorer.prepareQuery('C:\\some\\path').pathNormalized, 'C:\\some\\path');
+			assert.equal(scorer.prepareQuery('C:\\some\\path').normalized, 'C:\\some\\path');
+			assert.equal(scorer.prepareQuery('C:\\some\\path').containsPathSeparator, true);
+			assert.equal(scorer.prepareQuery('C:/some/path').pathNormalized, 'C:\\some\\path');
+			assert.equal(scorer.prepareQuery('C:/some/path').normalized, 'C:\\some\\path');
+			assert.equal(scorer.prepareQuery('C:/some/path').containsPathSeparator, true);
+		} else {
+			assert.equal(scorer.prepareQuery('/some/path').pathNormalized, '/some/path');
+			assert.equal(scorer.prepareQuery('/some/path').normalized, '/some/path');
+			assert.equal(scorer.prepareQuery('/some/path').containsPathSeparator, true);
+			assert.equal(scorer.prepareQuery('\\some\\path').pathNormalized, '/some/path');
+			assert.equal(scorer.prepareQuery('\\some\\path').normalized, '/some/path');
+			assert.equal(scorer.prepareQuery('\\some\\path').containsPathSeparator, true);
+		}
 	});
 });

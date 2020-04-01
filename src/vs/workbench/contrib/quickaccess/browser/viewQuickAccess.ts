@@ -219,12 +219,10 @@ export class QuickAccessViewPickerAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<boolean> {
+	async run(): Promise<void> {
 		const keys = this.keybindingService.lookupKeybindings(this.id);
 
 		this.quickInputService.quickAccess.show(ViewQuickAccessProvider.PREFIX, { quickNavigateConfiguration: { keybindings: keys } });
-
-		return Promise.resolve(true);
 	}
 }
 

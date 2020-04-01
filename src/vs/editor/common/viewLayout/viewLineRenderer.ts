@@ -813,7 +813,11 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 	let prevPartContentCnt = 0;
 	let partAbsoluteOffset = 0;
 
-	sb.appendASCIIString('<span>');
+	if (containsRTL) {
+		sb.appendASCIIString('<span dir="ltr">');
+	} else {
+		sb.appendASCIIString('<span>');
+	}
 
 	for (let partIndex = 0, tokensLen = parts.length; partIndex < tokensLen; partIndex++) {
 		partAbsoluteOffset += prevPartContentCnt;
@@ -890,9 +894,6 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 
 			let partContentCnt = 0;
 
-			if (containsRTL) {
-				sb.appendASCIIString(' dir="ltr"');
-			}
 			sb.appendASCII(CharCode.GreaterThan);
 
 			for (; charIndex < partEndIndex; charIndex++) {

@@ -12,7 +12,6 @@ import { IPath, IWindowConfiguration } from 'vs/platform/windows/common/windows'
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
 import product from 'vs/platform/product/common/product';
-import { serializableToMap } from 'vs/base/common/map';
 import { memoize } from 'vs/base/common/decorators';
 
 export class BrowserWindowConfiguration implements IWindowConfiguration {
@@ -69,6 +68,7 @@ interface IExtensionHostDebugEnvironment {
 	isExtensionDevelopment: boolean;
 	extensionDevelopmentLocationURI?: URI[];
 	extensionTestsLocationURI?: URI;
+	extensionEnabledProposedApi?: string[];
 }
 
 export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironmentService {
@@ -156,6 +156,14 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 		return this._extensionHostDebugEnvironment.extensionTestsLocationURI;
 	}
 
+	get extensionEnabledProposedApi(): string[] | undefined {
+		if (!this._extensionHostDebugEnvironment) {
+			this._extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
+		}
+
+		return this._extensionHostDebugEnvironment.extensionEnabledProposedApi;
+	}
+
 	@memoize
 	get webviewExternalEndpoint(): string {
 		// TODO: get fallback from product.json
@@ -184,7 +192,7 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 
 	constructor(readonly options: IBrowserWorkbenchEnvironmentConstructionOptions) {
 		if (options.workspaceProvider && Array.isArray(options.workspaceProvider.payload)) {
-			this.payload = serializableToMap(options.workspaceProvider.payload);
+			this.payload = new Map(options.workspaceProvider.payload);
 		}
 	}
 
@@ -215,6 +223,9 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 					case 'inspect-brk-extensions':
 						extensionHostDebugEnvironment.params.port = parseInt(value);
 						extensionHostDebugEnvironment.params.break = true;
+						break;
+					case 'enableProposedApi':
+						extensionHostDebugEnvironment.extensionEnabledProposedApi = [];
 						break;
 				}
 			}

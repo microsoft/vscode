@@ -11,11 +11,10 @@ jobs:
         uses: actions/checkout@v2
         with:
           repository: 'JacksonKearl/vscode-triage-github-actions'
-          ref: v15
+          ref: v18
       - name: Run New Release
         uses: ./new-release
         with:
-          token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
           label: new release
           labelColor: "006b75"
           labelDescription: Issues found in a recent release of VS Code

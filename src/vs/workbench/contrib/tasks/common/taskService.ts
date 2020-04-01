@@ -85,7 +85,7 @@ export interface ITaskService {
 	getTaskDescription(task: Task | ConfiguringTask): string | undefined;
 	canCustomize(task: ContributedTask | CustomTask): boolean;
 	customize(task: ContributedTask | CustomTask, properties?: {}, openConfig?: boolean): Promise<void>;
-	openConfig(task: CustomTask | undefined): Promise<void>;
+	openConfig(task: CustomTask | ConfiguringTask | undefined): Promise<void>;
 
 	registerTaskProvider(taskProvider: ITaskProvider, type: string): IDisposable;
 
