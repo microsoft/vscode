@@ -14,7 +14,7 @@ import { IAction, Action } from 'vs/base/common/actions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { append, $, addClass, toggleClass, Dimension } from 'vs/base/browser/dom';
+import { append, $, addClass, toggleClass, Dimension, hide, show } from 'vs/base/browser/dom';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -403,6 +403,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		const overlay = append(this.root, $('.overlay'));
 		const overlayBackgroundColor = this.getColor(PANEL_DRAG_AND_DROP_BACKGROUND) ?? '';
 		overlay.style.backgroundColor = overlayBackgroundColor;
+		hide(overlay);
 
 		const header = append(this.root, $('.header'));
 		const placeholder = localize('searchExtensions', "Search Extensions in Marketplace");
@@ -443,67 +444,61 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 			onDragEnd: (e: DragEvent) => undefined,
 			onDragEnter: (e: DragEvent) => {
 				if (this.isSupportedDragElement(e)) {
-					overlay.style.visibility = 'visible';
+					show(overlay);
 				}
 			},
 			onDragLeave: (e: DragEvent) => {
 				if (this.isSupportedDragElement(e)) {
-					overlay.style.visibility = 'hidden';
+					hide(overlay);
 				}
 			},
 			onDragOver: (e: DragEvent) => {
 				if (e.dataTransfer) {
-					if (this.isSupportedDragElement(e)) {
-						e.dataTransfer.dropEffect = 'copy';
-					} else {
-						e.dataTransfer.dropEffect = 'none';
-					}
+					e.dataTransfer.dropEffect = this.isSupportedDragElement(e) ? 'copy' : 'none';
 				}
 			},
 			onDrop: (e: DragEvent) => {
 				if (this.isSupportedDragElement(e)) {
-					overlay.style.visibility = 'hidden';
+					hide(overlay);
 
-					if (e.dataTransfer) {
-						if (e.dataTransfer.files.length > 0) {
-							let vsixPaths: URI[] = [];
-							for (let index = 0; index < e.dataTransfer.files.length; index++) {
-								const path = e.dataTransfer.files.item(index)!.path;
-								if (path.endsWith('.vsix')) {
-									vsixPaths.push(URI.parse(path));
-								}
+					if (e.dataTransfer && e.dataTransfer.files.length > 0) {
+						let vsixPaths: URI[] = [];
+						for (let index = 0; index < e.dataTransfer.files.length; index++) {
+							const path = e.dataTransfer.files.item(index)!.path;
+							if (path.endsWith('.vsix')) {
+								vsixPaths.push(URI.parse(path));
 							}
+						}
 
-							if (vsixPaths.length > 0) {
-								this.progress(
-									Promise.all(vsixPaths.map(vsix => this.extensionManagementService.install(vsix)))
-										.then(extensions => {
-											// TODO: There is some code duplication here with the 'Install from VSIX' action
-											for (const extension of extensions) {
-												const requireReload = !(extension && this.extensionService.canAddExtension(toExtensionDescription(extension)));
-												const message = requireReload ? localize('InstallVSIXAction.successReload', "Please reload Visual Studio Code to complete installing the extension {0}.", extension.manifest.displayName || extension.manifest.name)
-													: localize('InstallVSIXAction.success', "Completed installing the extension {0}.", extension.manifest.displayName || extension.manifest.name);
-												const actions = requireReload ? [{
-													label: localize('InstallVSIXAction.reloadNow', "Reload Now"),
-													run: () => this.hostService.reload()
-												}] : [];
-												this.notificationService.prompt(
-													Severity.Info,
-													message,
-													actions,
-													{ sticky: true }
-												);
-											}
+						if (vsixPaths.length > 0) {
+							this.progress(
+								Promise.all(vsixPaths.map(vsix => this.extensionManagementService.install(vsix)))
+									.then(extensions => {
+										// TODO: There is some code duplication here with the 'Install from VSIX' action
+										for (const extension of extensions) {
+											const requireReload = !(extension && this.extensionService.canAddExtension(toExtensionDescription(extension)));
+											const message = requireReload ? localize('InstallVSIXAction.successReload', "Please reload Visual Studio Code to complete installing the extension {0}.", extension.manifest.displayName || extension.manifest.name)
+												: localize('InstallVSIXAction.success', "Completed installing the extension {0}.", extension.manifest.displayName || extension.manifest.name);
+											const actions = requireReload ? [{
+												label: localize('InstallVSIXAction.reloadNow', "Reload Now"),
+												run: () => this.hostService.reload()
+											}] : [];
+											this.notificationService.prompt(
+												Severity.Info,
+												message,
+												actions,
+												{ sticky: true }
+											);
+										}
 
-											// Reset the searchBox value in order to force the list of
-											// installed extensions to be refreshed in case the current
-											// view is @installed.
-											this.searchBox?.setValue('');
+										// Reset the searchBox value in order to force the list of
+										// installed extensions to be refreshed in case the current
+										// view is @installed.
+										this.searchBox?.setValue('');
 
-											// Navigate to the installed extensions
-											return this.instantiationService.createInstance(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, ShowInstalledExtensionsAction.LABEL).run();
-										}));
-							}
+										// Navigate to the installed extensions
+										return this.instantiationService.createInstance(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, ShowInstalledExtensionsAction.LABEL).run();
+									}));
 						}
 					}
 				}
@@ -698,8 +693,9 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 	}
 
 	private isSupportedDragElement(e: DragEvent): boolean {
-		if (e.dataTransfer && e.dataTransfer.types.indexOf('Files') !== -1) {
-			return true;
+		if (e.dataTransfer) {
+			const typesLowerCase = e.dataTransfer.types.map(t => t.toLocaleLowerCase());
+			return typesLowerCase.indexOf('files') !== -1;
 		}
 
 		return false;
