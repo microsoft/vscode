@@ -46,6 +46,7 @@
 	position: relative;
 	box-sizing:	border-box;
 	overflow: hidden;
+	z-index: 500; /* TODO@rebornix should be set only when notebook editor is active+focused. */
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title:not(.tabs) {
