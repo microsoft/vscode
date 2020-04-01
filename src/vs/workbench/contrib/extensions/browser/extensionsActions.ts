@@ -2584,7 +2584,7 @@ export class MaliciousStatusLabelAction extends ExtensionAction {
 
 export class SyncIgnoredIconAction extends ExtensionAction {
 
-	private static readonly ENABLE_CLASS = `${ExtensionAction.ICON_ACTION_CLASS} codicon-eye-closed`;
+	private static readonly ENABLE_CLASS = `${ExtensionAction.ICON_ACTION_CLASS} codicon-sync-ignored`;
 	private static readonly DISABLE_CLASS = `${SyncIgnoredIconAction.ENABLE_CLASS} hide`;
 
 	constructor(
