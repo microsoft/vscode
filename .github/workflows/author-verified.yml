@@ -18,7 +18,7 @@ jobs:
           ref: v19
           path: ./actions
       - name: Checkout Repo
-       if: github.event_name != 'issues' || contains(github.event.issue.labels.*.name, 'author-verification-requested')
+        if: github.event_name != 'issues' || contains(github.event.issue.labels.*.name, 'author-verification-requested')
         uses: actions/checkout@v2
         with:
           path: ./repo
