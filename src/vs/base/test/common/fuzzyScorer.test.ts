@@ -43,7 +43,9 @@ class NullAccessorClass implements scorer.IItemAccessor<URI> {
 }
 
 function _doScore(target: string, query: string, fuzzy: boolean): scorer.Score {
-	return scorer.score(target, scorer.prepareQuery(query), fuzzy);
+	const preparedQuery = scorer.prepareQuery(query);
+
+	return scorer.score(target, preparedQuery.normalized, preparedQuery.normalizedLowercase, fuzzy);
 }
 
 function scoreItem<T>(item: T, query: string, fuzzy: boolean, accessor: scorer.IItemAccessor<T>, cache: scorer.ScorerCache): scorer.IItemScore {
@@ -107,42 +109,6 @@ suite('Fuzzy Scorer', () => {
 		assert.ok(_doScore(target, 'ello', false)[0] > 0);
 		assert.ok(_doScore(target, 'ld', false)[0] > 0);
 		assert.equal(_doScore(target, 'eo', false)[0], 0);
-	});
-
-	test('score (fuzzy, multiple)', function () {
-		const target = 'HeLlo-World';
-
-		const [firstSingleScore, firstSinglePositions] = _doScore(target, 'HelLo', true);
-		const [secondSingleScore, secondSinglePositions] = _doScore(target, 'World', true);
-		const firstAndSecondSinglePositions = [...firstSinglePositions, ...secondSinglePositions];
-
-		let [multiScore, multiPositions] = _doScore(target, 'HelLo World', true);
-
-		function assertScore() {
-			assert.ok(multiScore >= firstSingleScore + secondSingleScore);
-			for (let i = 0; i < multiPositions.length; i++) {
-				assert.equal(multiPositions[i], firstAndSecondSinglePositions[i]);
-			}
-		}
-
-		function assertNoScore() {
-			assert.equal(multiScore, 0);
-			assert.equal(multiPositions.length, 0);
-		}
-
-		assertScore();
-
-		[multiScore, multiPositions] = _doScore(target, 'World HelLo', true);
-		assertScore();
-
-		[multiScore, multiPositions] = _doScore(target, 'World HelLo World', true);
-		assertScore();
-
-		[multiScore, multiPositions] = _doScore(target, 'World HelLo Nothing', true);
-		assertNoScore();
-
-		[multiScore, multiPositions] = _doScore(target, 'More Nothing', true);
-		assertNoScore();
 	});
 
 	test('scoreItem - matches are proper', function () {
@@ -215,6 +181,49 @@ suite('Fuzzy Scorer', () => {
 		assert.ok(basenamePrefixRes.score > basenameRes.score);
 		assert.ok(basenameRes.score > pathRes.score);
 		assert.ok(pathRes.score > noRes.score);
+	});
+
+	test('scoreItem - multiple', function () {
+		const resource = URI.file('/xyz/some/path/someFile123.txt');
+
+		let res1 = scoreItem(resource, 'xyz some', true, ResourceAccessor, cache);
+		assert.ok(res1.score);
+		assert.equal(res1.labelMatch?.length, 1);
+		assert.equal(res1.labelMatch![0].start, 0);
+		assert.equal(res1.labelMatch![0].end, 4);
+		assert.equal(res1.descriptionMatch?.length, 1);
+		assert.equal(res1.descriptionMatch![0].start, 1);
+		assert.equal(res1.descriptionMatch![0].end, 4);
+
+		let res2 = scoreItem(resource, 'some xyz', true, ResourceAccessor, cache);
+		assert.ok(res2.score);
+		assert.equal(res1.score, res2.score);
+		assert.equal(res2.labelMatch?.length, 1);
+		assert.equal(res2.labelMatch![0].start, 0);
+		assert.equal(res2.labelMatch![0].end, 4);
+		assert.equal(res2.descriptionMatch?.length, 1);
+		assert.equal(res2.descriptionMatch![0].start, 1);
+		assert.equal(res2.descriptionMatch![0].end, 4);
+
+		let res3 = scoreItem(resource, 'some xyz file file123', true, ResourceAccessor, cache);
+		assert.ok(res3.score);
+		assert.ok(res3.score > res2.score);
+		assert.equal(res3.labelMatch?.length, 1);
+		assert.equal(res3.labelMatch![0].start, 0);
+		assert.equal(res3.labelMatch![0].end, 11);
+		assert.equal(res3.descriptionMatch?.length, 1);
+		assert.equal(res3.descriptionMatch![0].start, 1);
+		assert.equal(res3.descriptionMatch![0].end, 4);
+
+		let res4 = scoreItem(resource, 'path z y', true, ResourceAccessor, cache);
+		assert.ok(res4.score);
+		assert.ok(res4.score < res2.score);
+		assert.equal(res4.labelMatch?.length, 0);
+		assert.equal(res4.descriptionMatch?.length, 2);
+		assert.equal(res4.descriptionMatch![0].start, 2);
+		assert.equal(res4.descriptionMatch![0].end, 4);
+		assert.equal(res4.descriptionMatch![1].start, 10);
+		assert.equal(res4.descriptionMatch![1].end, 14);
 	});
 
 	test('scoreItem - invalid input', function () {

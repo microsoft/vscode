@@ -9,7 +9,6 @@ import { sep } from 'vs/base/common/path';
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import { stripWildcards, equalsIgnoreCase } from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
-import { distinctES6 } from 'vs/base/common/arrays';
 
 export type Score = [number /* score */, number[] /* match positions */];
 export type ScorerCache = { [key: string]: IItemScore };
@@ -20,40 +19,7 @@ const NO_SCORE: Score = [NO_MATCH, []];
 // const DEBUG = false;
 // const DEBUG_MATRIX = false;
 
-export function score(target: string, query: IPreparedQuery, fuzzy: boolean): Score {
-	if (query.values && query.values.length > 1) {
-		return scoreMultiple(target, query.values, fuzzy);
-	}
-
-	return scoreSingle(target, query.normalized, query.normalizedLowercase, fuzzy);
-}
-
-function scoreMultiple(target: string, query: IPreparedQueryPiece[], fuzzy: boolean): Score {
-	let totalScore = NO_MATCH;
-	const totalPositions: number[] = [];
-
-	for (const { normalized, normalizedLowercase } of query) {
-		const [scoreValue, positions] = scoreSingle(target, normalized, normalizedLowercase, fuzzy);
-		if (scoreValue === NO_MATCH) {
-			// if a single query value does not match, return with
-			// no score entirely, we require all queries to match
-			return NO_SCORE;
-		}
-
-		totalScore += scoreValue;
-		totalPositions.push(...positions);
-	}
-
-	if (totalScore === NO_MATCH) {
-		return NO_SCORE;
-	}
-
-	// if we have a score, ensure that the positions are
-	// sorted in ascending order and distinct
-	return [totalScore, distinctES6(totalPositions).sort((a, b) => a - b)];
-}
-
-function scoreSingle(target: string, query: string, queryLower: string, fuzzy: boolean): Score {
+export function score(target: string, query: string, queryLower: string, fuzzy: boolean): Score {
 	if (!target || !query) {
 		return NO_SCORE; // return early if target or query are undefined
 	}
@@ -459,56 +425,80 @@ export function scoreItem<T>(item: T, query: IPreparedQuery, fuzzy: boolean, acc
 	return itemScore;
 }
 
-function createMatches(offsets: undefined | number[]): IMatch[] {
-	let ret: IMatch[] = [];
-	if (!offsets) {
-		return ret;
-	}
-
-	let last: IMatch | undefined;
-	for (const pos of offsets) {
-		if (last && last.end === pos) {
-			last.end += 1;
-		} else {
-			last = { start: pos, end: pos + 1 };
-			ret.push(last);
-		}
-	}
-
-	return ret;
-}
-
 function doScoreItem(label: string, description: string | undefined, path: string | undefined, query: IPreparedQuery, fuzzy: boolean): IItemScore {
+	const preferLabelMatches = !path || !query.containsPathSeparator;
 
-	// 1.) treat identity matches on full path highest
+	// Treat identity matches on full path highest
 	if (path && (isLinux ? query.pathNormalized === path : equalsIgnoreCase(query.pathNormalized, path))) {
 		return { score: PATH_IDENTITY_SCORE, labelMatch: [{ start: 0, end: label.length }], descriptionMatch: description ? [{ start: 0, end: description.length }] : undefined };
 	}
 
-	// We only consider label matches if the query is not including file path separators
-	const preferLabelMatches = !path || !query.containsPathSeparator;
+	// Score: multiple inputs
+	if (query.values && query.values.length > 1) {
+		return doScoreMultiple(label, description, path, query.values, preferLabelMatches, fuzzy);
+	}
+
+	// Score: single input
+	return doScoreSingle(label, description, path, query, preferLabelMatches, fuzzy);
+}
+
+function doScoreMultiple(label: string, description: string | undefined, path: string | undefined, query: IPreparedQueryPiece[], preferLabelMatches: boolean, fuzzy: boolean): IItemScore {
+	let totalScore = NO_MATCH;
+	const totalLabelMatches: IMatch[] = [];
+	const totalDescriptionMatches: IMatch[] = [];
+
+	for (const queryPiece of query) {
+		const { score, labelMatch, descriptionMatch } = doScoreSingle(label, description, path, queryPiece, preferLabelMatches, fuzzy);
+		if (score === NO_MATCH) {
+			// if a single query value does not match, return with
+			// no score entirely, we require all queries to match
+			return NO_ITEM_SCORE;
+		}
+
+		totalScore += score;
+		if (labelMatch) {
+			totalLabelMatches.push(...labelMatch);
+		}
+
+		if (descriptionMatch) {
+			totalDescriptionMatches.push(...descriptionMatch);
+		}
+	}
+
+	// if we have a score, ensure that the positions are
+	// sorted in ascending order and distinct
+	return {
+		score: totalScore,
+		labelMatch: normalizeMatches(totalLabelMatches),
+		descriptionMatch: normalizeMatches(totalDescriptionMatches)
+	};
+}
+
+function doScoreSingle(label: string, description: string | undefined, path: string | undefined, query: IPreparedQueryPiece, preferLabelMatches: boolean, fuzzy: boolean): IItemScore {
+
+	// Prefer label matches if told so
 	if (preferLabelMatches) {
 
-		// 2.) treat prefix matches on the label second highest
+		// Treat prefix matches on the label second highest
 		const prefixLabelMatch = matchesPrefix(query.normalized, label);
 		if (prefixLabelMatch) {
 			return { score: LABEL_PREFIX_SCORE, labelMatch: prefixLabelMatch };
 		}
 
-		// 3.) treat camelcase matches on the label third highest
+		// Treat camelcase matches on the label third highest
 		const camelcaseLabelMatch = matchesCamelCase(query.normalized, label);
 		if (camelcaseLabelMatch) {
 			return { score: LABEL_CAMELCASE_SCORE, labelMatch: camelcaseLabelMatch };
 		}
 
-		// 4.) prefer scores on the label if any
-		const [labelScore, labelPositions] = score(label, query, fuzzy);
+		// Prefer scores on the label if any
+		const [labelScore, labelPositions] = score(label, query.normalized, query.normalizedLowercase, fuzzy);
 		if (labelScore) {
 			return { score: labelScore + LABEL_SCORE_THRESHOLD, labelMatch: createMatches(labelPositions) };
 		}
 	}
 
-	// 5.) finally compute description + label scores if we have a description
+	// Finally compute description + label scores if we have a description
 	if (description) {
 		let descriptionPrefix = description;
 		if (!!path) {
@@ -518,7 +508,7 @@ function doScoreItem(label: string, description: string | undefined, path: strin
 		const descriptionPrefixLength = descriptionPrefix.length;
 		const descriptionAndLabel = `${descriptionPrefix}${label}`;
 
-		const [labelDescriptionScore, labelDescriptionPositions] = score(descriptionAndLabel, query, fuzzy);
+		const [labelDescriptionScore, labelDescriptionPositions] = score(descriptionAndLabel, query.normalized, query.normalizedLowercase, fuzzy);
 		if (labelDescriptionScore) {
 			const labelDescriptionMatches = createMatches(labelDescriptionPositions);
 			const labelMatch: IMatch[] = [];
@@ -549,6 +539,37 @@ function doScoreItem(label: string, description: string | undefined, path: strin
 	}
 
 	return NO_ITEM_SCORE;
+}
+
+function createMatches(offsets: undefined | number[]): IMatch[] {
+	let ret: IMatch[] = [];
+	if (!offsets) {
+		return ret;
+	}
+
+	let last: IMatch | undefined;
+	for (const pos of offsets) {
+		if (last && last.end === pos) {
+			last.end += 1;
+		} else {
+			last = { start: pos, end: pos + 1 };
+			ret.push(last);
+		}
+	}
+
+	return ret;
+}
+
+function normalizeMatches(matches: IMatch[]): IMatch[] {
+	const positions = new Set<number>();
+
+	for (const match of matches) {
+		for (let i = match.start; i < match.end; i++) {
+			positions.add(i);
+		}
+	}
+
+	return createMatches(Array.from(positions.values()).sort((a, b) => a - b));
 }
 
 export function compareItemsByScore<T>(itemA: T, itemB: T, query: IPreparedQuery, fuzzy: boolean, accessor: IItemAccessor<T>, cache: ScorerCache): number {

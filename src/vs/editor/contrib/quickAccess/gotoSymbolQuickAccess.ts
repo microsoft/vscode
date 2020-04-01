@@ -241,7 +241,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 
 				// Score by container if specified
 				if (includeSymbol && containerQuery) {
-					if (containerLabel) {
+					if (containerLabel && containerQuery.original.length > 0) {
 						containerScore = fuzzyScore(containerQuery.original, containerQuery.originalLowercase, filterPos, containerLabel, containerLabel.toLowerCase(), 0, true);
 					}
 
