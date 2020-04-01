@@ -577,9 +577,17 @@ export interface ILineSequence {
 	getLineContent(lineNumber: number): string;
 }
 
-class SemanticColoringFeature extends Disposable {
+export const SEMANTIC_HIGHLIGHTING_SETTING_ID = 'editor.semanticHighlighting';
 
-	private static readonly SETTING_ID = 'editor.semanticHighlighting';
+export function isSemanticColoringEnabled(model: ITextModel, themeService: IThemeService, configurationService: IConfigurationService): boolean {
+	if (!themeService.getColorTheme().semanticHighlighting) {
+		return false;
+	}
+	const options = configurationService.getValue<IEditorSemanticHighlightingOptions>(SEMANTIC_HIGHLIGHTING_SETTING_ID, { overrideIdentifier: model.getLanguageIdentifier().language, resource: model.uri });
+	return Boolean(options && options.enabled);
+}
+
+class SemanticColoringFeature extends Disposable {
 
 	private readonly _watchers: Record<string, ModelSemanticColoring>;
 	private readonly _semanticStyling: SemanticStyling;
@@ -589,13 +597,6 @@ class SemanticColoringFeature extends Disposable {
 		this._watchers = Object.create(null);
 		this._semanticStyling = semanticStyling;
 
-		const isSemanticColoringEnabled = (model: ITextModel) => {
-			if (!themeService.getColorTheme().semanticHighlighting) {
-				return false;
-			}
-			const options = configurationService.getValue<IEditorSemanticHighlightingOptions>(SemanticColoringFeature.SETTING_ID, { overrideIdentifier: model.getLanguageIdentifier().language, resource: model.uri });
-			return options && options.enabled;
-		};
 		const register = (model: ITextModel) => {
 			this._watchers[model.uri.toString()] = new ModelSemanticColoring(model, themeService, this._semanticStyling);
 		};
@@ -606,7 +607,7 @@ class SemanticColoringFeature extends Disposable {
 		const handleSettingOrThemeChange = () => {
 			for (let model of modelService.getModels()) {
 				const curr = this._watchers[model.uri.toString()];
-				if (isSemanticColoringEnabled(model)) {
+				if (isSemanticColoringEnabled(model, themeService, configurationService)) {
 					if (!curr) {
 						register(model);
 					}
@@ -618,7 +619,7 @@ class SemanticColoringFeature extends Disposable {
 			}
 		};
 		this._register(modelService.onModelAdded((model) => {
-			if (isSemanticColoringEnabled(model)) {
+			if (isSemanticColoringEnabled(model, themeService, configurationService)) {
 				register(model);
 			}
 		}));
@@ -629,7 +630,7 @@ class SemanticColoringFeature extends Disposable {
 			}
 		}));
 		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(SemanticColoringFeature.SETTING_ID)) {
+			if (e.affectsConfiguration(SEMANTIC_HIGHLIGHTING_SETTING_ID)) {
 				handleSettingOrThemeChange();
 			}
 		}));
