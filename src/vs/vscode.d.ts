@@ -6901,10 +6901,11 @@ declare module 'vscode' {
 		 *
 		 * @param document Document to save.
 		 * @param targetResource Location to save to.
+		 * @param cancellation Token that signals the save is no longer required.
 		 *
 		 * @return Thenable signaling that saving has completed.
 		 */
-		saveAs(document: CustomDocument<EditType>, targetResource: Uri): Thenable<void>;
+		saveAs(document: CustomDocument<EditType>, targetResource: Uri, cancellation: CancellationToken): Thenable<void>;
 
 		/**
 		 * Signal that an edit has occurred inside a custom editor.
