@@ -43,15 +43,17 @@ export class DebugProgressContribution implements IWorkbenchContribution {
 						source,
 						delay: 500
 					}, progressStep => {
-						let increment = 0;
+						let total = 0;
 						const reportProgress = (progress: { message?: string, percentage?: number }) => {
+							let increment = undefined;
 							if (typeof progress.percentage === 'number') {
-								increment = progress.percentage - increment;
+								increment = progress.percentage - total;
+								total += increment;
 							}
 							progressStep.report({
 								message: progress.message,
-								increment: typeof progress.percentage === 'number' ? increment : undefined,
-								total: typeof progress.percentage === 'number' ? 100 : undefined,
+								increment,
+								total: typeof increment === 'number' ? 100 : undefined,
 							});
 						};
 
@@ -60,7 +62,6 @@ export class DebugProgressContribution implements IWorkbenchContribution {
 						}
 						const progressUpdateListener = session.onDidProgressUpdate(e => {
 							if (e.body.progressId === progressStartEvent.body.progressId) {
-
 								reportProgress(e.body);
 							}
 						});
