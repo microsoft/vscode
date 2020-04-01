@@ -27,7 +27,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	public static typeId = 'workbench.editors.webviewEditor';
 
 	private readonly _editorResource: URI;
-	private readonly _fromBackup: boolean;
+	private readonly _startsDirty: boolean | undefined;
 
 	get resource() { return this._editorResource; }
 
@@ -38,7 +38,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		viewType: string,
 		id: string,
 		webview: Lazy<WebviewOverlay>,
-		fromBackup: boolean,
+		options: { startsDirty?: boolean },
 		@IWebviewService webviewService: IWebviewService,
 		@IWebviewWorkbenchService webviewWorkbenchService: IWebviewWorkbenchService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -51,7 +51,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	) {
 		super(id, viewType, '', webview, webviewService, webviewWorkbenchService);
 		this._editorResource = resource;
-		this._fromBackup = fromBackup;
+		this._startsDirty = options.startsDirty;
 	}
 
 	public getTypeId(): string {
@@ -110,7 +110,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 
 	public isDirty(): boolean {
 		if (!this._modelRef) {
-			return this._fromBackup;
+			return !!this._startsDirty;
 		}
 		return this._modelRef.object.isDirty();
 	}
@@ -201,7 +201,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			this.viewType,
 			this.id,
 			new Lazy(() => undefined!),
-			this._fromBackup); // this webview is replaced in the transfer call
+			{ startsDirty: this._startsDirty }); // this webview is replaced in the transfer call
 		this.transfer(newEditor);
 		newEditor.updateGroup(group);
 		return newEditor;
