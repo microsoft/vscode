@@ -386,7 +386,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private _matchOnLabel = true;
 	private _sortByLabel = true;
 	private _autoFocusOnList = true;
-	private _itemActivation = ItemActivation.FIRST;
+	private _itemActivation = this.ui.isScreenReaderOptimized() ? ItemActivation.NONE /* https://github.com/microsoft/vscode/issues/57501 */ : ItemActivation.FIRST;
 	private _activeItems: T[] = [];
 	private activeItemsUpdated = false;
 	private activeItemsToConfirm: T[] | null = [];
@@ -637,7 +637,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 
 	private trySelectFirst() {
 		if (this.autoFocusOnList) {
-			if (!this.ui.isScreenReaderOptimized() && !this.canSelectMany) {
+			if (!this.canSelectMany) {
 				this.ui.list.focus(QuickInputListFocus.First);
 			}
 		}
@@ -867,6 +867,9 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 			this.ui.visibleCount.setCount(this.ui.list.getVisibleCount());
 			this.ui.count.setCount(this.ui.list.getCheckedCount());
 			switch (this._itemActivation) {
+				case ItemActivation.NONE:
+					this._itemActivation = ItemActivation.FIRST; // only valid once, then unset
+					break;
 				case ItemActivation.SECOND:
 					this.ui.list.focus(QuickInputListFocus.Second);
 					this._itemActivation = ItemActivation.FIRST; // only valid once, then unset
