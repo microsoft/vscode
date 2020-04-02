@@ -473,7 +473,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		const model = modelData.model;
 		let maintainUndoRedoStack = false;
 		let heapSize = 0;
-		if (MAINTAIN_UNDO_REDO_STACK && (resource.scheme === Schemas.file || resource.scheme === Schemas.vscodeRemote)) {
+		if (MAINTAIN_UNDO_REDO_STACK && (resource.scheme === Schemas.file || resource.scheme === Schemas.vscodeRemote || resource.scheme === Schemas.userData)) {
 			const elements = this._undoRedoService.getElements(resource);
 			if ((elements.past.length > 0 || elements.future.length > 0) && isEditStackPastFutureElements(elements)) {
 				maintainUndoRedoStack = true;
