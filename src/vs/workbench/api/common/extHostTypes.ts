@@ -16,7 +16,7 @@ import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/p
 import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import type * as vscode from 'vscode';
 import { Cache } from './cache';
-import { assertIsDefined } from 'vs/base/common/types';
+import { assertIsDefined, isStringArray } from 'vs/base/common/types';
 import { Schemas } from 'vs/base/common/network';
 
 function es5ClassCompat(target: Function): any {
@@ -2427,18 +2427,7 @@ export class SemanticTokensLegend {
 }
 
 function isStrArrayOrUndefined(arg: any): arg is string[] | undefined {
-	if (typeof arg === 'undefined') {
-		return true;
-	}
-	if (Array.isArray(arg)) {
-		for (const element of arg) {
-			if (typeof element !== 'string') {
-				return false;
-			}
-		}
-		return true;
-	}
-	return false;
+	return ((typeof arg === 'undefined') || isStringArray(arg));
 }
 
 export class SemanticTokensBuilder {
