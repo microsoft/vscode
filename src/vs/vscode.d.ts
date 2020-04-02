@@ -3164,7 +3164,7 @@ declare module 'vscode' {
 		 */
 		public readonly tokenModifiers: string[];
 
-		constructor(tokenTypes: string[], tokenModifiers: string[]);
+		constructor(tokenTypes: string[], tokenModifiers?: string[]);
 	}
 
 	/**
@@ -3184,7 +3184,7 @@ declare module 'vscode' {
 		 * @param tokenType The encoded token type.
 		 * @param tokenModifiers The encoded token modifiers.
 		 */
-		push(line: number, char: number, length: number, tokenType: number, tokenModifiers: number): void;
+		push(line: number, char: number, length: number, tokenType: number, tokenModifiers?: number): void;
 
 		/**
 		 * Add another token. Use only when providing a legend.
