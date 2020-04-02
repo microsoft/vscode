@@ -45,7 +45,7 @@ export class CodeCell extends Disposable {
 				height: totalHeight
 			}
 		);
-		viewCell.editorHeight = totalHeight;
+		// viewCell.editorHeight = totalHeight;
 
 		const cts = new CancellationTokenSource();
 		this._register({ dispose() { cts.dispose(true); } });
@@ -211,6 +211,12 @@ export class CodeCell extends Disposable {
 		}));
 
 		if (viewCell.outputs.length > 0) {
+			let layoutCache = false;
+			if (this.viewCell.layoutInfo.totalHeight !== 0) {
+				layoutCache = true;
+				this.relayoutCell();
+			}
+
 			this.templateData.outputContainer!.style.display = 'block';
 			// there are outputs, we need to calcualte their sizes and trigger relayout
 			// @todo, if there is no resizable output, we should not check their height individually, which hurts the performance
@@ -222,9 +228,15 @@ export class CodeCell extends Disposable {
 			}
 
 			viewCell.editorHeight = totalHeight;
-			this.relayoutCell();
+			if (layoutCache) {
+				this.relayoutCellDebounced();
+			} else {
+				this.relayoutCell();
+			}
 		} else {
 			// noop
+			viewCell.editorHeight = totalHeight;
+			this.relayoutCell();
 			this.templateData.outputContainer!.style.display = 'none';
 		}
 	}

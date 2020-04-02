@@ -13,6 +13,7 @@ import { CellEditState, ICellViewModel, CellFindMatch, CodeCellLayoutChangeEvent
 import { CellKind, ICell, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { BaseCellViewModel } from './baseCellViewModel';
 import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 
 export class CodeCellViewModel extends BaseCellViewModel implements ICellViewModel {
 	cellKind: CellKind.Code = CellKind.Code;
@@ -133,6 +134,22 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 
 	private _fireOnDidChangeLayout(state: CodeCellLayoutChangeEvent) {
 		this._onDidChangeLayout.fire(state);
+	}
+
+	restoreEditorViewState(editorViewStates: editorCommon.ICodeEditorViewState | null, totalHeight?: number) {
+		super.restoreEditorViewState(editorViewStates);
+		if (totalHeight !== undefined) {
+			this._layoutInfo = {
+				fontInfo: this._layoutInfo.fontInfo,
+				editorHeight: this._layoutInfo.editorHeight,
+				editorWidth: this._layoutInfo.editorWidth,
+				outputContainerOffset: this._layoutInfo.outputContainerOffset,
+				outputTotalHeight: this._layoutInfo.outputTotalHeight,
+				totalHeight: totalHeight,
+				indicatorHeight: this._layoutInfo.indicatorHeight,
+				bottomToolbarOffset: this._layoutInfo.bottomToolbarOffset
+			};
+		}
 	}
 
 	hasDynamicHeight() {

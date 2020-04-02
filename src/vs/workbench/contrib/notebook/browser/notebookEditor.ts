@@ -424,6 +424,17 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			const state = this.notebookViewModel.saveEditorViewState();
 			if (this.list) {
 				state.scrollPosition = { left: this.list.scrollLeft, top: this.list.scrollTop };
+				let cellHeights: { [key: number]: number } = {};
+				for (let i = 0; i < this.list.length; i++) {
+					const elm = this.list.element(i)!;
+					if (elm.cellKind === CellKind.Code) {
+						cellHeights[i] = elm.layoutInfo.totalHeight;
+					} else {
+						cellHeights[i] = 0;
+					}
+				}
+
+				state.cellTotalHeights = cellHeights;
 			}
 
 			this.editorMemento.saveEditorState(this.group, input.resource, state);

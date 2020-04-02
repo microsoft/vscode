@@ -207,6 +207,7 @@
 	display: flex;
 	opacity: 0;
 	transition: opacity 0.2s ease-in-out;
+	cursor: auto;
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container:hover {
@@ -231,6 +232,7 @@
 	align-self: center;
 	align-items: center;
 	white-space: pre;
+	cursor: pointer;
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container span.codicon {
