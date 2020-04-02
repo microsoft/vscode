@@ -1491,6 +1491,19 @@ declare module 'vscode' {
 		readonly editingDelegate?: CustomEditorEditingDelegate<EditType>;
 	}
 
+	namespace window {
+		/**
+		 * Temporary overload for `registerCustomEditorProvider` that takes a `CustomEditorProvider`.
+		 */
+		export function registerCustomEditorProvider2(
+			viewType: string,
+			provider: CustomEditorProvider,
+			options?: {
+				readonly webviewOptions?: WebviewPanelOptions;
+			}
+		): Disposable;
+	}
+
 	// #endregion
 
 	//#region Custom editor move https://github.com/microsoft/vscode/issues/86146
