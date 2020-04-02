@@ -323,4 +323,21 @@ suite('TokensStore', () => {
 		assert.equal(lineTokens.getCount(), 3);
 	});
 
+	test('issue #94133: Semantic colors stick around when using (only) range provider', () => {
+		const store = new TokensStore2();
+
+		// setPartial: [1,1 -> 1,20] [(1,9-11)]
+		store.setPartial(new Range(1, 1, 1, 20), [
+			new MultilineTokens2(1, new SparseEncodedTokens(new Uint32Array([
+				0, 9, 2, 1,
+			])))
+		]);
+
+		// setPartial: [1,1 -> 1,20], []
+		store.setPartial(new Range(1, 1, 1, 20), []);
+
+		const lineTokens = store.addSemanticTokens(1, new LineTokens(new Uint32Array([12, 1]), `enum Enum1 {`));
+		assert.equal(lineTokens.getCount(), 1);
+	});
+
 });
