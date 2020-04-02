@@ -89,8 +89,4 @@ export class EmptyView extends ViewPane {
 			this.updateTitle(this.title);
 		}
 	}
-
-	layoutBody(_size: number): void {
-		// no-op
-	}
 }

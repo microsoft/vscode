@@ -59,6 +59,7 @@ export interface CodeCellLayoutChangeEvent {
 export interface MarkdownCellLayoutInfo {
 	readonly fontInfo: BareFontInfo | null;
 	readonly editorWidth: number;
+	readonly bottomToolbarOffset: number;
 }
 
 export interface MarkdownCellLayoutChangeEvent {
@@ -268,6 +269,7 @@ export interface BaseCellRenderTemplate {
 	toolbar: ToolBar;
 	focusIndicator: HTMLElement;
 	disposables: DisposableStore;
+	bottomCellContainer: HTMLElement;
 	toJSON: () => any;
 }
 
@@ -283,7 +285,6 @@ export interface CodeCellRenderTemplate extends BaseCellRenderTemplate {
 	outputContainer: HTMLElement;
 	editor: CodeEditorWidget;
 	progressBar: ProgressBar;
-	betweenCellContainer: HTMLElement;
 }
 
 export interface IOutputTransformContribution {

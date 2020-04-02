@@ -346,7 +346,7 @@ export class ConfigurationManager implements IConfigurationManager {
 	private setCompoundSchemaValues(): void {
 		const compoundConfigurationsSchema = (<IJSONSchema>launchSchema.properties!['compounds'].items).properties!['configurations'];
 		const launchNames = this.launches.map(l =>
-			l.getConfigurationNames(false)).reduce((first, second) => first.concat(second), []);
+			l.getConfigurationNames(true)).reduce((first, second) => first.concat(second), []);
 		(<IJSONSchema>compoundConfigurationsSchema.items).oneOf![0].enum = launchNames;
 		(<IJSONSchema>compoundConfigurationsSchema.items).oneOf![1].properties!.name.enum = launchNames;
 
@@ -523,7 +523,7 @@ abstract class AbstractLaunch {
 		return config.compounds.filter(compound => compound.name === name).pop();
 	}
 
-	getConfigurationNames(includeCompounds = true): string[] {
+	getConfigurationNames(ignoreCompoundsAndPresentation = false): string[] {
 		const config = this.getConfig();
 		if (!config || (!Array.isArray(config.configurations) && !Array.isArray(config.compounds))) {
 			return [];
@@ -532,12 +532,14 @@ abstract class AbstractLaunch {
 			if (config.configurations) {
 				configurations.push(...config.configurations.filter(cfg => cfg && typeof cfg.name === 'string'));
 			}
-			if (includeCompounds && config.compounds) {
-				if (config.compounds) {
-					configurations.push(...config.compounds.filter(compound => typeof compound.name === 'string' && compound.configurations && compound.configurations.length));
-				}
+
+			if (ignoreCompoundsAndPresentation) {
+				return configurations.map(c => c.name);
 			}
 
+			if (config.compounds) {
+				configurations.push(...config.compounds.filter(compound => typeof compound.name === 'string' && compound.configurations && compound.configurations.length));
+			}
 			return getVisibleAndSorted(configurations).map(c => c.name);
 		}
 	}

@@ -795,6 +795,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 			return undefined;
 		}
 		// TODO: handle save untitled case
+		// TODO: handle cancellation
 		await createCancelablePromise(token => this._proxy.$onSave(this._editorResource, this.viewType, token));
 		this.change(() => {
 			this._savePoint = this._currentEditIndex;
@@ -804,7 +805,8 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 
 	public async saveCustomEditorAs(resource: URI, targetResource: URI, _options?: ISaveOptions): Promise<boolean> {
 		if (this._editable) {
-			await this._proxy.$onSaveAs(this._editorResource, this.viewType, targetResource);
+			// TODO: handle cancellation
+			await createCancelablePromise(token => this._proxy.$onSaveAs(this._editorResource, this.viewType, targetResource, token));
 			this.change(() => {
 				this._savePoint = this._currentEditIndex;
 			});

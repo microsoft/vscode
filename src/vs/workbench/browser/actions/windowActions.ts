@@ -196,6 +196,7 @@ abstract class BaseOpenRecentAction extends Action {
 		return {
 			iconClasses,
 			label: name,
+			ariaLabel: isDirty ? nls.localize('recentDirtyAriaLabel', "{0}, dirty workspace", name) : name,
 			description: parentPath,
 			buttons: isDirty ? [this.dirtyRecentlyOpened] : [this.removeFromRecentlyOpened],
 			openable,

@@ -43,7 +43,6 @@ export class OutputViewPane extends ViewPane {
 	private readonly editor: OutputEditor;
 	private channelId: string | undefined;
 	private editorPromise: Promise<OutputEditor> | null = null;
-	private actions: IAction[] | undefined;
 
 	private readonly scrollLockContextKey: IContextKey<boolean>;
 	get scrollLock(): boolean { return !!this.scrollLockContextKey.get(); }
@@ -109,7 +108,7 @@ export class OutputViewPane extends ViewPane {
 			}
 
 			const model = codeEditor.getModel();
-			if (model && this.actions) {
+			if (model) {
 				const newPositionLine = e.position.lineNumber;
 				const lastLine = model.getLineCount();
 				this.scrollLock = lastLine !== newPositionLine;

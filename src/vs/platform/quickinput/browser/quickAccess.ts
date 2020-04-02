@@ -93,6 +93,9 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 		picker.itemActivation = options?.itemActivation || (options?.quickNavigateConfiguration ? ItemActivation.SECOND : ItemActivation.FIRST);
 		picker.contextKey = descriptor?.contextKey;
 		picker.filterValue = (value: string) => value.substring(descriptor ? descriptor.prefix.length : 0);
+		if (descriptor?.placeholder) {
+			picker.ariaLabel = descriptor?.placeholder;
+		}
 
 		// Register listeners
 		const cancellationToken = this.registerPickerListeners(picker, provider, descriptor, value, disposables);

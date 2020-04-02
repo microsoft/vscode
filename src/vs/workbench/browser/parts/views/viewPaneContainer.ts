@@ -47,6 +47,8 @@ import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { CompositeProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
 import { IProgressIndicator } from 'vs/platform/progress/common/progress';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 
 export interface IPaneColors extends IColorMapping {
 	dropBackground?: ColorIdentifier;
@@ -309,9 +311,20 @@ export abstract class ViewPane extends Pane implements IView {
 		this._onDidChangeTitleArea.fire();
 	}
 
+	private scrollableElement!: DomScrollableElement;
+
 	protected renderBody(container: HTMLElement): void {
 		this.bodyContainer = container;
-		this.viewWelcomeContainer = append(container, $('.welcome-view', { tabIndex: 0 }));
+
+		const viewWelcomeContainer = append(container, $('.welcome-view'));
+		this.viewWelcomeContainer = $('.welcome-view-content', { tabIndex: 0 });
+		this.scrollableElement = this._register(new DomScrollableElement(this.viewWelcomeContainer, {
+			alwaysConsumeMouseWheel: true,
+			horizontal: ScrollbarVisibility.Hidden,
+			vertical: ScrollbarVisibility.Visible,
+		}));
+
+		append(viewWelcomeContainer, this.scrollableElement.getDomNode());
 
 		const onViewWelcomeChange = Event.any(this.viewWelcomeController.onDidChange, this.onDidChangeViewWelcomeState);
 		this._register(onViewWelcomeChange(this.updateViewWelcome, this));
@@ -319,7 +332,9 @@ export abstract class ViewPane extends Pane implements IView {
 	}
 
 	protected layoutBody(height: number, width: number): void {
-		// noop
+		this.viewWelcomeContainer.style.height = `${height}px`;
+		this.viewWelcomeContainer.style.width = `${width}px`;
+		this.scrollableElement.scanDomNode();
 	}
 
 	getProgressIndicator() {
@@ -410,6 +425,7 @@ export abstract class ViewPane extends Pane implements IView {
 		if (!this.shouldShowWelcome()) {
 			removeClass(this.bodyContainer, 'welcome');
 			this.viewWelcomeContainer.innerHTML = '';
+			this.scrollableElement.scanDomNode();
 			return;
 		}
 
@@ -418,6 +434,7 @@ export abstract class ViewPane extends Pane implements IView {
 		if (contents.length === 0) {
 			removeClass(this.bodyContainer, 'welcome');
 			this.viewWelcomeContainer.innerHTML = '';
+			this.scrollableElement.scanDomNode();
 			return;
 		}
 
@@ -437,47 +454,52 @@ export abstract class ViewPane extends Pane implements IView {
 					continue;
 				}
 
-				const p = append(this.viewWelcomeContainer, $('p'));
 				const linkedText = parseLinkedText(line);
 
-				for (const node of linkedText.nodes) {
-					if (typeof node === 'string') {
-						append(p, document.createTextNode(node));
-					} else if (linkedText.nodes.length === 1) {
-						const button = new Button(p, { title: node.title });
-						button.label = node.label;
-						button.onDidClick(_ => {
-							this.telemetryService.publicLog2<{ viewId: string, uri: string }, WelcomeActionClassification>('views.welcomeAction', { viewId: this.id, uri: node.href });
-							this.openerService.open(node.href);
-						}, null, disposables);
-						disposables.add(button);
-						disposables.add(attachButtonStyler(button, this.themeService));
+				if (linkedText.nodes.length === 1 && typeof linkedText.nodes[0] !== 'string') {
+					const node = linkedText.nodes[0];
+					const button = new Button(this.viewWelcomeContainer, { title: node.title });
+					button.label = node.label;
+					button.onDidClick(_ => {
+						this.telemetryService.publicLog2<{ viewId: string, uri: string }, WelcomeActionClassification>('views.welcomeAction', { viewId: this.id, uri: node.href });
+						this.openerService.open(node.href);
+					}, null, disposables);
+					disposables.add(button);
+					disposables.add(attachButtonStyler(button, this.themeService));
 
-						if (preconditions) {
-							const precondition = preconditions[buttonIndex];
+					if (preconditions) {
+						const precondition = preconditions[buttonIndex];
 
-							if (precondition) {
-								const updateEnablement = () => button.enabled = this.contextKeyService.contextMatchesRules(precondition);
-								updateEnablement();
+						if (precondition) {
+							const updateEnablement = () => button.enabled = this.contextKeyService.contextMatchesRules(precondition);
+							updateEnablement();
 
-								const keys = new Set();
-								precondition.keys().forEach(key => keys.add(key));
-								const onDidChangeContext = Event.filter(this.contextKeyService.onDidChangeContext, e => e.affectsSome(keys));
-								onDidChangeContext(updateEnablement, null, disposables);
-							}
+							const keys = new Set();
+							precondition.keys().forEach(key => keys.add(key));
+							const onDidChangeContext = Event.filter(this.contextKeyService.onDidChangeContext, e => e.affectsSome(keys));
+							onDidChangeContext(updateEnablement, null, disposables);
 						}
+					}
 
-						buttonIndex++;
-					} else {
-						const link = this.instantiationService.createInstance(Link, node);
-						append(p, link.el);
-						disposables.add(link);
-						disposables.add(attachLinkStyler(link, this.themeService));
+					buttonIndex++;
+				} else {
+					const p = append(this.viewWelcomeContainer, $('p'));
+
+					for (const node of linkedText.nodes) {
+						if (typeof node === 'string') {
+							append(p, document.createTextNode(node));
+						} else {
+							const link = this.instantiationService.createInstance(Link, node);
+							append(p, link.el);
+							disposables.add(link);
+							disposables.add(attachLinkStyler(link, this.themeService));
+						}
 					}
 				}
 			}
 		}
 
+		this.scrollableElement.scanDomNode();
 		this.viewWelcomeDisposable = disposables;
 	}
 

@@ -237,11 +237,9 @@
 .quick-input-list .quick-input-list-entry-action-bar .action-label {
 	/*
 	 * By default, actions in the quick input action bar are hidden
-	 * until hovered over them or selected. We do not use display:none
-	 * so that the amount of visual flickering is little by reserving the
-	 * space the button needs still.
+	 * until hovered over them or selected. 
 	 */
-	visibility: hidden;
+	display: none;
 }
 
 .quick-input-list .quick-input-list-entry-action-bar .action-label.codicon {
@@ -266,5 +264,5 @@
 .quick-input-list .quick-input-list-entry .quick-input-list-entry-action-bar .action-label.always-visible,
 .quick-input-list .quick-input-list-entry:hover .quick-input-list-entry-action-bar .action-label,
 .quick-input-list .monaco-list-row.focused .quick-input-list-entry-action-bar .action-label {
-	visibility: visible;
+	display: flex;
 }
