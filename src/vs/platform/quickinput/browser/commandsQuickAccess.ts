@@ -25,10 +25,10 @@ import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common
 
 export interface ICommandQuickPick extends IPickerQuickAccessItem {
 	commandId: string;
-	commandAlias: string | undefined;
+	commandAlias?: string;
 }
 
-export interface ICommandsQuickAccessOptions extends IPickerQuickAccessProviderOptions {
+export interface ICommandsQuickAccessOptions extends IPickerQuickAccessProviderOptions<ICommandQuickPick> {
 	showAlias: boolean;
 }
 

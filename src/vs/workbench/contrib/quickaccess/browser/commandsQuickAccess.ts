@@ -60,7 +60,13 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		@INotificationService notificationService: INotificationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
-		super({ showAlias: !Language.isDefaultVariant() }, instantiationService, keybindingService, commandService, telemetryService, notificationService);
+		super({
+			showAlias: !Language.isDefaultVariant(),
+			noResultsPick: {
+				label: localize('noCommandResults', "No command matching"),
+				commandId: ''
+			}
+		}, instantiationService, keybindingService, commandService, telemetryService, notificationService);
 	}
 
 	private get configuration() {

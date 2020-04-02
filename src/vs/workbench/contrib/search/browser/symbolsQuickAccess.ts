@@ -17,18 +17,16 @@ import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/
 import { Range } from 'vs/editor/common/core/range';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
-import { IKeyMods } from 'vs/platform/quickinput/common/quickInput';
-import { URI } from 'vs/base/common/uri';
+import { IKeyMods, IQuickPickItemWithResource } from 'vs/platform/quickinput/common/quickInput';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { getSelectionSearchString } from 'vs/editor/contrib/find/findController';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { prepareQuery, IPreparedQuery, scoreFuzzy2, pieceToQuery } from 'vs/base/common/fuzzyScorer';
 import { IMatch } from 'vs/base/common/filters';
 
-interface ISymbolQuickPickItem extends IPickerQuickAccessItem {
-	resource: URI | undefined;
+interface ISymbolQuickPickItem extends IPickerQuickAccessItem, IQuickPickItemWithResource {
 	score?: number;
-	symbol: IWorkspaceSymbol;
+	symbol?: IWorkspaceSymbol;
 }
 
 export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbolQuickPickItem> {
@@ -67,7 +65,12 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService
 	) {
-		super(SymbolsQuickAccessProvider.PREFIX, { canAcceptInBackground: true });
+		super(SymbolsQuickAccessProvider.PREFIX, {
+			canAcceptInBackground: true,
+			noResultsPick: {
+				label: localize('noSymbolResults', "No workspace symbol matching")
+			}
+		});
 	}
 
 	private get configuration() {
@@ -241,22 +244,30 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 		if (symbolA.score && symbolB.score) {
 			if (symbolA.score > symbolB.score) {
 				return -1;
-			} else if (symbolA.score < symbolB.score) {
+			}
+
+			if (symbolA.score < symbolB.score) {
 				return 1;
 			}
 		}
 
 		// By name
-		const symbolAName = symbolA.symbol.name.toLowerCase();
-		const symbolBName = symbolB.symbol.name.toLowerCase();
-		const res = symbolAName.localeCompare(symbolBName);
-		if (res !== 0) {
-			return res;
+		if (symbolA.symbol && symbolB.symbol) {
+			const symbolAName = symbolA.symbol.name.toLowerCase();
+			const symbolBName = symbolB.symbol.name.toLowerCase();
+			const res = symbolAName.localeCompare(symbolBName);
+			if (res !== 0) {
+				return res;
+			}
 		}
 
 		// By kind
-		const symbolAKind = SymbolKinds.toCssClassName(symbolA.symbol.kind);
-		const symbolBKind = SymbolKinds.toCssClassName(symbolB.symbol.kind);
-		return symbolAKind.localeCompare(symbolBKind);
+		if (symbolA.symbol && symbolB.symbol) {
+			const symbolAKind = SymbolKinds.toCssClassName(symbolA.symbol.kind);
+			const symbolBKind = SymbolKinds.toCssClassName(symbolB.symbol.kind);
+			return symbolAKind.localeCompare(symbolBKind);
+		}
+
+		return 0;
 	}
 }

@@ -24,7 +24,11 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 		@ICommandService private readonly commandService: ICommandService,
 		@INotificationService private readonly notificationService: INotificationService
 	) {
-		super(StartDebugQuickAccessProvider.PREFIX);
+		super(StartDebugQuickAccessProvider.PREFIX, {
+			noResultsPick: {
+				label: localize('noDebugResults', "No launch configuration matching")
+			}
+		});
 	}
 
 	protected getPicks(filter: string): (IQuickPickSeparator | IPickerQuickAccessItem)[] {

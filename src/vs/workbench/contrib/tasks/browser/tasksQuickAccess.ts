@@ -28,7 +28,11 @@ export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQ
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IQuickInputService private quickInputService: IQuickInputService
 	) {
-		super(TasksQuickAccessProvider.PREFIX);
+		super(TasksQuickAccessProvider.PREFIX, {
+			noResultsPick: {
+				label: localize('noTaskResults', "No task matching")
+			}
+		});
 
 		this.activationPromise = extensionService.activateByEvent('onCommand:workbench.action.tasks.runTask');
 	}

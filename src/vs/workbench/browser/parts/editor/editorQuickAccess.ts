@@ -17,7 +17,9 @@ import { prepareQuery, scoreItemFuzzy, compareItemsByFuzzyScore, FuzzyScorerCach
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
-interface IEditorQuickPickItem extends IQuickPickItemWithResource, IEditorIdentifier, IPickerQuickAccessItem { }
+interface IEditorQuickPickItem extends IQuickPickItemWithResource, IPickerQuickAccessItem {
+	groupId: GroupIdentifier;
+}
 
 export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessProvider<IEditorQuickPickItem> {
 
@@ -45,7 +47,15 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 		@IModelService private readonly modelService: IModelService,
 		@IModeService private readonly modeService: IModeService
 	) {
-		super(prefix, { canAcceptInBackground: true });
+		super(prefix,
+			{
+				canAcceptInBackground: true,
+				noResultsPick: {
+					label: localize('noViewResults', "No editor matching"),
+					groupId: -1
+				}
+			}
+		);
 	}
 
 	provide(picker: IQuickPick<IEditorQuickPickItem>, token: CancellationToken): IDisposable {
@@ -130,7 +140,6 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 			const isDirty = editor.isDirty() && !editor.isSaving();
 
 			return {
-				editor,
 				groupId,
 				resource,
 				label: editor.getName(),

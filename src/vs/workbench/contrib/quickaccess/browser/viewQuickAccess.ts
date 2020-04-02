@@ -37,7 +37,12 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 		@IPanelService private readonly panelService: IPanelService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
-		super(ViewQuickAccessProvider.PREFIX);
+		super(ViewQuickAccessProvider.PREFIX, {
+			noResultsPick: {
+				label: localize('noViewResults', "No view matching"),
+				containerLabel: ''
+			}
+		});
 	}
 
 	protected getPicks(filter: string): Array<IViewQuickPickItem | IQuickPickSeparator> {

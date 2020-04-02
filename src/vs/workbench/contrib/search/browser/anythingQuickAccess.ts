@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/anythingQuickAccess';
-import { IQuickInputButton, IKeyMods, quickPickItemScorerAccessor, QuickPickItemScorerAccessor, IQuickPick } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputButton, IKeyMods, quickPickItemScorerAccessor, QuickPickItemScorerAccessor, IQuickPick, IQuickPickItemWithResource } from 'vs/platform/quickinput/common/quickInput';
 import { IPickerQuickAccessItem, PickerQuickAccessProvider, TriggerAction, FastAndSlowPicks, Picks, PicksWithActive } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { prepareQuery, IPreparedQuery, compareItemsByFuzzyScore, scoreItemFuzzy, FuzzyScorerCache } from 'vs/base/common/fuzzyScorer';
 import { IFileQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
@@ -50,9 +50,7 @@ import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { stripCodicons } from 'vs/base/common/codicons';
 
-interface IAnythingQuickPickItem extends IPickerQuickAccessItem {
-	resource: URI | undefined;
-}
+interface IAnythingQuickPickItem extends IPickerQuickAccessItem, IQuickPickItemWithResource { }
 
 interface IEditorSymbolAnythingQuickPickItem extends IAnythingQuickPickItem {
 	resource: URI;
@@ -163,7 +161,12 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@ITextModelService private readonly textModelService: ITextModelService
 	) {
-		super(AnythingQuickAccessProvider.PREFIX, { canAcceptInBackground: true });
+		super(AnythingQuickAccessProvider.PREFIX, {
+			canAcceptInBackground: true,
+			noResultsPick: {
+				label: localize('noAnythingResults', "No result matching")
+			}
+		});
 	}
 
 	private get configuration() {
