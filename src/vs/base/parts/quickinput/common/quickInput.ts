@@ -183,7 +183,8 @@ export interface IQuickPickAcceptEvent {
 }
 
 export enum ItemActivation {
-	FIRST = 1,
+	NONE,
+	FIRST,
 	SECOND,
 	LAST
 }
