@@ -273,6 +273,9 @@ export class SuggestController implements IEditorContribution {
 		// keep item in memory
 		this._memoryService.memorize(model, this.editor.getPosition(), item);
 
+		// keep line number for scrolling
+		const initialLineNumber = this.editor.getPosition().lineNumber;
+
 		if (Array.isArray(suggestion.additionalTextEdits)) {
 			this.editor.executeEdits('suggestController.additionalTextEdits', suggestion.additionalTextEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
 		}
@@ -293,6 +296,10 @@ export class SuggestController implements IEditorContribution {
 		if (!(flags & InsertFlags.NoAfterUndoStop)) {
 			this.editor.pushUndoStop();
 		}
+
+		const newLineNumber = this.editor.getPosition().lineNumber;
+		const offset = this.editor.getTopForLineNumber(newLineNumber) - this.editor.getTopForLineNumber(initialLineNumber);
+		this.editor.setScrollTop(this.editor.getScrollTop() + offset);
 
 		if (!suggestion.command) {
 			// done
