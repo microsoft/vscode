@@ -22,7 +22,7 @@ import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, 
 import {
 	ShowEnabledExtensionsAction, ShowInstalledExtensionsAction, ShowRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowDisabledExtensionsAction,
 	ShowOutdatedExtensionsAction, ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction, CheckForUpdatesAction, DisableAllAction, EnableAllAction,
-	EnableAutoUpdateAction, DisableAutoUpdateAction, ShowBuiltInExtensionsAction, InstallVSIXAction, toExtensionDescription
+	EnableAutoUpdateAction, DisableAutoUpdateAction, ShowBuiltInExtensionsAction, InstallVSIXAction
 } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
@@ -344,7 +344,6 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 	private readonly searchViewletState: MementoObject;
 
 	constructor(
-		@IHostService private readonly hostService: IHostService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IProgressService private readonly progressService: IProgressService,
@@ -470,36 +469,8 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 							}
 						}
 
-						if (vsixPaths.length > 0) {
-							this.progress(
-								Promise.all(vsixPaths.map(vsix => this.extensionManagementService.install(vsix)))
-									.then(extensions => {
-										// TODO: There is some code duplication here with the 'Install from VSIX' action
-										for (const extension of extensions) {
-											const requireReload = !(extension && this.extensionService.canAddExtension(toExtensionDescription(extension)));
-											const message = requireReload ? localize('InstallVSIXAction.successReload', "Please reload Visual Studio Code to complete installing the extension {0}.", extension.manifest.displayName || extension.manifest.name)
-												: localize('InstallVSIXAction.success', "Completed installing the extension {0}.", extension.manifest.displayName || extension.manifest.name);
-											const actions = requireReload ? [{
-												label: localize('InstallVSIXAction.reloadNow', "Reload Now"),
-												run: () => this.hostService.reload()
-											}] : [];
-											this.notificationService.prompt(
-												Severity.Info,
-												message,
-												actions,
-												{ sticky: true }
-											);
-										}
-
-										// Reset the searchBox value in order to force the list of
-										// installed extensions to be refreshed in case the current
-										// view is @installed.
-										this.searchBox?.setValue('');
-
-										// Navigate to the installed extensions
-										return this.instantiationService.createInstance(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, ShowInstalledExtensionsAction.LABEL).run();
-									}));
-						}
+						// Install the extension(s)
+						this.instantiationService.createInstance(InstallVSIXAction, InstallVSIXAction.ID, InstallVSIXAction.LABEL).run(vsixPaths);
 					}
 				}
 			},
