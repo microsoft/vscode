@@ -649,7 +649,7 @@ export interface ExtHostWebviewsShape {
 	$disposeEdits(resourceComponents: UriComponents, viewType: string, editIds: number[]): void;
 
 	$onSave(resource: UriComponents, viewType: string, cancellation: CancellationToken): Promise<void>;
-	$onSaveAs(resource: UriComponents, viewType: string, targetResource: UriComponents): Promise<void>;
+	$onSaveAs(resource: UriComponents, viewType: string, targetResource: UriComponents, cancellation: CancellationToken): Promise<void>;
 
 	$backup(resource: UriComponents, viewType: string, cancellation: CancellationToken): Promise<void>;
 
