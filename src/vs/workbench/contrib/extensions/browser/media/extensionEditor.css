@@ -277,16 +277,28 @@
 	padding-left: 20px;
 }
 
-.extension-editor > .body > .content > .extension-pack-readme.narrow > .extension-pack {
+.extension-editor > .body > .content > .extension-pack-readme.one-row > .extension-pack {
 	height: 142px;
 }
 
-.extension-editor > .body > .content > .extension-pack-readme > .readme-content {
+.extension-editor > .body > .content > .extension-pack-readme.two-rows > .extension-pack {
+	height: 224px;
+}
+
+.extension-editor > .body > .content > .extension-pack-readme.three-rows > .extension-pack {
+	height: 306px;
+}
+
+.extension-editor > .body > .content > .extension-pack-readme.one-row > .readme-content {
+	height: calc(100% - 142px);
+}
+
+.extension-editor > .body > .content > .extension-pack-readme.two-rows > .readme-content {
 	height: calc(100% - 224px);
 }
 
-.extension-editor > .body > .content > .extension-pack-readme.narrow > .readme-content {
-	height: calc(100% - 142px);
+.extension-editor > .body > .content > .extension-pack-readme.three-rows > .readme-content {
+	height: calc(100% - 306px);
 }
 
 .extension-editor > .body > .content > .extension-pack-readme > .extension-pack > .header,
@@ -481,6 +493,12 @@
 
 .extension-editor .extensions-grid-view .extension-list-item > .details .header > .name {
 	cursor: pointer;
+}
+
+.extension-editor .extensions-grid-view .extension-list-item > .details > .header-container > .header > .version,
+.extension-editor .extensions-grid-view .extension-list-item > .details > .header-container > .header > .ratings,
+.extension-editor .extensions-grid-view .extension-list-item > .details > .header-container > .header > .install-count {
+	display: none;
 }
 
 .extension-editor .extensions-grid-view > .extension-container:focus > .extension-list-item > .details .header > .name,
