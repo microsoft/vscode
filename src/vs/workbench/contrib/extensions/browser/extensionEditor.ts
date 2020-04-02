@@ -844,8 +844,10 @@ export class ExtensionEditor extends BaseEditor {
 			addClass(extensionPackReadme, 'one-row');
 		} else if (manifest.extensionPack!.length <= 6) {
 			addClass(extensionPackReadme, 'two-rows');
-		} else {
+		} else if (manifest.extensionPack!.length <= 9) {
 			addClass(extensionPackReadme, 'three-rows');
+		} else {
+			addClass(extensionPackReadme, 'more-rows');
 		}
 
 		const extensionPackHeader = append(extensionPack, $('div.header'));

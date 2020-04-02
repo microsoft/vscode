@@ -289,6 +289,10 @@
 	height: 306px;
 }
 
+.extension-editor > .body > .content > .extension-pack-readme.more-rows > .extension-pack {
+	height: 326px;
+}
+
 .extension-editor > .body > .content > .extension-pack-readme.one-row > .readme-content {
 	height: calc(100% - 142px);
 }
@@ -299,6 +303,10 @@
 
 .extension-editor > .body > .content > .extension-pack-readme.three-rows > .readme-content {
 	height: calc(100% - 306px);
+}
+
+.extension-editor > .body > .content > .extension-pack-readme.more-rows > .readme-content {
+	height: calc(100% - 326px);
 }
 
 .extension-editor > .body > .content > .extension-pack-readme > .extension-pack > .header,
