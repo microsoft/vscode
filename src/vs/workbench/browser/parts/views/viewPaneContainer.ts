@@ -597,6 +597,7 @@ class ViewPaneDropOverlay extends Themable {
 
 		this.overlay.style.borderColor = activeContrastBorderColor || '';
 		this.overlay.style.borderStyle = 'solid' || '';
+		this.overlay.style.borderWidth = '0px';
 	}
 
 	private registerListeners(): void {
@@ -677,7 +678,12 @@ class ViewPaneDropOverlay extends Themable {
 				this.doPositionOverlay({ top: '0', left: '0', width: '100%', height: '100%' });
 		}
 
-		this.doUpdateOverlayBorder(dropDirection);
+		if ((this.orientation === Orientation.VERTICAL && paneHeight <= 25) ||
+			(this.orientation === Orientation.HORIZONTAL && paneWidth <= 25)) {
+			this.doUpdateOverlayBorder(dropDirection);
+		} else {
+			this.doUpdateOverlayBorder(undefined);
+		}
 
 		// Make sure the overlay is visible now
 		this.overlay.style.opacity = '1';
