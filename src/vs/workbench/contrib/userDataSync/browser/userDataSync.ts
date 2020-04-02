@@ -284,6 +284,16 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				return;
 			}
 
+			if (document.hidden) {
+				await new Promise(resolve => {
+					document.addEventListener(
+						'visibilitychange',
+						resolve,
+						{ once: true }
+					);
+				});
+			}
+
 			if (this.activeAccount) {
 				if (event.removed.length) {
 					const activeWasRemoved = !!event.removed.find(removed => removed === this.activeAccount!.id);
