@@ -3338,7 +3338,7 @@ declare module 'vscode' {
 
 		/**
 		 * Instead of always returning all the tokens in a file, it is possible for a `DocumentSemanticTokensProvider` to implement
-		 * this method (`updateSemanticTokens`) and then return incremental updates to the previously provided semantic tokens.
+		 * this method (`provideDocumentSemanticTokensEdits`) and then return incremental updates to the previously provided semantic tokens.
 		 *
 		 * ---
 		 * ### How tokens change when the document changes
