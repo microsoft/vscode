@@ -1081,30 +1081,13 @@ export class QuickInputController extends Disposable {
 	}
 
 	private registerKeyModsListeners() {
-		this._register(dom.addDisposableListener(window, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			const event = new StandardKeyboardEvent(e);
-			switch (event.keyCode) {
-				case KeyCode.Ctrl:
-				case KeyCode.Meta:
-					this.keyMods.ctrlCmd = true;
-					break;
-				case KeyCode.Alt:
-					this.keyMods.alt = true;
-					break;
-			}
-		}));
-		this._register(dom.addDisposableListener(window, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
-			const event = new StandardKeyboardEvent(e);
-			switch (event.keyCode) {
-				case KeyCode.Ctrl:
-				case KeyCode.Meta:
-					this.keyMods.ctrlCmd = false;
-					break;
-				case KeyCode.Alt:
-					this.keyMods.alt = false;
-					break;
-			}
-		}));
+		const listener = (e: KeyboardEvent | MouseEvent) => {
+			this.keyMods.ctrlCmd = e.ctrlKey || e.metaKey;
+			this.keyMods.alt = e.altKey;
+		};
+		this._register(dom.addDisposableListener(window, dom.EventType.KEY_DOWN, listener, true));
+		this._register(dom.addDisposableListener(window, dom.EventType.KEY_UP, listener, true));
+		this._register(dom.addDisposableListener(window, dom.EventType.MOUSE_DOWN, listener, true));
 	}
 
 	private getUI() {
