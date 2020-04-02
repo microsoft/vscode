@@ -22,7 +22,8 @@ import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { getSelectionSearchString } from 'vs/editor/contrib/find/findController';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { prepareQuery, IPreparedQuery, scoreFuzzy2, FuzzyScore2, pieceToQuery } from 'vs/base/common/fuzzyScorer';
+import { prepareQuery, IPreparedQuery, scoreFuzzy2, pieceToQuery } from 'vs/base/common/fuzzyScorer';
+import { IMatch } from 'vs/base/common/filters';
 
 interface ISymbolQuickPickItem extends IPickerQuickAccessItem {
 	resource: URI | undefined;
@@ -127,10 +128,12 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 				const symbolLabel = symbol.name;
 				const symbolLabelWithIcon = `$(symbol-${SymbolKinds.toString(symbol.kind) || 'property'}) ${symbolLabel}`;
 
+
 				// Score by symbol label if searching
-				let symbolScore: FuzzyScore2 | undefined;
+				let symbolScore: number | undefined = undefined;
+				let symbolMatches: IMatch[] | undefined = undefined;
 				if (symbolQuery.original.length > 0) {
-					symbolScore = scoreFuzzy2(symbolLabel, symbolQuery, symbolLabelWithIcon.length - symbolLabel.length /* Readjust matches to account for codicons in label */);
+					[symbolScore, symbolMatches] = scoreFuzzy2(symbolLabel, symbolQuery, 0, symbolLabelWithIcon.length - symbolLabel.length /* Readjust matches to account for codicons in label */);
 					if (!symbolScore) {
 						continue;
 					}
@@ -148,10 +151,11 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 				}
 
 				// Score by container if specified and searching
-				let containerScore: FuzzyScore2 | undefined = undefined;
+				let containerScore: number | undefined = undefined;
+				let containerMatches: IMatch[] | undefined = undefined;
 				if (containerQuery && containerQuery.original.length > 0) {
 					if (containerLabel) {
-						containerScore = scoreFuzzy2(containerLabel, containerQuery);
+						[containerScore, containerMatches] = scoreFuzzy2(containerLabel, containerQuery);
 					}
 
 					if (!containerScore) {
@@ -159,7 +163,7 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 					}
 
 					if (symbolScore) {
-						symbolScore[0] += containerScore[0]; // boost symbolScore by containerScore
+						symbolScore += containerScore; // boost symbolScore by containerScore
 					}
 				}
 
@@ -168,12 +172,12 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 				symbolPicks.push({
 					symbol,
 					resource: symbolUri,
-					score: symbolScore?.[0],
+					score: symbolScore,
 					label: symbolLabelWithIcon,
 					ariaLabel: symbolLabel,
 					highlights: deprecated ? undefined : {
-						label: symbolScore?.[1],
-						description: containerScore?.[1]
+						label: symbolMatches,
+						description: containerMatches
 					},
 					description: containerLabel,
 					strikethrough: deprecated,

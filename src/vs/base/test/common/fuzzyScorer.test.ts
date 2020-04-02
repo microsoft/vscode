@@ -48,15 +48,10 @@ function _doScore(target: string, query: string, fuzzy: boolean): scorer.FuzzySc
 	return scorer.scoreFuzzy(target, preparedQuery.normalized, preparedQuery.normalizedLowercase, fuzzy);
 }
 
-function _doScore2(target: string, query: string): scorer.FuzzyScore2 | [undefined, undefined] {
+function _doScore2(target: string, query: string): scorer.FuzzyScore2 {
 	const preparedQuery = scorer.prepareQuery(query);
 
-	const res = scorer.scoreFuzzy2(target, preparedQuery);
-	if (res) {
-		return res;
-	}
-
-	return [undefined, undefined];
+	return scorer.scoreFuzzy2(target, preparedQuery);
 }
 
 function scoreItem<T>(item: T, query: string, fuzzy: boolean, accessor: scorer.IItemAccessor<T>, cache: scorer.FuzzyScorerCache): scorer.IItemScore {
@@ -898,6 +893,11 @@ suite('Fuzzy Scorer', () => {
 		assert.equal(query.values?.[1].normalized, 'World');
 		assert.equal(query.values?.[1].normalizedLowercase, 'World'.toLowerCase());
 
+		let restoredQuery = scorer.pieceToQuery(query.values!);
+		assert.equal(restoredQuery.original, query.original);
+		assert.equal(restoredQuery.values?.length, query.values?.length);
+		assert.equal(restoredQuery.containsPathSeparator, query.containsPathSeparator);
+
 		// with spaces that are empty
 		query = scorer.prepareQuery(' Hello   World  	');
 		assert.equal(query.original, ' Hello   World  	');
@@ -957,8 +957,8 @@ suite('Fuzzy Scorer', () => {
 		}
 
 		function assertNoScore() {
-			assert.equal(multiScore, undefined);
-			assert.equal(multiMatches, undefined);
+			assert.equal(multiScore, 0);
+			assert.equal(multiMatches.length, 0);
 		}
 
 		assertScore();

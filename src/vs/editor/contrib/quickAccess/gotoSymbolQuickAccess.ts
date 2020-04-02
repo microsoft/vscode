@@ -15,7 +15,8 @@ import { DocumentSymbol, SymbolKinds, SymbolTag, DocumentSymbolProviderRegistry,
 import { OutlineModel, OutlineElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { values } from 'vs/base/common/collections';
 import { trim, format } from 'vs/base/common/strings';
-import { prepareQuery, IPreparedQuery, FuzzyScore2, pieceToQuery, scoreFuzzy2 } from 'vs/base/common/fuzzyScorer';
+import { prepareQuery, IPreparedQuery, pieceToQuery, scoreFuzzy2 } from 'vs/base/common/fuzzyScorer';
+import { IMatch } from 'vs/base/common/filters';
 
 export interface IGotoSymbolQuickPickItem extends IQuickPickItem {
 	kind: SymbolKind,
@@ -229,13 +230,16 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 				}
 			}
 
-			let symbolScore: FuzzyScore2 | undefined = undefined;
-			let containerScore: FuzzyScore2 | undefined = undefined;
+			let symbolScore: number | undefined = undefined;
+			let symbolMatches: IMatch[] | undefined = undefined;
+
+			let containerScore: number | undefined = undefined;
+			let containerMatches: IMatch[] | undefined = undefined;
 
 			if (query.original.length > filterPos) {
 
 				// Score by symbol
-				symbolScore = scoreFuzzy2(symbolLabel, symbolQuery, symbolLabelWithIcon.length - symbolLabel.length /* Readjust matches to account for codicons in label */);
+				[symbolScore, symbolMatches] = scoreFuzzy2(symbolLabel, symbolQuery, filterPos, symbolLabelWithIcon.length - symbolLabel.length /* Readjust matches to account for codicons in label */);
 				if (!symbolScore) {
 					continue;
 				}
@@ -243,7 +247,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 				// Score by container if specified
 				if (containerQuery) {
 					if (containerLabel && containerQuery.original.length > 0) {
-						containerScore = scoreFuzzy2(containerLabel, containerQuery);
+						[containerScore, containerMatches] = scoreFuzzy2(containerLabel, containerQuery);
 					}
 
 					if (!containerScore) {
@@ -251,7 +255,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 					}
 
 					if (symbolScore) {
-						symbolScore[0] += containerScore[0]; // boost symbolScore by containerScore
+						symbolScore += containerScore; // boost symbolScore by containerScore
 					}
 				}
 			}
@@ -261,13 +265,13 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 			filteredSymbolPicks.push({
 				index,
 				kind: symbol.kind,
-				score: symbolScore?.[0],
+				score: symbolScore,
 				label: symbolLabelWithIcon,
 				ariaLabel: symbolLabel,
 				description: containerLabel,
 				highlights: deprecated ? undefined : {
-					label: symbolScore?.[1],
-					description: containerScore?.[1]
+					label: symbolMatches,
+					description: containerMatches
 				},
 				range: {
 					selection: Range.collapseToStart(symbol.selectionRange),

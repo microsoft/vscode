@@ -52,7 +52,7 @@ export function scoreFuzzy(target: string, query: string, queryLower: string, fu
 		}
 	}
 
-	const res = doScore(query, queryLower, queryLength, target, targetLower, targetLength);
+	const res = doScoreFuzzy(query, queryLower, queryLength, target, targetLower, targetLength);
 
 	// if (DEBUG) {
 	// 	console.log(`%cFinal Score: ${res[0]}`, 'font-weight: bold');
@@ -62,7 +62,7 @@ export function scoreFuzzy(target: string, query: string, queryLower: string, fu
 	return res;
 }
 
-function doScore(query: string, queryLower: string, queryLength: number, target: string, targetLower: string, targetLength: number): FuzzyScore {
+function doScoreFuzzy(query: string, queryLower: string, queryLength: number, target: string, targetLower: string, targetLength: number): FuzzyScore {
 	const scores: number[] = [];
 	const matches: number[] = [];
 
@@ -264,33 +264,35 @@ function scoreSeparatorAtPos(charCode: number): number {
 
 //#region Alternate fuzzy scorer implementation that is e.g. used for symbols
 
-export type FuzzyScore2 = [number /* Score*/, IMatch[]];
+export type FuzzyScore2 = [number /* score*/, IMatch[]];
 
-export function scoreFuzzy2(target: string, query: IPreparedQuery, matchOffset = 0): FuzzyScore2 | undefined {
+const NO_SCORE2: FuzzyScore2 = [NO_MATCH, []];
+
+export function scoreFuzzy2(target: string, query: IPreparedQuery, patternStart = 0, matchOffset = 0): FuzzyScore2 {
 
 	// Score: multiple inputs
 	if (query.values && query.values.length > 1) {
-		return doScoreFuzzy2Multiple(target, query.values, matchOffset);
+		return doScoreFuzzy2Multiple(target, query.values, patternStart, matchOffset);
 	}
 
 	// Score: single input
-	return doScoreFuzzy2Single(target, query, matchOffset);
+	return doScoreFuzzy2Single(target, query, patternStart, matchOffset);
 }
 
-function doScoreFuzzy2Multiple(target: string, query: IPreparedQueryPiece[], matchOffset: number): FuzzyScore2 | undefined {
+function doScoreFuzzy2Multiple(target: string, query: IPreparedQueryPiece[], patternStart: number, matchOffset: number): FuzzyScore2 {
 	let totalScore = 0;
 	const totalMatches: IMatch[] = [];
 
 	for (const queryPiece of query) {
-		const score = doScoreFuzzy2Single(target, queryPiece, matchOffset);
+		const [score, matches] = doScoreFuzzy2Single(target, queryPiece, patternStart, matchOffset);
 		if (!score) {
 			// if a single query value does not match, return with
 			// no score entirely, we require all queries to match
-			return undefined;
+			return NO_SCORE2;
 		}
 
-		totalScore += score[0];
-		totalMatches.push(...score[1]);
+		totalScore += score;
+		totalMatches.push(...matches);
 	}
 
 	// if we have a score, ensure that the positions are
@@ -298,10 +300,10 @@ function doScoreFuzzy2Multiple(target: string, query: IPreparedQueryPiece[], mat
 	return [totalScore, normalizeMatches(totalMatches)];
 }
 
-function doScoreFuzzy2Single(target: string, query: IPreparedQueryPiece, matchOffset: number): FuzzyScore2 | undefined {
-	const score = fuzzyScore(query.original, query.originalLowercase, 0, target, target.toLowerCase(), 0, true);
+function doScoreFuzzy2Single(target: string, query: IPreparedQueryPiece, patternStart: number, matchOffset: number): FuzzyScore2 {
+	const score = fuzzyScore(query.original, query.originalLowercase, patternStart, target, target.toLowerCase(), 0, true);
 	if (!score) {
-		return undefined;
+		return NO_SCORE2;
 	}
 
 	return [score[0], createFuzzyMatches(score, matchOffset)];
@@ -382,13 +384,13 @@ export function scoreItemFuzzy<T>(item: T, query: IPreparedQuery, fuzzy: boolean
 		return cached;
 	}
 
-	const itemScore = doScoreItem(label, description, accessor.getItemPath(item), query, fuzzy);
+	const itemScore = doScoreItemFuzzy(label, description, accessor.getItemPath(item), query, fuzzy);
 	cache[cacheHash] = itemScore;
 
 	return itemScore;
 }
 
-function doScoreItem(label: string, description: string | undefined, path: string | undefined, query: IPreparedQuery, fuzzy: boolean): IItemScore {
+function doScoreItemFuzzy(label: string, description: string | undefined, path: string | undefined, query: IPreparedQuery, fuzzy: boolean): IItemScore {
 	const preferLabelMatches = !path || !query.containsPathSeparator;
 
 	// Treat identity matches on full path highest
@@ -398,20 +400,20 @@ function doScoreItem(label: string, description: string | undefined, path: strin
 
 	// Score: multiple inputs
 	if (query.values && query.values.length > 1) {
-		return doScoreItemMultiple(label, description, path, query.values, preferLabelMatches, fuzzy);
+		return doScoreItemFuzzyMultiple(label, description, path, query.values, preferLabelMatches, fuzzy);
 	}
 
 	// Score: single input
-	return doScoreItemSingle(label, description, path, query, preferLabelMatches, fuzzy);
+	return doScoreItemFuzzySingle(label, description, path, query, preferLabelMatches, fuzzy);
 }
 
-function doScoreItemMultiple(label: string, description: string | undefined, path: string | undefined, query: IPreparedQueryPiece[], preferLabelMatches: boolean, fuzzy: boolean): IItemScore {
+function doScoreItemFuzzyMultiple(label: string, description: string | undefined, path: string | undefined, query: IPreparedQueryPiece[], preferLabelMatches: boolean, fuzzy: boolean): IItemScore {
 	let totalScore = 0;
 	const totalLabelMatches: IMatch[] = [];
 	const totalDescriptionMatches: IMatch[] = [];
 
 	for (const queryPiece of query) {
-		const { score, labelMatch, descriptionMatch } = doScoreItemSingle(label, description, path, queryPiece, preferLabelMatches, fuzzy);
+		const { score, labelMatch, descriptionMatch } = doScoreItemFuzzySingle(label, description, path, queryPiece, preferLabelMatches, fuzzy);
 		if (score === NO_MATCH) {
 			// if a single query value does not match, return with
 			// no score entirely, we require all queries to match
@@ -437,7 +439,7 @@ function doScoreItemMultiple(label: string, description: string | undefined, pat
 	};
 }
 
-function doScoreItemSingle(label: string, description: string | undefined, path: string | undefined, query: IPreparedQueryPiece, preferLabelMatches: boolean, fuzzy: boolean): IItemScore {
+function doScoreItemFuzzySingle(label: string, description: string | undefined, path: string | undefined, query: IPreparedQueryPiece, preferLabelMatches: boolean, fuzzy: boolean): IItemScore {
 
 	// Prefer label matches if told so
 	if (preferLabelMatches) {
