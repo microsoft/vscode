@@ -746,6 +746,12 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			return null; // we need a resource that we can resolve
 		}
 
+		if (activeGlobalPick.label.includes(GotoSymbolQuickAccessProvider.PREFIX) || activeGlobalPick.description?.includes(GotoSymbolQuickAccessProvider.PREFIX)) {
+			if (filterSegments.length < 3) {
+				return null; // require at least 2 `@` if our active pick contains `@` in label or description
+			}
+		}
+
 		return this.doGetEditorSymbolPicks(activeGlobalPick, activeGlobalResource, filter, disposables, token);
 	}
 
