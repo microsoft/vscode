@@ -242,6 +242,6 @@ export class OpenDebugConsoleAction extends ToggleViewAction {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
 	) {
-		super(id, label, REPL_VIEW_ID, viewsService, viewDescriptorService, contextKeyService, layoutService, 'codicon-repl');
+		super(id, label, REPL_VIEW_ID, viewsService, viewDescriptorService, contextKeyService, layoutService, 'codicon-debug-console');
 	}
 }
