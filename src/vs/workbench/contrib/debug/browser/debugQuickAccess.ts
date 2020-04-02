@@ -26,7 +26,7 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 	) {
 		super(StartDebugQuickAccessProvider.PREFIX, {
 			noResultsPick: {
-				label: localize('noDebugResults', "No launch configuration matching")
+				label: localize('noDebugResults', "No matching launch configurations")
 			}
 		});
 	}

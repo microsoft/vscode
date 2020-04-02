@@ -164,7 +164,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		super(AnythingQuickAccessProvider.PREFIX, {
 			canAcceptInBackground: true,
 			noResultsPick: {
-				label: localize('noAnythingResults', "No result matching")
+				label: localize('noAnythingResults', "No matching results")
 			}
 		});
 	}

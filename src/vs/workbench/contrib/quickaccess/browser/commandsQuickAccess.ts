@@ -63,7 +63,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		super({
 			showAlias: !Language.isDefaultVariant(),
 			noResultsPick: {
-				label: localize('noCommandResults', "No command matching"),
+				label: localize('noCommandResults', "No matching commands"),
 				commandId: ''
 			}
 		}, instantiationService, keybindingService, commandService, telemetryService, notificationService);

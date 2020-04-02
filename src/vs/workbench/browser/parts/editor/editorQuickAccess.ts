@@ -51,7 +51,7 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 			{
 				canAcceptInBackground: true,
 				noResultsPick: {
-					label: localize('noViewResults', "No editor matching"),
+					label: localize('noViewResults', "No matching editors"),
 					groupId: -1
 				}
 			}

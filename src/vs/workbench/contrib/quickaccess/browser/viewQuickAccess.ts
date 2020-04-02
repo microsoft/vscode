@@ -39,7 +39,7 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 	) {
 		super(ViewQuickAccessProvider.PREFIX, {
 			noResultsPick: {
-				label: localize('noViewResults', "No view matching"),
+				label: localize('noViewResults', "No matching views"),
 				containerLabel: ''
 			}
 		});

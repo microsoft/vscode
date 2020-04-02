@@ -30,7 +30,7 @@ export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQ
 	) {
 		super(TasksQuickAccessProvider.PREFIX, {
 			noResultsPick: {
-				label: localize('noTaskResults', "No task matching")
+				label: localize('noTaskResults', "No matching tasks")
 			}
 		});
 

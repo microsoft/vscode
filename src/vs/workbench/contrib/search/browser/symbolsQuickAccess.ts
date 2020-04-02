@@ -68,7 +68,7 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 		super(SymbolsQuickAccessProvider.PREFIX, {
 			canAcceptInBackground: true,
 			noResultsPick: {
-				label: localize('noSymbolResults', "No workspace symbol matching")
+				label: localize('noSymbolResults', "No matching workspace symbols")
 			}
 		});
 	}
