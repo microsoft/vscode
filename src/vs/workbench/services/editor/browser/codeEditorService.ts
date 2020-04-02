@@ -74,6 +74,9 @@ export class CodeEditorService extends CodeEditorServiceImpl {
 			if (isCodeEditor(widget)) {
 				return widget;
 			}
+			if (isCompositeEditor(widget) && isCodeEditor(widget.activeCodeEditor)) {
+				return widget.activeCodeEditor;
+			}
 		}
 
 		return null;

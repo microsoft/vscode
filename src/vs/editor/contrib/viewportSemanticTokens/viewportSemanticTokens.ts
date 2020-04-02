@@ -13,6 +13,9 @@ import { ITextModel } from 'vs/editor/common/model';
 import { DocumentRangeSemanticTokensProviderRegistry, DocumentRangeSemanticTokensProvider, SemanticTokens } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { toMultilineTokens2, SemanticTokensProviderStyling } from 'vs/editor/common/services/semanticTokensProviderStyling';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { isSemanticColoringEnabled, SEMANTIC_HIGHLIGHTING_SETTING_ID } from 'vs/editor/common/services/modelServiceImpl';
 
 class ViewportSemanticTokensContribution extends Disposable implements IEditorContribution {
 
@@ -28,7 +31,9 @@ class ViewportSemanticTokensContribution extends Disposable implements IEditorCo
 
 	constructor(
 		editor: ICodeEditor,
-		@IModelService private readonly _modelService: IModelService
+		@IModelService private readonly _modelService: IModelService,
+		@IThemeService private readonly _themeService: IThemeService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
 		this._editor = editor;
@@ -46,6 +51,16 @@ class ViewportSemanticTokensContribution extends Disposable implements IEditorCo
 			this._tokenizeViewport.schedule();
 		}));
 		this._register(DocumentRangeSemanticTokensProviderRegistry.onDidChange(() => {
+			this._cancelAll();
+			this._tokenizeViewport.schedule();
+		}));
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(SEMANTIC_HIGHLIGHTING_SETTING_ID)) {
+				this._cancelAll();
+				this._tokenizeViewport.schedule();
+			}
+		}));
+		this._register(this._themeService.onDidColorThemeChange(() => {
 			this._cancelAll();
 			this._tokenizeViewport.schedule();
 		}));
@@ -78,6 +93,9 @@ class ViewportSemanticTokensContribution extends Disposable implements IEditorCo
 		}
 		const model = this._editor.getModel();
 		if (model.hasSemanticTokens()) {
+			return;
+		}
+		if (!isSemanticColoringEnabled(model, this._themeService, this._configurationService)) {
 			return;
 		}
 		const provider = ViewportSemanticTokensContribution._getSemanticColoringProvider(model);

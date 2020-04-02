@@ -710,7 +710,7 @@ export interface ILaunch {
 	 * Returns the names of all configurations and compounds.
 	 * Ignores configurations which are invalid.
 	 */
-	getConfigurationNames(includeCompounds?: boolean): string[];
+	getConfigurationNames(ignoreCompoundsAndPresentation?: boolean): string[];
 
 	/**
 	 * Opens the launch.json file. Creates if it does not exist.

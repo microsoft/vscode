@@ -4,56 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { compareAnything } from 'vs/base/common/comparers';
-import { matchesPrefix, IMatch, matchesCamelCase, isUpper } from 'vs/base/common/filters';
+import { matchesPrefix, IMatch, matchesCamelCase, isUpper, fuzzyScore, createMatches as createFuzzyMatches } from 'vs/base/common/filters';
 import { sep } from 'vs/base/common/path';
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import { stripWildcards, equalsIgnoreCase } from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
-import { distinctES6 } from 'vs/base/common/arrays';
 
-export type Score = [number /* score */, number[] /* match positions */];
-export type ScorerCache = { [key: string]: IItemScore };
+//#region Fuzzy scorer
+
+export type FuzzyScore = [number /* score */, number[] /* match positions */];
+export type FuzzyScorerCache = { [key: string]: IItemScore };
 
 const NO_MATCH = 0;
-const NO_SCORE: Score = [NO_MATCH, []];
+const NO_SCORE: FuzzyScore = [NO_MATCH, []];
 
 // const DEBUG = false;
 // const DEBUG_MATRIX = false;
 
-export function score(target: string, query: IPreparedQuery, fuzzy: boolean): Score {
-	if (query.values && query.values.length > 1) {
-		return scoreMultiple(target, query.values, fuzzy);
-	}
-
-	return scoreSingle(target, query.normalized, query.normalizedLowercase, fuzzy);
-}
-
-function scoreMultiple(target: string, query: IPreparedQueryPiece[], fuzzy: boolean): Score {
-	let totalScore = NO_MATCH;
-	const totalPositions: number[] = [];
-
-	for (const { normalized, normalizedLowercase } of query) {
-		const [scoreValue, positions] = scoreSingle(target, normalized, normalizedLowercase, fuzzy);
-		if (scoreValue === NO_MATCH) {
-			// if a single query value does not match, return with
-			// no score entirely, we require all queries to match
-			return NO_SCORE;
-		}
-
-		totalScore += scoreValue;
-		totalPositions.push(...positions);
-	}
-
-	if (totalScore === NO_MATCH) {
-		return NO_SCORE;
-	}
-
-	// if we have a score, ensure that the positions are
-	// sorted in ascending order and distinct
-	return [totalScore, distinctES6(totalPositions).sort((a, b) => a - b)];
-}
-
-function scoreSingle(target: string, query: string, queryLower: string, fuzzy: boolean): Score {
+export function scoreFuzzy(target: string, query: string, queryLower: string, fuzzy: boolean): FuzzyScore {
 	if (!target || !query) {
 		return NO_SCORE; // return early if target or query are undefined
 	}
@@ -84,7 +52,7 @@ function scoreSingle(target: string, query: string, queryLower: string, fuzzy: b
 		}
 	}
 
-	const res = doScore(query, queryLower, queryLength, target, targetLower, targetLength);
+	const res = doScoreFuzzy(query, queryLower, queryLength, target, targetLower, targetLength);
 
 	// if (DEBUG) {
 	// 	console.log(`%cFinal Score: ${res[0]}`, 'font-weight: bold');
@@ -94,7 +62,7 @@ function scoreSingle(target: string, query: string, queryLower: string, fuzzy: b
 	return res;
 }
 
-function doScore(query: string, queryLower: string, queryLength: number, target: string, targetLower: string, targetLength: number): Score {
+function doScoreFuzzy(query: string, queryLower: string, queryLength: number, target: string, targetLower: string, targetLength: number): FuzzyScore {
 	const scores: number[] = [];
 	const matches: number[] = [];
 
@@ -291,6 +259,61 @@ function scoreSeparatorAtPos(charCode: number): number {
 // 	}
 // }
 
+//#endregion
+
+
+//#region Alternate fuzzy scorer implementation that is e.g. used for symbols
+
+export type FuzzyScore2 = [number /* score*/, IMatch[]];
+
+const NO_SCORE2: FuzzyScore2 = [NO_MATCH, []];
+
+export function scoreFuzzy2(target: string, query: IPreparedQuery, patternStart = 0, matchOffset = 0): FuzzyScore2 {
+
+	// Score: multiple inputs
+	if (query.values && query.values.length > 1) {
+		return doScoreFuzzy2Multiple(target, query.values, patternStart, matchOffset);
+	}
+
+	// Score: single input
+	return doScoreFuzzy2Single(target, query, patternStart, matchOffset);
+}
+
+function doScoreFuzzy2Multiple(target: string, query: IPreparedQueryPiece[], patternStart: number, matchOffset: number): FuzzyScore2 {
+	let totalScore = 0;
+	const totalMatches: IMatch[] = [];
+
+	for (const queryPiece of query) {
+		const [score, matches] = doScoreFuzzy2Single(target, queryPiece, patternStart, matchOffset);
+		if (!score) {
+			// if a single query value does not match, return with
+			// no score entirely, we require all queries to match
+			return NO_SCORE2;
+		}
+
+		totalScore += score;
+		totalMatches.push(...matches);
+	}
+
+	// if we have a score, ensure that the positions are
+	// sorted in ascending order and distinct
+	return [totalScore, normalizeMatches(totalMatches)];
+}
+
+function doScoreFuzzy2Single(target: string, query: IPreparedQueryPiece, patternStart: number, matchOffset: number): FuzzyScore2 {
+	const score = fuzzyScore(query.original, query.originalLowercase, patternStart, target, target.toLowerCase(), 0, true);
+	if (!score) {
+		return NO_SCORE2;
+	}
+
+	return [score[0], createFuzzyMatches(score, matchOffset)];
+}
+
+//#endregion
+
+
+//#region Item (label, description, path) scorer
+
 /**
  * Scoring on structural items that have a label and optional description.
  */
@@ -337,99 +360,7 @@ const LABEL_PREFIX_SCORE = 1 << 17;
 const LABEL_CAMELCASE_SCORE = 1 << 16;
 const LABEL_SCORE_THRESHOLD = 1 << 15;
 
-export interface IPreparedQueryPiece {
-
-	/**
-	 * The original query as provided as input.
-	 */
-	original: string;
-	originalLowercase: string;
-
-	/**
-	 * Original normalized to platform separators:
-	 * - Windows: \
-	 * - Posix: /
-	 */
-	pathNormalized: string;
-
-	/**
-	 * In addition to the normalized path, will have
-	 * whitespace and wildcards removed.
-	 */
-	normalized: string;
-	normalizedLowercase: string;
-}
-
-export interface IPreparedQuery extends IPreparedQueryPiece {
-
-	// Split by spaces
-	values: IPreparedQueryPiece[] | undefined;
-
-	containsPathSeparator: boolean;
-}
-
-/**
- * Helper function to prepare a search value for scoring by removing unwanted characters
- * and allowing to score on multiple pieces separated by whitespace character.
- */
-const MULTIPL_QUERY_VALUES_SEPARATOR = ' ';
-export function prepareQuery(original: string): IPreparedQuery {
-	if (typeof original !== 'string') {
-		original = '';
-	}
-
-	const originalLowercase = original.toLowerCase();
-	const { pathNormalized, normalized, normalizedLowercase } = normalizeQuery(original);
-	const containsPathSeparator = pathNormalized.indexOf(sep) >= 0;
-
-	let values: IPreparedQueryPiece[] | undefined = undefined;
-
-	const originalSplit = original.split(MULTIPL_QUERY_VALUES_SEPARATOR);
-	if (originalSplit.length > 1) {
-		for (const originalPiece of originalSplit) {
-			const {
-				pathNormalized: pathNormalizedPiece,
-				normalized: normalizedPiece,
-				normalizedLowercase: normalizedLowercasePiece
-			} = normalizeQuery(originalPiece);
-
-			if (normalizedPiece) {
-				if (!values) {
-					values = [];
-				}
-
-				values.push({
-					original: originalPiece,
-					originalLowercase: originalPiece.toLowerCase(),
-					pathNormalized: pathNormalizedPiece,
-					normalized: normalizedPiece,
-					normalizedLowercase: normalizedLowercasePiece
-				});
-			}
-		}
-	}
-
-	return { original, originalLowercase, pathNormalized, normalized, normalizedLowercase, values, containsPathSeparator };
-}
-
-function normalizeQuery(original: string): { pathNormalized: string, normalized: string, normalizedLowercase: string } {
-	let pathNormalized: string;
-	if (isWindows) {
-		pathNormalized = original.replace(/\//g, sep); // Help Windows users to search for paths when using slash
-	} else {
-		pathNormalized = original.replace(/\\/g, sep); // Help macOS/Linux users to search for paths when using backslash
-	}
-
-	const normalized = stripWildcards(pathNormalized).replace(/\s/g, '');
-
-	return {
-		pathNormalized,
-		normalized,
-		normalizedLowercase: normalized.toLowerCase()
-	};
-}
-
-export function scoreItem<T>(item: T, query: IPreparedQuery, fuzzy: boolean, accessor: IItemAccessor<T>, cache: ScorerCache): IItemScore {
+export function scoreItemFuzzy<T>(item: T, query: IPreparedQuery, fuzzy: boolean, accessor: IItemAccessor<T>, cache: FuzzyScorerCache): IItemScore {
 	if (!item || !query.normalized) {
 		return NO_ITEM_SCORE; // we need an item and query to score on at least
 	}
@@ -453,62 +384,86 @@ export function scoreItem<T>(item: T, query: IPreparedQuery, fuzzy: boolean, acc
 		return cached;
 	}
 
-	const itemScore = doScoreItem(label, description, accessor.getItemPath(item), query, fuzzy);
+	const itemScore = doScoreItemFuzzy(label, description, accessor.getItemPath(item), query, fuzzy);
 	cache[cacheHash] = itemScore;
 
 	return itemScore;
 }
 
-function createMatches(offsets: undefined | number[]): IMatch[] {
-	let ret: IMatch[] = [];
-	if (!offsets) {
-		return ret;
-	}
+function doScoreItemFuzzy(label: string, description: string | undefined, path: string | undefined, query: IPreparedQuery, fuzzy: boolean): IItemScore {
+	const preferLabelMatches = !path || !query.containsPathSeparator;
 
-	let last: IMatch | undefined;
-	for (const pos of offsets) {
-		if (last && last.end === pos) {
-			last.end += 1;
-		} else {
-			last = { start: pos, end: pos + 1 };
-			ret.push(last);
-		}
-	}
-
-	return ret;
-}
-
-function doScoreItem(label: string, description: string | undefined, path: string | undefined, query: IPreparedQuery, fuzzy: boolean): IItemScore {
-
-	// 1.) treat identity matches on full path highest
+	// Treat identity matches on full path highest
 	if (path && (isLinux ? query.pathNormalized === path : equalsIgnoreCase(query.pathNormalized, path))) {
 		return { score: PATH_IDENTITY_SCORE, labelMatch: [{ start: 0, end: label.length }], descriptionMatch: description ? [{ start: 0, end: description.length }] : undefined };
 	}
 
-	// We only consider label matches if the query is not including file path separators
-	const preferLabelMatches = !path || !query.containsPathSeparator;
+	// Score: multiple inputs
+	if (query.values && query.values.length > 1) {
+		return doScoreItemFuzzyMultiple(label, description, path, query.values, preferLabelMatches, fuzzy);
+	}
+
+	// Score: single input
+	return doScoreItemFuzzySingle(label, description, path, query, preferLabelMatches, fuzzy);
+}
+
+function doScoreItemFuzzyMultiple(label: string, description: string | undefined, path: string | undefined, query: IPreparedQueryPiece[], preferLabelMatches: boolean, fuzzy: boolean): IItemScore {
+	let totalScore = 0;
+	const totalLabelMatches: IMatch[] = [];
+	const totalDescriptionMatches: IMatch[] = [];
+
+	for (const queryPiece of query) {
+		const { score, labelMatch, descriptionMatch } = doScoreItemFuzzySingle(label, description, path, queryPiece, preferLabelMatches, fuzzy);
+		if (score === NO_MATCH) {
+			// if a single query value does not match, return with
+			// no score entirely, we require all queries to match
+			return NO_ITEM_SCORE;
+		}
+
+		totalScore += score;
+		if (labelMatch) {
+			totalLabelMatches.push(...labelMatch);
+		}
+
+		if (descriptionMatch) {
+			totalDescriptionMatches.push(...descriptionMatch);
+		}
+	}
+
+	// if we have a score, ensure that the positions are
+	// sorted in ascending order and distinct
+	return {
+		score: totalScore,
+		labelMatch: normalizeMatches(totalLabelMatches),
+		descriptionMatch: normalizeMatches(totalDescriptionMatches)
+	};
+}
+
+function doScoreItemFuzzySingle(label: string, description: string | undefined, path: string | undefined, query: IPreparedQueryPiece, preferLabelMatches: boolean, fuzzy: boolean): IItemScore {
+
+	// Prefer label matches if told so
 	if (preferLabelMatches) {
 
-		// 2.) treat prefix matches on the label second highest
+		// Treat prefix matches on the label second highest
 		const prefixLabelMatch = matchesPrefix(query.normalized, label);
 		if (prefixLabelMatch) {
 			return { score: LABEL_PREFIX_SCORE, labelMatch: prefixLabelMatch };
 		}
 
-		// 3.) treat camelcase matches on the label third highest
+		// Treat camelcase matches on the label third highest
 		const camelcaseLabelMatch = matchesCamelCase(query.normalized, label);
 		if (camelcaseLabelMatch) {
 			return { score: LABEL_CAMELCASE_SCORE, labelMatch: camelcaseLabelMatch };
 		}
 
-		// 4.) prefer scores on the label if any
-		const [labelScore, labelPositions] = score(label, query, fuzzy);
+		// Prefer scores on the label if any
+		const [labelScore, labelPositions] = scoreFuzzy(label, query.normalized, query.normalizedLowercase, fuzzy);
 		if (labelScore) {
 			return { score: labelScore + LABEL_SCORE_THRESHOLD, labelMatch: createMatches(labelPositions) };
 		}
 	}
 
-	// 5.) finally compute description + label scores if we have a description
+	// Finally compute description + label scores if we have a description
 	if (description) {
 		let descriptionPrefix = description;
 		if (!!path) {
@@ -518,7 +473,7 @@ function doScoreItem(label: string, description: string | undefined, path: strin
 		const descriptionPrefixLength = descriptionPrefix.length;
 		const descriptionAndLabel = `${descriptionPrefix}${label}`;
 
-		const [labelDescriptionScore, labelDescriptionPositions] = score(descriptionAndLabel, query, fuzzy);
+		const [labelDescriptionScore, labelDescriptionPositions] = scoreFuzzy(descriptionAndLabel, query.normalized, query.normalizedLowercase, fuzzy);
 		if (labelDescriptionScore) {
 			const labelDescriptionMatches = createMatches(labelDescriptionPositions);
 			const labelMatch: IMatch[] = [];
@@ -551,9 +506,45 @@ function doScoreItem(label: string, description: string | undefined, path: strin
 	return NO_ITEM_SCORE;
 }
 
-export function compareItemsByScore<T>(itemA: T, itemB: T, query: IPreparedQuery, fuzzy: boolean, accessor: IItemAccessor<T>, cache: ScorerCache): number {
-	const itemScoreA = scoreItem(itemA, query, fuzzy, accessor, cache);
-	const itemScoreB = scoreItem(itemB, query, fuzzy, accessor, cache);
+function createMatches(offsets: number[] | undefined): IMatch[] {
+	const ret: IMatch[] = [];
+	if (!offsets) {
+		return ret;
+	}
+
+	let last: IMatch | undefined;
+	for (const pos of offsets) {
+		if (last && last.end === pos) {
+			last.end += 1;
+		} else {
+			last = { start: pos, end: pos + 1 };
+			ret.push(last);
+		}
+	}
+
+	return ret;
+}
+
+function normalizeMatches(matches: IMatch[]): IMatch[] {
+	const positions = new Set<number>();
+
+	for (const match of matches) {
+		for (let i = match.start; i < match.end; i++) {
+			positions.add(i);
+		}
+	}
+
+	return createMatches(Array.from(positions.values()).sort((a, b) => a - b));
+}
+
+//#endregion
+
+
+//#region Comparers
+
+export function compareItemsByFuzzyScore<T>(itemA: T, itemB: T, query: IPreparedQuery, fuzzy: boolean, accessor: IItemAccessor<T>, cache: FuzzyScorerCache): number {
+	const itemScoreA = scoreItemFuzzy(itemA, query, fuzzy, accessor, cache);
+	const itemScoreB = scoreItemFuzzy(itemB, query, fuzzy, accessor, cache);
 
 	const scoreA = itemScoreA.score;
 	const scoreB = itemScoreB.score;
@@ -744,3 +735,112 @@ function fallbackCompare<T>(itemA: T, itemB: T, query: IPreparedQuery, accessor:
 	// equal
 	return 0;
 }
+
+//#endregion
+
+
+//#region Query Normalizer
+
+export interface IPreparedQueryPiece {
+
+	/**
+	 * The original query as provided as input.
+	 */
+	original: string;
+	originalLowercase: string;
+
+	/**
+	 * Original normalized to platform separators:
+	 * - Windows: \
+	 * - Posix: /
+	 */
+	pathNormalized: string;
+
+	/**
+	 * In addition to the normalized path, will have
+	 * whitespace and wildcards removed.
+	 */
+	normalized: string;
+	normalizedLowercase: string;
+}
+
+export interface IPreparedQuery extends IPreparedQueryPiece {
+
+	// Split by spaces
+	values: IPreparedQueryPiece[] | undefined;
+
+	containsPathSeparator: boolean;
+}
+
+/**
+ * Helper function to prepare a search value for scoring by removing unwanted characters
+ * and allowing to score on multiple pieces separated by whitespace character.
+ */
+const MULTIPLE_QUERY_VALUES_SEPARATOR = ' ';
+export function prepareQuery(original: string): IPreparedQuery {
+	if (typeof original !== 'string') {
+		original = '';
+	}
+
+	const originalLowercase = original.toLowerCase();
+	const { pathNormalized, normalized, normalizedLowercase } = normalizeQuery(original);
+	const containsPathSeparator = pathNormalized.indexOf(sep) >= 0;
+
+	let values: IPreparedQueryPiece[] | undefined = undefined;
+
+	const originalSplit = original.split(MULTIPLE_QUERY_VALUES_SEPARATOR);
+	if (originalSplit.length > 1) {
+		for (const originalPiece of originalSplit) {
+			const {
+				pathNormalized: pathNormalizedPiece,
+				normalized: normalizedPiece,
+				normalizedLowercase: normalizedLowercasePiece
+			} = normalizeQuery(originalPiece);
+
+			if (normalizedPiece) {
+				if (!values) {
+					values = [];
+				}
+
+				values.push({
+					original: originalPiece,
+					originalLowercase: originalPiece.toLowerCase(),
+					pathNormalized: pathNormalizedPiece,
+					normalized: normalizedPiece,
+					normalizedLowercase: normalizedLowercasePiece
+				});
+			}
+		}
+	}
+
+	return { original, originalLowercase, pathNormalized, normalized, normalizedLowercase, values, containsPathSeparator };
+}
+
+function normalizeQuery(original: string): { pathNormalized: string, normalized: string, normalizedLowercase: string } {
+	let pathNormalized: string;
+	if (isWindows) {
+		pathNormalized = original.replace(/\//g, sep); // Help Windows users to search for paths when using slash
+	} else {
+		pathNormalized = original.replace(/\\/g, sep); // Help macOS/Linux users to search for paths when using backslash
+	}
+
+	const normalized = stripWildcards(pathNormalized).replace(/\s/g, '');
+
+	return {
+		pathNormalized,
+		normalized,
+		normalizedLowercase: normalized.toLowerCase()
+	};
+}
+
+export function pieceToQuery(piece: IPreparedQueryPiece): IPreparedQuery;
+export function pieceToQuery(pieces: IPreparedQueryPiece[]): IPreparedQuery;
+export function pieceToQuery(arg1: IPreparedQueryPiece | IPreparedQueryPiece[]): IPreparedQuery {
+	if (Array.isArray(arg1)) {
+		return prepareQuery(arg1.map(piece => piece.original).join(MULTIPLE_QUERY_VALUES_SEPARATOR));
+	}
+
+	return prepareQuery(arg1.original);
+}
+
+//#endregion

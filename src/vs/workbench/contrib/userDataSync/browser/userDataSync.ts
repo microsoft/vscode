@@ -251,7 +251,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		return new Promise((resolve, _) => {
 			const quickPick = this.quickInputService.createQuickPick<{ label: string, session: AuthenticationSession }>();
 			quickPick.title = localize('chooseAccountTitle', "Preferences Sync: Choose Account");
-			quickPick.placeholder = localize('chooseAccount', "Choose an account you would like to use for settings sync");
+			quickPick.placeholder = localize('chooseAccount', "Choose an account you would like to use for preferences sync");
 			const dedupedSessions = distinct(sessions, (session) => session.accountName);
 			quickPick.items = dedupedSessions.map(session => {
 				return {

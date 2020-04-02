@@ -5,7 +5,6 @@
 
 import { localize } from 'vs/nls';
 import { IPickerQuickAccessItem, PickerQuickAccessProvider, TriggerAction } from 'vs/platform/quickinput/browser/pickerQuickAccess';
-import { fuzzyScore, createMatches, FuzzyScore } from 'vs/base/common/filters';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ThrottledDelayer } from 'vs/base/common/async';
@@ -18,17 +17,16 @@ import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/
 import { Range } from 'vs/editor/common/core/range';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
-import { IKeyMods } from 'vs/platform/quickinput/common/quickInput';
-import { URI } from 'vs/base/common/uri';
+import { IKeyMods, IQuickPickItemWithResource } from 'vs/platform/quickinput/common/quickInput';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { getSelectionSearchString } from 'vs/editor/contrib/find/findController';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { prepareQuery, IPreparedQuery } from 'vs/base/common/fuzzyScorer';
+import { prepareQuery, IPreparedQuery, scoreFuzzy2, pieceToQuery } from 'vs/base/common/fuzzyScorer';
+import { IMatch } from 'vs/base/common/filters';
 
-interface ISymbolQuickPickItem extends IPickerQuickAccessItem {
-	resource: URI | undefined;
-	score: FuzzyScore | undefined;
-	symbol: IWorkspaceSymbol;
+interface ISymbolQuickPickItem extends IPickerQuickAccessItem, IQuickPickItemWithResource {
+	score?: number;
+	symbol?: IWorkspaceSymbol;
 }
 
 export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbolQuickPickItem> {
@@ -67,7 +65,12 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService
 	) {
-		super(SymbolsQuickAccessProvider.PREFIX, { canAcceptInBackground: true });
+		super(SymbolsQuickAccessProvider.PREFIX, {
+			canAcceptInBackground: true,
+			noResultsPick: {
+				label: localize('noSymbolResults', "No matching workspace symbols")
+			}
+		});
 	}
 
 	private get configuration() {
@@ -94,22 +97,24 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 	}
 
 	private async doGetSymbolPicks(query: IPreparedQuery, options: { skipLocal?: boolean, skipSorting?: boolean } | undefined, token: CancellationToken): Promise<Array<ISymbolQuickPickItem>> {
-		const workspaceSymbols = await getWorkspaceSymbols(query.original, token);
-		if (token.isCancellationRequested) {
-			return [];
-		}
-
-		const symbolPicks: Array<ISymbolQuickPickItem> = [];
 
 		// Split between symbol and container query
 		let symbolQuery: IPreparedQuery;
 		let containerQuery: IPreparedQuery | undefined;
 		if (query.values && query.values.length > 1) {
-			symbolQuery = prepareQuery(query.values[0].original);
-			containerQuery = prepareQuery(query.values[1].original);
+			symbolQuery = pieceToQuery(query.values[0]); 		  // symbol: only match on first part
+			containerQuery = pieceToQuery(query.values.slice(1)); // container: match on all but first parts
 		} else {
 			symbolQuery = query;
 		}
+
+		// Run the workspace symbol query
+		const workspaceSymbols = await getWorkspaceSymbols(symbolQuery.original, token);
+		if (token.isCancellationRequested) {
+			return [];
+		}
+
+		const symbolPicks: Array<ISymbolQuickPickItem> = [];
 
 		// Convert to symbol picks and apply filtering
 		const openSideBySideDirection = this.configuration.openSideBySideDirection;
@@ -123,11 +128,18 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 					continue;
 				}
 
-				// Score by symbol label
 				const symbolLabel = symbol.name;
-				const symbolScore = fuzzyScore(symbolQuery.original, symbolQuery.originalLowercase, 0, symbolLabel, symbolLabel.toLowerCase(), 0, true);
-				if (!symbolScore) {
-					continue;
+				const symbolLabelWithIcon = `$(symbol-${SymbolKinds.toString(symbol.kind) || 'property'}) ${symbolLabel}`;
+
+
+				// Score by symbol label if searching
+				let symbolScore: number | undefined = undefined;
+				let symbolMatches: IMatch[] | undefined = undefined;
+				if (symbolQuery.original.length > 0) {
+					[symbolScore, symbolMatches] = scoreFuzzy2(symbolLabel, symbolQuery, 0, symbolLabelWithIcon.length - symbolLabel.length /* Readjust matches to account for codicons in label */);
+					if (!symbolScore) {
+						continue;
+					}
 				}
 
 				const symbolUri = symbol.location.uri;
@@ -141,19 +153,23 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 					}
 				}
 
-				// Score by container if specified
-				let containerScore: FuzzyScore | undefined = undefined;
-				if (containerQuery) {
+				// Score by container if specified and searching
+				let containerScore: number | undefined = undefined;
+				let containerMatches: IMatch[] | undefined = undefined;
+				if (containerQuery && containerQuery.original.length > 0) {
 					if (containerLabel) {
-						containerScore = fuzzyScore(containerQuery.original, containerQuery.originalLowercase, 0, containerLabel, containerLabel.toLowerCase(), 0, true);
+						[containerScore, containerMatches] = scoreFuzzy2(containerLabel, containerQuery);
 					}
 
 					if (!containerScore) {
 						continue;
 					}
+
+					if (symbolScore) {
+						symbolScore += containerScore; // boost symbolScore by containerScore
+					}
 				}
 
-				const symbolLabelWithIcon = `$(symbol-${SymbolKinds.toString(symbol.kind) || 'property'}) ${symbolLabel}`;
 				const deprecated = symbol.tags ? symbol.tags.indexOf(SymbolTag.Deprecated) >= 0 : false;
 
 				symbolPicks.push({
@@ -163,8 +179,8 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 					label: symbolLabelWithIcon,
 					ariaLabel: symbolLabel,
 					highlights: deprecated ? undefined : {
-						label: createMatches(symbolScore, symbolLabelWithIcon.length - symbolLabel.length /* Readjust matches to account for codicons in label */),
-						description: createMatches(containerScore)
+						label: symbolMatches,
+						description: containerMatches
 					},
 					description: containerLabel,
 					strikethrough: deprecated,
@@ -226,24 +242,32 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 
 		// By score
 		if (symbolA.score && symbolB.score) {
-			if (symbolA.score[0] > symbolB.score[0]) {
+			if (symbolA.score > symbolB.score) {
 				return -1;
-			} else if (symbolA.score[0] < symbolB.score[0]) {
+			}
+
+			if (symbolA.score < symbolB.score) {
 				return 1;
 			}
 		}
 
 		// By name
-		const symbolAName = symbolA.symbol.name.toLowerCase();
-		const symbolBName = symbolB.symbol.name.toLowerCase();
-		const res = symbolAName.localeCompare(symbolBName);
-		if (res !== 0) {
-			return res;
+		if (symbolA.symbol && symbolB.symbol) {
+			const symbolAName = symbolA.symbol.name.toLowerCase();
+			const symbolBName = symbolB.symbol.name.toLowerCase();
+			const res = symbolAName.localeCompare(symbolBName);
+			if (res !== 0) {
+				return res;
+			}
 		}
 
 		// By kind
-		const symbolAKind = SymbolKinds.toCssClassName(symbolA.symbol.kind);
-		const symbolBKind = SymbolKinds.toCssClassName(symbolB.symbol.kind);
-		return symbolAKind.localeCompare(symbolBKind);
+		if (symbolA.symbol && symbolB.symbol) {
+			const symbolAKind = SymbolKinds.toCssClassName(symbolA.symbol.kind);
+			const symbolBKind = SymbolKinds.toCssClassName(symbolB.symbol.kind);
+			return symbolAKind.localeCompare(symbolBKind);
+		}
+
+		return 0;
 	}
 }

@@ -326,7 +326,7 @@ export type QuickPickInput<T = IQuickPickItem> = T | IQuickPickSeparator;
 
 //region Fuzzy Scorer Support
 
-export type IQuickPickItemWithResource = IQuickPickItem & { resource: URI | undefined };
+export type IQuickPickItemWithResource = IQuickPickItem & { resource?: URI };
 
 export class QuickPickItemScorerAccessor implements IItemAccessor<IQuickPickItemWithResource> {
 

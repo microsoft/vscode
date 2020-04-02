@@ -12,7 +12,7 @@ import { ICellViewModel, CellFindMatch, MarkdownCellLayoutInfo, MarkdownCellLayo
 import { MarkdownRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/mdRenderer';
 import { BaseCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/baseCellViewModel';
 import { CellKind, ICell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { CELL_MARGIN, CELL_RUN_GUTTER } from 'vs/workbench/contrib/notebook/browser/constants';
+import { CELL_MARGIN, CELL_RUN_GUTTER, BOTTOM_CELL_TOOLBAR_HEIGHT } from 'vs/workbench/contrib/notebook/browser/constants';
 import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 
 export class MarkdownCellViewModel extends BaseCellViewModel implements ICellViewModel {
@@ -43,7 +43,8 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 
 		this._layoutInfo = {
 			fontInfo: initialNotebookLayoutInfo?.fontInfo || null,
-			editorWidth: initialNotebookLayoutInfo?.width || 0
+			editorWidth: initialNotebookLayoutInfo?.width || 0,
+			bottomToolbarOffset: BOTTOM_CELL_TOOLBAR_HEIGHT
 		};
 
 		this._register(eventDispatcher.onDidChangeLayout((e) => {
@@ -59,7 +60,8 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 
 		this._layoutInfo = {
 			fontInfo: state.font || null,
-			editorWidth
+			editorWidth,
+			bottomToolbarOffset: BOTTOM_CELL_TOOLBAR_HEIGHT
 		};
 
 		this._onDidChangeLayout.fire(state);
