@@ -506,8 +506,8 @@ function doScoreItemFuzzySingle(label: string, description: string | undefined, 
 	return NO_ITEM_SCORE;
 }
 
-function createMatches(offsets: undefined | number[]): IMatch[] {
-	let ret: IMatch[] = [];
+function createMatches(offsets: number[] | undefined): IMatch[] {
+	const ret: IMatch[] = [];
 	if (!offsets) {
 		return ret;
 	}
