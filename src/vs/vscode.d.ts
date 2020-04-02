@@ -6933,13 +6933,13 @@ declare module 'vscode' {
 		 * that your extension has also updated its editor instances (webviews) to reflect the edit that just occurred.
 		 *
 		 * @param document Document to apply edits to.
-		 * @param edit Array of edits. Sorted from oldest to most recent. Use [`document.appliedEdits`](#CustomDocument.appliedEdits)
+		 * @param redoneEdits Array of edits that were redone. Sorted from oldest to most recent. Use [`document.appliedEdits`](#CustomDocument.appliedEdits)
 		 * to get the full set of edits applied to the file (when `applyEdits` is called `appliedEdits` will already include
 		 * the newly applied edit at the end).
 		 *
 		 * @return Thenable signaling that the change has completed.
 		 */
-		applyEdits(document: CustomDocument<EditType>, edits: ReadonlyArray<EditType>): Thenable<void>;
+		applyEdits(document: CustomDocument<EditType>, redoneEdits: ReadonlyArray<EditType>): Thenable<void>;
 
 		/**
 		 * Undo a list of edits to a custom editor.
@@ -6951,13 +6951,13 @@ declare module 'vscode' {
 		 * after undoing `edits` from it).
 		 *
 		 * @param document Document to undo edits from.
-		 * @param edit Array of edits. Sorted from most recent to oldest. Use [`document.appliedEdits`](#CustomDocument.appliedEdits)
+		 * @param undoneEdits Array of undone edits. Sorted from most recent to oldest. Use [`document.appliedEdits`](#CustomDocument.appliedEdits)
 		 * to get the full set of edits applied to the file (when `undoEdits` is called, `appliedEdits` will already include
 		 * have the undone edits removed).
 		 *
 		 * @return Thenable signaling that the change has completed.
 		 */
-		undoEdits(document: CustomDocument<EditType>, edits: ReadonlyArray<EditType>): Thenable<void>;
+		undoEdits(document: CustomDocument<EditType>, undoneEdits: ReadonlyArray<EditType>): Thenable<void>;
 
 		/**
 		 * Revert a custom editor to its last saved state.
