@@ -1488,11 +1488,11 @@ export class ShowInstalledExtensionsAction extends Action {
 		super(id, label, undefined, true);
 	}
 
-	run(): Promise<void> {
+	run(refresh?: boolean): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 			.then(viewlet => {
-				viewlet.search('@installed ');
+				viewlet.search('@installed ', refresh);
 				viewlet.focus();
 			});
 	}
@@ -2877,7 +2877,7 @@ export class InstallVSIXAction extends Action {
 						{ sticky: true }
 					);
 				}
-				return this.instantiationService.createInstance(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, ShowInstalledExtensionsAction.LABEL).run();
+				return this.instantiationService.createInstance(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, ShowInstalledExtensionsAction.LABEL).run(true);
 			});
 	}
 }
