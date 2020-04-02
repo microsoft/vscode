@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-java/commit/0facf7cbe02cda460db1160fd730f2e57bf15c36",
+	"version": "https://github.com/atom/language-java/commit/d0373f1f6dda31c94b2d032b55056eedb9ecbe69",
 	"name": "Java",
 	"scopeName": "source.java",
 	"patterns": [
@@ -221,22 +221,60 @@
 					"include": "#all-types"
 				},
 				{
-					"begin": "(?<!\\])\\s*({)",
-					"beginCaptures": {
-						"1": {
-							"name": "punctuation.section.inner-class.begin.bracket.curly.java"
-						}
-					},
-					"end": "}",
-					"endCaptures": {
-						"0": {
-							"name": "punctuation.section.inner-class.end.bracket.curly.java"
-						}
-					},
-					"name": "meta.inner-class.java",
+					"begin": "(?<=\\))",
+					"end": "(?=;|\\)|\\]|\\.|,|\\?|:|}|\\+|\\-|\\*|\\/(?!\\/|\\*)|%|!|&|\\||\\^|=)",
 					"patterns": [
 						{
-							"include": "#class-body"
+							"include": "#comments"
+						},
+						{
+							"begin": "{",
+							"beginCaptures": {
+								"0": {
+									"name": "punctuation.section.inner-class.begin.bracket.curly.java"
+								}
+							},
+							"end": "}",
+							"endCaptures": {
+								"0": {
+									"name": "punctuation.section.inner-class.end.bracket.curly.java"
+								}
+							},
+							"name": "meta.inner-class.java",
+							"patterns": [
+								{
+									"include": "#class-body"
+								}
+							]
+						}
+					]
+				},
+				{
+					"begin": "(?<=\\])",
+					"end": "(?=;|\\)|\\]|\\.|,|\\?|:|}|\\+|\\-|\\*|\\/(?!\\/|\\*)|%|!|&|\\||\\^|=)",
+					"patterns": [
+						{
+							"include": "#comments"
+						},
+						{
+							"begin": "{",
+							"beginCaptures": {
+								"0": {
+									"name": "punctuation.section.array-initializer.begin.bracket.curly.java"
+								}
+							},
+							"end": "}",
+							"endCaptures": {
+								"0": {
+									"name": "punctuation.section.array-initializer.end.bracket.curly.java"
+								}
+							},
+							"name": "meta.array-initializer.java",
+							"patterns": [
+								{
+									"include": "#code"
+								}
+							]
 						}
 					]
 				},
@@ -1331,7 +1369,7 @@
 							"name": "punctuation.separator.period.java"
 						},
 						"2": {
-							"name": "variable.other.property.java"
+							"name": "variable.other.object.property.java"
 						}
 					}
 				},
