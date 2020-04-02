@@ -16,6 +16,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 /**
  * Shows a message when semantic tokens are shown the first time.
@@ -24,32 +25,34 @@ export class SemanticTokensHelp extends Disposable implements IEditorContributio
 
 	public static readonly ID = 'editor.contrib.semanticHighlightHelp';
 
-	private static notificationShown = false;
-
 	constructor(
 		_editor: ICodeEditor,
 		@INotificationService _notificationService: INotificationService,
 		@IOpenerService _openerService: IOpenerService,
 		@IWorkbenchThemeService _themeService: IWorkbenchThemeService,
 		@IEditorService _editorService: IEditorService,
+		@IStorageService _storageService: IStorageService,
 		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService
 	) {
 		super();
-
 		// opt-in to syncing
 		const neverShowAgainId = 'editor.contrib.semanticTokensHelp';
+
+		if (_storageService.getBoolean(neverShowAgainId, StorageScope.GLOBAL)) {
+			return;
+		}
+
 		storageKeysSyncRegistryService.registerStorageKey({ key: neverShowAgainId, version: 1 });
 
 		const toDispose = this._register(new DisposableStore());
 		const localToDispose = toDispose.add(new DisposableStore());
 		const installChangeTokenListener = (model: ITextModel) => {
 			localToDispose.add(model.onDidChangeTokens((e) => {
-				if (SemanticTokensHelp.notificationShown) {
-					toDispose.dispose();
+				if (!e.semanticTokensApplied) {
 					return;
 				}
-
-				if (!e.semanticTokensApplied) {
+				if (_storageService.getBoolean(neverShowAgainId, StorageScope.GLOBAL)) {
+					toDispose.dispose();
 					return;
 				}
 				const activeEditorControl = _editorService.activeTextEditorControl;
@@ -58,7 +61,7 @@ export class SemanticTokensHelp extends Disposable implements IEditorContributio
 				}
 
 				toDispose.dispose(); // uninstall all listeners, make sure the notification is only shown once per window
-				SemanticTokensHelp.notificationShown = true;
+				_storageService.store(neverShowAgainId, true, StorageScope.GLOBAL); // never show again
 
 				const message = nls.localize(
 					{
@@ -81,7 +84,7 @@ export class SemanticTokensHelp extends Disposable implements IEditorContributio
 							_openerService.open(URI.parse(url));
 						}
 					}
-				], { neverShowAgain: { id: neverShowAgainId } });
+				]);
 			}));
 		};
 

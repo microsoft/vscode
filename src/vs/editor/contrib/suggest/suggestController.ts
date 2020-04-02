@@ -734,6 +734,7 @@ registerEditorCommand(new SuggestCommand({
 registerEditorCommand(new SuggestCommand({
 	id: 'insertBestCompletion',
 	precondition: ContextKeyExpr.and(
+		EditorContextKeys.textInputFocus,
 		ContextKeyExpr.equals('config.editor.tabCompletion', 'on'),
 		WordContextKey.AtEnd,
 		SuggestContext.Visible.toNegated(),
@@ -753,6 +754,7 @@ registerEditorCommand(new SuggestCommand({
 registerEditorCommand(new SuggestCommand({
 	id: 'insertNextSuggestion',
 	precondition: ContextKeyExpr.and(
+		EditorContextKeys.textInputFocus,
 		ContextKeyExpr.equals('config.editor.tabCompletion', 'on'),
 		SuggestAlternatives.OtherSuggestions,
 		SuggestContext.Visible.toNegated(),
@@ -769,6 +771,7 @@ registerEditorCommand(new SuggestCommand({
 registerEditorCommand(new SuggestCommand({
 	id: 'insertPrevSuggestion',
 	precondition: ContextKeyExpr.and(
+		EditorContextKeys.textInputFocus,
 		ContextKeyExpr.equals('config.editor.tabCompletion', 'on'),
 		SuggestAlternatives.OtherSuggestions,
 		SuggestContext.Visible.toNegated(),

@@ -158,7 +158,7 @@ export interface MainThreadAuthenticationShape extends IDisposable {
 	$registerAuthenticationProvider(id: string, displayName: string): void;
 	$unregisterAuthenticationProvider(id: string): void;
 	$onDidChangeSessions(providerId: string, event: modes.AuthenticationSessionsChangeEvent): void;
-	$getSessionsPrompt(providerId: string, accountName: string, providerName: string, extensionId: string, extensionName: string): Promise<boolean>;
+	$getSessionsPrompt(providerId: string, accountName: string, sessionId: string, providerName: string, extensionId: string, extensionName: string): Promise<boolean>;
 	$loginPrompt(providerName: string, extensionName: string): Promise<boolean>;
 	$setTrustedExtension(providerId: string, accountName: string, extensionId: string, extensionName: string): Promise<void>;
 }
@@ -649,7 +649,7 @@ export interface ExtHostWebviewsShape {
 	$disposeEdits(resourceComponents: UriComponents, viewType: string, editIds: number[]): void;
 
 	$onSave(resource: UriComponents, viewType: string, cancellation: CancellationToken): Promise<void>;
-	$onSaveAs(resource: UriComponents, viewType: string, targetResource: UriComponents): Promise<void>;
+	$onSaveAs(resource: UriComponents, viewType: string, targetResource: UriComponents, cancellation: CancellationToken): Promise<void>;
 
 	$backup(resource: UriComponents, viewType: string, cancellation: CancellationToken): Promise<void>;
 

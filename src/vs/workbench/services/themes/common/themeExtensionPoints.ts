@@ -147,7 +147,6 @@ export class ThemeRegistry<T extends IThemeData> {
 			for (let ext of extensions) {
 				if (this.isProposedApi) {
 					checkProposedApiEnabled(ext.description);
-					return;
 				}
 				let extensionData: ExtensionData = {
 					extensionId: ext.description.identifier.value,

@@ -21,6 +21,7 @@ import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { CellKind, ICell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookEventDispatcher, NotebookMetadataChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 export interface INotebookEditorViewState {
 	editingCells: { [key: number]: boolean };
@@ -59,6 +60,16 @@ export interface INotebookViewCellsUpdateEvent {
 export class NotebookViewModel extends Disposable {
 	private _localStore: DisposableStore = this._register(new DisposableStore());
 	private _viewCells: CellViewModel[] = [];
+
+	private _currentTokenSource: CancellationTokenSource | undefined;
+
+	get currentTokenSource(): CancellationTokenSource | undefined {
+		return this._currentTokenSource;
+	}
+
+	set currentTokenSource(v: CancellationTokenSource | undefined) {
+		this._currentTokenSource = v;
+	}
 
 	get viewCells(): ICellViewModel[] {
 		return this._viewCells;

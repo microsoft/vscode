@@ -563,11 +563,8 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		const disposables = new DisposableStore();
 		const actionsElement = dom.append(hoverElement, $('div.actions'));
 		if (markerHover.marker.severity === MarkerSeverity.Error || markerHover.marker.severity === MarkerSeverity.Warning || markerHover.marker.severity === MarkerSeverity.Info) {
-			const peekProblemLabel = nls.localize('peek problem', "Peek Problem");
-			const peekProblemKeybinding = this._keybindingService.lookupKeybinding(NextMarkerAction.ID);
-			const peekProblemKeybindingLabel = peekProblemKeybinding && peekProblemKeybinding.getLabel();
 			disposables.add(this.renderAction(actionsElement, {
-				label: peekProblemKeybindingLabel ? nls.localize('titleAndKb', "{0} ({1})", peekProblemLabel, peekProblemKeybindingLabel) : peekProblemLabel,
+				label: nls.localize('peek problem', "Peek Problem"),
 				commandId: NextMarkerAction.ID,
 				run: () => {
 					this.hide();
@@ -604,12 +601,8 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				}
 			}));
 
-			const quickFixLabel = nls.localize('quick fixes', "Quick Fix...");
-			const quickFixKeybinding = this._keybindingService.lookupKeybinding(QuickFixAction.Id);
-			const quickFixKeybindingLabel = quickFixKeybinding && quickFixKeybinding.getLabel();
-
 			disposables.add(this.renderAction(actionsElement, {
-				label: quickFixKeybindingLabel ? nls.localize('titleAndKb', "{0} ({1})", quickFixLabel, quickFixKeybindingLabel) : quickFixLabel,
+				label: nls.localize('quick fixes', "Quick Fix..."),
 				commandId: QuickFixAction.Id,
 				run: (target) => {
 					showing = true;
@@ -645,11 +638,9 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			dom.append(action, $(`span.icon.${actionOptions.iconClass}`));
 		}
 		const label = dom.append(action, $('span'));
-		label.textContent = actionOptions.label;
 		const keybinding = this._keybindingService.lookupKeybinding(actionOptions.commandId);
-		if (keybinding) {
-			label.title = `${actionOptions.label} (${keybinding.getLabel()})`;
-		}
+		const keybindingLabel = keybinding ? keybinding.getLabel() : null;
+		label.textContent = keybindingLabel ? `${actionOptions.label} (${keybindingLabel})` : actionOptions.label;
 		return dom.addDisposableListener(actionContainer, dom.EventType.CLICK, e => {
 			e.stopPropagation();
 			e.preventDefault();

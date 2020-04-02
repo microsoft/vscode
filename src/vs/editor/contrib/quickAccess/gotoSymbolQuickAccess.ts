@@ -15,14 +15,13 @@ import { DocumentSymbol, SymbolKinds, SymbolTag, DocumentSymbolProviderRegistry,
 import { OutlineModel, OutlineElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { values } from 'vs/base/common/collections';
 import { trim, format } from 'vs/base/common/strings';
-import { fuzzyScore, FuzzyScore, createMatches } from 'vs/base/common/filters';
-import { assign } from 'vs/base/common/objects';
-import { prepareQuery, IPreparedQuery } from 'vs/base/common/fuzzyScorer';
+import { prepareQuery, IPreparedQuery, pieceToQuery, scoreFuzzy2 } from 'vs/base/common/fuzzyScorer';
+import { IMatch } from 'vs/base/common/filters';
 
 export interface IGotoSymbolQuickPickItem extends IQuickPickItem {
 	kind: SymbolKind,
 	index: number,
-	score?: FuzzyScore;
+	score?: number;
 	range?: { decoration: IRange, selection: IRange }
 }
 
@@ -37,7 +36,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 	static PREFIX_BY_CATEGORY = `${AbstractGotoSymbolQuickAccessProvider.PREFIX}${AbstractGotoSymbolQuickAccessProvider.SCOPE_PREFIX}`;
 
 	constructor(protected options?: IGotoSymbolQuickAccessProviderOptions) {
-		super(assign(options, { canAcceptInBackground: true }));
+		super({ ...options, canAcceptInBackground: true });
 	}
 
 	protected provideWithoutTextEditor(picker: IQuickPick<IGotoSymbolQuickPickItem>): IDisposable {
@@ -204,12 +203,12 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 		const filterBySymbolKind = query.original.indexOf(AbstractGotoSymbolQuickAccessProvider.SCOPE_PREFIX) === 0;
 		const filterPos = filterBySymbolKind ? 1 : 0;
 
-		// Split between symbol and container query if separated by space
+		// Split between symbol and container query
 		let symbolQuery: IPreparedQuery;
 		let containerQuery: IPreparedQuery | undefined;
 		if (query.values && query.values.length > 1) {
-			symbolQuery = prepareQuery(query.values[0].original);
-			containerQuery = prepareQuery(query.values[1].original);
+			symbolQuery = pieceToQuery(query.values[0]); 		  // symbol: only match on first part
+			containerQuery = pieceToQuery(query.values.slice(1)); // container: match on all but first parts
 		} else {
 			symbolQuery = query;
 		}
@@ -220,69 +219,79 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 			const symbol = symbols[index];
 
 			const symbolLabel = trim(symbol.name);
+			const symbolLabelWithIcon = `$(symbol-${SymbolKinds.toString(symbol.kind) || 'property'}) ${symbolLabel}`;
 
 			let containerLabel = symbol.containerName;
-			if (containerLabel && options?.extraContainerLabel) {
-				containerLabel = `${options.extraContainerLabel} • ${containerLabel}`;
-			} else {
-				containerLabel = options?.extraContainerLabel;
-			}
-
-			let symbolScore: FuzzyScore | undefined = undefined;
-			let containerScore: FuzzyScore | undefined = undefined;
-
-			let includeSymbol = true;
-			if (query.original.length > filterPos) {
-
-				// Score by symbol
-				symbolScore = fuzzyScore(symbolQuery.original, symbolQuery.originalLowercase, filterPos, symbolLabel, symbolLabel.toLowerCase(), 0, true);
-				includeSymbol = !!symbolScore;
-
-				// Score by container if specified
-				if (includeSymbol && containerQuery) {
-					if (containerLabel) {
-						containerScore = fuzzyScore(containerQuery.original, containerQuery.originalLowercase, filterPos, containerLabel, containerLabel.toLowerCase(), 0, true);
-					}
-
-					includeSymbol = !!containerScore;
+			if (options?.extraContainerLabel) {
+				if (containerLabel) {
+					containerLabel = `${options.extraContainerLabel} • ${containerLabel}`;
+				} else {
+					containerLabel = options.extraContainerLabel;
 				}
 			}
 
-			if (includeSymbol) {
-				const symbolLabelWithIcon = `$(symbol-${SymbolKinds.toString(symbol.kind) || 'property'}) ${symbolLabel}`;
-				const deprecated = symbol.tags && symbol.tags.indexOf(SymbolTag.Deprecated) >= 0;
+			let symbolScore: number | undefined = undefined;
+			let symbolMatches: IMatch[] | undefined = undefined;
 
-				filteredSymbolPicks.push({
-					index,
-					kind: symbol.kind,
-					score: symbolScore,
-					label: symbolLabelWithIcon,
-					ariaLabel: localize('symbolsAriaLabel', "{0}, symbols picker", symbolLabel),
-					description: containerLabel,
-					highlights: deprecated ? undefined : {
-						label: createMatches(symbolScore, symbolLabelWithIcon.length - symbolLabel.length /* Readjust matches to account for codicons in label */),
-						description: createMatches(containerScore)
-					},
-					range: {
-						selection: Range.collapseToStart(symbol.selectionRange),
-						decoration: symbol.range
-					},
-					strikethrough: deprecated,
-					buttons: (() => {
-						const openSideBySideDirection = this.options?.openSideBySideDirection();
-						if (!openSideBySideDirection) {
-							return undefined;
-						}
+			let containerScore: number | undefined = undefined;
+			let containerMatches: IMatch[] | undefined = undefined;
 
-						return [
-							{
-								iconClass: openSideBySideDirection === 'right' ? 'codicon-split-horizontal' : 'codicon-split-vertical',
-								tooltip: openSideBySideDirection === 'right' ? localize('openToSide', "Open to the Side") : localize('openToBottom', "Open to the Bottom")
-							}
-						];
-					})()
-				});
+			if (query.original.length > filterPos) {
+
+				// Score by symbol
+				[symbolScore, symbolMatches] = scoreFuzzy2(symbolLabel, symbolQuery, filterPos, symbolLabelWithIcon.length - symbolLabel.length /* Readjust matches to account for codicons in label */);
+				if (!symbolScore) {
+					continue;
+				}
+
+				// Score by container if specified
+				if (containerQuery) {
+					if (containerLabel && containerQuery.original.length > 0) {
+						[containerScore, containerMatches] = scoreFuzzy2(containerLabel, containerQuery);
+					}
+
+					if (!containerScore) {
+						continue;
+					}
+
+					if (symbolScore) {
+						symbolScore += containerScore; // boost symbolScore by containerScore
+					}
+				}
 			}
+
+			const deprecated = symbol.tags && symbol.tags.indexOf(SymbolTag.Deprecated) >= 0;
+
+			filteredSymbolPicks.push({
+				index,
+				kind: symbol.kind,
+				score: symbolScore,
+				label: symbolLabelWithIcon,
+				ariaLabel: symbolLabel,
+				description: containerLabel,
+				highlights: deprecated ? undefined : {
+					label: symbolMatches,
+					description: containerMatches
+				},
+				range: {
+					selection: Range.collapseToStart(symbol.selectionRange),
+					decoration: symbol.range
+				},
+				strikethrough: deprecated,
+				buttons: (() => {
+					const openSideBySideDirection = this.options?.openSideBySideDirection();
+					if (!openSideBySideDirection) {
+						return undefined;
+					}
+
+					return [
+						{
+							iconClass: openSideBySideDirection === 'right' ? 'codicon-split-horizontal' : 'codicon-split-vertical',
+							tooltip: openSideBySideDirection === 'right' ? localize('openToSide', "Open to the Side") : localize('openToBottom', "Open to the Bottom")
+						}
+					];
+				})()
+			});
 		}
 
 		// Sort by score
@@ -351,9 +360,9 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 		}
 
 		if (symbolA.score && symbolB.score) {
-			if (symbolA.score[0] > symbolB.score[0]) {
+			if (symbolA.score > symbolB.score) {
 				return -1;
-			} else if (symbolA.score[0] < symbolB.score[0]) {
+			} else if (symbolA.score < symbolB.score) {
 				return 1;
 			}
 		}

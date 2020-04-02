@@ -36,7 +36,6 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 				if (highlights) {
 					terminalPicks.push({
 						label,
-						ariaLabel: localize('termEntryAriaLabel', "{0}, terminal picker", label),
 						highlights: { label: highlights },
 						buttons: [
 							{
@@ -76,7 +75,7 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 		const createTerminalLabel = localize("workbench.action.terminal.newplus", "Create New Integrated Terminal");
 		terminalPicks.push({
 			label: `$(plus) ${createTerminalLabel}`,
-			ariaLabel: localize('termEntryAriaLabel', "{0}, terminal picker", createTerminalLabel),
+			ariaLabel: createTerminalLabel,
 			accept: () => this.commandService.executeCommand('workbench.action.terminal.new')
 		});
 

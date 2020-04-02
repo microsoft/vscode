@@ -123,6 +123,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	private readonly badgeDisposable = this._register(new MutableDisposable());
 	private readonly signInNotificationDisposable = this._register(new MutableDisposable());
 	private _activeAccount: AuthenticationSession | undefined;
+	private loginInProgress: boolean = false;
 
 	constructor(
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
@@ -250,7 +251,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		return new Promise((resolve, _) => {
 			const quickPick = this.quickInputService.createQuickPick<{ label: string, session: AuthenticationSession }>();
 			quickPick.title = localize('chooseAccountTitle', "Preferences Sync: Choose Account");
-			quickPick.placeholder = localize('chooseAccount', "Choose an account you would like to use for settings sync");
+			quickPick.placeholder = localize('chooseAccount', "Choose an account you would like to use for preferences sync");
 			const dedupedSessions = distinct(sessions, (session) => session.accountName);
 			quickPick.items = dedupedSessions.map(session => {
 				return {
@@ -279,6 +280,10 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	private async onDidChangeSessions(e: { providerId: string, event: AuthenticationSessionsChangeEvent }): Promise<void> {
 		const { providerId, event } = e;
 		if (providerId === this.userDataSyncStore!.authenticationProviderId) {
+			if (this.loginInProgress) {
+				return;
+			}
+
 			if (this.activeAccount) {
 				if (event.removed.length) {
 					const activeWasRemoved = !!event.removed.find(removed => removed === this.activeAccount!.id);
@@ -678,7 +683,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 		await this.handleFirstTimeSync();
 		this.userDataSyncEnablementService.setEnablement(true);
-		this.notificationService.info(localize('sync turned on', "Sync will happen automatically from now on."));
+		this.notificationService.info(localize('sync turned on', "Preferences sync is turned on"));
 		this.storageService.store('sync.donotAskPreviewConfirmation', true, StorageScope.GLOBAL);
 	}
 
@@ -807,7 +812,9 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private async signIn(): Promise<void> {
 		try {
+			this.loginInProgress = true;
 			await this.setActiveAccount(await this.authenticationService.login(this.userDataSyncStore!.authenticationProviderId, ['https://management.core.windows.net/.default', 'offline_access']));
+			this.loginInProgress = false;
 		} catch (e) {
 			this.notificationService.error(localize('loginFailed', "Logging in failed: {0}", e));
 			throw e;

@@ -81,6 +81,18 @@ export class TestNotebookEditor implements INotebookEditor {
 	constructor(
 	) { }
 
+	cancelNotebookCellExecution(cell: ICellViewModel): void {
+		throw new Error('Method not implemented.');
+	}
+
+	executeNotebook(): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+
+	cancelNotebookExecution(): void {
+		throw new Error('Method not implemented.');
+	}
+
 	executeNotebookCell(cell: ICellViewModel): Promise<void> {
 		throw new Error('Method not implemented.');
 	}

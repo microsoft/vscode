@@ -206,6 +206,7 @@
 	position: absolute;
 	display: flex;
 	opacity: 0;
+	transition: opacity 0.2s ease-in-out;
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container:hover {

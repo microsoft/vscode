@@ -840,7 +840,13 @@ export class ExtensionEditor extends BaseEditor {
 		extensionPackReadme.style.maxWidth = '882px';
 
 		const extensionPack = append(extensionPackReadme, $('div', { class: 'extension-pack' }));
-		toggleClass(extensionPackReadme, 'narrow', manifest.extensionPack!.length <= 2);
+		if (manifest.extensionPack!.length <= 3) {
+			addClass(extensionPackReadme, 'one-row');
+		} else if (manifest.extensionPack!.length <= 6) {
+			addClass(extensionPackReadme, 'two-rows');
+		} else {
+			addClass(extensionPackReadme, 'three-rows');
+		}
 
 		const extensionPackHeader = append(extensionPack, $('div.header'));
 		extensionPackHeader.textContent = localize('extension pack', "Extension Pack ({0})", manifest.extensionPack!.length);

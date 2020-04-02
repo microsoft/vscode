@@ -909,7 +909,7 @@ declare module 'vscode' {
 		/**
 		 * Handles a link that is activated within the terminal.
 		 *
-		 * @return Whether the link was handled, the link was handled this link will not be
+		 * @return Whether the link was handled, if the link was handled this link will not be
 		 * considered by any other extension or by the default built-in link handler.
 		 */
 		handleLink(terminal: Terminal, link: string): ProviderResult<boolean>;
@@ -1320,25 +1320,25 @@ declare module 'vscode' {
 		 * Controls if users can add or delete cells
 		 * Defaults to true
 		 */
-		editable: boolean;
+		editable?: boolean;
 
 		/**
 		 * Default value for [cell editable metadata](#NotebookCellMetadata.editable).
 		 * Defaults to true.
 		 */
-		cellEditable: boolean;
+		cellEditable?: boolean;
 
 		/**
 		 * Default value for [cell runnable metadata](#NotebookCellMetadata.runnable).
 		 * Defaults to true.
 		 */
-		cellRunnable: boolean;
+		cellRunnable?: boolean;
 
 		/**
 		 * Whether the [execution order](#NotebookCellMetadata.executionOrder) indicator will be displayed.
 		 * Defaults to true.
 		 */
-		hasExecutionOrder: boolean;
+		hasExecutionOrder?: boolean;
 	}
 
 	export interface NotebookDocument {
@@ -1348,11 +1348,11 @@ declare module 'vscode' {
 		readonly cells: NotebookCell[];
 		languages: string[];
 		displayOrder?: GlobPattern[];
-		metadata?: NotebookDocumentMetadata;
+		metadata: NotebookDocumentMetadata;
 	}
 
 	export interface NotebookEditorCellEdit {
-		insert(index: number, content: string, language: string, type: CellKind, outputs: CellOutput[], metadata: NotebookCellMetadata | undefined): void;
+		insert(index: number, content: string | string[], language: string, type: CellKind, outputs: CellOutput[], metadata: NotebookCellMetadata | undefined): void;
 		delete(index: number): void;
 	}
 

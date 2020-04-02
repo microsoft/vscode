@@ -151,7 +151,7 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 	}
 
 	public async openCustomDocument(uri: vscode.Uri) {
-		return new vscode.CustomDocument(this.customEditorViewType, uri);
+		return new vscode.CustomDocument(uri);
 	}
 
 	public async resolveCustomTextEditor(

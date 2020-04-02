@@ -36,11 +36,18 @@ export const NOTEBOOK_DISPLAY_ORDER = [
 	'text/plain'
 ];
 
+export const notebookDocumentMetadataDefaults: NotebookDocumentMetadata = {
+	editable: true,
+	cellEditable: true,
+	cellRunnable: true,
+	hasExecutionOrder: true
+};
+
 export interface NotebookDocumentMetadata {
 	editable: boolean;
-	cellEditable?: boolean;
-	cellRunnable?: boolean;
-	hasExecutionOrder?: boolean;
+	cellEditable: boolean;
+	cellRunnable: boolean;
+	hasExecutionOrder: boolean;
 }
 
 export interface NotebookCellMetadata {
