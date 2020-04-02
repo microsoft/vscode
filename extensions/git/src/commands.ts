@@ -514,7 +514,8 @@ export class CommandCenter {
 			let message = localize('proposeopen', "Would you like to open the cloned repository?");
 			const open = localize('openrepo', "Open");
 			const openNewWindow = localize('openreponew', "Open in New Window");
-			const choices = [open, openNewWindow];
+			const openAlways = localize('openrepoalways', "Always open after cloning");
+			const choices = [open, openNewWindow, openAlways];
 
 			const addToWorkspace = localize('add', "Add to Workspace");
 			if (workspace.workspaceFolders) {
@@ -541,6 +542,9 @@ export class CommandCenter {
 				workspace.updateWorkspaceFolders(workspace.workspaceFolders!.length, 0, { uri });
 			} else if (result === openNewWindow) {
 				commands.executeCommand('vscode.openFolder', uri, true);
+			} else if (result === openAlways) {
+				commands.executeCommand('vscode.openFolder', uri);
+				// will add a command for always option later
 			}
 		} catch (err) {
 			if (/already exists and is not an empty directory/.test(err && err.stderr || '')) {
