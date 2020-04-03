@@ -327,6 +327,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 			templateData.toolbar.context = toolbarContext;
 
 			this.setupBetweenCellToolbarActions(element, templateData, elementDisposable, toolbarContext);
+			element.totalHeight = height;
 		}
 
 	}

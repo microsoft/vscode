@@ -6,7 +6,6 @@
 import * as DOM from 'vs/base/browser/dom';
 import { raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { debounce } from 'vs/base/common/decorators';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import * as nls from 'vs/nls';
@@ -402,12 +401,21 @@ export class CodeCell extends Disposable {
 	}
 
 	relayoutCell() {
+		if (this._timer !== null) {
+			clearTimeout(this._timer);
+		}
+
 		this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
 	}
 
-	@debounce(500)
+	private _timer: any = null;
+
 	relayoutCellDebounced() {
-		this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
+		clearTimeout(this._timer);
+		this._timer = setTimeout(() => {
+			this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
+			this._timer = null;
+		}, 500);
 	}
 
 	dispose() {
