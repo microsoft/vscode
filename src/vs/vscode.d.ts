@@ -3203,8 +3203,8 @@ declare module 'vscode' {
 
 	/**
 	 * Represents semantic tokens, either in a range or in an entire document.
-	 * See [provideDocumentSemanticTokens](#DocumentSemanticTokensProvider.provideDocumentSemanticTokens) for an explanation of the format.
-	 * See `SemanticTokensBuilder` for a helper to create an instance.
+	 * @see [provideDocumentSemanticTokens](#DocumentSemanticTokensProvider.provideDocumentSemanticTokens) for an explanation of the format.
+	 * @see [SemanticTokensBuilder](#SemanticTokensBuilder) for a helper to create an instance.
 	 */
 	export class SemanticTokens {
 		/**
@@ -3215,7 +3215,7 @@ declare module 'vscode' {
 		readonly resultId?: string;
 		/**
 		 * The actual tokens data.
-		 * See [provideDocumentSemanticTokens](#DocumentSemanticTokensProvider.provideDocumentSemanticTokens) for an explanation of the format.
+		 * @see [provideDocumentSemanticTokens](#DocumentSemanticTokensProvider.provideDocumentSemanticTokens) for an explanation of the format.
 		 */
 		readonly data: Uint32Array;
 
@@ -3224,7 +3224,7 @@ declare module 'vscode' {
 
 	/**
 	 * Represents edits to semantic tokens.
-	 * See [provideDocumentSemanticTokensEdits](#DocumentSemanticTokensProvider.provideDocumentSemanticTokensEdits) for an explanation of the format.
+	 * @see [provideDocumentSemanticTokensEdits](#DocumentSemanticTokensProvider.provideDocumentSemanticTokensEdits) for an explanation of the format.
 	 */
 	export class SemanticTokensEdits {
 		/**
@@ -3244,7 +3244,7 @@ declare module 'vscode' {
 
 	/**
 	 * Represents an edit to semantic tokens.
-	 * See [provideDocumentSemanticTokensEdits](#DocumentSemanticTokensProvider.provideDocumentSemanticTokensEdits) for an explanation of the format.
+	 * @see [provideDocumentSemanticTokensEdits](#DocumentSemanticTokensProvider.provideDocumentSemanticTokensEdits) for an explanation of the format.
 	 */
 	export class SemanticTokensEdit {
 		/**
@@ -3397,7 +3397,7 @@ declare module 'vscode' {
 	 */
 	export interface DocumentRangeSemanticTokensProvider {
 		/**
-		 * See [provideDocumentSemanticTokens](#DocumentSemanticTokensProvider.provideDocumentSemanticTokens).
+		 * @see [provideDocumentSemanticTokens](#DocumentSemanticTokensProvider.provideDocumentSemanticTokens).
 		 */
 		provideDocumentRangeSemanticTokens(document: TextDocument, range: Range, token: CancellationToken): ProviderResult<SemanticTokens>;
 	}
