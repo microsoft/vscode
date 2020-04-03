@@ -350,7 +350,6 @@ class SshAgent {
 
 		sshAddProcess.stderr.on('data', data => {
 			const message = data.toString();
-			console.error(message);
 
 			if (
 				message.match(/^Enter passphrase for .*: $/) ||
