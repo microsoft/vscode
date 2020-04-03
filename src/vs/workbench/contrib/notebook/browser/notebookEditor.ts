@@ -341,14 +341,6 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		const viewState = this.loadTextEditorViewState(input);
 		this.notebookViewModel.restoreEditorViewState(viewState);
 
-		if (viewState?.scrollPosition !== undefined) {
-			this.list!.scrollTop = viewState!.scrollPosition.top;
-			this.list!.scrollLeft = viewState!.scrollPosition.left;
-		} else {
-			this.list!.scrollTop = 0;
-			this.list!.scrollLeft = 0;
-		}
-
 		this.localStore.add(this.eventDispatcher.onDidChangeMetadata((e) => {
 			this.editorEditable?.set(e.source.editable);
 		}));
@@ -417,6 +409,14 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 		this.list?.splice(0, 0, this.notebookViewModel!.viewCells as CellViewModel[]);
 		this.list?.layout();
+
+		if (viewState?.scrollPosition !== undefined) {
+			this.list!.scrollTop = viewState!.scrollPosition.top;
+			this.list!.scrollLeft = viewState!.scrollPosition.left;
+		} else {
+			this.list!.scrollTop = 0;
+			this.list!.scrollLeft = 0;
+		}
 	}
 
 	private saveTextEditorViewState(input: NotebookEditorInput): void {
