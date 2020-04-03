@@ -74,7 +74,7 @@ export class GitTimelineProvider implements TimelineProvider {
 	constructor(private readonly _model: Model) {
 		this.disposable = Disposable.from(
 			_model.onDidOpenRepository(this.onRepositoriesChanged, this),
-			workspace.registerTimelineProvider(['file', 'git', 'gitlens-git'], this),
+			workspace.registerTimelineProvider(['file', 'git', 'vscode-remote', 'gitlens-git'], this),
 		);
 	}
 
