@@ -890,15 +890,18 @@ export class TokensStore2 {
 	}
 
 	public setPartial(_range: Range, pieces: MultilineTokens2[]): Range {
-		if (pieces.length === 0) {
-			return _range;
+		// console.log(`setPartial ${_range} ${pieces.map(p => p.toString()).join(', ')}`);
+
+		let range = _range;
+		if (pieces.length > 0) {
+			const _firstRange = pieces[0].getRange();
+			const _lastRange = pieces[pieces.length - 1].getRange();
+			if (!_firstRange || !_lastRange) {
+				return _range;
+			}
+			range = _range.plusRange(_firstRange).plusRange(_lastRange);
 		}
-		const _firstRange = pieces[0].getRange();
-		const _lastRange = pieces[pieces.length - 1].getRange();
-		if (!_firstRange || !_lastRange) {
-			return _range;
-		}
-		const range = _range.plusRange(_firstRange).plusRange(_lastRange);
+
 		let insertPosition: { index: number; } | null = null;
 		for (let i = 0, len = this._pieces.length; i < len; i++) {
 			const piece = this._pieces[i];
@@ -938,6 +941,15 @@ export class TokensStore2 {
 
 			// after removal, this piece contains the range
 			const [a, b] = piece.split(range);
+			if (a.isEmpty()) {
+				// this piece is actually after the range
+				insertPosition = insertPosition || { index: i };
+				continue;
+			}
+			if (b.isEmpty()) {
+				// this piece is actually before the range
+				continue;
+			}
 			this._pieces.splice(i, 1, a, b);
 			i++;
 			len++;
@@ -947,10 +959,12 @@ export class TokensStore2 {
 
 		insertPosition = insertPosition || { index: this._pieces.length };
 
-		this._pieces = arrays.arrayInsert(this._pieces, insertPosition.index, pieces);
+		if (pieces.length > 0) {
+			this._pieces = arrays.arrayInsert(this._pieces, insertPosition.index, pieces);
+		}
 
 		// console.log(`I HAVE ${this._pieces.length} pieces`);
-		// console.log(`${this._pieces.map(p => p.toString()).join(', ')}`);
+		// console.log(`${this._pieces.map(p => p.toString()).join('\n')}`);
 
 		return range;
 	}

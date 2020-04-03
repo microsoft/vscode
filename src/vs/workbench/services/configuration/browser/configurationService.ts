@@ -192,19 +192,19 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 
 			const storedFoldersToAdd: IStoredWorkspaceFolder[] = [];
 
-			await Promise.all(foldersToAdd.map(async folderToAdd => {
+			for (const folderToAdd of foldersToAdd) {
 				const folderURI = folderToAdd.uri;
 				if (this.contains(currentWorkspaceFolderUris, folderURI)) {
-					return; // already existing
+					continue; // already existing
 				}
 				try {
 					const result = await this.fileService.resolve(folderURI);
 					if (!result.isDirectory) {
-						return;
+						continue;
 					}
 				} catch (e) { /* Ignore */ }
 				storedFoldersToAdd.push(getStoredWorkspaceFolder(folderURI, false, folderToAdd.name, workspaceConfigFolder, slashForPath));
-			}));
+			}
 
 			// Apply to array of newStoredFolders
 			if (storedFoldersToAdd.length > 0) {

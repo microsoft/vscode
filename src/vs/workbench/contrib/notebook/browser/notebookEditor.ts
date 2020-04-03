@@ -325,6 +325,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		this.webview?.clearInsets();
 		this.webview?.clearPreloadsCache();
 		this.findWidget.clear();
+		this.list?.splice(0, this.list?.length || 0);
 	}
 
 	private async attachModel(input: NotebookEditorInput, model: NotebookEditorModel) {
@@ -414,7 +415,6 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			}
 		}));
 
-		this.list?.splice(0, this.list?.length || 0);
 		this.list?.splice(0, 0, this.notebookViewModel!.viewCells as CellViewModel[]);
 		this.list?.layout();
 	}

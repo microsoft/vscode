@@ -460,6 +460,13 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._modelData.viewModel.getVisibleRanges();
 	}
 
+	public getVisibleRangesPlusViewportAboveBelow(): Range[] {
+		if (!this._modelData) {
+			return [];
+		}
+		return this._modelData.viewModel.getVisibleRangesPlusViewportAboveBelow();
+	}
+
 	public getWhitespaces(): IEditorWhitespace[] {
 		if (!this._modelData) {
 			return [];

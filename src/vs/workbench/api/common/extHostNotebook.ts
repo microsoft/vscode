@@ -402,11 +402,12 @@ export class NotebookEditorCellEdit {
 		}
 	}
 
-	insert(index: number, content: string, language: string, type: CellKind, outputs: vscode.CellOutput[], metadata: vscode.NotebookCellMetadata | undefined): void {
+	insert(index: number, content: string | string[], language: string, type: CellKind, outputs: vscode.CellOutput[], metadata: vscode.NotebookCellMetadata | undefined): void {
 		this._throwIfFinalized();
 
+		const sourceArr = Array.isArray(content) ? content : content.split(/\r|\n|\r\n/g);
 		let cell = {
-			source: [content],
+			source: sourceArr,
 			language,
 			cellKind: type,
 			outputs: (outputs as any[]), // TODO@rebornix

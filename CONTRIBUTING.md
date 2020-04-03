@@ -51,9 +51,9 @@ The built-in tool for reporting an issue, which you can access by using `Report 
 
 Please include the following with each issue:
 
-* Version of VS Code  
+* Version of VS Code
 
-* Your operating system  
+* Your operating system
 
 * List of extensions that you have installed
 
@@ -87,10 +87,11 @@ Once submitted, your report will go into the [issue tracking](https://github.com
 
 ## Automated Issue Management
 
-We use a bot to help us manage issues. This bot currently:
+We use GitHub Actions to help us manage issues. These Actions and their descriptions can be [viewed here](https://github.com/JacksonKearl/vscode-triage-github-actions/blob/master/README.md). Some examples of what these Actions do are:
 
 * Automatically closes any issue marked `needs-more-info` if there has been no response in the past 7 days.
-* Automatically locks issues 45 days after they are closed.
+* Automatically lock issues 45 days after they are closed.
+* Automatically implement the VS Code [feature request pipeline](https://github.com/microsoft/vscode/wiki/Issues-Triaging#managing-feature-requests).
 
 If you believe the bot got something wrong, please open a new issue and let us know.
 
