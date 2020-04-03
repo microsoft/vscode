@@ -26,6 +26,12 @@ export interface IDimentionMessage {
 	data: DOM.Dimension;
 }
 
+export interface IWheelMessage {
+	__vscode_notebook_message: boolean;
+	type: 'did-scroll-wheel';
+	payload: any;
+}
+
 
 export interface IScrollAckMessage {
 	__vscode_notebook_message: boolean;
@@ -73,7 +79,7 @@ export interface IUpdatePreloadResourceMessage {
 	resources: string[];
 }
 
-type IMessage = IDimentionMessage | IScrollAckMessage;
+type IMessage = IDimentionMessage | IScrollAckMessage | IWheelMessage;
 
 let version = 0;
 export class BackLayerWebView extends Disposable {
@@ -186,6 +192,46 @@ export class BackLayerWebView extends Disposable {
 		observers.push(resizeObserver);
 	}
 
+	function scrollWillGoToParent(event) {
+		for (let node = event.target; node; node = node.parentNode) {
+			if (node.id === 'container') {
+				return false;
+			}
+
+			console.log(node, node.parentNode, node.scrollTop, node.scrollHeight, node.clientHeight);
+			if (event.deltaY < 0 && node.scrollTop > 0) {
+				return true;
+			}
+
+			if (event.deltaY > 0 && node.scrollTop + node.clientHeight < node.scrollHeight) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	const handleWheel = (event) => {
+		if (event.defaultPrevented || scrollWillGoToParent(event)) {
+			return;
+		}
+
+		vscode.postMessage({
+			__vscode_notebook_message: true,
+			type: 'did-scroll-wheel',
+			payload: {
+				deltaMode: event.deltaMode,
+				deltaX: event.deltaX,
+				deltaY: event.deltaY,
+				deltaZ: event.deltaZ,
+				detail: event.detail,
+				type: event.type
+			}
+		});
+	};
+
+	window.addEventListener('wheel', handleWheel);
+
 	window.addEventListener('message', event => {
 		let id = event.data.id;
 
@@ -276,10 +322,6 @@ export class BackLayerWebView extends Disposable {
 			openerService.open(link, { fromUserGesture: true });
 		}));
 
-		this._register(this.webview.onDidWheel(e => {
-			this.notebookEditor.triggerScroll(e);
-		}));
-
 		this._register(this.webview.onMessage((data: IMessage) => {
 			if (data.__vscode_notebook_message) {
 				if (data.type === 'dimension') {
@@ -302,6 +344,8 @@ export class BackLayerWebView extends Disposable {
 					// const date = new Date();
 					// const top = data.data.top;
 					// console.log('ack top ', top, ' version: ', data.version, ' - ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
+				} else if (data.type === 'did-scroll-wheel') {
+					this.notebookEditor.triggerScroll(data.payload);
 				}
 				return;
 			}
