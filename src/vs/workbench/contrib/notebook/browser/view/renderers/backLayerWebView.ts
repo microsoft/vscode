@@ -5,9 +5,9 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
+import * as path from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
 import { IOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -98,7 +98,6 @@ export class BackLayerWebView extends Disposable {
 		public notebookEditor: INotebookEditor,
 		@IWebviewService webviewService: IWebviewService,
 		@IOpenerService openerService: IOpenerService,
-		@IEnvironmentService private readonly environmentSerice: IEnvironmentService,
 		@INotebookService private readonly notebookService: INotebookService,
 	) {
 		super();
@@ -354,7 +353,8 @@ export class BackLayerWebView extends Disposable {
 	}
 
 	private _createInset(webviewService: IWebviewService, content: string) {
-		this.localResourceRootsCache = [...this.notebookService.getNotebookProviderResourceRoots(), URI.file(this.environmentSerice.appRoot)];
+		const rootPath = URI.file(path.dirname(getPathFromAmdModule(require, '')));
+		this.localResourceRootsCache = [...this.notebookService.getNotebookProviderResourceRoots(), rootPath];
 		const webview = webviewService.createWebviewElement('' + UUID.generateUuid(), {
 			enableFindWidget: false,
 		}, {
