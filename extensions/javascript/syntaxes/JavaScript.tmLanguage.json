@@ -3618,30 +3618,6 @@
 					}
 				},
 				{
-					"name": "support.class.node.js",
-					"match": "(?x)(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(Buffer|EventEmitter|Server|Pipe|Socket|REPLServer|ReadStream|WriteStream|Stream\n  |Inflate|Deflate|InflateRaw|DeflateRaw|GZip|GUnzip|Unzip|Zip)\\b(?!\\$)"
-				},
-				{
-					"match": "(?x)(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(process)(?:(?:(\\.)|(\\?\\.(?!\\s*[[:digit:]])))(?:\n  (arch|argv|config|connected|env|execArgv|execPath|exitCode|mainModule|pid|platform|release|stderr|stdin|stdout|title|version|versions)\n  |\n  (abort|chdir|cwd|disconnect|exit|[sg]ete?[gu]id|send|[sg]etgroups|initgroups|kill|memoryUsage|nextTick|umask|uptime|hrtime)\n))?\\b(?!\\$)",
-					"captures": {
-						"1": {
-							"name": "support.variable.object.process.js"
-						},
-						"2": {
-							"name": "punctuation.accessor.js"
-						},
-						"3": {
-							"name": "punctuation.accessor.optional.js"
-						},
-						"4": {
-							"name": "support.variable.property.process.js"
-						},
-						"5": {
-							"name": "support.function.process.js"
-						}
-					}
-				},
-				{
 					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(?:(exports)|(module)(?:(?:(\\.)|(\\?\\.(?!\\s*[[:digit:]])))(exports|id|filename|loaded|parent|children))?)\\b(?!\\$)",
 					"captures": {
 						"1": {
@@ -3660,10 +3636,6 @@
 							"name": "support.type.object.module.js"
 						}
 					}
-				},
-				{
-					"name": "support.variable.object.node.js",
-					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(global|GLOBAL|root|__dirname|__filename)\\b(?!\\$)"
 				}
 			]
 		},
