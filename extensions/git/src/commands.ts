@@ -511,41 +511,54 @@ export class CommandCenter {
 				(progress, token) => this.git.clone(url!, parentPath!, progress, token)
 			);
 
-			let message = localize('proposeopen', "Would you like to open the cloned repository?");
-			const open = localize('openrepo', "Open");
-			const openNewWindow = localize('openreponew', "Open in New Window");
-			const openAlways = localize('openrepoalways', "Always open after cloning");
-			const choices = [open, openNewWindow, openAlways];
-
-			const addToWorkspace = localize('add', "Add to Workspace");
-			if (workspace.workspaceFolders) {
-				message = localize('proposeopen2', "Would you like to open the cloned repository, or add it to the current workspace?");
-				choices.push(addToWorkspace);
-			}
-
-			const result = await window.showInformationMessage(message, ...choices);
-
-			const openFolder = result === open;
-			/* __GDPR__
-				"clone" : {
-					"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"openFolder": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
-				}
-			*/
-			this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'success' }, { openFolder: openFolder ? 1 : 0 });
+			let config = workspace.getConfiguration('git');
+			let promptToOpenClonedRepository = config.get<'currentWindow' | 'newWindow' | 'noFolderOpened' | 'showPrompt'>('promptToOpenClonedRepository');
 
 			const uri = Uri.file(repositoryPath);
 
-			if (openFolder) {
+			if (promptToOpenClonedRepository === 'currentWindow') {
 				commands.executeCommand('vscode.openFolder', uri);
-			} else if (result === addToWorkspace) {
-				workspace.updateWorkspaceFolders(workspace.workspaceFolders!.length, 0, { uri });
-			} else if (result === openNewWindow) {
+			} else if (promptToOpenClonedRepository === 'newWindow') {
 				commands.executeCommand('vscode.openFolder', uri, true);
-			} else if (result === openAlways) {
-				commands.executeCommand('vscode.openFolder', uri);
-				// will add a command for always option later
+			} else {
+				if (promptToOpenClonedRepository === 'noFolderOpened') {
+					if (!workspace.workspaceFolders) {
+						commands.executeCommand('vscode.openFolder', uri);
+					}
+				}
+
+				let message = localize('proposeopen', "Would you like to open the cloned repository?");
+				const open = localize('openrepo', "Open");
+				const openNewWindow = localize('openreponew', "Open in New Window");
+				const choices = [open, openNewWindow];
+
+				const addToWorkspace = localize('add', "Add to Workspace");
+				if (workspace.workspaceFolders) {
+					message = localize('proposeopen2', "Would you like to open the cloned repository, or add it to the current workspace?");
+					choices.push(addToWorkspace);
+				}
+
+				const result = await window.showInformationMessage(message, ...choices);
+
+
+				const openFolder = result === open;
+				/* __GDPR__
+					"clone" : {
+						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"openFolder": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+					}
+				*/
+				this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'success' }, { openFolder: openFolder ? 1 : 0 });
+
+				if (openFolder) {
+					commands.executeCommand('vscode.openFolder', uri);
+				} else if (result === addToWorkspace) {
+					workspace.updateWorkspaceFolders(workspace.workspaceFolders!.length, 0, { uri });
+				} else if (result === openNewWindow) {
+					commands.executeCommand('vscode.openFolder', uri, true);
+				}
 			}
+
 		} catch (err) {
 			if (/already exists and is not an empty directory/.test(err && err.stderr || '')) {
 				/* __GDPR__

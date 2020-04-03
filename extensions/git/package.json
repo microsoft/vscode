@@ -1467,6 +1467,23 @@
           "scope": "resource",
           "default": "none"
         },
+        "git.promptToOpenClonedRepository": {
+          "type": "string",
+          "enum": [
+            "currentWindow",
+            "newWindow",
+            "noFolderOpened",
+            "showPrompt"
+          ],
+          "enumDescriptions": [
+            "%config.promptToOpenClonedRepository.currentWindow%",
+            "%config.promptToOpenClonedRepository.newWindow%",
+            "%config.promptToOpenClonedRepository.noFolderOpened%",
+            "%config.promptToOpenClonedRepository.showPrompt%"
+          ],
+          "default": "showPrompt",
+          "description": "%config.promptToOpenClonedRepository%"
+        },
         "git.showInlineOpenFileAction": {
           "type": "boolean",
           "default": true,
