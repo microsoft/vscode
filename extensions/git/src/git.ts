@@ -332,16 +332,25 @@ class SshAgent {
 			});
 	}
 
-	async addKey(privateKeyPath: string): Promise<void> {
+	async addKey(privateKeyPath: string): Promise<boolean> {
+		let success = false;
 		const sshAddProcess = cp.spawn(this.getCommand('ssh-add'), [privateKeyPath], { env: this.env });
 
 		sshAddProcess.stderr.on('data', data => {
-			const passphraseMatch = data.toString().match(/^Enter passphrase for .*: $/);
+			const message = data.toString();
+			console.error(message);
 
-			if (passphraseMatch) {
-				window.showInputBox({ password: true, prompt: data.toString() }).then(password => {
+			if (
+				message.match(/^Enter passphrase for .*: $/) ||
+				message.match(/^Bad passphrase, try again for .*: $/)
+			) {
+				window.showInputBox({ password: true, prompt: message }).then(password => {
 					sshAddProcess.stdin.write(`${password || ''}\n`);
 				});
+			} else if (message.match(/^Identity added: /)) {
+				success = true;
+			} else if (message) {
+				window.showErrorMessage(message);
 			}
 		});
 
@@ -349,6 +358,8 @@ class SshAgent {
 			sshAddProcess.once('error', reject);
 			sshAddProcess.once('exit', resolve);
 		});
+
+		return success;
 	}
 
 	private getCommand(commandName: string): string {
