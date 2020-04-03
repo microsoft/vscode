@@ -267,7 +267,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 			resolveWebview: async (webviewInput): Promise<void> => {
 				const viewType = webviewPanelViewType.toExternal(webviewInput.viewType);
 				if (!viewType) {
-					webviewInput.webview.html = MainThreadWebviews.getDeserializationFailedContents(webviewInput.viewType);
+					webviewInput.webview.html = MainThreadWebviews.getWebviewResolvedFailedContent(webviewInput.viewType);
 					return;
 				}
 
@@ -288,7 +288,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 					await this._proxy.$deserializeWebviewPanel(handle, viewType, webviewInput.getTitle(), state, editorGroupToViewColumn(this._editorGroupService, webviewInput.group || 0), webviewInput.webview.options);
 				} catch (error) {
 					onUnexpectedError(error);
-					webviewInput.webview.html = MainThreadWebviews.getDeserializationFailedContents(viewType);
+					webviewInput.webview.html = MainThreadWebviews.getWebviewResolvedFailedContent(viewType);
 				}
 			}
 		}));
@@ -339,7 +339,15 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 				webviewInput.webview.options = options;
 				webviewInput.webview.extension = extension;
 
-				let modelRef = await this.getOrCreateCustomEditorModel(modelType, resource, viewType, cancellation);
+				let modelRef: IReference<ICustomEditorModel>;
+				try {
+					modelRef = await this.getOrCreateCustomEditorModel(modelType, resource, viewType, cancellation);
+				} catch (error) {
+					onUnexpectedError(error);
+					webviewInput.webview.html = MainThreadWebviews.getWebviewResolvedFailedContent(viewType);
+					return;
+				}
+
 				if (cancellation.isCancellationRequested) {
 					modelRef.dispose();
 					return;
@@ -362,7 +370,8 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 					await this._proxy.$resolveWebviewEditor(resource, handle, viewType, webviewInput.getTitle(), editorGroupToViewColumn(this._editorGroupService, webviewInput.group || 0), webviewInput.webview.options, cancellation);
 				} catch (error) {
 					onUnexpectedError(error);
-					webviewInput.webview.html = MainThreadWebviews.getDeserializationFailedContents(viewType);
+					webviewInput.webview.html = MainThreadWebviews.getWebviewResolvedFailedContent(viewType);
+					modelRef.dispose();
 					return;
 				}
 			}
@@ -522,14 +531,14 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		return this._webviewInputs.getInputForHandle(handle);
 	}
 
-	private static getDeserializationFailedContents(viewType: string) {
+	private static getWebviewResolvedFailedContent(viewType: string) {
 		return `<!DOCTYPE html>
 		<html>
 			<head>
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
 				<meta http-equiv="Content-Security-Policy" content="default-src 'none';">
 			</head>
-			<body>${localize('errorMessage', "An error occurred while restoring view:{0}", escape(viewType))}</body>
+			<body>${localize('errorMessage', "An error occurred while loading view: {0}", escape(viewType))}</body>
 		</html>`;
 	}
 }

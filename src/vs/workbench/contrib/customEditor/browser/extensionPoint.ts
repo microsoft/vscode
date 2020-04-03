@@ -16,11 +16,11 @@ namespace WebviewEditorContribution {
 	export const priority = 'priority';
 }
 
-interface IWebviewEditorsExtensionPoint {
+export interface IWebviewEditorsExtensionPoint {
 	readonly [WebviewEditorContribution.viewType]: string;
 	readonly [WebviewEditorContribution.displayName]: string;
 	readonly [WebviewEditorContribution.selector]?: readonly CustomEditorSelector[];
-	readonly [WebviewEditorContribution.priority]?: CustomEditorPriority;
+	readonly [WebviewEditorContribution.priority]?: string;
 }
 
 const webviewEditorsContribution: IJSONSchema = {
@@ -75,12 +75,10 @@ const webviewEditorsContribution: IJSONSchema = {
 				enum: [
 					CustomEditorPriority.default,
 					CustomEditorPriority.option,
-					CustomEditorPriority.builtin,
 				],
 				markdownEnumDescriptions: [
 					nls.localize('contributes.priority.default', 'Editor is automatically used for a resource if no other default custom editors are registered for it.'),
 					nls.localize('contributes.priority.option', 'Editor is not automatically used but can be selected by a user.'),
-					nls.localize('contributes.priority.builtin', 'Editor automatically used if no other `default` or `builtin` editors are registered for the resource.'),
 				],
 				default: 'default'
 			}

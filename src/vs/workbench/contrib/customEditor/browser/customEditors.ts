@@ -23,7 +23,7 @@ import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { EditorInput, EditorOptions, GroupIdentifier, IEditorInput, IEditorPane } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { webviewEditorsExtensionPoint } from 'vs/workbench/contrib/customEditor/browser/extensionPoint';
+import { webviewEditorsExtensionPoint, IWebviewEditorsExtensionPoint } from 'vs/workbench/contrib/customEditor/browser/extensionPoint';
 import { CONTEXT_CUSTOM_EDITORS, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CustomEditorInfo, CustomEditorInfoCollection, CustomEditorPriority, CustomEditorSelector, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { CustomEditorModelManager } from 'vs/workbench/contrib/customEditor/common/customEditorModelManager';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
@@ -31,6 +31,7 @@ import { IWebviewService, webviewHasOwnEditFunctionsContext } from 'vs/workbench
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
 import { CustomEditorInput } from './customEditorInput';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 export const defaultEditorId = 'default';
 
@@ -59,7 +60,7 @@ export class CustomEditorInfoStore extends Disposable {
 						id: webviewEditorContribution.viewType,
 						displayName: webviewEditorContribution.displayName,
 						selector: webviewEditorContribution.selector || [],
-						priority: webviewEditorContribution.priority || CustomEditorPriority.default,
+						priority: getPriorityFromContribution(webviewEditorContribution, extension.description),
 					}));
 				}
 			}
@@ -569,9 +570,29 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 	}
 }
 
+function getPriorityFromContribution(
+	contribution: IWebviewEditorsExtensionPoint,
+	extension: IExtensionDescription,
+): CustomEditorPriority {
+	switch (contribution.priority) {
+		case CustomEditorPriority.default:
+		case CustomEditorPriority.option:
+			return contribution.priority;
+
+		case CustomEditorPriority.builtin:
+			// Builtin is only valid for builtin extensions
+			return extension.isBuiltin ? CustomEditorPriority.builtin : CustomEditorPriority.default;
+
+		default:
+			return CustomEditorPriority.default;
+	}
+}
+
 registerThemingParticipant((theme, collector) => {
 	const shadow = theme.getColor(colorRegistry.scrollbarShadow);
 	if (shadow) {
 		collector.addRule(`.webview.modified { box-shadow: -6px 0 5px -5px ${shadow}; }`);
 	}
 });
+
+
