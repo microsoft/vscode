@@ -43,6 +43,7 @@ import { CellViewModel, IModelDecorationsChangeAccessor, INotebookEditorViewStat
 import { CellKind, CellUri, IOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 
 const $ = DOM.$;
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
@@ -238,6 +239,10 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		return this.control;
 	}
 
+	getInnerWebview(): Webview | undefined {
+		return this.webview?.webview;
+	}
+
 	onHide() {
 		this.editorFocus?.set(false);
 		if (this.webview) {
@@ -341,14 +346,6 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		const viewState = this.loadTextEditorViewState(input);
 		this.notebookViewModel.restoreEditorViewState(viewState);
 
-		if (viewState?.scrollPosition !== undefined) {
-			this.list!.scrollTop = viewState!.scrollPosition.top;
-			this.list!.scrollLeft = viewState!.scrollPosition.left;
-		} else {
-			this.list!.scrollTop = 0;
-			this.list!.scrollLeft = 0;
-		}
-
 		this.localStore.add(this.eventDispatcher.onDidChangeMetadata((e) => {
 			this.editorEditable?.set(e.source.editable);
 		}));
@@ -417,6 +414,14 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 		this.list?.splice(0, 0, this.notebookViewModel!.viewCells as CellViewModel[]);
 		this.list?.layout();
+
+		if (viewState?.scrollPosition !== undefined) {
+			this.list!.scrollTop = viewState!.scrollPosition.top;
+			this.list!.scrollLeft = viewState!.scrollPosition.left;
+		} else {
+			this.list!.scrollTop = 0;
+			this.list!.scrollLeft = 0;
+		}
 	}
 
 	private saveTextEditorViewState(input: NotebookEditorInput): void {
@@ -424,6 +429,17 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			const state = this.notebookViewModel.saveEditorViewState();
 			if (this.list) {
 				state.scrollPosition = { left: this.list.scrollLeft, top: this.list.scrollTop };
+				let cellHeights: { [key: number]: number } = {};
+				for (let i = 0; i < this.list.length; i++) {
+					const elm = this.list.element(i)!;
+					if (elm.cellKind === CellKind.Code) {
+						cellHeights[i] = elm.layoutInfo.totalHeight;
+					} else {
+						cellHeights[i] = 0;
+					}
+				}
+
+				state.cellTotalHeights = cellHeights;
 			}
 
 			this.editorMemento.saveEditorState(this.group, input.resource, state);

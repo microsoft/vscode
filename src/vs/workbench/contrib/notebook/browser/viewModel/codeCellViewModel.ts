@@ -13,6 +13,7 @@ import { CellEditState, ICellViewModel, CellFindMatch, CodeCellLayoutChangeEvent
 import { CellKind, ICell, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { BaseCellViewModel } from './baseCellViewModel';
 import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 
 export class CodeCellViewModel extends BaseCellViewModel implements ICellViewModel {
 	cellKind: CellKind.Code = CellKind.Code;
@@ -135,6 +136,22 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		this._onDidChangeLayout.fire(state);
 	}
 
+	restoreEditorViewState(editorViewStates: editorCommon.ICodeEditorViewState | null, totalHeight?: number) {
+		super.restoreEditorViewState(editorViewStates);
+		if (totalHeight !== undefined) {
+			this._layoutInfo = {
+				fontInfo: this._layoutInfo.fontInfo,
+				editorHeight: this._layoutInfo.editorHeight,
+				editorWidth: this._layoutInfo.editorWidth,
+				outputContainerOffset: this._layoutInfo.outputContainerOffset,
+				outputTotalHeight: this._layoutInfo.outputTotalHeight,
+				totalHeight: totalHeight,
+				indicatorHeight: this._layoutInfo.indicatorHeight,
+				bottomToolbarOffset: this._layoutInfo.bottomToolbarOffset
+			};
+		}
+	}
+
 	hasDynamicHeight() {
 		if (this.selfSizeMonitoring) {
 			// if there is an output rendered in the webview, it should always be false
@@ -153,7 +170,11 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	}
 
 	getHeight(lineHeight: number) {
-		return EDITOR_TOOLBAR_HEIGHT + EDITOR_TOP_MARGIN + this.lineCount * lineHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING + BOTTOM_CELL_TOOLBAR_HEIGHT;
+		if (this._layoutInfo.totalHeight === 0) {
+			return EDITOR_TOOLBAR_HEIGHT + EDITOR_TOP_MARGIN + this.lineCount * lineHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING + BOTTOM_CELL_TOOLBAR_HEIGHT;
+		} else {
+			return this._layoutInfo.totalHeight;
+		}
 	}
 
 	save() {

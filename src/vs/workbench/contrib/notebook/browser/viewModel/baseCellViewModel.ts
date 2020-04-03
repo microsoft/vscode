@@ -204,7 +204,7 @@ export abstract class BaseCellViewModel extends Disposable implements ICellViewM
 		return this._editorViewStates;
 	}
 
-	restoreEditorViewState(editorViewStates: editorCommon.ICodeEditorViewState | null) {
+	restoreEditorViewState(editorViewStates: editorCommon.ICodeEditorViewState | null, totalHeight?: number) {
 		this._editorViewStates = editorViewStates;
 	}
 
