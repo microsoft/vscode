@@ -13,6 +13,7 @@ import * as iconv from 'iconv-lite-umd';
 import * as filetype from 'file-type';
 import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter } from './util';
 import { CancellationToken, Progress, Uri, window, workspace } from 'vscode';
+import * as nls from 'vscode-nls';
 import { URI } from 'vscode-uri';
 import { detectEncoding } from './encoding';
 import { Ref, RefType, Branch, Remote, GitErrorCodes, LogOptions, Change, Status, CommitOptions, BranchQuery } from './api/git';
@@ -22,6 +23,7 @@ import { StringDecoder } from 'string_decoder';
 // https://github.com/microsoft/vscode/issues/65693
 const MAX_CLI_LENGTH = 30000;
 const isWindows = process.platform === 'win32';
+const localize = nls.loadMessageBundle();
 
 export interface IGit {
 	path: string;
@@ -316,7 +318,12 @@ class SshAgent {
 	}
 
 	async start(): Promise<void> {
-		const sshAgentProcess = cp.spawn(this.getCommand('ssh-agent'), ['-s']);
+		const sshAgentCommand = await this.getCommand('ssh-agent');
+		if (!sshAgentCommand) {
+			return;
+		}
+
+		const sshAgentProcess = cp.spawn(sshAgentCommand, ['-s']);
 		const sshAgentResult = await exec(sshAgentProcess);
 		sshAgentResult.stdout.toString().split('\n')
 			.forEach(outputLine => {
@@ -333,8 +340,13 @@ class SshAgent {
 	}
 
 	async addKey(privateKeyPath: string): Promise<boolean> {
+		const sshAddCommand = await this.getCommand('ssh-add');
+		if (!sshAddCommand) {
+			return false;
+		}
+
+		const sshAddProcess = cp.spawn(sshAddCommand, [privateKeyPath], { env: this.env });
 		let success = false;
-		const sshAddProcess = cp.spawn(this.getCommand('ssh-add'), [privateKeyPath], { env: this.env });
 
 		sshAddProcess.stderr.on('data', data => {
 			const message = data.toString();
@@ -362,11 +374,24 @@ class SshAgent {
 		return success;
 	}
 
-	private getCommand(commandName: string): string {
+	private async getCommand(commandName: string): Promise<string> {
 		const gitConfig = workspace.getConfiguration('git');
-		const sshAgentDirectory = gitConfig.get<string>('sshAgentDirectory') || 'C:\\Program Files\\Git\\usr\\bin';
+		let sshAgentDirectory = gitConfig.get<string>('sshAgentDirectory');
 
-		return path.join(sshAgentDirectory, commandName);
+		if (!sshAgentDirectory && process.platform === 'win32') {
+			sshAgentDirectory = 'C:\\Program Files\\Git\\usr\\bin';
+		}
+
+		const command = sshAgentDirectory ? path.join(sshAgentDirectory, commandName) : commandName;
+
+		return new Promise<string>(c => which(command, (err, path) => {
+			if (err) {
+				window.showErrorMessage(localize('failed to find command', "Failed to find command '{0}'", commandName));
+				return c();
+			} else {
+				return c(path);
+			}
+		}));
 	}
 }
 
