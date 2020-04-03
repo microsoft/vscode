@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ColorIdentifier, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { attachStyler, IColorMapping, attachButtonStyler, attachLinkStyler, attachProgressBarStyler } from 'vs/platform/theme/common/styler';
-import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_FOREGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND, SIDE_BAR_SECTION_HEADER_BORDER, PANEL_BACKGROUND, SIDE_BAR_BACKGROUND, EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
+import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_FOREGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND, SIDE_BAR_SECTION_HEADER_BORDER, PANEL_BACKGROUND, SIDE_BAR_BACKGROUND, EDITOR_DRAG_AND_DROP_BACKGROUND, PANEL_BORDER } from 'vs/workbench/common/theme';
 import { append, $, trackFocus, toggleClass, EventType, isAncestor, Dimension, addDisposableListener, removeClass, addClass } from 'vs/base/browser/dom';
 import { IDisposable, combinedDisposable, dispose, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { firstIndex } from 'vs/base/common/arrays';
@@ -55,6 +55,7 @@ export interface IPaneColors extends IColorMapping {
 	headerForeground?: ColorIdentifier;
 	headerBackground?: ColorIdentifier;
 	headerBorder?: ColorIdentifier;
+	leftBorder?: ColorIdentifier;
 }
 
 export interface IViewPaneOptions extends IPaneOptions {
@@ -1171,6 +1172,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			headerForeground: SIDE_BAR_SECTION_HEADER_FOREGROUND,
 			headerBackground: SIDE_BAR_SECTION_HEADER_BACKGROUND,
 			headerBorder: SIDE_BAR_SECTION_HEADER_BORDER,
+			leftBorder: PANEL_BORDER,
 			dropBackground: SIDE_BAR_DRAG_AND_DROP_BACKGROUND
 		}, pane);
 		const disposable = combinedDisposable(onDidFocus, onDidChangeTitleArea, paneStyler, onDidChange, onDidChangeVisibility);
