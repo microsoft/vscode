@@ -339,7 +339,7 @@ class SshAgent {
 			const passphraseMatch = data.toString().match(/^Enter passphrase for .*: $/);
 
 			if (passphraseMatch) {
-				window.showInputBox({ prompt: data.toString() }).then(password => {
+				window.showInputBox({ password: true, prompt: data.toString() }).then(password => {
 					sshAddProcess.stdin.write(`${password || ''}\n`);
 				});
 			}
@@ -401,7 +401,7 @@ export class Git {
 
 	readonly path: string;
 	private env: any;
-	private sshAgent: SshAgent;
+	readonly sshAgent = new SshAgent;
 
 	private _onOutput = new EventEmitter();
 	get onOutput(): EventEmitter { return this._onOutput; }
@@ -409,16 +409,10 @@ export class Git {
 	constructor(options: IGitOptions) {
 		this.path = options.gitPath;
 		this.env = options.env || {};
-		this.sshAgent = new SshAgent;
-		this.sshAgent.start();
 	}
 
 	open(repository: string, dotGit: string): Repository {
 		return new Repository(this, repository, dotGit);
-	}
-
-	addSshKey(privateKeyPath: string): void {
-		this.sshAgent.addKey(privateKeyPath);
 	}
 
 	async init(repository: string): Promise<void> {

@@ -792,12 +792,6 @@ export class Repository implements Disposable {
 		const onDidChangeCountBadge = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.countBadge', root));
 		onDidChangeCountBadge(this.setCountBadge, this, this.disposables);
 		this.setCountBadge();
-
-		const gitConfig = workspace.getConfiguration('git');
-		const sshPrivateKeyPath = gitConfig.get<string>('sshPrivateKeyPath');
-		if (sshPrivateKeyPath) {
-			this.repository.git.addSshKey(sshPrivateKeyPath);
-		}
 	}
 
 	validateInput(text: string, position: number): SourceControlInputBoxValidation | undefined {

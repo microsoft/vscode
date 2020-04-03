@@ -271,6 +271,12 @@ export class Model implements IRemoteSourceProviderRegistry, IPushErrorHandlerRe
 				return;
 			}
 
+			const sshPrivateKeyPath = workspace
+				.getConfiguration('git', Uri.file(repositoryRoot))
+				.get<string>('sshPrivateKeyPath');
+			if (sshPrivateKeyPath) {
+				await this.git.sshAgent.addKey(sshPrivateKeyPath);
+			}
 			const dotGit = await this.git.getRepositoryDotGit(repositoryRoot);
 			const repository = new Repository(this.git.open(repositoryRoot, dotGit), this, this, this.globalState, this.outputChannel);
 
