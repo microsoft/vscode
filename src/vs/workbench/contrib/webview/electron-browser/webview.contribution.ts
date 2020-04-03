@@ -37,4 +37,3 @@ function registerWebViewCommands(editorId: string): void {
 }
 
 registerWebViewCommands(WebviewEditor.ID);
-registerWebViewCommands('workbench.editor.notebook');
