@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Database, Statement } from 'vscode-sqlite3';
+import { Database, Statement, OPEN_READONLY } from 'vscode-sqlite3';
 import { Event } from 'vs/base/common/event';
 import { timeout } from 'vs/base/common/async';
 import { mapToString, setToString } from 'vs/base/common/map';
@@ -20,6 +20,7 @@ interface IDatabaseConnection {
 }
 
 export interface ISQLiteStorageDatabaseOptions {
+	readonly intent?: number;
 	readonly logging?: ISQLiteStorageDatabaseLoggingOptions;
 }
 
@@ -296,26 +297,39 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 	private doConnect(path: string): Promise<IDatabaseConnection> {
 		return new Promise((resolve, reject) => {
 			import('vscode-sqlite3').then(sqlite3 => {
-				const connection: IDatabaseConnection = {
-					db: new (this.logger.isTracing ? sqlite3.verbose().Database : sqlite3.Database)(path, error => {
-						if (error) {
-							return connection.db ? connection.db.close(() => reject(error)) : reject(error);
-						}
+				let connection: IDatabaseConnection;
+				if (this.options && this.options.intent && (this.options.intent & OPEN_READONLY) === OPEN_READONLY) {
+					connection = {
+						db: new (this.logger.isTracing ? sqlite3.verbose().Database : sqlite3.Database)(path, this.options.intent, error => {
+							if (error) {
+								return connection.db ? connection.db.close(() => reject(error)) : reject(error);
+							}
+							resolve(connection);
+						}),
+						isInMemory: path === SQLiteStorageDatabase.IN_MEMORY_PATH
+					};
+				} else {
+					connection = {
+						db: new (this.logger.isTracing ? sqlite3.verbose().Database : sqlite3.Database)(path, error => {
+							if (error) {
+								return connection.db ? connection.db.close(() => reject(error)) : reject(error);
+							}
 
-						// The following exec() statement serves two purposes:
-						// - create the DB if it does not exist yet
-						// - validate that the DB is not corrupt (the open() call does not throw otherwise)
-						return this.exec(connection, [
-							'PRAGMA user_version = 1;',
-							'CREATE TABLE IF NOT EXISTS ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB)'
-						].join('')).then(() => {
-							return resolve(connection);
-						}, error => {
-							return connection.db.close(() => reject(error));
-						});
-					}),
-					isInMemory: path === SQLiteStorageDatabase.IN_MEMORY_PATH
-				};
+							// The following exec() statement serves two purposes:
+							// - create the DB if it does not exist yet
+							// - validate that the DB is not corrupt (the open() call does not throw otherwise)
+							return this.exec(connection, [
+								'PRAGMA user_version = 1;',
+								'CREATE TABLE IF NOT EXISTS ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB)'
+							].join('')).then(() => {
+								return resolve(connection);
+							}, error => {
+								return connection.db.close(() => reject(error));
+							});
+						}),
+						isInMemory: path === SQLiteStorageDatabase.IN_MEMORY_PATH
+					};
+				}
 
 				// Errors
 				connection.db.on('error', error => this.handleSQLiteError(connection, `[storage ${this.name}] Error (event): ${error}`));

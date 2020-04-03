@@ -8,6 +8,7 @@ import product from 'vs/platform/product/common/product';
 import * as path from 'vs/base/common/path';
 import * as semver from 'semver-umd';
 
+import { OPEN_READONLY } from 'vscode-sqlite3';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -338,7 +339,7 @@ export async function main(argv: ParsedArgs): Promise<void> {
 		.map((path): undefined | Promise<void> => path ? mkdirp(path) : undefined));
 
 	// Storage
-	const storageDatabase = new SQLiteStorageDatabase(path.join(environmentService.globalStorageHome, globalStorageName));
+	const storageDatabase = new SQLiteStorageDatabase(path.join(environmentService.globalStorageHome, globalStorageName), { intent: OPEN_READONLY });
 	const storageService = new NativeStorageService(storageDatabase, logService, environmentService);
 	await storageService.initialize();
 	services.set(IStorageService, storageService);
