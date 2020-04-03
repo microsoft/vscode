@@ -941,6 +941,15 @@ export class TokensStore2 {
 
 			// after removal, this piece contains the range
 			const [a, b] = piece.split(range);
+			if (a.isEmpty()) {
+				// this piece is actually after the range
+				insertPosition = insertPosition || { index: i };
+				continue;
+			}
+			if (b.isEmpty()) {
+				// this piece is actually before the range
+				continue;
+			}
 			this._pieces.splice(i, 1, a, b);
 			i++;
 			len++;
@@ -955,7 +964,7 @@ export class TokensStore2 {
 		}
 
 		// console.log(`I HAVE ${this._pieces.length} pieces`);
-		// console.log(`${this._pieces.map(p => p.toString()).join(', ')}`);
+		// console.log(`${this._pieces.map(p => p.toString()).join('\n')}`);
 
 		return range;
 	}
