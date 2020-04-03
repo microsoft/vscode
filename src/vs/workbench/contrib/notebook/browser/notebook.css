@@ -30,6 +30,11 @@
 	position: relative;
 }
 
+.monaco-workbench .part.editor > .content .notebook-editor .cell-list-container .webview-cover {
+	position: absolute;
+	top: 0;
+}
+
 .monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell {
 	display: flex;
 }

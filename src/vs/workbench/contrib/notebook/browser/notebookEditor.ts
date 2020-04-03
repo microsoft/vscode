@@ -5,7 +5,7 @@
 
 import { getZoomLevel } from 'vs/base/browser/browser';
 import * as DOM from 'vs/base/browser/dom';
-import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { IMouseWheelEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Color, RGBA } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -92,6 +92,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	private rootElement!: HTMLElement;
 	private body!: HTMLElement;
 	private webview: BackLayerWebView | null = null;
+	private webviewTransparentCover: HTMLElement | null = null;
 	private list: NotebookCellList | undefined;
 	private control: ICompositeCodeEditor | undefined;
 	private renderedEditors: Map<ICellViewModel, ICodeEditor | undefined> = new Map();
@@ -232,7 +233,26 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			}
 		}));
 		this.list.rowsContainer.appendChild(this.webview.element);
+
 		this._register(this.list);
+
+		// transparent cover
+		this.webviewTransparentCover = DOM.append(this.list.rowsContainer, $('.webview-cover'));
+		this.webviewTransparentCover.style.display = 'none';
+
+		this._register(DOM.addStandardDisposableGenericMouseDownListner(this.rootElement, (e: StandardMouseEvent) => {
+			if (DOM.hasClass(e.target, 'slider') && this.webviewTransparentCover) {
+				this.webviewTransparentCover.style.display = 'block';
+			}
+		}));
+
+		this._register(DOM.addStandardDisposableGenericMouseUpListner(this.rootElement, (e: StandardMouseEvent) => {
+			if (this.webviewTransparentCover) {
+				// no matter when
+				this.webviewTransparentCover.style.display = 'none';
+			}
+		}));
+
 	}
 
 	getControl() {
@@ -384,6 +404,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 		this.localStore.add(this.list!.onWillScroll(e => {
 			this.webview!.updateViewScrollTop(-e.scrollTop, []);
+			this.webviewTransparentCover!.style.top = `${e.scrollTop}px`;
 		}));
 
 		this.localStore.add(this.list!.onDidChangeContentHeight(() => {
@@ -461,6 +482,12 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		DOM.size(this.body, dimension.width, dimension.height);
 		this.list?.updateOptions({ additionalScrollHeight: dimension.height });
 		this.list?.layout(dimension.height, dimension.width);
+
+		if (this.webviewTransparentCover) {
+			this.webviewTransparentCover.style.height = `${dimension.height}px`;
+			this.webviewTransparentCover.style.width = `${dimension.width}px`;
+		}
+
 		this.eventDispatcher?.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
 	}
 

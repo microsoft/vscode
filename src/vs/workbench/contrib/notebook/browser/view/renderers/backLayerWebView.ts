@@ -198,7 +198,6 @@ export class BackLayerWebView extends Disposable {
 				return false;
 			}
 
-			console.log(node, node.parentNode, node.scrollTop, node.scrollHeight, node.clientHeight);
 			if (event.deltaY < 0 && node.scrollTop > 0) {
 				return true;
 			}
