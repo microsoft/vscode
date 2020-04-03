@@ -762,7 +762,11 @@ export class TimelinePane extends ViewPane {
 		const changed = super.setExpanded(expanded);
 
 		if (changed && this.isBodyVisible()) {
-			this.onActiveEditorChanged();
+			if (!this.followActiveEditor) {
+				this.setUriCore(this.uri, true);
+			} else {
+				this.onActiveEditorChanged();
+			}
 		}
 
 		return changed;
