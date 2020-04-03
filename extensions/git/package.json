@@ -1782,6 +1782,22 @@
         },
         "git.githubAuthentication": {
           "deprecationMessage": "This setting is now deprecated, please use `github.gitAuthentication` instead."
+        },
+        "git.sshPrivateKeyPath": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "markdownDescription": "%config.sshPrivateKeyPath%",
+          "default": null
+        },
+        "git.sshAgentDirectory": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "markdownDescription": "%config.sshAgentDirectory%",
+          "default": null
         }
       }
     },
