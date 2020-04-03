@@ -2051,6 +2051,8 @@ export class CommandCenter {
 		}
 
 		await repository.addRemote(name, url);
+		
+		await repository.fetchDefault();
 
 		return name;
 	}
