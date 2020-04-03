@@ -546,7 +546,7 @@ class ViewPaneDropOverlay extends Themable {
 
 	constructor(
 		private paneElement: HTMLElement,
-		private orientation: Orientation,
+		private orientation: Orientation | undefined,
 		protected themeService: IThemeService
 	) {
 		super(themeService);
@@ -563,6 +563,7 @@ class ViewPaneDropOverlay extends Themable {
 		// Container
 		this.container = document.createElement('div');
 		this.container.id = ViewPaneDropOverlay.OVERLAY_ID;
+		this.container.style.top = '0px';
 
 		// Parent
 		this.paneElement.appendChild(this.container);
@@ -653,7 +654,7 @@ class ViewPaneDropOverlay extends Themable {
 			} else if (mousePosY >= splitHeightThreshold) {
 				dropDirection = DropDirection.DOWN;
 			}
-		} else {
+		} else if (this.orientation === Orientation.HORIZONTAL) {
 			if (mousePosX < splitWidthThreshold) {
 				dropDirection = DropDirection.LEFT;
 			} else if (mousePosX >= splitWidthThreshold) {
@@ -816,6 +817,71 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		this.paneview = this._register(new PaneView(parent, this.options));
 		this._register(this.paneview.onDidDrop(({ from, to }) => this.movePane(from as ViewPane, to as ViewPane)));
 		this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, (e: MouseEvent) => this.showContextMenu(new StandardMouseEvent(e))));
+
+		let overlay: ViewPaneDropOverlay | undefined;
+		this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(parent, {
+			onDragEnter: (e) => {
+				if (!overlay && this.panes.length === 0) {
+					const dropData = e.dragAndDropData.getData();
+					if (dropData.type === 'view') {
+
+						const oldViewContainer = this.viewDescriptorService.getViewContainer(dropData.id);
+						const viewDescriptor = this.viewDescriptorService.getViewDescriptor(dropData.id);
+
+						if (oldViewContainer !== this.viewContainer && (!viewDescriptor || !viewDescriptor.canMoveView)) {
+							return;
+						}
+
+						overlay = new ViewPaneDropOverlay(parent, undefined, this.themeService);
+					}
+
+					if (dropData.type === 'composite' && dropData.id !== this.viewContainer.id) {
+						const viewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
+
+						const container = viewContainerRegistry.get(dropData.id)!;
+						const viewsToMove = this.viewDescriptorService.getViewDescriptors(container).allViewDescriptors;
+
+						if (viewsToMove.length === 1 && viewsToMove[0].canMoveView) {
+							overlay = new ViewPaneDropOverlay(parent, undefined, this.themeService);
+						}
+					}
+
+				}
+			},
+			onDragLeave: (e) => {
+				overlay?.dispose();
+				overlay = undefined;
+			},
+			onDrop: (e) => {
+				if (overlay) {
+					const dropData = e.dragAndDropData.getData();
+
+					if (dropData.type === 'composite' && dropData.id !== this.viewContainer.id) {
+						const viewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
+
+						const container = viewContainerRegistry.get(dropData.id)!;
+						const viewsToMove = this.viewDescriptorService.getViewDescriptors(container).allViewDescriptors;
+
+						if (viewsToMove.length === 1 && viewsToMove[0].canMoveView) {
+							dropData.type = 'view';
+							dropData.id = viewsToMove[0].id;
+						}
+					}
+
+					if (dropData.type === 'view') {
+
+						const oldViewContainer = this.viewDescriptorService.getViewContainer(dropData.id);
+						const viewDescriptor = this.viewDescriptorService.getViewDescriptor(dropData.id);
+						if (oldViewContainer !== this.viewContainer && viewDescriptor && viewDescriptor.canMoveView) {
+							this.viewDescriptorService.moveViewsToContainer([viewDescriptor], this.viewContainer);
+						}
+					}
+				}
+
+				overlay?.dispose();
+				overlay = undefined;
+			}
+		}));
 
 		this._register(this.onDidSashChange(() => this.saveViewSizes()));
 		this.viewsModel.onDidAdd(added => this.onDidAddViewDescriptors(added));
