@@ -705,6 +705,11 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	getVisibleRanges(): Range[];
 
 	/**
+	 * @internal
+	 */
+	getVisibleRangesPlusViewportAboveBelow(): Range[];
+
+	/**
 	 * Get the view zones.
 	 * @internal
 	 */
