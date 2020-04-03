@@ -10,7 +10,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { TERMINAL_VIEW_ID, ITerminalConfigHelper, TitleEventSource, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
+import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IQuickInputService, IPickOptions, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -33,6 +33,8 @@ import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/brows
 import { ToggleViewAction } from 'vs/workbench/browser/actions/layoutActions';
 import { IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { addClass } from 'vs/base/browser/dom';
+import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
 
 async function getCwdForSplit(configHelper: ITerminalConfigHelper, instance: ITerminalInstance, folders?: IWorkspaceFolder[], commandService?: ICommandService): Promise<string | URI | undefined> {
 	switch (configHelper.config.splitCwd) {
@@ -720,7 +722,7 @@ export class SwitchTerminalActionViewItem extends SelectActionViewItem {
 	constructor(
 		action: IAction,
 		@ITerminalService private readonly terminalService: ITerminalService,
-		@IThemeService themeService: IThemeService,
+		@IThemeService private readonly themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService
 	) {
 		super(null, action, terminalService.getTabLabels().map(label => <ISelectOptionItem>{ text: label }), terminalService.activeTabIndex, contextViewService, { ariaLabel: nls.localize('terminals', 'Open Terminals.') });
@@ -730,6 +732,14 @@ export class SwitchTerminalActionViewItem extends SelectActionViewItem {
 		this._register(terminalService.onInstanceTitleChanged(this._updateItems, this));
 		this._register(terminalService.onTabDisposed(this._updateItems, this));
 		this._register(attachSelectBoxStyler(this.selectBox, themeService));
+	}
+
+	render(container: HTMLElement): void {
+		super.render(container);
+		addClass(container, 'switch-terminal');
+		this._register(attachStylerCallback(this.themeService, { selectBorder }, colors => {
+			container.style.border = colors.selectBorder ? `1px solid ${colors.selectBorder}` : '';
+		}));
 	}
 
 	private _updateItems(): void {
