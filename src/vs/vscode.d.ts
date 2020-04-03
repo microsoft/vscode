@@ -7715,13 +7715,7 @@ declare module 'vscode' {
 		 *
 		 * @return Disposable that unregisters the provider.
 		 */
-		export function registerCustomEditorProvider(
-			viewType: string,
-			provider: CustomTextEditorProvider,
-			options?: {
-				readonly webviewOptions?: WebviewPanelOptions;
-			}
-		): Disposable;
+		export function registerCustomEditorProvider(viewType: string, provider: CustomTextEditorProvider, options?: { readonly webviewOptions?: WebviewPanelOptions; }): Disposable;
 	}
 
 	/**
