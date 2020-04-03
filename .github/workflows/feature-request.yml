@@ -15,7 +15,7 @@ jobs:
         uses: actions/checkout@v2
         with:
           repository: 'JacksonKearl/vscode-triage-github-actions'
-          ref: master
+          ref: v20
       - name: Run Feature Request Manager
         if: github.event_name != 'issues' || contains(github.event.issue.labels.*.name, 'feature-request')
         uses: ./feature-request
