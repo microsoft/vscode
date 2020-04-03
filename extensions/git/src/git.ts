@@ -375,22 +375,20 @@ class SshAgent {
 
 	private async getCommand(commandName: string): Promise<string> {
 		const gitConfig = workspace.getConfiguration('git');
-		let sshAgentDirectory = gitConfig.get<string>('sshAgentDirectory');
-
-		if (!sshAgentDirectory && process.platform === 'win32') {
-			sshAgentDirectory = 'C:\\Program Files\\Git\\usr\\bin';
-		}
+		const sshAgentDirectory = gitConfig.get<string>('sshAgentDirectory') ||
+			isWindows ? 'C:\\Program Files\\Git\\usr\\bin' : '/usr/bin';
 
 		const command = sshAgentDirectory ? path.join(sshAgentDirectory, commandName) : commandName;
 
-		return new Promise<string>(c => which(command, (err, path) => {
-			if (err) {
-				window.showErrorMessage(localize('failed to find command', "Failed to find command '{0}'", commandName));
-				return c();
-			} else {
-				return c(path);
-			}
-		}));
+		return (new Promise<string>((c, e) => which(command, (err, path) => err ? e(err) : c(path))))
+			.then(undefined, () => new Promise<string>(c => which(commandName, (err, path) => {
+				if (err) {
+					window.showErrorMessage(localize('failed to find command', "Failed to find command '{0}'", commandName));
+					return c();
+				} else {
+					return c(path);
+				}
+			})));
 	}
 }
 
