@@ -35,9 +35,12 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 
 export const defaultEditorId = 'default';
 
+const builtinProviderDisplayName = nls.localize('builtinProviderDisplayName', "Built-in");
+
 const defaultEditorInfo = new CustomEditorInfo({
 	id: defaultEditorId,
-	displayName: nls.localize('promptOpenWith.defaultEditor', "VS Code's standard text editor"),
+	displayName: nls.localize('promptOpenWith.defaultEditor.displayName', "Text Editor"),
+	providerDisplayName: builtinProviderDisplayName,
 	selector: [
 		{ filenamePattern: '*' }
 	],
@@ -59,6 +62,7 @@ export class CustomEditorInfoStore extends Disposable {
 					this.add(new CustomEditorInfo({
 						id: webviewEditorContribution.viewType,
 						displayName: webviewEditorContribution.displayName,
+						providerDisplayName: extension.description.isBuiltin ? builtinProviderDisplayName : extension.description.displayName || extension.description.identifier.value,
 						selector: webviewEditorContribution.selector || [],
 						priority: getPriorityFromContribution(webviewEditorContribution, extension.description),
 					}));
@@ -193,6 +197,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 			description: editorDescriptor.id === currentlyOpenedEditorType
 				? nls.localize('openWithCurrentlyActive', "Currently Active")
 				: undefined,
+			detail: editorDescriptor.providerDisplayName,
 			buttons: resourceExt ? [{
 				iconClass: 'codicon-settings-gear',
 				tooltip: nls.localize('promptOpenWith.setDefaultTooltip', "Set as default editor for '{0}' files", resourceExt)

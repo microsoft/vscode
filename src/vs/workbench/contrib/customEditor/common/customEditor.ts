@@ -76,17 +76,20 @@ export class CustomEditorInfo {
 
 	public readonly id: string;
 	public readonly displayName: string;
+	public readonly providerDisplayName: string | undefined;
 	public readonly priority: CustomEditorPriority;
 	public readonly selector: readonly CustomEditorSelector[];
 
 	constructor(descriptor: {
 		readonly id: string;
 		readonly displayName: string;
+		readonly providerDisplayName: string | undefined;
 		readonly priority: CustomEditorPriority;
 		readonly selector: readonly CustomEditorSelector[];
 	}) {
 		this.id = descriptor.id;
 		this.displayName = descriptor.displayName;
+		this.providerDisplayName = descriptor.providerDisplayName;
 		this.priority = descriptor.priority;
 		this.selector = descriptor.selector;
 	}
