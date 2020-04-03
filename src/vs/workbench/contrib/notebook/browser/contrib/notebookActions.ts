@@ -411,7 +411,7 @@ registerAction2(class extends Action2 {
 	}
 });
 
-function getActiveNotebookEditor(editorService: IEditorService): INotebookEditor | undefined {
+export function getActiveNotebookEditor(editorService: IEditorService): INotebookEditor | undefined {
 	// TODO can `isNotebookEditor` be on INotebookEditor to avoid a circular dependency?
 	const activeEditorPane = editorService.activeEditorPane as any | undefined;
 	return activeEditorPane?.isNotebookEditor ? activeEditorPane : undefined;
