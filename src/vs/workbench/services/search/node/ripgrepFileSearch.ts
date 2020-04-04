@@ -72,6 +72,7 @@ function getRgArgs(config: IFileQuery, folderQuery: IFolderQuery, includePattern
 	}
 
 	args.push('--no-config');
+	args.push('--text')
 	if (folderQuery.disregardGlobalIgnoreFiles) {
 		args.push('--no-ignore-global');
 	}
