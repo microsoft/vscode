@@ -146,6 +146,7 @@ interface IExtensionEditorTemplate {
 	icon: HTMLImageElement;
 	name: HTMLElement;
 	identifier: HTMLElement;
+	version: HTMLElement;
 	preview: HTMLElement;
 	builtin: HTMLElement;
 	license: HTMLElement;
@@ -215,6 +216,7 @@ export class ExtensionEditor extends BaseEditor {
 		const title = append(details, $('.title'));
 		const name = append(title, $('span.name.clickable', { title: localize('name', "Extension name") }));
 		const identifier = append(title, $('span.identifier', { title: localize('extension id', "Extension identifier") }));
+		const version = append(title, $('span.version', { title: localize('extension version', "Extension version") }));
 
 		const preview = append(title, $('span.preview', { title: localize('preview', "Preview") }));
 		preview.textContent = localize('preview', "Preview");
@@ -280,6 +282,7 @@ export class ExtensionEditor extends BaseEditor {
 			icon,
 			iconContainer,
 			identifier,
+			version,
 			ignoreActionbar,
 			installCount,
 			license,
@@ -335,6 +338,7 @@ export class ExtensionEditor extends BaseEditor {
 
 		template.name.textContent = extension.displayName;
 		template.identifier.textContent = extension.identifier.id;
+		template.version.textContent = extension.version;
 		template.preview.style.display = extension.preview ? 'inherit' : 'none';
 		template.builtin.style.display = extension.type === ExtensionType.System ? 'inherit' : 'none';
 

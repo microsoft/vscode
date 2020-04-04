@@ -73,7 +73,8 @@
 	white-space: nowrap;
 }
 
-.extension-editor > .header > .details > .title > .identifier {
+.extension-editor > .header > .details > .title > .identifier,
+.extension-editor > .header > .details > .title > .version {
 	margin-left: 10px;
 	font-size: 14px;
 	opacity: 0.6;
@@ -464,7 +465,8 @@
 	text-decoration: underline;
 }
 
-.extension-editor .subcontent .monaco-list-row .extension > .details > .header > .identifier {
+.extension-editor .subcontent .monaco-list-row .extension > .details > .header > .identifier,
+.extension-editor .subcontent .monaco-list-row .extension > .details > .header > .version {
 	font-size: 90%;
 	opacity: 0.6;
 	margin-left: 10px;
