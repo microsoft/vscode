@@ -448,6 +448,8 @@ function getRgArgs(query: TextSearchQuery, options: TextSearchOptions): string[]
 	}
 
 	args.push('--no-config');
+	args.push('--text');
+
 	if (!options.useGlobalIgnoreFiles) {
 		args.push('--no-ignore-global');
 	}
