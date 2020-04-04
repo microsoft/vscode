@@ -101,6 +101,7 @@ export class StatefullMarkdownCell extends Disposable {
 				}
 
 				const clientHeight = this.cellContainer.clientHeight;
+				this.viewCell.totalHeight = totalHeight + 32 + clientHeight;
 				notebookEditor.layoutNotebookCell(viewCell, totalHeight + 32 + clientHeight);
 				this.editor.focus();
 			} else {
@@ -109,6 +110,7 @@ export class StatefullMarkdownCell extends Disposable {
 					// switch from editing mode
 					this.editingContainer!.style.display = 'none';
 					const clientHeight = templateData.container.clientHeight;
+					this.viewCell.totalHeight = clientHeight;
 					notebookEditor.layoutNotebookCell(viewCell, clientHeight);
 				} else {
 					// first time, readonly mode
@@ -123,6 +125,7 @@ export class StatefullMarkdownCell extends Disposable {
 
 					this.localDisposables.add(markdownRenderer.onDidUpdateRender(() => {
 						const clientHeight = templateData.container.clientHeight;
+						this.viewCell.totalHeight = clientHeight;
 						notebookEditor.layoutNotebookCell(viewCell, clientHeight);
 					}));
 
@@ -162,7 +165,8 @@ export class StatefullMarkdownCell extends Disposable {
 				clientHeight = this.cellContainer.clientHeight;
 			}
 
-			this.notebookEditor.layoutNotebookCell(this.viewCell, this.editor!.getContentHeight() + 32 + clientHeight);
+			this.viewCell.totalHeight = this.editor!.getContentHeight() + 32 + clientHeight;
+			this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
 		}));
 
 		this.localDisposables.add(this.editor!.onDidContentSizeChange(e => {
@@ -176,7 +180,8 @@ export class StatefullMarkdownCell extends Disposable {
 					}
 				);
 				const clientHeight = this.cellContainer.clientHeight;
-				this.notebookEditor.layoutNotebookCell(this.viewCell, e.contentHeight + 32 + clientHeight);
+				this.viewCell.totalHeight = e.contentHeight + 32 + clientHeight;
+				this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
 			}
 		}));
 
@@ -219,7 +224,8 @@ export class StatefullMarkdownCell extends Disposable {
 			this.cellContainer.appendChild(renderedHTML);
 			this.localDisposables.add(markdownRenderer.onDidUpdateRender(() => {
 				const clientHeight = this.cellContainer.clientHeight;
-				this.notebookEditor.layoutNotebookCell(this.viewCell, clientHeight);
+				this.viewCell.totalHeight = clientHeight;
+				this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
 			}));
 		}
 	}
