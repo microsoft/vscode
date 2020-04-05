@@ -46,21 +46,23 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 		'properties': {
 			[customEditorsAssociationsKey]: {
 				type: 'array',
-				markdownDescription: nls.localize('editor.editorAssociations', "Configure which editor to use for a resource."),
+				markdownDescription: nls.localize('editor.editorAssociations', "Configure which editor to use for specific file types."),
 				items: {
 					type: 'object',
+					defaultSnippets: [{
+						body: {
+							'viewType': '$1',
+							'filenamePattern': '$2'
+						}
+					}],
 					properties: {
 						'viewType': {
 							type: 'string',
-							description: nls.localize('editor.editorAssociations.viewType', "Editor view type."),
-						},
-						'mime': {
-							type: 'string',
-							description: nls.localize('editor.editorAssociations.mime', "Mime type the editor should be used for. This is used for binary files."),
+							description: nls.localize('editor.editorAssociations.viewType', "The unique id of the editor to use."),
 						},
 						'filenamePattern': {
 							type: 'string',
-							description: nls.localize('editor.editorAssociations.filenamePattern', "Glob pattern the editor should be used for."),
+							description: nls.localize('editor.editorAssociations.filenamePattern', "Glob pattern specifying which files the editor should be used for."),
 						}
 					}
 				}
