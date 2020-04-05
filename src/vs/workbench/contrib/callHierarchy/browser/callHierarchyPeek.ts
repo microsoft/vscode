@@ -7,7 +7,7 @@ import 'vs/css!./media/callHierarchy';
 import * as peekView from 'vs/editor/contrib/peekView/peekView';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CallHierarchyDirection, CallHierarchyModel } from 'vs/workbench/contrib/callHierarchy/browser/callHierarchy';
+import { CallHierarchyDirection, CallHierarchyModel } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { WorkbenchAsyncDataTree, IWorkbenchAsyncDataTreeOptions } from 'vs/platform/list/browser/listService';
 import { FuzzyScore } from 'vs/base/common/filters';
 import * as callHTree from 'vs/workbench/contrib/callHierarchy/browser/callHierarchyTree';
@@ -24,7 +24,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationOptions, OverviewRulerLane } from 'vs/editor/common/model';
-import { registerThemingParticipant, themeColorFromId, IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, themeColorFromId, IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Action } from 'vs/base/common/actions';
 import { IActionBarOptions, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -50,10 +50,10 @@ class ChangeHierarchyDirectionAction extends Action {
 		const update = () => {
 			if (getDirection() === CallHierarchyDirection.CallsFrom) {
 				this.label = localize('toggle.from', "Show Incoming Calls");
-				this.class = 'calls-from';
+				this.class = 'codicon codicon-call-incoming';
 			} else {
 				this.label = localize('toggle.to', "Showing Outgoing Calls");
-				this.class = 'calls-to';
+				this.class = 'codicon codicon-call-outgoing';
 			}
 		};
 		update();
@@ -112,8 +112,8 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 		super(editor, { showFrame: true, showArrow: true, isResizeable: true, isAccessible: true });
 		this.create();
 		this._peekViewService.addExclusiveWidget(editor, this);
-		this._applyTheme(themeService.getTheme());
-		this._disposables.add(themeService.onThemeChange(this._applyTheme, this));
+		this._applyTheme(themeService.getColorTheme());
+		this._disposables.add(themeService.onDidColorThemeChange(this._applyTheme, this));
 		this._disposables.add(this._previewDisposable);
 	}
 
@@ -129,7 +129,7 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 		return this._direction;
 	}
 
-	private _applyTheme(theme: ITheme) {
+	private _applyTheme(theme: IColorTheme) {
 		const borderColor = theme.getColor(peekView.peekViewBorder) || Color.transparent;
 		this.style({
 			arrowColor: borderColor,

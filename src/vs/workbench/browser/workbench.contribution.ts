@@ -17,6 +17,16 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 	registry.registerConfiguration({
 		...workbenchConfigurationNodeBase,
 		'properties': {
+			'workbench.editor.titleScrollbarSizing': {
+				type: 'string',
+				enum: ['default', 'large'],
+				enumDescriptions: [
+					nls.localize('workbench.editor.titleScrollbarSizing.default', "The default size."),
+					nls.localize('workbench.editor.titleScrollbarSizing.large', "Increases the size, so it can be grabed more easily with the mouse")
+				],
+				description: nls.localize('tabScrollbarHeight', "Controls the height of the scrollbars used for tabs and breadcrumbs in the editor title area."),
+				default: 'default',
+			},
 			'workbench.editor.showTabs': {
 				'type': 'boolean',
 				'description': nls.localize('showEditorTabs', "Controls whether opened editors should show in tabs or not."),
@@ -41,6 +51,19 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 					comment: ['This is the description for a setting. Values surrounded by parenthesis are not to be translated.'],
 					key: 'tabDescription'
 				}, "Controls the format of the label for an editor."),
+			},
+			'workbench.editor.untitled.labelFormat': {
+				'type': 'string',
+				'enum': ['content', 'name'],
+				'enumDescriptions': [
+					nls.localize('workbench.editor.untitled.labelFormat.content', "The name of the untitled file is derived from the contents of its first line unless it has an associated file path. It will fallback to the name in case the line is empty or contains no word characters."),
+					nls.localize('workbench.editor.untitled.labelFormat.name', "The name of the untitled file is not derived from the contents of the file."),
+				],
+				'default': 'content',
+				'description': nls.localize({
+					comment: ['This is the description for a setting. Values surrounded by parenthesis are not to be translated.'],
+					key: 'untitledLabelFormat'
+				}, "Controls the format of the label for an untitled editor."),
 			},
 			'workbench.editor.tabCloseButton': {
 				'type': 'string',
@@ -75,7 +98,7 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 			},
 			'workbench.editor.showIcons': {
 				'type': 'boolean',
-				'description': nls.localize('showIcons', "Controls whether opened editors should show with an icon or not. This requires an icon theme to be enabled as well."),
+				'description': nls.localize('showIcons', "Controls whether opened editors should show with an icon or not. This requires an file icon theme to be enabled as well."),
 				'default': true
 			},
 			'workbench.editor.enablePreview': {
@@ -207,11 +230,6 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 				'type': 'boolean',
 				'default': false,
 				'description': nls.localize('viewVisibility', "Controls the visibility of view header actions. View header actions may either be always visible, or only visible when that view is focused or hovered over.")
-			},
-			'workbench.view.experimental.allowMovingToNewContainer': {
-				'type': 'boolean',
-				'default': true,
-				'description': nls.localize('movingViewContainer', "Controls whether specific views will have a context menu entry allowing them to be moved to a new container. Currently, this setting only affects the outline view and views contributed by extensions.")
 			},
 			'workbench.fontAliasing': {
 				'type': 'string',

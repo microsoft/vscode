@@ -4,90 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
-import { workbenchInstantiationService, TestStorageService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService, registerTestEditor, TestFileEditorInput, TestEditorPart, ITestInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { GroupDirection, GroupsOrder, MergeGroupMode, GroupOrientation, GroupChangeKind, GroupLocation } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { EditorInput, IFileEditorInput, IEditorInputFactory, IEditorInputFactoryRegistry, Extensions as EditorExtensions, EditorOptions, CloseDirection, IEditorPartOptions, EditorsOrder } from 'vs/workbench/common/editor';
-import { IEditorModel } from 'vs/platform/editor/common/editor';
+import { EditorOptions, CloseDirection, IEditorPartOptions, EditorsOrder } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IEditorRegistry, Extensions, EditorDescriptor } from 'vs/workbench/browser/editor';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 const TEST_EDITOR_ID = 'MyFileEditorForEditorGroupService';
 const TEST_EDITOR_INPUT_ID = 'testEditorInputForEditorGroupService';
-
-class TestEditorControl extends BaseEditor {
-
-	constructor(@ITelemetryService telemetryService: ITelemetryService) { super(TEST_EDITOR_ID, NullTelemetryService, new TestThemeService(), new TestStorageService()); }
-
-	async setInput(input: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
-		super.setInput(input, options, token);
-
-		await input.resolve();
-	}
-
-	getId(): string { return TEST_EDITOR_ID; }
-	layout(): void { }
-	createEditor(): any { }
-}
-
-class TestEditorInput extends EditorInput implements IFileEditorInput {
-
-	constructor(private resource: URI) { super(); }
-
-	getTypeId() { return TEST_EDITOR_INPUT_ID; }
-	resolve(): Promise<IEditorModel | null> { return Promise.resolve(null); }
-	matches(other: TestEditorInput): boolean { return other && this.resource.toString() === other.resource.toString() && other instanceof TestEditorInput; }
-	setEncoding(encoding: string) { }
-	getEncoding() { return undefined; }
-	setPreferredEncoding(encoding: string) { }
-	setMode(mode: string) { }
-	setPreferredMode(mode: string) { }
-	getResource(): URI { return this.resource; }
-	setForceOpenAsBinary(): void { }
-}
 
 suite('EditorGroupsService', () => {
 
 	let disposables: IDisposable[] = [];
 
 	setup(() => {
-		interface ISerializedTestEditorInput {
-			resource: string;
-		}
-
-		class TestEditorInputFactory implements IEditorInputFactory {
-
-			canSerialize(editorInput: EditorInput): boolean {
-				return true;
-			}
-
-			serialize(editorInput: EditorInput): string {
-				const testEditorInput = <TestEditorInput>editorInput;
-				const testInput: ISerializedTestEditorInput = {
-					resource: testEditorInput.getResource().toString()
-				};
-
-				return JSON.stringify(testInput);
-			}
-
-			deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
-				const testInput: ISerializedTestEditorInput = JSON.parse(serializedEditorInput);
-
-				return new TestEditorInput(URI.parse(testInput.resource));
-			}
-		}
-
-		disposables.push((Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories)).registerEditorInputFactory(TEST_EDITOR_INPUT_ID, TestEditorInputFactory));
-		disposables.push((Registry.as<IEditorRegistry>(Extensions.Editors)).registerEditor(EditorDescriptor.create(TestEditorControl, TEST_EDITOR_ID, 'My Test File Editor'), [new SyncDescriptor(TestEditorInput)]));
+		disposables.push(registerTestEditor(TEST_EDITOR_ID, [new SyncDescriptor(TestFileEditorInput)], TEST_EDITOR_INPUT_ID));
 	});
 
 	teardown(() => {
@@ -95,18 +28,16 @@ suite('EditorGroupsService', () => {
 		disposables = [];
 	});
 
-	function createPart(): EditorPart {
-		const instantiationService = workbenchInstantiationService();
-
-		const part = instantiationService.createInstance(EditorPart);
+	function createPart(instantiationService = workbenchInstantiationService()): [TestEditorPart, ITestInstantiationService] {
+		const part = instantiationService.createInstance(TestEditorPart);
 		part.create(document.createElement('div'));
 		part.layout(400, 300);
 
-		return part;
+		return [part, instantiationService];
 	}
 
 	test('groups basics', async function () {
-		const part = createPart();
+		const [part] = createPart();
 
 		let activeGroupChangeCounter = 0;
 		const activeGroupChangeListener = part.onDidActiveGroupChange(() => {
@@ -192,7 +123,7 @@ suite('EditorGroupsService', () => {
 		assert.equal(groupAddedCounter, 2);
 		assert.equal(part.groups.length, 3);
 		assert.ok(part.activeGroup === rightGroup);
-		assert.ok(!downGroup.activeControl);
+		assert.ok(!downGroup.activeEditorPane);
 		assert.equal(rootGroup.label, 'Group 1');
 		assert.equal(rightGroup.label, 'Group 2');
 		assert.equal(downGroup.label, 'Group 3');
@@ -267,8 +198,37 @@ suite('EditorGroupsService', () => {
 		part.dispose();
 	});
 
+	test('save & restore state', async function () {
+		let [part, instantiationService] = createPart();
+
+		const rootGroup = part.groups[0];
+		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
+		const downGroup = part.addGroup(rightGroup, GroupDirection.DOWN);
+
+		const rootGroupInput = new TestFileEditorInput(URI.file('foo/bar1'), TEST_EDITOR_INPUT_ID);
+		await rootGroup.openEditor(rootGroupInput, EditorOptions.create({ pinned: true }));
+
+		const rightGroupInput = new TestFileEditorInput(URI.file('foo/bar2'), TEST_EDITOR_INPUT_ID);
+		await rightGroup.openEditor(rightGroupInput, EditorOptions.create({ pinned: true }));
+
+		assert.equal(part.groups.length, 3);
+
+		part.saveState();
+		part.dispose();
+
+		let [restoredPart] = createPart(instantiationService);
+
+		assert.equal(restoredPart.groups.length, 3);
+		assert.ok(restoredPart.getGroup(rootGroup.id));
+		assert.ok(restoredPart.getGroup(rightGroup.id));
+		assert.ok(restoredPart.getGroup(downGroup.id));
+
+		restoredPart.clearState();
+		restoredPart.dispose();
+	});
+
 	test('groups index / labels', function () {
-		const part = createPart();
+		const [part] = createPart();
 
 		const rootGroup = part.groups[0];
 		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
@@ -326,7 +286,7 @@ suite('EditorGroupsService', () => {
 	});
 
 	test('copy/merge groups', async () => {
-		const part = createPart();
+		const [part] = createPart();
 
 		let groupAddedCounter = 0;
 		const groupAddedListener = part.onDidAddGroup(() => {
@@ -344,17 +304,17 @@ suite('EditorGroupsService', () => {
 			rootGroupDisposed = true;
 		});
 
-		const input = new TestEditorInput(URI.file('foo/bar'));
+		const input = new TestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
 
 		await rootGroup.openEditor(input, EditorOptions.create({ pinned: true }));
 		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT, { activate: true });
 		const downGroup = part.copyGroup(rootGroup, rightGroup, GroupDirection.DOWN);
 		assert.equal(groupAddedCounter, 2);
 		assert.equal(downGroup.count, 1);
-		assert.ok(downGroup.activeEditor instanceof TestEditorInput);
+		assert.ok(downGroup.activeEditor instanceof TestFileEditorInput);
 		part.mergeGroup(rootGroup, rightGroup, { mode: MergeGroupMode.COPY_EDITORS });
 		assert.equal(rightGroup.count, 1);
-		assert.ok(rightGroup.activeEditor instanceof TestEditorInput);
+		assert.ok(rightGroup.activeEditor instanceof TestFileEditorInput);
 		part.mergeGroup(rootGroup, rightGroup, { mode: MergeGroupMode.MOVE_EDITORS });
 		assert.equal(rootGroup.count, 0);
 		part.mergeGroup(rootGroup, downGroup);
@@ -367,7 +327,7 @@ suite('EditorGroupsService', () => {
 	});
 
 	test('whenRestored', async () => {
-		const part = createPart();
+		const [part] = createPart();
 
 		await part.whenRestored;
 		assert.ok(true);
@@ -375,7 +335,7 @@ suite('EditorGroupsService', () => {
 	});
 
 	test('options', () => {
-		const part = createPart();
+		const [part] = createPart();
 
 		let oldOptions!: IEditorPartOptions;
 		let newOptions!: IEditorPartOptions;
@@ -396,7 +356,7 @@ suite('EditorGroupsService', () => {
 	});
 
 	test('editor basics', async function () {
-		const part = createPart();
+		const [part] = createPart();
 		const group = part.activeGroup;
 		assert.equal(group.isEmpty, true);
 
@@ -437,8 +397,8 @@ suite('EditorGroupsService', () => {
 			editorWillCloseCounter++;
 		});
 
-		const input = new TestEditorInput(URI.file('foo/bar'));
-		const inputInactive = new TestEditorInput(URI.file('foo/bar/inactive'));
+		const input = new TestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+		const inputInactive = new TestFileEditorInput(URI.file('foo/bar/inactive'), TEST_EDITOR_INPUT_ID);
 
 		await group.openEditor(input, EditorOptions.create({ pinned: true }));
 		await group.openEditor(inputInactive, EditorOptions.create({ inactive: true }));
@@ -465,7 +425,7 @@ suite('EditorGroupsService', () => {
 		assert.ok(!group.previewEditor);
 
 		assert.equal(group.activeEditor, input);
-		assert.ok(group.activeControl instanceof TestEditorControl);
+		assert.equal(group.activeEditorPane?.getId(), TEST_EDITOR_ID);
 		assert.equal(group.count, 2);
 
 		const mru = group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE);
@@ -494,12 +454,12 @@ suite('EditorGroupsService', () => {
 	});
 
 	test('openEditors / closeEditors', async () => {
-		const part = createPart();
+		const [part] = createPart();
 		const group = part.activeGroup;
 		assert.equal(group.isEmpty, true);
 
-		const input = new TestEditorInput(URI.file('foo/bar'));
-		const inputInactive = new TestEditorInput(URI.file('foo/bar/inactive'));
+		const input = new TestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+		const inputInactive = new TestFileEditorInput(URI.file('foo/bar/inactive'), TEST_EDITOR_INPUT_ID);
 
 		await group.openEditors([{ editor: input, options: { pinned: true } }, { editor: inputInactive }]);
 		assert.equal(group.count, 2);
@@ -512,13 +472,13 @@ suite('EditorGroupsService', () => {
 	});
 
 	test('closeEditors (except one)', async () => {
-		const part = createPart();
+		const [part] = createPart();
 		const group = part.activeGroup;
 		assert.equal(group.isEmpty, true);
 
-		const input1 = new TestEditorInput(URI.file('foo/bar1'));
-		const input2 = new TestEditorInput(URI.file('foo/bar2'));
-		const input3 = new TestEditorInput(URI.file('foo/bar3'));
+		const input1 = new TestFileEditorInput(URI.file('foo/bar1'), TEST_EDITOR_INPUT_ID);
+		const input2 = new TestFileEditorInput(URI.file('foo/bar2'), TEST_EDITOR_INPUT_ID);
+		const input3 = new TestFileEditorInput(URI.file('foo/bar3'), TEST_EDITOR_INPUT_ID);
 
 		await group.openEditors([{ editor: input1, options: { pinned: true } }, { editor: input2, options: { pinned: true } }, { editor: input3 }]);
 		assert.equal(group.count, 3);
@@ -533,13 +493,13 @@ suite('EditorGroupsService', () => {
 	});
 
 	test('closeEditors (saved only)', async () => {
-		const part = createPart();
+		const [part] = createPart();
 		const group = part.activeGroup;
 		assert.equal(group.isEmpty, true);
 
-		const input1 = new TestEditorInput(URI.file('foo/bar1'));
-		const input2 = new TestEditorInput(URI.file('foo/bar2'));
-		const input3 = new TestEditorInput(URI.file('foo/bar3'));
+		const input1 = new TestFileEditorInput(URI.file('foo/bar1'), TEST_EDITOR_INPUT_ID);
+		const input2 = new TestFileEditorInput(URI.file('foo/bar2'), TEST_EDITOR_INPUT_ID);
+		const input3 = new TestFileEditorInput(URI.file('foo/bar3'), TEST_EDITOR_INPUT_ID);
 
 		await group.openEditors([{ editor: input1, options: { pinned: true } }, { editor: input2, options: { pinned: true } }, { editor: input3 }]);
 		assert.equal(group.count, 3);
@@ -553,13 +513,13 @@ suite('EditorGroupsService', () => {
 	});
 
 	test('closeEditors (direction: right)', async () => {
-		const part = createPart();
+		const [part] = createPart();
 		const group = part.activeGroup;
 		assert.equal(group.isEmpty, true);
 
-		const input1 = new TestEditorInput(URI.file('foo/bar1'));
-		const input2 = new TestEditorInput(URI.file('foo/bar2'));
-		const input3 = new TestEditorInput(URI.file('foo/bar3'));
+		const input1 = new TestFileEditorInput(URI.file('foo/bar1'), TEST_EDITOR_INPUT_ID);
+		const input2 = new TestFileEditorInput(URI.file('foo/bar2'), TEST_EDITOR_INPUT_ID);
+		const input3 = new TestFileEditorInput(URI.file('foo/bar3'), TEST_EDITOR_INPUT_ID);
 
 		await group.openEditors([{ editor: input1, options: { pinned: true } }, { editor: input2, options: { pinned: true } }, { editor: input3 }]);
 		assert.equal(group.count, 3);
@@ -575,13 +535,13 @@ suite('EditorGroupsService', () => {
 	});
 
 	test('closeEditors (direction: left)', async () => {
-		const part = createPart();
+		const [part] = createPart();
 		const group = part.activeGroup;
 		assert.equal(group.isEmpty, true);
 
-		const input1 = new TestEditorInput(URI.file('foo/bar1'));
-		const input2 = new TestEditorInput(URI.file('foo/bar2'));
-		const input3 = new TestEditorInput(URI.file('foo/bar3'));
+		const input1 = new TestFileEditorInput(URI.file('foo/bar1'), TEST_EDITOR_INPUT_ID);
+		const input2 = new TestFileEditorInput(URI.file('foo/bar2'), TEST_EDITOR_INPUT_ID);
+		const input3 = new TestFileEditorInput(URI.file('foo/bar3'), TEST_EDITOR_INPUT_ID);
 
 		await group.openEditors([{ editor: input1, options: { pinned: true } }, { editor: input2, options: { pinned: true } }, { editor: input3 }]);
 		assert.equal(group.count, 3);
@@ -597,12 +557,12 @@ suite('EditorGroupsService', () => {
 	});
 
 	test('closeAllEditors', async () => {
-		const part = createPart();
+		const [part] = createPart();
 		const group = part.activeGroup;
 		assert.equal(group.isEmpty, true);
 
-		const input = new TestEditorInput(URI.file('foo/bar'));
-		const inputInactive = new TestEditorInput(URI.file('foo/bar/inactive'));
+		const input = new TestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+		const inputInactive = new TestFileEditorInput(URI.file('foo/bar/inactive'), TEST_EDITOR_INPUT_ID);
 
 		await group.openEditors([{ editor: input, options: { pinned: true } }, { editor: inputInactive }]);
 		assert.equal(group.count, 2);
@@ -615,12 +575,12 @@ suite('EditorGroupsService', () => {
 	});
 
 	test('moveEditor (same group)', async () => {
-		const part = createPart();
+		const [part] = createPart();
 		const group = part.activeGroup;
 		assert.equal(group.isEmpty, true);
 
-		const input = new TestEditorInput(URI.file('foo/bar'));
-		const inputInactive = new TestEditorInput(URI.file('foo/bar/inactive'));
+		const input = new TestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+		const inputInactive = new TestFileEditorInput(URI.file('foo/bar/inactive'), TEST_EDITOR_INPUT_ID);
 
 		let editorMoveCounter = 0;
 		const editorGroupChangeListener = group.onDidGroupChange(e => {
@@ -643,14 +603,14 @@ suite('EditorGroupsService', () => {
 	});
 
 	test('moveEditor (across groups)', async () => {
-		const part = createPart();
+		const [part] = createPart();
 		const group = part.activeGroup;
 		assert.equal(group.isEmpty, true);
 
 		const rightGroup = part.addGroup(group, GroupDirection.RIGHT);
 
-		const input = new TestEditorInput(URI.file('foo/bar'));
-		const inputInactive = new TestEditorInput(URI.file('foo/bar/inactive'));
+		const input = new TestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+		const inputInactive = new TestFileEditorInput(URI.file('foo/bar/inactive'), TEST_EDITOR_INPUT_ID);
 
 		await group.openEditors([{ editor: input, options: { pinned: true } }, { editor: inputInactive }]);
 		assert.equal(group.count, 2);
@@ -665,14 +625,14 @@ suite('EditorGroupsService', () => {
 	});
 
 	test('copyEditor (across groups)', async () => {
-		const part = createPart();
+		const [part] = createPart();
 		const group = part.activeGroup;
 		assert.equal(group.isEmpty, true);
 
 		const rightGroup = part.addGroup(group, GroupDirection.RIGHT);
 
-		const input = new TestEditorInput(URI.file('foo/bar'));
-		const inputInactive = new TestEditorInput(URI.file('foo/bar/inactive'));
+		const input = new TestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+		const inputInactive = new TestFileEditorInput(URI.file('foo/bar/inactive'), TEST_EDITOR_INPUT_ID);
 
 		await group.openEditors([{ editor: input, options: { pinned: true } }, { editor: inputInactive }]);
 		assert.equal(group.count, 2);
@@ -688,12 +648,12 @@ suite('EditorGroupsService', () => {
 	});
 
 	test('replaceEditors', async () => {
-		const part = createPart();
+		const [part] = createPart();
 		const group = part.activeGroup;
 		assert.equal(group.isEmpty, true);
 
-		const input = new TestEditorInput(URI.file('foo/bar'));
-		const inputInactive = new TestEditorInput(URI.file('foo/bar/inactive'));
+		const input = new TestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+		const inputInactive = new TestFileEditorInput(URI.file('foo/bar/inactive'), TEST_EDITOR_INPUT_ID);
 
 		await group.openEditor(input);
 		assert.equal(group.count, 1);
@@ -706,7 +666,7 @@ suite('EditorGroupsService', () => {
 	});
 
 	test('find neighbour group (left/right)', function () {
-		const part = createPart();
+		const [part] = createPart();
 		const rootGroup = part.activeGroup;
 		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
 
@@ -717,7 +677,7 @@ suite('EditorGroupsService', () => {
 	});
 
 	test('find neighbour group (up/down)', function () {
-		const part = createPart();
+		const [part] = createPart();
 		const rootGroup = part.activeGroup;
 		const downGroup = part.addGroup(rootGroup, GroupDirection.DOWN);
 
@@ -728,7 +688,7 @@ suite('EditorGroupsService', () => {
 	});
 
 	test('find group by location (left/right)', function () {
-		const part = createPart();
+		const [part] = createPart();
 		const rootGroup = part.activeGroup;
 		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
 		const downGroup = part.addGroup(rightGroup, GroupDirection.DOWN);
@@ -741,6 +701,26 @@ suite('EditorGroupsService', () => {
 
 		assert.equal(downGroup, part.findGroup({ location: GroupLocation.NEXT }, rightGroup));
 		assert.equal(rightGroup, part.findGroup({ location: GroupLocation.PREVIOUS }, downGroup));
+
+		part.dispose();
+	});
+
+	test('applyLayout (2x2)', function () {
+		const [part] = createPart();
+
+		part.applyLayout({ groups: [{ groups: [{}, {}] }, { groups: [{}, {}] }], orientation: GroupOrientation.HORIZONTAL });
+
+		assert.equal(part.groups.length, 4);
+
+		part.dispose();
+	});
+
+	test('centeredLayout', function () {
+		const [part] = createPart();
+
+		part.centerLayout(true);
+
+		assert.equal(part.isLayoutCentered(), true);
 
 		part.dispose();
 	});

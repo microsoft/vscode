@@ -16,7 +16,6 @@
 			"request": "attach",
 			"name": "Attach to Extension Host",
 			"port": 5870,
-			"restart": true,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
 			]
@@ -184,6 +183,7 @@
 			],
 			"webRoot": "${workspaceFolder}",
 			// Settings for js-debug:
+			"userDataDir": false,
 			"pauseForSourceMap": false,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"

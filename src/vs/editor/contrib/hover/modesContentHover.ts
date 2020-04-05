@@ -40,6 +40,7 @@ import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Constants } from 'vs/base/common/uint';
 import { textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { Progress } from 'vs/platform/progress/common/progress';
 
 const $ = dom.$;
 
@@ -580,7 +581,6 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		quickfixPlaceholderElement.textContent = nls.localize('checkingForQuickFixes', "Checking for quick fixes...");
 		disposables.add(toDisposable(() => quickfixPlaceholderElement.remove()));
 
-
 		const codeActionsPromise = this.getCodeActions(markerHover.marker);
 		disposables.add(toDisposable(() => codeActionsPromise.cancel()));
 		codeActionsPromise.then(actions => {
@@ -626,6 +626,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				this._editor.getModel()!,
 				new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn),
 				markerCodeActionTrigger,
+				Progress.None,
 				cancellationToken);
 		});
 	}
@@ -637,11 +638,9 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			dom.append(action, $(`span.icon.${actionOptions.iconClass}`));
 		}
 		const label = dom.append(action, $('span'));
-		label.textContent = actionOptions.label;
 		const keybinding = this._keybindingService.lookupKeybinding(actionOptions.commandId);
-		if (keybinding) {
-			label.title = `${actionOptions.label} (${keybinding.getLabel()})`;
-		}
+		const keybindingLabel = keybinding ? keybinding.getLabel() : null;
+		label.textContent = keybindingLabel ? `${actionOptions.label} (${keybindingLabel})` : actionOptions.label;
 		return dom.addDisposableListener(actionContainer, dom.EventType.CLICK, e => {
 			e.stopPropagation();
 			e.preventDefault();

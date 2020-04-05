@@ -23,13 +23,12 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { OpenGlobalSettingsAction } from 'vs/workbench/contrib/preferences/browser/preferencesActions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { InstallWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, ManageExtensionAction, InstallLocalExtensionsInRemoteAction, getContextMenuActions } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
-import { WorkbenchPagedList } from 'vs/platform/list/browser/listService';
+import { WorkbenchPagedList, ResourceNavigator } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
@@ -40,9 +39,8 @@ import { alert } from 'vs/base/browser/ui/aria/aria';
 import { IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IAction } from 'vs/base/common/actions';
+import { IAction, Action } from 'vs/base/common/actions';
 import { ExtensionType, ExtensionIdentifier, IExtensionDescription, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
@@ -51,6 +49,7 @@ import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IMenuService } from 'vs/platform/actions/common/actions';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
 // Extensions that are automatically classified as Programming Language extensions, but should be Feature extensions
 const FORCE_FEATURE_EXTENSIONS = ['vscode.git', 'vscode.search-result'];
@@ -102,19 +101,19 @@ export class ExtensionsListView extends ViewPane {
 		@IExtensionsWorkbenchService protected extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IExtensionTipsService protected tipsService: IExtensionTipsService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IExperimentService private readonly experimentService: IExperimentService,
-		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService,
 		@IExtensionManagementServerService protected readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IProductService protected readonly productService: IProductService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IOpenerService openerService: IOpenerService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
 	) {
-		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: options.title, showActionsAlways: true }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService);
+		super({ ...(options as IViewPaneOptions), showActionsAlways: true }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		this.server = options.server;
 	}
 
@@ -146,14 +145,14 @@ export class ExtensionsListView extends ViewPane {
 			}
 		});
 		this._register(this.list.onContextMenu(e => this.onContextMenu(e), this));
-		this._register(this.list.onFocusChange(e => extensionsViewState.onFocusChange(coalesce(e.elements)), this));
+		this._register(this.list.onDidChangeFocus(e => extensionsViewState.onFocusChange(coalesce(e.elements)), this));
 		this._register(this.list);
 		this._register(extensionsViewState);
 
-		this._register(Event.chain(this.list.onOpen)
-			.map(e => e.elements[0])
-			.filter(e => !!e)
-			.on(this.openExtension, this));
+		const resourceNavigator = this._register(ResourceNavigator.createListResourceNavigator(this.list, { openOnFocus: false, openOnSelection: true, openOnSingleClick: true }));
+		this._register(Event.debounce(Event.filter(resourceNavigator.onDidOpenResource, e => e.element !== null), (last, event) => event, 75, true)(options => {
+			this.openExtension(this.list!.model.get(options.element!), { sideByside: options.sideBySide, ...options.editorOptions });
+		}));
 
 		this._register(Event.chain(this.list.onPin)
 			.map(e => e.elements[0])
@@ -232,12 +231,10 @@ export class ExtensionsListView extends ViewPane {
 	private async onContextMenu(e: IListContextMenuEvent<IExtension>): Promise<void> {
 		if (e.element) {
 			const runningExtensions = await this.extensionService.getExtensions();
-			const colorThemes = await this.workbenchThemeService.getColorThemes();
-			const fileIconThemes = await this.workbenchThemeService.getFileIconThemes();
 			const manageExtensionAction = this.instantiationService.createInstance(ManageExtensionAction);
 			manageExtensionAction.extension = e.element;
 			if (manageExtensionAction.enabled) {
-				const groups = manageExtensionAction.getActionGroups(runningExtensions, colorThemes, fileIconThemes);
+				const groups = await manageExtensionAction.getActionGroups(runningExtensions);
 				let actions: IAction[] = [];
 				for (const menuActions of groups) {
 					actions = [...actions, ...menuActions, new Separator()];
@@ -247,7 +244,7 @@ export class ExtensionsListView extends ViewPane {
 					getActions: () => actions.slice(0, actions.length - 1)
 				});
 			} else if (e.element) {
-				const groups = getContextMenuActions(this.menuService, this.contextKeyService.createScoped(), e.element);
+				const groups = getContextMenuActions(this.menuService, this.contextKeyService.createScoped(), this.instantiationService, e.element);
 				groups.forEach(group => group.forEach(extensionAction => extensionAction.extension = e.element!));
 				let actions: IAction[] = [];
 				for (const menuActions of groups) {
@@ -750,16 +747,16 @@ export class ExtensionsListView extends ViewPane {
 		}
 	}
 
-	private openExtension(extension: IExtension): void {
+	private openExtension(extension: IExtension, options: { sideByside?: boolean, preserveFocus?: boolean, pinned?: boolean }): void {
 		extension = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, extension.identifier))[0] || extension;
-		this.extensionsWorkbenchService.open(extension).then(undefined, err => this.onError(err));
+		this.extensionsWorkbenchService.open(extension, options).then(undefined, err => this.onError(err));
 	}
 
 	private pin(): void {
-		const activeControl = this.editorService.activeControl;
-		if (activeControl) {
-			activeControl.group.pinEditor(activeControl.input);
-			activeControl.focus();
+		const activeEditorPane = this.editorService.activeEditorPane;
+		if (activeEditorPane) {
+			activeEditorPane.group.pinEditor(activeEditorPane.input);
+			activeEditorPane.focus();
 		}
 	}
 
@@ -773,7 +770,7 @@ export class ExtensionsListView extends ViewPane {
 		if (/ECONNREFUSED/.test(message)) {
 			const error = createErrorWithActions(localize('suggestProxyError', "Marketplace returned 'ECONNREFUSED'. Please check the 'http.proxy' setting."), {
 				actions: [
-					this.instantiationService.createInstance(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL)
+					new Action('open user settings', localize('open user settings', "Open User Settings"), undefined, true, () => this.preferencesService.openGlobalSettings())
 				]
 			});
 
@@ -881,7 +878,6 @@ export class ServerExtensionsView extends ExtensionsListView {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IExperimentService experimentService: IExperimentService,
-		@IWorkbenchThemeService workbenchThemeService: IWorkbenchThemeService,
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionManagementServerService extensionManagementServerService: IExtensionManagementServerService,
 		@IProductService productService: IProductService,
@@ -889,9 +885,10 @@ export class ServerExtensionsView extends ExtensionsListView {
 		@IMenuService menuService: IMenuService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
+		@IPreferencesService preferencesService: IPreferencesService,
 	) {
 		options.server = server;
-		super(options, notificationService, keybindingService, contextMenuService, instantiationService, themeService, extensionService, extensionsWorkbenchService, editorService, tipsService, telemetryService, configurationService, contextService, experimentService, workbenchThemeService, extensionManagementServerService, productService, contextKeyService, viewDescriptorService, menuService, openerService);
+		super(options, notificationService, keybindingService, contextMenuService, instantiationService, themeService, extensionService, extensionsWorkbenchService, editorService, tipsService, telemetryService, configurationService, contextService, experimentService, extensionManagementServerService, productService, contextKeyService, viewDescriptorService, menuService, openerService, preferencesService);
 		this._register(onDidChangeTitle(title => this.updateTitle(title)));
 	}
 

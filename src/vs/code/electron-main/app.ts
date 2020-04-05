@@ -24,9 +24,9 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IStateService } from 'vs/platform/state/node/state';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IURLService, IOpenURLOptions } from 'vs/platform/url/common/url';
+import { IURLService } from 'vs/platform/url/common/url';
 import { URLHandlerChannelClient, URLHandlerRouter } from 'vs/platform/url/common/urlIpc';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, machineIdKey, trueMachineIdKey } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService, combinedAppender, LogAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
@@ -61,7 +61,6 @@ import { Schemas } from 'vs/base/common/network';
 import { SnapUpdateService } from 'vs/platform/update/electron-main/updateService.snap';
 import { IStorageMainService, StorageMainService } from 'vs/platform/storage/node/storageMainService';
 import { GlobalStorageDatabaseChannel } from 'vs/platform/storage/node/storageIpc';
-import { startsWith } from 'vs/base/common/strings';
 import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainService';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { WorkspacesHistoryMainService, IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
@@ -73,16 +72,14 @@ import { IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsSer
 import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
 import { IElectronMainService, ElectronMainService } from 'vs/platform/electron/electron-main/electronMainService';
 import { ISharedProcessMainService, SharedProcessMainService } from 'vs/platform/ipc/electron-main/sharedProcessMainService';
-import { assign } from 'vs/base/common/objects';
 import { IDialogMainService, DialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
+import { coalesce } from 'vs/base/common/arrays';
+import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
+import { StorageKeysSyncRegistryChannel } from 'vs/platform/userDataSync/common/userDataSyncIpc';
 
 export class CodeApplication extends Disposable {
-
-	private static readonly MACHINE_ID_KEY = 'telemetry.machineId';
-	private static readonly TRUE_MACHINE_ID_KEY = 'telemetry.trueMachineId';
-
 	private windowsMainService: IWindowsMainService | undefined;
 	private dialogMainService: IDialogMainService | undefined;
 
@@ -133,7 +130,7 @@ export class CodeApplication extends Disposable {
 		//
 		// !!! DO NOT CHANGE without consulting the documentation !!!
 		//
-		// app.on('remote-get-guest-web-contents', event => event.preventDefault()); // TODO@Ben TODO@Matt revisit this need for <webview>
+		// app.on('remote-get-guest-web-contents', event => event.preventDefault()); // TODO@Matt revisit this need for <webview>
 		app.on('remote-require', (event, sender, module) => {
 			this.logService.trace('App#on(remote-require): prevented');
 
@@ -173,14 +170,14 @@ export class CodeApplication extends Disposable {
 						return false;
 					}
 
-					if (source === 'data:text/html;charset=utf-8,%3C%21DOCTYPE%20html%3E%0D%0A%3Chtml%20lang%3D%22en%22%20style%3D%22width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3Chead%3E%0D%0A%09%3Ctitle%3EVirtual%20Document%3C%2Ftitle%3E%0D%0A%3C%2Fhead%3E%0D%0A%3Cbody%20style%3D%22margin%3A%200%3B%20overflow%3A%20hidden%3B%20width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3C%2Fbody%3E%0D%0A%3C%2Fhtml%3E') {
+					if (source === 'data:text/html;charset=utf-8,%3C%21DOCTYPE%20html%3E%0D%0A%3Chtml%20lang%3D%22en%22%20style%3D%22width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3Chead%3E%0D%0A%3Ctitle%3EVirtual%20Document%3C%2Ftitle%3E%0D%0A%3C%2Fhead%3E%0D%0A%3Cbody%20style%3D%22margin%3A%200%3B%20overflow%3A%20hidden%3B%20width%3A%20100%25%3B%20height%3A%20100%25%22%20role%3D%22document%22%3E%0D%0A%3C%2Fbody%3E%0D%0A%3C%2Fhtml%3E') {
 						return true;
 					}
 
 					const srcUri = URI.parse(source).fsPath.toLowerCase();
 					const rootUri = URI.file(this.environmentService.appRoot).fsPath.toLowerCase();
 
-					return startsWith(srcUri, rootUri + sep);
+					return srcUri.startsWith(rootUri + sep);
 				};
 
 				// Ensure defaults
@@ -395,7 +392,7 @@ export class CodeApplication extends Disposable {
 		const windows = appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, electronIpcServer, sharedProcessClient));
 
 		// Post Open Windows Tasks
-		appInstantiationService.invokeFunction(this.afterWindowOpen.bind(this));
+		appInstantiationService.invokeFunction(accessor => this.afterWindowOpen(accessor));
 
 		// Tracing: Stop tracing after windows are ready if enabled
 		if (this.environmentService.args.trace) {
@@ -407,21 +404,21 @@ export class CodeApplication extends Disposable {
 
 		// We cache the machineId for faster lookups on startup
 		// and resolve it only once initially if not cached
-		let machineId = this.stateService.getItem<string>(CodeApplication.MACHINE_ID_KEY);
+		let machineId = this.stateService.getItem<string>(machineIdKey);
 		if (!machineId) {
 			machineId = await getMachineId();
 
-			this.stateService.setItem(CodeApplication.MACHINE_ID_KEY, machineId);
+			this.stateService.setItem(machineIdKey, machineId);
 		}
 
 		// Check if machineId is hashed iBridge Device
 		let trueMachineId: string | undefined;
 		if (isMacintosh && machineId === '6c9d2bc8f91b89624add29c0abeae7fb42bf539fa1cdb2e3e57cd668fa9bcead') {
-			trueMachineId = this.stateService.getItem<string>(CodeApplication.TRUE_MACHINE_ID_KEY);
+			trueMachineId = this.stateService.getItem<string>(trueMachineIdKey);
 			if (!trueMachineId) {
 				trueMachineId = await getMachineId();
 
-				this.stateService.setItem(CodeApplication.TRUE_MACHINE_ID_KEY, trueMachineId);
+				this.stateService.setItem(trueMachineIdKey, trueMachineId);
 			}
 		}
 
@@ -511,7 +508,7 @@ export class CodeApplication extends Disposable {
 						type: 'info',
 						message: localize('trace.message', "Successfully created trace."),
 						detail: localize('trace.detail', "Please create an issue and manually attach the following file:\n{0}", path),
-						buttons: [localize('trace.ok', "Ok")]
+						buttons: [localize('trace.ok', "OK")]
 					}, withNullAsUndefined(BrowserWindow.getFocusedWindow()));
 				}
 			} else {
@@ -571,13 +568,17 @@ export class CodeApplication extends Disposable {
 		electronIpcServer.registerChannel('storage', storageChannel);
 		sharedProcessClient.then(client => client.registerChannel('storage', storageChannel));
 
+		const storageKeysSyncRegistryService = accessor.get(IStorageKeysSyncRegistryService);
+		const storageKeysSyncChannel = new StorageKeysSyncRegistryChannel(storageKeysSyncRegistryService);
+		electronIpcServer.registerChannel('storageKeysSyncRegistryService', storageKeysSyncChannel);
+		sharedProcessClient.then(client => client.registerChannel('storageKeysSyncRegistryService', storageKeysSyncChannel));
+
 		const loggerChannel = new LoggerChannel(accessor.get(ILogService));
 		electronIpcServer.registerChannel('logger', loggerChannel);
 		sharedProcessClient.then(client => client.registerChannel('logger', loggerChannel));
 
-		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
-
 		// ExtensionHost Debug broadcast service
+		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
 		electronIpcServer.registerChannel(ExtensionHostDebugBroadcastChannel.ChannelName, new ElectronExtensionHostDebugBroadcastChannel(windowsMainService));
 
 		// Signal phase: ready (services set)
@@ -586,47 +587,67 @@ export class CodeApplication extends Disposable {
 		// Propagate to clients
 		this.dialogMainService = accessor.get(IDialogMainService);
 
-		// Create a URL handler to open file URIs in the active window
+		// Check for initial URLs to handle from protocol link invocations
 		const environmentService = accessor.get(IEnvironmentService);
+		const pendingWindowOpenablesFromProtocolLinks: IWindowOpenable[] = [];
+		const pendingProtocolLinksToHandle = coalesce([
+
+			// Windows/Linux: protocol handler invokes CLI with --open-url
+			...environmentService.args['open-url'] ? environmentService.args._urls || [] : [],
+
+			// macOS: open-url events
+			...((<any>global).getOpenUrls() || []) as string[]
+		].map(pendingUrlToHandle => {
+			try {
+				return URI.parse(pendingUrlToHandle);
+			} catch (error) {
+				return undefined;
+			}
+		})).filter(pendingUriToHandle => {
+			// filter out any protocol link that wants to open as window so that
+			// we open the right set of windows on startup and not restore the
+			// previous workspace too.
+			const windowOpenable = this.getWindowOpenableFromProtocolLink(pendingUriToHandle);
+			if (windowOpenable) {
+				pendingWindowOpenablesFromProtocolLinks.push(windowOpenable);
+
+				return false;
+			}
+
+			return true;
+		});
+
+		// Create a URL handler to open file URIs in the active window
+		const app = this;
 		urlService.registerHandler({
-			async handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
+			async handleURL(uri: URI): Promise<boolean> {
 
-				// Catch file/remote URLs
-				if ((uri.authority === Schemas.file || uri.authority === Schemas.vscodeRemote) && !!uri.path) {
-					const cli = assign(Object.create(null), environmentService.args);
-					const urisToOpen: IWindowOpenable[] = [];
+				// Check for URIs to open in window
+				const windowOpenableFromProtocolLink = app.getWindowOpenableFromProtocolLink(uri);
+				if (windowOpenableFromProtocolLink) {
+					windowsMainService.open({
+						context: OpenContext.API,
+						cli: { ...environmentService.args },
+						urisToOpen: [windowOpenableFromProtocolLink],
+						gotoLineMode: true
+					});
 
-					// File path
-					if (uri.authority === Schemas.file) {
-						// we configure as fileUri, but later validation will
-						// make sure to open as folder or workspace if possible
-						urisToOpen.push({ fileUri: URI.file(uri.fsPath) });
-					}
+					return true;
+				}
 
-					// Remote path
-					else {
-						// Example conversion:
-						// From: vscode://vscode-remote/wsl+ubuntu/mnt/c/GitDevelopment/monaco
-						//   To: vscode-remote://wsl+ubuntu/mnt/c/GitDevelopment/monaco
-						const secondSlash = uri.path.indexOf(posix.sep, 1 /* skip over the leading slash */);
-						if (secondSlash !== -1) {
-							const authority = uri.path.substring(1, secondSlash);
-							const path = uri.path.substring(secondSlash);
-							const remoteUri = URI.from({ scheme: Schemas.vscodeRemote, authority, path, query: uri.query, fragment: uri.fragment });
+				// If we have not yet handled the URI and we have no window opened (macOS only)
+				// we first open a window and then try to open that URI within that window
+				if (isMacintosh && windowsMainService.getWindowCount() === 0) {
+					const [window] = windowsMainService.open({
+						context: OpenContext.API,
+						cli: { ...environmentService.args },
+						forceEmpty: true,
+						gotoLineMode: true
+					});
 
-							if (hasWorkspaceFileExtension(path)) {
-								urisToOpen.push({ workspaceUri: remoteUri });
-							} else {
-								urisToOpen.push({ folderUri: remoteUri });
-							}
-						}
-					}
+					await window.ready();
 
-					if (urisToOpen.length > 0) {
-						windowsMainService.open({ context: OpenContext.API, cli, urisToOpen, gotoLineMode: true });
-
-						return true;
-					}
+					return urlService.open(uri);
 				}
 
 				return false;
@@ -638,37 +659,13 @@ export class CodeApplication extends Disposable {
 		const activeWindowRouter = new StaticRouter(ctx => activeWindowManager.getActiveClientId().then(id => ctx === id));
 		const urlHandlerRouter = new URLHandlerRouter(activeWindowRouter);
 		const urlHandlerChannel = electronIpcServer.getChannel('urlHandler', urlHandlerRouter);
-		const multiplexURLHandler = new URLHandlerChannelClient(urlHandlerChannel);
-
-		// On Mac, Code can be running without any open windows, so we must create a window to handle urls,
-		// if there is none
-		if (isMacintosh) {
-			urlService.registerHandler({
-				async handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
-					if (windowsMainService.getWindowCount() === 0) {
-						const cli = { ...environmentService.args };
-						const [window] = windowsMainService.open({ context: OpenContext.API, cli, forceEmpty: true, gotoLineMode: true });
-
-						await window.ready();
-
-						return urlService.open(uri);
-					}
-
-					return false;
-				}
-			});
-		}
-
-		// Register the multiple URL handler
-		urlService.registerHandler(multiplexURLHandler);
+		urlService.registerHandler(new URLHandlerChannelClient(urlHandlerChannel));
 
 		// Watch Electron URLs and forward them to the UrlService
-		const args = this.environmentService.args;
-		const urls = args['open-url'] ? args._urls : [];
-		const urlListener = new ElectronURLListener(urls || [], urlService, windowsMainService, this.environmentService);
-		this._register(urlListener);
+		this._register(new ElectronURLListener(pendingProtocolLinksToHandle, urlService, windowsMainService, this.environmentService));
 
 		// Open our first window
+		const args = this.environmentService.args;
 		const macOpenFiles: string[] = (<any>global).macOpenFiles;
 		const context = !!process.env['VSCODE_CLI'] ? OpenContext.CLI : OpenContext.DESKTOP;
 		const hasCliArgs = args._.length;
@@ -677,8 +674,21 @@ export class CodeApplication extends Disposable {
 		const noRecentEntry = args['skip-add-to-recently-opened'] === true;
 		const waitMarkerFileURI = args.wait && args.waitMarkerFilePath ? URI.file(args.waitMarkerFilePath) : undefined;
 
-		// new window if "-n" was used without paths
-		if (args['new-window'] && !hasCliArgs && !hasFolderURIs && !hasFileURIs) {
+		// check for a pending window to open from URI
+		// e.g. when running code with --open-uri from
+		// a protocol handler
+		if (pendingWindowOpenablesFromProtocolLinks.length > 0) {
+			return windowsMainService.open({
+				context,
+				cli: args,
+				urisToOpen: pendingWindowOpenablesFromProtocolLinks,
+				gotoLineMode: true,
+				initialStartup: true
+			});
+		}
+
+		// new window if "-n" or "--remote" was used without paths
+		if ((args['new-window'] || args.remote) && !hasCliArgs && !hasFolderURIs && !hasFileURIs) {
 			return windowsMainService.open({
 				context,
 				cli: args,
@@ -698,7 +708,6 @@ export class CodeApplication extends Disposable {
 				urisToOpen: macOpenFiles.map(file => this.getWindowOpenableFromPathSync(file)),
 				noRecentEntry,
 				waitMarkerFileURI,
-				gotoLineMode: false,
 				initialStartup: true
 			});
 		}
@@ -714,6 +723,40 @@ export class CodeApplication extends Disposable {
 			gotoLineMode: args.goto,
 			initialStartup: true
 		});
+	}
+
+	private getWindowOpenableFromProtocolLink(uri: URI): IWindowOpenable | undefined {
+		if (!uri.path) {
+			return undefined;
+		}
+
+		// File path
+		if (uri.authority === Schemas.file) {
+			// we configure as fileUri, but later validation will
+			// make sure to open as folder or workspace if possible
+			return { fileUri: URI.file(uri.fsPath) };
+		}
+
+		// Remote path
+		else if (uri.authority === Schemas.vscodeRemote) {
+			// Example conversion:
+			// From: vscode://vscode-remote/wsl+ubuntu/mnt/c/GitDevelopment/monaco
+			//   To: vscode-remote://wsl+ubuntu/mnt/c/GitDevelopment/monaco
+			const secondSlash = uri.path.indexOf(posix.sep, 1 /* skip over the leading slash */);
+			if (secondSlash !== -1) {
+				const authority = uri.path.substring(1, secondSlash);
+				const path = uri.path.substring(secondSlash);
+				const remoteUri = URI.from({ scheme: Schemas.vscodeRemote, authority, path, query: uri.query, fragment: uri.fragment });
+
+				if (hasWorkspaceFileExtension(path)) {
+					return { workspaceUri: remoteUri };
+				} else {
+					return { folderUri: remoteUri };
+				}
+			}
+		}
+
+		return undefined;
 	}
 
 	private getWindowOpenableFromPathSync(path: string): IWindowOpenable {
@@ -734,6 +777,7 @@ export class CodeApplication extends Disposable {
 	}
 
 	private afterWindowOpen(accessor: ServicesAccessor): void {
+
 		// Signal phase: after window open
 		this.lifecycleMainService.phase = LifecycleMainPhase.AfterWindowOpen;
 
@@ -763,7 +807,7 @@ class ElectronExtensionHostDebugBroadcastChannel<TContext> extends ExtensionHost
 		super();
 	}
 
-	call(ctx: TContext, command: string, arg?: any): Promise<any> {
+	async call(ctx: TContext, command: string, arg?: any): Promise<any> {
 		if (command === 'openExtensionDevelopmentHostWindow') {
 			const env = arg[1];
 			const pargs = parseArgs(arg[0], OPTIONS);
@@ -775,7 +819,6 @@ class ElectronExtensionHostDebugBroadcastChannel<TContext> extends ExtensionHost
 					userEnv: Object.keys(env).length > 0 ? env : undefined
 				});
 			}
-			return Promise.resolve();
 		} else {
 			return super.call(ctx, command, arg);
 		}

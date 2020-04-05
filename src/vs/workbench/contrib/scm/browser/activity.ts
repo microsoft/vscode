@@ -59,7 +59,7 @@ export class SCMStatusController implements IWorkbenchContribution {
 			return false;
 		}
 
-		const resource = this.editorService.activeEditor.getResource();
+		const resource = this.editorService.activeEditor.resource;
 
 		if (!resource) {
 			return false;
@@ -159,8 +159,7 @@ export class SCMStatusController implements IWorkbenchContribution {
 			disposables.add(this.statusbarService.addEntry({
 				text: c.title,
 				tooltip: `${label} - ${c.tooltip}`,
-				command: c.id,
-				arguments: c.arguments
+				command: c
 			}, 'status.scm', localize('status.scm', "Source Control"), MainThreadStatusBarAlignment.LEFT, 10000));
 		}
 

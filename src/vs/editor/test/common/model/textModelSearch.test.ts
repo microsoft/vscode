@@ -11,6 +11,7 @@ import { EndOfLineSequence, FindMatch } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { SearchData, SearchParams, TextModelSearch, isMultilineRegexSource } from 'vs/editor/common/model/textModelSearch';
 import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 // --------- Find
 suite('TextModelSearch', () => {
@@ -51,12 +52,12 @@ suite('TextModelSearch', () => {
 		let expectedMatches = expectedRanges.map(entry => new FindMatch(entry, null));
 		let searchParams = new SearchParams(searchString, isRegex, matchCase, wordSeparators);
 
-		let model = TextModel.createFromString(text);
+		let model = createTextModel(text);
 		_assertFindMatches(model, searchParams, expectedMatches);
 		model.dispose();
 
 
-		let model2 = TextModel.createFromString(text);
+		let model2 = createTextModel(text);
 		model2.setEOL(EndOfLineSequence.CRLF);
 		_assertFindMatches(model2, searchParams, expectedMatches);
 		model2.dispose();
@@ -380,7 +381,7 @@ suite('TextModelSearch', () => {
 	});
 
 	test('findNextMatch without regex', () => {
-		let model = TextModel.createFromString('line line one\nline two\nthree');
+		let model = createTextModel('line line one\nline two\nthree');
 
 		let searchParams = new SearchParams('line', false, false, null);
 
@@ -403,7 +404,7 @@ suite('TextModelSearch', () => {
 	});
 
 	test('findNextMatch with beginning boundary regex', () => {
-		let model = TextModel.createFromString('line one\nline two\nthree');
+		let model = createTextModel('line one\nline two\nthree');
 
 		let searchParams = new SearchParams('^line', true, false, null);
 
@@ -423,7 +424,7 @@ suite('TextModelSearch', () => {
 	});
 
 	test('findNextMatch with beginning boundary regex and line has repetitive beginnings', () => {
-		let model = TextModel.createFromString('line line one\nline two\nthree');
+		let model = createTextModel('line line one\nline two\nthree');
 
 		let searchParams = new SearchParams('^line', true, false, null);
 
@@ -443,7 +444,7 @@ suite('TextModelSearch', () => {
 	});
 
 	test('findNextMatch with beginning boundary multiline regex and line has repetitive beginnings', () => {
-		let model = TextModel.createFromString('line line one\nline two\nline three\nline four');
+		let model = createTextModel('line line one\nline two\nline three\nline four');
 
 		let searchParams = new SearchParams('^line.*\\nline', true, false, null);
 
@@ -460,7 +461,7 @@ suite('TextModelSearch', () => {
 	});
 
 	test('findNextMatch with ending boundary regex', () => {
-		let model = TextModel.createFromString('one line line\ntwo line\nthree');
+		let model = createTextModel('one line line\ntwo line\nthree');
 
 		let searchParams = new SearchParams('line$', true, false, null);
 
@@ -480,7 +481,7 @@ suite('TextModelSearch', () => {
 	});
 
 	test('findMatches with capturing matches', () => {
-		let model = TextModel.createFromString('one line line\ntwo line\nthree');
+		let model = createTextModel('one line line\ntwo line\nthree');
 
 		let searchParams = new SearchParams('(l(in)e)', true, false, null);
 
@@ -495,7 +496,7 @@ suite('TextModelSearch', () => {
 	});
 
 	test('findMatches multiline with capturing matches', () => {
-		let model = TextModel.createFromString('one line line\ntwo line\nthree');
+		let model = createTextModel('one line line\ntwo line\nthree');
 
 		let searchParams = new SearchParams('(l(in)e)\\n', true, false, null);
 
@@ -509,7 +510,7 @@ suite('TextModelSearch', () => {
 	});
 
 	test('findNextMatch with capturing matches', () => {
-		let model = TextModel.createFromString('one line line\ntwo line\nthree');
+		let model = createTextModel('one line line\ntwo line\nthree');
 
 		let searchParams = new SearchParams('(l(in)e)', true, false, null);
 
@@ -520,7 +521,7 @@ suite('TextModelSearch', () => {
 	});
 
 	test('findNextMatch multiline with capturing matches', () => {
-		let model = TextModel.createFromString('one line line\ntwo line\nthree');
+		let model = createTextModel('one line line\ntwo line\nthree');
 
 		let searchParams = new SearchParams('(l(in)e)\\n', true, false, null);
 
@@ -531,7 +532,7 @@ suite('TextModelSearch', () => {
 	});
 
 	test('findPreviousMatch with capturing matches', () => {
-		let model = TextModel.createFromString('one line line\ntwo line\nthree');
+		let model = createTextModel('one line line\ntwo line\nthree');
 
 		let searchParams = new SearchParams('(l(in)e)', true, false, null);
 
@@ -542,7 +543,7 @@ suite('TextModelSearch', () => {
 	});
 
 	test('findPreviousMatch multiline with capturing matches', () => {
-		let model = TextModel.createFromString('one line line\ntwo line\nthree');
+		let model = createTextModel('one line line\ntwo line\nthree');
 
 		let searchParams = new SearchParams('(l(in)e)\\n', true, false, null);
 
@@ -553,7 +554,7 @@ suite('TextModelSearch', () => {
 	});
 
 	test('\\n matches \\r\\n', () => {
-		let model = TextModel.createFromString('a\r\nb\r\nc\r\nd\r\ne\r\nf\r\ng\r\nh\r\ni');
+		let model = createTextModel('a\r\nb\r\nc\r\nd\r\ne\r\nf\r\ng\r\nh\r\ni');
 
 		assert.equal(model.getEOL(), '\r\n');
 
@@ -576,7 +577,7 @@ suite('TextModelSearch', () => {
 	});
 
 	test('\\r can never be found', () => {
-		let model = TextModel.createFromString('a\r\nb\r\nc\r\nd\r\ne\r\nf\r\ng\r\nh\r\ni');
+		let model = createTextModel('a\r\nb\r\nc\r\nd\r\ne\r\nf\r\ng\r\nh\r\ni');
 
 		assert.equal(model.getEOL(), '\r\n');
 
@@ -763,7 +764,7 @@ suite('TextModelSearch', () => {
 	});
 
 	test('issue #74715. \\d* finds empty string and stops searching.', () => {
-		let model = TextModel.createFromString('10.243.30.10');
+		let model = createTextModel('10.243.30.10');
 
 		let searchParams = new SearchParams('\\d*', true, false, null);
 

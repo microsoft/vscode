@@ -25,6 +25,9 @@ import { basename } from 'vs/base/common/resources';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { WorkspaceFileEdit } from 'vs/editor/common/modes';
 import { compare } from 'vs/base/common/strings';
+import { URI } from 'vs/base/common/uri';
+import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
+import { Iterable } from 'vs/base/common/iterator';
 
 // --- VIEW MODEL
 
@@ -173,7 +176,10 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 
 	public groupByFile: boolean = true;
 
-	constructor(@ITextModelService private readonly _textModelService: ITextModelService) { }
+	constructor(
+		@ITextModelService private readonly _textModelService: ITextModelService,
+		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
+	) { }
 
 	hasChildren(element: BulkFileOperations | BulkEditElement): boolean {
 		if (element instanceof FileElement) {
@@ -196,7 +202,7 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 
 		// category
 		if (element instanceof CategoryElement) {
-			return element.category.fileOperations.map(op => new FileElement(element, op));
+			return [...Iterable.map(element.category.fileOperations, op => new FileElement(element, op))];
 		}
 
 		// file: text edit
@@ -209,7 +215,7 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 				textModel = ref.object.textEditorModel;
 				textModelDisposable = ref;
 			} catch {
-				textModel = TextModel.createFromString('');
+				textModel = new TextModel('', TextModel.DEFAULT_CREATION_OPTIONS, null, null, this._undoRedoService);
 				textModelDisposable = textModel;
 			}
 
@@ -253,19 +259,6 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 export class BulkEditSorter implements ITreeSorter<BulkEditElement> {
 
 	compare(a: BulkEditElement, b: BulkEditElement): number {
-		if (a instanceof CategoryElement && b instanceof CategoryElement) {
-			//
-			const aConfirm = BulkEditSorter._needsConfirmation(a.category);
-			const bConfirm = BulkEditSorter._needsConfirmation(b.category);
-			if (aConfirm === bConfirm) {
-				return a.category.metadata.label.localeCompare(b.category.metadata.label);
-			} else if (aConfirm) {
-				return -1;
-			} else {
-				return 1;
-			}
-		}
-
 		if (a instanceof FileElement && b instanceof FileElement) {
 			return compare(a.edit.uri.toString(), b.edit.uri.toString());
 		}
@@ -275,10 +268,6 @@ export class BulkEditSorter implements ITreeSorter<BulkEditElement> {
 		}
 
 		return 0;
-	}
-
-	private static _needsConfirmation(a: BulkCategory): boolean {
-		return a.fileOperations.some(ops => ops.needsConfirmation());
 	}
 }
 
@@ -419,6 +408,12 @@ export class CategoryElementRenderer implements ITreeRenderer<CategoryElement, F
 			// css
 			const className = ThemeIcon.asClassName(metadata.iconPath);
 			template.icon.className = className ? `theme-icon ${className}` : '';
+
+		} else if (URI.isUri(metadata.iconPath)) {
+			// background-image
+			template.icon.className = 'uri-icon';
+			template.icon.style.setProperty('--background-dark', `url("${metadata.iconPath.toString(true)}")`);
+			template.icon.style.setProperty('--background-light', `url("${metadata.iconPath.toString(true)}")`);
 
 		} else if (metadata.iconPath) {
 			// background-image

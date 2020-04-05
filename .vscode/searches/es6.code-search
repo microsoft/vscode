@@ -1,0 +1,63 @@
+# Query: @deprecated ES6
+# Flags: CaseSensitive WordMatch
+# ContextLines: 2
+
+9 results - 4 files
+
+src/vs/base/common/arrays.ts:
+  401  
+  402  /**
+  403:  * @deprecated ES6: use `Array.findIndex`
+  404   */
+  405  export function firstIndex<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean): number {
+
+  417  
+  418  /**
+  419:  * @deprecated ES6: use `Array.find`
+  420   */
+  421  export function first<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean, notFoundValue: T): T;
+
+  560  
+  561  /**
+  562:  * @deprecated ES6: use `Array.find`
+  563   */
+  564  export function find<T>(arr: ArrayLike<T>, predicate: (value: T, index: number, arr: ArrayLike<T>) => any): T | undefined {
+
+src/vs/base/common/map.ts:
+   9  
+  10  /**
+  11:  * @deprecated ES6: use `[...SetOrMap.values()]`
+  12   */
+  13  export function values<V = any>(set: Set<V>): V[];
+
+  20  
+  21  /**
+  22:  * @deprecated ES6: use `[...map.keys()]`
+  23   */
+  24  export function keys<K, V>(map: Map<K, V>): K[] {
+
+src/vs/base/common/objects.ts:
+  115  
+  116  /**
+  117:  * @deprecated ES6
+  118   */
+  119  export function assign<T>(destination: T): T;
+
+src/vs/base/common/strings.ts:
+   15  
+   16  /**
+   17:  * @deprecated ES6: use `String.padStart`
+   18   */
+   19  export function pad(n: number, l: number, char: string = '0'): string {
+
+  146  
+  147  /**
+  148:  * @deprecated ES6: use `String.startsWith`
+  149   */
+  150  export function startsWith(haystack: string, needle: string): boolean {
+
+  167  
+  168  /**
+  169:  * @deprecated ES6: use `String.endsWith`
+  170   */
+  171  export function endsWith(haystack: string, needle: string): boolean {

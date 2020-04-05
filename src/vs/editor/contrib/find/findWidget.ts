@@ -31,7 +31,7 @@ import { FindReplaceState, FindReplaceStateChangedEvent } from 'vs/editor/contri
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { contrastBorder, editorFindMatch, editorFindMatchBorder, editorFindMatchHighlight, editorFindMatchHighlightBorder, editorFindRangeHighlight, editorFindRangeHighlightBorder, editorWidgetBackground, editorWidgetBorder, editorWidgetResizeBorder, errorForeground, inputActiveOptionBorder, inputActiveOptionBackground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow, editorWidgetForeground, focusBorder } from 'vs/platform/theme/common/colorRegistry';
-import { ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ContextScopedFindInput, ContextScopedReplaceInput } from 'vs/platform/browser/contextScopedHistoryWidget';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -244,8 +244,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			this._viewZone = new FindWidgetViewZone(0); // Put it before the first line then users can scroll beyond the first line.
 		}
 
-		this._applyTheme(themeService.getTheme());
-		this._register(themeService.onThemeChange(this._applyTheme.bind(this)));
+		this._applyTheme(themeService.getColorTheme());
+		this._register(themeService.onDidColorThemeChange(this._applyTheme.bind(this)));
 
 		this._register(this._codeEditor.onDidChangeModel(() => {
 			if (!this._isVisible) {
@@ -419,8 +419,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		}
 		if (currentMatch) {
 			const ariaLabel = nls.localize('ariaSearchNoResultWithLineNum', "{0} found for '{1}', at {2}", label, searchString, currentMatch.startLineNumber + ':' + currentMatch.startColumn);
-			const lineContent = this._codeEditor.getModel()?.getLineContent(currentMatch.startLineNumber);
-			if (lineContent) {
+			const model = this._codeEditor.getModel();
+			if (model && (currentMatch.startLineNumber <= model.getLineCount()) && (currentMatch.startLineNumber >= 1)) {
+				const lineContent = model.getLineContent(currentMatch.startLineNumber);
 				return `${lineContent}, ${ariaLabel}`;
 			}
 
@@ -642,7 +643,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		});
 	}
 
-	private _applyTheme(theme: ITheme) {
+	private _applyTheme(theme: IColorTheme) {
 		let inputStyles: IFindInputStyles = {
 			inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder),
 			inputActiveOptionBackground: theme.getColor(inputActiveOptionBackground),
@@ -923,7 +924,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 					return null;
 				}
 				try {
-					new RegExp(value);
+					// use `g` and `u` which are also used by the TextModel search
+					new RegExp(value, 'gu');
 					return null;
 				} catch (e) {
 					return { content: e.message };

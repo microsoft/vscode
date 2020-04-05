@@ -24,9 +24,7 @@ import 'vs/workbench/browser/actions/navigationActions';
 import 'vs/workbench/browser/actions/windowActions';
 import 'vs/workbench/browser/actions/workspaceActions';
 import 'vs/workbench/browser/actions/workspaceCommands';
-
-import 'vs/workbench/browser/parts/quickopen/quickOpenActions';
-import 'vs/workbench/browser/parts/quickinput/quickInputActions';
+import 'vs/workbench/browser/actions/quickAccessActions';
 
 //#endregion
 
@@ -42,9 +40,6 @@ import 'vs/workbench/api/browser/viewsExtensionPoint';
 
 //#region --- workbench parts
 
-import 'vs/workbench/browser/parts/quickinput/quickInput';
-import 'vs/workbench/browser/parts/quickopen/quickOpenController';
-import 'vs/workbench/browser/parts/titlebar/titlebarPart';
 import 'vs/workbench/browser/parts/editor/editorPart';
 import 'vs/workbench/browser/parts/activitybar/activitybarPart';
 import 'vs/workbench/browser/parts/panel/panelPart';
@@ -57,6 +52,7 @@ import 'vs/workbench/browser/parts/views/views';
 
 //#region --- workbench services
 
+import 'vs/platform/undoRedo/common/undoRedoService';
 import 'vs/workbench/services/extensions/browser/extensionUrlHandler';
 import 'vs/workbench/services/bulkEdit/browser/bulkEditService';
 import 'vs/workbench/services/keybinding/common/keybindingEditing';
@@ -83,8 +79,10 @@ import 'vs/workbench/services/userDataSync/common/userDataSyncUtil';
 import 'vs/workbench/services/path/common/remotePathService';
 import 'vs/workbench/services/remote/common/remoteExplorerService';
 import 'vs/workbench/services/workingCopy/common/workingCopyService';
+import 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import 'vs/workbench/services/views/browser/viewDescriptorService';
+import 'vs/workbench/services/quickinput/browser/quickInputService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
@@ -142,11 +140,14 @@ import 'vs/workbench/contrib/preferences/browser/preferences.contribution';
 import 'vs/workbench/contrib/preferences/browser/keybindingsEditorContribution';
 import 'vs/workbench/contrib/preferences/browser/preferencesSearch';
 
+// Notebook
+import 'vs/workbench/contrib/notebook/browser/notebook.contribution';
+
 // Logs
 import 'vs/workbench/contrib/logs/common/logs.contribution';
 
-// Quick Open Handlers
-import 'vs/workbench/contrib/quickopen/browser/quickopen.contribution';
+// Quickaccess
+import 'vs/workbench/contrib/quickaccess/browser/quickAccess.contribution';
 
 // Explorer
 import 'vs/workbench/contrib/files/browser/explorerViewlet';
@@ -162,7 +163,6 @@ import 'vs/workbench/contrib/bulkEdit/browser/bulkEdit.contribution';
 // Search
 import 'vs/workbench/contrib/search/browser/search.contribution';
 import 'vs/workbench/contrib/search/browser/searchView';
-import 'vs/workbench/contrib/search/browser/openAnythingHandler';
 
 // Search Editor
 import 'vs/workbench/contrib/searchEditor/browser/searchEditor.contribution';
@@ -173,7 +173,6 @@ import 'vs/workbench/contrib/scm/browser/scmViewlet';
 
 // Debug
 import 'vs/workbench/contrib/debug/browser/debug.contribution';
-import 'vs/workbench/contrib/debug/browser/debugQuickOpen';
 import 'vs/workbench/contrib/debug/browser/debugEditorContribution';
 import 'vs/workbench/contrib/debug/browser/breakpointEditorContribution';
 import 'vs/workbench/contrib/debug/browser/callStackEditorContribution';
@@ -195,7 +194,6 @@ import 'vs/workbench/contrib/customEditor/browser/webviewEditor.contribution';
 
 // Extensions Management
 import 'vs/workbench/contrib/extensions/browser/extensions.contribution';
-import 'vs/workbench/contrib/extensions/browser/extensionsQuickOpen';
 import 'vs/workbench/contrib/extensions/browser/extensionsViewlet';
 
 // Output View
@@ -203,8 +201,8 @@ import 'vs/workbench/contrib/output/browser/output.contribution';
 import 'vs/workbench/contrib/output/browser/outputView';
 
 // Terminal
+import 'vs/workbench/contrib/terminal/common/environmentVariable.contribution';
 import 'vs/workbench/contrib/terminal/browser/terminal.contribution';
-import 'vs/workbench/contrib/terminal/browser/terminalQuickOpen';
 import 'vs/workbench/contrib/terminal/browser/terminalView';
 
 // Relauncher
@@ -271,6 +269,9 @@ import 'vs/workbench/contrib/userDataSync/browser/userDataSync.contribution';
 
 // Code Actions
 import 'vs/workbench/contrib/codeActions/common/codeActions.contribution';
+
+// Welcome
+import 'vs/workbench/contrib/welcome/common/viewsWelcome.contribution';
 
 // Timeline
 import 'vs/workbench/contrib/timeline/browser/timeline.contribution';

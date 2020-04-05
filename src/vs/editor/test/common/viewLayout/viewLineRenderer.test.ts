@@ -388,6 +388,66 @@ suite('viewLineRenderer.renderLine', () => {
 		assertCharacterMapping(_actual.characterMapping, expectedOffsetsArr, [12, 12, 24, 1, 21, 2, 1, 20, 1, 1]);
 	});
 
+	test('issue #91178: after decoration type shown before cursor', () => {
+		const lineText = '//just a comment';
+		const lineParts = createViewLineTokens([
+			createPart(16, 1)
+		]);
+		const expectedOutput = [
+			'<span class="mtk1">//just\u00a0a\u00a0com</span>',
+			'<span class="mtk1 dec2"></span>',
+			'<span class="mtk1 dec1"></span>',
+			'<span class="mtk1">ment</span>',
+		].join('');
+
+		const expectedCharacterMapping = new CharacterMapping(17, 4);
+		expectedCharacterMapping.setPartData(0, 0, 0, 0);
+		expectedCharacterMapping.setPartData(1, 0, 1, 0);
+		expectedCharacterMapping.setPartData(2, 0, 2, 0);
+		expectedCharacterMapping.setPartData(3, 0, 3, 0);
+		expectedCharacterMapping.setPartData(4, 0, 4, 0);
+		expectedCharacterMapping.setPartData(5, 0, 5, 0);
+		expectedCharacterMapping.setPartData(6, 0, 6, 0);
+		expectedCharacterMapping.setPartData(7, 0, 7, 0);
+		expectedCharacterMapping.setPartData(8, 0, 8, 0);
+		expectedCharacterMapping.setPartData(9, 0, 9, 0);
+		expectedCharacterMapping.setPartData(10, 0, 10, 0);
+		expectedCharacterMapping.setPartData(11, 0, 11, 0);
+		expectedCharacterMapping.setPartData(12, 2, 0, 12);
+		expectedCharacterMapping.setPartData(13, 3, 1, 12);
+		expectedCharacterMapping.setPartData(14, 3, 2, 12);
+		expectedCharacterMapping.setPartData(15, 3, 3, 12);
+		expectedCharacterMapping.setPartData(16, 3, 4, 12);
+
+		const actual = renderViewLine(new RenderLineInput(
+			true,
+			false,
+			lineText,
+			false,
+			true,
+			false,
+			0,
+			lineParts,
+			[
+				new LineDecoration(13, 13, 'dec1', InlineDecorationType.After),
+				new LineDecoration(13, 13, 'dec2', InlineDecorationType.Before),
+			],
+			4,
+			0,
+			10,
+			10,
+			10,
+			-1,
+			'none',
+			false,
+			false,
+			null
+		));
+
+		assert.equal(actual.html, '<span>' + expectedOutput + '</span>');
+		assertCharacterMapping2(actual.characterMapping, expectedCharacterMapping);
+	});
+
 	test('issue Microsoft/monaco-editor#280: Improved source code rendering for RTL languages', () => {
 		let lineText = 'var קודמות = \"מיותר קודמות צ\'ט של, אם לשון העברית שינויים ויש, אם\";';
 
@@ -399,10 +459,10 @@ suite('viewLineRenderer.renderLine', () => {
 		]);
 
 		let expectedOutput = [
-			'<span class="mtk6" dir="ltr">var</span>',
-			'<span class="mtk1" dir="ltr">\u00a0קודמות\u00a0=\u00a0</span>',
-			'<span class="mtk20" dir="ltr">"מיותר\u00a0קודמות\u00a0צ\'ט\u00a0של,\u00a0אם\u00a0לשון\u00a0העברית\u00a0שינויים\u00a0ויש,\u00a0אם"</span>',
-			'<span class="mtk1" dir="ltr">;</span>'
+			'<span class="mtk6">var</span>',
+			'<span class="mtk1">\u00a0קודמות\u00a0=\u00a0</span>',
+			'<span class="mtk20">"מיותר\u00a0קודמות\u00a0צ\'ט\u00a0של,\u00a0אם\u00a0לשון\u00a0העברית\u00a0שינויים\u00a0ויש,\u00a0אם"</span>',
+			'<span class="mtk1">;</span>'
 		].join('');
 
 		let _actual = renderViewLine(new RenderLineInput(
@@ -427,7 +487,7 @@ suite('viewLineRenderer.renderLine', () => {
 			null
 		));
 
-		assert.equal(_actual.html, '<span>' + expectedOutput + '</span>');
+		assert.equal(_actual.html, '<span dir="ltr">' + expectedOutput + '</span>');
 		assert.equal(_actual.containsRTL, true);
 	});
 
@@ -616,7 +676,7 @@ suite('viewLineRenderer.renderLine', () => {
 		let lineText = 'את גרמנית בהתייחסות שמו, שנתי המשפט אל חפש, אם כתב אחרים ולחבר. של התוכן אודות בויקיפדיה כלל, של עזרה כימיה היא. על עמוד יוצרים מיתולוגיה סדר, אם שכל שתפו לעברית שינויים, אם שאלות אנגלית עזה. שמות בקלות מה סדר.';
 		let lineParts = createViewLineTokens([createPart(lineText.length, 1)]);
 		let expectedOutput = [
-			'<span class="mtk1" dir="ltr">את\u00a0גרמנית\u00a0בהתייחסות\u00a0שמו,\u00a0שנתי\u00a0המשפט\u00a0אל\u00a0חפש,\u00a0אם\u00a0כתב\u00a0אחרים\u00a0ולחבר.\u00a0של\u00a0התוכן\u00a0אודות\u00a0בויקיפדיה\u00a0כלל,\u00a0של\u00a0עזרה\u00a0כימיה\u00a0היא.\u00a0על\u00a0עמוד\u00a0יוצרים\u00a0מיתולוגיה\u00a0סדר,\u00a0אם\u00a0שכל\u00a0שתפו\u00a0לעברית\u00a0שינויים,\u00a0אם\u00a0שאלות\u00a0אנגלית\u00a0עזה.\u00a0שמות\u00a0בקלות\u00a0מה\u00a0סדר.</span>'
+			'<span class="mtk1">את\u00a0גרמנית\u00a0בהתייחסות\u00a0שמו,\u00a0שנתי\u00a0המשפט\u00a0אל\u00a0חפש,\u00a0אם\u00a0כתב\u00a0אחרים\u00a0ולחבר.\u00a0של\u00a0התוכן\u00a0אודות\u00a0בויקיפדיה\u00a0כלל,\u00a0של\u00a0עזרה\u00a0כימיה\u00a0היא.\u00a0על\u00a0עמוד\u00a0יוצרים\u00a0מיתולוגיה\u00a0סדר,\u00a0אם\u00a0שכל\u00a0שתפו\u00a0לעברית\u00a0שינויים,\u00a0אם\u00a0שאלות\u00a0אנגלית\u00a0עזה.\u00a0שמות\u00a0בקלות\u00a0מה\u00a0סדר.</span>'
 		];
 		let actual = renderViewLine(new RenderLineInput(
 			false,
@@ -639,7 +699,7 @@ suite('viewLineRenderer.renderLine', () => {
 			false,
 			null
 		));
-		assert.equal(actual.html, '<span>' + expectedOutput.join('') + '</span>');
+		assert.equal(actual.html, '<span dir="ltr">' + expectedOutput.join('') + '</span>');
 		assert.equal(actual.containsRTL, true);
 	});
 
@@ -692,6 +752,33 @@ suite('viewLineRenderer.renderLine', () => {
 
 		assert.equal(_actual.html, '<span>' + expectedOutput + '</span>');
 	});
+
+	interface ICharMappingData {
+		charOffset: number;
+		partIndex: number;
+		charIndex: number;
+	}
+
+	function decodeCharacterMapping(source: CharacterMapping) {
+		const mapping: ICharMappingData[] = [];
+		for (let charOffset = 0; charOffset < source.length; charOffset++) {
+			const partData = source.charOffsetToPartData(charOffset);
+			const partIndex = CharacterMapping.getPartIndex(partData);
+			const charIndex = CharacterMapping.getCharIndex(partData);
+			mapping.push({ charOffset, partIndex, charIndex });
+		}
+		const absoluteOffsets: number[] = [];
+		for (const absoluteOffset of source.getAbsoluteOffsets()) {
+			absoluteOffsets.push(absoluteOffset);
+		}
+		return { mapping, absoluteOffsets };
+	}
+
+	function assertCharacterMapping2(actual: CharacterMapping, expected: CharacterMapping): void {
+		const _actual = decodeCharacterMapping(actual);
+		const _expected = decodeCharacterMapping(expected);
+		assert.deepEqual(_actual, _expected);
+	}
 
 	function assertCharacterMapping(actual: CharacterMapping, expectedCharPartOffsets: number[][], expectedPartLengths: number[]): void {
 
@@ -1773,6 +1860,92 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 		assert.deepEqual(actual.html, expected);
 	});
+
+	test('issue #91936: Semantic token color highlighting fails on line with selected text', () => {
+		let actual = renderViewLine(new RenderLineInput(
+			false,
+			true,
+			'                    else if ($s = 08) then \'\\b\'',
+			false,
+			true,
+			false,
+			0,
+			createViewLineTokens([
+				createPart(20, 1),
+				createPart(24, 15),
+				createPart(25, 1),
+				createPart(27, 15),
+				createPart(28, 1),
+				createPart(29, 1),
+				createPart(29, 1),
+				createPart(31, 16),
+				createPart(32, 1),
+				createPart(33, 1),
+				createPart(34, 1),
+				createPart(36, 6),
+				createPart(36, 1),
+				createPart(37, 1),
+				createPart(38, 1),
+				createPart(42, 15),
+				createPart(43, 1),
+				createPart(47, 11)
+			]),
+			[],
+			4,
+			0,
+			10,
+			11,
+			11,
+			10000,
+			'selection',
+			false,
+			false,
+			[new LineRange(0, 47)]
+		));
+
+		let expected = [
+			'<span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtk15">else</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtk15">if</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtk1">(</span>',
+			'<span class="mtk16">$s</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtk1">=</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtk6">08</span>',
+			'<span class="mtk1">)</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtk15">then</span>',
+			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtk11">\'\\b\'</span>',
+			'</span>'
+		].join('');
+
+		assert.deepEqual(actual.html, expected);
+	});
+
 
 	function createTestGetColumnOfLinePartOffset(lineContent: string, tabSize: number, parts: ViewLineToken[], expectedPartLengths: number[]): (partIndex: number, partLength: number, offset: number, expected: number) => void {
 		let renderLineOutput = renderViewLine(new RenderLineInput(

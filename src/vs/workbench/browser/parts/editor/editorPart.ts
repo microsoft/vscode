@@ -13,7 +13,6 @@ import { GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation, 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IView, orthogonal, LayoutPriority, IViewSize, Direction, SerializableGrid, Sizing, ISerializedGrid, Orientation, GridBranchNode, isGridBranchNode, GridNode, createSerializedGrid, Grid } from 'vs/base/browser/ui/grid/grid';
 import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorPartOptions, IEditorPartOptionsChangeEvent } from 'vs/workbench/common/editor';
-import { values } from 'vs/base/common/map';
 import { EDITOR_GROUP_BORDER, EDITOR_PANE_BACKGROUND } from 'vs/workbench/common/theme';
 import { distinct, coalesce } from 'vs/base/common/arrays';
 import { IEditorGroupsAccessor, IEditorGroupView, getEditorPartOptions, impactsEditorPartOptions, IEditorPartCreationOptions } from 'vs/workbench/browser/parts/editor/editor';
@@ -32,6 +31,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { MementoObject } from 'vs/workbench/common/memento';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IBoundarySashes } from 'vs/base/browser/ui/grid/gridview';
+import { CompositeDragAndDropObserver } from 'vs/workbench/browser/dnd';
 
 interface IEditorPartUIState {
 	serializedGrid: ISerializedGrid;
@@ -210,7 +210,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	}
 
 	get groups(): IEditorGroupView[] {
-		return values(this.groupViews);
+		return Array.from(this.groupViews.values());
 	}
 
 	get count(): number {
@@ -825,6 +825,20 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 		// Drop support
 		this._register(this.createEditorDropTarget(this.container, {}));
+
+		// No drop in the editor
+		const overlay = document.createElement('div');
+		addClass(overlay, 'drop-block-overlay');
+		parent.appendChild(overlay);
+
+		CompositeDragAndDropObserver.INSTANCE.registerTarget(this.element, {
+			onDragStart: e => {
+				toggleClass(overlay, 'visible', true);
+			},
+			onDragEnd: e => {
+				toggleClass(overlay, 'visible', false);
+			}
+		});
 
 		return this.container;
 	}

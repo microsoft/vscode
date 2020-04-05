@@ -27,6 +27,10 @@
 	margin-bottom: auto;
 }
 
+.monaco-workbench .activitybar > .content > .composite-bar-excess {
+	height: 100%;
+}
+
 .monaco-workbench .activitybar .menubar {
 	width: 100%;
 	height: 35px;

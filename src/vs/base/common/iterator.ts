@@ -34,6 +34,36 @@ export interface NativeIterator<T> {
 	next(): NativeIteratorResult<T>;
 }
 
+export namespace Iterable {
+
+	export function first<T>(iterable: Iterable<T>): T | undefined {
+		return iterable[Symbol.iterator]().next().value;
+	}
+
+	export function some<T>(iterable: Iterable<T>, predicate: (t: T) => boolean): boolean {
+		for (const element of iterable) {
+			if (predicate(element)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	export function* filter<T>(iterable: Iterable<T>, predicate: (t: T) => boolean): Iterable<T> {
+		for (const element of iterable) {
+			if (predicate(element)) {
+				return yield element;
+			}
+		}
+	}
+
+	export function* map<T, R>(iterable: Iterable<T>, fn: (t: T) => R): Iterable<R> {
+		for (const element of iterable) {
+			return yield fn(element);
+		}
+	}
+}
+
 export module Iterator {
 	const _empty: Iterator<any> = {
 		next() {
@@ -123,6 +153,19 @@ export module Iterator {
 				}
 			}
 		};
+	}
+
+	export function some<T>(iterator: Iterator<T> | NativeIterator<T>, fn: (t: T) => boolean): boolean {
+		while (true) {
+			const element = iterator.next();
+			if (element.done) {
+				return false;
+			}
+
+			if (fn(element.value)) {
+				return true;
+			}
+		}
 	}
 
 	export function forEach<T>(iterator: Iterator<T>, fn: (t: T) => void): void {

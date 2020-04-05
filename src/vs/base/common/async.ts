@@ -56,6 +56,20 @@ export function raceCancellation<T>(promise: Promise<T>, token: CancellationToke
 	return Promise.race([promise, new Promise<T>(resolve => token.onCancellationRequested(() => resolve(defaultValue)))]);
 }
 
+export function raceTimeout<T>(promise: Promise<T>, timeout: number, onTimeout?: () => void): Promise<T> {
+	let promiseResolve: (() => void) | undefined = undefined;
+
+	const timer = setTimeout(() => {
+		promiseResolve?.();
+		onTimeout?.();
+	}, timeout);
+
+	return Promise.race([
+		promise.finally(() => clearTimeout(timer)),
+		new Promise<T>(resolve => promiseResolve = resolve)
+	]);
+}
+
 export function asPromise<T>(callback: () => T | Thenable<T>): Promise<T> {
 	return new Promise<T>((resolve, reject) => {
 		const item = callback();
@@ -823,7 +837,7 @@ export class TaskSequentializer {
 		this._pending?.cancel();
 	}
 
-	setPending(taskId: number, promise: Promise<void>, onCancel?: () => void, ): Promise<void> {
+	setPending(taskId: number, promise: Promise<void>, onCancel?: () => void,): Promise<void> {
 		this._pending = { taskId: taskId, cancel: () => onCancel?.(), promise };
 
 		promise.then(() => this.donePending(taskId), () => this.donePending(taskId));

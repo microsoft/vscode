@@ -18,8 +18,8 @@ import { parseLineAndColumnAware } from 'vs/code/node/paths';
 import { ILifecycleMainService, UnloadReason, LifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IWindowSettings, OpenContext, IPath, IWindowConfiguration, IPathsToWaitFor, isFileToOpen, isWorkspaceToOpen, isFolderToOpen, IWindowOpenable, IOpenEmptyWindowOptions, IAddFoldersRequest } from 'vs/platform/windows/common/windows';
-import { getLastActiveWindow, findBestWindowOrFolderForFile, findWindowOnWorkspace, findWindowOnExtensionDevelopmentPath, findWindowOnWorkspaceOrFolderUri } from 'vs/platform/windows/node/window';
+import { IWindowSettings, OpenContext, IPath, IPathsToWaitFor, isFileToOpen, isWorkspaceToOpen, isFolderToOpen, IWindowOpenable, IOpenEmptyWindowOptions, IAddFoldersRequest } from 'vs/platform/windows/common/windows';
+import { getLastActiveWindow, findBestWindowOrFolderForFile, findWindowOnWorkspace, findWindowOnExtensionDevelopmentPath, findWindowOnWorkspaceOrFolderUri, INativeWindowConfiguration } from 'vs/platform/windows/node/window';
 import { Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/product/common/product';
 import { IWindowsMainService, IOpenConfiguration, IWindowsCountChangedEvent, ICodeWindow, IWindowState as ISingleWindowState, WindowMode } from 'vs/platform/windows/electron-main/windows';
@@ -454,16 +454,14 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		//
 		// These are windows to restore because of hot-exit or from previous session (only performed once on startup!)
 		//
-		let foldersToRestore: URI[] = [];
 		let workspacesToRestore: IWorkspacePathToOpen[] = [];
 		if (openConfig.initialStartup && !openConfig.cli.extensionDevelopmentPath && !openConfig.cli['disable-restore-windows']) {
-			let foldersToRestore = this.backupMainService.getFolderBackupPaths();
-			foldersToAdd.push(...foldersToRestore.map(f => ({ folderUri: f, remoteAuhority: getRemoteAuthority(f), isRestored: true })));
 
-			// collect from workspaces with hot-exit backups and from previous window session
-			workspacesToRestore = [...this.backupMainService.getWorkspaceBackups(), ...this.workspacesMainService.getUntitledWorkspacesSync()];
+			// Untitled workspaces are always restored
+			workspacesToRestore = this.workspacesMainService.getUntitledWorkspacesSync();
 			workspacesToOpen.push(...workspacesToRestore);
 
+			// Empty windows with backups are always restored
 			emptyToRestore.push(...this.backupMainService.getEmptyWindowBackupPaths());
 		} else {
 			emptyToRestore.length = 0;
@@ -495,7 +493,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 					const usedWindow = usedWindows[i];
 					if (
 						(usedWindow.openedWorkspace && workspacesToRestore.some(workspace => usedWindow.openedWorkspace && workspace.workspace.id === usedWindow.openedWorkspace.id)) ||	// skip over restored workspace
-						(usedWindow.openedFolderUri && foldersToRestore.some(uri => isEqual(uri, usedWindow.openedFolderUri))) ||															// skip over restored folder
 						(usedWindow.backupPath && emptyToRestore.some(empty => usedWindow.backupPath && empty.backupFolder === basename(usedWindow.backupPath)))							// skip over restored empty window
 					) {
 						continue;
@@ -1354,8 +1351,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	private openInBrowserWindow(options: IOpenBrowserWindowOptions): ICodeWindow {
 
-		// Build IWindowConfiguration from config and options
-		const configuration: IWindowConfiguration = mixin({}, options.cli); // inherit all properties from CLI
+		// Build INativeWindowConfiguration from config and options
+		const configuration: INativeWindowConfiguration = mixin({}, options.cli); // inherit all properties from CLI
 		configuration.appRoot = this.environmentService.appRoot;
 		configuration.machineId = this.machineId;
 		configuration.nodeCachedDataDir = this.environmentService.nodeCachedDataDir;
@@ -1482,7 +1479,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		return window;
 	}
 
-	private doOpenInBrowserWindow(window: ICodeWindow, configuration: IWindowConfiguration, options: IOpenBrowserWindowOptions): void {
+	private doOpenInBrowserWindow(window: ICodeWindow, configuration: INativeWindowConfiguration, options: IOpenBrowserWindowOptions): void {
 
 		// Register window for backups
 		if (!configuration.extensionDevelopmentPath) {
@@ -1500,7 +1497,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		window.load(configuration);
 	}
 
-	private getNewWindowState(configuration: IWindowConfiguration): INewWindowState {
+	private getNewWindowState(configuration: INativeWindowConfiguration): INewWindowState {
 		const lastActive = this.getLastActiveWindow();
 
 		// Restore state unless we are running extension tests

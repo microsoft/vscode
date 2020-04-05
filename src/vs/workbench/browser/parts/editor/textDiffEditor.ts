@@ -9,7 +9,7 @@ import { isFunction, isObject, isArray, assertIsDefined } from 'vs/base/common/t
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditorOptions, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BaseTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
-import { TextEditorOptions, EditorInput, EditorOptions, TEXT_DIFF_EDITOR_ID, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, ITextDiffEditor, IEditorMemento } from 'vs/workbench/common/editor';
+import { TextEditorOptions, EditorInput, EditorOptions, TEXT_DIFF_EDITOR_ID, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, ITextDiffEditorPane, IEditorMemento } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { DiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
@@ -30,12 +30,11 @@ import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/commo
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { EditorMemento } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorActivation, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 /**
  * The text editor that leverages the diff text editor for the editing experience.
  */
-export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
+export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPane {
 
 	static readonly ID = TEXT_DIFF_EDITOR_ID;
 
@@ -49,8 +48,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IEditorService editorService: IEditorService,
 		@IThemeService themeService: IThemeService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IClipboardService private clipboardService: IClipboardService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
 		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, editorService, editorGroupService);
 	}
@@ -68,7 +66,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 	}
 
 	createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): IDiffEditor {
-		return this.instantiationService.createInstance(DiffEditorWidget, parent, configuration, this.clipboardService);
+		return this.instantiationService.createInstance(DiffEditorWidget, parent, configuration);
 	}
 
 	async setInput(input: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
@@ -162,12 +160,12 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 			const binaryDiffInput = new DiffEditorInput(input.getName(), input.getDescription(), originalInput, modifiedInput, true);
 
 			// Forward binary flag to input if supported
-			const fileInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).getFileInputFactory();
-			if (fileInputFactory.isFileInput(originalInput)) {
+			const fileEditorInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).getFileEditorInputFactory();
+			if (fileEditorInputFactory.isFileEditorInput(originalInput)) {
 				originalInput.setForceOpenAsBinary();
 			}
 
-			if (fileInputFactory.isFileInput(modifiedInput)) {
+			if (fileEditorInputFactory.isFileEditorInput(modifiedInput)) {
 				modifiedInput.setForceOpenAsBinary();
 			}
 
@@ -321,8 +319,8 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		let modified: URI | undefined;
 
 		if (modelOrInput instanceof DiffEditorInput) {
-			original = modelOrInput.originalInput.getResource();
-			modified = modelOrInput.modifiedInput.getResource();
+			original = modelOrInput.originalInput.resource;
+			modified = modelOrInput.modifiedInput.resource;
 		} else {
 			original = modelOrInput.original.uri;
 			modified = modelOrInput.modified.uri;

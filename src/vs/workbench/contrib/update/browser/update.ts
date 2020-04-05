@@ -22,14 +22,14 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { ReleaseNotesManager } from './releaseNotesEditor';
 import { isWindows } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { FalseContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ShowCurrentReleaseNotesActionId, CheckForVSCodeUpdateActionId } from 'vs/workbench/contrib/update/common/update';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
+import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
 export const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Idle);
 
@@ -180,11 +180,15 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		@IActivityService private readonly activityService: IActivityService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IProductService private readonly productService: IProductService,
-		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService
 	) {
 		super();
 		this.state = updateService.state;
 		this.updateStateContextKey = CONTEXT_UPDATE_STATE.bindTo(this.contextKeyService);
+
+		// opt-in to syncing
+		storageKeysSyncRegistryService.registerStorageKey({ key: 'neverShowAgain:update/win32-fast-updates', version: 1 });
 
 		this._register(updateService.onStateChange(this.onUpdateStateChange, this));
 		this.onUpdateStateChange(this.updateService.state);
@@ -417,7 +421,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			command: {
 				id: 'update.checking',
 				title: nls.localize('checkingForUpdates', "Checking for Updates..."),
-				precondition: FalseContext
+				precondition: ContextKeyExpr.false()
 			},
 			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.CheckingForUpdates)
 		});
@@ -438,7 +442,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			command: {
 				id: 'update.downloading',
 				title: nls.localize('DownloadingUpdate', "Downloading Update..."),
-				precondition: FalseContext
+				precondition: ContextKeyExpr.false()
 			},
 			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Downloading)
 		});
@@ -459,7 +463,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			command: {
 				id: 'update.updating',
 				title: nls.localize('installingUpdate', "Installing Update..."),
-				precondition: FalseContext
+				precondition: ContextKeyExpr.false()
 			},
 			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Updating)
 		});

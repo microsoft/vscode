@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { EditorGroup, ISerializedEditorGroup, EditorCloseEvent } from 'vs/workbench/common/editor/editorGroup';
 import { Extensions as EditorExtensions, IEditorInputFactoryRegistry, EditorInput, IFileEditorInput, IEditorInputFactory, CloseDirection, EditorsOrder } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
-import { TestLifecycleService, TestContextService, TestStorageService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -21,6 +21,7 @@ import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtil
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { TestContextService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
 function inst(): IInstantiationService {
 	let inst = new TestInstantiationService();
@@ -73,6 +74,9 @@ function groupListener(group: EditorGroup): GroupEvents {
 
 let index = 0;
 class TestEditorInput extends EditorInput {
+
+	readonly resource = undefined;
+
 	constructor(public id: string) {
 		super();
 	}
@@ -93,6 +97,9 @@ class TestEditorInput extends EditorInput {
 }
 
 class NonSerializableTestEditorInput extends EditorInput {
+
+	readonly resource = undefined;
+
 	constructor(public id: string) {
 		super();
 	}
@@ -106,7 +113,7 @@ class NonSerializableTestEditorInput extends EditorInput {
 
 class TestFileEditorInput extends EditorInput implements IFileEditorInput {
 
-	constructor(public id: string, private resource: URI) {
+	constructor(public id: string, public resource: URI) {
 		super();
 	}
 	getTypeId() { return 'testFileEditorInputForGroups'; }
@@ -114,10 +121,10 @@ class TestFileEditorInput extends EditorInput implements IFileEditorInput {
 	setEncoding(encoding: string) { }
 	getEncoding() { return undefined; }
 	setPreferredEncoding(encoding: string) { }
-	getResource(): URI { return this.resource; }
 	setForceOpenAsBinary(): void { }
 	setMode(mode: string) { }
 	setPreferredMode(mode: string) { }
+	isResolved(): boolean { return false; }
 
 	matches(other: TestFileEditorInput): boolean {
 		return other && this.id === other.id && other instanceof TestFileEditorInput;

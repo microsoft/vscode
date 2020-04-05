@@ -17,9 +17,11 @@ import { LanguageIdentifier, LanguageId } from 'vs/editor/common/modes';
 import { createBreakpointDecorations } from 'vs/workbench/contrib/debug/browser/breakpointEditorContribution';
 import { OverviewRulerLane } from 'vs/editor/common/model';
 import { MarkdownString } from 'vs/base/common/htmlContent';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { generateUuid } from 'vs/base/common/uuid';
 
 function createMockSession(model: DebugModel, name = 'mockSession', options?: IDebugSessionOptions): DebugSession {
-	return new DebugSession({ resolved: { name, type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, options, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, NullOpenerService, undefined!);
+	return new DebugSession(generateUuid(), { resolved: { name, type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, options, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, NullOpenerService, undefined!, undefined!);
 }
 
 function addBreakpointsAndCheckEvents(model: DebugModel, uri: uri, data: IBreakpointData[]): void {
@@ -319,7 +321,7 @@ suite('Debug - Breakpoints', () => {
 	test('decorations', () => {
 		const modelUri = uri.file('/myfolder/my file first.js');
 		const languageIdentifier = new LanguageIdentifier('testMode', LanguageId.PlainText);
-		const textModel = new TextModel(
+		const textModel = createTextModel(
 			['this is line one', 'this is line two', '    this is line three it has whitespace at start', 'this is line four', 'this is line five'].join('\n'),
 			TextModel.DEFAULT_CREATION_OPTIONS,
 			languageIdentifier

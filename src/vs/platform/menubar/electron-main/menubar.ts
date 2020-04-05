@@ -532,6 +532,7 @@ export class Menubar {
 		[
 			minimize,
 			zoom,
+			__separator__(),
 			switchWindow,
 			...nativeTabMenuItems,
 			__separator__(),

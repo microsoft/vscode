@@ -6,7 +6,7 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import * as network from 'vs/base/common/network';
 import { basename } from 'vs/base/common/path';
-import { isEqual, joinPath } from 'vs/base/common/resources';
+import { isEqual, joinPath, extname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/searchEditor';
 import { Range } from 'vs/editor/common/core/range';
@@ -17,8 +17,8 @@ import { localize } from 'vs/nls';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { EditorInput, GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
-import { SearchEditorFindMatchClass, SearchEditorScheme } from 'vs/workbench/contrib/searchEditor/browser/constants';
+import { EditorInput, GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, IMoveResult } from 'vs/workbench/common/editor';
+import { SearchEditorFindMatchClass, SearchEditorScheme, SearchEditorBodyScheme } from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { extractSearchQuery, serializeSearchConfiguration } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -42,6 +42,8 @@ export type SearchConfiguration = {
 	showIncludesExcludes: boolean,
 };
 
+const SEARCH_EDITOR_EXT = '.code-search';
+
 export class SearchEditorInput extends EditorInput {
 	static readonly ID: string = 'workbench.editorinputs.searchEditorInput';
 
@@ -51,7 +53,7 @@ export class SearchEditorInput extends EditorInput {
 	private _cachedContentsModel: ITextModel | undefined;
 	private _cachedConfig?: SearchConfiguration;
 
-	private readonly _onDidChangeContent = new Emitter<void>();
+	private readonly _onDidChangeContent = this._register(new Emitter<void>());
 	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 
 	private oldDecorationsIDs: string[] = [];
@@ -99,10 +101,9 @@ export class SearchEditorInput extends EditorInput {
 		this.contentsModel = modelLoader.then(({ contentsModel }) => contentsModel);
 		this.headerModel = modelLoader.then(({ headerModel }) => headerModel);
 
-
 		const input = this;
 		const workingCopyAdapter = new class implements IWorkingCopy {
-			readonly resource = input.getResource();
+			readonly resource = input.resource;
 			get name() { return input.getName(); }
 			readonly capabilities = input.isUntitled() ? WorkingCopyCapabilities.Untitled : 0;
 			readonly onDidChangeDirty = input.onDidChangeDirty;
@@ -110,14 +111,10 @@ export class SearchEditorInput extends EditorInput {
 			isDirty(): boolean { return input.isDirty(); }
 			backup(): Promise<IWorkingCopyBackup> { return input.backup(); }
 			save(options?: ISaveOptions): Promise<boolean> { return input.save(0, options).then(editor => !!editor); }
-			revert(options?: IRevertOptions): Promise<boolean> { return input.revert(0, options); }
+			revert(options?: IRevertOptions): Promise<void> { return input.revert(0, options); }
 		};
 
-		this.workingCopyService.registerWorkingCopy(workingCopyAdapter);
-	}
-
-	getResource() {
-		return this.resource;
+		this._register(this.workingCopyService.registerWorkingCopy(workingCopyAdapter));
 	}
 
 	async save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IEditorInput | undefined> {
@@ -174,7 +171,7 @@ export class SearchEditorInput extends EditorInput {
 			return localize('searchTitle', "Search");
 		}
 
-		return localize('searchTitle.withQuery', "Search: {0}", basename(this.resource.path, '.code-search'));
+		return localize('searchTitle.withQuery', "Search: {0}", basename(this.resource.path, SEARCH_EDITOR_EXT));
 	}
 
 	getConfigSync() {
@@ -218,6 +215,17 @@ export class SearchEditorInput extends EditorInput {
 		return this.resource.scheme === SearchEditorScheme;
 	}
 
+	move(group: GroupIdentifier, target: URI): IMoveResult | undefined {
+		if (extname(target) === SEARCH_EDITOR_EXT) {
+			return {
+				editor: this.instantiationService.invokeFunction(getOrMakeSearchEditorInput, { uri: target })
+			};
+		}
+
+		// Ignore move if editor was renamed to a different file extension
+		return undefined;
+	}
+
 	dispose() {
 		this.modelService.destroyModel(this.resource);
 		super.dispose();
@@ -240,6 +248,7 @@ export class SearchEditorInput extends EditorInput {
 	public getMatchRanges(): Range[] {
 		return (this._cachedContentsModel?.getAllDecorations() ?? [])
 			.filter(decoration => decoration.options.className === SearchEditorFindMatchClass)
+			.filter(({ range }) => !(range.startColumn === 1 && range.endColumn === 1))
 			.map(({ range }) => range);
 	}
 
@@ -252,7 +261,6 @@ export class SearchEditorInput extends EditorInput {
 		// TODO: this should actually revert the contents. But it needs to set dirty false.
 		super.revert(group, options);
 		this.setDirty(false);
-		return true;
 	}
 
 	private async backup(): Promise<IWorkingCopyBackup> {
@@ -265,7 +273,7 @@ export class SearchEditorInput extends EditorInput {
 	private async suggestFileName(): Promise<URI> {
 		const query = extractSearchQuery(await this.headerModel).query;
 
-		const searchFileName = (query.replace(/[^\w \-_]+/g, '_') || 'Search') + '.code-search';
+		const searchFileName = (query.replace(/[^\w \-_]+/g, '_') || 'Search') + SEARCH_EDITOR_EXT;
 
 		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
 		const schemeFilter = remoteAuthority ? network.Schemas.vscodeRemote : network.Schemas.file;
@@ -330,7 +338,7 @@ export const getOrMakeSearchEditorInput = (
 			}
 		}
 
-		const contentsModelURI = uri.with({ scheme: 'search-editor-body' });
+		const contentsModelURI = uri.with({ scheme: SearchEditorBodyScheme });
 		const headerModelURI = uri.with({ scheme: 'search-editor-header' });
 		const contentsModel = modelService.getModel(contentsModelURI) ?? modelService.createModel('', modeService.create('search-result'), contentsModelURI);
 		const headerModel = modelService.getModel(headerModelURI) ?? modelService.createModel('', modeService.create('search-result'), headerModelURI);
