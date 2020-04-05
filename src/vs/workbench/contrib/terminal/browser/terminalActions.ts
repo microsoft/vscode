@@ -725,7 +725,7 @@ export class SwitchTerminalActionViewItem extends SelectActionViewItem {
 		@IThemeService private readonly themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService
 	) {
-		super(null, action, terminalService.getTabLabels().map(label => <ISelectOptionItem>{ text: label }), terminalService.activeTabIndex, contextViewService, { ariaLabel: nls.localize('terminals', 'Open Terminals.') });
+		super(null, action, getTerminalSelectOpenItems(terminalService), terminalService.activeTabIndex, contextViewService, { ariaLabel: nls.localize('terminals', 'Open Terminals.') });
 
 		this._register(terminalService.onInstancesChanged(this._updateItems, this));
 		this._register(terminalService.onActiveTabChanged(this._updateItems, this));
@@ -743,11 +743,15 @@ export class SwitchTerminalActionViewItem extends SelectActionViewItem {
 	}
 
 	private _updateItems(): void {
-		const items = this.terminalService.getTabLabels().map(label => <ISelectOptionItem>{ text: label });
-		items.push({ text: SwitchTerminalActionViewItem.SEPARATOR, isDisabled: true });
-		items.push({ text: SelectDefaultShellWindowsTerminalAction.LABEL });
-		this.setOptions(items, this.terminalService.activeTabIndex);
+		this.setOptions(getTerminalSelectOpenItems(this.terminalService), this.terminalService.activeTabIndex);
 	}
+}
+
+function getTerminalSelectOpenItems(terminalService: ITerminalService): ISelectOptionItem[] {
+	const items = terminalService.getTabLabels().map(label => <ISelectOptionItem>{ text: label });
+	items.push({ text: SwitchTerminalActionViewItem.SEPARATOR, isDisabled: true });
+	items.push({ text: SelectDefaultShellWindowsTerminalAction.LABEL });
+	return items;
 }
 
 export class ScrollDownTerminalAction extends Action {
