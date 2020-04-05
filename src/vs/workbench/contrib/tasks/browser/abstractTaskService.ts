@@ -1389,11 +1389,60 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private executeTask(task: Task, resolver: ITaskResolver): Promise<ITaskSummary> {
-		return ProblemMatcherRegistry.onReady().then(() => {
-			return this.editorService.saveAll().then(() => { // make sure all dirty editors are saved
-				let executeResult = this.getTaskSystem().run(task, resolver);
-				return this.handleExecuteResult(executeResult);
+		enum saveBeforeRunConfigOptions {
+			Always = 'always',
+			Never = 'never',
+			Prompt = 'prompt'
+		}
+
+		const saveBeforeRunTaskConfig: saveBeforeRunConfigOptions = this.configurationService.getValue('task.saveBeforeRun');
+
+		const execTask = async (task: Task, resolver: ITaskResolver): Promise<ITaskSummary> => {
+			let executeResult = this.getTaskSystem().run(task, resolver);
+			return this.handleExecuteResult(executeResult);
+		};
+
+		const saveAllEditorsAndExecTask = async (task: Task, resolver: ITaskResolver): Promise<ITaskSummary> => {
+			return this.editorService.saveAll().then(() => {
+				return execTask(task, resolver);
 			});
+		};
+
+		const promptAsk = (task: Task, resolver: ITaskResolver): Promise<ITaskSummary> => {
+			const message = nls.localize('TaskSystem.saveBeforeRun.prompt.title', 'Save all editors and run task?');
+
+			let result: Promise<ITaskSummary> = new Promise<ITaskSummary>((resolve, reject) => {
+				resolve();
+			});
+
+			this.notificationService.prompt(Severity.Warning, message,
+				[{
+					label: nls.localize('TaskSystem.saveBeforeRun.prompt.saveAndRunChoice', 'Save all editors and run task'),
+					run: async () => {
+						result = saveAllEditorsAndExecTask(task, resolver);
+					}
+				},
+				{
+					label: nls.localize('TaskSystem.saveBeforeRun.prompt.dontSaveAndRunChoice', 'Run task without saving'),
+					run: async () => {
+						result = execTask(task, resolver);
+					}
+
+				}],
+				{ sticky: true }
+			);
+
+			return result;
+		};
+
+		return ProblemMatcherRegistry.onReady().then(() => {
+			if (saveBeforeRunTaskConfig === saveBeforeRunConfigOptions.Never) {
+				return execTask(task, resolver);
+			} else if (saveBeforeRunTaskConfig === saveBeforeRunConfigOptions.Prompt) {
+				return promptAsk(task, resolver);
+			} else {
+				return saveAllEditorsAndExecTask(task, resolver);
+			}
 		});
 	}
 

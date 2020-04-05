@@ -375,6 +375,20 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('task.quickOpen.skip', "Controls whether the task quick pick is skipped when there is only one task to pick from."),
 			default: false
-		}
+		},
+		'task.saveBeforeRun': {
+			markdownDescription: nls.localize(
+				'task.saveBeforeRun',
+				'Configures whether to save all editors before running a task, running it without saving or prompting the option every time is run'
+			),
+			type: 'string',
+			enum: ['always', 'never', 'prompt'],
+			enumDescriptions: [
+				nls.localize('task.dirtyEditors.always', 'Save everytime before run'),
+				nls.localize('task.dirtyEditors.never', 'Run without saving'),
+				nls.localize('task.dirtyEditors.prompt', 'Ask to save before run'),
+			],
+			default: 'always',
+		},
 	}
 });
