@@ -1166,7 +1166,7 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', { tabindex: '0' }, localize('iconThemes', "Icon Themes ({0})", contrib.length)),
+			$('summary', { tabindex: '0' }, localize('iconThemes', "File Icon Themes ({0})", contrib.length)),
 			$('ul', undefined, ...contrib.map(theme => $('li', undefined, theme.label)))
 		);
 

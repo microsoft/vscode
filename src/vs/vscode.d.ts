@@ -7869,7 +7869,7 @@ declare module 'vscode' {
 		/**
 		 * The icon path or [ThemeIcon](#ThemeIcon) for the tree item.
 		 * When `falsy`, [Folder Theme Icon](#ThemeIcon.Folder) is assigned, if item is collapsible otherwise [File Theme Icon](#ThemeIcon.File).
-		 * When a [ThemeIcon](#ThemeIcon) is specified, icon is derived from the current file icon theme for the specified theme icon using [resourceUri](#TreeItem.resourceUri) (if provided).
+		 * When a file or folder [ThemeIcon](#ThemeIcon) is specified, icon is derived from the current file icon theme for the specified theme icon using [resourceUri](#TreeItem.resourceUri) (if provided).
 		 */
 		iconPath?: string | Uri | { light: string | Uri; dark: string | Uri } | ThemeIcon;
 
@@ -7883,7 +7883,7 @@ declare module 'vscode' {
 		 * The [uri](#Uri) of the resource representing this item.
 		 *
 		 * Will be used to derive the [label](#TreeItem.label), when it is not provided.
-		 * Will be used to derive the icon from current icon theme, when [iconPath](#TreeItem.iconPath) has [ThemeIcon](#ThemeIcon) value.
+		 * Will be used to derive the icon from current file icon theme, when [iconPath](#TreeItem.iconPath) has [ThemeIcon](#ThemeIcon) value.
 		 */
 		resourceUri?: Uri;
 
