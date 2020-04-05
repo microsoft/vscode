@@ -28,7 +28,11 @@ export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQ
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IQuickInputService private quickInputService: IQuickInputService
 	) {
-		super(TasksQuickAccessProvider.PREFIX);
+		super(TasksQuickAccessProvider.PREFIX, {
+			noResultsPick: {
+				label: localize('noTaskResults', "No matching tasks")
+			}
+		});
 
 		this.activationPromise = extensionService.activateByEvent('onCommand:workbench.action.tasks.runTask');
 	}
@@ -46,16 +50,17 @@ export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQ
 		const taskPicks: Array<IPickerQuickAccessItem | IQuickPickSeparator> = [];
 
 		for (const entry of topLevelPicks.entries) {
-			if (entry.type === 'separator') {
-				taskPicks.push(entry);
-			}
 			const highlights = matchesFuzzy(filter, entry.label!, true);
 			if (!highlights) {
 				continue;
 			}
+
+			if (entry.type === 'separator') {
+				taskPicks.push(entry);
+			}
+
 			const task: Task | ConfiguringTask | string = (<TaskTwoLevelQuickPickEntry>entry).task!;
 			const quickAccessEntry: IPickerQuickAccessItem = <TaskTwoLevelQuickPickEntry>entry;
-			quickAccessEntry.ariaLabel = localize('entryAriaLabel', "{0}, tasks picker", entry.label!);
 			quickAccessEntry.highlights = { label: highlights };
 			quickAccessEntry.trigger = () => {
 				if (ContributedTask.is(task)) {

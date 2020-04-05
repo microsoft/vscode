@@ -42,20 +42,28 @@ class NullAccessorClass implements scorer.IItemAccessor<URI> {
 	}
 }
 
-function _doScore(target: string, query: string, fuzzy: boolean): scorer.Score {
-	return scorer.score(target, scorer.prepareQuery(query), fuzzy);
+function _doScore(target: string, query: string, fuzzy: boolean): scorer.FuzzyScore {
+	const preparedQuery = scorer.prepareQuery(query);
+
+	return scorer.scoreFuzzy(target, preparedQuery.normalized, preparedQuery.normalizedLowercase, fuzzy);
 }
 
-function scoreItem<T>(item: T, query: string, fuzzy: boolean, accessor: scorer.IItemAccessor<T>, cache: scorer.ScorerCache): scorer.IItemScore {
-	return scorer.scoreItem(item, scorer.prepareQuery(query), fuzzy, accessor, cache);
+function _doScore2(target: string, query: string): scorer.FuzzyScore2 {
+	const preparedQuery = scorer.prepareQuery(query);
+
+	return scorer.scoreFuzzy2(target, preparedQuery);
 }
 
-function compareItemsByScore<T>(itemA: T, itemB: T, query: string, fuzzy: boolean, accessor: scorer.IItemAccessor<T>, cache: scorer.ScorerCache): number {
-	return scorer.compareItemsByScore(itemA, itemB, scorer.prepareQuery(query), fuzzy, accessor, cache);
+function scoreItem<T>(item: T, query: string, fuzzy: boolean, accessor: scorer.IItemAccessor<T>, cache: scorer.FuzzyScorerCache): scorer.IItemScore {
+	return scorer.scoreItemFuzzy(item, scorer.prepareQuery(query), fuzzy, accessor, cache);
+}
+
+function compareItemsByScore<T>(itemA: T, itemB: T, query: string, fuzzy: boolean, accessor: scorer.IItemAccessor<T>, cache: scorer.FuzzyScorerCache): number {
+	return scorer.compareItemsByFuzzyScore(itemA, itemB, scorer.prepareQuery(query), fuzzy, accessor, cache);
 }
 
 const NullAccessor = new NullAccessorClass();
-let cache: scorer.ScorerCache = Object.create(null);
+let cache: scorer.FuzzyScorerCache = Object.create(null);
 
 suite('Fuzzy Scorer', () => {
 
@@ -66,7 +74,7 @@ suite('Fuzzy Scorer', () => {
 	test('score (fuzzy)', function () {
 		const target = 'HeLlo-World';
 
-		const scores: scorer.Score[] = [];
+		const scores: scorer.FuzzyScore[] = [];
 		scores.push(_doScore(target, 'HelLo-World', true)); // direct case match
 		scores.push(_doScore(target, 'hello-world', true)); // direct mix-case match
 		scores.push(_doScore(target, 'HW', true)); // direct case prefix (multiple)
@@ -107,42 +115,6 @@ suite('Fuzzy Scorer', () => {
 		assert.ok(_doScore(target, 'ello', false)[0] > 0);
 		assert.ok(_doScore(target, 'ld', false)[0] > 0);
 		assert.equal(_doScore(target, 'eo', false)[0], 0);
-	});
-
-	test('score (fuzzy, multiple)', function () {
-		const target = 'HeLlo-World';
-
-		const [firstSingleScore, firstSinglePositions] = _doScore(target, 'HelLo', true);
-		const [secondSingleScore, secondSinglePositions] = _doScore(target, 'World', true);
-		const firstAndSecondSinglePositions = [...firstSinglePositions, ...secondSinglePositions];
-
-		let [multiScore, multiPositions] = _doScore(target, 'HelLo World', true);
-
-		function assertScore() {
-			assert.ok(multiScore >= firstSingleScore + secondSingleScore);
-			for (let i = 0; i < multiPositions.length; i++) {
-				assert.equal(multiPositions[i], firstAndSecondSinglePositions[i]);
-			}
-		}
-
-		function assertNoScore() {
-			assert.equal(multiScore, 0);
-			assert.equal(multiPositions.length, 0);
-		}
-
-		assertScore();
-
-		[multiScore, multiPositions] = _doScore(target, 'World HelLo', true);
-		assertScore();
-
-		[multiScore, multiPositions] = _doScore(target, 'World HelLo World', true);
-		assertScore();
-
-		[multiScore, multiPositions] = _doScore(target, 'World HelLo Nothing', true);
-		assertNoScore();
-
-		[multiScore, multiPositions] = _doScore(target, 'More Nothing', true);
-		assertNoScore();
 	});
 
 	test('scoreItem - matches are proper', function () {
@@ -215,6 +187,49 @@ suite('Fuzzy Scorer', () => {
 		assert.ok(basenamePrefixRes.score > basenameRes.score);
 		assert.ok(basenameRes.score > pathRes.score);
 		assert.ok(pathRes.score > noRes.score);
+	});
+
+	test('scoreItem - multiple', function () {
+		const resource = URI.file('/xyz/some/path/someFile123.txt');
+
+		let res1 = scoreItem(resource, 'xyz some', true, ResourceAccessor, cache);
+		assert.ok(res1.score);
+		assert.equal(res1.labelMatch?.length, 1);
+		assert.equal(res1.labelMatch![0].start, 0);
+		assert.equal(res1.labelMatch![0].end, 4);
+		assert.equal(res1.descriptionMatch?.length, 1);
+		assert.equal(res1.descriptionMatch![0].start, 1);
+		assert.equal(res1.descriptionMatch![0].end, 4);
+
+		let res2 = scoreItem(resource, 'some xyz', true, ResourceAccessor, cache);
+		assert.ok(res2.score);
+		assert.equal(res1.score, res2.score);
+		assert.equal(res2.labelMatch?.length, 1);
+		assert.equal(res2.labelMatch![0].start, 0);
+		assert.equal(res2.labelMatch![0].end, 4);
+		assert.equal(res2.descriptionMatch?.length, 1);
+		assert.equal(res2.descriptionMatch![0].start, 1);
+		assert.equal(res2.descriptionMatch![0].end, 4);
+
+		let res3 = scoreItem(resource, 'some xyz file file123', true, ResourceAccessor, cache);
+		assert.ok(res3.score);
+		assert.ok(res3.score > res2.score);
+		assert.equal(res3.labelMatch?.length, 1);
+		assert.equal(res3.labelMatch![0].start, 0);
+		assert.equal(res3.labelMatch![0].end, 11);
+		assert.equal(res3.descriptionMatch?.length, 1);
+		assert.equal(res3.descriptionMatch![0].start, 1);
+		assert.equal(res3.descriptionMatch![0].end, 4);
+
+		let res4 = scoreItem(resource, 'path z y', true, ResourceAccessor, cache);
+		assert.ok(res4.score);
+		assert.ok(res4.score < res2.score);
+		assert.equal(res4.labelMatch?.length, 0);
+		assert.equal(res4.descriptionMatch?.length, 2);
+		assert.equal(res4.descriptionMatch![0].start, 2);
+		assert.equal(res4.descriptionMatch![0].end, 4);
+		assert.equal(res4.descriptionMatch![1].start, 10);
+		assert.equal(res4.descriptionMatch![1].end, 14);
 	});
 
 	test('scoreItem - invalid input', function () {
@@ -857,41 +872,107 @@ suite('Fuzzy Scorer', () => {
 	});
 
 	test('prepareQuery', () => {
-		assert.equal(scorer.prepareQuery(' f*a ').value, 'fa');
+		assert.equal(scorer.prepareQuery(' f*a ').normalized, 'fa');
 		assert.equal(scorer.prepareQuery('model Tester.ts').original, 'model Tester.ts');
 		assert.equal(scorer.prepareQuery('model Tester.ts').originalLowercase, 'model Tester.ts'.toLowerCase());
-		assert.equal(scorer.prepareQuery('model Tester.ts').value, 'modelTester.ts');
-		assert.equal(scorer.prepareQuery('Model Tester.ts').valueLowercase, 'modeltester.ts');
+		assert.equal(scorer.prepareQuery('model Tester.ts').normalized, 'modelTester.ts');
+		assert.equal(scorer.prepareQuery('Model Tester.ts').normalizedLowercase, 'modeltester.ts');
 		assert.equal(scorer.prepareQuery('ModelTester.ts').containsPathSeparator, false);
 		assert.equal(scorer.prepareQuery('Model' + sep + 'Tester.ts').containsPathSeparator, true);
 
 		// with spaces
 		let query = scorer.prepareQuery('He*llo World');
 		assert.equal(query.original, 'He*llo World');
-		assert.equal(query.value, 'HelloWorld');
-		assert.equal(query.valueLowercase, 'HelloWorld'.toLowerCase());
+		assert.equal(query.normalized, 'HelloWorld');
+		assert.equal(query.normalizedLowercase, 'HelloWorld'.toLowerCase());
 		assert.equal(query.values?.length, 2);
 		assert.equal(query.values?.[0].original, 'He*llo');
-		assert.equal(query.values?.[0].value, 'Hello');
-		assert.equal(query.values?.[0].valueLowercase, 'Hello'.toLowerCase());
+		assert.equal(query.values?.[0].normalized, 'Hello');
+		assert.equal(query.values?.[0].normalizedLowercase, 'Hello'.toLowerCase());
 		assert.equal(query.values?.[1].original, 'World');
-		assert.equal(query.values?.[1].value, 'World');
-		assert.equal(query.values?.[1].valueLowercase, 'World'.toLowerCase());
+		assert.equal(query.values?.[1].normalized, 'World');
+		assert.equal(query.values?.[1].normalizedLowercase, 'World'.toLowerCase());
+
+		let restoredQuery = scorer.pieceToQuery(query.values!);
+		assert.equal(restoredQuery.original, query.original);
+		assert.equal(restoredQuery.values?.length, query.values?.length);
+		assert.equal(restoredQuery.containsPathSeparator, query.containsPathSeparator);
 
 		// with spaces that are empty
 		query = scorer.prepareQuery(' Hello   World  	');
 		assert.equal(query.original, ' Hello   World  	');
 		assert.equal(query.originalLowercase, ' Hello   World  	'.toLowerCase());
-		assert.equal(query.value, 'HelloWorld');
-		assert.equal(query.valueLowercase, 'HelloWorld'.toLowerCase());
+		assert.equal(query.normalized, 'HelloWorld');
+		assert.equal(query.normalizedLowercase, 'HelloWorld'.toLowerCase());
 		assert.equal(query.values?.length, 2);
 		assert.equal(query.values?.[0].original, 'Hello');
 		assert.equal(query.values?.[0].originalLowercase, 'Hello'.toLowerCase());
-		assert.equal(query.values?.[0].value, 'Hello');
-		assert.equal(query.values?.[0].valueLowercase, 'Hello'.toLowerCase());
+		assert.equal(query.values?.[0].normalized, 'Hello');
+		assert.equal(query.values?.[0].normalizedLowercase, 'Hello'.toLowerCase());
 		assert.equal(query.values?.[1].original, 'World');
 		assert.equal(query.values?.[1].originalLowercase, 'World'.toLowerCase());
-		assert.equal(query.values?.[1].value, 'World');
-		assert.equal(query.values?.[1].valueLowercase, 'World'.toLowerCase());
+		assert.equal(query.values?.[1].normalized, 'World');
+		assert.equal(query.values?.[1].normalizedLowercase, 'World'.toLowerCase());
+
+		// Path related
+		if (isWindows) {
+			assert.equal(scorer.prepareQuery('C:\\some\\path').pathNormalized, 'C:\\some\\path');
+			assert.equal(scorer.prepareQuery('C:\\some\\path').normalized, 'C:\\some\\path');
+			assert.equal(scorer.prepareQuery('C:\\some\\path').containsPathSeparator, true);
+			assert.equal(scorer.prepareQuery('C:/some/path').pathNormalized, 'C:\\some\\path');
+			assert.equal(scorer.prepareQuery('C:/some/path').normalized, 'C:\\some\\path');
+			assert.equal(scorer.prepareQuery('C:/some/path').containsPathSeparator, true);
+		} else {
+			assert.equal(scorer.prepareQuery('/some/path').pathNormalized, '/some/path');
+			assert.equal(scorer.prepareQuery('/some/path').normalized, '/some/path');
+			assert.equal(scorer.prepareQuery('/some/path').containsPathSeparator, true);
+			assert.equal(scorer.prepareQuery('\\some\\path').pathNormalized, '/some/path');
+			assert.equal(scorer.prepareQuery('\\some\\path').normalized, '/some/path');
+			assert.equal(scorer.prepareQuery('\\some\\path').containsPathSeparator, true);
+		}
+	});
+
+	test('fuzzyScore2 (multiple queries)', function () {
+		const target = 'HeLlo-World';
+
+		const [firstSingleScore, firstSingleMatches] = _doScore2(target, 'HelLo');
+		const [secondSingleScore, secondSingleMatches] = _doScore2(target, 'World');
+		const firstAndSecondSingleMatches = [...firstSingleMatches || [], ...secondSingleMatches || []];
+
+		let [multiScore, multiMatches] = _doScore2(target, 'HelLo World');
+
+		function assertScore() {
+			assert.ok(multiScore ?? 0 >= ((firstSingleScore ?? 0) + (secondSingleScore ?? 0)));
+			for (let i = 0; multiMatches && i < multiMatches.length; i++) {
+				const multiMatch = multiMatches[i];
+				const firstAndSecondSingleMatch = firstAndSecondSingleMatches[i];
+
+				if (multiMatch && firstAndSecondSingleMatch) {
+					assert.equal(multiMatch.start, firstAndSecondSingleMatch.start);
+					assert.equal(multiMatch.end, firstAndSecondSingleMatch.end);
+				} else {
+					assert.fail();
+				}
+			}
+		}
+
+		function assertNoScore() {
+			assert.equal(multiScore, 0);
+			assert.equal(multiMatches.length, 0);
+		}
+
+		assertScore();
+
+		[multiScore, multiMatches] = _doScore2(target, 'World HelLo');
+		assertScore();
+
+		[multiScore, multiMatches] = _doScore2(target, 'World HelLo World');
+		assertScore();
+
+		[multiScore, multiMatches] = _doScore2(target, 'World HelLo Nothing');
+		assertNoScore();
+
+		[multiScore, multiMatches] = _doScore2(target, 'More Nothing');
+		assertNoScore();
 	});
 });

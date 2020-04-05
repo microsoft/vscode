@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { memoize } from 'vs/base/common/decorators';
+import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { Iterable } from 'vs/base/common/iterator';
 import { Lazy } from 'vs/base/common/lazy';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -82,7 +84,7 @@ export interface IWebviewWorkbenchService {
 
 	resolveWebview(
 		webview: WebviewInput,
-	): Promise<void>;
+	): CancelablePromise<void>;
 }
 
 export interface WebviewResolver {
@@ -117,12 +119,26 @@ export class LazilyResolvedWebviewEditorInput extends WebviewInput {
 	}
 
 	#resolved = false;
+	#resolvePromise?: CancelablePromise<void>;
+
+	dispose() {
+		super.dispose();
+		this.#resolvePromise?.cancel();
+		this.#resolvePromise = undefined;
+	}
 
 	@memoize
 	public async resolve() {
 		if (!this.#resolved) {
 			this.#resolved = true;
-			await this._webviewWorkbenchService.resolveWebview(this);
+			this.#resolvePromise = this._webviewWorkbenchService.resolveWebview(this);
+			try {
+				await this.#resolvePromise;
+			} catch (e) {
+				if (!isPromiseCanceledError(e)) {
+					throw e;
+				}
+			}
 		}
 		return super.resolve();
 	}
@@ -238,10 +254,13 @@ export class WebviewEditorService implements IWebviewWorkbenchService {
 		reviver: WebviewResolver
 	): IDisposable {
 		this._revivers.add(reviver);
-		this._revivalPool.reviveFor(reviver, CancellationToken.None);
+
+		const cts = new CancellationTokenSource();
+		this._revivalPool.reviveFor(reviver, cts.token);
 
 		return toDisposable(() => {
 			this._revivers.delete(reviver);
+			cts.dispose(true);
 		});
 	}
 
@@ -258,28 +277,31 @@ export class WebviewEditorService implements IWebviewWorkbenchService {
 	}
 
 	private async tryRevive(
-		webview: WebviewInput
+		webview: WebviewInput,
+		cancellation: CancellationToken,
 	): Promise<boolean> {
 		for (const reviver of this._revivers.values()) {
 			if (canRevive(reviver, webview)) {
-				await reviver.resolveWebview(webview, CancellationToken.None);
+				await reviver.resolveWebview(webview, cancellation);
 				return true;
 			}
 		}
 		return false;
 	}
 
-	public async resolveWebview(
+	public resolveWebview(
 		webview: WebviewInput,
-	): Promise<void> {
-		const didRevive = await this.tryRevive(webview);
-		if (!didRevive) {
-			// A reviver may not be registered yet. Put into pool and resolve promise when we can revive
-			let resolve: () => void;
-			const promise = new Promise<void>(r => { resolve = r; });
-			this._revivalPool.add(webview, resolve!);
-			return promise;
-		}
+	): CancelablePromise<void> {
+		return createCancelablePromise(async (cancellation) => {
+			const didRevive = await this.tryRevive(webview, cancellation);
+			if (!didRevive) {
+				// A reviver may not be registered yet. Put into pool and resolve promise when we can revive
+				let resolve: () => void;
+				const promise = new Promise<void>(r => { resolve = r; });
+				this._revivalPool.add(webview, resolve!);
+				return promise;
+			}
+		});
 	}
 
 	private createWebviewElement(

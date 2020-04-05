@@ -27,7 +27,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { assertType } from 'vs/base/common/types';
 import { parse } from 'vs/base/common/marshalling';
-import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellUri, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ResourceMap } from 'vs/base/common/map';
 
 // Output renderers registration
@@ -177,10 +177,11 @@ class CellContentProvider implements ITextModelContentProvider {
 		}
 		for (let cell of notebook.cells) {
 			if (cell.uri.toString() === resource.toString()) {
-				let bufferFactory = cell.resolveTextBufferFactory();
+				const bufferFactory = cell.resolveTextBufferFactory();
+				const language = cell.cellKind === CellKind.Markdown ? this._modeService.create('markdown') : (cell.language ? this._modeService.create(cell.language) : this._modeService.createByFilepathOrFirstLine(resource, cell.source[0]));
 				return this._modelService.createModel(
 					bufferFactory,
-					cell.language ? this._modeService.create(cell.language) : this._modeService.createByFilepathOrFirstLine(resource, cell.source[0]),
+					language,
 					resource
 				);
 			}

@@ -27,7 +27,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	public static typeId = 'workbench.editors.webviewEditor';
 
 	private readonly _editorResource: URI;
-	private readonly _fromBackup: boolean;
+	private readonly _startsDirty: boolean | undefined;
 
 	get resource() { return this._editorResource; }
 
@@ -38,7 +38,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		viewType: string,
 		id: string,
 		webview: Lazy<WebviewOverlay>,
-		fromBackup: boolean,
+		options: { startsDirty?: boolean },
 		@IWebviewService webviewService: IWebviewService,
 		@IWebviewWorkbenchService webviewWorkbenchService: IWebviewWorkbenchService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -51,7 +51,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	) {
 		super(id, viewType, '', webview, webviewService, webviewWorkbenchService);
 		this._editorResource = resource;
-		this._fromBackup = fromBackup;
+		this._startsDirty = options.startsDirty;
 	}
 
 	public getTypeId(): string {
@@ -110,7 +110,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 
 	public isDirty(): boolean {
 		if (!this._modelRef) {
-			return this._fromBackup;
+			return !!this._startsDirty;
 		}
 		return this._modelRef.object.isDirty();
 	}
@@ -164,6 +164,10 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	public async resolve(): Promise<null> {
 		await super.resolve();
 
+		if (this.isDisposed()) {
+			return null;
+		}
+
 		if (!this._modelRef) {
 			this._modelRef = this._register(assertIsDefined(await this.customEditorService.models.tryRetain(this.resource, this.viewType)));
 			this._register(this._modelRef.object.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
@@ -177,31 +181,30 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	}
 
 	move(group: GroupIdentifier, newResource: URI): { editor: IEditorInput } | undefined {
+		// See if we can keep using the same custom editor provider
 		const editorInfo = this.customEditorService.getCustomEditor(this.viewType);
 		if (editorInfo?.matches(newResource)) {
-			// We can keep using the same custom editor provider
-
-			if (!this._moveHandler) {
-				return {
-					editor: this.customEditorService.createInput(newResource, this.viewType, group),
-				};
-			}
-
-			this._moveHandler(newResource);
-			const newEditor = this.instantiationService.createInstance(CustomEditorInput,
-				newResource,
-				this.viewType,
-				this.id,
-				new Lazy(() => undefined!), // this webview is replaced in the transfer call
-				this._fromBackup,
-			);
-			this.transfer(newEditor);
-			newEditor.updateGroup(group);
-			return { editor: newEditor };
-		} else {
-			// const possible = this.customEditorService.getContributedCustomEditors(newResource);
-			return { editor: this.editorService.createEditorInput({ resource: newResource, forceFile: true }) };
+			return { editor: this.doMove(group, newResource) };
 		}
+
+		return { editor: this.editorService.createEditorInput({ resource: newResource, forceFile: true }) };
+	}
+
+	private doMove(group: GroupIdentifier, newResource: URI): IEditorInput {
+		if (!this._moveHandler) {
+			return this.customEditorService.createInput(newResource, this.viewType, group);
+		}
+
+		this._moveHandler(newResource);
+		const newEditor = this.instantiationService.createInstance(CustomEditorInput,
+			newResource,
+			this.viewType,
+			this.id,
+			new Lazy(() => undefined!),
+			{ startsDirty: this._startsDirty }); // this webview is replaced in the transfer call
+		this.transfer(newEditor);
+		newEditor.updateGroup(group);
+		return newEditor;
 	}
 
 	public undo(): void {

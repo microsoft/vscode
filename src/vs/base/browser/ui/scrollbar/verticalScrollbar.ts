@@ -37,7 +37,7 @@ export class VerticalScrollbar extends AbstractScrollbar {
 			let scrollbarDelta = (options.verticalScrollbarSize - ARROW_IMG_SIZE) / 2;
 
 			this._createArrow({
-				className: 'up-arrow',
+				className: 'scra codicon codicon-triangle-up',
 				top: arrowDelta,
 				left: scrollbarDelta,
 				bottom: undefined,
@@ -48,7 +48,7 @@ export class VerticalScrollbar extends AbstractScrollbar {
 			});
 
 			this._createArrow({
-				className: 'down-arrow',
+				className: 'scra codicon codicon-triangle-down',
 				top: undefined,
 				left: scrollbarDelta,
 				bottom: arrowDelta,

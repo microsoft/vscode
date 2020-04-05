@@ -341,7 +341,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 	protected createSyncIgnoredElement(container: HTMLElement): HTMLElement {
 		const syncIgnoredElement = DOM.append(container, $('span.setting-item-ignored'));
 		const syncIgnoredLabel = new CodiconLabel(syncIgnoredElement);
-		syncIgnoredLabel.text = `($(eye-closed) ${localize('extensionSyncIgnoredLabel', 'Sync: Ignored')})`;
+		syncIgnoredLabel.text = `($(sync-ignored) ${localize('extensionSyncIgnoredLabel', 'Sync: Ignored')})`;
 
 		return syncIgnoredElement;
 	}

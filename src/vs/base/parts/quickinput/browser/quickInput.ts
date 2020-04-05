@@ -386,7 +386,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private _matchOnLabel = true;
 	private _sortByLabel = true;
 	private _autoFocusOnList = true;
-	private _itemActivation = ItemActivation.FIRST;
+	private _itemActivation = this.ui.isScreenReaderOptimized() ? ItemActivation.NONE /* https://github.com/microsoft/vscode/issues/57501 */ : ItemActivation.FIRST;
 	private _activeItems: T[] = [];
 	private activeItemsUpdated = false;
 	private activeItemsToConfirm: T[] | null = [];
@@ -637,7 +637,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 
 	private trySelectFirst() {
 		if (this.autoFocusOnList) {
-			if (!this.ui.isScreenReaderOptimized() && !this.canSelectMany) {
+			if (!this.canSelectMany) {
 				this.ui.list.focus(QuickInputListFocus.First);
 			}
 		}
@@ -683,22 +683,14 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 						event.preventDefault();
 						break;
 					case KeyCode.PageDown:
-						if (this.ui.list.getFocusedElements().length) {
-							this.ui.list.focus(QuickInputListFocus.NextPage);
-						} else {
-							this.ui.list.focus(QuickInputListFocus.First);
-						}
+						this.ui.list.focus(QuickInputListFocus.NextPage);
 						if (this.canSelectMany) {
 							this.ui.list.domFocus();
 						}
 						event.preventDefault();
 						break;
 					case KeyCode.PageUp:
-						if (this.ui.list.getFocusedElements().length) {
-							this.ui.list.focus(QuickInputListFocus.PreviousPage);
-						} else {
-							this.ui.list.focus(QuickInputListFocus.Last);
-						}
+						this.ui.list.focus(QuickInputListFocus.PreviousPage);
 						if (this.canSelectMany) {
 							this.ui.list.domFocus();
 						}
@@ -875,6 +867,9 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 			this.ui.visibleCount.setCount(this.ui.list.getVisibleCount());
 			this.ui.count.setCount(this.ui.list.getCheckedCount());
 			switch (this._itemActivation) {
+				case ItemActivation.NONE:
+					this._itemActivation = ItemActivation.FIRST; // only valid once, then unset
+					break;
 				case ItemActivation.SECOND:
 					this.ui.list.focus(QuickInputListFocus.Second);
 					this._itemActivation = ItemActivation.FIRST; // only valid once, then unset
@@ -1086,30 +1081,13 @@ export class QuickInputController extends Disposable {
 	}
 
 	private registerKeyModsListeners() {
-		this._register(dom.addDisposableListener(window, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			const event = new StandardKeyboardEvent(e);
-			switch (event.keyCode) {
-				case KeyCode.Ctrl:
-				case KeyCode.Meta:
-					this.keyMods.ctrlCmd = true;
-					break;
-				case KeyCode.Alt:
-					this.keyMods.alt = true;
-					break;
-			}
-		}));
-		this._register(dom.addDisposableListener(window, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
-			const event = new StandardKeyboardEvent(e);
-			switch (event.keyCode) {
-				case KeyCode.Ctrl:
-				case KeyCode.Meta:
-					this.keyMods.ctrlCmd = false;
-					break;
-				case KeyCode.Alt:
-					this.keyMods.alt = false;
-					break;
-			}
-		}));
+		const listener = (e: KeyboardEvent | MouseEvent) => {
+			this.keyMods.ctrlCmd = e.ctrlKey || e.metaKey;
+			this.keyMods.alt = e.altKey;
+		};
+		this._register(dom.addDisposableListener(window, dom.EventType.KEY_DOWN, listener, true));
+		this._register(dom.addDisposableListener(window, dom.EventType.KEY_UP, listener, true));
+		this._register(dom.addDisposableListener(window, dom.EventType.MOUSE_DOWN, listener, true));
 	}
 
 	private getUI() {
@@ -1362,6 +1340,9 @@ export class QuickInputController extends Disposable {
 			];
 			input.canSelectMany = !!options.canPickMany;
 			input.placeholder = options.placeHolder;
+			if (options.placeHolder) {
+				input.ariaLabel = options.placeHolder;
+			}
 			input.ignoreFocusOut = !!options.ignoreFocusLost;
 			input.matchOnDescription = !!options.matchOnDescription;
 			input.matchOnDetail = !!options.matchOnDetail;

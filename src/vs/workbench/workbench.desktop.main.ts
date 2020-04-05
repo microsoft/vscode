@@ -107,6 +107,9 @@ import 'vs/workbench/contrib/debug/electron-browser/extensionHostDebugService';
 // Webview
 import 'vs/workbench/contrib/webview/electron-browser/webview.contribution';
 
+// Notebook
+import 'vs/workbench/contrib/notebook/electron-browser/notebook.contribution';
+
 // Extensions Management
 import 'vs/workbench/contrib/extensions/electron-browser/extensions.contribution';
 
