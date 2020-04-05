@@ -124,9 +124,23 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 			fontSize,
 			letterSpacing,
 			lineHeight,
-			charWidth: rect && rect.width ? rect.width : 0,
-			charHeight: rect && rect.height ? Math.ceil(rect.height) : 0
+			charWidth: 0,
+			charHeight: 0
 		};
+
+		if (rect && rect.width && rect.height) {
+			this._lastFontMeasurement.charHeight = Math.ceil(rect.height);
+			// Char width is calculated differently for DOM and the other renderer types. Refer to
+			// how each renderer updates their dimensions in xterm.js
+			if (this.config.rendererType === 'dom') {
+				this._lastFontMeasurement.charWidth = rect.width;
+			} else {
+				const scaledCharWidth = rect.width * window.devicePixelRatio;
+				const scaledCellWidth = scaledCharWidth + Math.round(letterSpacing);
+				this._lastFontMeasurement.charWidth = Math.round(scaledCellWidth / window.devicePixelRatio);
+			}
+		}
+
 		return this._lastFontMeasurement;
 	}
 
@@ -167,14 +181,14 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 
 		// Get the character dimensions from xterm if it's available
 		if (xtermCore) {
-			if (xtermCore._charSizeService && xtermCore._charSizeService.width && xtermCore._charSizeService.height) {
+			if (xtermCore._renderService && xtermCore._renderService.dimensions?.actualCellWidth && xtermCore._renderService.dimensions?.actualCellHeight) {
 				return {
 					fontFamily,
 					fontSize,
 					letterSpacing,
 					lineHeight,
-					charHeight: xtermCore._charSizeService.height,
-					charWidth: xtermCore._charSizeService.width
+					charHeight: xtermCore._renderService.dimensions.actualCellHeight,
+					charWidth: xtermCore._renderService.dimensions.actualCellWidth
 				};
 			}
 		}
