@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.monaco-diff-editor .diff-review-line-numbers {
+	display: inline-block;
+}
+
 .monaco-diff-editor .diff-review-line-number {
 	text-align: right;
 	display: inline-block;

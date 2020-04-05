@@ -125,33 +125,13 @@ export class DiffReview extends Disposable {
 			}
 			this._render();
 		}));
-		this._register(dom.addStandardDisposableListener(this.domNode.domNode, 'click', (e) => {
+		this._register(dom.addStandardDisposableListener(this.domNode.domNode, 'paste', (e) => {
 			e.preventDefault();
-
-			let row = dom.findParentWithClass(e.target, 'diff-review-row');
-			if (row) {
-				this._goToRow(row);
-			}
+		}));
+		this._register(dom.addStandardDisposableListener(this.domNode.domNode, 'cut', (e) => {
+			e.preventDefault();
 		}));
 		this._register(dom.addStandardDisposableListener(this.domNode.domNode, 'keydown', (e) => {
-			if (
-				e.equals(KeyCode.DownArrow)
-				|| e.equals(KeyMod.CtrlCmd | KeyCode.DownArrow)
-				|| e.equals(KeyMod.Alt | KeyCode.DownArrow)
-			) {
-				e.preventDefault();
-				this._goToRow(this._getNextRow());
-			}
-
-			if (
-				e.equals(KeyCode.UpArrow)
-				|| e.equals(KeyMod.CtrlCmd | KeyCode.UpArrow)
-				|| e.equals(KeyMod.Alt | KeyCode.UpArrow)
-			) {
-				e.preventDefault();
-				this._goToRow(this._getPrevRow());
-			}
-
 			if (
 				e.equals(KeyCode.Escape)
 				|| e.equals(KeyMod.CtrlCmd | KeyCode.Escape)
@@ -168,6 +148,27 @@ export class DiffReview extends Disposable {
 			) {
 				e.preventDefault();
 				this.accept();
+			}
+			if (!(e.equals(KeyCode.UpArrow)		// Navigation
+				|| e.equals(KeyCode.DownArrow)
+				|| e.equals(KeyCode.LeftArrow)
+				|| e.equals(KeyCode.RightArrow)
+				|| e.equals(KeyCode.Home)
+				|| e.equals(KeyCode.End)
+				|| e.equals(KeyMod.Shift | KeyCode.UpArrow) // Selection
+				|| e.equals(KeyMod.Shift | KeyCode.DownArrow)
+				|| e.equals(KeyMod.Shift | KeyCode.LeftArrow)
+				|| e.equals(KeyMod.Shift | KeyCode.RightArrow)
+				|| e.equals(KeyMod.CtrlCmd | KeyCode.UpArrow) // Navigation
+				|| e.equals(KeyMod.CtrlCmd | KeyCode.DownArrow)
+				|| e.equals(KeyMod.CtrlCmd | KeyCode.LeftArrow) // Next/Previous word
+				|| e.equals(KeyMod.CtrlCmd | KeyCode.RightArrow)
+				|| e.equals(KeyMod.CtrlCmd | KeyCode.Home) // Jump to start of diff
+				|| e.equals(KeyMod.CtrlCmd | KeyCode.End) // Jump to end of diff
+				|| e.equals(KeyMod.CtrlCmd | KeyCode.KEY_A) // Select all
+				|| e.equals(KeyMod.CtrlCmd | KeyCode.KEY_C) // Copy
+			)) {
+				e.preventDefault(); // Block the other keys
 			}
 		}));
 		this._diffs = [];
@@ -206,7 +207,7 @@ export class DiffReview extends Disposable {
 		this._isVisible = true;
 		this._diffEditor.doLayout();
 		this._render();
-		this._goToRow(this._getNextRow());
+		this._showCarret();
 	}
 
 	public next(): void {
@@ -241,7 +242,7 @@ export class DiffReview extends Disposable {
 		this._isVisible = true;
 		this._diffEditor.doLayout();
 		this._render();
-		this._goToRow(this._getNextRow());
+		this._showCarret();
 	}
 
 	private accept(): void {
@@ -268,32 +269,6 @@ export class DiffReview extends Disposable {
 		this._render();
 	}
 
-	private _getPrevRow(): HTMLElement {
-		let current = this._getCurrentFocusedRow();
-		if (!current) {
-			return this._getFirstRow();
-		}
-		if (current.previousElementSibling) {
-			return <HTMLElement>current.previousElementSibling;
-		}
-		return current;
-	}
-
-	private _getNextRow(): HTMLElement {
-		let current = this._getCurrentFocusedRow();
-		if (!current) {
-			return this._getFirstRow();
-		}
-		if (current.nextElementSibling) {
-			return <HTMLElement>current.nextElementSibling;
-		}
-		return current;
-	}
-
-	private _getFirstRow(): HTMLElement {
-		return <HTMLElement>this.domNode.domNode.querySelector('.diff-review-row');
-	}
-
 	private _getCurrentFocusedRow(): HTMLElement | null {
 		let result = <HTMLElement>document.activeElement;
 		if (result && /diff-review-row/.test(result.className)) {
@@ -302,14 +277,9 @@ export class DiffReview extends Disposable {
 		return null;
 	}
 
-	private _goToRow(row: HTMLElement): void {
-		let prev = this._getCurrentFocusedRow();
-		row.tabIndex = 0;
-		row.focus();
-		if (prev && prev !== row) {
-			prev.tabIndex = -1;
-		}
-		this.scrollbar.scanDomNode();
+	private _showCarret(): void {
+		let element = <HTMLElement>document.getElementsByClassName('diff-review-table')[0];
+		element.focus();
 	}
 
 	public isVisible(): boolean {
@@ -546,6 +516,7 @@ export class DiffReview extends Disposable {
 		let container = document.createElement('div');
 		container.className = 'diff-review-table';
 		container.setAttribute('role', 'list');
+		container.setAttribute('contentEditable', 'true');
 		container.setAttribute('aria-label', 'Difference review. Use "Stage | Unstage | Revert Selected Ranges" commands');
 		Configuration.applyFontInfoSlow(container, modifiedOptions.get(EditorOption.fontInfo));
 
@@ -687,6 +658,10 @@ export class DiffReview extends Disposable {
 			cell.style.height = `${lineHeight}px`;
 			row.appendChild(cell);
 
+			const lineNumbers = document.createElement('div');
+			lineNumbers.className = 'diff-review-line-numbers';
+			lineNumbers.setAttribute('contentEditable', 'false');
+
 			const originalLineNumber = document.createElement('span');
 			originalLineNumber.style.width = (originalLineNumbersWidth + 'px');
 			originalLineNumber.style.minWidth = (originalLineNumbersWidth + 'px');
@@ -696,7 +671,6 @@ export class DiffReview extends Disposable {
 			} else {
 				originalLineNumber.innerHTML = '&#160;';
 			}
-			cell.appendChild(originalLineNumber);
 
 			const modifiedLineNumber = document.createElement('span');
 			modifiedLineNumber.style.width = (modifiedLineNumbersWidth + 'px');
@@ -708,7 +682,6 @@ export class DiffReview extends Disposable {
 			} else {
 				modifiedLineNumber.innerHTML = '&#160;';
 			}
-			cell.appendChild(modifiedLineNumber);
 
 			const spacer = document.createElement('span');
 			spacer.className = spacerClassName;
@@ -721,7 +694,11 @@ export class DiffReview extends Disposable {
 			} else {
 				spacer.innerHTML = '&#160;&#160;';
 			}
-			cell.appendChild(spacer);
+
+			lineNumbers.appendChild(originalLineNumber);
+			lineNumbers.appendChild(modifiedLineNumber);
+			lineNumbers.appendChild(spacer);
+			cell.appendChild(lineNumbers);
 
 			let lineContent: string;
 			if (modifiedLine !== 0) {
