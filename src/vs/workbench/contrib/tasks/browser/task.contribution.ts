@@ -384,9 +384,9 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: ['always', 'never', 'prompt'],
 			enumDescriptions: [
-				nls.localize('task.dirtyEditors.always', 'Save everytime before run'),
-				nls.localize('task.dirtyEditors.never', 'Run without saving'),
-				nls.localize('task.dirtyEditors.prompt', 'Ask to save before run'),
+				nls.localize('task.saveBeforeRun.always', 'Save everytime before run'),
+				nls.localize('task.saveBeforeRun.never', 'Run without saving'),
+				nls.localize('task.SaveBeforeRun.prompt', 'Ask to save before run'),
 			],
 			default: 'always',
 		},
