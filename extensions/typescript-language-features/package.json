@@ -674,16 +674,16 @@
           "description": "%typescript.preferences.importModuleSpecifierEnding%",
           "scope": "resource"
         },
-        "javascript.preferences.renameShorthandProperties": {
+        "javascript.preferences.useAliasesForRenames": {
           "type": "boolean",
           "default": true,
-          "description": "%typescript.preferences.renameShorthandProperties%",
+          "description": "%typescript.preferences.useAliasesForRenames%",
           "scope": "resource"
         },
-        "typescript.preferences.renameShorthandProperties": {
+        "typescript.preferences.useAliasesForRenames": {
           "type": "boolean",
           "default": true,
-          "description": "%typescript.preferences.renameShorthandProperties%",
+          "description": "%typescript.preferences.useAliasesForRenames%",
           "scope": "resource"
         },
         "typescript.updateImportsOnFileMove.enabled": {
