@@ -369,7 +369,7 @@ export class TernarySearchTree<E> {
 				this._forEach(node, value => data.push(value));
 			}
 			if (idx >= data.length) {
-				return FIN;
+				return { done: true, value: undefined };
 			}
 
 			if (!res) {

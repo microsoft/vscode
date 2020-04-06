@@ -4,19 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Iterator, Iterable } from 'vs/base/common/iterator';
-
-suite('Iterator', () => {
-	test('concat', () => {
-		const first = Iterator.fromArray([1, 2, 3]);
-		const second = Iterator.fromArray([4, 5, 6]);
-		const third = Iterator.fromArray([7, 8, 9]);
-		const actualIterator = Iterator.concat(first, second, third);
-		const actual = Iterator.collect(actualIterator);
-
-		assert.deepEqual(actual, [1, 2, 3, 4, 5, 6, 7, 8, 9]);
-	});
-});
+import { Iterable } from 'vs/base/common/iterator';
 
 suite('Iterable', function () {
 
