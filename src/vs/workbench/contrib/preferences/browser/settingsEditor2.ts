@@ -14,7 +14,7 @@ import { Delayer, ThrottledDelayer, timeout, IntervalTimer } from 'vs/base/commo
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as collections from 'vs/base/common/collections';
 import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
-import { Iterator } from 'vs/base/common/iterator';
+import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
@@ -55,10 +55,8 @@ import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/p
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { fromNow } from 'vs/base/common/date';
 
-function createGroupIterator(group: SettingsTreeGroupElement): Iterator<ITreeElement<SettingsTreeGroupChild>> {
-	const groupsIt = Iterator.fromArray(group.children);
-
-	return Iterator.map(groupsIt, g => {
+function createGroupIterator(group: SettingsTreeGroupElement): Iterable<ITreeElement<SettingsTreeGroupChild>> {
+	return Iterable.map(group.children, g => {
 		return {
 			element: g,
 			children: g instanceof SettingsTreeGroupElement ?
