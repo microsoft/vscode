@@ -17,15 +17,15 @@
     "Other"
   ],
   "activationEvents": [
-    "onWebviewEditor:imagePreview.previewEditor",
+    "onCustomEditor:imagePreview.previewEditor",
     "onCommand:imagePreview.zoomIn",
     "onCommand:imagePreview.zoomOut"
   ],
   "contributes": {
-    "webviewEditors": [
+    "customEditors": [
       {
         "viewType": "imagePreview.previewEditor",
-        "displayName": "%webviewEditors.displayName%",
+        "displayName": "%customEditors.displayName%",
         "priority": "builtin",
         "selector": [
           {

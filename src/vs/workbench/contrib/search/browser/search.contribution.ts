@@ -11,8 +11,6 @@ import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { dirname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { getSelectionSearchString } from 'vs/editor/contrib/find/findController';
 import { ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding } from 'vs/editor/contrib/find/findModel';
 import * as nls from 'vs/nls';
 import { ICommandAction, MenuId, MenuRegistry, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
@@ -26,17 +24,13 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IListService, WorkbenchListFocusContextKey, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
-import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { defaultQuickOpenContextKey } from 'vs/workbench/browser/parts/quickopen/quickopen';
-import { Extensions as QuickOpenExtensions, IQuickOpenRegistry, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
+import { defaultQuickAccessContextKeyValue } from 'vs/workbench/browser/quickaccess';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { Extensions as ViewExtensions, IViewsRegistry, IViewContainersRegistry, ViewContainerLocation, IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
 import { getMultiSelectedResources } from 'vs/workbench/contrib/files/browser/files';
 import { ExplorerFolderContext, ExplorerRootContext, FilesExplorerFocusCondition, IExplorerService, VIEWLET_ID as VIEWLET_ID_FILES } from 'vs/workbench/contrib/files/common/files';
-import { OpenAnythingHandler } from 'vs/workbench/contrib/search/browser/openAnythingHandler';
-import { OpenSymbolHandler } from 'vs/workbench/contrib/search/browser/openSymbolHandler';
 import { registerContributions as replaceContributions } from 'vs/workbench/contrib/search/browser/replaceContributions';
 import { clearHistoryCommand, ClearSearchResultsAction, CloseReplaceAction, CollapseDeepestExpandedLevelAction, copyAllCommand, copyMatchCommand, copyPathCommand, FocusNextInputAction, FocusNextSearchResultAction, FocusPreviousInputAction, FocusPreviousSearchResultAction, focusSearchListCommand, getSearchView, openSearchView, OpenSearchViewletAction, RefreshAction, RemoveAction, ReplaceAction, ReplaceAllAction, ReplaceAllInFolderAction, ReplaceInFilesAction, toggleCaseSensitiveCommand, toggleRegexCommand, toggleWholeWordCommand, FindInFilesCommand, ToggleSearchOnTypeAction, ExpandAllAction } from 'vs/workbench/contrib/search/browser/searchActions';
 import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
@@ -47,14 +41,20 @@ import { getWorkspaceSymbols } from 'vs/workbench/contrib/search/common/search';
 import { ISearchHistoryService, SearchHistoryService } from 'vs/workbench/contrib/search/common/searchHistoryService';
 import { FileMatchOrMatch, ISearchWorkbenchService, RenderableMatch, SearchWorkbenchService, FileMatch, Match, FolderMatch } from 'vs/workbench/contrib/search/common/searchModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { VIEWLET_ID, VIEW_ID, SearchSortOrder } from 'vs/workbench/services/search/common/search';
+import { VIEWLET_ID, VIEW_ID, SEARCH_EXCLUDE_CONFIG, SearchSortOrder } from 'vs/workbench/services/search/common/search';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ExplorerViewPaneContainer } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { assertType, assertIsDefined } from 'vs/base/common/types';
-import { SearchViewPaneContainer } from 'vs/workbench/contrib/search/browser/searchViewlet';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditor';
+import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
+import { SymbolsQuickAccessProvider } from 'vs/workbench/contrib/search/browser/symbolsQuickAccess';
+import { AnythingQuickAccessProvider } from 'vs/workbench/contrib/search/browser/anythingQuickAccess';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { AbstractGotoLineQuickAccessProvider } from 'vs/editor/contrib/quickAccess/gotoLineQuickAccess';
+import { GotoSymbolQuickAccessProvider } from 'vs/workbench/contrib/codeEditor/browser/quickaccess/gotoSymbolQuickAccess';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService, true);
 registerSingleton(ISearchHistoryService, SearchHistoryService, true);
@@ -72,10 +72,23 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: accessor => {
 		const contextService = accessor.get(IContextKeyService).getContext(document.activeElement);
 		if (contextService.getValue(SearchEditorConstants.InSearchEditor.serialize())) {
-			(accessor.get(IEditorService).activeControl as SearchEditor).toggleQueryDetails();
+			(accessor.get(IEditorService).activeEditorPane as SearchEditor).toggleQueryDetails();
 		} else if (contextService.getValue(Constants.SearchViewFocusedKey.serialize())) {
 			const searchView = getSearchView(accessor.get(IViewsService));
 			assertIsDefined(searchView).toggleQueryDetails();
+		}
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.action.searchEditor.deleteResultBlock',
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: SearchEditorConstants.InSearchEditor,
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Backspace,
+	handler: accessor => {
+		const contextService = accessor.get(IContextKeyService).getContext(document.activeElement);
+		if (contextService.getValue(SearchEditorConstants.InSearchEditor.serialize())) {
+			(accessor.get(IEditorService).activeEditorPane as SearchEditor).deleteResultBlock();
 		}
 	}
 });
@@ -454,45 +467,34 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 
 
 class ShowAllSymbolsAction extends Action {
+
 	static readonly ID = 'workbench.action.showAllSymbols';
 	static readonly LABEL = nls.localize('showTriggerActions', "Go to Symbol in Workspace...");
 	static readonly ALL_SYMBOLS_PREFIX = '#';
 
 	constructor(
-		actionId: string, actionLabel: string,
-		@IQuickOpenService private readonly quickOpenService: IQuickOpenService,
-		@ICodeEditorService private readonly editorService: ICodeEditorService) {
+		actionId: string,
+		actionLabel: string,
+		@IQuickInputService private readonly quickInputService: IQuickInputService
+	) {
 		super(actionId, actionLabel);
-		this.enabled = !!this.quickOpenService;
 	}
 
-	run(context?: any): Promise<void> {
-
-		let prefix = ShowAllSymbolsAction.ALL_SYMBOLS_PREFIX;
-		let inputSelection: { start: number; end: number; } | undefined = undefined;
-		const editor = this.editorService.getFocusedCodeEditor();
-		const word = editor && getSelectionSearchString(editor);
-		if (word) {
-			prefix = prefix + word;
-			inputSelection = { start: 1, end: word.length + 1 };
-		}
-
-		this.quickOpenService.show(prefix, { inputSelection });
-
-		return Promise.resolve(undefined);
+	async run(): Promise<void> {
+		this.quickInputService.quickAccess.show(ShowAllSymbolsAction.ALL_SYMBOLS_PREFIX);
 	}
 }
 
 const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 	id: VIEWLET_ID,
 	name: nls.localize('name', "Search"),
-	ctorDescriptor: new SyncDescriptor(SearchViewPaneContainer),
+	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [VIEWLET_ID, `${VIEWLET_ID}.state`, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
 	hideIfEmpty: true,
 	icon: 'codicon-search',
 	order: 1
 }, ViewContainerLocation.Sidebar);
 
-const viewDescriptor = { id: VIEW_ID, name: nls.localize('search', "Search"), ctorDescriptor: new SyncDescriptor(SearchView), canToggleVisibility: false, canMoveView: true };
+const viewDescriptor = { id: VIEW_ID, containerIcon: 'codicon-search', name: nls.localize('search', "Search"), ctorDescriptor: new SyncDescriptor(SearchView), canToggleVisibility: false, canMoveView: true };
 
 // Register search default location to sidebar
 Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([viewDescriptor], viewContainer);
@@ -556,8 +558,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarEditMenu, {
 	order: 1
 });
 
-registry.registerWorkbenchAction(SyncActionDescriptor.create(FocusNextSearchResultAction, FocusNextSearchResultAction.ID, FocusNextSearchResultAction.LABEL, { primary: KeyCode.F4 }, ContextKeyExpr.and(Constants.HasSearchResults)), 'Focus Next Search Result', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.create(FocusPreviousSearchResultAction, FocusPreviousSearchResultAction.ID, FocusPreviousSearchResultAction.LABEL, { primary: KeyMod.Shift | KeyCode.F4 }, ContextKeyExpr.and(Constants.HasSearchResults)), 'Focus Previous Search Result', category);
+registry.registerWorkbenchAction(SyncActionDescriptor.create(FocusNextSearchResultAction, FocusNextSearchResultAction.ID, FocusNextSearchResultAction.LABEL, { primary: KeyCode.F4 }, ContextKeyExpr.or(Constants.HasSearchResults, SearchEditorConstants.InSearchEditor)), 'Focus Next Search Result', category);
+registry.registerWorkbenchAction(SyncActionDescriptor.create(FocusPreviousSearchResultAction, FocusPreviousSearchResultAction.ID, FocusPreviousSearchResultAction.LABEL, { primary: KeyMod.Shift | KeyCode.F4 }, ContextKeyExpr.or(Constants.HasSearchResults, SearchEditorConstants.InSearchEditor)), 'Focus Previous Search Result', category);
 
 registry.registerWorkbenchAction(SyncActionDescriptor.create(ReplaceInFilesAction, ReplaceInFilesAction.ID, ReplaceInFilesAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_H }), 'Replace in Files', category);
 MenuRegistry.appendMenuItem(MenuId.MenubarEditMenu, {
@@ -611,32 +613,24 @@ registry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleSearchOnTypeA
 registry.registerWorkbenchAction(SyncActionDescriptor.create(RefreshAction, RefreshAction.ID, RefreshAction.LABEL), 'Search: Refresh', category);
 registry.registerWorkbenchAction(SyncActionDescriptor.create(ClearSearchResultsAction, ClearSearchResultsAction.ID, ClearSearchResultsAction.LABEL), 'Search: Clear Search Results', category);
 
-// Register Quick Open Handler
-Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerDefaultQuickOpenHandler(
-	QuickOpenHandlerDescriptor.create(
-		OpenAnythingHandler,
-		OpenAnythingHandler.ID,
-		'',
-		defaultQuickOpenContextKey,
-		nls.localize('openAnythingHandlerDescription', "Go to File")
-	)
-);
+// Register Quick Access Handler
+const quickAccessRegistry = Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess);
 
-Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpenHandler(
-	QuickOpenHandlerDescriptor.create(
-		OpenSymbolHandler,
-		OpenSymbolHandler.ID,
-		ShowAllSymbolsAction.ALL_SYMBOLS_PREFIX,
-		'inWorkspaceSymbolsPicker',
-		[
-			{
-				prefix: ShowAllSymbolsAction.ALL_SYMBOLS_PREFIX,
-				needsEditor: false,
-				description: nls.localize('openSymbolDescriptionNormal', "Go to Symbol in Workspace")
-			}
-		]
-	)
-);
+quickAccessRegistry.registerQuickAccessProvider({
+	ctor: AnythingQuickAccessProvider,
+	prefix: AnythingQuickAccessProvider.PREFIX,
+	placeholder: nls.localize('anythingQuickAccessPlaceholder', "Search files by name (append {0} to go to line or {1} to go to symbol)", AbstractGotoLineQuickAccessProvider.PREFIX, GotoSymbolQuickAccessProvider.PREFIX),
+	contextKey: defaultQuickAccessContextKeyValue,
+	helpEntries: [{ description: nls.localize('anythingQuickAccess', "Go to File"), needsEditor: false }]
+});
+
+quickAccessRegistry.registerQuickAccessProvider({
+	ctor: SymbolsQuickAccessProvider,
+	prefix: SymbolsQuickAccessProvider.PREFIX,
+	placeholder: nls.localize('symbolsQuickAccessPlaceholder', "Type the name of a symbol to open."),
+	contextKey: 'inWorkspaceSymbolsPicker',
+	helpEntries: [{ description: nls.localize('symbolsQuickAccess', "Go to Symbol in Workspace"), needsEditor: false }]
+});
 
 // Configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -646,9 +640,9 @@ configurationRegistry.registerConfiguration({
 	title: nls.localize('searchConfigurationTitle', "Search"),
 	type: 'object',
 	properties: {
-		'search.exclude': {
+		[SEARCH_EXCLUDE_CONFIG]: {
 			type: 'object',
-			markdownDescription: nls.localize('exclude', "Configure glob patterns for excluding files and folders in searches. Inherits all glob patterns from the `#files.exclude#` setting. Read more about glob patterns [here](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options)."),
+			markdownDescription: nls.localize('exclude', "Configure glob patterns for excluding files and folders in fulltext searches and quick open. Inherits all glob patterns from the `#files.exclude#` setting. Read more about glob patterns [here](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options)."),
 			default: { '**/node_modules': true, '**/bower_components': true, '**/*.code-search': true },
 			additionalProperties: {
 				anyOf: [
@@ -704,6 +698,16 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('search.quickOpen.includeHistory', "Whether to include results from recently opened files in the file results for Quick Open."),
 			default: true
 		},
+		'search.quickOpen.history.filterSortOrder': {
+			'type': 'string',
+			'enum': ['default', 'recency'],
+			'default': 'default',
+			'enumDescriptions': [
+				nls.localize('filterSortOrder.default', 'History entries are sorted by relevance based on the filter value used. More relevant entries appear first.'),
+				nls.localize('filterSortOrder.recency', 'History entries are sorted by recency. More recently opened entries appear first.')
+			],
+			'description': nls.localize('filterSortOrder', "Controls sorting order of editor history in quick open when filtering.")
+		},
 		'search.followSymlinks': {
 			type: 'boolean',
 			description: nls.localize('search.followSymlinks', "Controls whether to follow symlinks while searching."),
@@ -731,7 +735,7 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: ['auto', 'alwaysCollapse', 'alwaysExpand'],
 			enumDescriptions: [
-				'Files with less than 10 results are expanded. Others are collapsed.',
+				nls.localize('search.collapseResults.auto', "Files with less than 10 results are expanded. Others are collapsed."),
 				'',
 				''
 			],

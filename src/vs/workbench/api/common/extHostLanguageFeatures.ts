@@ -27,7 +27,7 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { encodeSemanticTokensDto } from 'vs/workbench/api/common/shared/semanticTokens';
+import { encodeSemanticTokensDto } from 'vs/workbench/api/common/shared/semanticTokensDto';
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
 import { Cache } from './cache';
@@ -312,6 +312,26 @@ class DocumentHighlightAdapter {
 		return asPromise(() => this._provider.provideDocumentHighlights(doc, pos, token)).then(value => {
 			if (Array.isArray(value)) {
 				return value.map(typeConvert.DocumentHighlight.from);
+			}
+			return undefined;
+		});
+	}
+}
+
+class OnTypeRenameAdapter {
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _provider: vscode.OnTypeRenameProvider
+	) { }
+
+	provideOnTypeRenameRanges(resource: URI, position: IPosition, token: CancellationToken): Promise<IRange[] | undefined> {
+
+		const doc = this._documents.getDocument(resource);
+		const pos = typeConvert.Position.to(position);
+
+		return asPromise(() => this._provider.provideOnTypeRenameRanges(doc, pos, token)).then(value => {
+			if (Array.isArray(value)) {
+				return coalesce(value.map(typeConvert.Range.from));
 			}
 			return undefined;
 		});
@@ -1350,7 +1370,8 @@ type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | Hov
 	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
 	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter
 	| TypeDefinitionAdapter | ColorProviderAdapter | FoldingProviderAdapter | DeclarationAdapter
-	| SelectionRangeAdapter | CallHierarchyAdapter | DocumentSemanticTokensAdapter | DocumentRangeSemanticTokensAdapter | EvaluatableExpressionAdapter;
+	| SelectionRangeAdapter | CallHierarchyAdapter | DocumentSemanticTokensAdapter | DocumentRangeSemanticTokensAdapter | EvaluatableExpressionAdapter
+	| OnTypeRenameAdapter;
 
 class AdapterData {
 	constructor(
@@ -1594,6 +1615,19 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._withAdapter(handle, DocumentHighlightAdapter, adapter => adapter.provideDocumentHighlights(URI.revive(resource), position, token), undefined);
 	}
 
+	// --- on type rename
+
+	registerOnTypeRenameProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.OnTypeRenameProvider, stopPattern?: RegExp): vscode.Disposable {
+		const handle = this._addNewAdapter(new OnTypeRenameAdapter(this._documents, provider), extension);
+		const serializedStopPattern = stopPattern ? ExtHostLanguageFeatures._serializeRegExp(stopPattern) : undefined;
+		this._proxy.$registerOnTypeRenameProvider(handle, this._transformDocumentSelector(selector), serializedStopPattern);
+		return this._createDisposable(handle);
+	}
+
+	$provideOnTypeRenameRanges(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<IRange[] | undefined> {
+		return this._withAdapter(handle, OnTypeRenameAdapter, adapter => adapter.provideOnTypeRenameRanges(URI.revive(resource), position, token), undefined);
+	}
+
 	// --- references
 
 	registerReferenceProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.ReferenceProvider): vscode.Disposable {
@@ -1702,9 +1736,19 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	//#region semantic coloring
 
 	registerDocumentSemanticTokensProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentSemanticTokensProvider, legend: vscode.SemanticTokensLegend): vscode.Disposable {
-		const handle = this._addNewAdapter(new DocumentSemanticTokensAdapter(this._documents, provider), extension);
-		this._proxy.$registerDocumentSemanticTokensProvider(handle, this._transformDocumentSelector(selector), legend);
-		return this._createDisposable(handle);
+		const handle = this._nextHandle();
+		const eventHandle = (typeof provider.onDidChangeSemanticTokens === 'function' ? this._nextHandle() : undefined);
+
+		this._adapter.set(handle, new AdapterData(new DocumentSemanticTokensAdapter(this._documents, provider), extension));
+		this._proxy.$registerDocumentSemanticTokensProvider(handle, this._transformDocumentSelector(selector), legend, eventHandle);
+		let result = this._createDisposable(handle);
+
+		if (eventHandle) {
+			const subscription = provider.onDidChangeSemanticTokens!(_ => this._proxy.$emitDocumentSemanticTokensEvent(eventHandle));
+			result = Disposable.from(result, subscription);
+		}
+
+		return result;
 	}
 
 	$provideDocumentSemanticTokens(handle: number, resource: UriComponents, previousResultId: number, token: CancellationToken): Promise<VSBuffer | null> {

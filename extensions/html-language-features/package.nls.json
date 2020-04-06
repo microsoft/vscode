@@ -25,5 +25,6 @@
 	"html.validate.scripts": "Controls whether the built-in HTML language support validates embedded scripts.",
 	"html.validate.styles": "Controls whether the built-in HTML language support validates embedded styles.",
 	"html.autoClosingTags": "Enable/disable autoclosing of HTML tags.",
-	"html.mirrorCursorOnMatchingTag": "Enable/disable mirroring cursor on matching HTML tag."
+	"html.mirrorCursorOnMatchingTag": "Enable/disable mirroring cursor on matching HTML tag.",
+	"html.mirrorCursorOnMatchingTagDeprecationMessage": "Deprecated in favor of `editor.renameOnType`"
 }

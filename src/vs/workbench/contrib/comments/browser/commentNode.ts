@@ -158,7 +158,7 @@ export class CommentNode extends Disposable {
 						},
 						this.actionRunner!,
 						undefined,
-						'toolbar-toggle-pickReactions',
+						'toolbar-toggle-pickReactions codicon codicon-reactions',
 						() => { return AnchorAlignment.RIGHT; }
 					);
 				}

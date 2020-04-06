@@ -10,7 +10,6 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IDebugService, State, IEnablement, IBreakpoint, IDebugSession, ILaunch } from 'vs/workbench/contrib/debug/common/debug';
 import { Variable, Breakpoint, FunctionBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
@@ -160,7 +159,7 @@ export class StartAction extends AbstractDebugAction {
 
 export class RunAction extends StartAction {
 	static readonly ID = 'workbench.action.debug.run';
-	static LABEL = nls.localize('startWithoutDebugging', "Run (Start Without Debugging)");
+	static LABEL = nls.localize('startWithoutDebugging', "Start Without Debugging");
 
 	protected isNoDebug(): boolean {
 		return true;
@@ -174,13 +173,13 @@ export class SelectAndStartAction extends AbstractDebugAction {
 	constructor(id: string, label: string,
 		@IDebugService debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IQuickOpenService private readonly quickOpenService: IQuickOpenService
+		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
 		super(id, label, '', debugService, keybindingService);
 	}
 
-	run(): Promise<any> {
-		return this.quickOpenService.show('debug ');
+	async run(): Promise<any> {
+		this.quickInputService.quickAccess.show('debug ');
 	}
 }
 
@@ -393,20 +392,18 @@ export class CopyValueAction extends Action {
 	async run(): Promise<any> {
 		const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 		const session = this.debugService.getViewModel().focusedSession;
-
-		if (typeof this.value === 'string') {
-			return this.clipboardService.writeText(this.value);
+		if (!stackFrame || !session) {
+			return;
 		}
 
-		if (stackFrame && session && this.value.evaluateName) {
-			try {
-				const evaluation = await session.evaluate(this.value.evaluateName, stackFrame.frameId, this.context);
-				this.clipboardService.writeText(evaluation.body.result);
-			} catch (e) {
-				this.clipboardService.writeText(this.value.value);
-			}
-		} else {
-			this.clipboardService.writeText(this.value.value);
+		const context = session.capabilities.supportsClipboardContext ? 'clipboard' : this.context;
+		const toEvaluate = typeof this.value === 'string' ? this.value : this.value.evaluateName || this.value.value;
+
+		try {
+			const evaluation = await session.evaluate(toEvaluate, stackFrame.frameId, context);
+			this.clipboardService.writeText(evaluation.body.result);
+		} catch (e) {
+			this.clipboardService.writeText(typeof this.value === 'string' ? this.value : this.value.value);
 		}
 	}
 }

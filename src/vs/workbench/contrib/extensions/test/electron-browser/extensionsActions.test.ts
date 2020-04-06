@@ -27,7 +27,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TestContextService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 import { TestSharedProcessService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
@@ -39,7 +39,7 @@ import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browse
 import { ExtensionIdentifier, IExtensionContributions, ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { ILabelService } from 'vs/platform/label/common/label';
+import { ILabelService, IFormatterChangeEvent } from 'vs/platform/label/common/label';
 import { ExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/electron-browser/extensionManagementServerService';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Schemas } from 'vs/base/common/network';
@@ -92,7 +92,7 @@ suite('ExtensionsActions Test', () => {
 		}());
 
 		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		instantiationService.stub(ILabelService, { onDidChangeFormatters: new Emitter<void>().event });
+		instantiationService.stub(ILabelService, { onDidChangeFormatters: new Emitter<IFormatterChangeEvent>().event });
 
 		instantiationService.set(IExtensionTipsService, instantiationService.createInstance(ExtensionTipsService));
 		instantiationService.stub(IURLService, URLService);
@@ -130,7 +130,7 @@ suite('ExtensionsActions Test', () => {
 						testObject.extension = paged.firstPage[0];
 						assert.ok(!testObject.enabled);
 						assert.equal('Install', testObject.label);
-						assert.equal('extension-action prominent install', testObject.class);
+						assert.equal('extension-action label prominent install', testObject.class);
 					});
 			});
 	});
@@ -148,7 +148,7 @@ suite('ExtensionsActions Test', () => {
 
 				assert.ok(!testObject.enabled);
 				assert.equal('Installing', testObject.label);
-				assert.equal('extension-action install installing', testObject.class);
+				assert.equal('extension-action label install installing', testObject.class);
 			});
 	});
 
@@ -215,7 +215,7 @@ suite('ExtensionsActions Test', () => {
 				uninstallEvent.fire(local.identifier);
 				assert.ok(!testObject.enabled);
 				assert.equal('Uninstalling', testObject.label);
-				assert.equal('extension-action uninstall uninstalling', testObject.class);
+				assert.equal('extension-action label uninstall uninstalling', testObject.class);
 			});
 	});
 
@@ -230,7 +230,7 @@ suite('ExtensionsActions Test', () => {
 				testObject.extension = extensions[0];
 				assert.ok(testObject.enabled);
 				assert.equal('Uninstall', testObject.label);
-				assert.equal('extension-action uninstall', testObject.class);
+				assert.equal('extension-action label uninstall', testObject.class);
 			});
 	});
 
@@ -245,7 +245,7 @@ suite('ExtensionsActions Test', () => {
 				testObject.extension = extensions[0];
 				assert.ok(!testObject.enabled);
 				assert.equal('Uninstall', testObject.label);
-				assert.equal('extension-action uninstall', testObject.class);
+				assert.equal('extension-action label uninstall', testObject.class);
 			});
 	});
 
@@ -281,7 +281,7 @@ suite('ExtensionsActions Test', () => {
 
 				assert.ok(testObject.enabled);
 				assert.equal('Uninstall', testObject.label);
-				assert.equal('extension-action uninstall', testObject.class);
+				assert.equal('extension-action label uninstall', testObject.class);
 			});
 	});
 
@@ -290,7 +290,7 @@ suite('ExtensionsActions Test', () => {
 		instantiationService.createInstance(ExtensionContainers, [testObject]);
 
 		assert.ok(!testObject.enabled);
-		assert.equal('extension-action prominent install no-extension', testObject.class);
+		assert.equal('extension-action label prominent install no-extension', testObject.class);
 	});
 
 	test('Test CombinedInstallAction when extension is system extension', () => {
@@ -303,7 +303,7 @@ suite('ExtensionsActions Test', () => {
 			.then(extensions => {
 				testObject.extension = extensions[0];
 				assert.ok(!testObject.enabled);
-				assert.equal('extension-action prominent install no-extension', testObject.class);
+				assert.equal('extension-action label prominent install no-extension', testObject.class);
 			});
 	});
 
@@ -319,7 +319,7 @@ suite('ExtensionsActions Test', () => {
 				testObject.extension = paged.firstPage[0];
 				assert.ok(testObject.enabled);
 				assert.equal('Install', testObject.label);
-				assert.equal('extension-action prominent install', testObject.class);
+				assert.equal('extension-action label prominent install', testObject.class);
 			});
 	});
 
@@ -334,7 +334,7 @@ suite('ExtensionsActions Test', () => {
 				testObject.extension = extensions[0];
 				assert.ok(testObject.enabled);
 				assert.equal('Uninstall', testObject.label);
-				assert.equal('extension-action uninstall', testObject.class);
+				assert.equal('extension-action label uninstall', testObject.class);
 			});
 	});
 
@@ -351,7 +351,7 @@ suite('ExtensionsActions Test', () => {
 
 				assert.ok(!testObject.enabled);
 				assert.equal('Installing', testObject.label);
-				assert.equal('extension-action install installing', testObject.class);
+				assert.equal('extension-action label install installing', testObject.class);
 			});
 	});
 
@@ -370,7 +370,7 @@ suite('ExtensionsActions Test', () => {
 				installEvent.fire({ identifier: gallery.identifier, gallery });
 				assert.ok(!testObject.enabled);
 				assert.equal('Installing', testObject.label);
-				assert.equal('extension-action install installing', testObject.class);
+				assert.equal('extension-action label install installing', testObject.class);
 			});
 	});
 
@@ -386,7 +386,7 @@ suite('ExtensionsActions Test', () => {
 				uninstallEvent.fire(local.identifier);
 				assert.ok(!testObject.enabled);
 				assert.equal('Uninstalling', testObject.label);
-				assert.equal('extension-action uninstall uninstalling', testObject.class);
+				assert.equal('extension-action label uninstall uninstalling', testObject.class);
 			});
 	});
 
@@ -498,7 +498,7 @@ suite('ExtensionsActions Test', () => {
 			.then(extensions => {
 				testObject.extension = extensions[0];
 				assert.ok(testObject.enabled);
-				assert.equal('extension-action manage codicon-gear', testObject.class);
+				assert.equal('extension-action icon manage codicon-gear', testObject.class);
 				assert.equal('', testObject.tooltip);
 			});
 	});
@@ -513,7 +513,7 @@ suite('ExtensionsActions Test', () => {
 			.then(page => {
 				testObject.extension = page.firstPage[0];
 				assert.ok(!testObject.enabled);
-				assert.equal('extension-action manage codicon-gear hide', testObject.class);
+				assert.equal('extension-action icon manage codicon-gear hide', testObject.class);
 				assert.equal('', testObject.tooltip);
 			});
 	});
@@ -530,7 +530,7 @@ suite('ExtensionsActions Test', () => {
 
 				installEvent.fire({ identifier: gallery.identifier, gallery });
 				assert.ok(!testObject.enabled);
-				assert.equal('extension-action manage codicon-gear hide', testObject.class);
+				assert.equal('extension-action icon manage codicon-gear hide', testObject.class);
 				assert.equal('', testObject.tooltip);
 			});
 	});
@@ -548,7 +548,7 @@ suite('ExtensionsActions Test', () => {
 				didInstallEvent.fire({ identifier: gallery.identifier, gallery, operation: InstallOperation.Install, local: aLocalExtension('a', gallery, gallery) });
 
 				assert.ok(testObject.enabled);
-				assert.equal('extension-action manage codicon-gear', testObject.class);
+				assert.equal('extension-action icon manage codicon-gear', testObject.class);
 				assert.equal('', testObject.tooltip);
 			});
 	});
@@ -563,7 +563,7 @@ suite('ExtensionsActions Test', () => {
 			.then(extensions => {
 				testObject.extension = extensions[0];
 				assert.ok(testObject.enabled);
-				assert.equal('extension-action manage codicon-gear', testObject.class);
+				assert.equal('extension-action icon manage codicon-gear', testObject.class);
 				assert.equal('', testObject.tooltip);
 			});
 	});
@@ -580,7 +580,7 @@ suite('ExtensionsActions Test', () => {
 				uninstallEvent.fire(local.identifier);
 
 				assert.ok(!testObject.enabled);
-				assert.equal('extension-action manage codicon-gear', testObject.class);
+				assert.equal('extension-action icon manage codicon-gear', testObject.class);
 				assert.equal('Uninstalling', testObject.tooltip);
 			});
 	});
@@ -1549,7 +1549,7 @@ suite('ExtensionsActions Test', () => {
 		testObject.extension = extensions[0];
 		assert.ok(testObject.enabled);
 		assert.equal('Install in remote', testObject.label);
-		assert.equal('extension-action prominent install', testObject.class);
+		assert.equal('extension-action label prominent install', testObject.class);
 	});
 
 	test('Test remote install action when installing local workspace extension', async () => {
@@ -1575,12 +1575,12 @@ suite('ExtensionsActions Test', () => {
 		testObject.extension = extensions[0];
 		assert.ok(testObject.enabled);
 		assert.equal('Install in remote', testObject.label);
-		assert.equal('extension-action prominent install', testObject.class);
+		assert.equal('extension-action label prominent install', testObject.class);
 
 		onInstallExtension.fire({ identifier: localWorkspaceExtension.identifier, gallery });
 		assert.ok(testObject.enabled);
 		assert.equal('Installing', testObject.label);
-		assert.equal('extension-action install installing', testObject.class);
+		assert.equal('extension-action label install installing', testObject.class);
 	});
 
 	test('Test remote install action when installing local workspace extension is finished', async () => {
@@ -1608,12 +1608,12 @@ suite('ExtensionsActions Test', () => {
 		testObject.extension = extensions[0];
 		assert.ok(testObject.enabled);
 		assert.equal('Install in remote', testObject.label);
-		assert.equal('extension-action prominent install', testObject.class);
+		assert.equal('extension-action label prominent install', testObject.class);
 
 		onInstallExtension.fire({ identifier: localWorkspaceExtension.identifier, gallery });
 		assert.ok(testObject.enabled);
 		assert.equal('Installing', testObject.label);
-		assert.equal('extension-action install installing', testObject.class);
+		assert.equal('extension-action label install installing', testObject.class);
 
 		const installedExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		onDidInstallEvent.fire({ identifier: installedExtension.identifier, local: installedExtension, operation: InstallOperation.Install });
@@ -1639,7 +1639,7 @@ suite('ExtensionsActions Test', () => {
 		testObject.extension = extensions[0];
 		assert.ok(testObject.enabled);
 		assert.equal('Install in remote', testObject.label);
-		assert.equal('extension-action prominent install', testObject.class);
+		assert.equal('extension-action label prominent install', testObject.class);
 	});
 
 	test('Test remote install action is disabled when extension is not set', async () => {
@@ -1856,7 +1856,7 @@ suite('ExtensionsActions Test', () => {
 		testObject.extension = extensions[0];
 		assert.ok(testObject.enabled);
 		assert.equal('Install in remote', testObject.label);
-		assert.equal('extension-action prominent install', testObject.class);
+		assert.equal('extension-action label prominent install', testObject.class);
 	});
 
 	test('Test remote install action is disabled if local language pack extension is uninstalled', async () => {
@@ -1902,7 +1902,7 @@ suite('ExtensionsActions Test', () => {
 		testObject.extension = extensions[0];
 		assert.ok(testObject.enabled);
 		assert.equal('Install Locally', testObject.label);
-		assert.equal('extension-action prominent install', testObject.class);
+		assert.equal('extension-action label prominent install', testObject.class);
 	});
 
 	test('Test local install action when installing remote ui extension', async () => {
@@ -1928,12 +1928,12 @@ suite('ExtensionsActions Test', () => {
 		testObject.extension = extensions[0];
 		assert.ok(testObject.enabled);
 		assert.equal('Install Locally', testObject.label);
-		assert.equal('extension-action prominent install', testObject.class);
+		assert.equal('extension-action label prominent install', testObject.class);
 
 		onInstallExtension.fire({ identifier: remoteUIExtension.identifier, gallery });
 		assert.ok(testObject.enabled);
 		assert.equal('Installing', testObject.label);
-		assert.equal('extension-action install installing', testObject.class);
+		assert.equal('extension-action label install installing', testObject.class);
 	});
 
 	test('Test local install action when installing remote ui extension is finished', async () => {
@@ -1961,12 +1961,12 @@ suite('ExtensionsActions Test', () => {
 		testObject.extension = extensions[0];
 		assert.ok(testObject.enabled);
 		assert.equal('Install Locally', testObject.label);
-		assert.equal('extension-action prominent install', testObject.class);
+		assert.equal('extension-action label prominent install', testObject.class);
 
 		onInstallExtension.fire({ identifier: remoteUIExtension.identifier, gallery });
 		assert.ok(testObject.enabled);
 		assert.equal('Installing', testObject.label);
-		assert.equal('extension-action install installing', testObject.class);
+		assert.equal('extension-action label install installing', testObject.class);
 
 		const installedExtension = aLocalExtension('a', { extensionKind: ['ui'] }, { location: URI.file(`pub.a`) });
 		onDidInstallEvent.fire({ identifier: installedExtension.identifier, local: installedExtension, operation: InstallOperation.Install });
@@ -1992,7 +1992,7 @@ suite('ExtensionsActions Test', () => {
 		testObject.extension = extensions[0];
 		assert.ok(testObject.enabled);
 		assert.equal('Install Locally', testObject.label);
-		assert.equal('extension-action prominent install', testObject.class);
+		assert.equal('extension-action label prominent install', testObject.class);
 	});
 
 	test('Test local install action is disabled when extension is not set', async () => {
@@ -2212,7 +2212,7 @@ suite('ExtensionsActions Test', () => {
 		testObject.extension = extensions[0];
 		assert.ok(testObject.enabled);
 		assert.equal('Install Locally', testObject.label);
-		assert.equal('extension-action prominent install', testObject.class);
+		assert.equal('extension-action label prominent install', testObject.class);
 	});
 
 	test('Test local install action is disabled if remote language pack extension is uninstalled', async () => {

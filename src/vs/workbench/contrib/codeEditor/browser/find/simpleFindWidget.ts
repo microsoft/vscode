@@ -16,7 +16,7 @@ import { SimpleButton } from 'vs/editor/contrib/find/findWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { editorWidgetBackground, inputActiveOptionBorder, inputActiveOptionBackground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow, editorWidgetForeground } from 'vs/platform/theme/common/colorRegistry';
-import { ITheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ContextScopedFindInput } from 'vs/platform/browser/contextScopedHistoryWidget';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
@@ -94,7 +94,7 @@ export abstract class SimpleFindWidget extends Widget {
 
 		this.prevBtn = this._register(new SimpleButton({
 			label: NLS_PREVIOUS_MATCH_BTN_LABEL,
-			className: 'previous',
+			className: 'codicon codicon-arrow-up',
 			onTrigger: () => {
 				this.find(true);
 			}
@@ -102,7 +102,7 @@ export abstract class SimpleFindWidget extends Widget {
 
 		this.nextBtn = this._register(new SimpleButton({
 			label: NLS_NEXT_MATCH_BTN_LABEL,
-			className: 'next',
+			className: 'codicon codicon-arrow-down',
 			onTrigger: () => {
 				this.find(false);
 			}
@@ -110,7 +110,7 @@ export abstract class SimpleFindWidget extends Widget {
 
 		const closeBtn = this._register(new SimpleButton({
 			label: NLS_CLOSE_BTN_LABEL,
-			className: 'close-fw',
+			className: 'codicon codicon-close',
 			onTrigger: () => {
 				this.hide();
 			}
@@ -165,7 +165,7 @@ export abstract class SimpleFindWidget extends Widget {
 		return this._focusTracker;
 	}
 
-	public updateTheme(theme: ITheme): void {
+	public updateTheme(theme: IColorTheme): void {
 		const inputStyles: IFindInputStyles = {
 			inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder),
 			inputActiveOptionBackground: theme.getColor(inputActiveOptionBackground),

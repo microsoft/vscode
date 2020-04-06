@@ -837,7 +837,7 @@ export class TaskSequentializer {
 		this._pending?.cancel();
 	}
 
-	setPending(taskId: number, promise: Promise<void>, onCancel?: () => void, ): Promise<void> {
+	setPending(taskId: number, promise: Promise<void>, onCancel?: () => void,): Promise<void> {
 		this._pending = { taskId: taskId, cancel: () => onCancel?.(), promise };
 
 		promise.then(() => this.donePending(taskId), () => this.donePending(taskId));

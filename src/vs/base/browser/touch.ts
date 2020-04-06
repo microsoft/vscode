@@ -90,9 +90,9 @@ export class Gesture extends Disposable {
 		this.targets = [];
 		this.ignoreTargets = [];
 		this._lastSetTapCountTime = 0;
-		this._register(DomUtils.addDisposableListener(document, 'touchstart', (e: TouchEvent) => this.onTouchStart(e)));
+		this._register(DomUtils.addDisposableListener(document, 'touchstart', (e: TouchEvent) => this.onTouchStart(e), { passive: false }));
 		this._register(DomUtils.addDisposableListener(document, 'touchend', (e: TouchEvent) => this.onTouchEnd(e)));
-		this._register(DomUtils.addDisposableListener(document, 'touchmove', (e: TouchEvent) => this.onTouchMove(e)));
+		this._register(DomUtils.addDisposableListener(document, 'touchmove', (e: TouchEvent) => this.onTouchMove(e), { passive: false }));
 	}
 
 	public static addTarget(element: HTMLElement): IDisposable {
@@ -131,7 +131,7 @@ export class Gesture extends Disposable {
 
 	@memoize
 	private static isTouchDevice(): boolean {
-		return 'ontouchstart' in window as any || navigator.maxTouchPoints > 0 || window.navigator.msMaxTouchPoints > 0;
+		return 'ontouchstart' in window || navigator.maxTouchPoints > 0 || window.navigator.msMaxTouchPoints > 0;
 	}
 
 	public dispose(): void {
@@ -247,7 +247,7 @@ export class Gesture extends Disposable {
 	}
 
 	private newGestureEvent(type: string, initialTarget?: EventTarget): GestureEvent {
-		let event = <GestureEvent>(<any>document.createEvent('CustomEvent'));
+		let event = document.createEvent('CustomEvent') as unknown as GestureEvent;
 		event.initEvent(type, false, true);
 		event.initialTarget = initialTarget;
 		event.tapCount = 0;

@@ -8,9 +8,9 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IWorkspaceContextService, toWorkspaceFolder, Workspace } from 'vs/platform/workspace/common/workspace';
 import { ISearchPathsInfo, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
-import { TestContextService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestEnvironmentService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { assertEqualSearchPathResults, getUri, patternsToIExpression, globalGlob, fixPath } from 'vs/workbench/contrib/search/test/browser/queryBuilder.test';
+import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 
 const DEFAULT_EDITOR_CONFIG = {};
 const DEFAULT_USER_CONFIG = { useRipgrep: true, useIgnoreFiles: true, useGlobalIgnoreFiles: true };

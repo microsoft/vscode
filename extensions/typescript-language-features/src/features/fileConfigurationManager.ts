@@ -7,9 +7,10 @@ import * as vscode from 'vscode';
 import type * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
+import { Disposable } from '../utils/dispose';
+import * as fileSchemes from '../utils/fileSchemes';
 import { isTypeScriptDocument } from '../utils/languageModeIds';
 import { ResourceMap } from '../utils/resourceMap';
-import { Disposable } from '../utils/dispose';
 
 
 function objsAreEqual<T>(a: T, b: T): boolean {
@@ -144,9 +145,7 @@ export default class FileConfigurationManager extends Disposable {
 			isTypeScriptDocument(document) ? 'typescript.format' : 'javascript.format',
 			document.uri);
 
-		// `semicolons` added to `Proto.FormatCodeSettings` in TypeScript 3.7:
-		// remove intersection type after upgrading TypeScript.
-		const settings: Proto.FormatCodeSettings & { semicolons?: string } = {
+		return {
 			tabSize: options.tabSize,
 			indentSize: options.tabSize,
 			convertTabsToSpaces: options.insertSpaces,
@@ -169,8 +168,6 @@ export default class FileConfigurationManager extends Disposable {
 			placeOpenBraceOnNewLineForControlBlocks: config.get<boolean>('placeOpenBraceOnNewLineForControlBlocks'),
 			semicolons: config.get<Proto.SemicolonPreference>('semicolons'),
 		};
-
-		return settings;
 	}
 
 	private getPreferences(document: vscode.TextDocument): Proto.UserPreferences {
@@ -182,13 +179,18 @@ export default class FileConfigurationManager extends Disposable {
 			isTypeScriptDocument(document) ? 'typescript.preferences' : 'javascript.preferences',
 			document.uri);
 
-		return {
+		// `importModuleSpecifierEnding` added to `Proto.UserPreferences` in TypeScript 3.9:
+		// remove intersection type after upgrading TypeScript.
+		const preferences: Proto.UserPreferences & { importModuleSpecifierEnding?: string } = {
 			quotePreference: this.getQuoteStylePreference(config),
 			importModuleSpecifierPreference: getImportModuleSpecifierPreference(config),
-			allowTextChangesInNewFiles: document.uri.scheme === 'file',
+			importModuleSpecifierEnding: getImportModuleSpecifierEndingPreference(config),
+			allowTextChangesInNewFiles: document.uri.scheme === fileSchemes.file,
 			providePrefixAndSuffixTextForRename: config.get<boolean>('renameShorthandProperties', true),
 			allowRenameOfImportPath: true,
 		};
+
+		return preferences;
 	}
 
 	private getQuoteStylePreference(config: vscode.WorkspaceConfiguration) {
@@ -205,5 +207,14 @@ function getImportModuleSpecifierPreference(config: vscode.WorkspaceConfiguratio
 		case 'relative': return 'relative';
 		case 'non-relative': return 'non-relative';
 		default: return undefined;
+	}
+}
+
+function getImportModuleSpecifierEndingPreference(config: vscode.WorkspaceConfiguration) {
+	switch (config.get<string>('importModuleSpecifierEnding')) {
+		case 'minimal': return 'minimal';
+		case 'index': return 'index';
+		case 'js': return 'js';
+		default: return 'auto';
 	}
 }

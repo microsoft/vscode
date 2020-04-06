@@ -1,0 +1,11 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-editor .on-type-rename-decoration {
+	background: rgba(255, 0, 0, 0.3);
+	border-left: 1px solid rgba(255, 0, 0, 0.3);
+	/* So border can be transparent */
+	background-clip: padding-box;
+}

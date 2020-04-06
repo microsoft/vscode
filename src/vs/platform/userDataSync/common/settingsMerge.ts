@@ -10,7 +10,7 @@ import { values } from 'vs/base/common/map';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { FormattingOptions, Edit, getEOL } from 'vs/base/common/jsonFormatter';
 import * as contentUtil from 'vs/platform/userDataSync/common/content';
-import { IConflictSetting } from 'vs/platform/userDataSync/common/userDataSync';
+import { IConflictSetting, getDisallowedIgnoredSettings } from 'vs/platform/userDataSync/common/userDataSync';
 import { firstIndex, distinct } from 'vs/base/common/arrays';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { startsWith } from 'vs/base/common/strings';
@@ -32,7 +32,7 @@ export function getIgnoredSettings(defaultIgnoredSettings: string[], configurati
 	} else {
 		value = configurationService.getValue<string[]>('sync.ignoredSettings');
 	}
-	const added: string[] = [], removed: string[] = [];
+	const added: string[] = [], removed: string[] = [...getDisallowedIgnoredSettings()];
 	if (Array.isArray(value)) {
 		for (const key of value) {
 			if (startsWith(key, '-')) {

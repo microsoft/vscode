@@ -28,11 +28,17 @@ export class HistoryNavigator<T> implements INavigator<T> {
 	}
 
 	public next(): T | null {
-		return this._navigator.next();
+		if (this._currentPosition() !== this._elements.length - 1) {
+			return this._navigator.next();
+		}
+		return null;
 	}
 
 	public previous(): T | null {
-		return this._navigator.previous();
+		if (this._currentPosition() !== 0) {
+			return this._navigator.previous();
+		}
+		return null;
 	}
 
 	public current(): T | null {
@@ -71,6 +77,15 @@ export class HistoryNavigator<T> implements INavigator<T> {
 		if (data.length > this._limit) {
 			this._initialize(data.slice(data.length - this._limit));
 		}
+	}
+
+	private _currentPosition(): number {
+		const currentElement = this._navigator.current();
+		if (!currentElement) {
+			return -1;
+		}
+
+		return this._elements.indexOf(currentElement);
 	}
 
 	private _initialize(history: readonly T[]): void {

@@ -15,7 +15,7 @@ import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IDebugService, IBreakpoint, BreakpointWidgetContext as Context, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, DEBUG_SCHEME, CONTEXT_IN_BREAKPOINT_WIDGET, IBreakpointUpdateData, IBreakpointEditorContribution, BREAKPOINT_EDITOR_CONTRIBUTION_ID } from 'vs/workbench/contrib/debug/common/debug';
 import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
+import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
@@ -56,7 +56,7 @@ function isCurlyBracketOpen(input: IActiveCodeEditor): boolean {
 	return false;
 }
 
-function createDecorations(theme: ITheme, placeHolder: string): IDecorationOptions[] {
+function createDecorations(theme: IColorTheme, placeHolder: string): IDecorationOptions[] {
 	const transparentForeground = transparent(editorForeground, 0.4)(theme);
 	return [{
 		range: {
@@ -225,11 +225,11 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		this.toDispose.push(model);
 		const setDecorations = () => {
 			const value = this.input.getModel().getValue();
-			const decorations = !!value ? [] : createDecorations(this.themeService.getTheme(), this.placeholder);
+			const decorations = !!value ? [] : createDecorations(this.themeService.getColorTheme(), this.placeholder);
 			this.input.setDecorations(DECORATION_KEY, decorations);
 		};
 		this.input.getModel().onDidChangeContent(() => setDecorations());
-		this.themeService.onThemeChange(() => setDecorations());
+		this.themeService.onDidColorThemeChange(() => setDecorations());
 
 		this.toDispose.push(CompletionProviderRegistry.register({ scheme: DEBUG_SCHEME, hasAccessToAllModels: true }, {
 			provideCompletionItems: (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken): Promise<CompletionList> => {

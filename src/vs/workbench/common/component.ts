@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { Themable } from 'vs/workbench/common/theme';
+import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 export class Component extends Themable {
