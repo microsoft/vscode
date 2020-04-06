@@ -24,6 +24,7 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { Disposable } from 'vs/base/common/lifecycle';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IEnvironmentVariableService, IMergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
+import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -90,6 +91,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		@IProductService private readonly _productService: IProductService,
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
+		@IRemotePathService private readonly _remotePathService: IRemotePathService,
 		@IEnvironmentVariableService private readonly _environmentVariableService: IEnvironmentVariableService
 	) {
 		super();
@@ -133,23 +135,22 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			const hasRemoteAuthority = !!this.remoteAuthority;
 			let launchRemotely = hasRemoteAuthority || forceExtHostProcess;
 
-			this.userHome = this._environmentService.userHome?.fsPath;
+			const userHomeUri = await this._remotePathService.userHome;
 			this.os = platform.OS;
 			if (launchRemotely) {
+				this.userHome = userHomeUri.path;
 				if (hasRemoteAuthority) {
-					this._remoteAgentService.getEnvironment().then(env => {
-						if (!env) {
-							return;
-						}
-						this.userHome = env.userHome.path;
-						this.os = env.os;
-					});
+					const remoteEnv = await this._remoteAgentService.getEnvironment();
+					if (remoteEnv) {
+						this.os = remoteEnv.os;
+					}
 				}
 
 				const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
 				this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, this._configHelper);
 			} else {
-				this._process = await this._launchProcess(shellLaunchConfig, cols, rows, isScreenReaderModeEnabled);
+				this.userHome = userHomeUri.fsPath;
+				this._process = await this._launchProcess(shellLaunchConfig, cols, rows, this.userHome, isScreenReaderModeEnabled);
 			}
 		}
 		this.processState = ProcessState.LAUNCHING;
@@ -194,6 +195,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		shellLaunchConfig: IShellLaunchConfig,
 		cols: number,
 		rows: number,
+		userHome: string,
 		isScreenReaderModeEnabled: boolean
 	): Promise<ITerminalChildProcess> {
 		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
@@ -220,7 +222,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 		const initialCwd = terminalEnvironment.getCwd(
 			shellLaunchConfig,
-			this._environmentService.userHome?.fsPath!,
+			userHome,
 			lastActiveWorkspace,
 			this._configurationResolverService,
 			activeWorkspaceRootUri,
