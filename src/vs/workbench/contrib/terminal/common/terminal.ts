@@ -120,6 +120,7 @@ export interface ITerminalConfiguration {
 	showExitAlert: boolean;
 	splitCwd: 'workspaceRoot' | 'initial' | 'inherited';
 	windowsEnableConpty: boolean;
+	wordSeparators: string;
 	experimentalUseTitleEvent: boolean;
 	enableFileLinks: boolean;
 	unicodeVersion: '6' | '11';

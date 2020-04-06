@@ -333,6 +333,11 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: true
 		},
+		'terminal.integrated.wordSeparators': {
+			description: nls.localize('terminal.integrated.wordSeparators', "A string containing all characters to be considered word separators by the double click to select word feature."),
+			type: 'string',
+			default: ' ()[]{}\',"`'
+		},
 		'terminal.integrated.experimentalUseTitleEvent': {
 			description: nls.localize('terminal.integrated.experimentalUseTitleEvent', "An experimental setting that will use the terminal title event for the dropdown title. This setting will only apply to new terminals."),
 			type: 'boolean',

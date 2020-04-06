@@ -488,7 +488,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			fastScrollSensitivity: editorOptions.fastScrollSensitivity,
 			scrollSensitivity: editorOptions.mouseWheelScrollSensitivity,
 			rendererType: config.rendererType === 'auto' || config.rendererType === 'experimentalWebgl' ? 'canvas' : config.rendererType,
-			wordSeparator: ' ()[]{}\',"`'
+			wordSeparator: config.wordSeparators
 		});
 		this._xterm = xterm;
 		this._xtermCore = (xterm as any)._core as XTermCore;
@@ -1248,6 +1248,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._safeSetOption('macOptionIsMeta', config.macOptionIsMeta);
 		this._safeSetOption('macOptionClickForcesSelection', config.macOptionClickForcesSelection);
 		this._safeSetOption('rightClickSelectsWord', config.rightClickBehavior === 'selectWord');
+		this._safeSetOption('wordSeparator', config.wordSeparators);
 		if (config.rendererType !== 'experimentalWebgl') {
 			// Never set webgl as it's an addon not a rendererType
 			this._safeSetOption('rendererType', config.rendererType === 'auto' ? 'canvas' : config.rendererType);
