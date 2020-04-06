@@ -825,7 +825,13 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		if (!this.visible) {
 			return;
 		}
-		const hideInput = !!this._hideInput && this._items.length > 0; // do not allow to hide input without items
+		let hideInput: boolean;
+		if (this.ui.isScreenReaderOptimized()) {
+			// Always show input if screen reader attached https://github.com/microsoft/vscode/issues/94360
+			hideInput = false;
+		} else {
+			hideInput = !!this._hideInput && this._items.length > 0; // do not allow to hide input without items
+		}
 		dom.toggleClass(this.ui.container, 'hidden-input', hideInput);
 		const visibilities: Visibilities = {
 			title: !!this.title || !!this.step,
