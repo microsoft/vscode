@@ -182,7 +182,7 @@ export class FileService extends Disposable implements IFileService {
 
 		const stat = await provider.stat(resource);
 
-		let trie: TernarySearchTree<boolean> | undefined;
+		let trie: TernarySearchTree<string, boolean> | undefined;
 
 		return this.toFileStat(provider, resource, stat, undefined, !!resolveMetadata, (stat, siblings) => {
 

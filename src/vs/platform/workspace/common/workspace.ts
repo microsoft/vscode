@@ -144,7 +144,7 @@ export interface IWorkspaceFolder extends IWorkspaceFolderData {
 
 export class Workspace implements IWorkspace {
 
-	private _foldersMap: TernarySearchTree<WorkspaceFolder> = TernarySearchTree.forPaths<WorkspaceFolder>();
+	private _foldersMap: TernarySearchTree<string, WorkspaceFolder> = TernarySearchTree.forPaths<WorkspaceFolder>();
 	private _folders!: WorkspaceFolder[];
 
 	constructor(
