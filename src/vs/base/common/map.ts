@@ -219,7 +219,7 @@ export class UriIterator implements IKeyIterator<URI> {
 		} else if (this._states[this._stateIdx] === UriIteratorState.Path) {
 			return this._pathIterator.cmp(a);
 		} else if (this._states[this._stateIdx] === UriIteratorState.Query) {
-			return compareIgnoreCase(a, this._value.scheme);
+			return compareIgnoreCase(a, this._value.query);
 		} else if (this._states[this._stateIdx] === UriIteratorState.Fragment) {
 			return compareIgnoreCase(a, this._value.fragment);
 		}
