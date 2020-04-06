@@ -17,7 +17,7 @@ import { SimpleFileDialog } from 'vs/workbench/services/dialogs/browser/simpleFi
 import { WORKSPACE_EXTENSION, isUntitledWorkspace, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFileService } from 'vs/platform/files/common/files';
+import { IFileService, AutoSaveConfiguration } from 'vs/platform/files/common/files';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import Severity from 'vs/base/common/severity';
@@ -90,6 +90,10 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 	async showSaveConfirm(fileNamesOrResources: (string | URI)[]): Promise<ConfirmResult> {
 		if (this.environmentService.isExtensionDevelopment && this.environmentService.extensionTestsLocationURI) {
 			return ConfirmResult.DONT_SAVE; // no veto when we are in extension dev testing mode because we cannot assume we run interactive
+		}
+
+		if (this.configurationService.getValue('files.autoSave') === AutoSaveConfiguration.ON_FOCUS_CHANGE) {
+			return ConfirmResult.SAVE;
 		}
 
 		return this.doShowSaveConfirm(fileNamesOrResources);
