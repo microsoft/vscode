@@ -15,7 +15,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { parseArgs, OPTIONS, ParsedArgs } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/product/common/product';
-import { IWindowSettings, MenuBarVisibility, ReadyState, getTitleBarStyle, getMenuBarVisibility } from 'vs/platform/windows/common/windows';
+import { IWindowSettings, MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ICodeWindow, IWindowState, WindowMode } from 'vs/platform/windows/electron-main/windows';
@@ -59,6 +59,29 @@ interface ITouchBarSegment extends SegmentedControlSegment {
 const enum WindowError {
 	UNRESPONSIVE = 1,
 	CRASHED = 2
+}
+
+const enum ReadyState {
+
+	/**
+	 * This window has not loaded any HTML yet
+	 */
+	NONE,
+
+	/**
+	 * This window is loading HTML
+	 */
+	LOADING,
+
+	/**
+	 * This window is navigating to another HTML
+	 */
+	NAVIGATING,
+
+	/**
+	 * This window is done loading HTML
+	 */
+	READY
 }
 
 export class CodeWindow extends Disposable implements ICodeWindow {

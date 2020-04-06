@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { OpenContext, IWindowOpenable, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
-import { INativeWindowConfiguration } from 'vs/platform/windows/node/window';
+import { IWindowOpenable, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
+import { INativeWindowConfiguration, OpenContext } from 'vs/platform/windows/node/window';
 import { ParsedArgs } from 'vs/platform/environment/node/argv';
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';

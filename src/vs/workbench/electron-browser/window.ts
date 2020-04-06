@@ -14,7 +14,8 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { toResource, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors } from 'vs/workbench/common/editor';
 import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService, crashReporterIdStorageKey } from 'vs/platform/telemetry/common/telemetry';
-import { IWindowSettings, IOpenFileRequest, IWindowsConfiguration, IAddFoldersRequest, IRunActionInWindowRequest, IRunKeybindingInWindowRequest, getTitleBarStyle } from 'vs/platform/windows/common/windows';
+import { IWindowSettings, IOpenFileRequest, IWindowsConfiguration, getTitleBarStyle } from 'vs/platform/windows/common/windows';
+import { IRunActionInWindowRequest, IRunKeybindingInWindowRequest, IAddFoldersRequest, INativeOpenFileRequest } from 'vs/platform/windows/node/window';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { IWorkbenchThemeService, VS_HC_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import * as browser from 'vs/base/browser/browser';
@@ -594,7 +595,7 @@ export class NativeWindow extends Disposable {
 		this.workspaceEditingService.addFolders(foldersToAdd);
 	}
 
-	private async onOpenFiles(request: IOpenFileRequest): Promise<void> {
+	private async onOpenFiles(request: INativeOpenFileRequest): Promise<void> {
 		const inputs: IResourceEditorInputType[] = [];
 		const diffMode = !!(request.filesToDiff && (request.filesToDiff.length === 2));
 

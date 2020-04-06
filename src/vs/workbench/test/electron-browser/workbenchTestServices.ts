@@ -25,7 +25,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { URI } from 'vs/base/common/uri';
 import { IReadTextFileOptions, ITextFileStreamContent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
-import { IOpenedWindow, IOpenEmptyWindowOptions, IWindowOpenable, IOpenWindowOptions } from 'vs/platform/windows/common/windows';
+import { IOpenEmptyWindowOptions, IWindowOpenable, IOpenWindowOptions } from 'vs/platform/windows/common/windows';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { LogLevel, ILogService } from 'vs/platform/log/common/log';
 import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
@@ -37,7 +37,7 @@ import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { NodeTestBackupFileService } from 'vs/workbench/services/backup/test/electron-browser/backupFileService.test';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { INativeWindowConfiguration } from 'vs/platform/windows/node/window';
+import { INativeWindowConfiguration, IOpenedWindow } from 'vs/platform/windows/node/window';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 
 export const TestWindowConfiguration: INativeWindowConfiguration = {

@@ -26,7 +26,9 @@ import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { isWindows, isMacintosh, OperatingSystem } from 'vs/base/common/platform';
 import { basename } from 'vs/base/common/path';
-import { IOpenFileRequest } from 'vs/platform/windows/common/windows';
+// TODO@daniel code layering
+// eslint-disable-next-line code-layering
+import { INativeOpenFileRequest } from 'vs/platform/windows/node/window';
 import { find } from 'vs/base/common/arrays';
 import { timeout } from 'vs/base/common/async';
 import { IViewsService } from 'vs/workbench/common/views';
@@ -207,7 +209,7 @@ export class TerminalService implements ITerminalService {
 		this.terminalInstances.forEach(instance => instance.dispose(true));
 	}
 
-	private async _onOpenFileRequest(request: IOpenFileRequest): Promise<void> {
+	private async _onOpenFileRequest(request: INativeOpenFileRequest): Promise<void> {
 		// if the request to open files is coming in from the integrated terminal (identified though
 		// the termProgram variable) and we are instructed to wait for editors close, wait for the
 		// marker file to get deleted and then focus back to the integrated terminal.
