@@ -39,6 +39,8 @@ const CANCEL_NOTEBOOK_COMMAND_ID = 'workbench.notebook.cancelExecution';
 
 const NOTEBOOK_ACTIONS_CATEGORY = localize('notebookActions.category', "Notebook");
 
+const EDITOR_WIDGET_ACTION_WEIGHT = KeybindingWeight.EditorContrib; // smaller than Suggest Widget, etc
+
 const enum CellToolbarOrder {
 	MoveCellUp,
 	MoveCellDown,
@@ -60,7 +62,7 @@ registerAction2(class extends Action2 {
 				win: {
 					primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.Enter
 				},
-				weight: KeybindingWeight.WorkbenchContrib
+				weight: EDITOR_WIDGET_ACTION_WEIGHT
 			},
 			icon: { id: 'codicon/play' },
 			f1: true
@@ -145,7 +147,7 @@ registerAction2(class extends Action2 {
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext),
 				primary: KeyMod.Shift | KeyCode.Enter,
-				weight: KeybindingWeight.WorkbenchContrib
+				weight: EDITOR_WIDGET_ACTION_WEIGHT
 			}
 		});
 	}
@@ -185,7 +187,7 @@ registerAction2(class extends Action2 {
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext),
 				primary: KeyMod.Alt | KeyCode.Enter,
-				weight: KeybindingWeight.WorkbenchContrib
+				weight: EDITOR_WIDGET_ACTION_WEIGHT
 			}
 		});
 	}
@@ -275,7 +277,7 @@ registerAction2(class extends Action2 {
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext),
 				primary: KeyCode.Escape,
-				weight: KeybindingWeight.EditorContrib - 5
+				weight: EDITOR_WIDGET_ACTION_WEIGHT - 5
 			}
 		});
 	}
@@ -848,7 +850,7 @@ registerAction2(class extends Action2 {
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.has(InputFocusedContextKey), EditorContextKeys.editorTextFocus, NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('top'), NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('none')),
 				primary: KeyCode.DownArrow,
-				weight: KeybindingWeight.EditorContrib // smaller than Suggest Widget, etc
+				weight: EDITOR_WIDGET_ACTION_WEIGHT
 			}
 		});
 	}
@@ -887,7 +889,7 @@ registerAction2(class extends Action2 {
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.has(InputFocusedContextKey), EditorContextKeys.editorTextFocus, NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('bottom'), NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('none')),
 				primary: KeyCode.UpArrow,
-				weight: KeybindingWeight.EditorContrib // smaller than Suggest Widget, etc
+				weight: EDITOR_WIDGET_ACTION_WEIGHT
 			},
 		});
 	}
