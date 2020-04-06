@@ -679,6 +679,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._register(dom.addDisposableListener(xterm.textarea, 'focus', () => {
 			this._terminalFocusContextKey.set(true);
+			if (this.shellType) {
+				this._terminalShellTypeContextKey.set(this.shellType.toString());
+			} else {
+				this._terminalShellTypeContextKey.reset();
+			}
 			this._onFocused.fire(this);
 		}));
 		this._register(dom.addDisposableListener(xterm.textarea, 'blur', () => {
@@ -687,6 +692,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}));
 		this._register(dom.addDisposableListener(xterm.element, 'focus', () => {
 			this._terminalFocusContextKey.set(true);
+			if (this.shellType) {
+				this._terminalShellTypeContextKey.set(this.shellType.toString());
+			} else {
+				this._terminalShellTypeContextKey.reset();
+			}
 		}));
 		this._register(dom.addDisposableListener(xterm.element, 'blur', () => {
 			this._terminalFocusContextKey.reset();
