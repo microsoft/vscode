@@ -17,7 +17,7 @@ import { escape } from 'vs/base/common/strings';
 import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
 import { createChannelSender } from 'vs/base/parts/ipc/node/ipc';
 import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
-import { normalizeGitHubUrl } from 'vs/code/common/issue/issueReporterUtil';
+import { normalizeGitHubUrl } from 'vs/platform/issue/common/issueReporterUtil';
 import { IssueReporterData as IssueReporterModelData, IssueReporterModel } from 'vs/code/electron-browser/issue/issueReporterModel';
 import BaseHtml from 'vs/code/electron-browser/issue/issueReporterPage';
 import 'vs/css!./media/issueReporter';
