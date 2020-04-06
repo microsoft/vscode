@@ -7,7 +7,7 @@ import * as cp from 'child_process';
 import { generateUuid } from 'vs/base/common/uuid';
 import { isWindows } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 
 function getUnixShellEnvironment(logService: ILogService): Promise<typeof process.env> {
 	const promise = new Promise<typeof process.env>((resolve, reject) => {
@@ -90,7 +90,7 @@ let _shellEnv: Promise<typeof process.env>;
  * This should only be done when Code itself is not launched
  * from within a shell.
  */
-export function getShellEnvironment(logService: ILogService, environmentService: IEnvironmentService): Promise<typeof process.env> {
+export function getShellEnvironment(logService: ILogService, environmentService: INativeEnvironmentService): Promise<typeof process.env> {
 	if (_shellEnv === undefined) {
 		if (environmentService.args['disable-user-env-probe']) {
 			logService.trace('getShellEnvironment: disable-user-env-probe set, skipping');

@@ -13,6 +13,7 @@ import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifec
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
+import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 
 export class SharedProcess implements ISharedProcess {
 
@@ -25,7 +26,7 @@ export class SharedProcess implements ISharedProcess {
 	constructor(
 		private readonly machineId: string,
 		private userEnv: NodeJS.ProcessEnv,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@ILogService private readonly logService: ILogService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService

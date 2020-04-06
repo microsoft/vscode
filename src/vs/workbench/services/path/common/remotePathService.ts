@@ -9,7 +9,6 @@ import { URI } from 'vs/base/common/uri';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { Schemas } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 const REMOTE_PATH_SERVICE_ID = 'remotePath';
@@ -91,7 +90,7 @@ export class RemotePathService implements IRemotePathService {
 			}
 
 			// local: use the userHome from environment
-			return URI.from({ scheme: Schemas.file, path: this.environmentService.userHome });
+			return this.environmentService.userHome!;
 		});
 	}
 }

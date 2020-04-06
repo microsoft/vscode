@@ -78,6 +78,7 @@ import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { coalesce } from 'vs/base/common/arrays';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { StorageKeysSyncRegistryChannel } from 'vs/platform/userDataSync/common/userDataSyncIpc';
+import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 
 export class CodeApplication extends Disposable {
 	private windowsMainService: IWindowsMainService | undefined;
@@ -88,7 +89,7 @@ export class CodeApplication extends Disposable {
 		private readonly userEnv: IProcessEnvironment,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStateService private readonly stateService: IStateService
@@ -588,12 +589,11 @@ export class CodeApplication extends Disposable {
 		this.dialogMainService = accessor.get(IDialogMainService);
 
 		// Check for initial URLs to handle from protocol link invocations
-		const environmentService = accessor.get(IEnvironmentService);
 		const pendingWindowOpenablesFromProtocolLinks: IWindowOpenable[] = [];
 		const pendingProtocolLinksToHandle = coalesce([
 
 			// Windows/Linux: protocol handler invokes CLI with --open-url
-			...environmentService.args['open-url'] ? environmentService.args._urls || [] : [],
+			...this.environmentService.args['open-url'] ? this.environmentService.args._urls || [] : [],
 
 			// macOS: open-url events
 			...((<any>global).getOpenUrls() || []) as string[]
@@ -619,6 +619,7 @@ export class CodeApplication extends Disposable {
 
 		// Create a URL handler to open file URIs in the active window
 		const app = this;
+		const environmentService = this.environmentService;
 		urlService.registerHandler({
 			async handleURL(uri: URI): Promise<boolean> {
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isMacintosh, isLinux, isWeb } from 'vs/base/common/platform';
-import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -218,13 +218,10 @@ export interface IAddFoldersRequest {
 	foldersToAdd: UriComponents[];
 }
 
-export interface IWindowConfiguration extends ParsedArgs {
+export interface IWindowConfiguration {
 	sessionId: string;
 
-	backupWorkspaceResource?: URI;
-
 	remoteAuthority?: string;
-	connectionToken?: string;
 
 	highContrast?: boolean;
 

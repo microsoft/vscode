@@ -1084,7 +1084,10 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				promises.push(findExecutable(exeName, entry.value, windowsPath));
 			} else {
 				promises.push(findExecutable(exeName, entry.value, join('/usr/local/bin', exeName)));
-				promises.push(findExecutable(exeName, entry.value, join(this.environmentService.userHome, exeName)));
+				const userHome = this.environmentService.userHome;
+				if (userHome) {
+					promises.push(findExecutable(exeName, entry.value, join(userHome.fsPath, exeName)));
+				}
 			}
 		});
 

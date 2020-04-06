@@ -120,7 +120,10 @@ export class LinkDetector {
 		}
 
 		if (path[0] === '~') {
-			path = osPath.join(this.environmentService.userHome, path.substring(1));
+			const userHome = this.environmentService.userHome;
+			if (userHome) {
+				path = osPath.join(userHome.fsPath, path.substring(1));
+			}
 		}
 
 		const link = this.createLink(text);

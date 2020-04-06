@@ -192,7 +192,7 @@ class DesktopMain extends Disposable {
 		const signService = new SignService();
 		serviceCollection.set(ISignService, signService);
 
-		const remoteAgentService = this._register(new RemoteAgentService(this.environmentService.configuration, this.environmentService, remoteAuthorityResolverService, signService, logService));
+		const remoteAgentService = this._register(new RemoteAgentService(this.environmentService, remoteAuthorityResolverService, signService, logService));
 		serviceCollection.set(IRemoteAgentService, remoteAgentService);
 
 		// Files

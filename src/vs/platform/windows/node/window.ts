@@ -11,8 +11,9 @@ import { IWorkspaceIdentifier, IResolvedWorkspace, ISingleFolderWorkspaceIdentif
 import { isEqual, isEqualOrParent } from 'vs/base/common/resources';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { ExportData } from 'vs/base/common/performance';
+import { ParsedArgs } from 'vs/platform/environment/node/argv';
 
-export interface INativeWindowConfiguration extends IWindowConfiguration {
+export interface INativeWindowConfiguration extends IWindowConfiguration, ParsedArgs {
 	mainPid: number;
 
 	windowId: number;

@@ -147,6 +147,6 @@ import 'vs/workbench/contrib/userDataSync/electron-browser/userDataSync.contribu
 import 'vs/workbench/contrib/welcome/telemetryOptOut/electron-browser/telemetryOptOut.contribution';
 
 // Configuration Exporter
-import 'vs/workbench/contrib/configExporter/node/configurationExportHelper.contribution';
+import 'vs/workbench/contrib/configExporter/electron-browser/configurationExportHelper.contribution';
 
 //#endregion

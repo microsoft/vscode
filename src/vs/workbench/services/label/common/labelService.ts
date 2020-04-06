@@ -264,7 +264,10 @@ export class LabelService extends Disposable implements ILabelService {
 		}
 
 		if (formatting.tildify && !forceNoTildify) {
-			label = tildify(label, this.environmentService.userHome);
+			const userHome = this.environmentService.userHome;
+			if (userHome) {
+				label = tildify(label, userHome.fsPath);
+			}
 		}
 		if (formatting.authorityPrefix && resource.authority) {
 			label = formatting.authorityPrefix + label;

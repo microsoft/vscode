@@ -21,6 +21,7 @@ import { URI } from 'vs/base/common/uri';
 import { ITelemetryData, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
+import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 
 export interface IElectronMainService extends AddFirstParameterToFunctions<IElectronService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -34,7 +35,7 @@ export class ElectronMainService implements IElectronMainService {
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService
 	) {
