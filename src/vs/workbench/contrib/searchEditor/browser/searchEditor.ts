@@ -49,6 +49,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
+import { alert } from 'vs/base/browser/ui/aria/aria';
 
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(:| )(\s+)(.*)$/;
 const FILE_LINE_REGEX = /^(\S.*):$/;
@@ -294,8 +295,63 @@ export class SearchEditor extends BaseTextEditor {
 		this.queryEditorWidget.toggleContextLines();
 	}
 
+	modifyContextLines(increase: boolean) {
+		this.queryEditorWidget.modifyContextLines(increase);
+	}
+
 	toggleQueryDetails() {
 		this.toggleIncludesExcludes();
+	}
+
+	deleteResultBlock() {
+		const linesToDelete = new Set<number>();
+
+		const selections = this.searchResultEditor.getSelections();
+		const model = this.searchResultEditor.getModel();
+		if (!(selections && model)) { return; }
+
+		const maxLine = model.getLineCount();
+		const minLine = 1;
+
+		const deleteUp = (start: number) => {
+			for (let cursor = start; cursor >= minLine; cursor--) {
+				const line = model.getLineContent(cursor);
+				linesToDelete.add(cursor);
+				if (line[0] !== undefined && line[0] !== ' ') {
+					break;
+				}
+			}
+		};
+
+		const deleteDown = (start: number): number | undefined => {
+			linesToDelete.add(start);
+			for (let cursor = start + 1; cursor <= maxLine; cursor++) {
+				const line = model.getLineContent(cursor);
+				if (line[0] !== undefined && line[0] !== ' ') {
+					return cursor;
+				}
+				linesToDelete.add(cursor);
+			}
+			return;
+		};
+
+		const endingCursorLines: Array<number | undefined> = [];
+		for (const selection of selections) {
+			const lineNumber = selection.startLineNumber;
+			endingCursorLines.push(deleteDown(lineNumber));
+			deleteUp(lineNumber);
+			for (let inner = selection.startLineNumber; inner <= selection.endLineNumber; inner++) {
+				linesToDelete.add(inner);
+			}
+		}
+
+		if (endingCursorLines.length === 0) { endingCursorLines.push(1); }
+
+		const isDefined = <T>(x: T | undefined): x is T => x !== undefined;
+
+		model.pushEditOperations(this.searchResultEditor.getSelections(),
+			[...linesToDelete].map(line => ({ range: new Range(line, 1, line + 1, 1), text: '' })),
+			() => endingCursorLines.filter(isDefined).map(line => new Selection(line, 1, line, 1)));
 	}
 
 	cleanState() {
@@ -325,6 +381,15 @@ export class SearchEditor extends BaseTextEditor {
 		this.searchResultEditor.setSelection(matchRange);
 		this.searchResultEditor.revealLineInCenterIfOutsideViewport(matchRange.startLineNumber);
 		this.searchResultEditor.focus();
+
+		const matchLineText = model.getLineContent(matchRange.startLineNumber);
+		const matchText = model.getValueInRange(matchRange);
+		let file = '';
+		for (let line = matchRange.startLineNumber; line >= 1; line--) {
+			let lineText = model.getValueInRange(new Range(line, 1, line, 2));
+			if (lineText !== ' ') { file = model.getLineContent(line); break; }
+		}
+		alert(localize('searchResultItem', "Matched {0} at {1} in file {2}", matchText, matchLineText, file.slice(0, file.length - 1)));
 	}
 
 	focusNextResult() {
@@ -360,7 +425,7 @@ export class SearchEditor extends BaseTextEditor {
 	private readConfigFromWidget() {
 		return {
 			caseSensitive: this.queryEditorWidget.searchInput.getCaseSensitive(),
-			contextLines: this.queryEditorWidget.contextLines(),
+			contextLines: this.queryEditorWidget.getContextLines(),
 			excludes: this.inputPatternExcludes.getValue(),
 			includes: this.inputPatternIncludes.getValue(),
 			query: this.queryEditorWidget.searchInput.getValue(),
@@ -397,8 +462,8 @@ export class SearchEditor extends BaseTextEditor {
 			_reason: 'searchEditor',
 			extraFileResources: this.instantiationService.invokeFunction(getOutOfWorkspaceEditorResources),
 			maxResults: 10000,
-			disregardIgnoreFiles: !config.useIgnores,
-			disregardExcludeSettings: !config.useIgnores,
+			disregardIgnoreFiles: !config.useIgnores || undefined,
+			disregardExcludeSettings: !config.useIgnores || undefined,
 			excludePattern: config.excludes,
 			includePattern: config.includes,
 			previewOptions: {

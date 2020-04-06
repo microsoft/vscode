@@ -835,6 +835,8 @@ export namespace CompletionItemKind {
 			case types.CompletionItemKind.Event: return modes.CompletionItemKind.Event;
 			case types.CompletionItemKind.Operator: return modes.CompletionItemKind.Operator;
 			case types.CompletionItemKind.TypeParameter: return modes.CompletionItemKind.TypeParameter;
+			case types.CompletionItemKind.Issue: return modes.CompletionItemKind.Issue;
+			case types.CompletionItemKind.User: return modes.CompletionItemKind.User;
 		}
 		return modes.CompletionItemKind.Property;
 	}
@@ -866,6 +868,8 @@ export namespace CompletionItemKind {
 			case modes.CompletionItemKind.Event: return types.CompletionItemKind.Event;
 			case modes.CompletionItemKind.Operator: return types.CompletionItemKind.Operator;
 			case modes.CompletionItemKind.TypeParameter: return types.CompletionItemKind.TypeParameter;
+			case modes.CompletionItemKind.User: return types.CompletionItemKind.User;
+			case modes.CompletionItemKind.Issue: return types.CompletionItemKind.Issue;
 		}
 		return types.CompletionItemKind.Property;
 	}
@@ -1093,7 +1097,11 @@ export namespace EndOfLine {
 }
 
 export namespace ProgressLocation {
-	export function from(loc: vscode.ProgressLocation): MainProgressLocation {
+	export function from(loc: vscode.ProgressLocation | { viewId: string }): MainProgressLocation | string {
+		if (typeof loc === 'object') {
+			return loc.viewId;
+		}
+
 		switch (loc) {
 			case types.ProgressLocation.SourceControl: return MainProgressLocation.Scm;
 			case types.ProgressLocation.Window: return MainProgressLocation.Window;

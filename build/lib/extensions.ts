@@ -216,6 +216,7 @@ export function fromMarketplace(extensionName: string, version: string, metadata
 
 const excludedExtensions = [
 	'vscode-api-tests',
+	'vscode-web-playground',
 	'vscode-colorize-tests',
 	'vscode-test-resolver',
 	'ms-vscode.node-debug',

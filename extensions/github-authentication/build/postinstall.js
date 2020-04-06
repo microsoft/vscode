@@ -20,7 +20,16 @@ function main() {
 		}
 	}
 
-	fs.writeFileSync(path.join(__dirname, '../src/common/config.json'), JSON.stringify(content));
+	const githubAppId = process.env.GITHUB_APP_ID;
+	const githubAppSecret = process.env.GITHUB_APP_SECRET;
+
+	if (githubAppId && githubAppSecret) {
+		content.GITHUB_APP = { id: githubAppId, secret: githubAppSecret }
+	}
+
+	if (Object.keys(content).length > 0) {
+		fs.writeFileSync(path.join(__dirname, '../src/common/config.json'), JSON.stringify(content));
+	}
 }
 
 main();

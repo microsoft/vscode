@@ -14,8 +14,8 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Event, Emitter } from 'vs/base/common/event';
 import { firstIndex } from 'vs/base/common/arrays';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { VIEW_ID as SEARCH_VIEW_ID } from 'vs/workbench/services/search/common/search';
+import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 class CounterSet<T> implements IReadableSet<T> {
 
@@ -192,6 +192,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	private readonly viewDescriptorCollections: Map<ViewContainer, { viewDescriptorCollection: ViewDescriptorCollection, disposable: IDisposable; }>;
 	private readonly activeViewContextKeys: Map<string, IContextKey<boolean>>;
 	private readonly movableViewContextKeys: Map<string, IContextKey<boolean>>;
+	private readonly defaultViewLocationContextKeys: Map<string, IContextKey<boolean>>;
 
 	private readonly viewsRegistry: IViewsRegistry;
 	private readonly viewContainersRegistry: IViewContainersRegistry;
@@ -219,13 +220,16 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
 	) {
 		super();
 
+		storageKeysSyncRegistryService.registerStorageKey({ key: ViewDescriptorService.CACHED_VIEW_POSITIONS, version: 1 });
 		this.viewDescriptorCollections = new Map<ViewContainer, { viewDescriptorCollection: ViewDescriptorCollection, disposable: IDisposable; }>();
 		this.activeViewContextKeys = new Map<string, IContextKey<boolean>>();
 		this.movableViewContextKeys = new Map<string, IContextKey<boolean>>();
+		this.defaultViewLocationContextKeys = new Map<string, IContextKey<boolean>>();
 
 		this.viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
 		this.viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
@@ -254,33 +258,6 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		this._register(this.storageService.onDidChangeStorage((e) => { this.onDidStorageChange(e); }));
 
 		this._register(this.extensionService.onDidRegisterExtensions(() => this.onDidRegisterExtensions()));
-
-		this._register(this.configurationService.onDidChangeConfiguration((changeEvent) => {
-			if (changeEvent.affectedKeys.find(key => key === 'workbench.view.experimental.allowMovingToNewContainer')) {
-				if (this.viewsCanMoveSettingValue) {
-					return;
-				}
-
-				// update all moved views to their default locations
-				for (const viewId of this.cachedViewInfo.keys()) {
-					if (viewId === SEARCH_VIEW_ID) {
-						continue;
-					}
-
-					const viewDescriptor = this.getViewDescriptor(viewId);
-					const viewLocation = this.getViewContainer(viewId);
-					const defaultLocation = this.getDefaultContainer(viewId);
-
-					if (viewDescriptor && viewLocation && defaultLocation && defaultLocation !== viewLocation) {
-						this.moveViews([viewDescriptor], viewLocation, defaultLocation);
-					}
-				}
-			}
-		}));
-	}
-
-	private get viewsCanMoveSettingValue(): boolean {
-		return !!this.configurationService.getValue<boolean>('workbench.view.experimental.allowMovingToNewContainer');
 	}
 
 	private registerGroupedViews(groupedViews: Map<string, { cachedContainerInfo?: ICachedViewContainerInfo, views: IViewDescriptor[] }>): void {
@@ -377,7 +354,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	private shouldGenerateContainer(containerInfo: ICachedViewContainerInfo): boolean {
-		return !!containerInfo.sourceViewId && containerInfo.location !== undefined && (this.viewsCanMoveSettingValue || containerInfo.sourceViewId === SEARCH_VIEW_ID);
+		return !!containerInfo.sourceViewId && containerInfo.location !== undefined;
 	}
 
 	private onDidDeregisterViews(views: IViewDescriptor[], viewContainer: ViewContainer): void {
@@ -445,16 +422,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	moveViewToLocation(view: IViewDescriptor, location: ViewContainerLocation): void {
-		const previousContainer = this.getViewContainer(view.id);
-		if (previousContainer && this.getViewContainerLocation(previousContainer) === location) {
-			return;
-		}
-
-		let container = this.getDefaultContainer(view.id)!;
-		if (this.getViewContainerLocation(container) !== location) {
-			container = this.registerViewContainerForSingleView(view, location);
-		}
-
+		let container = this.registerViewContainerForSingleView(view, location);
 		this.moveViewsToContainer([view], container);
 	}
 
@@ -486,6 +454,43 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 		if (!skipCacheUpdate) {
 			this.saveViewPositionsToCache();
+
+			const containerToString = (container: ViewContainer): string => {
+				if (container.id.startsWith(ViewDescriptorService.COMMON_CONTAINER_ID_PREFIX)) {
+					return 'custom';
+				}
+
+				if (!container.extensionId) {
+					return container.id;
+				}
+
+				return 'extension';
+			};
+
+			// Log on cache update to avoid duplicate events in other windows
+			const viewCount = views.length;
+			const fromContainer = containerToString(from);
+			const toContainer = containerToString(to);
+			const fromLocation = oldLocation === ViewContainerLocation.Panel ? 'panel' : 'sidebar';
+			const toLocation = newLocation === ViewContainerLocation.Panel ? 'panel' : 'sidebar';
+
+			interface ViewDescriptorServiceMoveViewsEvent {
+				viewCount: number;
+				fromContainer: string;
+				toContainer: string;
+				fromLocation: string;
+				toLocation: string;
+			}
+
+			type ViewDescriptorServiceMoveViewsClassification = {
+				viewCount: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+				fromContainer: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+				toContainer: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+				fromLocation: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+				toLocation: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			};
+
+			this.telemetryService.publicLog2<ViewDescriptorServiceMoveViewsEvent, ViewDescriptorServiceMoveViewsClassification>('viewDescriptorService.moveViews', { viewCount, fromContainer, toContainer, fromLocation, toLocation });
 		}
 	}
 
@@ -496,7 +501,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			id,
 			ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [id, `${id}.state`, { mergeViewWithContainerWhenSingleView: true }]),
 			name: sourceView.name,
-			icon: sourceView.containerIcon,
+			icon: location === ViewContainerLocation.Sidebar ? sourceView.containerIcon || 'codicon-window' : undefined,
 			hideIfEmpty: true
 		}, location);
 	}
@@ -680,12 +685,17 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		const sourceViewId = this.generatedContainerSourceViewIds.get(container.id);
 		views.forEach(view => {
 			this.cachedViewInfo.set(view.id, { containerId: container.id, location, sourceViewId });
+			this.getOrCreateDefaultViewLocationContextKey(view).set(this.getDefaultContainer(view.id) === container);
 		});
 
 		this.getViewDescriptors(container).addViews(views);
 	}
 
 	private removeViews(container: ViewContainer, views: IViewDescriptor[]): void {
+		// Set view default location keys to false
+		views.forEach(view => this.getOrCreateDefaultViewLocationContextKey(view).set(false));
+
+		// Remove the views
 		this.getViewDescriptors(container).removeViews(views);
 	}
 
@@ -705,6 +715,16 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		if (!contextKey) {
 			contextKey = new RawContextKey(movableViewContextKeyId, false).bindTo(this.contextKeyService);
 			this.movableViewContextKeys.set(movableViewContextKeyId, contextKey);
+		}
+		return contextKey;
+	}
+
+	private getOrCreateDefaultViewLocationContextKey(viewDescriptor: IViewDescriptor): IContextKey<boolean> {
+		const defaultViewLocationContextKeyId = `${viewDescriptor.id}.defaultViewLocation`;
+		let contextKey = this.defaultViewLocationContextKeys.get(defaultViewLocationContextKeyId);
+		if (!contextKey) {
+			contextKey = new RawContextKey(defaultViewLocationContextKeyId, false).bindTo(this.contextKeyService);
+			this.defaultViewLocationContextKeys.set(defaultViewLocationContextKeyId, contextKey);
 		}
 		return contextKey;
 	}

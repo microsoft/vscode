@@ -2360,7 +2360,13 @@ export class CommandCenter {
 			title = localize('git.title.diffRefs', '{0} ({1}) ⟷ {0} ({2})', basename, item.shortPreviousRef, item.shortRef);
 		}
 
-		return commands.executeCommand('vscode.diff', toGitUri(uri, item.previousRef), item.ref === '' ? uri : toGitUri(uri, item.ref), title);
+		const options: TextDocumentShowOptions = {
+			preserveFocus: true,
+			preview: true,
+			viewColumn: ViewColumn.Active
+		};
+
+		return commands.executeCommand('vscode.diff', toGitUri(uri, item.previousRef), item.ref === '' ? uri : toGitUri(uri, item.ref), title, options);
 	}
 
 	@command('git.timeline.copyCommitId', { repository: false })

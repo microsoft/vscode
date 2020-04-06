@@ -32,6 +32,7 @@ import { isWindows } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { SaveReason } from 'vs/workbench/common/editor';
+import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
 export const CONFLICT_RESOLUTION_CONTEXT = 'saveConflictResolutionContext';
 export const CONFLICT_RESOLUTION_SCHEME = 'conflictResolution';
@@ -53,9 +54,13 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 		@IEditorService private readonly editorService: IEditorService,
 		@ITextModelService textModelService: ITextModelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IStorageService private readonly storageService: IStorageService
+		@IStorageService private readonly storageService: IStorageService,
+		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService
 	) {
 		super();
+
+		// opt-in to syncing
+		storageKeysSyncRegistryService.registerStorageKey({ key: LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, version: 1 });
 
 		this.messages = new ResourceMap<INotificationHandle>();
 		this.conflictResolutionContext = new RawContextKey<boolean>(CONFLICT_RESOLUTION_CONTEXT, false).bindTo(contextKeyService);
@@ -236,9 +241,13 @@ class ResolveSaveConflictAction extends Action {
 		@IEditorService private readonly editorService: IEditorService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService
 	) {
 		super('workbench.files.action.resolveConflict', nls.localize('compareChanges', "Compare"));
+
+		// opt-in to syncing
+		storageKeysSyncRegistryService.registerStorageKey({ key: LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, version: 1 });
 	}
 
 	async run(): Promise<void> {
@@ -330,13 +339,13 @@ export const acceptLocalChangesCommand = async (accessor: ServicesAccessor, reso
 	const editorService = accessor.get(IEditorService);
 	const resolverService = accessor.get(ITextModelService);
 
-	const control = editorService.activeControl;
-	if (!control) {
+	const editorPane = editorService.activeEditorPane;
+	if (!editorPane) {
 		return;
 	}
 
-	const editor = control.input;
-	const group = control.group;
+	const editor = editorPane.input;
+	const group = editorPane.group;
 
 	const reference = await resolverService.createModelReference(resource);
 	const model = reference.object as IResolvedTextFileEditorModel;
@@ -359,13 +368,13 @@ export const revertLocalChangesCommand = async (accessor: ServicesAccessor, reso
 	const editorService = accessor.get(IEditorService);
 	const resolverService = accessor.get(ITextModelService);
 
-	const control = editorService.activeControl;
-	if (!control) {
+	const editorPane = editorService.activeEditorPane;
+	if (!editorPane) {
 		return;
 	}
 
-	const editor = control.input;
-	const group = control.group;
+	const editor = editorPane.input;
+	const group = editorPane.group;
 
 	const reference = await resolverService.createModelReference(resource);
 	const model = reference.object as ITextFileEditorModel;

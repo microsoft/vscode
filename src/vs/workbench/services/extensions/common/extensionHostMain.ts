@@ -76,7 +76,7 @@ export class ExtensionHostMain {
 
 		// error forwarding and stack trace scanning
 		Error.stackTraceLimit = 100; // increase number of stack frames (from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
-		const extensionErrors = new WeakMap<Error, IExtensionDescription>();
+		const extensionErrors = new WeakMap<Error, IExtensionDescription | undefined>();
 		this._extensionService.getExtensionPathIndex().then(map => {
 			(<any>Error).prepareStackTrace = (error: Error, stackTrace: errors.V8CallSite[]) => {
 				let stackTraceMessage = '';
