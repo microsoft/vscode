@@ -161,7 +161,18 @@
 	transform: rotate(-90deg);
 }
 
-.monaco-workbench .part > .title > .title-actions .switch-terminal  {
+.monaco-workbench .part.sidebar > .title > .title-actions .switch-terminal,
+.monaco-pane-view .pane > .pane-header .monaco-action-bar .switch-terminal {
+	border-width: 1px;
+	border-style: solid;
+}
+
+.part.panel > .title > .title-actions .switch-terminal > .monaco-select-box {
+	border-width: 1px;
+	border-style: solid;
+}
+
+.monaco-workbench .part.sidebar > .title > .title-actions .switch-terminal  {
 	display: flex;
 	align-items: center;
 	font-size: 11px;
@@ -171,11 +182,11 @@
 	margin-top: 7px;
 }
 
-.monaco-workbench.mac .part > .title > .title-actions .switch-terminal {
+.monaco-workbench.mac .part.sidebar > .title > .title-actions .switch-terminal {
 	border-radius: 4px;
 }
 
-.monaco-workbench .part > .title > .title-actions .switch-terminal > .monaco-select-box {
+.monaco-workbench .part.sidebar > .title > .title-actions .switch-terminal > .monaco-select-box {
 	border: none !important;
 	display: block !important;
 	background-color: unset !important;
@@ -185,7 +196,7 @@
 	border: none !important;
 }
 
-.monaco-workbench .part > .title > .title-actions .switch-terminal > .monaco-select-box {
+.monaco-workbench .part.sidebar > .title > .title-actions .switch-terminal > .monaco-select-box {
 	padding: 0 22px 0 6px;
 }
 
