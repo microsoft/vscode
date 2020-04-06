@@ -53,12 +53,10 @@ import { IResourceIdentityService } from 'vs/platform/resource/common/resourceId
 
 class DesktopMain extends Disposable {
 
-	private readonly environmentService: NativeWorkbenchEnvironmentService;
+	private readonly environmentService = new NativeWorkbenchEnvironmentService(this.configuration, this.configuration.execPath);
 
 	constructor(private configuration: INativeWindowConfiguration) {
 		super();
-
-		this.environmentService = new NativeWorkbenchEnvironmentService(configuration, configuration.execPath);
 
 		this.init();
 	}

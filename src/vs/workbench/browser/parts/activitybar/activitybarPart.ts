@@ -87,18 +87,18 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private globalActivityAction: ActivityAction | undefined;
 	private globalActivityActionBar: ActionBar | undefined;
-	private globalActivity: ICompositeActivity[] = [];
+	private readonly globalActivity: ICompositeActivity[] = [];
 
 	private customMenubar: CustomMenubarControl | undefined;
 	private menubar: HTMLElement | undefined;
 	private content: HTMLElement | undefined;
 
-	private cachedViewlets: ICachedViewlet[] = [];
+	private readonly cachedViewlets: ICachedViewlet[] = [];
 
 	private compositeBar: CompositeBar;
-	private readonly compositeActions: Map<string, { activityAction: ViewletActivityAction, pinnedAction: ToggleCompositePinnedAction }> = new Map();
+	private readonly compositeActions = new Map<string, { activityAction: ViewletActivityAction, pinnedAction: ToggleCompositePinnedAction }>();
 
-	private readonly viewletDisposables: Map<string, IDisposable> = new Map<string, IDisposable>();
+	private readonly viewletDisposables = new Map<string, IDisposable>();
 
 	constructor(
 		@IViewletService private readonly viewletService: IViewletService,
@@ -116,6 +116,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		@IProductService private readonly productService: IProductService
 	) {
 		super(Parts.ACTIVITYBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
+
 		storageKeysSyncRegistryService.registerStorageKey({ key: ActivitybarPart.PINNED_VIEWLETS, version: 1 });
 		this.migrateFromOldCachedViewletsValue();
 

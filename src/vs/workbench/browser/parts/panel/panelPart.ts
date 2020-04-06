@@ -85,12 +85,12 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	private panelFocusContextKey: IContextKey<boolean>;
 
 	private compositeBar: CompositeBar;
-	private compositeActions: Map<string, { activityAction: PanelActivityAction, pinnedAction: ToggleCompositePinnedAction; }> = new Map();
+	private readonly compositeActions = new Map<string, { activityAction: PanelActivityAction, pinnedAction: ToggleCompositePinnedAction; }>();
 
 	private readonly panelDisposables: Map<string, IDisposable> = new Map<string, IDisposable>();
 
 	private blockOpeningPanel = false;
-	private _contentDimension: Dimension | undefined;
+	private contentDimension: Dimension | undefined;
 
 	private panelRegistry: PanelRegistry;
 
@@ -473,21 +473,21 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		}
 
 		if (this.layoutService.getPanelPosition() === Position.RIGHT) {
-			this._contentDimension = new Dimension(width - 1, height); // Take into account the 1px border when layouting
+			this.contentDimension = new Dimension(width - 1, height); // Take into account the 1px border when layouting
 		} else {
-			this._contentDimension = new Dimension(width, height);
+			this.contentDimension = new Dimension(width, height);
 		}
 
 		// Layout contents
-		super.layout(this._contentDimension.width, this._contentDimension.height);
+		super.layout(this.contentDimension.width, this.contentDimension.height);
 
 		// Layout composite bar
 		this.layoutCompositeBar();
 	}
 
 	private layoutCompositeBar(): void {
-		if (this._contentDimension && this.dimension) {
-			let availableWidth = this._contentDimension.width - 40; // take padding into account
+		if (this.contentDimension && this.dimension) {
+			let availableWidth = this.contentDimension.width - 40; // take padding into account
 			if (this.toolBar) {
 				availableWidth = Math.max(PanelPart.MIN_COMPOSITE_BAR_WIDTH, availableWidth - this.getToolbarWidth()); // adjust height for global actions showing
 			}

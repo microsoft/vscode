@@ -138,7 +138,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 	constructor(
 		action: ActivityAction,
 		options: IActivityActionViewItemOptions,
-		@IThemeService protected themeService: IThemeService
+		@IThemeService protected readonly themeService: IThemeService
 	) {
 		super(null, action, options);
 
