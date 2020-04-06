@@ -21,6 +21,7 @@ import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/exte
 import { match } from 'vs/base/common/glob';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
 
 const resourceLabelFormattersExtPoint = ExtensionsRegistry.registerExtensionPoint<ResourceLabelFormatter[]>({
 	extensionPoint: 'resourceLabelFormatters',
@@ -101,6 +102,7 @@ export class LabelService extends Disposable implements ILabelService {
 	constructor(
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IRemotePathService private readonly remotePathService: IRemotePathService
 	) {
 		super();
 	}
@@ -264,7 +266,7 @@ export class LabelService extends Disposable implements ILabelService {
 		}
 
 		if (formatting.tildify && !forceNoTildify) {
-			const userHome = this.environmentService.userHome;
+			const userHome = this.remotePathService.userHomeSync;
 			if (userHome) {
 				label = tildify(label, userHome.fsPath);
 			}
