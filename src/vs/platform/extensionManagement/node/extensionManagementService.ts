@@ -754,6 +754,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		// Scan other system extensions during development
 		const devSystemExtensionsPromise = this.getDevSystemExtensionsList()
 			.then(devSystemExtensionsList => {
+				console.log(devSystemExtensionsList);
 				if (devSystemExtensionsList.length) {
 					return this.scanExtensions(this.devSystemExtensionsPath, ExtensionType.System)
 						.then(result => {
@@ -945,20 +946,8 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		return this._devSystemExtensionsPath;
 	}
 
-	private _devSystemExtensionsFilePath: string | null = null;
-	private get devSystemExtensionsFilePath(): string {
-		if (!this._devSystemExtensionsFilePath) {
-			this._devSystemExtensionsFilePath = path.normalize(path.join(getPathFromAmdModule(require, ''), '..', 'build', 'builtInExtensions.json'));
-		}
-		return this._devSystemExtensionsFilePath;
-	}
-
 	private getDevSystemExtensionsList(): Promise<string[]> {
-		return pfs.readFile(this.devSystemExtensionsFilePath, 'utf8')
-			.then<string[]>(raw => {
-				const parsed: { name: string }[] = JSON.parse(raw);
-				return parsed.map(({ name }) => name);
-			});
+		return Promise.resolve(product.builtInExtensions ? product.builtInExtensions.map(e => e.name) : []);
 	}
 
 	private toNonCancellablePromise<T>(promise: Promise<T>): Promise<T> {

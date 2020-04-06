@@ -229,7 +229,7 @@ interface IBuiltInExtension {
 	metadata: any;
 }
 
-const builtInExtensions: IBuiltInExtension[] = require('../builtInExtensions.json');
+const builtInExtensions: IBuiltInExtension[] = JSON.parse(fs.readFileSync(path.join(__dirname, '../../product.json'), 'utf8')).builtInExtensions;
 
 export function packageLocalExtensionsStream(): NodeJS.ReadWriteStream {
 	const localExtensionDescriptions = (<string[]>glob.sync('extensions/*/package.json'))
