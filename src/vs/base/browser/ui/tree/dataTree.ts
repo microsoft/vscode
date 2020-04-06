@@ -159,7 +159,7 @@ export class DataTree<TInput, T, TFilterData = void> extends AbstractTree<T | nu
 	}
 
 	private iterate(element: TInput | T, isCollapsed?: (el: T) => boolean | undefined): { elements: Iterable<ITreeElement<T>>, size: number } {
-		const children = this.dataSource.getChildren(element);
+		const children = [...this.dataSource.getChildren(element)];
 		const elements = Iterable.map(children, element => {
 			const { elements: children, size } = this.iterate(element, isCollapsed);
 			const collapsible = this.dataSource.hasChildren ? this.dataSource.hasChildren(element) : undefined;

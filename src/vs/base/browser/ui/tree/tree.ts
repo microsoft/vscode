@@ -166,12 +166,12 @@ export interface ITreeNavigator<T> {
 
 export interface IDataSource<TInput, T> {
 	hasChildren?(element: TInput | T): boolean;
-	getChildren(element: TInput | T): T[];
+	getChildren(element: TInput | T): Iterable<T>;
 }
 
 export interface IAsyncDataSource<TInput, T> {
 	hasChildren(element: TInput | T): boolean;
-	getChildren(element: TInput | T): T[] | Promise<T[]>;
+	getChildren(element: TInput | T): Iterable<T> | Promise<Iterable<T>>;
 }
 
 export const enum TreeDragOverBubble {

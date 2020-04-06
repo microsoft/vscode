@@ -313,7 +313,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	private readonly collapseByDefault?: { (e: T): boolean; };
 
 	private readonly subTreeRefreshPromises = new Map<IAsyncDataTreeNode<TInput, T>, Promise<void>>();
-	private readonly refreshPromises = new Map<IAsyncDataTreeNode<TInput, T>, CancelablePromise<T[]>>();
+	private readonly refreshPromises = new Map<IAsyncDataTreeNode<TInput, T>, CancelablePromise<Iterable<T>>>();
 
 	protected readonly identityProvider?: IIdentityProvider<T>;
 	private readonly autoExpandSingleChildren: boolean;
@@ -740,10 +740,10 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	private async doRefreshNode(node: IAsyncDataTreeNode<TInput, T>, recursive: boolean, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>): Promise<IAsyncDataTreeNode<TInput, T>[]> {
 		node.hasChildren = !!this.dataSource.hasChildren(node.element!);
 
-		let childrenPromise: Promise<T[]>;
+		let childrenPromise: Promise<Iterable<T>>;
 
 		if (!node.hasChildren) {
-			childrenPromise = Promise.resolve([]);
+			childrenPromise = Promise.resolve(Iterable.empty());
 		} else {
 			const slowTimeout = timeout(800);
 
@@ -777,7 +777,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		}
 	}
 
-	private doGetChildren(node: IAsyncDataTreeNode<TInput, T>): Promise<T[]> {
+	private doGetChildren(node: IAsyncDataTreeNode<TInput, T>): Promise<Iterable<T>> {
 		let result = this.refreshPromises.get(node);
 
 		if (result) {
@@ -809,7 +809,9 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		}
 	}
 
-	private setChildren(node: IAsyncDataTreeNode<TInput, T>, childrenElements: T[], recursive: boolean, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>): IAsyncDataTreeNode<TInput, T>[] {
+	private setChildren(node: IAsyncDataTreeNode<TInput, T>, childrenElementsIterable: Iterable<T>, recursive: boolean, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>): IAsyncDataTreeNode<TInput, T>[] {
+		const childrenElements = [...childrenElementsIterable];
+
 		// perf: if the node was and still is a leaf, avoid all this hassle
 		if (node.children.length === 0 && childrenElements.length === 0) {
 			return [];
@@ -949,9 +951,9 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		};
 	}
 
-	protected processChildren(children: T[]): T[] {
+	protected processChildren(children: Iterable<T>): Iterable<T> {
 		if (this.sorter) {
-			children.sort(this.sorter.compare.bind(this.sorter));
+			children = [...children].sort(this.sorter.compare.bind(this.sorter));
 		}
 
 		return children;
@@ -1243,9 +1245,9 @@ export class CompressibleAsyncDataTree<TInput, T, TFilterData = void> extends As
 	// For compressed async data trees, `TreeVisibility.Recurse` doesn't currently work
 	// and we have to filter everything beforehand
 	// Related to #85193 and #85835
-	protected processChildren(children: T[]): T[] {
+	protected processChildren(children: Iterable<T>): Iterable<T> {
 		if (this.filter) {
-			children = children.filter(e => {
+			children = Iterable.filter(children, e => {
 				const result = this.filter!.filter(e, TreeVisibility.Visible);
 				const visibility = getVisibility(result);
 
