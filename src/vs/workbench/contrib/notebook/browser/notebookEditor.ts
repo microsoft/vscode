@@ -91,6 +91,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	static readonly ID: string = 'workbench.editor.notebook';
 	private rootElement!: HTMLElement;
 	private body!: HTMLElement;
+	private titleBar: HTMLElement | null = null;
 	private webview: BackLayerWebView | null = null;
 	private webviewTransparentCover: HTMLElement | null = null;
 	private list: NotebookCellList | undefined;
@@ -164,6 +165,43 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		this.editorEditable = NOTEBOOK_EDITOR_EDITABLE.bindTo(this.contextKeyService);
 		this.editorEditable.set(true);
 		this.editorExecutingNotebook = NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK.bindTo(this.contextKeyService);
+	}
+
+	populateEditorTitlebar() {
+		for (let element: HTMLElement | null = this.rootElement.parentElement; element; element = element.parentElement) {
+			if (DOM.hasClass(element, 'editor-group-container')) {
+				// elemnet is editor group container
+				for (let i = 0; i < element.childElementCount; i++) {
+					const child = element.childNodes.item(i) as HTMLElement;
+
+					if (DOM.hasClass(child, 'title')) {
+						this.titleBar = child;
+						break;
+					}
+				}
+				break;
+			}
+		}
+	}
+
+	clearEditorTitlebarZindex() {
+		if (this.titleBar === null) {
+			this.populateEditorTitlebar();
+		}
+
+		if (this.titleBar) {
+			this.titleBar.style.zIndex = 'auto';
+		}
+	}
+
+	increaseEditorTitlebarZindex() {
+		if (this.titleBar === null) {
+			this.populateEditorTitlebar();
+		}
+
+		if (this.titleBar) {
+			this.titleBar.style.zIndex = '500';
+		}
 	}
 
 	private generateFontInfo(): void {
@@ -263,7 +301,18 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		return this.webview?.webview;
 	}
 
+	setVisible(visible: boolean, group?: IEditorGroup): void {
+		if (visible) {
+			this.increaseEditorTitlebarZindex();
+		} else {
+			this.clearEditorTitlebarZindex();
+		}
+
+		super.setVisible(visible, group);
+	}
+
 	onHide() {
+		this.clearEditorTitlebarZindex();
 		this.editorFocus?.set(false);
 		if (this.webview) {
 			this.localStore.clear();
@@ -282,6 +331,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	}
 
 	private onWillCloseEditorInGroup(e: IEditorCloseEvent): void {
+		this.clearEditorTitlebarZindex();
 		const editor = e.editor;
 		if (!(editor instanceof NotebookEditorInput)) {
 			return; // only handle files
