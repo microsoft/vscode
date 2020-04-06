@@ -397,7 +397,7 @@ export class SCMAccessibilityProvider implements IAccessibilityProvider<TreeElem
 		} else if (isSCMResourceGroup(element)) {
 			return element.label;
 		} else {
-			return basename(element.sourceUri);
+			return `${basename(element.sourceUri)}, ${element.decorations.tooltip || ''}`;
 		}
 	}
 }
