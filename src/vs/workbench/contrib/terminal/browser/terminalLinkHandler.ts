@@ -244,7 +244,7 @@ export class TerminalLinkHandler extends DisposableStore {
 				const wasHandled = await new Promise<boolean>(r => {
 					const timeoutId = setTimeout(() => {
 						canceled = true;
-						this._logService.error('An extension intecepted a terminal link but did not return');
+						this._logService.error(`An extension intecepted a terminal link but it timed out after ${TerminalLinkHandler.LINK_INTERCEPT_THRESHOLD / 1000} seconds`);
 						r(false);
 					}, TerminalLinkHandler.LINK_INTERCEPT_THRESHOLD);
 					let canceled = false;

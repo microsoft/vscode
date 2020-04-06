@@ -31,11 +31,11 @@ import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorIn
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IOutputChannelDescriptor, IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
+import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 import { groupBy } from 'vs/base/common/arrays';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
+import { editorBackground, selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { addClass } from 'vs/base/browser/dom';
 
 export class OutputViewPane extends ViewPane {
@@ -43,7 +43,6 @@ export class OutputViewPane extends ViewPane {
 	private readonly editor: OutputEditor;
 	private channelId: string | undefined;
 	private editorPromise: Promise<OutputEditor> | null = null;
-	private actions: IAction[] | undefined;
 
 	private readonly scrollLockContextKey: IContextKey<boolean>;
 	get scrollLock(): boolean { return !!this.scrollLockContextKey.get(); }
@@ -109,7 +108,7 @@ export class OutputViewPane extends ViewPane {
 			}
 
 			const model = codeEditor.getModel();
-			if (model && this.actions) {
+			if (model) {
 				const newPositionLine = e.position.lineNumber;
 				const lastLine = model.getLineCount();
 				this.scrollLock = lastLine !== newPositionLine;
@@ -276,7 +275,7 @@ class SwitchOutputActionViewItem extends SelectActionViewItem {
 	constructor(
 		action: IAction,
 		@IOutputService private readonly outputService: IOutputService,
-		@IThemeService themeService: IThemeService,
+		@IThemeService private readonly themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService
 	) {
 		super(null, action, [], 0, contextViewService, { ariaLabel: nls.localize('outputChannels', 'Output Channels.') });
@@ -288,6 +287,14 @@ class SwitchOutputActionViewItem extends SelectActionViewItem {
 		this._register(attachSelectBoxStyler(this.selectBox, themeService));
 
 		this.updateOtions();
+	}
+
+	render(container: HTMLElement): void {
+		super.render(container);
+		addClass(container, 'switch-output');
+		this._register(attachStylerCallback(this.themeService, { selectBorder }, colors => {
+			container.style.borderColor = colors.selectBorder ? `${colors.selectBorder}` : '';
+		}));
 	}
 
 	protected getActionContext(option: string, index: number): string {

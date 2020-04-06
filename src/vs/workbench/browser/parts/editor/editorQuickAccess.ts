@@ -13,17 +13,19 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
-import { prepareQuery, scoreItem, compareItemsByScore, ScorerCache } from 'vs/base/common/fuzzyScorer';
+import { prepareQuery, scoreItemFuzzy, compareItemsByFuzzyScore, FuzzyScorerCache } from 'vs/base/common/fuzzyScorer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
-interface IEditorQuickPickItem extends IQuickPickItemWithResource, IEditorIdentifier, IPickerQuickAccessItem { }
+interface IEditorQuickPickItem extends IQuickPickItemWithResource, IPickerQuickAccessItem {
+	groupId: GroupIdentifier;
+}
 
 export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessProvider<IEditorQuickPickItem> {
 
 	private readonly pickState = new class {
 
-		scorerCache: ScorerCache = Object.create(null);
+		scorerCache: FuzzyScorerCache = Object.create(null);
 		isQuickNavigating: boolean | undefined = undefined;
 
 		reset(isQuickNavigating: boolean): void {
@@ -45,7 +47,15 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 		@IModelService private readonly modelService: IModelService,
 		@IModeService private readonly modeService: IModeService
 	) {
-		super(prefix, { canAcceptInBackground: true });
+		super(prefix,
+			{
+				canAcceptInBackground: true,
+				noResultsPick: {
+					label: localize('noViewResults', "No matching editors"),
+					groupId: -1
+				}
+			}
+		);
 	}
 
 	provide(picker: IQuickPick<IEditorQuickPickItem>, token: CancellationToken): IDisposable {
@@ -67,7 +77,7 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 			}
 
 			// Score on label and description
-			const itemScore = scoreItem(entry, query, true, quickPickItemScorerAccessor, this.pickState.scorerCache);
+			const itemScore = scoreItemFuzzy(entry, query, true, quickPickItemScorerAccessor, this.pickState.scorerCache);
 			if (!itemScore.score) {
 				return false;
 			}
@@ -86,7 +96,7 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 					return groups.indexOf(entryA.groupId) - groups.indexOf(entryB.groupId); // older groups first
 				}
 
-				return compareItemsByScore(entryA, entryB, query, true, quickPickItemScorerAccessor, this.pickState.scorerCache);
+				return compareItemsByFuzzyScore(entryA, entryB, query, true, quickPickItemScorerAccessor, this.pickState.scorerCache);
 			});
 		}
 
@@ -130,7 +140,6 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 			const isDirty = editor.isDirty() && !editor.isSaving();
 
 			return {
-				editor,
 				groupId,
 				resource,
 				label: editor.getName(),

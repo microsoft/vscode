@@ -8,7 +8,6 @@
 	overflow: hidden;
 }
 
-
 .monaco-workbench .part > .drop-block-overlay.visible {
 	display: block;
 	backdrop-filter: brightness(97%) blur(2px);

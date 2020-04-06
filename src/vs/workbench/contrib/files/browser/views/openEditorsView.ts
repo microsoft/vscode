@@ -47,6 +47,7 @@ import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
+import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 
 const $ = dom.$;
 
@@ -224,7 +225,8 @@ export class OpenEditorsView extends ViewPane {
 			dnd: new OpenEditorsDragAndDrop(this.instantiationService, this.editorGroupService),
 			overrideStyles: {
 				listBackground: this.getBackgroundColor()
-			}
+			},
+			accessibilityProvider: new OpenEditorsAccessibilityProvider()
 		});
 		this._register(this.list);
 		this._register(this.listLabels);
@@ -686,5 +688,15 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 		} else {
 			this.dropHandler.handleDrop(originalEvent, () => group, () => group.focus(), index);
 		}
+	}
+}
+
+class OpenEditorsAccessibilityProvider implements IAccessibilityProvider<OpenEditor | IEditorGroup> {
+	getAriaLabel(element: OpenEditor | IEditorGroup): string | null {
+		if (element instanceof OpenEditor) {
+			return `${element.editor.getName()} ${element.editor.getDescription()}`;
+		}
+
+		return element.ariaLabel;
 	}
 }

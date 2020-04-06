@@ -630,10 +630,10 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
 		return delegate.save(document, cancellation);
 	}
 
-	async $onSaveAs(resourceComponents: UriComponents, viewType: string, targetResource: UriComponents): Promise<void> {
+	async $onSaveAs(resourceComponents: UriComponents, viewType: string, targetResource: UriComponents, cancellation: CancellationToken): Promise<void> {
 		const delegate = this.getEditingDelegate(viewType);
 		const document = this.getCustomDocument(viewType, resourceComponents);
-		return delegate.saveAs(document, URI.revive(targetResource));
+		return delegate.saveAs(document, URI.revive(targetResource), cancellation);
 	}
 
 	async $backup(resourceComponents: UriComponents, viewType: string, cancellation: CancellationToken): Promise<void> {

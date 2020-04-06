@@ -18,6 +18,7 @@ import { NOTEBOOK_EDITABLE_CONTEXT_KEY, NOTEBOOK_EXECUTING_KEY } from 'vs/workbe
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { CellKind, IOutput, IRenderOutput, NotebookCellMetadata, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 
 export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('notebookFindWidgetFocused', false);
 
@@ -59,11 +60,14 @@ export interface CodeCellLayoutChangeEvent {
 export interface MarkdownCellLayoutInfo {
 	readonly fontInfo: BareFontInfo | null;
 	readonly editorWidth: number;
+	readonly bottomToolbarOffset: number;
+	readonly totalHeight: number;
 }
 
 export interface MarkdownCellLayoutChangeEvent {
 	font?: BareFontInfo;
 	outerWidth?: number;
+	totalHeight?: number;
 }
 
 export interface ICellViewModel {
@@ -88,6 +92,8 @@ export interface INotebookEditor {
 	viewModel: NotebookViewModel | undefined;
 
 	isNotebookEditor: boolean;
+
+	getInnerWebview(): Webview | undefined;
 
 	/**
 	 * Focus the notebook editor cell list
@@ -268,6 +274,7 @@ export interface BaseCellRenderTemplate {
 	toolbar: ToolBar;
 	focusIndicator: HTMLElement;
 	disposables: DisposableStore;
+	bottomCellContainer: HTMLElement;
 	toJSON: () => any;
 }
 
@@ -283,7 +290,6 @@ export interface CodeCellRenderTemplate extends BaseCellRenderTemplate {
 	outputContainer: HTMLElement;
 	editor: CodeEditorWidget;
 	progressBar: ProgressBar;
-	betweenCellContainer: HTMLElement;
 }
 
 export interface IOutputTransformContribution {

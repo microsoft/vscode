@@ -18,6 +18,7 @@ import { isEqual as areResourcesEqual, dirname, originalFSPath, basename } from 
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { getSimpleWorkspaceLabel } from 'vs/platform/label/common/label';
 import { exists } from 'vs/base/node/pfs';
 import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
@@ -67,7 +68,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		@IStateService private readonly stateService: IStateService,
 		@ILogService private readonly logService: ILogService,
 		@IWorkspacesMainService private readonly workspacesMainService: IWorkspacesMainService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService
 	) {
 		super();

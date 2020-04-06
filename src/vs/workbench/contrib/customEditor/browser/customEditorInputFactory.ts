@@ -11,7 +11,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IEditorInput } from 'vs/workbench/common/editor';
 import { CustomEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
-import { WebviewEditorInputFactory } from 'vs/workbench/contrib/webview/browser/webviewEditorInputFactory';
+import { WebviewEditorInputFactory, SerializedWebview } from 'vs/workbench/contrib/webview/browser/webviewEditorInputFactory';
 import { IWebviewWorkbenchService, WebviewInputOptions } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 
@@ -30,6 +30,12 @@ export interface CustomDocumentBackupData {
 	};
 }
 
+interface SerializedCustomEditor extends SerializedWebview {
+	readonly editorResource: UriComponents;
+	readonly dirty?: boolean;
+}
+
+
 export class CustomEditorInputFactory extends WebviewEditorInputFactory {
 
 	public static readonly ID = CustomEditorInput.typeId;
@@ -43,9 +49,10 @@ export class CustomEditorInputFactory extends WebviewEditorInputFactory {
 	}
 
 	public serialize(input: CustomEditorInput): string | undefined {
-		const data = {
+		const data: SerializedCustomEditor = {
 			...this.toJson(input),
 			editorResource: input.resource.toJSON(),
+			dirty: input.isDirty(),
 		};
 
 		try {
@@ -78,7 +85,7 @@ export class CustomEditorInputFactory extends WebviewEditorInputFactory {
 			return webview;
 		});
 
-		const customInput = this._instantiationService.createInstance(CustomEditorInput, URI.from((data as any).editorResource), data.viewType, id, webview, false);
+		const customInput = this._instantiationService.createInstance(CustomEditorInput, URI.from((data as any).editorResource), data.viewType, id, webview, { startsDirty: (data as any).dirty });
 		if (typeof data.group === 'number') {
 			customInput.updateGroup(data.group);
 		}
@@ -112,7 +119,7 @@ export class CustomEditorInputFactory extends WebviewEditorInputFactory {
 				return webview;
 			});
 
-			const editor = instantiationService.createInstance(CustomEditorInput, URI.revive(backupData.editorResource), backupData.viewType, id, webview, true);
+			const editor = instantiationService.createInstance(CustomEditorInput, URI.revive(backupData.editorResource), backupData.viewType, id, webview, { startsDirty: true });
 			editor.updateGroup(0);
 			return editor;
 		});

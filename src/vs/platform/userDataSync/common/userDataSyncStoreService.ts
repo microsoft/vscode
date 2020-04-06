@@ -43,9 +43,7 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 				const headers: IHeaders = {
 					'X-Sync-Client-Id': productService.version,
 				};
-				if (uuid) {
-					headers['X-Sync-Machine-Id'] = uuid;
-				}
+				headers['X-Sync-Machine-Id'] = uuid;
 				return headers;
 			});
 	}

@@ -39,7 +39,9 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 			throw new Error(`No authentication provider with id '${providerId}' is currently registered.`);
 		}
 
+		const extensionId = ExtensionIdentifier.toKey(requestingExtension.identifier);
 		const orderedScopes = scopes.sort().join(' ');
+
 		return (await provider.getSessions())
 			.filter(session => session.scopes.sort().join(' ') === orderedScopes)
 			.map(session => {
@@ -52,7 +54,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 							provider.id,
 							session.accountName,
 							provider.displayName,
-							ExtensionIdentifier.toKey(requestingExtension.identifier),
+							extensionId,
 							requestingExtension.displayName || requestingExtension.name);
 
 						if (!isAllowed) {
@@ -77,9 +79,26 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 			throw new Error('User did not consent to login.');
 		}
 
-		const newSession = await provider.login(scopes);
-		await this._proxy.$setTrustedExtension(provider.id, newSession.accountName, ExtensionIdentifier.toKey(requestingExtension.identifier), extensionName);
-		return newSession;
+		const session = await provider.login(scopes);
+		return {
+			id: session.id,
+			accountName: session.accountName,
+			scopes: session.scopes,
+			getAccessToken: async () => {
+				const isAllowed = await this._proxy.$getSessionsPrompt(
+					provider.id,
+					session.accountName,
+					provider.displayName,
+					ExtensionIdentifier.toKey(requestingExtension.identifier),
+					requestingExtension.displayName || requestingExtension.name);
+
+				if (!isAllowed) {
+					throw new Error('User did not consent to token access.');
+				}
+
+				return session.getAccessToken();
+			}
+		};
 	}
 
 	registerAuthenticationProvider(provider: vscode.AuthenticationProvider): vscode.Disposable {

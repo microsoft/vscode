@@ -42,22 +42,28 @@ class NullAccessorClass implements scorer.IItemAccessor<URI> {
 	}
 }
 
-function _doScore(target: string, query: string, fuzzy: boolean): scorer.Score {
+function _doScore(target: string, query: string, fuzzy: boolean): scorer.FuzzyScore {
 	const preparedQuery = scorer.prepareQuery(query);
 
-	return scorer.score(target, preparedQuery.normalized, preparedQuery.normalizedLowercase, fuzzy);
+	return scorer.scoreFuzzy(target, preparedQuery.normalized, preparedQuery.normalizedLowercase, fuzzy);
 }
 
-function scoreItem<T>(item: T, query: string, fuzzy: boolean, accessor: scorer.IItemAccessor<T>, cache: scorer.ScorerCache): scorer.IItemScore {
-	return scorer.scoreItem(item, scorer.prepareQuery(query), fuzzy, accessor, cache);
+function _doScore2(target: string, query: string): scorer.FuzzyScore2 {
+	const preparedQuery = scorer.prepareQuery(query);
+
+	return scorer.scoreFuzzy2(target, preparedQuery);
 }
 
-function compareItemsByScore<T>(itemA: T, itemB: T, query: string, fuzzy: boolean, accessor: scorer.IItemAccessor<T>, cache: scorer.ScorerCache): number {
-	return scorer.compareItemsByScore(itemA, itemB, scorer.prepareQuery(query), fuzzy, accessor, cache);
+function scoreItem<T>(item: T, query: string, fuzzy: boolean, accessor: scorer.IItemAccessor<T>, cache: scorer.FuzzyScorerCache): scorer.IItemScore {
+	return scorer.scoreItemFuzzy(item, scorer.prepareQuery(query), fuzzy, accessor, cache);
+}
+
+function compareItemsByScore<T>(itemA: T, itemB: T, query: string, fuzzy: boolean, accessor: scorer.IItemAccessor<T>, cache: scorer.FuzzyScorerCache): number {
+	return scorer.compareItemsByFuzzyScore(itemA, itemB, scorer.prepareQuery(query), fuzzy, accessor, cache);
 }
 
 const NullAccessor = new NullAccessorClass();
-let cache: scorer.ScorerCache = Object.create(null);
+let cache: scorer.FuzzyScorerCache = Object.create(null);
 
 suite('Fuzzy Scorer', () => {
 
@@ -68,7 +74,7 @@ suite('Fuzzy Scorer', () => {
 	test('score (fuzzy)', function () {
 		const target = 'HeLlo-World';
 
-		const scores: scorer.Score[] = [];
+		const scores: scorer.FuzzyScore[] = [];
 		scores.push(_doScore(target, 'HelLo-World', true)); // direct case match
 		scores.push(_doScore(target, 'hello-world', true)); // direct mix-case match
 		scores.push(_doScore(target, 'HW', true)); // direct case prefix (multiple)
@@ -887,6 +893,11 @@ suite('Fuzzy Scorer', () => {
 		assert.equal(query.values?.[1].normalized, 'World');
 		assert.equal(query.values?.[1].normalizedLowercase, 'World'.toLowerCase());
 
+		let restoredQuery = scorer.pieceToQuery(query.values!);
+		assert.equal(restoredQuery.original, query.original);
+		assert.equal(restoredQuery.values?.length, query.values?.length);
+		assert.equal(restoredQuery.containsPathSeparator, query.containsPathSeparator);
+
 		// with spaces that are empty
 		query = scorer.prepareQuery(' Hello   World  	');
 		assert.equal(query.original, ' Hello   World  	');
@@ -919,5 +930,49 @@ suite('Fuzzy Scorer', () => {
 			assert.equal(scorer.prepareQuery('\\some\\path').normalized, '/some/path');
 			assert.equal(scorer.prepareQuery('\\some\\path').containsPathSeparator, true);
 		}
+	});
+
+	test('fuzzyScore2 (multiple queries)', function () {
+		const target = 'HeLlo-World';
+
+		const [firstSingleScore, firstSingleMatches] = _doScore2(target, 'HelLo');
+		const [secondSingleScore, secondSingleMatches] = _doScore2(target, 'World');
+		const firstAndSecondSingleMatches = [...firstSingleMatches || [], ...secondSingleMatches || []];
+
+		let [multiScore, multiMatches] = _doScore2(target, 'HelLo World');
+
+		function assertScore() {
+			assert.ok(multiScore ?? 0 >= ((firstSingleScore ?? 0) + (secondSingleScore ?? 0)));
+			for (let i = 0; multiMatches && i < multiMatches.length; i++) {
+				const multiMatch = multiMatches[i];
+				const firstAndSecondSingleMatch = firstAndSecondSingleMatches[i];
+
+				if (multiMatch && firstAndSecondSingleMatch) {
+					assert.equal(multiMatch.start, firstAndSecondSingleMatch.start);
+					assert.equal(multiMatch.end, firstAndSecondSingleMatch.end);
+				} else {
+					assert.fail();
+				}
+			}
+		}
+
+		function assertNoScore() {
+			assert.equal(multiScore, 0);
+			assert.equal(multiMatches.length, 0);
+		}
+
+		assertScore();
+
+		[multiScore, multiMatches] = _doScore2(target, 'World HelLo');
+		assertScore();
+
+		[multiScore, multiMatches] = _doScore2(target, 'World HelLo World');
+		assertScore();
+
+		[multiScore, multiMatches] = _doScore2(target, 'World HelLo Nothing');
+		assertNoScore();
+
+		[multiScore, multiMatches] = _doScore2(target, 'More Nothing');
+		assertNoScore();
 	});
 });

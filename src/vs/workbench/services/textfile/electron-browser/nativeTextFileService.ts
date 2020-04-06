@@ -33,7 +33,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { assign } from 'vs/base/common/objects';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -75,16 +74,15 @@ export class NativeTextFileService extends AbstractTextFileService {
 	}
 
 	async read(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileContent> {
-		const [bufferStream, decoder] = await this.doRead(resource,
-			assign({
-				// optimization: since we know that the caller does not
-				// care about buffering, we indicate this to the reader.
-				// this reduces all the overhead the buffered reading
-				// has (open, read, close) if the provider supports
-				// unbuffered reading.
-				preferUnbuffered: true
-			}, options || Object.create(null))
-		);
+		const [bufferStream, decoder] = await this.doRead(resource, {
+			...options,
+			// optimization: since we know that the caller does not
+			// care about buffering, we indicate this to the reader.
+			// this reduces all the overhead the buffered reading
+			// has (open, read, close) if the provider supports
+			// unbuffered reading.
+			preferUnbuffered: true
+		});
 
 		return {
 			...bufferStream,

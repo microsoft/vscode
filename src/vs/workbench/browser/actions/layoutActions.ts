@@ -504,6 +504,37 @@ export class ResetViewLocationsAction extends Action {
 
 registry.registerWorkbenchAction(SyncActionDescriptor.create(ResetViewLocationsAction, ResetViewLocationsAction.ID, ResetViewLocationsAction.LABEL), 'View: Reset View Locations', viewCategory);
 
+// --- Toggle View with Command
+export abstract class ToggleViewAction extends Action {
+
+	constructor(
+		id: string,
+		label: string,
+		private readonly viewId: string,
+		protected viewsService: IViewsService,
+		protected viewDescriptorService: IViewDescriptorService,
+		protected contextKeyService: IContextKeyService,
+		private layoutService: IWorkbenchLayoutService,
+		cssClass?: string
+	) {
+		super(id, label, cssClass);
+	}
+
+	async run(): Promise<void> {
+		const focusedViewId = FocusedViewContext.getValue(this.contextKeyService);
+
+		if (focusedViewId === this.viewId) {
+			if (this.viewDescriptorService.getViewLocation(this.viewId) === ViewContainerLocation.Sidebar) {
+				this.layoutService.setSideBarHidden(true);
+			} else {
+				this.layoutService.setPanelHidden(true);
+			}
+		} else {
+			this.viewsService.openView(this.viewId, true);
+		}
+	}
+}
+
 // --- Move View with Command
 export class MoveFocusedViewAction extends Action {
 	static readonly ID = 'workbench.action.moveFocusedView';
@@ -541,6 +572,7 @@ export class MoveFocusedViewAction extends Action {
 
 		const quickPick = this.quickInputService.createQuickPick();
 		quickPick.placeholder = nls.localize('moveFocusedView.selectDestination', "Select a Destination for the View");
+		quickPick.title = nls.localize('moveFocusedView.title', "View: Move {0}", viewDescriptor.name);
 
 		const items: Array<IQuickPickItem | IQuickPickSeparator> = [];
 
@@ -549,10 +581,16 @@ export class MoveFocusedViewAction extends Action {
 			label: nls.localize('sidebar', "Side Bar")
 		});
 
-		items.push({
-			id: '_.sidebar.newcontainer',
-			label: nls.localize('moveFocusedView.newContainerInSidebar', "New Container in Side Bar")
-		});
+		const currentContainer = this.viewDescriptorService.getViewContainer(focusedViewId)!;
+		const currentLocation = this.viewDescriptorService.getViewLocation(focusedViewId)!;
+		const isViewSolo = this.viewDescriptorService.getViewDescriptors(currentContainer).allViewDescriptors.length === 1;
+
+		if (!(isViewSolo && currentLocation === ViewContainerLocation.Sidebar)) {
+			items.push({
+				id: '_.sidebar.newcontainer',
+				label: nls.localize('moveFocusedView.newContainerInSidebar', "New Container in Side Bar")
+			});
+		}
 
 		const pinnedViewlets = this.activityBarService.getPinnedViewletIds();
 		items.push(...pinnedViewlets
@@ -574,10 +612,13 @@ export class MoveFocusedViewAction extends Action {
 			type: 'separator',
 			label: nls.localize('panel', "Panel")
 		});
-		items.push({
-			id: '_.panel.newcontainer',
-			label: nls.localize('moveFocusedView.newContainerInPanel', "New Container in Panel"),
-		});
+
+		if (!(isViewSolo && currentLocation === ViewContainerLocation.Panel)) {
+			items.push({
+				id: '_.panel.newcontainer',
+				label: nls.localize('moveFocusedView.newContainerInPanel', "New Container in Panel"),
+			});
+		}
 
 		const pinnedPanels = this.panelService.getPinnedPanels();
 		items.push(...pinnedPanels

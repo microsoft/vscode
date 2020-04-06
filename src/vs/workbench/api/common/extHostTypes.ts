@@ -16,7 +16,7 @@ import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/p
 import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import type * as vscode from 'vscode';
 import { Cache } from './cache';
-import { assertIsDefined } from 'vs/base/common/types';
+import { assertIsDefined, isStringArray } from 'vs/base/common/types';
 import { Schemas } from 'vs/base/common/network';
 
 function es5ClassCompat(target: Function): any {
@@ -2420,25 +2420,14 @@ export class SemanticTokensLegend {
 	public readonly tokenTypes: string[];
 	public readonly tokenModifiers: string[];
 
-	constructor(tokenTypes: string[], tokenModifiers: string[]) {
+	constructor(tokenTypes: string[], tokenModifiers: string[] = []) {
 		this.tokenTypes = tokenTypes;
 		this.tokenModifiers = tokenModifiers;
 	}
 }
 
 function isStrArrayOrUndefined(arg: any): arg is string[] | undefined {
-	if (typeof arg === 'undefined') {
-		return true;
-	}
-	if (Array.isArray(arg)) {
-		for (const element of arg) {
-			if (typeof element !== 'string') {
-				return false;
-			}
-		}
-		return true;
-	}
-	return false;
+	return ((typeof arg === 'undefined') || isStringArray(arg));
 }
 
 export class SemanticTokensBuilder {
@@ -2472,10 +2461,13 @@ export class SemanticTokensBuilder {
 		}
 	}
 
-	public push(line: number, char: number, length: number, tokenType: number, tokenModifiers: number): void;
+	public push(line: number, char: number, length: number, tokenType: number, tokenModifiers?: number): void;
 	public push(range: Range, tokenType: string, tokenModifiers?: string[]): void;
 	public push(arg0: any, arg1: any, arg2: any, arg3?: any, arg4?: any): void {
-		if (typeof arg0 === 'number' && typeof arg1 === 'number' && typeof arg2 === 'number' && typeof arg3 === 'number' && typeof arg4 === 'number') {
+		if (typeof arg0 === 'number' && typeof arg1 === 'number' && typeof arg2 === 'number' && typeof arg3 === 'number' && (typeof arg4 === 'number' || typeof arg4 === 'undefined')) {
+			if (typeof arg4 === 'undefined') {
+				arg4 = 0;
+			}
 			// 1st overload
 			return this._pushEncoded(arg0, arg1, arg2, arg3, arg4);
 		}

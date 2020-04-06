@@ -9,12 +9,13 @@ import * as nls from 'vs/nls';
 import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage, Rectangle, Display, TouchBarSegmentedControl, NativeImage, BrowserWindowConstructorOptions, SegmentedControlSegment, nativeTheme } from 'electron';
-import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
+import { parseArgs, OPTIONS, ParsedArgs } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/product/common/product';
-import { IWindowSettings, MenuBarVisibility, ReadyState, getTitleBarStyle, getMenuBarVisibility } from 'vs/platform/windows/common/windows';
+import { IWindowSettings, MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ICodeWindow, IWindowState, WindowMode } from 'vs/platform/windows/electron-main/windows';
@@ -60,6 +61,29 @@ const enum WindowError {
 	CRASHED = 2
 }
 
+const enum ReadyState {
+
+	/**
+	 * This window has not loaded any HTML yet
+	 */
+	NONE,
+
+	/**
+	 * This window is loading HTML
+	 */
+	LOADING,
+
+	/**
+	 * This window is navigating to another HTML
+	 */
+	NAVIGATING,
+
+	/**
+	 * This window is done loading HTML
+	 */
+	READY
+}
+
 export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private static readonly MIN_WIDTH = 600;
@@ -97,7 +121,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	constructor(
 		config: IWindowCreationOptions,
 		@ILogService private readonly logService: ILogService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@IFileService private readonly fileService: IFileService,
 		@IStorageMainService private readonly storageService: IStorageMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -471,7 +495,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// Inject headers when requests are incoming
 		const urls = ['https://marketplace.visualstudio.com/*', 'https://*.vsassets.io/*'];
 		this._win.webContents.session.webRequest.onBeforeSendHeaders({ urls }, (details, cb) =>
-			this.marketplaceHeadersPromise.then(headers => cb({ cancel: false, requestHeaders: objects.assign(details.requestHeaders, headers) as Record<string, string> })));
+			this.marketplaceHeadersPromise.then(headers => cb({ cancel: false, requestHeaders: Object.assign(details.requestHeaders, headers) })));
 	}
 
 	private onWindowError(error: WindowError): void {
@@ -597,7 +621,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Add disable-extensions to the config, but do not preserve it on currentConfig or
 		// pendingLoadConfig so that it is applied only on this load
-		const configuration = objects.assign({}, config);
+		const configuration = { ...config };
 		if (disableExtensions !== undefined) {
 			configuration['disable-extensions'] = disableExtensions;
 		}
@@ -701,7 +725,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Config (combination of process.argv and window configuration)
 		const environment = parseArgs(process.argv, OPTIONS);
-		const config = objects.assign(environment, windowConfiguration);
+		const config = Object.assign(environment, windowConfiguration);
 		for (const key in config) {
 			const configValue = (config as any)[key];
 			if (configValue === undefined || configValue === null || configValue === '' || configValue === false) {

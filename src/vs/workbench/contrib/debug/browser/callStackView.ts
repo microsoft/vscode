@@ -133,7 +133,11 @@ export class CallStackView extends ViewPane {
 			this.needsRefresh = false;
 			this.dataSource.deemphasizedStackFramesToShow = [];
 			this.tree.updateChildren().then(() => {
-				this.parentSessionToExpand.forEach(s => this.tree.expand(s));
+				try {
+					this.parentSessionToExpand.forEach(s => this.tree.expand(s));
+				} catch (e) {
+					// Ignore tree expand errors if element no longer present
+				}
 				this.parentSessionToExpand.clear();
 				if (this.selectionNeedsUpdate) {
 					this.selectionNeedsUpdate = false;

@@ -287,10 +287,16 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			if (this.activeAccount) {
 				if (event.removed.length) {
 					const activeWasRemoved = !!event.removed.find(removed => removed === this.activeAccount!.id);
-					// If the current account was removed, offer to turn off sync
 					if (activeWasRemoved) {
-						await this.turnOff();
 						this.setActiveAccount(undefined);
+						this.notificationService.notify({
+							severity: Severity.Info,
+							message: localize('turned off on logout', "Sync has stopped because you are no longer signed in."),
+							actions: {
+								primary: [new Action('turn on sync', localize('turn on sync', "Turn on Sync"), undefined, true, () => this.turnOn())]
+							}
+						});
+						return;
 						return;
 					}
 				}

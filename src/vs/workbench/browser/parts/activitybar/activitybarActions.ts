@@ -196,8 +196,8 @@ export class GlobalActivityActionViewItem extends ActivityActionViewItem {
 		colors: (theme: IColorTheme) => ICompositeBarColors,
 		@IThemeService themeService: IThemeService,
 		@IMenuService private readonly menuService: IMenuService,
-		@IContextMenuService protected contextMenuService: IContextMenuService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super(action, { draggable: false, colors, icon: true }, themeService);
 	}

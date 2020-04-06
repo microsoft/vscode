@@ -5,7 +5,7 @@
 
 import { getZoomLevel } from 'vs/base/browser/browser';
 import * as DOM from 'vs/base/browser/dom';
-import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { IMouseWheelEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Color, RGBA } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -43,6 +43,7 @@ import { CellViewModel, IModelDecorationsChangeAccessor, INotebookEditorViewStat
 import { CellKind, CellUri, IOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 
 const $ = DOM.$;
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
@@ -91,6 +92,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	private rootElement!: HTMLElement;
 	private body!: HTMLElement;
 	private webview: BackLayerWebView | null = null;
+	private webviewTransparentCover: HTMLElement | null = null;
 	private list: NotebookCellList | undefined;
 	private control: ICompositeCodeEditor | undefined;
 	private renderedEditors: Map<ICellViewModel, ICodeEditor | undefined> = new Map();
@@ -231,11 +233,34 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			}
 		}));
 		this.list.rowsContainer.appendChild(this.webview.element);
+
 		this._register(this.list);
+
+		// transparent cover
+		this.webviewTransparentCover = DOM.append(this.list.rowsContainer, $('.webview-cover'));
+		this.webviewTransparentCover.style.display = 'none';
+
+		this._register(DOM.addStandardDisposableGenericMouseDownListner(this.rootElement, (e: StandardMouseEvent) => {
+			if (DOM.hasClass(e.target, 'slider') && this.webviewTransparentCover) {
+				this.webviewTransparentCover.style.display = 'block';
+			}
+		}));
+
+		this._register(DOM.addStandardDisposableGenericMouseUpListner(this.rootElement, (e: StandardMouseEvent) => {
+			if (this.webviewTransparentCover) {
+				// no matter when
+				this.webviewTransparentCover.style.display = 'none';
+			}
+		}));
+
 	}
 
 	getControl() {
 		return this.control;
+	}
+
+	getInnerWebview(): Webview | undefined {
+		return this.webview?.webview;
 	}
 
 	onHide() {
@@ -325,6 +350,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		this.webview?.clearInsets();
 		this.webview?.clearPreloadsCache();
 		this.findWidget.clear();
+		this.list?.splice(0, this.list?.length || 0);
 	}
 
 	private async attachModel(input: NotebookEditorInput, model: NotebookEditorModel) {
@@ -339,14 +365,6 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		this.eventDispatcher.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
 		const viewState = this.loadTextEditorViewState(input);
 		this.notebookViewModel.restoreEditorViewState(viewState);
-
-		if (viewState?.scrollPosition !== undefined) {
-			this.list!.scrollTop = viewState!.scrollPosition.top;
-			this.list!.scrollLeft = viewState!.scrollPosition.left;
-		} else {
-			this.list!.scrollTop = 0;
-			this.list!.scrollLeft = 0;
-		}
 
 		this.localStore.add(this.eventDispatcher.onDidChangeMetadata((e) => {
 			this.editorEditable?.set(e.source.editable);
@@ -386,6 +404,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 		this.localStore.add(this.list!.onWillScroll(e => {
 			this.webview!.updateViewScrollTop(-e.scrollTop, []);
+			this.webviewTransparentCover!.style.top = `${e.scrollTop}px`;
 		}));
 
 		this.localStore.add(this.list!.onDidChangeContentHeight(() => {
@@ -414,9 +433,16 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			}
 		}));
 
-		this.list?.splice(0, this.list?.length || 0);
 		this.list?.splice(0, 0, this.notebookViewModel!.viewCells as CellViewModel[]);
 		this.list?.layout();
+
+		if (viewState?.scrollPosition !== undefined) {
+			this.list!.scrollTop = viewState!.scrollPosition.top;
+			this.list!.scrollLeft = viewState!.scrollPosition.left;
+		} else {
+			this.list!.scrollTop = 0;
+			this.list!.scrollLeft = 0;
+		}
 	}
 
 	private saveTextEditorViewState(input: NotebookEditorInput): void {
@@ -424,6 +450,17 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			const state = this.notebookViewModel.saveEditorViewState();
 			if (this.list) {
 				state.scrollPosition = { left: this.list.scrollLeft, top: this.list.scrollTop };
+				let cellHeights: { [key: number]: number } = {};
+				for (let i = 0; i < this.list.length; i++) {
+					const elm = this.list.element(i)!;
+					if (elm.cellKind === CellKind.Code) {
+						cellHeights[i] = elm.layoutInfo.totalHeight;
+					} else {
+						cellHeights[i] = 0;
+					}
+				}
+
+				state.cellTotalHeights = cellHeights;
 			}
 
 			this.editorMemento.saveEditorState(this.group, input.resource, state);
@@ -445,6 +482,12 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		DOM.size(this.body, dimension.width, dimension.height);
 		this.list?.updateOptions({ additionalScrollHeight: dimension.height });
 		this.list?.layout(dimension.height, dimension.width);
+
+		if (this.webviewTransparentCover) {
+			this.webviewTransparentCover.style.height = `${dimension.height}px`;
+			this.webviewTransparentCover.style.width = `${dimension.width}px`;
+		}
+
 		this.eventDispatcher?.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
 	}
 
