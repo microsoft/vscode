@@ -56,32 +56,6 @@ export function setToString<K>(set: Set<K>): string {
 	return `Set(${set.size}) {${entries.join(', ')}}`;
 }
 
-/**
- * @deprecated ES6: use `...Map.entries()`
- */
-export function mapToSerializable(map: Map<string, string>): [string, string][] {
-	const serializable: [string, string][] = [];
-
-	map.forEach((value, key) => {
-		serializable.push([key, value]);
-	});
-
-	return serializable;
-}
-
-/**
- * @deprecated ES6: use `new Map([[key1, value1],[key2, value2]])`
- */
-export function serializableToMap(serializable: [string, string][]): Map<string, string> {
-	const items = new Map<string, string>();
-
-	for (const [key, value] of serializable) {
-		items.set(key, value);
-	}
-
-	return items;
-}
-
 export interface IKeyIterator {
 	reset(key: string): this;
 	next(): this;

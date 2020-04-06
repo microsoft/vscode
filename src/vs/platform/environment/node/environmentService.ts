@@ -115,12 +115,6 @@ export class EnvironmentService implements IEnvironmentService {
 	get userDataSyncHome(): URI { return resources.joinPath(this.userRoamingDataHome, 'sync'); }
 
 	@memoize
-	get settingsSyncPreviewResource(): URI { return resources.joinPath(this.userDataSyncHome, 'settings.json'); }
-
-	@memoize
-	get keybindingsSyncPreviewResource(): URI { return resources.joinPath(this.userDataSyncHome, 'keybindings.json'); }
-
-	@memoize
 	get userDataSyncLogResource(): URI { return URI.file(path.join(this.logsPath, 'userDataSync.log')); }
 
 	@memoize
@@ -147,6 +141,9 @@ export class EnvironmentService implements IEnvironmentService {
 
 		return URI.file(path.join(this.userHome, product.dataFolderName, 'argv.json'));
 	}
+
+	@memoize
+	get snippetsHome(): URI { return resources.joinPath(this.userRoamingDataHome, 'snippets'); }
 
 	@memoize
 	get isExtensionDevelopment(): boolean { return !!this._args.extensionDevelopmentPath; }
@@ -236,6 +233,18 @@ export class EnvironmentService implements IEnvironmentService {
 		return false;
 	}
 
+	get extensionEnabledProposedApi(): string[] | undefined {
+		if (Array.isArray(this.args['enable-proposed-api'])) {
+			return this.args['enable-proposed-api'];
+		}
+
+		if ('enable-proposed-api' in this.args) {
+			return [];
+		}
+
+		return undefined;
+	}
+
 	@memoize
 	get debugExtensionHost(): IExtensionHostDebugParams { return parseExtensionHostPort(this._args, this.isBuilt); }
 	@memoize
@@ -255,7 +264,7 @@ export class EnvironmentService implements IEnvironmentService {
 	get nodeCachedDataDir(): string | undefined { return process.env['VSCODE_NODE_CACHED_DATA_DIR'] || undefined; }
 
 	@memoize
-	get galleryMachineIdResource(): URI { return resources.joinPath(URI.file(this.userDataPath), 'machineid'); }
+	get serviceMachineIdResource(): URI { return resources.joinPath(URI.file(this.userDataPath), 'machineid'); }
 
 	get disableUpdates(): boolean { return !!this._args['disable-updates']; }
 	get disableCrashReporter(): boolean { return !!this._args['disable-crash-reporter']; }

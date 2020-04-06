@@ -394,5 +394,6 @@
 				"foreground": "#dc3958"
 			}
 		}
-	]
+	],
+	"semanticHighlighting": true
 }

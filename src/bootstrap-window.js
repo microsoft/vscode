@@ -25,7 +25,6 @@ exports.assign = function assign(destination, source) {
  */
 exports.load = function (modulePaths, resultCallback, options) {
 
-	// @ts-ignore
 	const webFrame = require('electron').webFrame;
 	const path = require('path');
 
@@ -49,7 +48,6 @@ exports.load = function (modulePaths, resultCallback, options) {
 	}
 
 	// Error handler
-	// @ts-ignore
 	process.on('uncaughtException', function (error) {
 		onUnexpectedError(error, enableDeveloperTools);
 	});
@@ -164,7 +162,6 @@ function parseURLQueryArgs() {
  */
 function registerDeveloperKeybindings(disallowReloadKeybinding) {
 
-	// @ts-ignore
 	const ipc = require('electron').ipcRenderer;
 
 	const extractKey = function (e) {
@@ -203,7 +200,6 @@ function registerDeveloperKeybindings(disallowReloadKeybinding) {
 
 function onUnexpectedError(error, enableDeveloperTools) {
 
-	// @ts-ignore
 	const ipc = require('electron').ipcRenderer;
 
 	if (enableDeveloperTools) {

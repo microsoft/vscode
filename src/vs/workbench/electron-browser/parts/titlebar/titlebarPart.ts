@@ -13,7 +13,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { isMacintosh, isWindows, isLinux } from 'vs/base/common/platform';
 import { IMenuService } from 'vs/platform/actions/common/actions';
-import { TitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
+import { TitlebarPart as BrowserTitleBarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -24,7 +24,7 @@ import { IElectronService } from 'vs/platform/electron/node/electron';
 import { getTitleBarStyle } from 'vs/platform/windows/common/windows';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
-export class NativeTitlebarPart extends TitlebarPart {
+export class TitlebarPart extends BrowserTitleBarPart {
 	private appIcon: HTMLElement | undefined;
 	private windowControls: HTMLElement | undefined;
 	private maxRestoreControl: HTMLElement | undefined;
@@ -219,14 +219,14 @@ export class NativeTitlebarPart extends TitlebarPart {
 					}
 				}
 			} else {
-				this.title.style.zoom = null;
+				this.title.style.zoom = '';
 				if (isWindows || isLinux) {
 					if (this.appIcon) {
-						this.appIcon.style.zoom = null;
+						this.appIcon.style.zoom = '';
 					}
 
 					if (this.windowControls) {
-						this.windowControls.style.zoom = null;
+						this.windowControls.style.zoom = '';
 					}
 				}
 			}

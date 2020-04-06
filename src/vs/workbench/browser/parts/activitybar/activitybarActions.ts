@@ -134,6 +134,61 @@ export class ToggleViewletAction extends Action {
 	}
 }
 
+export class AccountsActionViewItem extends ActivityActionViewItem {
+	constructor(
+		action: ActivityAction,
+		colors: (theme: IColorTheme) => ICompositeBarColors,
+		@IThemeService themeService: IThemeService,
+		@IContextMenuService protected contextMenuService: IContextMenuService,
+		@IMenuService protected menuService: IMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+	) {
+		super(action, { draggable: false, colors, icon: true }, themeService);
+	}
+
+	render(container: HTMLElement): void {
+		super.render(container);
+
+		// Context menus are triggered on mouse down so that an item can be picked
+		// and executed with releasing the mouse over it
+
+		this._register(DOM.addDisposableListener(this.container, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
+			DOM.EventHelper.stop(e, true);
+			this.showContextMenu();
+		}));
+
+		this._register(DOM.addDisposableListener(this.container, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
+			let event = new StandardKeyboardEvent(e);
+			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
+				DOM.EventHelper.stop(e, true);
+				this.showContextMenu();
+			}
+		}));
+
+		this._register(DOM.addDisposableListener(this.container, TouchEventType.Tap, (e: GestureEvent) => {
+			DOM.EventHelper.stop(e, true);
+			this.showContextMenu();
+		}));
+	}
+
+	private showContextMenu(): void {
+		const accountsActions: IAction[] = [];
+		const accountsMenu = this.menuService.createMenu(MenuId.AccountsContext, this.contextKeyService);
+		const actionsDisposable = createAndFillInActionBarActions(accountsMenu, undefined, { primary: [], secondary: accountsActions });
+
+		const containerPosition = DOM.getDomNodePagePosition(this.container);
+		const location = { x: containerPosition.left + containerPosition.width / 2, y: containerPosition.top };
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => location,
+			getActions: () => accountsActions,
+			onHide: () => {
+				accountsMenu.dispose();
+				dispose(actionsDisposable);
+			}
+		});
+	}
+}
+
 export class GlobalActivityActionViewItem extends ActivityActionViewItem {
 
 	constructor(
@@ -231,7 +286,7 @@ class SwitchSideBarViewAction extends Action {
 
 		const activeViewlet = this.viewletService.getActiveViewlet();
 		if (!activeViewlet) {
-			return Promise.resolve();
+			return;
 		}
 		let targetViewletId: string | undefined;
 		for (let i = 0; i < pinnedViewletIds.length; i++) {

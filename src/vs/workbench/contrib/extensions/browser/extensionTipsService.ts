@@ -131,6 +131,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		this.fetchCachedDynamicWorkspaceRecommendations();
 		this.fetchFileBasedRecommendations();
 		this.fetchExperimentalRecommendations();
+		this.fetchImportantExeBasedRecommendation();
 		if (!this.configurationService.getValue<boolean>(ShowRecommendationsOnlyOnDemandKey)) {
 			this.fetchProactiveRecommendations(true);
 		}
@@ -505,6 +506,14 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 	//#region important exe based extension
 
+	private async fetchImportantExeBasedRecommendation(): Promise<void> {
+		// Executable based recommendations carry out a lot of file stats, delay the resolution so that the startup is not affected
+		// 3 secs for important
+		await timeout(3000);
+		await this.fetchExecutableRecommendations(true);
+		await this.promptForImportantExeBasedExtension();
+	}
+
 	private async promptForImportantExeBasedExtension(): Promise<boolean> {
 
 		let recommendationsToSuggest = Object.keys(this._importantExeBasedRecommendations);
@@ -526,6 +535,19 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		if (recommendationsToSuggest.length === 0) {
 			return false;
 		}
+
+		for (const extensionId of recommendationsToSuggest) {
+			const tip = this._importantExeBasedRecommendations[extensionId];
+
+			/* __GDPR__
+			"exeExtensionRecommendations:notInstalled" : {
+				"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+				"exeName": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+			}
+			*/
+			this.telemetryService.publicLog('exeExtensionRecommendations:notInstalled', { extensionId, exeName: basename(tip.windowsPath!) });
+		}
+
 
 		const storageKey = 'extensionsAssistant/workspaceRecommendationsIgnore';
 		const config = this.configurationService.getValue<IExtensionsConfiguration>(ConfigurationKey);
@@ -1008,10 +1030,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			// 10 sec for regular extensions
 			// 3 secs for important
 
-			const importantExeBasedRecommendations = timeout(calledDuringStartup ? 3000 : 0).then(_ => this.fetchExecutableRecommendations(true));
-			importantExeBasedRecommendations.then(_ => this.promptForImportantExeBasedExtension());
-
-			fetchPromise = timeout(calledDuringStartup ? 10000 : 0).then(_ => Promise.all([this.fetchDynamicWorkspaceRecommendations(), this.fetchExecutableRecommendations(false), importantExeBasedRecommendations]));
+			fetchPromise = timeout(calledDuringStartup ? 10000 : 0).then(_ => Promise.all([this.fetchDynamicWorkspaceRecommendations(), this.fetchExecutableRecommendations(false)]));
 
 		}
 		return fetchPromise;

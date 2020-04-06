@@ -10,7 +10,7 @@ import * as resources from 'vs/base/common/resources';
 import { ExtensionMessageCollector, IExtensionPoint, ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ExtensionData, IThemeExtensionPoint, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
 
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 
@@ -65,7 +65,36 @@ export function registerFileIconThemeExtensionPoint() {
 						type: 'string'
 					},
 					path: {
-						description: nls.localize('vscode.extension.contributes.iconThemes.path', 'Path of the file icon theme definition file. The path is relative to the extension folder and is typically \'./iconthemes/awesome-icon-theme.json\'.'),
+						description: nls.localize('vscode.extension.contributes.iconThemes.path', 'Path of the file icon theme definition file. The path is relative to the extension folder and is typically \'./fileicons/awesome-icon-theme.json\'.'),
+						type: 'string'
+					}
+				},
+				required: ['path', 'id']
+			}
+		}
+	});
+}
+
+export function registerProductIconThemeExtensionPoint() {
+	return ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>({
+		extensionPoint: 'productIconThemes',
+		jsonSchema: {
+			description: nls.localize('vscode.extension.contributes.productIconThemes', 'Contributes product icon themes.'),
+			type: 'array',
+			items: {
+				type: 'object',
+				defaultSnippets: [{ body: { id: '${1:id}', label: '${2:label}', path: './producticons/${3:id}-product-icon-theme.json' } }],
+				properties: {
+					id: {
+						description: nls.localize('vscode.extension.contributes.productIconThemes.id', 'Id of the product icon theme as used in the user settings.'),
+						type: 'string'
+					},
+					label: {
+						description: nls.localize('vscode.extension.contributes.productIconThemes.label', 'Label of the product icon theme as shown in the UI.'),
+						type: 'string'
+					},
+					path: {
+						description: nls.localize('vscode.extension.contributes.productIconThemes.path', 'Path of the product icon theme definition file. The path is relative to the extension folder and is typically \'./producticons/awesome-product-icon-theme.json\'.'),
 						type: 'string'
 					}
 				},
@@ -78,6 +107,7 @@ export function registerFileIconThemeExtensionPoint() {
 export interface ThemeChangeEvent<T> {
 	themes: T[];
 	added: T[];
+	removed: T[];
 }
 
 export interface IThemeData {
@@ -97,7 +127,9 @@ export class ThemeRegistry<T extends IThemeData> {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		private readonly themesExtPoint: IExtensionPoint<IThemeExtensionPoint[]>,
 		private create: (theme: IThemeExtensionPoint, themeLocation: URI, extensionData: ExtensionData) => T,
-		private idRequired = false
+		private idRequired = false,
+		private builtInTheme: T | undefined = undefined,
+		private isProposedApi = false
 	) {
 		this.extensionThemes = [];
 		this.initialize();
@@ -105,13 +137,17 @@ export class ThemeRegistry<T extends IThemeData> {
 
 	private initialize() {
 		this.themesExtPoint.setHandler((extensions, delta) => {
-			const previousIds: { [key: string]: boolean } = {};
+			const previousIds: { [key: string]: T } = {};
+
 			const added: T[] = [];
 			for (const theme of this.extensionThemes) {
-				previousIds[theme.id] = true;
+				previousIds[theme.id] = theme;
 			}
 			this.extensionThemes.length = 0;
 			for (let ext of extensions) {
+				if (this.isProposedApi) {
+					checkProposedApiEnabled(ext.description);
+				}
 				let extensionData: ExtensionData = {
 					extensionId: ext.description.identifier.value,
 					extensionPublisher: ext.description.publisher,
@@ -124,9 +160,12 @@ export class ThemeRegistry<T extends IThemeData> {
 			for (const theme of this.extensionThemes) {
 				if (!previousIds[theme.id]) {
 					added.push(theme);
+				} else {
+					delete previousIds[theme.id];
 				}
 			}
-			this.onDidChangeEmitter.fire({ themes: this.extensionThemes, added });
+			const removed = Object.values(previousIds);
+			this.onDidChangeEmitter.fire({ themes: this.extensionThemes, added, removed });
 		});
 	}
 
@@ -169,34 +208,38 @@ export class ThemeRegistry<T extends IThemeData> {
 		});
 	}
 
-	public findThemeById(themeId: string, defaultId?: string): Promise<T | undefined> {
-		return this.getThemes().then(allThemes => {
-			let defaultTheme: T | undefined = undefined;
-			for (let t of allThemes) {
-				if (t.id === themeId) {
-					return t;
-				}
-				if (t.id === defaultId) {
-					defaultTheme = t;
-				}
+	public async findThemeById(themeId: string, defaultId?: string): Promise<T | undefined> {
+		if (this.builtInTheme && this.builtInTheme.id === themeId) {
+			return this.builtInTheme;
+		}
+		const allThemes = await this.getThemes();
+		let defaultTheme: T | undefined = undefined;
+		for (let t of allThemes) {
+			if (t.id === themeId) {
+				return t;
 			}
-			return defaultTheme;
-		});
+			if (t.id === defaultId) {
+				defaultTheme = t;
+			}
+		}
+		return defaultTheme;
 	}
 
-	public findThemeBySettingsId(settingsId: string | null, defaultId?: string): Promise<T | undefined> {
-		return this.getThemes().then(allThemes => {
-			let defaultTheme: T | undefined = undefined;
-			for (let t of allThemes) {
-				if (t.settingsId === settingsId) {
-					return t;
-				}
-				if (t.id === defaultId) {
-					defaultTheme = t;
-				}
+	public async findThemeBySettingsId(settingsId: string | null, defaultId?: string): Promise<T | undefined> {
+		if (this.builtInTheme && this.builtInTheme.settingsId === settingsId) {
+			return this.builtInTheme;
+		}
+		const allThemes = await this.getThemes();
+		let defaultTheme: T | undefined = undefined;
+		for (let t of allThemes) {
+			if (t.settingsId === settingsId) {
+				return t;
 			}
-			return defaultTheme;
-		});
+			if (t.id === defaultId) {
+				defaultTheme = t;
+			}
+		}
+		return defaultTheme;
 	}
 
 	public findThemeByExtensionLocation(extLocation: URI | undefined): Promise<T[]> {

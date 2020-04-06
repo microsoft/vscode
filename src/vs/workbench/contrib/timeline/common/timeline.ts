@@ -31,18 +31,20 @@ export interface TimelineItem {
 	detail?: string;
 	command?: Command;
 	contextValue?: string;
+
+	relativeTime?: string;
+	hideRelativeTime?: boolean;
 }
 
 export interface TimelineChangeEvent {
-	id?: string;
+	id: string;
 	uri?: URI;
 	reset?: boolean
 }
 
 export interface TimelineOptions {
 	cursor?: string;
-	before?: boolean;
-	limit?: number | { cursor: string };
+	limit?: number | { timestamp: number; id?: string };
 }
 
 export interface InternalTimelineOptions {
@@ -55,11 +57,7 @@ export interface Timeline {
 	items: TimelineItem[];
 
 	paging?: {
-		cursors: {
-			before: string;
-			after?: string
-		};
-		more?: boolean;
+		cursor: string | undefined;
 	}
 }
 
@@ -67,6 +65,11 @@ export interface TimelineProvider extends TimelineProviderDescriptor, IDisposabl
 	onDidChange?: Event<TimelineChangeEvent>;
 
 	provideTimeline(uri: URI, options: TimelineOptions, token: CancellationToken, internalOptions?: InternalTimelineOptions): Promise<Timeline | undefined>;
+}
+
+export interface TimelineSource {
+	id: string;
+	label: string;
 }
 
 export interface TimelineProviderDescriptor {
@@ -98,7 +101,7 @@ export interface ITimelineService {
 	registerTimelineProvider(provider: TimelineProvider): IDisposable;
 	unregisterTimelineProvider(id: string): void;
 
-	getSources(): string[];
+	getSources(): TimelineSource[];
 
 	getTimeline(id: string, uri: URI, options: TimelineOptions, tokenSource: CancellationTokenSource, internalOptions?: InternalTimelineOptions): TimelineRequest | undefined;
 

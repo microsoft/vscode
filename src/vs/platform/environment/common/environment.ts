@@ -39,7 +39,6 @@ export interface ParsedArgs {
 	'builtin-extensions-dir'?: string;
 	extensionDevelopmentPath?: string[]; // // undefined or array of 1 or more local paths or URIs
 	extensionTestsPath?: string; // either a local path or a URI
-	'extension-development-confirm-save'?: boolean;
 	'inspect-extensions'?: string;
 	'inspect-brk-extensions'?: string;
 	debugId?: string;
@@ -57,7 +56,7 @@ export interface ParsedArgs {
 	'open-url'?: boolean;
 	'skip-getting-started'?: boolean;
 	'skip-release-notes'?: boolean;
-	'sticky-quickopen'?: boolean;
+	'sticky-quickinput'?: boolean;
 	'disable-restore-windows'?: boolean;
 	'disable-telemetry'?: boolean;
 	'export-default-configuration'?: string;
@@ -74,6 +73,7 @@ export interface ParsedArgs {
 	'disable-user-env-probe'?: boolean;
 	'force'?: boolean;
 	'force-user-env'?: boolean;
+	'sync'?: 'on' | 'off';
 
 	// chromium command line args: https://electronjs.org/docs/all#supported-chrome-command-line-switches
 	'no-proxy-server'?: boolean;
@@ -87,7 +87,7 @@ export interface ParsedArgs {
 	'nolazy'?: boolean;
 	'force-device-scale-factor'?: string;
 	'force-renderer-accessibility'?: boolean;
-	'ignore-certificate-error'?: boolean;
+	'ignore-certificate-errors'?: boolean;
 	'allow-insecure-localhost'?: boolean;
 }
 
@@ -124,12 +124,11 @@ export interface IEnvironmentService extends IUserHomeProvider {
 	keybindingsResource: URI;
 	keyboardLayoutResource: URI;
 	argvResource: URI;
+	snippetsHome: URI;
 
 	// sync resources
 	userDataSyncLogResource: URI;
 	userDataSyncHome: URI;
-	settingsSyncPreviewResource: URI;
-	keybindingsSyncPreviewResource: URI;
 
 	machineSettingsResource: URI;
 
@@ -147,6 +146,7 @@ export interface IEnvironmentService extends IUserHomeProvider {
 	extensionsPath?: string;
 	extensionDevelopmentLocationURI?: URI[];
 	extensionTestsLocationURI?: URI;
+	extensionEnabledProposedApi?: string[] | undefined;
 	logExtensionHostCommunication?: boolean;
 
 	debugExtensionHost: IExtensionHostDebugParams;
@@ -167,5 +167,5 @@ export interface IEnvironmentService extends IUserHomeProvider {
 	driverHandle?: string;
 	driverVerbose: boolean;
 
-	galleryMachineIdResource?: URI;
+	serviceMachineIdResource?: URI;
 }

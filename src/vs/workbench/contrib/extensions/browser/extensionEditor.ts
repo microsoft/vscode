@@ -27,7 +27,7 @@ import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, 
 import { RatingsWidget, InstallCountWidget, RemoteBadgeWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { CombinedInstallAction, UpdateAction, ExtensionEditorDropDownAction, ReloadAction, MaliciousStatusLabelAction, IgnoreExtensionRecommendationAction, UndoIgnoreExtensionRecommendationAction, EnableDropDownAction, DisableDropDownAction, StatusLabelAction, SetFileIconThemeAction, SetColorThemeAction, RemoteInstallAction, ExtensionToolTipAction, SystemDisabledWarningAction, LocalInstallAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { CombinedInstallAction, UpdateAction, ExtensionEditorDropDownAction, ReloadAction, MaliciousStatusLabelAction, IgnoreExtensionRecommendationAction, UndoIgnoreExtensionRecommendationAction, EnableDropDownAction, DisableDropDownAction, StatusLabelAction, SetFileIconThemeAction, SetColorThemeAction, RemoteInstallAction, ExtensionToolTipAction, SystemDisabledWarningAction, LocalInstallAction, SyncIgnoredIconAction, SetProductIconThemeAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
@@ -40,7 +40,7 @@ import { Color } from 'vs/base/common/color';
 import { assign } from 'vs/base/common/objects';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { ExtensionsTree, ExtensionData } from 'vs/workbench/contrib/extensions/browser/extensionsViewer';
+import { ExtensionsTree, ExtensionData, ExtensionsGridView, getExtensions } from 'vs/workbench/contrib/extensions/browser/extensionsViewer';
 import { ShowCurrentReleaseNotesActionId } from 'vs/workbench/contrib/update/common/update';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -131,7 +131,6 @@ const NavbarSection = {
 	Contributions: 'contributions',
 	Changelog: 'changelog',
 	Dependencies: 'dependencies',
-	ExtensionPack: 'extensionPack'
 };
 
 interface ILayoutParticipant {
@@ -206,6 +205,7 @@ export class ExtensionEditor extends BaseEditor {
 		const root = append(parent, $('.extension-editor'));
 		root.tabIndex = 0; // this is required for the focus tracker on the editor
 		root.style.outline = 'none';
+		root.setAttribute('role', 'document');
 		const header = append(root, $('.header'));
 
 		const iconContainer = append(header, $('.icon-container'));
@@ -317,8 +317,6 @@ export class ExtensionEditor extends BaseEditor {
 
 	private async updateTemplate(input: ExtensionsInput, template: IExtensionEditorTemplate, preserveFocus: boolean): Promise<void> {
 		const runningExtensions = await this.extensionService.getExtensions();
-		const colorThemes = await this.workbenchThemeService.getColorThemes();
-		const fileIconThemes = await this.workbenchThemeService.getFileIconThemes();
 
 		this.activeElement = null;
 		this.editorLoadComplete = false;
@@ -399,10 +397,13 @@ export class ExtensionEditor extends BaseEditor {
 		const systemDisabledWarningAction = this.instantiationService.createInstance(SystemDisabledWarningAction);
 		const actions = [
 			reloadAction,
+			this.instantiationService.createInstance(SyncIgnoredIconAction),
 			this.instantiationService.createInstance(StatusLabelAction),
 			this.instantiationService.createInstance(UpdateAction),
-			this.instantiationService.createInstance(SetColorThemeAction, colorThemes),
-			this.instantiationService.createInstance(SetFileIconThemeAction, fileIconThemes),
+			this.instantiationService.createInstance(SetColorThemeAction, await this.workbenchThemeService.getColorThemes()),
+			this.instantiationService.createInstance(SetFileIconThemeAction, await this.workbenchThemeService.getFileIconThemes()),
+			this.instantiationService.createInstance(SetProductIconThemeAction, await this.workbenchThemeService.getProductIconThemes()),
+
 			this.instantiationService.createInstance(EnableDropDownAction),
 			this.instantiationService.createInstance(DisableDropDownAction, runningExtensions),
 			this.instantiationService.createInstance(RemoteInstallAction),
@@ -433,9 +434,6 @@ export class ExtensionEditor extends BaseEditor {
 		const manifest = await this.extensionManifest.get().promise;
 		if (manifest) {
 			combinedInstallAction.manifest = manifest;
-		}
-		if (extension.extensionPack.length) {
-			template.navbar.push(NavbarSection.ExtensionPack, localize('extensionPack', "Extension Pack"), localize('extensionsPack', "Set of extensions that can be installed together"));
 		}
 		if (manifest && manifest.contributes) {
 			template.navbar.push(NavbarSection.Contributions, localize('contributions', "Feature Contributions"), localize('contributionstooltip', "Lists contributions to VS Code by this extension"));
@@ -574,7 +572,6 @@ export class ExtensionEditor extends BaseEditor {
 			case NavbarSection.Contributions: return this.openContributions(template);
 			case NavbarSection.Changelog: return this.openChangelog(template);
 			case NavbarSection.Dependencies: return this.openDependencies(extension, template);
-			case NavbarSection.ExtensionPack: return this.openExtensionPack(extension, template);
 		}
 		return Promise.resolve(null);
 	}
@@ -583,18 +580,18 @@ export class ExtensionEditor extends BaseEditor {
 		try {
 			const body = await this.renderMarkdown(cacheResult, template);
 
-			const webviewElement = this.contentDisposables.add(this.webviewService.createWebviewEditorOverlay('extensionEditor', {
+			const webview = this.contentDisposables.add(this.webviewService.createWebviewOverlay('extensionEditor', {
 				enableFindWidget: true,
 			}, {}));
 
-			webviewElement.claim(this);
-			webviewElement.layoutWebviewOverElement(template.content);
-			webviewElement.html = body;
+			webview.claim(this);
+			webview.layoutWebviewOverElement(template.content);
+			webview.html = body;
 
-			this.contentDisposables.add(webviewElement.onDidFocus(() => this.fireOnDidFocus()));
+			this.contentDisposables.add(webview.onDidFocus(() => this.fireOnDidFocus()));
 			const removeLayoutParticipant = arrays.insert(this.layoutParticipants, {
 				layout: () => {
-					webviewElement.layoutWebviewOverElement(template.content);
+					webview.layoutWebviewOverElement(template.content);
 				}
 			});
 			this.contentDisposables.add(toDisposable(removeLayoutParticipant));
@@ -606,11 +603,11 @@ export class ExtensionEditor extends BaseEditor {
 				// Render again since syntax highlighting of code blocks may have changed
 				const body = await this.renderMarkdown(cacheResult, template);
 				if (!isDisposed) { // Make sure we weren't disposed of in the meantime
-					webviewElement.html = body;
+					webview.html = body;
 				}
 			}));
 
-			this.contentDisposables.add(webviewElement.onDidClickLink(link => {
+			this.contentDisposables.add(webview.onDidClickLink(link => {
 				if (!link) {
 					return;
 				}
@@ -622,7 +619,7 @@ export class ExtensionEditor extends BaseEditor {
 				}
 			}, null, this.contentDisposables));
 
-			return webviewElement;
+			return webview;
 		} catch (e) {
 			const p = append(template.content, $('p.nocontent'));
 			p.textContent = noContentCopy;
@@ -650,7 +647,7 @@ export class ExtensionEditor extends BaseEditor {
 					body {
 						padding: 10px 20px;
 						line-height: 22px;
-						max-width: 780px;
+						max-width: 882px;
 						margin: 0 auto;
 					}
 
@@ -829,8 +826,43 @@ export class ExtensionEditor extends BaseEditor {
 		</html>`;
 	}
 
-	private openReadme(template: IExtensionEditorTemplate): Promise<IActiveElement> {
+	private async openReadme(template: IExtensionEditorTemplate): Promise<IActiveElement> {
+		const manifest = await this.extensionManifest!.get().promise;
+		if (manifest && manifest.extensionPack && manifest.extensionPack.length) {
+			return this.openExtensionPackReadme(manifest, template);
+		}
 		return this.openMarkdown(this.extensionReadme!.get(), localize('noReadme', "No README available."), template);
+	}
+
+	private async openExtensionPackReadme(manifest: IExtensionManifest, template: IExtensionEditorTemplate): Promise<IActiveElement> {
+		const extensionPackReadme = append(template.content, $('div', { class: 'extension-pack-readme' }));
+		extensionPackReadme.style.margin = '0 auto';
+		extensionPackReadme.style.maxWidth = '882px';
+
+		const extensionPack = append(extensionPackReadme, $('div', { class: 'extension-pack' }));
+		if (manifest.extensionPack!.length <= 3) {
+			addClass(extensionPackReadme, 'one-row');
+		} else if (manifest.extensionPack!.length <= 6) {
+			addClass(extensionPackReadme, 'two-rows');
+		} else if (manifest.extensionPack!.length <= 9) {
+			addClass(extensionPackReadme, 'three-rows');
+		} else {
+			addClass(extensionPackReadme, 'more-rows');
+		}
+
+		const extensionPackHeader = append(extensionPack, $('div.header'));
+		extensionPackHeader.textContent = localize('extension pack', "Extension Pack ({0})", manifest.extensionPack!.length);
+		const extensionPackContent = append(extensionPack, $('div', { class: 'extension-pack-content' }));
+		extensionPackContent.setAttribute('tabindex', '0');
+		append(extensionPack, $('div.footer'));
+		const readmeContent = append(extensionPackReadme, $('div.readme-content'));
+
+		await Promise.all([
+			this.renderExtensionPack(manifest, extensionPackContent),
+			this.openMarkdown(this.extensionReadme!.get(), localize('noReadme', "No README available."), { ...template, ...{ content: readmeContent } }),
+		]);
+
+		return { focus: () => extensionPackContent.focus() };
 	}
 
 	private openChangelog(template: IExtensionEditorTemplate): Promise<IActiveElement> {
@@ -914,28 +946,19 @@ export class ExtensionEditor extends BaseEditor {
 		return Promise.resolve({ focus() { dependenciesTree.domFocus(); } });
 	}
 
-	private openExtensionPack(extension: IExtension, template: IExtensionEditorTemplate): Promise<IActiveElement> {
+	private async renderExtensionPack(manifest: IExtensionManifest, parent: HTMLElement): Promise<void> {
 		const content = $('div', { class: 'subcontent' });
-		const scrollableContent = new DomScrollableElement(content, {});
-		append(template.content, scrollableContent.getDomNode());
-		this.contentDisposables.add(scrollableContent);
+		const scrollableContent = new DomScrollableElement(content, { useShadows: false });
+		append(parent, scrollableContent.getDomNode());
 
-		const extensionsPackTree = this.instantiationService.createInstance(ExtensionsTree,
-			new ExtensionData(extension, null, extension => extension.extensionPack || [], this.extensionsWorkbenchService), content,
-			{
-				listBackground: editorBackground
-			});
-		const layout = () => {
-			scrollableContent.scanDomNode();
-			const scrollDimensions = scrollableContent.getScrollDimensions();
-			extensionsPackTree.layout(scrollDimensions.height);
-		};
-		const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
-		this.contentDisposables.add(toDisposable(removeLayoutParticipant));
-
-		this.contentDisposables.add(extensionsPackTree);
+		const extensionsGridView = this.instantiationService.createInstance(ExtensionsGridView, content);
+		const extensions: IExtension[] = await getExtensions(manifest.extensionPack!, this.extensionsWorkbenchService);
+		extensionsGridView.setExtensions(extensions);
 		scrollableContent.scanDomNode();
-		return Promise.resolve({ focus() { extensionsPackTree.domFocus(); } });
+
+		this.contentDisposables.add(scrollableContent);
+		this.contentDisposables.add(extensionsGridView);
+		this.contentDisposables.add(toDisposable(arrays.insert(this.layoutParticipants, { layout: () => scrollableContent.scanDomNode() })));
 	}
 
 	private renderSettings(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
@@ -1143,7 +1166,7 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', { tabindex: '0' }, localize('iconThemes', "Icon Themes ({0})", contrib.length)),
+			$('summary', { tabindex: '0' }, localize('iconThemes', "File Icon Themes ({0})", contrib.length)),
 			$('ul', undefined, ...contrib.map(theme => $('li', undefined, theme.label)))
 		);
 
@@ -1208,7 +1231,7 @@ export class ExtensionEditor extends BaseEditor {
 					$('th', undefined, localize('schema', "Schema"))
 				),
 				...contrib.map(v => $('tr', undefined,
-					$('td', undefined, $('code', undefined, v.fileMatch)),
+					$('td', undefined, $('code', undefined, Array.isArray(v.fileMatch) ? v.fileMatch.join(', ') : v.fileMatch)),
 					$('td', undefined, v.url)
 				))));
 

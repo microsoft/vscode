@@ -110,7 +110,7 @@ abstract class ViewItem<TLayoutContext> {
 	get snap(): boolean { return !!this.view.snap; }
 
 	set enabled(enabled: boolean) {
-		this.container.style.pointerEvents = enabled ? null : 'none';
+		this.container.style.pointerEvents = enabled ? '' : 'none';
 	}
 
 	constructor(

@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .sidebar > .content {
+/* Removed to allow progress bar positioning to escape */
+/* .monaco-workbench .sidebar > .content {
 	overflow: hidden;
-}
+} */
 
 .monaco-workbench.nosidebar > .part.sidebar {
 	display: none !important;

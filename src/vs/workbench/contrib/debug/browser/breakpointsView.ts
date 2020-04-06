@@ -28,7 +28,7 @@ import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Gesture } from 'vs/base/browser/touch';
@@ -36,6 +36,7 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
 
 const $ = dom.$;
 
@@ -74,9 +75,9 @@ export class BreakpointsView extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: nls.localize('breakpointsSection', "Breakpoints Section") }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
-		this.minimumBodySize = this.maximumBodySize = getExpandedBodySize(this.debugService.getModel());
+		this.updateSize();
 		this._register(this.debugService.getModel().onDidChangeBreakpoints(() => this.onBreakpointsChange()));
 	}
 
@@ -227,12 +228,15 @@ export class BreakpointsView extends ViewPane {
 		];
 	}
 
+	private updateSize(): void {
+		// Adjust expanded body size
+		this.minimumBodySize = this.orientation === Orientation.VERTICAL ? getExpandedBodySize(this.debugService.getModel()) : 170;
+		this.maximumBodySize = this.orientation === Orientation.VERTICAL ? this.minimumBodySize : Number.POSITIVE_INFINITY;
+	}
+
 	private onBreakpointsChange(): void {
 		if (this.isBodyVisible()) {
-			this.minimumBodySize = getExpandedBodySize(this.debugService.getModel());
-			if (this.maximumBodySize < Number.POSITIVE_INFINITY) {
-				this.maximumBodySize = this.minimumBodySize;
-			}
+			this.updateSize();
 			if (this.list) {
 				this.list.splice(0, this.list.length, this.elements);
 				this.needsRefresh = false;

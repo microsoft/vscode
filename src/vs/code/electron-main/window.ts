@@ -6,7 +6,7 @@
 import * as path from 'vs/base/common/path';
 import * as objects from 'vs/base/common/objects';
 import * as nls from 'vs/nls';
-import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage, Rectangle, Display, TouchBarSegmentedControl, NativeImage, BrowserWindowConstructorOptions, SegmentedControlSegment, nativeTheme } from 'electron';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
@@ -26,14 +26,14 @@ import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import * as perf from 'vs/base/common/performance';
 import { resolveMarketplaceHeaders } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
-import { endsWith } from 'vs/base/common/strings';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { IFileService } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { IStorageMainService } from 'vs/platform/storage/node/storageMainService';
+import { IFileService } from 'vs/platform/files/common/files';
 
 const RUN_TEXTMATE_IN_WORKER = false;
 
@@ -68,13 +68,13 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private static readonly MAX_URL_LENGTH = 2 * 1024 * 1024; // https://cs.chromium.org/chromium/src/url/url_constants.cc?l=32
 
 	private readonly _onClose = this._register(new Emitter<void>());
-	readonly onClose: CommonEvent<void> = this._onClose.event;
+	readonly onClose = this._onClose.event;
 
 	private readonly _onDestroy = this._register(new Emitter<void>());
-	readonly onDestroy: CommonEvent<void> = this._onDestroy.event;
+	readonly onDestroy = this._onDestroy.event;
 
 	private readonly _onLoad = this._register(new Emitter<void>());
-	readonly onLoad: CommonEvent<void> = this._onLoad.event;
+	readonly onLoad = this._onLoad.event;
 
 	private hiddenTitleBarStyle: boolean | undefined;
 	private showTimeoutHandle: NodeJS.Timeout | undefined;
@@ -82,7 +82,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private _readyState: ReadyState;
 	private windowState: IWindowState;
 	private currentMenuBarVisibility: MenuBarVisibility | undefined;
+
 	private representedFilename: string | undefined;
+	private documentEdited: boolean | undefined;
 
 	private readonly whenReadyCallbacks: { (window: ICodeWindow): void }[];
 
@@ -97,6 +99,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		@ILogService private readonly logService: ILogService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IFileService private readonly fileService: IFileService,
+		@IStorageMainService private readonly storageService: IStorageMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService,
 		@IWorkspacesMainService private readonly workspacesMainService: IWorkspacesMainService,
@@ -226,7 +229,11 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this.createTouchBar();
 
 		// Request handling
-		this.marketplaceHeadersPromise = resolveMarketplaceHeaders(product.version, this.environmentService, this.fileService);
+		const that = this;
+		this.marketplaceHeadersPromise = resolveMarketplaceHeaders(product.version, this.environmentService, this.fileService, {
+			get(key) { return that.storageService.get(key); },
+			store(key, value) { that.storageService.store(key, value); }
+		});
 
 		// Eventing
 		this.registerListeners();
@@ -263,6 +270,22 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 
 		return this.representedFilename;
+	}
+
+	setDocumentEdited(edited: boolean): void {
+		if (isMacintosh) {
+			this._win.setDocumentEdited(edited);
+		}
+
+		this.documentEdited = edited;
+	}
+
+	isDocumentEdited(): boolean {
+		if (isMacintosh) {
+			return this._win.isDocumentEdited();
+		}
+
+		return !!this.documentEdited;
 	}
 
 	focus(): void {
@@ -343,7 +366,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this._win.webContents.session.webRequest.onBeforeRequest(null!, (details, callback) => {
 			if (details.url.indexOf('.svg') > 0) {
 				const uri = URI.parse(details.url);
-				if (uri && !uri.scheme.match(/file/i) && endsWith(uri.path, '.svg')) {
+				if (uri && !uri.scheme.match(/file/i) && uri.path.endsWith('.svg')) {
 					return callback({ cancel: true });
 				}
 			}
@@ -392,6 +415,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					this.setFullScreen(false);
 					this.setFullScreen(true);
 				}
+
+				this.sendWhenReady('vscode:displayChanged');
 			}, 100));
 
 			const displayChangedListener = () => simpleFullScreenScheduler.schedule();
@@ -578,9 +603,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 
 		// Clear Document Edited if needed
-		if (isMacintosh && this._win.isDocumentEdited()) {
+		if (this.isDocumentEdited()) {
 			if (!isReload || !this.backupMainService.isHotExitEnabled()) {
-				this._win.setDocumentEdited(false);
+				this.setDocumentEdited(false);
 			}
 		}
 

@@ -5,7 +5,6 @@
 
 import { CharCode } from 'vs/base/common/charCode';
 import { Constants } from 'vs/base/common/uint';
-import { canNormalize, normalizeNFD } from 'vs/base/common/normalization';
 
 export function isFalsyOrWhitespace(str: string | undefined): boolean {
 	if (!str || typeof str !== 'string') {
@@ -429,64 +428,25 @@ export function commonSuffixLength(a: string, b: string): number {
 	return len;
 }
 
-function substrEquals(a: string, aStart: number, aEnd: number, b: string, bStart: number, bEnd: number): boolean {
-	while (aStart < aEnd && bStart < bEnd) {
-		if (a[aStart] !== b[bStart]) {
-			return false;
-		}
-		aStart += 1;
-		bStart += 1;
-	}
-	return true;
-}
-
 /**
- * Return the overlap between the suffix of `a` and the prefix of `b`.
- * For instance `overlap("foobar", "arr, I'm a pirate") === 2`.
+ * See http://en.wikipedia.org/wiki/Surrogate_pair
  */
-export function overlap(a: string, b: string): number {
-	const aEnd = a.length;
-	let bEnd = b.length;
-	let aStart = aEnd - bEnd;
-
-	if (aStart === 0) {
-		return a === b ? aEnd : 0;
-	} else if (aStart < 0) {
-		bEnd += aStart;
-		aStart = 0;
-	}
-
-	while (aStart < aEnd && bEnd > 0) {
-		if (substrEquals(a, aStart, aEnd, b, 0, bEnd)) {
-			return bEnd;
-		}
-		bEnd -= 1;
-		aStart += 1;
-	}
-	return 0;
-}
-
-// --- unicode
-// http://en.wikipedia.org/wiki/Surrogate_pair
-// Returns the code point starting at a specified index in a string
-// Code points U+0000 to U+D7FF and U+E000 to U+FFFF are represented on a single character
-// Code points U+10000 to U+10FFFF are represented on two consecutive characters
-//export function getUnicodePoint(str:string, index:number, len:number):number {
-//	const chrCode = str.charCodeAt(index);
-//	if (0xD800 <= chrCode && chrCode <= 0xDBFF && index + 1 < len) {
-//		const nextChrCode = str.charCodeAt(index + 1);
-//		if (0xDC00 <= nextChrCode && nextChrCode <= 0xDFFF) {
-//			return (chrCode - 0xD800) << 10 + (nextChrCode - 0xDC00) + 0x10000;
-//		}
-//	}
-//	return chrCode;
-//}
 export function isHighSurrogate(charCode: number): boolean {
 	return (0xD800 <= charCode && charCode <= 0xDBFF);
 }
 
+/**
+ * See http://en.wikipedia.org/wiki/Surrogate_pair
+ */
 export function isLowSurrogate(charCode: number): boolean {
 	return (0xDC00 <= charCode && charCode <= 0xDFFF);
+}
+
+/**
+ * See http://en.wikipedia.org/wiki/Surrogate_pair
+ */
+export function computeCodePoint(highSurrogate: number, lowSurrogate: number): number {
+	return ((highSurrogate - 0xD800) << 10) + (lowSurrogate - 0xDC00) + 0x10000;
 }
 
 /**
@@ -497,7 +457,7 @@ export function getNextCodePoint(str: string, len: number, offset: number): numb
 	if (isHighSurrogate(charCode) && offset + 1 < len) {
 		const nextCharCode = str.charCodeAt(offset + 1);
 		if (isLowSurrogate(nextCharCode)) {
-			return ((charCode - 0xD800) << 10) + (nextCharCode - 0xDC00) + 0x10000;
+			return computeCodePoint(charCode, nextCharCode);
 		}
 	}
 	return charCode;
@@ -511,7 +471,7 @@ function getPrevCodePoint(str: string, offset: number): number {
 	if (isLowSurrogate(charCode) && offset > 1) {
 		const prevCharCode = str.charCodeAt(offset - 2);
 		if (isHighSurrogate(prevCharCode)) {
-			return ((prevCharCode - 0xD800) << 10) + (charCode - 0xDC00) + 0x10000;
+			return computeCodePoint(prevCharCode, charCode);
 		}
 	}
 	return charCode;
@@ -852,21 +812,6 @@ export function removeAnsiEscapeCodes(str: string): string {
 
 	return str;
 }
-
-export const removeAccents: (str: string) => string = (function () {
-	if (!canNormalize) {
-		// no ES6 features...
-		return function (str: string) { return str; };
-	} else {
-		// transform into NFD form and remove accents
-		// see: https://stackoverflow.com/questions/990904/remove-accents-diacritics-in-a-string-in-javascript/37511463#37511463
-		const regex = /[\u0300-\u036f]/g;
-		return function (str: string) {
-			return normalizeNFD(str).replace(regex, '');
-		};
-	}
-})();
-
 
 // -- UTF-8 BOM
 
