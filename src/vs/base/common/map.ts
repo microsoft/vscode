@@ -5,7 +5,6 @@
 
 import { URI } from 'vs/base/common/uri';
 import { CharCode } from 'vs/base/common/charCode';
-import { FIN } from './iterator';
 
 /**
  * @deprecated ES6: use `[...SetOrMap.values()]`
@@ -369,7 +368,7 @@ export class TernarySearchTree<E> {
 				this._forEach(node, value => data.push(value));
 			}
 			if (idx >= data.length) {
-				return FIN;
+				return { done: true, value: undefined };
 			}
 
 			if (!res) {

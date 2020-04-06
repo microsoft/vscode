@@ -3,42 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export interface IteratorDefinedResult<T> {
-	readonly done: false;
-	readonly value: T;
-}
-export interface IteratorUndefinedResult {
-	readonly done: true;
-	readonly value: undefined;
-}
-export const FIN: IteratorUndefinedResult = { done: true, value: undefined };
-export type IteratorResult<T> = IteratorDefinedResult<T> | IteratorUndefinedResult;
-
-export interface Iterator<T> {
-	next(): IteratorResult<T>;
-}
-
-interface NativeIteratorYieldResult<TYield> {
-	done?: false;
-	value: TYield;
-}
-
-interface NativeIteratorReturnResult<TReturn> {
-	done: true;
-	value: TReturn;
-}
-
-type NativeIteratorResult<T, TReturn = any> = NativeIteratorYieldResult<T> | NativeIteratorReturnResult<TReturn>;
-
-export interface NativeIterator<T> {
-	next(): NativeIteratorResult<T>;
-}
-
 export namespace Iterable {
 
 	const _empty: Iterable<any> = Object.freeze([]);
 	export function empty<T>(): Iterable<T> {
 		return _empty;
+	}
+
+	export function from<T>(iterable: Iterable<T> | undefined | null): Iterable<T> {
+		return iterable || _empty;
 	}
 
 	export function first<T>(iterable: Iterable<T>): T | undefined {
@@ -67,183 +40,39 @@ export namespace Iterable {
 			yield fn(element);
 		}
 	}
-}
 
-export module Iterator {
-	const _empty: Iterator<any> = {
-		next() {
-			return FIN;
-		}
-	};
-
-	export function empty<T>(): Iterator<T> {
-		return _empty;
-	}
-
-	export function single<T>(value: T): Iterator<T> {
-		let done = false;
-
-		return {
-			next(): IteratorResult<T> {
-				if (done) {
-					return FIN;
-				}
-
-				done = true;
-				return { done: false, value };
-			}
-		};
-	}
-
-	export function fromArray<T>(array: ReadonlyArray<T>, index = 0, length = array.length): Iterator<T> {
-		return {
-			next(): IteratorResult<T> {
-				if (index >= length) {
-					return FIN;
-				}
-
-				return { done: false, value: array[index++] };
-			}
-		};
-	}
-
-	export function fromNativeIterator<T>(it: NativeIterator<T>): Iterator<T> {
-		return {
-			next(): IteratorResult<T> {
-				const result = it.next();
-
-				if (result.done) {
-					return FIN;
-				}
-
-				return { done: false, value: result.value };
-			}
-		};
-	}
-
-	export function from<T>(elements: Iterator<T> | T[] | undefined): Iterator<T> {
-		if (!elements) {
-			return Iterator.empty();
-		} else if (Array.isArray(elements)) {
-			return Iterator.fromArray(elements);
-		} else {
-			return elements;
-		}
-	}
-
-	export function map<T, R>(iterator: Iterator<T>, fn: (t: T) => R): Iterator<R> {
-		return {
-			next() {
-				const element = iterator.next();
-				if (element.done) {
-					return FIN;
-				} else {
-					return { done: false, value: fn(element.value) };
-				}
-			}
-		};
-	}
-
-	export function filter<T>(iterator: Iterator<T>, fn: (t: T) => boolean): Iterator<T> {
-		return {
-			next() {
-				while (true) {
-					const element = iterator.next();
-					if (element.done) {
-						return FIN;
-					}
-					if (fn(element.value)) {
-						return { done: false, value: element.value };
-					}
-				}
-			}
-		};
-	}
-
-	export function some<T>(iterator: Iterator<T> | NativeIterator<T>, fn: (t: T) => boolean): boolean {
-		while (true) {
-			const element = iterator.next();
-			if (element.done) {
-				return false;
-			}
-
-			if (fn(element.value)) {
-				return true;
+	export function* concat<T>(...iterables: Iterable<T>[]): Iterable<T> {
+		for (const iterable of iterables) {
+			for (const element of iterable) {
+				yield element;
 			}
 		}
 	}
 
-	export function forEach<T>(iterator: Iterator<T>, fn: (t: T) => void): void {
-		for (let next = iterator.next(); !next.done; next = iterator.next()) {
-			fn(next.value);
-		}
-	}
-
-	export function collect<T>(iterator: Iterator<T>, atMost: number = Number.POSITIVE_INFINITY): T[] {
-		const result: T[] = [];
+	/**
+	 * Consumes `atMost` elements from iterable and returns the consumed elements,
+	 * and an iterable for the rest of the elements.
+	 */
+	export function consume<T>(iterable: Iterable<T>, atMost: number = Number.POSITIVE_INFINITY): [T[], Iterable<T>] {
+		const consumed: T[] = [];
 
 		if (atMost === 0) {
-			return result;
+			return [consumed, iterable];
 		}
 
-		let i = 0;
+		const iterator = iterable[Symbol.iterator]();
 
-		for (let next = iterator.next(); !next.done; next = iterator.next()) {
-			result.push(next.value);
+		for (let i = 0; i < atMost; i++) {
+			const next = iterator.next();
 
-			if (++i >= atMost) {
-				break;
+			if (next.done) {
+				return [consumed, Iterable.empty()];
 			}
+
+			consumed.push(next.value);
 		}
 
-		return result;
-	}
-
-	export function concat<T>(...iterators: Iterator<T>[]): Iterator<T> {
-		let i = 0;
-
-		return {
-			next() {
-				if (i >= iterators.length) {
-					return FIN;
-				}
-
-				const iterator = iterators[i];
-				const result = iterator.next();
-
-				if (result.done) {
-					i++;
-					return this.next();
-				}
-
-				return result;
-			}
-		};
-	}
-
-	export function chain<T>(iterator: Iterator<T>): ChainableIterator<T> {
-		return new ChainableIterator(iterator);
-	}
-}
-
-export class ChainableIterator<T> implements Iterator<T> {
-
-	constructor(private it: Iterator<T>) { }
-
-	next(): IteratorResult<T> { return this.it.next(); }
-	map<R>(fn: (t: T) => R): ChainableIterator<R> { return new ChainableIterator(Iterator.map(this.it, fn)); }
-	filter(fn: (t: T) => boolean): ChainableIterator<T> { return new ChainableIterator(Iterator.filter(this.it, fn)); }
-}
-
-export type ISequence<T> = Iterator<T> | T[];
-
-export function getSequenceIterator<T>(arg: ISequence<T> | undefined): Iterator<T> {
-	if (Array.isArray(arg)) {
-		return Iterator.fromArray(arg);
-	} else if (!arg) {
-		return Iterator.empty();
-	} else {
-		return arg;
+		return [consumed, { [Symbol.iterator]() { return iterator; } }];
 	}
 }
 
