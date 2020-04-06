@@ -1028,9 +1028,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 			// Executable based recommendations carry out a lot of file stats, delay the resolution so that the startup is not affected
 			// 10 sec for regular extensions
-			// 3 secs for important
 
-			fetchPromise = timeout(calledDuringStartup ? 10000 : 0).then(_ => Promise.all([this.fetchDynamicWorkspaceRecommendations(), this.fetchExecutableRecommendations(false), importantExeBasedRecommendations]));
+			fetchPromise = timeout(calledDuringStartup ? 10000 : 0).then(_ => Promise.all([this.fetchDynamicWorkspaceRecommendations(), this.fetchExecutableRecommendations(false)]));
 
 		}
 		return fetchPromise;
