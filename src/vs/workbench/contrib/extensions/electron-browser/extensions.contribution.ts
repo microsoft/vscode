@@ -24,9 +24,12 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { OpenExtensionsFolderAction } from 'vs/workbench/contrib/extensions/electron-browser/extensionsActions';
 import { ExtensionsLabel } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionTipsService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { NativeExtensionTipsService } from 'vs/workbench/contrib/extensions/electron-browser/extensionTipsService';
 
 // Singletons
 registerSingleton(IExtensionHostProfileService, ExtensionHostProfileService, true);
+registerSingleton(IExtensionTipsService, NativeExtensionTipsService);
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(ExtensionsAutoProfiler, LifecyclePhase.Eventually);
