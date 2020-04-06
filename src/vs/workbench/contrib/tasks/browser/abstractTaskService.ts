@@ -841,8 +841,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				} else {
 					resolve(undefined);
 				}
+			} else {
+				resolve(this.executeTask(task, resolver));
 			}
-			resolve(this.executeTask(task, resolver));
 		}).then((value) => {
 			if (runSource === TaskRunSource.User) {
 				this.getWorkspaceTasks().then(workspaceTasks => {
