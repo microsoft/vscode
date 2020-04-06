@@ -236,8 +236,15 @@ export class QueryBuilder {
 			return path.isAbsolute(segment) || /^\.\.?([\/\\]|$)/.test(segment);
 		};
 
+		const userHome = this.environmentService.userHome;
 		const segments = splitGlobPattern(pattern)
-			.map(segment => untildify(segment, this.environmentService.userHome));
+			.map(segment => {
+				if (userHome) {
+					return untildify(segment, userHome.fsPath);
+				}
+
+				return segment;
+			});
 		const groups = collections.groupBy(segments,
 			segment => isSearchPath(segment) ? 'searchPaths' : 'exprSegments');
 

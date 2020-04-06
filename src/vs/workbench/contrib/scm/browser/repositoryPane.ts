@@ -151,10 +151,7 @@ interface ResourceTemplate {
 
 class RepositoryPaneActionRunner extends ActionRunner {
 
-	constructor(
-		private getSelectedResources: () => (ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>)[],
-		private focus: () => void
-	) {
+	constructor(private getSelectedResources: () => (ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>)[]) {
 		super();
 	}
 
@@ -168,7 +165,6 @@ class RepositoryPaneActionRunner extends ActionRunner {
 		const actualContext = contextIsSelected ? selection : [context];
 		const args = flatten(actualContext.map(e => ResourceTree.isResourceNode(e) ? ResourceTree.collect(e) : [e]));
 		await action.run(...args);
-		this.focus();
 	}
 }
 
@@ -181,8 +177,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		private viewModelProvider: () => ViewModel,
 		private labels: ResourceLabels,
 		private actionViewItemProvider: IActionViewItemProvider,
-		private getSelectedResources: () => (ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>)[],
-		private focus: () => void,
+		private actionRunner: ActionRunner,
 		private themeService: IThemeService,
 		private menus: SCMMenus
 	) { }
@@ -194,7 +189,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		const actionsContainer = append(fileLabel.element, $('.actions'));
 		const actionBar = new ActionBar(actionsContainer, {
 			actionViewItemProvider: this.actionViewItemProvider,
-			actionRunner: new RepositoryPaneActionRunner(this.getSelectedResources, this.focus)
+			actionRunner: this.actionRunner
 		});
 
 		const decorationIcon = append(element, $('.decoration-icon'));
@@ -830,9 +825,19 @@ export class RepositoryPane extends ViewPane {
 		this.listLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
 		this._register(this.listLabels);
 
+		const actionRunner = new RepositoryPaneActionRunner(() => this.getSelectedResources());
+		this._register(actionRunner);
+		this._register(actionRunner.onDidRun(() => {
+			if (this.repository.input.visible && this.inputEditor.hasWidgetFocus()) {
+				return;
+			}
+
+			this.tree.domFocus();
+		}));
+
 		const renderers = [
 			new ResourceGroupRenderer(actionViewItemProvider, this.themeService, this.menus),
-			new ResourceRenderer(() => this.viewModel, this.listLabels, actionViewItemProvider, () => this.getSelectedResources(), () => this.tree.domFocus(), this.themeService, this.menus)
+			new ResourceRenderer(() => this.viewModel, this.listLabels, actionViewItemProvider, actionRunner, this.themeService, this.menus)
 		];
 
 		const filter = new SCMTreeFilter();
@@ -1032,11 +1037,14 @@ export class RepositoryPane extends ViewPane {
 			actions = this.menus.getResourceContextActions(element);
 		}
 
+		const actionRunner = new RepositoryPaneActionRunner(() => this.getSelectedResources());
+		actionRunner.onDidRun(() => this.tree.domFocus());
+
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
 			getActions: () => actions,
 			getActionsContext: () => element,
-			actionRunner: new RepositoryPaneActionRunner(() => this.getSelectedResources(), () => this.tree.domFocus())
+			actionRunner
 		});
 	}
 

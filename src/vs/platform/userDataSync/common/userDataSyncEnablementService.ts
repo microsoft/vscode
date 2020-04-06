@@ -33,7 +33,7 @@ export class UserDataSyncEnablementService extends Disposable implements IUserDa
 		@IEnvironmentService environmentService: IEnvironmentService,
 	) {
 		super();
-		switch (environmentService.args['sync']) {
+		switch (environmentService.sync) {
 			case 'on':
 				this.setEnablement(true);
 				break;

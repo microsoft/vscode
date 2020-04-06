@@ -96,7 +96,7 @@
 			"@author"
 		],
 		"action": "updateLabels",
-		"addLabel": "verified",
+		"addLabel": "author-verified",
 		"removeLabel": "author-verification-requested",
 		"requireLabel": "author-verification-requested",
 		"disallowLabel": "awaiting-insiders-release"
@@ -305,5 +305,31 @@
 		"action": "close",
 		"addLabel": "*caused-by-extension",
 		"comment": "It looks like this is caused by the Docker extension. Please file it with the repository [here](https://github.com/microsoft/vscode-docker). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines for more information.\n\nHappy Coding!"
+	},
+	{
+		"type": "comment",
+		"name": "extJava",
+		"allowUsers": [
+			"cleidigh",
+			"usernamehw",
+			"gjsjohnmurray",
+			"IllusionMH"
+		],
+		"action": "close",
+		"addLabel": "*caused-by-extension",
+		"comment": "It looks like this is caused by the Java extension. Please file it with the repository [here](https://github.com/redhat-developer/vscode-java). Make sure to check their [troubleshooting instructions](https://github.com/redhat-developer/vscode-java/wiki/Troubleshooting) and provide relevant information such as the extension version you're using. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines for more information.\n\nHappy Coding!"
+	},
+	{
+		"type": "comment",
+		"name": "extJavaDebug",
+		"allowUsers": [
+			"cleidigh",
+			"usernamehw",
+			"gjsjohnmurray",
+			"IllusionMH"
+		],
+		"action": "close",
+		"addLabel": "*caused-by-extension",
+		"comment": "It looks like this is caused by the Java Debugger extension. Please file it with the repository [here](https://github.com/Microsoft/vscode-java-debug). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines for more information.\n\nHappy Coding!"
 	}
 ]

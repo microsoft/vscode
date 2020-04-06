@@ -101,7 +101,6 @@ export class SearchEditorInput extends EditorInput {
 		this.contentsModel = modelLoader.then(({ contentsModel }) => contentsModel);
 		this.headerModel = modelLoader.then(({ headerModel }) => headerModel);
 
-
 		const input = this;
 		const workingCopyAdapter = new class implements IWorkingCopy {
 			readonly resource = input.resource;
@@ -115,7 +114,7 @@ export class SearchEditorInput extends EditorInput {
 			revert(options?: IRevertOptions): Promise<void> { return input.revert(0, options); }
 		};
 
-		this.workingCopyService.registerWorkingCopy(workingCopyAdapter);
+		this._register(this.workingCopyService.registerWorkingCopy(workingCopyAdapter));
 	}
 
 	async save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IEditorInput | undefined> {

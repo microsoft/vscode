@@ -499,7 +499,13 @@ export class ExplorerView extends ViewPane {
 
 		const actions: IAction[] = [];
 		const roots = this.explorerService.roots; // If the click is outside of the elements pass the root resource if there is only one root. If there are multiple roots pass empty object.
-		const arg = stat instanceof ExplorerItem ? stat.resource : roots.length === 1 ? roots[0].resource : {};
+		let arg: URI | {};
+		if (stat instanceof ExplorerItem) {
+			const compressedController = this.renderer.getCompressedNavigationController(stat);
+			arg = compressedController ? compressedController.current.resource : stat.resource;
+		} else {
+			arg = roots.length === 1 ? roots[0].resource : {};
+		}
 		disposables.add(createAndFillInContextMenuActions(this.contributedContextMenu, { arg, shouldForwardArgs: true }, actions, this.contextMenuService));
 
 		this.contextMenuService.showContextMenu({

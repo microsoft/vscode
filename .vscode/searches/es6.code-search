@@ -2,7 +2,7 @@
 # Flags: CaseSensitive WordMatch
 # ContextLines: 2
 
-11 results - 3 files
+9 results - 4 files
 
 src/vs/base/common/arrays.ts:
   401  
@@ -17,20 +17,14 @@ src/vs/base/common/arrays.ts:
   420   */
   421  export function first<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean, notFoundValue: T): T;
 
-  474  
-  475  /**
-  476:  * @deprecated ES6: use `Array.fill`
-  477   */
-  478  export function fill<T>(num: number, value: T, arr: T[] = []): T[] {
-
-  571  
-  572  /**
-  573:  * @deprecated ES6: use `Array.find`
-  574   */
-  575  export function find<T>(arr: ArrayLike<T>, predicate: (value: T, index: number, arr: ArrayLike<T>) => any): T | undefined {
+  560  
+  561  /**
+  562:  * @deprecated ES6: use `Array.find`
+  563   */
+  564  export function find<T>(arr: ArrayLike<T>, predicate: (value: T, index: number, arr: ArrayLike<T>) => any): T | undefined {
 
 src/vs/base/common/map.ts:
-  9  
+   9  
   10  /**
   11:  * @deprecated ES6: use `[...SetOrMap.values()]`
   12   */
@@ -42,33 +36,28 @@ src/vs/base/common/map.ts:
   23   */
   24  export function keys<K, V>(map: Map<K, V>): K[] {
 
-  58  
-  59  /**
-  60:  * @deprecated ES6: use `...Map.entries()`
-  61   */
-  62  export function mapToSerializable(map: Map<string, string>): [string, string][] {
-
-  71  
-  72  /**
-  73:  * @deprecated ES6: use `new Map([[key1, value1],[key2, value2]])`
-  74   */
-  75  export function serializableToMap(serializable: [string, string][]): Map<string, string> {
+src/vs/base/common/objects.ts:
+  115  
+  116  /**
+  117:  * @deprecated ES6
+  118   */
+  119  export function assign<T>(destination: T): T;
 
 src/vs/base/common/strings.ts:
-  16  
-  17  /**
-  18:  * @deprecated ES6: use `String.padStart`
-  19   */
-  20  export function pad(n: number, l: number, char: string = '0'): string {
+   15  
+   16  /**
+   17:  * @deprecated ES6: use `String.padStart`
+   18   */
+   19  export function pad(n: number, l: number, char: string = '0'): string {
 
-  147  
-  148  /**
-  149:  * @deprecated ES6: use `String.startsWith`
-  150   */
-  151  export function startsWith(haystack: string, needle: string): boolean {
+  146  
+  147  /**
+  148:  * @deprecated ES6: use `String.startsWith`
+  149   */
+  150  export function startsWith(haystack: string, needle: string): boolean {
 
-  168  
-  169  /**
-  170:  * @deprecated ES6: use `String.endsWith`
-  171   */
-  172  export function endsWith(haystack: string, needle: string): boolean {
+  167  
+  168  /**
+  169:  * @deprecated ES6: use `String.endsWith`
+  170   */
+  171  export function endsWith(haystack: string, needle: string): boolean {

@@ -924,7 +924,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 					return null;
 				}
 				try {
-					new RegExp(value);
+					// use `g` and `u` which are also used by the TextModel search
+					new RegExp(value, 'gu');
 					return null;
 				} catch (e) {
 					return { content: e.message };

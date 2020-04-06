@@ -24,7 +24,11 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 		@ICommandService private readonly commandService: ICommandService,
 		@INotificationService private readonly notificationService: INotificationService
 	) {
-		super(StartDebugQuickAccessProvider.PREFIX);
+		super(StartDebugQuickAccessProvider.PREFIX, {
+			noResultsPick: {
+				label: localize('noDebugResults', "No matching launch configurations")
+			}
+		});
 	}
 
 	protected getPicks(filter: string): (IQuickPickSeparator | IPickerQuickAccessItem)[] {
@@ -47,7 +51,6 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 				// Launch entry
 				picks.push({
 					label: config.name,
-					ariaLabel: localize('entryAriaLabel', "{0}, debug picker", config.name),
 					description: this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? config.launch.name : '',
 					highlights: { label: highlights },
 					buttons: [{
@@ -89,7 +92,6 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 			// Add Config entry
 			picks.push({
 				label,
-				ariaLabel: localize('entryAriaLabel', "{0}, debug picker", label),
 				description: this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? launch.name : '',
 				highlights: { label: withNullAsUndefined(matchesFuzzy(filter, label, true)) },
 				accept: () => this.commandService.executeCommand('debug.addConfiguration', launch.uri.toString())

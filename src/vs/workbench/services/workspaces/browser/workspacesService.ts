@@ -139,7 +139,7 @@ export class BrowserWorkspacesService extends Disposable implements IWorkspacesS
 		const storedWorkspaceFolder: IStoredWorkspaceFolder[] = [];
 		if (folders) {
 			for (const folder of folders) {
-				storedWorkspaceFolder.push(getStoredWorkspaceFolder(folder.uri, folder.name, this.environmentService.untitledWorkspacesHome));
+				storedWorkspaceFolder.push(getStoredWorkspaceFolder(folder.uri, true, folder.name, this.environmentService.untitledWorkspacesHome));
 			}
 		}
 

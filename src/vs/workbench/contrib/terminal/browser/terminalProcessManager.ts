@@ -133,7 +133,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			const hasRemoteAuthority = !!this.remoteAuthority;
 			let launchRemotely = hasRemoteAuthority || forceExtHostProcess;
 
-			this.userHome = this._environmentService.userHome;
+			this.userHome = this._environmentService.userHome?.fsPath;
 			this.os = platform.OS;
 			if (launchRemotely) {
 				if (hasRemoteAuthority) {
@@ -220,7 +220,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 		const initialCwd = terminalEnvironment.getCwd(
 			shellLaunchConfig,
-			this._environmentService.userHome,
+			this._environmentService.userHome?.fsPath!,
 			lastActiveWorkspace,
 			this._configurationResolverService,
 			activeWorkspaceRootUri,

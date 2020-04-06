@@ -17,6 +17,7 @@ import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/commo
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { IFileService } from 'vs/platform/files/common/files';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorModel>> {
 
@@ -26,7 +27,8 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITextFileService private readonly textFileService: ITextFileService,
-		@IFileService private readonly fileService: IFileService
+		@IFileService private readonly fileService: IFileService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 	}
@@ -109,6 +111,21 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 		const resource = URI.parse(key);
 		const providers = this.providers[resource.scheme] || [];
 		const factories = providers.map(p => () => Promise.resolve(p.provideTextContent(resource)));
+
+		if (resource.query || resource.fragment) {
+			type TextModelResolverUri = {
+				query: boolean;
+				fragment: boolean;
+			};
+			type TextModelResolverUriMeta = {
+				query: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+				fragment: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			};
+			this.telemetryService.publicLog2<TextModelResolverUri, TextModelResolverUriMeta>('textmodelresolveruri', {
+				query: Boolean(resource.query),
+				fragment: Boolean(resource.fragment)
+			});
+		}
 
 		const model = await first(factories);
 		if (!model) {

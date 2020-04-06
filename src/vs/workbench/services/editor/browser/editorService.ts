@@ -30,7 +30,6 @@ import { EditorsObserver } from 'vs/workbench/browser/parts/editor/editorsObserv
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { timeout } from 'vs/base/common/async';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { indexOfPath } from 'vs/base/common/extpath';
@@ -68,7 +67,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		@ILabelService private readonly labelService: ILabelService,
 		@IFileService private readonly fileService: IFileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) {
 		super();
@@ -348,8 +346,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 					if (!exists && !editor.isDisposed()) {
 						editor.dispose();
-					} else if (this.environmentService.verbose) {
-						console.warn(`File exists even though we received a delete event: ${resource.toString()}`);
 					}
 				}
 			})();

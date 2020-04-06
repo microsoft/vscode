@@ -8,7 +8,6 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import * as path from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
 import { IOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -18,12 +17,19 @@ import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { CELL_MARGIN, CELL_RUN_GUTTER } from 'vs/workbench/contrib/notebook/browser/constants';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 export interface IDimentionMessage {
 	__vscode_notebook_message: boolean;
 	type: 'dimension';
 	id: string;
 	data: DOM.Dimension;
+}
+
+export interface IWheelMessage {
+	__vscode_notebook_message: boolean;
+	type: 'did-scroll-wheel';
+	payload: any;
 }
 
 
@@ -73,7 +79,7 @@ export interface IUpdatePreloadResourceMessage {
 	resources: string[];
 }
 
-type IMessage = IDimentionMessage | IScrollAckMessage;
+type IMessage = IDimentionMessage | IScrollAckMessage | IWheelMessage;
 
 let version = 0;
 export class BackLayerWebView extends Disposable {
@@ -92,7 +98,6 @@ export class BackLayerWebView extends Disposable {
 		public notebookEditor: INotebookEditor,
 		@IWebviewService webviewService: IWebviewService,
 		@IOpenerService openerService: IOpenerService,
-		@IEnvironmentService private readonly environmentSerice: IEnvironmentService,
 		@INotebookService private readonly notebookService: INotebookService,
 	) {
 		super();
@@ -103,7 +108,8 @@ export class BackLayerWebView extends Disposable {
 		this.element.style.position = 'absolute';
 		this.element.style.margin = `0px 0 0px ${CELL_MARGIN}px`;
 
-		const loader = URI.file(path.join(environmentSerice.appRoot, '/out/vs/loader.js')).with({ scheme: WebviewResourceScheme });
+		const pathsPath = getPathFromAmdModule(require, 'vs/loader.js');
+		const loader = URI.file(pathsPath).with({ scheme: WebviewResourceScheme });
 
 		const outputNodePadding = 8;
 		let content = /* html */`
@@ -174,7 +180,7 @@ export class BackLayerWebView extends Disposable {
 							type: 'dimension',
 							id: id,
 							data: {
-								height: entry.contentRect.height + ${outputNodePadding}
+								height: entry.contentRect.height + ${outputNodePadding} * 2
 							}
 						});
 				}
@@ -184,6 +190,45 @@ export class BackLayerWebView extends Disposable {
 		resizeObserver.observe(container);
 		observers.push(resizeObserver);
 	}
+
+	function scrollWillGoToParent(event) {
+		for (let node = event.target; node; node = node.parentNode) {
+			if (node.id === 'container') {
+				return false;
+			}
+
+			if (event.deltaY < 0 && node.scrollTop > 0) {
+				return true;
+			}
+
+			if (event.deltaY > 0 && node.scrollTop + node.clientHeight < node.scrollHeight) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	const handleWheel = (event) => {
+		if (event.defaultPrevented || scrollWillGoToParent(event)) {
+			return;
+		}
+
+		vscode.postMessage({
+			__vscode_notebook_message: true,
+			type: 'did-scroll-wheel',
+			payload: {
+				deltaMode: event.deltaMode,
+				deltaX: event.deltaX,
+				deltaY: event.deltaY,
+				deltaZ: event.deltaZ,
+				detail: event.detail,
+				type: event.type
+			}
+		});
+	};
+
+	window.addEventListener('wheel', handleWheel);
 
 	window.addEventListener('message', event => {
 		let id = event.data.id;
@@ -275,10 +320,6 @@ export class BackLayerWebView extends Disposable {
 			openerService.open(link, { fromUserGesture: true });
 		}));
 
-		this._register(this.webview.onDidWheel(e => {
-			this.notebookEditor.triggerScroll(e);
-		}));
-
 		this._register(this.webview.onMessage((data: IMessage) => {
 			if (data.__vscode_notebook_message) {
 				if (data.type === 'dimension') {
@@ -301,6 +342,8 @@ export class BackLayerWebView extends Disposable {
 					// const date = new Date();
 					// const top = data.data.top;
 					// console.log('ack top ', top, ' version: ', data.version, ' - ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
+				} else if (data.type === 'did-scroll-wheel') {
+					this.notebookEditor.triggerScroll(data.payload);
 				}
 				return;
 			}
@@ -310,7 +353,8 @@ export class BackLayerWebView extends Disposable {
 	}
 
 	private _createInset(webviewService: IWebviewService, content: string) {
-		this.localResourceRootsCache = [...this.notebookService.getNotebookProviderResourceRoots(), URI.file(this.environmentSerice.appRoot)];
+		const rootPath = URI.file(path.dirname(getPathFromAmdModule(require, '')));
+		this.localResourceRootsCache = [...this.notebookService.getNotebookProviderResourceRoots(), rootPath];
 		const webview = webviewService.createWebviewElement('' + UUID.generateUuid(), {
 			enableFindWidget: false,
 		}, {
