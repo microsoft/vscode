@@ -242,8 +242,6 @@ export class ExtensionEditor extends BaseEditor {
 
 		const version = append(subtitle, $('span.version'));
 		version.textContent = localize('version', 'Version');
-		version.style.display = 'none';
-		version.tabIndex = 0;
 
 		const description = append(details, $('.description'));
 
@@ -342,12 +340,11 @@ export class ExtensionEditor extends BaseEditor {
 
 		template.name.textContent = extension.displayName;
 		template.identifier.textContent = extension.identifier.id;
-		template.version.textContent = extension.version;
-		template.version.style.display = 'inherit';
 		template.preview.style.display = extension.preview ? 'inherit' : 'none';
 		template.builtin.style.display = extension.type === ExtensionType.System ? 'inherit' : 'none';
 
 		template.publisher.textContent = extension.publisherDisplayName;
+		template.version.textContent = extension.version;
 		template.description.textContent = extension.description;
 
 		const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
