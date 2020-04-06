@@ -5,9 +5,11 @@
 
 import { URI } from 'vs/base/common/uri';
 import { CharCode } from 'vs/base/common/charCode';
-import { Iterator, IteratorResult, FIN } from './iterator';
+import { FIN } from './iterator';
 
-
+/**
+ * @deprecated ES6: use `[...SetOrMap.values()]`
+ */
 export function values<V = any>(set: Set<V>): V[];
 export function values<K = any, V = any>(map: Map<K, V>): V[];
 export function values<V>(forEachable: { forEach(callback: (value: V, ...more: any[]) => any): void }): V[] {
@@ -16,6 +18,9 @@ export function values<V>(forEachable: { forEach(callback: (value: V, ...more: a
 	return result;
 }
 
+/**
+ * @deprecated ES6: use `[...map.keys()]`
+ */
 export function keys<K, V>(map: Map<K, V>): K[] {
 	const result: K[] = [];
 	map.forEach((_value, key) => result.push(key));
@@ -49,26 +54,6 @@ export function setToString<K>(set: Set<K>): string {
 	});
 
 	return `Set(${set.size}) {${entries.join(', ')}}`;
-}
-
-export function mapToSerializable(map: Map<string, string>): [string, string][] {
-	const serializable: [string, string][] = [];
-
-	map.forEach((value, key) => {
-		serializable.push([key, value]);
-	});
-
-	return serializable;
-}
-
-export function serializableToMap(serializable: [string, string][]): Map<string, string> {
-	const items = new Map<string, string>();
-
-	for (const [key, value] of serializable) {
-		items.set(key, value);
-	}
-
-	return items;
 }
 
 export interface IKeyIterator {

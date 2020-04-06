@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { isMacintosh, isLinux, isWindows } from 'vs/base/common/platform';
+import { isMacintosh, isLinux, isWindows, isWeb } from 'vs/base/common/platform';
 
 const STATIC_VALUES = new Map<string, boolean>();
 STATIC_VALUES.set('false', false);
@@ -14,6 +14,8 @@ STATIC_VALUES.set('true', true);
 STATIC_VALUES.set('isMac', isMacintosh);
 STATIC_VALUES.set('isLinux', isLinux);
 STATIC_VALUES.set('isWindows', isWindows);
+STATIC_VALUES.set('isWeb', isWeb);
+STATIC_VALUES.set('isMacNative', isMacintosh && !isWeb);
 
 export const enum ContextKeyExprType {
 	False = 0,

@@ -17,7 +17,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { activeContrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
-import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ActivityAction, ActivityActionViewItem, ICompositeBar, ICompositeBarColors, ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
@@ -134,11 +134,66 @@ export class ToggleViewletAction extends Action {
 	}
 }
 
+export class AccountsActionViewItem extends ActivityActionViewItem {
+	constructor(
+		action: ActivityAction,
+		colors: (theme: IColorTheme) => ICompositeBarColors,
+		@IThemeService themeService: IThemeService,
+		@IContextMenuService protected contextMenuService: IContextMenuService,
+		@IMenuService protected menuService: IMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+	) {
+		super(action, { draggable: false, colors, icon: true }, themeService);
+	}
+
+	render(container: HTMLElement): void {
+		super.render(container);
+
+		// Context menus are triggered on mouse down so that an item can be picked
+		// and executed with releasing the mouse over it
+
+		this._register(DOM.addDisposableListener(this.container, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
+			DOM.EventHelper.stop(e, true);
+			this.showContextMenu();
+		}));
+
+		this._register(DOM.addDisposableListener(this.container, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
+			let event = new StandardKeyboardEvent(e);
+			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
+				DOM.EventHelper.stop(e, true);
+				this.showContextMenu();
+			}
+		}));
+
+		this._register(DOM.addDisposableListener(this.container, TouchEventType.Tap, (e: GestureEvent) => {
+			DOM.EventHelper.stop(e, true);
+			this.showContextMenu();
+		}));
+	}
+
+	private showContextMenu(): void {
+		const accountsActions: IAction[] = [];
+		const accountsMenu = this.menuService.createMenu(MenuId.AccountsContext, this.contextKeyService);
+		const actionsDisposable = createAndFillInActionBarActions(accountsMenu, undefined, { primary: [], secondary: accountsActions });
+
+		const containerPosition = DOM.getDomNodePagePosition(this.container);
+		const location = { x: containerPosition.left + containerPosition.width / 2, y: containerPosition.top };
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => location,
+			getActions: () => accountsActions,
+			onHide: () => {
+				accountsMenu.dispose();
+				dispose(actionsDisposable);
+			}
+		});
+	}
+}
+
 export class GlobalActivityActionViewItem extends ActivityActionViewItem {
 
 	constructor(
 		action: ActivityAction,
-		colors: (theme: ITheme) => ICompositeBarColors,
+		colors: (theme: IColorTheme) => ICompositeBarColors,
 		@IThemeService themeService: IThemeService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextMenuService protected contextMenuService: IContextMenuService,
@@ -231,7 +286,7 @@ class SwitchSideBarViewAction extends Action {
 
 		const activeViewlet = this.viewletService.getActiveViewlet();
 		if (!activeViewlet) {
-			return Promise.resolve();
+			return;
 		}
 		let targetViewletId: string | undefined;
 		for (let i = 0; i < pinnedViewletIds.length; i++) {
@@ -287,7 +342,7 @@ const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.Workbenc
 registry.registerWorkbenchAction(SyncActionDescriptor.create(PreviousSideBarViewAction, PreviousSideBarViewAction.ID, PreviousSideBarViewAction.LABEL), 'View: Previous Side Bar View', nls.localize('view', "View"));
 registry.registerWorkbenchAction(SyncActionDescriptor.create(NextSideBarViewAction, NextSideBarViewAction.ID, NextSideBarViewAction.LABEL), 'View: Next Side Bar View', nls.localize('view', "View"));
 
-registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 
 	const activeForegroundColor = theme.getColor(ACTIVITY_BAR_FOREGROUND);
 	if (activeForegroundColor) {

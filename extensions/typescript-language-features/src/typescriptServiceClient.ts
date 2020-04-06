@@ -24,8 +24,8 @@ import { TypeScriptPluginPathsProvider } from './utils/pluginPathsProvider';
 import { PluginManager } from './utils/plugins';
 import { TelemetryReporter, VSCodeTelemetryReporter, TelemetryProperties } from './utils/telemetry';
 import Tracer from './utils/tracer';
-import { inferredProjectCompilerOptions } from './utils/tsconfig';
-import { TypeScriptVersionPicker } from './utils/versionPicker';
+import { inferredProjectCompilerOptions, ProjectType } from './utils/tsconfig';
+import { TypeScriptVersionManager } from './utils/versionManager';
 import { TypeScriptVersion, TypeScriptVersionProvider } from './utils/versionProvider';
 
 const localize = nls.loadMessageBundle();
@@ -99,15 +99,16 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	private _configuration: TypeScriptServiceConfiguration;
 	private versionProvider: TypeScriptVersionProvider;
 	private pluginPathsProvider: TypeScriptPluginPathsProvider;
-	private versionPicker: TypeScriptVersionPicker;
+	private readonly _versionManager: TypeScriptVersionManager;
 
-	private tracer: Tracer;
-	public readonly logger: Logger = new Logger();
+	private readonly logger = new Logger();
+	private readonly tracer = new Tracer(this.logger);
 
 	private readonly typescriptServerSpawner: TypeScriptServerSpawner;
 	private serverState: ServerState.State = ServerState.None;
 	private lastStart: number;
 	private numberRestarts: number;
+	private _isPromptingAfterCrash = false;
 	private isRestarting: boolean = false;
 	private hasServerFatallyCrashedTooManyTimes = false;
 	private readonly loadingIndicator = new ServerInitializingIndicator();
@@ -139,9 +140,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this._configuration = TypeScriptServiceConfiguration.loadFromWorkspace();
 		this.versionProvider = new TypeScriptVersionProvider(this._configuration);
 		this.pluginPathsProvider = new TypeScriptPluginPathsProvider(this._configuration);
-		this.versionPicker = new TypeScriptVersionPicker(this.versionProvider, this.workspaceState);
-
-		this.tracer = new Tracer(this.logger);
+		this._versionManager = this._register(new TypeScriptVersionManager(this.versionProvider, this.workspaceState));
+		this._register(this._versionManager.onDidPickNewVersion(() => {
+			this.restartTsServer();
+		}));
 
 		this.bufferSyncSupport = new BufferSyncSupport(this, allModeIds);
 		this.onReady(() => { this.bufferSyncSupport.listen(); });
@@ -311,23 +313,23 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			return ServerState.None;
 		}
 
-		let currentVersion = this.versionPicker.currentVersion;
+		let version = this._versionManager.currentVersion;
 
-		this.info(`Using tsserver from: ${currentVersion.path}`);
-		if (!fs.existsSync(currentVersion.tsServerPath)) {
-			vscode.window.showWarningMessage(localize('noServerFound', 'The path {0} doesn\'t point to a valid tsserver install. Falling back to bundled TypeScript version.', currentVersion.path));
+		this.info(`Using tsserver from: ${version.path}`);
+		if (!fs.existsSync(version.tsServerPath)) {
+			vscode.window.showWarningMessage(localize('noServerFound', 'The path {0} doesn\'t point to a valid tsserver install. Falling back to bundled TypeScript version.', version.path));
 
-			this.versionPicker.useBundledVersion();
-			currentVersion = this.versionPicker.currentVersion;
+			this._versionManager.reset();
+			version = this._versionManager.currentVersion;
 		}
 
-		const apiVersion = this.versionPicker.currentVersion.apiVersion || API.defaultVersion;
-		this.onDidChangeTypeScriptVersion(currentVersion);
+		const apiVersion = version.apiVersion || API.defaultVersion;
 		let mytoken = ++this.token;
-		const handle = this.typescriptServerSpawner.spawn(currentVersion, this.configuration, this.pluginManager, {
+		const handle = this.typescriptServerSpawner.spawn(version, this.configuration, this.pluginManager, {
 			onFatalError: (command, err) => this.fatalError(command, err),
 		});
 		this.serverState = new ServerState.Running(handle, apiVersion, undefined, true);
+		this.onDidChangeTypeScriptVersion(version);
 		this.lastStart = Date.now();
 
 		/* __GDPR__
@@ -341,7 +343,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		*/
 		this.logTelemetry('tsserver.spawned', {
 			localTypeScriptVersion: this.versionProvider.localVersion ? this.versionProvider.localVersion.displayName : '',
-			typeScriptVersionSource: currentVersion.source,
+			typeScriptVersionSource: version.source,
 		});
 
 		handle.onError((err: Error) => {
@@ -403,7 +405,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		handle.onEvent(event => this.dispatchEvent(event));
 
 		this._onReady!.resolve();
-		this._onTsServerStarted.fire(currentVersion.apiVersion);
+		this._onTsServerStarted.fire(version.apiVersion);
 
 		if (apiVersion.gte(API.v300)) {
 			this.loadingIndicator.startedLoadingProject(undefined /* projectName */);
@@ -414,16 +416,8 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		return this.serverState;
 	}
 
-	public onVersionStatusClicked(): Thenable<void> {
-		return this.showVersionPicker();
-	}
-
-	private showVersionPicker(): Thenable<void> {
-		return this.versionPicker.show().then(change => {
-			if (change.newVersion && change.oldVersion && change.oldVersion.eq(change.newVersion)) {
-				this.restartTsServer();
-			}
-		});
+	public async showVersionPicker(): Promise<void> {
+		this._versionManager.promptUserForVersion();
 	}
 
 	public async openTsServerLogFile(): Promise<boolean> {
@@ -512,23 +506,16 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 	private getCompilerOptionsForInferredProjects(configuration: TypeScriptServiceConfiguration): Proto.ExternalProjectCompilerOptions {
 		return {
-			...inferredProjectCompilerOptions(true, configuration),
+			...inferredProjectCompilerOptions(ProjectType.TypeScript, configuration),
 			allowJs: true,
 			allowSyntheticDefaultImports: true,
 			allowNonTsExtensions: true,
+			resolveJsonModule: true,
 		};
 	}
 
 	private serviceExited(restart: boolean): void {
 		this.loadingIndicator.reset();
-
-		enum MessageAction {
-			reportIssue
-		}
-
-		interface MyMessageItem extends vscode.MessageItem {
-			id: MessageAction;
-		}
 
 		const previousState = this.serverState;
 		this.serverState = ServerState.None;
@@ -537,19 +524,22 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			const diff = Date.now() - this.lastStart;
 			this.numberRestarts++;
 			let startService = true;
+
+			const reportIssueItem: vscode.MessageItem = {
+				title: localize('serverDiedReportIssue', 'Report Issue'),
+			};
+			let prompt: Thenable<undefined | vscode.MessageItem> | undefined = undefined;
+
 			if (this.numberRestarts > 5) {
-				let prompt: Thenable<MyMessageItem | undefined> | undefined = undefined;
 				this.numberRestarts = 0;
 				if (diff < 10 * 1000 /* 10 seconds */) {
 					this.lastStart = Date.now();
 					startService = false;
 					this.hasServerFatallyCrashedTooManyTimes = true;
-					prompt = vscode.window.showErrorMessage<MyMessageItem>(
+					prompt = vscode.window.showErrorMessage(
 						localize('serverDiedAfterStart', 'The TypeScript language service died 5 times right after it got started. The service will not be restarted.'),
-						{
-							title: localize('serverDiedReportIssue', 'Report Issue'),
-							id: MessageAction.reportIssue,
-						});
+						reportIssueItem);
+
 					/* __GDPR__
 						"serviceExited" : {
 							"${include}": [
@@ -560,25 +550,32 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 					this.logTelemetry('serviceExited');
 				} else if (diff < 60 * 1000 * 5 /* 5 Minutes */) {
 					this.lastStart = Date.now();
-					prompt = vscode.window.showWarningMessage<MyMessageItem>(
+					prompt = vscode.window.showWarningMessage(
 						localize('serverDied', 'The TypeScript language service died unexpectedly 5 times in the last 5 Minutes.'),
-						{
-							title: localize('serverDiedReportIssue', 'Report Issue'),
-							id: MessageAction.reportIssue
-						});
+						reportIssueItem);
 				}
-				if (prompt) {
-					prompt.then(item => {
-						if (item?.id === MessageAction.reportIssue) {
-							const args = previousState.type === ServerState.Type.Errored && previousState.error instanceof TypeScriptServerError
-								? getReportIssueArgsForError(previousState.error)
-								: undefined;
-							return vscode.commands.executeCommand('workbench.action.openIssueReporter', args);
-						}
-						return undefined;
-					});
+			} else if (['vscode-insiders', 'code-oss'].includes(vscode.env.uriScheme)) {
+				// Prompt after a single restart
+				if (!this._isPromptingAfterCrash && previousState.type === ServerState.Type.Errored && previousState.error instanceof TypeScriptServerError) {
+					this.numberRestarts = 0;
+					this._isPromptingAfterCrash = true;
+					prompt = vscode.window.showWarningMessage(
+						localize('serverDiedOnce', 'The TypeScript language service died unexpectedly.'),
+						reportIssueItem);
 				}
 			}
+
+			prompt?.then(item => {
+				this._isPromptingAfterCrash = false;
+
+				if (item === reportIssueItem) {
+					const args = previousState.type === ServerState.Type.Errored && previousState.error instanceof TypeScriptServerError
+						? getReportIssueArgsForError(previousState.error)
+						: undefined;
+					vscode.commands.executeCommand('workbench.action.openIssueReporter', args);
+				}
+			});
+
 			if (startService) {
 				this.startService(true);
 			}
@@ -876,7 +873,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 }
 
-function getReportIssueArgsForError(error: TypeScriptServerError): { issueTitle: string, issueBody: string } | undefined {
+function getReportIssueArgsForError(error: TypeScriptServerError): { extensionId: string, issueTitle: string, issueBody: string } | undefined {
 	if (!error.serverStack || !error.serverMessage) {
 		return undefined;
 	}
@@ -884,6 +881,7 @@ function getReportIssueArgsForError(error: TypeScriptServerError): { issueTitle:
 	// Note these strings are intentionally not localized
 	// as we want users to file issues in english
 	return {
+		extensionId: 'vscode.typescript-language-features',
 		issueTitle: `TS Server fatal error:  ${error.serverMessage}`,
 
 		issueBody: `**TypeScript Version:** ${error.version.apiVersion?.fullVersionString}

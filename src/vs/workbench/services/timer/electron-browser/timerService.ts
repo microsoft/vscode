@@ -18,6 +18,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 
 /* __GDPR__FRAGMENT__
 	"IMemoryInfo" : {
@@ -303,7 +304,7 @@ class TimerService implements ITimerService {
 
 	constructor(
 		@IElectronService private readonly _electronService: IElectronService,
-		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IExtensionService private readonly _extensionService: IExtensionService,

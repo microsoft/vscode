@@ -24,7 +24,6 @@ import {
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { ExtensionEditor } from 'vs/workbench/contrib/extensions/browser/extensionEditor';
 import { StatusUpdater, MaliciousExtensionChecker, ExtensionsViewletViewsContribution, ExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/browser/extensionsViewlet';
-import { IQuickOpenRegistry, Extensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import * as jsonContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { ExtensionsConfigurationSchema, ExtensionsConfigurationSchemaId } from 'vs/workbench/contrib/extensions/common/extensionsFileTemplate';
@@ -32,7 +31,6 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeymapExtensions } from 'vs/workbench/contrib/extensions/common/extensionsUtils';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { GalleryExtensionsHandler, ExtensionsHandler } from 'vs/workbench/contrib/extensions/browser/extensionsQuickOpen';
 import { EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -50,6 +48,8 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { CONTEXT_SYNC_ENABLEMENT } from 'vs/platform/userDataSync/common/userDataSync';
+import { IQuickAccessRegistry, Extensions } from 'vs/platform/quickinput/common/quickAccess';
+import { InstallExtensionQuickAccessProvider, ManageExtensionsQuickAccessProvider } from 'vs/workbench/contrib/extensions/browser/extensionsQuickAccess';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
@@ -58,17 +58,13 @@ registerSingleton(IExtensionTipsService, ExtensionTipsService);
 Registry.as<IOutputChannelRegistry>(OutputExtensions.OutputChannels)
 	.registerChannel({ id: ExtensionsChannelId, label: ExtensionsLabel, log: false });
 
-// Quickopen
-Registry.as<IQuickOpenRegistry>(Extensions.Quickopen).registerQuickOpenHandler(
-	QuickOpenHandlerDescriptor.create(
-		ExtensionsHandler,
-		ExtensionsHandler.ID,
-		'ext ',
-		undefined,
-		localize('extensionsCommands', "Manage Extensions"),
-		true
-	)
-);
+// Quick Access
+Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessProvider({
+	ctor: ManageExtensionsQuickAccessProvider,
+	prefix: ManageExtensionsQuickAccessProvider.PREFIX,
+	placeholder: localize('manageExtensionsQuickAccessPlaceholder', "Press Enter to manage extensions."),
+	helpEntries: [{ description: localize('manageExtensionsHelp', "Manage Extensions"), needsEditor: false }]
+});
 
 // Editor
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -476,16 +472,12 @@ class ExtensionsContributions implements IWorkbenchContribution {
 		const canManageExtensions = extensionManagementServerService.localExtensionManagementServer || extensionManagementServerService.remoteExtensionManagementServer;
 
 		if (canManageExtensions) {
-			Registry.as<IQuickOpenRegistry>(Extensions.Quickopen).registerQuickOpenHandler(
-				QuickOpenHandlerDescriptor.create(
-					GalleryExtensionsHandler,
-					GalleryExtensionsHandler.ID,
-					'ext install ',
-					undefined,
-					localize('galleryExtensionsCommands', "Install Gallery Extensions"),
-					true
-				)
-			);
+			Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessProvider({
+				ctor: InstallExtensionQuickAccessProvider,
+				prefix: InstallExtensionQuickAccessProvider.PREFIX,
+				placeholder: localize('installExtensionQuickAccessPlaceholder', "Type the name of an extension to install or search."),
+				helpEntries: [{ description: localize('installExtensionQuickAccessHelp', "Install or Search Extensions"), needsEditor: false }]
+			});
 		}
 	}
 }

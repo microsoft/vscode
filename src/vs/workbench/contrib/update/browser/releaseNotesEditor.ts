@@ -67,11 +67,11 @@ export class ReleaseNotesManager {
 		const html = await this.renderBody(releaseNoteText);
 		const title = nls.localize('releaseNotesInputName', "Release Notes: {0}", version);
 
-		const activeControl = this._editorService.activeControl;
+		const activeEditorPane = this._editorService.activeEditorPane;
 		if (this._currentReleaseNotes) {
 			this._currentReleaseNotes.setName(title);
 			this._currentReleaseNotes.webview.html = html;
-			this._webviewWorkbenchService.revealWebview(this._currentReleaseNotes, activeControl ? activeControl.group : this._editorGroupService.activeGroup, false);
+			this._webviewWorkbenchService.revealWebview(this._currentReleaseNotes, activeEditorPane ? activeEditorPane.group : this._editorGroupService.activeGroup, false);
 		} else {
 			this._currentReleaseNotes = this._webviewWorkbenchService.createWebview(
 				generateUuid(),
@@ -190,7 +190,7 @@ export class ReleaseNotesManager {
 					body {
 						padding: 10px 20px;
 						line-height: 22px;
-						max-width: 780px;
+						max-width: 882px;
 						margin: 0 auto;
 					}
 

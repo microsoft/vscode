@@ -19,7 +19,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ClosePanelAction, PanelActivityAction, ToggleMaximizedPanelAction, TogglePanelAction, PlaceHolderPanelActivityAction, PlaceHolderToggleCompositePinnedAction, PositionPanelActionConfigs, SetPanelPositionAction } from 'vs/workbench/browser/parts/panel/panelActions';
-import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_DRAG_AND_DROP_BACKGROUND, PANEL_INPUT_BORDER } from 'vs/workbench/common/theme';
 import { activeContrastBorder, focusBorder, contrastBorder, editorBackground, badgeBackground, badgeForeground } from 'vs/platform/theme/common/colorRegistry';
 import { CompositeBar, ICompositeBarItem, CompositeDragAndDrop } from 'vs/workbench/browser/parts/compositeBar';
@@ -37,6 +37,8 @@ import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExte
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { ViewMenuActions } from 'vs/workbench/browser/parts/views/viewMenuActions';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
+import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
+import { Before2D } from 'vs/workbench/browser/dnd';
 
 interface ICachedPanel {
 	id: string;
@@ -104,6 +106,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IExtensionService private readonly extensionService: IExtensionService,
+		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService
 	) {
 		super(
 			notificationService,
@@ -125,6 +128,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		);
 
 		this.panelRegistry = Registry.as<PanelRegistry>(PanelExtensions.Panels);
+		storageKeysSyncRegistryService.registerStorageKey({ key: PanelPart.PINNED_PANELS, version: 1 });
 
 		this.compositeBar = this._register(this.instantiationService.createInstance(CompositeBar, this.getCachedPanels(), {
 			icon: false,
@@ -145,12 +149,11 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			hidePart: () => this.layoutService.setPanelHidden(true),
 			dndHandler: new CompositeDragAndDrop(this.viewDescriptorService, ViewContainerLocation.Panel,
 				(id: string, focus?: boolean) => this.openPanel(id, focus) as Promise<IPaneComposite | undefined>,
-				(from: string, to: string) => this.compositeBar.move(from, to),
-				() => this.getPinnedPanels().map(p => p.id)
+				(from: string, to: string, before?: Before2D) => this.compositeBar.move(from, to, before?.horizontallyBefore)
 			),
 			compositeSize: 0,
 			overflowActionSize: 44,
-			colors: (theme: ITheme) => ({
+			colors: (theme: IColorTheme) => ({
 				activeBackgroundColor: theme.getColor(PANEL_BACKGROUND), // Background color for overflow action
 				inactiveBackgroundColor: theme.getColor(PANEL_BACKGROUND), // Background color for overflow action
 				activeBorderBottomColor: theme.getColor(PANEL_ACTIVE_TITLE_BORDER),
@@ -633,7 +636,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 }
 
-registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 
 	// Panel Background: since panels can host editors, we apply a background rule if the panel background
 	// color is different from the editor background color. This is a bit of a hack though. The better way

@@ -20,10 +20,6 @@
 	color: var(--outline-element-color);
 }
 
-.monaco-tree .monaco-tree-row.focused .outline-element .outline-element-detail {
-	visibility: inherit;
-}
-
 .monaco-list .outline-element .outline-element-decoration {
 	opacity: 0.75;
 	font-size: 90%;

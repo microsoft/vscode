@@ -95,12 +95,12 @@ class RequestOracle {
 
 	private _update(): void {
 
-		let widget = this._editorService.activeTextEditorWidget;
+		let control = this._editorService.activeTextEditorControl;
 		let codeEditor: ICodeEditor | undefined = undefined;
-		if (isCodeEditor(widget)) {
-			codeEditor = widget;
-		} else if (isDiffEditor(widget)) {
-			codeEditor = widget.getModifiedEditor();
+		if (isCodeEditor(control)) {
+			codeEditor = control;
+		} else if (isDiffEditor(control)) {
+			codeEditor = control.getModifiedEditor();
 		}
 
 		if (!codeEditor || !codeEditor.hasModel()) {

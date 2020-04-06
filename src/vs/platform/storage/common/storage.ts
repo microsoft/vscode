@@ -125,8 +125,8 @@ export const enum StorageScope {
 }
 
 export interface IWorkspaceStorageChangeEvent {
-	key: string;
-	scope: StorageScope;
+	readonly key: string;
+	readonly scope: StorageScope;
 }
 
 export class InMemoryStorageService extends Disposable implements IStorageService {
@@ -139,8 +139,8 @@ export class InMemoryStorageService extends Disposable implements IStorageServic
 	protected readonly _onWillSaveState = this._register(new Emitter<IWillSaveStateEvent>());
 	readonly onWillSaveState = this._onWillSaveState.event;
 
-	private globalCache: Map<string, string> = new Map<string, string>();
-	private workspaceCache: Map<string, string> = new Map<string, string>();
+	private readonly globalCache = new Map<string, string>();
+	private readonly workspaceCache = new Map<string, string>();
 
 	private getCache(scope: StorageScope): Map<string, string> {
 		return scope === StorageScope.GLOBAL ? this.globalCache : this.workspaceCache;

@@ -114,16 +114,16 @@ export class PagedList<T> implements IDisposable {
 		return this.list.onDidDispose;
 	}
 
-	get onFocusChange(): Event<IListEvent<T>> {
-		return Event.map(this.list.onFocusChange, ({ elements, indexes }) => ({ elements: elements.map(e => this._model.get(e)), indexes }));
+	get onDidChangeFocus(): Event<IListEvent<T>> {
+		return Event.map(this.list.onDidChangeFocus, ({ elements, indexes }) => ({ elements: elements.map(e => this._model.get(e)), indexes }));
 	}
 
-	get onOpen(): Event<IListEvent<T>> {
+	get onDidOpen(): Event<IListEvent<T>> {
 		return Event.map(this.list.onDidOpen, ({ elements, indexes, browserEvent }) => ({ elements: elements.map(e => this._model.get(e)), indexes, browserEvent }));
 	}
 
-	get onSelectionChange(): Event<IListEvent<T>> {
-		return Event.map(this.list.onSelectionChange, ({ elements, indexes }) => ({ elements: elements.map(e => this._model.get(e)), indexes }));
+	get onDidChangeSelection(): Event<IListEvent<T>> {
+		return Event.map(this.list.onDidChangeSelection, ({ elements, indexes }) => ({ elements: elements.map(e => this._model.get(e)), indexes }));
 	}
 
 	get onPin(): Event<IListEvent<T>> {
@@ -191,8 +191,8 @@ export class PagedList<T> implements IDisposable {
 		return this.list.getFocus();
 	}
 
-	setSelection(indexes: number[]): void {
-		this.list.setSelection(indexes);
+	setSelection(indexes: number[], browserEvent?: UIEvent): void {
+		this.list.setSelection(indexes, browserEvent);
 	}
 
 	getSelection(): number[] {

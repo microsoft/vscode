@@ -24,7 +24,7 @@ import { IAction, IActionViewItem, ActionRunner, Action } from 'vs/base/common/a
 import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { SCMMenus } from './menus';
 import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IThemeService, LIGHT, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IThemeService, LIGHT, registerThemingParticipant, IFileIconTheme } from 'vs/platform/theme/common/themeService';
 import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar } from './util';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
@@ -45,7 +45,6 @@ import { IViewDescriptor, IViewDescriptorService } from 'vs/workbench/common/vie
 import { localize } from 'vs/nls';
 import { flatten, find } from 'vs/base/common/arrays';
 import { memoize } from 'vs/base/common/decorators';
-import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
@@ -152,10 +151,7 @@ interface ResourceTemplate {
 
 class RepositoryPaneActionRunner extends ActionRunner {
 
-	constructor(
-		private getSelectedResources: () => (ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>)[],
-		private focus: () => void
-	) {
+	constructor(private getSelectedResources: () => (ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>)[]) {
 		super();
 	}
 
@@ -169,7 +165,6 @@ class RepositoryPaneActionRunner extends ActionRunner {
 		const actualContext = contextIsSelected ? selection : [context];
 		const args = flatten(actualContext.map(e => ResourceTree.isResourceNode(e) ? ResourceTree.collect(e) : [e]));
 		await action.run(...args);
-		this.focus();
 	}
 }
 
@@ -182,8 +177,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		private viewModelProvider: () => ViewModel,
 		private labels: ResourceLabels,
 		private actionViewItemProvider: IActionViewItemProvider,
-		private getSelectedResources: () => (ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>)[],
-		private focus: () => void,
+		private actionRunner: ActionRunner,
 		private themeService: IThemeService,
 		private menus: SCMMenus
 	) { }
@@ -195,7 +189,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		const actionsContainer = append(fileLabel.element, $('.actions'));
 		const actionBar = new ActionBar(actionsContainer, {
 			actionViewItemProvider: this.actionViewItemProvider,
-			actionRunner: new RepositoryPaneActionRunner(this.getSelectedResources, this.focus)
+			actionRunner: this.actionRunner
 		});
 
 		const decorationIcon = append(element, $('.decoration-icon'));
@@ -209,7 +203,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 
 		const elementDisposables = new DisposableStore();
 		const resourceOrFolder = node.element;
-		const theme = this.themeService.getTheme();
+		const theme = this.themeService.getColorTheme();
 		const iconResource = ResourceTree.isResourceNode(resourceOrFolder) ? resourceOrFolder.element : resourceOrFolder;
 		const icon = iconResource && (theme.type === LIGHT ? iconResource.decorations.icon : iconResource.decorations.iconDark);
 
@@ -670,7 +664,7 @@ export class RepositoryPane extends ViewPane {
 		readonly repository: ISCMRepository,
 		options: IViewPaneOptions,
 		@IKeybindingService protected keybindingService: IKeybindingService,
-		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
+		@IThemeService protected themeService: IThemeService,
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@IContextViewService protected contextViewService: IContextViewService,
 		@ICommandService protected commandService: ICommandService,
@@ -735,6 +729,7 @@ export class RepositoryPane extends ViewPane {
 			const label = binding ? binding.getLabel() : (platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter');
 			const placeholderText = format(this.repository.input.placeholder, label);
 
+			this.inputEditor.updateOptions({ ariaLabel: placeholderText });
 			placeholderTextContainer.textContent = placeholderText;
 		};
 
@@ -872,9 +867,19 @@ export class RepositoryPane extends ViewPane {
 		this.listLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
 		this._register(this.listLabels);
 
+		const actionRunner = new RepositoryPaneActionRunner(() => this.getSelectedResources());
+		this._register(actionRunner);
+		this._register(actionRunner.onDidRun(() => {
+			if (this.repository.input.visible && this.inputEditor.hasWidgetFocus()) {
+				return;
+			}
+
+			this.tree.domFocus();
+		}));
+
 		const renderers = [
 			new ResourceGroupRenderer(actionViewItemProvider, this.themeService, this.menus),
-			new ResourceRenderer(() => this.viewModel, this.listLabels, actionViewItemProvider, () => this.getSelectedResources(), () => this.tree.domFocus(), this.themeService, this.menus)
+			new ResourceRenderer(() => this.viewModel, this.listLabels, actionViewItemProvider, actionRunner, this.themeService, this.menus)
 		];
 
 		const filter = new SCMTreeFilter();
@@ -1059,10 +1064,10 @@ export class RepositoryPane extends ViewPane {
 	}
 
 	private pin(): void {
-		const activeControl = this.editorService.activeControl;
+		const activeEditorPane = this.editorService.activeEditorPane;
 
-		if (activeControl) {
-			activeControl.group.pinEditor(activeControl.input);
+		if (activeEditorPane) {
+			activeEditorPane.group.pinEditor(activeEditorPane.input);
 		}
 	}
 
@@ -1086,11 +1091,14 @@ export class RepositoryPane extends ViewPane {
 			actions = this.menus.getResourceContextActions(element);
 		}
 
+		const actionRunner = new RepositoryPaneActionRunner(() => this.getSelectedResources());
+		actionRunner.onDidRun(() => this.tree.domFocus());
+
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
 			getActions: () => actions,
 			getActionsContext: () => element,
-			actionRunner: new RepositoryPaneActionRunner(() => this.getSelectedResources(), () => this.tree.domFocus())
+			actionRunner
 		});
 	}
 

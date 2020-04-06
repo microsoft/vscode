@@ -107,7 +107,7 @@ function parseTest(fileName: string): ITest {
 	return { content, assertions };
 }
 
-// @ts-ignore
+// @ts-expect-error
 function executeTest(fileName: string, parseFunc: IParseFunc): void {
 	const { content, assertions } = parseTest(fileName);
 	const actual = parseFunc(content);

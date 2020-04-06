@@ -402,8 +402,26 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		this._updateConfigurationViewLineCount.schedule();
 	}
 
+	public getVisibleRangesPlusViewportAboveBelow(): Range[] {
+		const layoutInfo = this.configuration.options.get(EditorOption.layoutInfo);
+		const lineHeight = this.configuration.options.get(EditorOption.lineHeight);
+		const linesAround = Math.max(20, Math.round(layoutInfo.height / lineHeight));
+		const partialData = this.viewLayout.getLinesViewportData();
+		const startViewLineNumber = Math.max(1, partialData.completelyVisibleStartLineNumber - linesAround);
+		const endViewLineNumber = Math.min(this.getLineCount(), partialData.completelyVisibleEndLineNumber + linesAround);
+
+		return this._toModelVisibleRanges(new Range(
+			startViewLineNumber, this.getLineMinColumn(startViewLineNumber),
+			endViewLineNumber, this.getLineMaxColumn(endViewLineNumber)
+		));
+	}
+
 	public getVisibleRanges(): Range[] {
 		const visibleViewRange = this.getCompletelyVisibleViewRange();
+		return this._toModelVisibleRanges(visibleViewRange);
+	}
+
+	private _toModelVisibleRanges(visibleViewRange: Range): Range[] {
 		const visibleRange = this.coordinatesConverter.convertViewRangeToModelRange(visibleViewRange);
 		const hiddenAreas = this.lines.getHiddenAreas();
 

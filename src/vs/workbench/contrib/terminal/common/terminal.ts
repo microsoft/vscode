@@ -107,6 +107,7 @@ export interface ITerminalConfiguration {
 	scrollback: number;
 	commandsToSkipShell: string[];
 	allowChords: boolean;
+	allowMnemonics: boolean;
 	cwd: string;
 	confirmOnExit: boolean;
 	enableBell: boolean;

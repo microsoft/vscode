@@ -132,10 +132,12 @@ suite('Disk File Service', function () {
 	const disposables = new DisposableStore();
 
 	// Given issues such as https://github.com/microsoft/vscode/issues/78602
-	// we see random test failures when accessing the native file system. To
-	// diagnose further, we retry node.js file access tests up to 3 times to
-	// rule out any random disk issue.
+	// and https://github.com/microsoft/vscode/issues/92334 we see random test
+	// failures when accessing the native file system. To diagnose further, we
+	// retry node.js file access tests up to 3 times to rule out any random disk
+	// issue and increase the timeout.
 	this.retries(3);
+	this.timeout(1000 * 10);
 
 	setup(async () => {
 		const logService = new NullLogService();
@@ -463,7 +465,7 @@ suite('Disk File Service', function () {
 		return testDeleteFile(false);
 	});
 
-	test('deleteFile (useTrash)', async () => {
+	(isLinux /* trash is unreliable on Linux */ ? test.skip : test)('deleteFile (useTrash)', async () => {
 		return testDeleteFile(true);
 	});
 
@@ -543,7 +545,7 @@ suite('Disk File Service', function () {
 		return testDeleteFolderRecursive(false);
 	});
 
-	test('deleteFolder (recursive, useTrash)', async () => {
+	(isLinux /* trash is unreliable on Linux */ ? test.skip : test)('deleteFolder (recursive, useTrash)', async () => {
 		return testDeleteFolderRecursive(true);
 	});
 
@@ -1405,6 +1407,24 @@ suite('Disk File Service', function () {
 
 		assert.ok(error);
 		assert.equal(error!.fileOperationResult, FileOperationResult.FILE_IS_DIRECTORY);
+	});
+
+	test('readFile - FILE_NOT_DIRECTORY', async () => {
+		if (isWindows) {
+			return; // error code does not seem to be supported on windows
+		}
+
+		const resource = URI.file(join(testDir, 'lorem.txt', 'file.txt'));
+
+		let error: FileOperationError | undefined = undefined;
+		try {
+			await service.readFile(resource);
+		} catch (err) {
+			error = err;
+		}
+
+		assert.ok(error);
+		assert.equal(error!.fileOperationResult, FileOperationResult.FILE_NOT_DIRECTORY);
 	});
 
 	test('readFile - FILE_NOT_FOUND', async () => {

@@ -32,7 +32,12 @@ export function updateEmmetExtensionsPath() {
 	let extensionsPath = vscode.workspace.getConfiguration('emmet')['extensionsPath'];
 	if (_currentExtensionsPath !== extensionsPath) {
 		_currentExtensionsPath = extensionsPath;
-		_emmetHelper.updateExtensionsPath(extensionsPath, vscode.workspace.rootPath).then(null, (err: string) => vscode.window.showErrorMessage(err));
+		if (!vscode.workspace.workspaceFolders) {
+			return;
+		} else {
+			const rootPath = vscode.workspace.workspaceFolders[0].uri.fsPath;
+			_emmetHelper.updateExtensionsPath(extensionsPath, rootPath).then(null, (err: string) => vscode.window.showErrorMessage(err));
+		}
 	}
 }
 

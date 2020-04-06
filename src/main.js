@@ -175,7 +175,7 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		app.commandLine.appendSwitch('js-flags', jsFlags);
 	}
 
-	// TODO@Ben TODO@Deepak Electron 7 workaround for https://github.com/microsoft/vscode/issues/88873
+	// TODO@Deepak Electron 7 workaround for https://github.com/microsoft/vscode/issues/88873
 	app.commandLine.appendSwitch('disable-features', 'LayoutNG');
 
 	return argvConfig;
@@ -316,7 +316,7 @@ function getUserDataPath(cliArgs) {
  * @returns {ParsedArgs}
  */
 function parseCLIArgs() {
-	const minimist = require('vscode-minimist');
+	const minimist = require('minimist');
 
 	return minimist(process.argv, {
 		string: [

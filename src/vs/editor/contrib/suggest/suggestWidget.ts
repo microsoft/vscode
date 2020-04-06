@@ -25,7 +25,7 @@ import { Context as SuggestContext, CompletionItem, suggestWidgetStatusbarMenu }
 import { CompletionModel } from './completionModel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService, ITheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IThemeService, IColorTheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { registerColor, editorWidgetBackground, listFocusBackground, activeContrastBorder, listHighlightForeground, editorForeground, editorWidgetBorder, focusBorder, textLinkForeground, textCodeBlockBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
@@ -63,7 +63,7 @@ interface ISuggestionTemplateData {
 	colorspan: HTMLElement;
 	iconLabel: IconLabel;
 	iconContainer: HTMLElement;
-	signatureLabel: HTMLElement;
+	parametersLabel: HTMLElement;
 	qualifierLabel: HTMLElement;
 	/**
 	 * Showing either `CompletionItem#details` or `CompletionItemLabel#type`
@@ -151,7 +151,7 @@ class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTemplateD
 		data.iconLabel = new IconLabel(data.left, { supportHighlights: true, supportCodicons: true });
 		data.disposables.add(data.iconLabel);
 
-		data.signatureLabel = append(data.left, $('span.signature-label'));
+		data.parametersLabel = append(data.left, $('span.signature-label'));
 		data.qualifierLabel = append(data.left, $('span.qualifier-label'));
 		data.detailsLabel = append(data.right, $('span.details-label'));
 
@@ -195,7 +195,6 @@ class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTemplateD
 		const textLabel = typeof suggestion.label === 'string' ? suggestion.label : suggestion.label.name;
 
 		data.root.id = getAriaId(index);
-		data.icon.className = 'icon ' + completionKindToCssClass(suggestion.kind);
 		data.colorspan.style.backgroundColor = '';
 
 		const labelOptions: IIconLabelValueOptions = {
@@ -210,7 +209,7 @@ class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTemplateD
 			data.iconContainer.className = 'icon hide';
 			data.colorspan.style.backgroundColor = color[0];
 
-		} else if (suggestion.kind === CompletionItemKind.File && this._themeService.getIconTheme().hasFileIcons) {
+		} else if (suggestion.kind === CompletionItemKind.File && this._themeService.getFileIconTheme().hasFileIcons) {
 			// special logic for 'file' completion items
 			data.icon.className = 'icon hide';
 			data.iconContainer.className = 'icon hide';
@@ -218,7 +217,7 @@ class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTemplateD
 			const detailClasses = getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: suggestion.detail }), FileKind.FILE);
 			labelOptions.extraClasses = labelClasses.length > detailClasses.length ? labelClasses : detailClasses;
 
-		} else if (suggestion.kind === CompletionItemKind.Folder && this._themeService.getIconTheme().hasFolderIcons) {
+		} else if (suggestion.kind === CompletionItemKind.Folder && this._themeService.getFileIconTheme().hasFolderIcons) {
 			// special logic for 'folder' completion items
 			data.icon.className = 'icon hide';
 			data.iconContainer.className = 'icon hide';
@@ -230,7 +229,7 @@ class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTemplateD
 			// normal icon
 			data.icon.className = 'icon hide';
 			data.iconContainer.className = '';
-			addClasses(data.iconContainer, `suggest-icon codicon codicon-symbol-${completionKindToCssClass(suggestion.kind)}`);
+			addClasses(data.iconContainer, `suggest-icon codicon codicon-${completionKindToCssClass(suggestion.kind)}`);
 		}
 
 		if (suggestion.tags && suggestion.tags.indexOf(CompletionItemTag.Deprecated) >= 0) {
@@ -240,12 +239,12 @@ class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTemplateD
 
 		data.iconLabel.setLabel(textLabel, undefined, labelOptions);
 		if (typeof suggestion.label === 'string') {
-			data.signatureLabel.textContent = '';
+			data.parametersLabel.textContent = '';
 			data.qualifierLabel.textContent = '';
 			data.detailsLabel.textContent = (suggestion.detail || '').replace(/\n.*$/m, '');
 			addClass(data.root, 'string-label');
 		} else {
-			data.signatureLabel.textContent = (suggestion.label.signature || '').replace(/\n.*$/m, '');
+			data.parametersLabel.textContent = (suggestion.label.parameters || '').replace(/\n.*$/m, '');
 			data.qualifierLabel.textContent = (suggestion.label.qualifier || '').replace(/\n.*$/m, '');
 			data.detailsLabel.textContent = (suggestion.label.type || '').replace(/\n.*$/m, '');
 			removeClass(data.root, 'string-label');
@@ -473,7 +472,8 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	readonly allowEditorOverflow = true;
 	readonly suppressMouseDown = false;
 
-	private state: State | null = null;
+	private state: State = State.Hidden;
+	private isAddedAsContentWidget: boolean = false;
 	private isAuto: boolean = false;
 	private loadingTimeout: IDisposable = Disposable.None;
 	private currentSuggestionDetails: CancelablePromise<void> | null = null;
@@ -604,6 +604,12 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			useShadows: false,
 			openController: { shouldOpen: () => false },
 			mouseSupport: false,
+			ariaRole: 'listbox',
+			ariaProvider: {
+				getRole: () => 'option',
+				getSetSize: (_: CompletionItem, _index: number, listLength: number) => listLength,
+				getPosInSet: (_: CompletionItem, index: number) => index,
+			},
 			accessibilityProvider: {
 				getAriaLabel: (item: CompletionItem) => {
 					const textLabel = typeof item.completion.label === 'string' ? item.completion.label : item.completion.label.name;
@@ -626,12 +632,12 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			listInactiveFocusBackground: editorSuggestWidgetSelectedBackground,
 			listInactiveFocusOutline: activeContrastBorder
 		}));
-		this.toDispose.add(themeService.onThemeChange(t => this.onThemeChange(t)));
+		this.toDispose.add(themeService.onDidColorThemeChange(t => this.onThemeChange(t)));
 		this.toDispose.add(editor.onDidLayoutChange(() => this.onEditorLayoutChange()));
 		this.toDispose.add(this.list.onMouseDown(e => this.onListMouseDownOrTap(e)));
 		this.toDispose.add(this.list.onTap(e => this.onListMouseDownOrTap(e)));
-		this.toDispose.add(this.list.onSelectionChange(e => this.onListSelection(e)));
-		this.toDispose.add(this.list.onFocusChange(e => this.onListFocus(e)));
+		this.toDispose.add(this.list.onDidChangeSelection(e => this.onListSelection(e)));
+		this.toDispose.add(this.list.onDidChangeFocus(e => this.onListFocus(e)));
 		this.toDispose.add(this.editor.onDidChangeCursorSelection(() => this.onCursorSelectionChanged()));
 		this.toDispose.add(this.editor.onDidChangeConfiguration(e => {
 			if (e.hasChanged(EditorOption.suggest)) {
@@ -644,10 +650,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.ctxSuggestWidgetDetailsVisible = SuggestContext.DetailsVisible.bindTo(contextKeyService);
 		this.ctxSuggestWidgetMultipleSuggestions = SuggestContext.MultipleSuggestions.bindTo(contextKeyService);
 
-		this.editor.addContentWidget(this);
-		this.setState(State.Hidden);
-
-		this.onThemeChange(themeService.getTheme());
+		this.onThemeChange(themeService.getColorTheme());
 
 		this.toDispose.add(addStandardDisposableListener(this.details.element, 'keydown', e => {
 			this._onDetailsKeydown.fire(e);
@@ -714,7 +717,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.editor.focus();
 	}
 
-	private onThemeChange(theme: ITheme) {
+	private onThemeChange(theme: IColorTheme) {
 		const backgroundColor = theme.getColor(editorSuggestWidgetBackground);
 		if (backgroundColor) {
 			this.listElement.style.backgroundColor = backgroundColor.toString();
@@ -808,6 +811,11 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	private setState(state: State): void {
 		if (!this.element) {
 			return;
+		}
+
+		if (!this.isAddedAsContentWidget && state !== State.Hidden) {
+			this.isAddedAsContentWidget = true;
+			this.editor.addContentWidget(this);
 		}
 
 		const stateChanged = this.state !== state;
@@ -1290,6 +1298,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.toDispose.dispose();
 		this.loadingTimeout.dispose();
 		this.showTimeout.dispose();
+		this.editor.removeContentWidget(this);
 	}
 }
 

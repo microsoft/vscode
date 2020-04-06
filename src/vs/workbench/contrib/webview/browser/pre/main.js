@@ -125,10 +125,11 @@
 	}`;
 
 	/**
+	 * @param {boolean} allowMultipleAPIAcquire
 	 * @param {*} [state]
 	 * @return {string}
 	 */
-	function getVsCodeApiScript(state) {
+	function getVsCodeApiScript(allowMultipleAPIAcquire, state) {
 		return `
 			const acquireVsCodeApi = (function() {
 				const originalPostMessage = window.parent.postMessage.bind(window.parent);
@@ -138,7 +139,7 @@
 				let state = ${state ? `JSON.parse(${JSON.stringify(state)})` : undefined};
 
 				return () => {
-					if (acquired) {
+					if (acquired && !${allowMultipleAPIAcquire}) {
 						throw new Error('An instance of the VS Code API has already been acquired');
 					}
 					acquired = true;
@@ -325,7 +326,7 @@
 			if (options.allowScripts) {
 				const defaultScript = newDocument.createElement('script');
 				defaultScript.id = '_vscodeApiScript';
-				defaultScript.textContent = getVsCodeApiScript(data.state);
+				defaultScript.textContent = getVsCodeApiScript(options.allowMultipleAPIAcquire, data.state);
 				newDocument.head.prepend(defaultScript);
 			}
 

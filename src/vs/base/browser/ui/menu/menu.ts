@@ -6,7 +6,7 @@
 import 'vs/css!./menu';
 import * as nls from 'vs/nls';
 import * as strings from 'vs/base/common/strings';
-import { IActionRunner, IAction, Action, IActionViewItem } from 'vs/base/common/actions';
+import { IActionRunner, IAction, Action } from 'vs/base/common/actions';
 import { ActionBar, IActionViewItemProvider, ActionsOrientation, Separator, ActionViewItem, IActionViewItemOptions, BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ResolvedKeybinding, KeyCode } from 'vs/base/common/keyCodes';
 import { addClass, EventType, EventHelper, EventLike, removeTabIndexAndUpdateFocus, isAncestor, hasClass, addDisposableListener, removeClass, append, $, addClasses, removeClasses, clearNode } from 'vs/base/browser/dom';
@@ -19,6 +19,7 @@ import { ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
 import { Event } from 'vs/base/common/event';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
+import { stripCodicons } from 'vs/base/common/codicons';
 
 export const MENU_MNEMONIC_REGEX = /\(&([^\s&])\)|(^|[^&])&([^\s&])/;
 export const MENU_ESCAPED_MNEMONIC_REGEX = /(&amp;)?(&amp;)([^\s&])/g;
@@ -205,7 +206,7 @@ export class Menu extends ActionBar {
 		container.appendChild(this.scrollableElement.getDomNode());
 		this.scrollableElement.scanDomNode();
 
-		this.viewItems.filter(item => !(item instanceof MenuSeparatorActionViewItem)).forEach((item: IActionViewItem, index: number, array: any[]) => {
+		this.viewItems.filter(item => !(item instanceof MenuSeparatorActionViewItem)).forEach((item, index, array) => {
 			(item as BaseMenuActionViewItem).updatePositionInSet(index + 1, array.length);
 		});
 	}
@@ -363,7 +364,7 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 	private cssClass: string;
 	protected menuStyle: IMenuStyles | undefined;
 
-	constructor(ctx: any, action: IAction, options: IMenuItemOptions = {}) {
+	constructor(ctx: unknown, action: IAction, options: IMenuItemOptions = {}) {
 		options.isMenu = true;
 		super(action, action, options);
 
@@ -471,7 +472,7 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 		if (this.options.label) {
 			clearNode(this.label);
 
-			let label = this.getAction().label;
+			let label = stripCodicons(this.getAction().label);
 			if (label) {
 				const cleanLabel = cleanMnemonic(label);
 				if (!this.options.enableMnemonics) {
