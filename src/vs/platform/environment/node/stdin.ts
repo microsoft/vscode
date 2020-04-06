@@ -39,18 +39,20 @@ export function getStdinFilePath(): string {
 	return paths.join(os.tmpdir(), `code-stdin-${Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 3)}.txt`);
 }
 
-export function readFromStdin(targetPath: string, verbose: boolean): Promise<any> {
+export async function readFromStdin(targetPath: string, verbose: boolean): Promise<void> {
+
 	// open tmp file for writing
 	const stdinFileStream = fs.createWriteStream(targetPath);
-	// Pipe into tmp file using terminals encoding
-	return resolveTerminalEncoding(verbose).then(async encoding => {
 
-		const iconv = await import('iconv-lite');
-		if (!iconv.encodingExists(encoding)) {
-			console.log(`Unsupported terminal encoding: ${encoding}, falling back to UTF-8.`);
-			encoding = 'utf8';
-		}
-		const converterStream = iconv.decodeStream(encoding);
-		process.stdin.pipe(converterStream).pipe(stdinFileStream);
-	});
+	let encoding = await resolveTerminalEncoding(verbose);
+
+	const iconv = await import('iconv-lite');
+	if (!iconv.encodingExists(encoding)) {
+		console.log(`Unsupported terminal encoding: ${encoding}, falling back to UTF-8.`);
+		encoding = 'utf8';
+	}
+
+	// Pipe into tmp file using terminals encoding
+	const converterStream = iconv.decodeStream(encoding);
+	process.stdin.pipe(converterStream).pipe(stdinFileStream);
 }

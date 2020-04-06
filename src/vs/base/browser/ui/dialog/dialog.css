@@ -25,7 +25,7 @@
 	flex-direction: column-reverse;
 	width: min-content;
 	min-width: 500px;
-	max-width: 90%;
+	max-width: 90vw;
 	min-height: 75px;
 	padding: 10px;
 	transform: translate3d(0px, 0px, 0px);
@@ -93,7 +93,6 @@
 .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-detail {
 	line-height: 22px;
 	flex: 1; /* let the message always grow */
-	opacity: .9;
 }
 
 .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message a:focus {

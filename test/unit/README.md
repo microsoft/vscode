@@ -4,10 +4,12 @@
 
 	./scripts/test.[sh|bat]
 
-All unit tests are run inside a electron-browser environment which access to DOM and Nodejs api. This is the closest to the enviroment in which VS Code itself ships. Notes:
+All unit tests are run inside a electron-browser environment which access to DOM and Nodejs api. This is the closest to the environment in which VS Code itself ships. Notes:
 
 - use the `--debug` to see an electron window with dev tools which allows for debugging
 - to run only a subset of tests use the `--run` or `--glob` options
+
+For instance, `./scripts/test.sh --debug --glob **/extHost*.test.js` runs all tests from `extHost`-files and enables you to debug them.
 
 ## Run (inside browser)
 
@@ -24,11 +26,6 @@ Unit tests from layers `common` and `browser` are run inside `chromium`, `webkit
 
 	yarn run mocha --run src/vs/editor/test/browser/controller/cursor.test.ts
 
-## Debug
-
-To debug tests use `--debug` when running the test script. Also, the set of tests can be reduced with the `--run` and `--runGlob` flags. Both require a file path/pattern. Like so:
-
-	./scripts/test.sh --debug --runGrep **/extHost*.test.js
 
 ## Coverage
 

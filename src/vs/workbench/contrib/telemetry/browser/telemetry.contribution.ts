@@ -20,7 +20,7 @@ import { configurationTelemetry } from 'vs/platform/telemetry/common/telemetryUt
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITextFileService, ITextFileSaveEvent, ITextFileLoadEvent } from 'vs/workbench/services/textfile/common/textfiles';
-import { extname, basename, isEqual, isEqualOrParent, joinPath } from 'vs/base/common/resources';
+import { extname, basename, isEqual, isEqualOrParent } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { guessMimeTypes } from 'vs/base/common/mime';
@@ -175,7 +175,7 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		}
 
 		// Check for snippets
-		if (isEqualOrParent(resource, joinPath(this.environmentService.userRoamingDataHome, 'snippets'))) {
+		if (isEqualOrParent(resource, this.environmentService.snippetsHome)) {
 			return 'snippets';
 		}
 

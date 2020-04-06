@@ -35,7 +35,7 @@ import { InputBoxFocusedKey } from 'vs/workbench/contrib/search/common/constants
 import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/common/search';
 import { SearchModel } from 'vs/workbench/contrib/search/common/searchModel';
-import { InSearchEditor, SearchEditorFindMatchClass } from 'vs/workbench/contrib/searchEditor/browser/constants';
+import { InSearchEditor, SearchEditorFindMatchClass, SearchEditorID } from 'vs/workbench/contrib/searchEditor/browser/constants';
 import type { SearchConfiguration, SearchEditorInput } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
 import { extractSearchQuery, serializeSearchConfiguration, serializeSearchResultForEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
 import { IPatternInfo, ISearchConfigurationProperties, ITextQuery } from 'vs/workbench/services/search/common/search';
@@ -47,6 +47,9 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { Position } from 'vs/editor/common/core/position';
+import { Selection } from 'vs/editor/common/core/selection';
+import { alert } from 'vs/base/browser/ui/aria/aria';
 
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(:| )(\s+)(.*)$/;
 const FILE_LINE_REGEX = /^(\S.*):$/;
@@ -54,7 +57,7 @@ const FILE_LINE_REGEX = /^(\S.*):$/;
 type SearchEditorViewState = ICodeEditorViewState & { focused: 'input' | 'editor' };
 
 export class SearchEditor extends BaseTextEditor {
-	static readonly ID: string = 'workbench.editor.searchEditor';
+	static readonly ID: string = SearchEditorID;
 
 	static readonly SEARCH_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'searchEditorViewState';
 
@@ -192,6 +195,7 @@ export class SearchEditor extends BaseTextEditor {
 			const runAgainLink = DOM.append(this.messageBox, DOM.$('a.pointer.prominent.message', {}, localize('runSearch', "Run Search")));
 			this.messageDisposables.push(DOM.addDisposableListener(runAgainLink, DOM.EventType.CLICK, async () => {
 				await this.triggerSearch();
+				this.searchResultEditor.focus();
 				this.toggleRunAgainMessage(false);
 			}));
 		}
@@ -291,12 +295,116 @@ export class SearchEditor extends BaseTextEditor {
 		this.queryEditorWidget.toggleContextLines();
 	}
 
+	modifyContextLines(increase: boolean) {
+		this.queryEditorWidget.modifyContextLines(increase);
+	}
+
 	toggleQueryDetails() {
 		this.toggleIncludesExcludes();
 	}
 
+	deleteResultBlock() {
+		const linesToDelete = new Set<number>();
+
+		const selections = this.searchResultEditor.getSelections();
+		const model = this.searchResultEditor.getModel();
+		if (!(selections && model)) { return; }
+
+		const maxLine = model.getLineCount();
+		const minLine = 1;
+
+		const deleteUp = (start: number) => {
+			for (let cursor = start; cursor >= minLine; cursor--) {
+				const line = model.getLineContent(cursor);
+				linesToDelete.add(cursor);
+				if (line[0] !== undefined && line[0] !== ' ') {
+					break;
+				}
+			}
+		};
+
+		const deleteDown = (start: number): number | undefined => {
+			linesToDelete.add(start);
+			for (let cursor = start + 1; cursor <= maxLine; cursor++) {
+				const line = model.getLineContent(cursor);
+				if (line[0] !== undefined && line[0] !== ' ') {
+					return cursor;
+				}
+				linesToDelete.add(cursor);
+			}
+			return;
+		};
+
+		const endingCursorLines: Array<number | undefined> = [];
+		for (const selection of selections) {
+			const lineNumber = selection.startLineNumber;
+			endingCursorLines.push(deleteDown(lineNumber));
+			deleteUp(lineNumber);
+			for (let inner = selection.startLineNumber; inner <= selection.endLineNumber; inner++) {
+				linesToDelete.add(inner);
+			}
+		}
+
+		if (endingCursorLines.length === 0) { endingCursorLines.push(1); }
+
+		const isDefined = <T>(x: T | undefined): x is T => x !== undefined;
+
+		model.pushEditOperations(this.searchResultEditor.getSelections(),
+			[...linesToDelete].map(line => ({ range: new Range(line, 1, line + 1, 1), text: '' })),
+			() => endingCursorLines.filter(isDefined).map(line => new Selection(line, 1, line, 1)));
+	}
+
+	cleanState() {
+		this.getInput()?.setDirty(false);
+	}
+
 	private get searchConfig(): ISearchConfigurationProperties {
 		return this.configurationService.getValue<ISearchConfigurationProperties>('search');
+	}
+
+	private iterateThroughMatches(reverse: boolean) {
+		const model = this.searchResultEditor.getModel();
+		if (!model) { return; }
+
+		const lastLine = model.getLineCount() ?? 1;
+		const lastColumn = model.getLineLength(lastLine);
+
+		const fallbackStart = reverse ? new Position(lastLine, lastColumn) : new Position(1, 1);
+
+		const currentPosition = this.searchResultEditor.getSelection()?.getStartPosition() ?? fallbackStart;
+
+		const matchRanges = this.getInput()?.getMatchRanges();
+		if (!matchRanges) { return; }
+
+		const matchRange = (reverse ? findPrevRange : findNextRange)(matchRanges, currentPosition);
+
+		this.searchResultEditor.setSelection(matchRange);
+		this.searchResultEditor.revealLineInCenterIfOutsideViewport(matchRange.startLineNumber);
+		this.searchResultEditor.focus();
+
+		const matchLineText = model.getLineContent(matchRange.startLineNumber);
+		const matchText = model.getValueInRange(matchRange);
+		let file = '';
+		for (let line = matchRange.startLineNumber; line >= 1; line--) {
+			let lineText = model.getValueInRange(new Range(line, 1, line, 2));
+			if (lineText !== ' ') { file = model.getLineContent(line); break; }
+		}
+		alert(localize('searchResultItem', "Matched {0} at {1} in file {2}", matchText, matchLineText, file.slice(0, file.length - 1)));
+	}
+
+	focusNextResult() {
+		this.iterateThroughMatches(false);
+	}
+
+	focusPreviousResult() {
+		this.iterateThroughMatches(true);
+	}
+
+	focusAllResults() {
+		this.searchResultEditor
+			.setSelections((this.getInput()?.getMatchRanges() ?? []).map(
+				range => new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn)));
+		this.searchResultEditor.focus();
 	}
 
 	async triggerSearch(_options?: { resetCursor?: boolean; delay?: number; }) {
@@ -307,7 +415,7 @@ export class SearchEditor extends BaseTextEditor {
 				await this.doRunSearch();
 				this.toggleRunAgainMessage(false);
 				if (options.resetCursor) {
-					this.searchResultEditor.setSelection(new Range(1, 1, 1, 1));
+					this.searchResultEditor.setPosition(new Position(1, 1));
 					this.searchResultEditor.setScrollPosition({ scrollTop: 0, scrollLeft: 0 });
 				}
 			}, options.delay);
@@ -317,7 +425,7 @@ export class SearchEditor extends BaseTextEditor {
 	private readConfigFromWidget() {
 		return {
 			caseSensitive: this.queryEditorWidget.searchInput.getCaseSensitive(),
-			contextLines: this.queryEditorWidget.contextLines(),
+			contextLines: this.queryEditorWidget.getContextLines(),
 			excludes: this.inputPatternExcludes.getValue(),
 			includes: this.inputPatternIncludes.getValue(),
 			query: this.queryEditorWidget.searchInput.getValue(),
@@ -354,8 +462,8 @@ export class SearchEditor extends BaseTextEditor {
 			_reason: 'searchEditor',
 			extraFileResources: this.instantiationService.invokeFunction(getOutOfWorkspaceEditorResources),
 			maxResults: 10000,
-			disregardIgnoreFiles: !config.useIgnores,
-			disregardExcludeSettings: !config.useIgnores,
+			disregardIgnoreFiles: !config.useIgnores || undefined,
+			disregardExcludeSettings: !config.useIgnores || undefined,
 			excludePattern: config.excludes,
 			includePattern: config.includes,
 			previewOptions: {
@@ -523,3 +631,24 @@ registerThemingParticipant((theme, collector) => {
 });
 
 export const searchEditorTextInputBorder = registerColor('searchEditor.textInputBorder', { dark: inputBorder, light: inputBorder, hc: inputBorder }, localize('textInputBoxBorder', "Search editor text input box border."));
+
+function findNextRange(matchRanges: Range[], currentPosition: Position) {
+	for (const matchRange of matchRanges) {
+		if (Position.isBefore(currentPosition, matchRange.getStartPosition())) {
+			return matchRange;
+		}
+	}
+	return matchRanges[0];
+}
+
+function findPrevRange(matchRanges: Range[], currentPosition: Position) {
+	for (let i = matchRanges.length - 1; i >= 0; i--) {
+		const matchRange = matchRanges[i];
+		if (Position.isBefore(matchRange.getStartPosition(), currentPosition)) {
+			{
+				return matchRange;
+			}
+		}
+	}
+	return matchRanges[matchRanges.length - 1];
+}

@@ -78,7 +78,7 @@ export interface ITextFileService extends IDisposable {
 	 * @param resource the resource of the file to revert.
 	 * @param force to force revert even when the file is not dirty
 	 */
-	revert(resource: URI, options?: IRevertOptions): Promise<boolean>;
+	revert(resource: URI, options?: IRevertOptions): Promise<void>;
 
 	/**
 	 * Read the contents of a file identified by the resource.
@@ -310,7 +310,7 @@ export interface ITextFileSaveParticipant {
 	 * before it is being saved to disk.
 	 */
 	participate(
-		model: IResolvedTextFileEditorModel,
+		model: ITextFileEditorModel,
 		context: { reason: SaveReason },
 		progress: IProgress<IProgressStep>,
 		token: CancellationToken
@@ -347,7 +347,10 @@ export interface ITextFileEditorModelManager {
 	 */
 	addSaveParticipant(participant: ITextFileSaveParticipant): IDisposable;
 
-	runSaveParticipants(model: IResolvedTextFileEditorModel, context: { reason: SaveReason; }, token: CancellationToken): Promise<void>
+	/**
+	 * Runs the registered save participants on the provided model.
+	 */
+	runSaveParticipants(model: ITextFileEditorModel, context: { reason: SaveReason; }, token: CancellationToken): Promise<void>
 
 	disposeModel(model: ITextFileEditorModel): void;
 }
@@ -411,7 +414,7 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 	updatePreferredEncoding(encoding: string | undefined): void;
 
 	save(options?: ITextFileSaveOptions): Promise<boolean>;
-	revert(options?: IRevertOptions): Promise<boolean>;
+	revert(options?: IRevertOptions): Promise<void>;
 
 	load(options?: ITextFileLoadOptions): Promise<ITextFileEditorModel>;
 

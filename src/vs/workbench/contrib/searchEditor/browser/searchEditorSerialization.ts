@@ -22,11 +22,10 @@ const translateRangeLines =
 		(range: Range) =>
 			new Range(range.startLineNumber + n, range.startColumn, range.endLineNumber + n, range.endColumn);
 
-const matchToSearchResultFormat = (match: Match): { line: string, ranges: Range[], lineNumber: string }[] => {
+const matchToSearchResultFormat = (match: Match, longestLineNumber: number): { line: string, ranges: Range[], lineNumber: string }[] => {
 	const getLinePrefix = (i: number) => `${match.range().startLineNumber + i}`;
 
 	const fullMatchLines = match.fullPreviewLines();
-	const largestPrefixSize = fullMatchLines.reduce((largest, _, i) => Math.max(getLinePrefix(i).length, largest), 0);
 
 
 	const results: { line: string, ranges: Range[], lineNumber: string }[] = [];
@@ -34,15 +33,15 @@ const matchToSearchResultFormat = (match: Match): { line: string, ranges: Range[
 	fullMatchLines
 		.forEach((sourceLine, i) => {
 			const lineNumber = getLinePrefix(i);
-			const paddingStr = repeat(' ', largestPrefixSize - lineNumber.length);
-			const prefix = `  ${lineNumber}: ${paddingStr}`;
+			const paddingStr = repeat(' ', longestLineNumber - lineNumber.length);
+			const prefix = `  ${paddingStr}${lineNumber}: `;
 			const prefixOffset = prefix.length;
 
 			const line = (prefix + sourceLine).replace(/\r?\n?$/, '');
 
 			const rangeOnThisLine = ({ start, end }: { start?: number; end?: number; }) => new Range(1, (start ?? 1) + prefixOffset, 1, (end ?? sourceLine.length + 1) + prefixOffset);
 
-			const matchRange = match.range();
+			const matchRange = match.rangeInPreview();
 			const matchIsSingleLine = matchRange.startLineNumber === matchRange.endLineNumber;
 
 			let lineRange;
@@ -60,9 +59,9 @@ const matchToSearchResultFormat = (match: Match): { line: string, ranges: Range[
 type SearchResultSerialization = { text: string[], matchRanges: Range[] };
 
 function fileMatchToSearchResultFormat(fileMatch: FileMatch, labelFormatter: (x: URI) => string): SearchResultSerialization {
-	const serializedMatches = flatten(fileMatch.matches()
-		.sort(searchMatchComparer)
-		.map(match => matchToSearchResultFormat(match)));
+	const sortedMatches = fileMatch.matches().sort(searchMatchComparer);
+	const longestLineNumber = sortedMatches[sortedMatches.length - 1].range().endLineNumber.toString().length;
+	const serializedMatches = flatten(sortedMatches.map(match => matchToSearchResultFormat(match, longestLineNumber)));
 
 	const uriString = labelFormatter(fileMatch.resource);
 	let text: string[] = [`${uriString}:`];
@@ -84,7 +83,7 @@ function fileMatchToSearchResultFormat(fileMatch: FileMatch, labelFormatter: (x:
 				if (lastLine !== undefined && lineNumber !== lastLine + 1) {
 					text.push('');
 				}
-				text.push(`  ${lineNumber}  ${line}`);
+				text.push(`  ${repeat(' ', longestLineNumber - `${lineNumber}`.length)}${lineNumber}  ${line}`);
 				lastLine = lineNumber;
 			}
 
@@ -211,9 +210,12 @@ export const serializeSearchResultForEditor =
 			? contentPatternToSearchResultHeader(searchResult.query, rawIncludePattern, rawExcludePattern, contextLines)
 			: [];
 
+		const filecount = searchResult.fileCount() > 1 ? localize('numFiles', "{0} files", searchResult.fileCount()) : localize('oneFile', "1 file");
+		const resultcount = searchResult.count() > 1 ? localize('numResults', "{0} results", searchResult.count()) : localize('oneResult', "1 result");
+
 		const info = [
 			searchResult.count()
-				? localize('resultCount', "{0} results in {1} files", searchResult.count(), searchResult.fileCount())
+				? `${resultcount} - ${filecount}`
 				: localize('noResults', "No Results"),
 			''];
 

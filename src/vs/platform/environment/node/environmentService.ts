@@ -112,22 +112,13 @@ export class EnvironmentService implements IEnvironmentService {
 	get settingsResource(): URI { return resources.joinPath(this.userRoamingDataHome, 'settings.json'); }
 
 	@memoize
-	get userDataSyncHome(): URI { return resources.joinPath(this.userRoamingDataHome, '.sync'); }
-
-	@memoize
-	get settingsSyncPreviewResource(): URI { return resources.joinPath(this.userDataSyncHome, 'settings.json'); }
-
-	@memoize
-	get keybindingsSyncPreviewResource(): URI { return resources.joinPath(this.userDataSyncHome, 'keybindings.json'); }
+	get userDataSyncHome(): URI { return resources.joinPath(this.userRoamingDataHome, 'sync'); }
 
 	@memoize
 	get userDataSyncLogResource(): URI { return URI.file(path.join(this.logsPath, 'userDataSync.log')); }
 
 	@memoize
-	get machineSettingsHome(): URI { return URI.file(path.join(this.userDataPath, 'Machine')); }
-
-	@memoize
-	get machineSettingsResource(): URI { return resources.joinPath(this.machineSettingsHome, 'settings.json'); }
+	get machineSettingsResource(): URI { return resources.joinPath(URI.file(path.join(this.userDataPath, 'Machine')), 'settings.json'); }
 
 	@memoize
 	get globalStorageHome(): string { return path.join(this.appSettingsHome.fsPath, 'globalStorage'); }
@@ -150,6 +141,9 @@ export class EnvironmentService implements IEnvironmentService {
 
 		return URI.file(path.join(this.userHome, product.dataFolderName, 'argv.json'));
 	}
+
+	@memoize
+	get snippetsHome(): URI { return resources.joinPath(this.userRoamingDataHome, 'snippets'); }
 
 	@memoize
 	get isExtensionDevelopment(): boolean { return !!this._args.extensionDevelopmentPath; }
@@ -239,6 +233,18 @@ export class EnvironmentService implements IEnvironmentService {
 		return false;
 	}
 
+	get extensionEnabledProposedApi(): string[] | undefined {
+		if (Array.isArray(this.args['enable-proposed-api'])) {
+			return this.args['enable-proposed-api'];
+		}
+
+		if ('enable-proposed-api' in this.args) {
+			return [];
+		}
+
+		return undefined;
+	}
+
 	@memoize
 	get debugExtensionHost(): IExtensionHostDebugParams { return parseExtensionHostPort(this._args, this.isBuilt); }
 	@memoize
@@ -247,10 +253,6 @@ export class EnvironmentService implements IEnvironmentService {
 	get isBuilt(): boolean { return !process.env['VSCODE_DEV']; }
 	get verbose(): boolean { return !!this._args.verbose; }
 	get log(): string | undefined { return this._args.log; }
-
-	get wait(): boolean { return !!this._args.wait; }
-
-	get status(): boolean { return !!this._args.status; }
 
 	@memoize
 	get mainIPCHandle(): string { return getIPCHandle(this.userDataPath, 'main'); }
@@ -262,7 +264,7 @@ export class EnvironmentService implements IEnvironmentService {
 	get nodeCachedDataDir(): string | undefined { return process.env['VSCODE_NODE_CACHED_DATA_DIR'] || undefined; }
 
 	@memoize
-	get galleryMachineIdResource(): URI { return resources.joinPath(URI.file(this.userDataPath), 'machineid'); }
+	get serviceMachineIdResource(): URI { return resources.joinPath(URI.file(this.userDataPath), 'machineid'); }
 
 	get disableUpdates(): boolean { return !!this._args['disable-updates']; }
 	get disableCrashReporter(): boolean { return !!this._args['disable-crash-reporter']; }

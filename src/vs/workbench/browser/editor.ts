@@ -8,7 +8,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IConstructorSignature0, IInstantiationService, BrandedService } from 'vs/platform/instantiation/common/instantiation';
-import { find } from 'vs/base/common/arrays';
+import { find, insert } from 'vs/base/common/arrays';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 
 export interface IEditorDescriptor {
@@ -94,15 +94,11 @@ class EditorRegistry implements IEditorRegistry {
 	registerEditor(descriptor: EditorDescriptor, inputDescriptors: readonly SyncDescriptor<EditorInput>[]): IDisposable {
 		this.mapEditorToInputs.set(descriptor, inputDescriptors);
 
-		this.editors.push(descriptor);
+		const remove = insert(this.editors, descriptor);
 
 		return toDisposable(() => {
 			this.mapEditorToInputs.delete(descriptor);
-
-			const index = this.editors.indexOf(descriptor);
-			if (index !== -1) {
-				this.editors.splice(index, 1);
-			}
+			remove();
 		});
 	}
 

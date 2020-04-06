@@ -7,7 +7,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IMenu, IMenuActionOptions, IMenuItem, IMenuService, isIMenuItem, ISubmenuItem, MenuId, MenuItemAction, MenuRegistry, SubmenuItemAction, ILocalizedString } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr, IContextKeyService, IContextKeyChangeEvent } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKeyChangeEvent, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 
 export class MenuService implements IMenuService {
 
@@ -94,7 +94,8 @@ class Menu implements IMenu {
 
 			// keep toggled keys for event if applicable
 			if (isIMenuItem(item) && item.command.toggled) {
-				Menu._fillInKbExprKeys(item.command.toggled, this._contextKeys);
+				const toggledExpression: ContextKeyExpression = (item.command.toggled as { condition: ContextKeyExpression }).condition || item.command.toggled;
+				Menu._fillInKbExprKeys(toggledExpression, this._contextKeys);
 			}
 		}
 		this._onDidChange.fire(this);
@@ -125,7 +126,7 @@ class Menu implements IMenu {
 		return result;
 	}
 
-	private static _fillInKbExprKeys(exp: ContextKeyExpr | undefined, set: Set<string>): void {
+	private static _fillInKbExprKeys(exp: ContextKeyExpression | undefined, set: Set<string>): void {
 		if (exp) {
 			for (let key of exp.keys()) {
 				set.add(key);

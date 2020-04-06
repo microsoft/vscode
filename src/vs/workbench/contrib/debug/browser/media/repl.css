@@ -53,6 +53,10 @@
 	margin-right: 8px;
 	cursor: pointer;
 	text-decoration: underline;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	max-width: 150px;
 }
 
 .repl .repl-tree .monaco-list-row {

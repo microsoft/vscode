@@ -28,7 +28,8 @@
     "concurrently": "^3.5.1",
     "cpx": "^1.5.0",
     "typescript": "3.7.5",
-    "watch": "^1.0.2"
+    "watch": "^1.0.2",
+    "tree-kill": "1.2.2"
   },
   "dependencies": {
     "mkdirp": "^0.5.1",

@@ -21,6 +21,21 @@ suite('LinkedText', () => {
 			{ label: 'link text', href: 'http://link.href', title: 'and a title' },
 			'.'
 		]);
+		assert.deepEqual(parseLinkedText('Some message with [link text](http://link.href \'and a title\').').nodes, [
+			'Some message with ',
+			{ label: 'link text', href: 'http://link.href', title: 'and a title' },
+			'.'
+		]);
+		assert.deepEqual(parseLinkedText('Some message with [link text](http://link.href "and a \'title\'").').nodes, [
+			'Some message with ',
+			{ label: 'link text', href: 'http://link.href', title: 'and a \'title\'' },
+			'.'
+		]);
+		assert.deepEqual(parseLinkedText('Some message with [link text](http://link.href \'and a "title"\').').nodes, [
+			'Some message with ',
+			{ label: 'link text', href: 'http://link.href', title: 'and a "title"' },
+			'.'
+		]);
 		assert.deepEqual(parseLinkedText('Some message with [link text](random stuff).').nodes, [
 			'Some message with [link text](random stuff).'
 		]);

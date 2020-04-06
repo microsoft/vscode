@@ -20,9 +20,15 @@ export interface ViewWelcome {
 
 export type ViewsWelcomeExtensionPoint = ViewWelcome[];
 
+export const ViewIdentifierMap: { [key: string]: string } = {
+	'explorer': 'workbench.explorer.emptyView',
+	'debug': 'workbench.debug.welcome',
+	'scm': 'workbench.scm',
+};
+
 const viewsWelcomeExtensionPointSchema = Object.freeze<IConfigurationPropertySchema>({
 	type: 'array',
-	description: nls.localize('contributes.viewsWelcome', "Contributed views welcome content."),
+	description: nls.localize('contributes.viewsWelcome', "Contributed views welcome content. Welcome content will be rendered in views whenever they have no meaningful content to display, ie. the File Explorer when no folder is open. Such content is useful as in-product documentation to drive users to use certain features before they are available. A good example would be a `Clone Repository` button in the File Explorer welcome view."),
 	items: {
 		type: 'object',
 		description: nls.localize('contributes.viewsWelcome.view', "Contributed welcome content for a specific view."),
@@ -32,16 +38,25 @@ const viewsWelcomeExtensionPointSchema = Object.freeze<IConfigurationPropertySch
 		],
 		properties: {
 			[ViewsWelcomeExtensionPointFields.view]: {
-				type: 'string',
-				description: nls.localize('contributes.viewsWelcome.view.view', "View identifier for this welcome content."),
+				anyOf: [
+					{
+						type: 'string',
+						description: nls.localize('contributes.viewsWelcome.view.view', "Target view identifier for this welcome content.")
+					},
+					{
+						type: 'string',
+						description: nls.localize('contributes.viewsWelcome.view.view', "Target view identifier for this welcome content."),
+						enum: Object.keys(ViewIdentifierMap)
+					}
+				]
 			},
 			[ViewsWelcomeExtensionPointFields.contents]: {
 				type: 'string',
-				description: nls.localize('contributes.viewsWelcome.view.contents', "Welcome content."),
+				description: nls.localize('contributes.viewsWelcome.view.contents', "Welcome content to be displayed. The format of the contents is a subset of Markdown, with support for links only."),
 			},
 			[ViewsWelcomeExtensionPointFields.when]: {
 				type: 'string',
-				description: nls.localize('contributes.viewsWelcome.view.when', "When clause for this welcome content."),
+				description: nls.localize('contributes.viewsWelcome.view.when', "Condition when the welcome content should be displayed."),
 			},
 		}
 	}

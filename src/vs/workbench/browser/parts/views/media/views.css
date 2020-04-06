@@ -3,28 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* File icon themeable OLD tree style */
-.file-icon-themable-tree .monaco-tree-row .content {
-	display: flex;
-}
-
-.file-icon-themable-tree .monaco-tree-row .content::before {
-	background-size: 16px;
-	background-position: 50% 50%;
-	background-repeat: no-repeat;
-	padding-right: 6px;
-	width: 16px;
-	height: 22px;
-	display: inline-block;
-	vertical-align: top;
-	content: ' ';
-}
-
-.file-icon-themable-tree.align-icons-and-twisties .monaco-tree-row:not(.has-children) .content::before,
-.file-icon-themable-tree.hide-arrows .monaco-tree-row .content::before {
-	display: none;
-}
-
 /* File icons in trees */
 
 .file-icon-themable-tree.align-icons-and-twisties .monaco-tl-twistie:not(.force-twistie):not(.collapsible),
@@ -74,9 +52,9 @@
 .monaco-workbench .pane > .pane-body > .welcome-view {
 	width: 100%;
 	height: 100%;
-	padding: 0 20px 0 20px;
-	position: absolute;
 	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
 }
 
 .monaco-workbench .pane > .pane-body:not(.welcome) > .welcome-view,
@@ -89,6 +67,15 @@
 	margin-left: auto;
 	margin-right: auto;
 	display: block;
+}
+
+.monaco-workbench .pane > .pane-body .welcome-view-content {
+	padding: 0 20px 0 20px;
+	box-sizing: border-box;
+}
+
+.monaco-workbench .pane > .pane-body .welcome-view-content > *:last-child {
+	margin-bottom: 1em;
 }
 
 .customview-tree .monaco-list-row .monaco-tl-contents.align-icon-with-twisty::before {
@@ -141,6 +128,10 @@
 	margin-top: 3px;
 }
 
+.customview-tree .monaco-list .monaco-list-row.selected .custom-view-tree-node-item > .custom-view-tree-node-item-icon.codicon {
+	color: currentColor !important;
+}
+
 .customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .custom-view-tree-node-item-resourceLabel .monaco-icon-label-container > .monaco-icon-name-container {
 	flex: 1;
 }
@@ -165,6 +156,10 @@
 	background-size: 16px;
 	background-position: 50% 50%;
 	background-repeat: no-repeat;
+}
+
+.customview-tree .monaco-list .custom-view-tree-node-item .actions .action-label.codicon {
+	line-height: 22px;
 }
 
 .customview-tree .monaco-list .custom-view-tree-node-item .actions .action-label.codicon::before {

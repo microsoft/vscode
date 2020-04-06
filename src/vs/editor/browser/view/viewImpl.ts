@@ -115,9 +115,9 @@ export class View extends ViewEventHandler {
 		this.eventDispatcher.addEventHandler(this);
 
 		// The view context is passed on to most classes (basically to reduce param. counts in ctors)
-		this._context = new ViewContext(configuration, themeService.getTheme(), model, this.eventDispatcher);
+		this._context = new ViewContext(configuration, themeService.getColorTheme(), model, this.eventDispatcher);
 
-		this._register(themeService.onThemeChange(theme => {
+		this._register(themeService.onDidColorThemeChange(theme => {
 			this._context.theme.update(theme);
 			this.eventDispatcher.emit(new viewEvents.ViewThemeChangedEvent());
 			this.render(true, false);

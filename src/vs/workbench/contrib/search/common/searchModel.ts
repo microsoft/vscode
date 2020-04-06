@@ -141,6 +141,15 @@ export class Match {
 		return thisMatchPreviewLines.join('\n');
 	}
 
+	rangeInPreview() {
+		// convert to editor's base 1 positions.
+		return {
+			...this._fullPreviewRange,
+			startColumn: this._fullPreviewRange.startColumn + 1,
+			endColumn: this._fullPreviewRange.endColumn + 1
+		};
+	}
+
 	fullPreviewLines(): string[] {
 		return this._fullPreviewLines.slice(this._fullPreviewRange.startLineNumber, this._fullPreviewRange.endLineNumber + 1);
 	}
@@ -597,7 +606,7 @@ export class FolderMatch extends Disposable {
 			fileMatches = [fileMatches];
 		}
 
-		for (let match of fileMatches) {
+		for (let match of fileMatches as FileMatch[]) {
 			this._fileMatches.delete(match.resource);
 			if (dispose) {
 				match.dispose();
@@ -694,6 +703,8 @@ export class SearchResult extends Disposable {
 	private _rangeHighlightDecorations: RangeHighlightDecorations;
 	private disposePastResults: () => void = () => { };
 
+	private _hasRemovedResults = false;
+
 	constructor(
 		private _searchModel: SearchModel,
 		@IReplaceService private readonly replaceService: IReplaceService,
@@ -705,6 +716,16 @@ export class SearchResult extends Disposable {
 		this._rangeHighlightDecorations = this.instantiationService.createInstance(RangeHighlightDecorations);
 
 		this._register(this.modelService.onModelAdded(model => this.onModelAdded(model)));
+
+		this._register(this.onChange(e => {
+			if (e.removed) {
+				this._hasRemovedResults = true;
+			}
+		}));
+	}
+
+	get hasRemovedResults(): boolean {
+		return this._hasRemovedResults;
 	}
 
 	get query(): ITextQuery | null {
@@ -716,7 +737,8 @@ export class SearchResult extends Disposable {
 		const oldFolderMatches = this.folderMatches();
 		new Promise(resolve => this.disposePastResults = resolve)
 			.then(() => oldFolderMatches.forEach(match => match.clear()))
-			.then(() => oldFolderMatches.forEach(match => match.dispose()));
+			.then(() => oldFolderMatches.forEach(match => match.dispose()))
+			.then(() => this._hasRemovedResults = false);
 
 		this._rangeHighlightDecorations.removeHighlightRange();
 		this._folderMatchesMap = TernarySearchTree.forPaths<FolderMatchWithResource>();
@@ -1018,7 +1040,6 @@ export class SearchModel extends Disposable {
 
 	search(query: ITextQuery, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
 		this.cancelSearch(true);
-
 
 		this._searchQuery = query;
 		if (!this.searchConfig.searchOnType) {

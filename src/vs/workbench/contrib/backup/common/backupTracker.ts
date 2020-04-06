@@ -114,10 +114,6 @@ export abstract class BackupTracker extends Disposable {
 			return; // skip if auto save is enabled with a short delay
 		}
 
-		if (typeof workingCopy.backup !== 'function') {
-			return; // skip if working copy does not support backups
-		}
-
 		// Clear any running backup operation
 		dispose(this.pendingBackups.get(workingCopy));
 		this.pendingBackups.delete(workingCopy);
@@ -131,7 +127,7 @@ export abstract class BackupTracker extends Disposable {
 			this.pendingBackups.delete(workingCopy);
 
 			// Backup if dirty
-			if (workingCopy.isDirty() && typeof workingCopy.backup === 'function') {
+			if (workingCopy.isDirty()) {
 				this.logService.trace(`[backup tracker] running backup`, workingCopy.resource.toString());
 
 				const backup = await workingCopy.backup();

@@ -397,6 +397,25 @@ suite('Editor Controller - Cursor', () => {
 		assertCursor(thisCursor, new Position(1, LINE1.length + 1));
 	});
 
+	test('issue #44465: cursor position not correct when move', () => {
+		thisCursor.setSelections('test', [new Selection(1, 5, 1, 5)]);
+		// going once up on the first line remembers the offset visual columns
+		moveUp(thisCursor);
+		assertCursor(thisCursor, new Position(1, 1));
+		moveDown(thisCursor);
+		assertCursor(thisCursor, new Position(2, 2));
+		moveUp(thisCursor);
+		assertCursor(thisCursor, new Position(1, 5));
+
+		// going twice up on the first line discards the offset visual columns
+		moveUp(thisCursor);
+		assertCursor(thisCursor, new Position(1, 1));
+		moveUp(thisCursor);
+		assertCursor(thisCursor, new Position(1, 1));
+		moveDown(thisCursor);
+		assertCursor(thisCursor, new Position(2, 1));
+	});
+
 	// --------- move to beginning of line
 
 	test('move to beginning of line', () => {
@@ -1329,7 +1348,7 @@ suite('Editor Controller - Regression tests', () => {
 
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), 'Hello world ');
-			assertCursor(cursor, new Position(1, 13));
+			assertCursor(cursor, new Selection(1, 12, 1, 13));
 
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), 'Hello world');
@@ -5044,6 +5063,28 @@ suite('autoClosingPairs', () => {
 		mode.dispose();
 	});
 
+	test('issue #90016: allow accents on mac US intl keyboard to surround selection', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'test'
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+			cursor.setSelections('test', [new Selection(1, 1, 1, 5)]);
+
+			// Typing ` + e on the mac US intl kb layout
+			cursorCommand(cursor, H.CompositionStart, null, 'keyboard');
+			cursorCommand(cursor, H.Type, { text: '\'' }, 'keyboard');
+			cursorCommand(cursor, H.ReplacePreviousChar, { replaceCharCnt: 1, text: '\'' }, 'keyboard');
+			cursorCommand(cursor, H.ReplacePreviousChar, { replaceCharCnt: 1, text: '\'' }, 'keyboard');
+			cursorCommand(cursor, H.CompositionEnd, null, 'keyboard');
+
+			assert.equal(model.getValue(), '\'test\'');
+		});
+		mode.dispose();
+	});
+
 	test('issue #53357: Over typing ignores characters after backslash', () => {
 		let mode = new AutoClosingMode();
 		usingCursor({
@@ -5575,4 +5616,24 @@ suite('Undo stops', () => {
 		});
 	});
 
+	test('issue #93585: Undo multi cursor edit corrupts document', () => {
+		let model = createTextModel(
+			[
+				'hello world',
+				'hello world',
+			].join('\n')
+		);
+
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+			cursor.setSelections('test', [
+				new Selection(2, 7, 2, 12),
+				new Selection(1, 7, 1, 12),
+			]);
+			cursorCommand(cursor, H.Type, { text: 'no' }, 'keyboard');
+			assert.equal(model.getValue(), 'hello no\nhello no');
+
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
+			assert.equal(model.getValue(), 'hello world\nhello world');
+		});
+	});
 });

@@ -19,7 +19,7 @@ import { getSelectionKeyboardEvent, WorkbenchObjectTree } from 'vs/platform/list
 import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import { IReplaceService } from 'vs/workbench/contrib/search/common/replace';
-import { FolderMatch, FileMatch, FileMatchOrMatch, FolderMatchWithResource, Match, RenderableMatch, searchMatchComparer, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
+import { FolderMatch, FileMatch, FolderMatchWithResource, Match, RenderableMatch, searchMatchComparer, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ISearchConfiguration, VIEW_ID } from 'vs/workbench/services/search/common/search';
@@ -96,7 +96,7 @@ export class FocusNextInputAction extends Action {
 		const input = this.editorService.activeEditor;
 		if (input instanceof SearchEditorInput) {
 			// cast as we cannot import SearchEditor as a value b/c cyclic dependency.
-			(this.editorService.activeControl as SearchEditor).focusNextInput();
+			(this.editorService.activeEditorPane as SearchEditor).focusNextInput();
 		}
 
 		const searchView = getSearchView(this.viewsService);
@@ -121,7 +121,7 @@ export class FocusPreviousInputAction extends Action {
 		const input = this.editorService.activeEditor;
 		if (input instanceof SearchEditorInput) {
 			// cast as we cannot import SearchEditor as a value b/c cyclic dependency.
-			(this.editorService.activeControl as SearchEditor).focusPrevInput();
+			(this.editorService.activeEditorPane as SearchEditor).focusPrevInput();
 		}
 
 		const searchView = getSearchView(this.viewsService);
@@ -145,7 +145,7 @@ export abstract class FindOrReplaceInFilesAction extends Action {
 				const searchAndReplaceWidget = openedView.searchAndReplaceWidget;
 				searchAndReplaceWidget.toggleReplace(this.expandSearchReplaceWidget);
 
-				const updatedText = openedView.updateTextFromSelection(!this.expandSearchReplaceWidget);
+				const updatedText = openedView.updateTextFromSelection({ allowUnselectedWord: !this.expandSearchReplaceWidget });
 				openedView.searchAndReplaceWidget.focus(undefined, updatedText, updatedText);
 			}
 		});
@@ -172,7 +172,7 @@ export const FindInFilesCommand: ICommandHandler = (accessor, args: IFindInFiles
 			if (typeof args.query === 'string') {
 				openedView.setSearchParameters(args);
 			} else {
-				updatedText = openedView.updateTextFromSelection((typeof args.replace !== 'string'));
+				updatedText = openedView.updateTextFromSelection({ allowUnselectedWord: typeof args.replace !== 'string' });
 			}
 			openedView.searchAndReplaceWidget.focus(undefined, updatedText, updatedText);
 		}
@@ -488,12 +488,19 @@ export class FocusNextSearchResultAction extends Action {
 	static readonly LABEL = nls.localize('FocusNextSearchResult.label', "Focus Next Search Result");
 
 	constructor(id: string, label: string,
-		@IViewsService private readonly viewsService: IViewsService
+		@IViewsService private readonly viewsService: IViewsService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super(id, label);
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<any> {
+		const input = this.editorService.activeEditor;
+		if (input instanceof SearchEditorInput) {
+			// cast as we cannot import SearchEditor as a value b/c cyclic dependency.
+			return (this.editorService.activeEditorPane as SearchEditor).focusNextResult();
+		}
+
 		return openSearchView(this.viewsService).then(searchView => {
 			if (searchView) {
 				searchView.selectNextMatch();
@@ -507,12 +514,19 @@ export class FocusPreviousSearchResultAction extends Action {
 	static readonly LABEL = nls.localize('FocusPreviousSearchResult.label', "Focus Previous Search Result");
 
 	constructor(id: string, label: string,
-		@IViewsService private readonly viewsService: IViewsService
+		@IViewsService private readonly viewsService: IViewsService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super(id, label);
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<any> {
+		const input = this.editorService.activeEditor;
+		if (input instanceof SearchEditorInput) {
+			// cast as we cannot import SearchEditor as a value b/c cyclic dependency.
+			return (this.editorService.activeEditorPane as SearchEditor).focusPreviousResult();
+		}
+
 		return openSearchView(this.viewsService).then(searchView => {
 			if (searchView) {
 				searchView.selectPreviousMatch();
@@ -697,16 +711,16 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 		});
 	}
 
-	private getElementToFocusAfterReplace(): Match {
-		const navigator: ITreeNavigator<any> = this.viewer.navigate();
+	private getElementToFocusAfterReplace(): RenderableMatch {
+		const navigator: ITreeNavigator<RenderableMatch | null> = this.viewer.navigate();
 		let fileMatched = false;
-		let elementToFocus: any = null;
+		let elementToFocus: RenderableMatch | null = null;
 		do {
 			elementToFocus = navigator.current();
 			if (elementToFocus instanceof Match) {
 				if (elementToFocus.parent().id() === this.element.parent().id()) {
 					fileMatched = true;
-					if (this.element.range().getStartPosition().isBeforeOrEqual((<Match>elementToFocus).range().getStartPosition())) {
+					if (this.element.range().getStartPosition().isBeforeOrEqual(elementToFocus.range().getStartPosition())) {
 						// Closest next match in the same file
 						break;
 					}
@@ -721,10 +735,10 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 				}
 			}
 		} while (!!navigator.next());
-		return elementToFocus;
+		return elementToFocus!;
 	}
 
-	private async getElementToShowReplacePreview(elementToFocus: FileMatchOrMatch): Promise<Match | null> {
+	private async getElementToShowReplacePreview(elementToFocus: RenderableMatch): Promise<Match | null> {
 		if (this.hasSameParent(elementToFocus)) {
 			return <Match>elementToFocus;
 		}

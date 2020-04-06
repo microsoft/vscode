@@ -28,7 +28,7 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerServ
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { EditStackElement, MultiModelEditStackElement } from 'vs/editor/common/model/editStack';
+import { SingleModelEditStackElement, MultiModelEditStackElement } from 'vs/editor/common/model/editStack';
 
 type ValidationResult = { canApply: true } | { canApply: false, reason: URI };
 
@@ -130,6 +130,7 @@ class BulkEditModel implements IDisposable {
 	private _tasks: ModelEditTask[] | undefined;
 
 	constructor(
+		private readonly _label: string | undefined,
 		private readonly _editor: ICodeEditor | undefined,
 		private readonly _progress: IProgress<void>,
 		edits: WorkspaceTextEdit[],
@@ -232,8 +233,8 @@ class BulkEditModel implements IDisposable {
 		}
 
 		const multiModelEditStackElement = new MultiModelEditStackElement(
-			localize('workspaceEdit', "Workspace Edit"),
-			tasks.map(t => new EditStackElement(t.model, t.getBeforeCursorState()))
+			this._label || localize('workspaceEdit', "Workspace Edit"),
+			tasks.map(t => new SingleModelEditStackElement(t.model, t.getBeforeCursorState()))
 		);
 		this._undoRedoService.pushElement(multiModelEditStackElement);
 
@@ -250,11 +251,13 @@ type Edit = WorkspaceFileEdit | WorkspaceTextEdit;
 
 class BulkEdit {
 
+	private readonly _label: string | undefined;
 	private readonly _edits: Edit[] = [];
 	private readonly _editor: ICodeEditor | undefined;
 	private readonly _progress: IProgress<IProgressStep>;
 
 	constructor(
+		label: string | undefined,
 		editor: ICodeEditor | undefined,
 		progress: IProgress<IProgressStep> | undefined,
 		edits: Edit[],
@@ -265,6 +268,7 @@ class BulkEdit {
 		@IWorkingCopyFileService private readonly _workingCopyFileService: IWorkingCopyFileService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
+		this._label = label;
 		this._editor = editor;
 		this._progress = progress || Progress.None;
 		this._edits = edits;
@@ -361,7 +365,7 @@ class BulkEdit {
 	private async _performTextEdits(edits: WorkspaceTextEdit[], progress: IProgress<void>): Promise<void> {
 		this._logService.debug('_performTextEdits', JSON.stringify(edits));
 
-		const model = this._instaService.createInstance(BulkEditModel, this._editor, progress, edits);
+		const model = this._instaService.createInstance(BulkEditModel, this._label, this._editor, progress, edits);
 
 		await model.prepare();
 
@@ -429,7 +433,7 @@ export class BulkEditService implements IBulkEditService {
 
 		// try to find code editor
 		if (!codeEditor) {
-			let candidate = this._editorService.activeTextEditorWidget;
+			let candidate = this._editorService.activeTextEditorControl;
 			if (isCodeEditor(candidate)) {
 				codeEditor = candidate;
 			}
@@ -439,7 +443,7 @@ export class BulkEditService implements IBulkEditService {
 			// If the code editor is readonly still allow bulk edits to be applied #68549
 			codeEditor = undefined;
 		}
-		const bulkEdit = this._instaService.createInstance(BulkEdit, codeEditor, options?.progress, edits);
+		const bulkEdit = this._instaService.createInstance(BulkEdit, options?.quotableLabel || options?.label, codeEditor, options?.progress, edits);
 		return bulkEdit.perform().then(() => {
 			return { ariaSummary: bulkEdit.ariaMessage() };
 		}).catch(err => {
