@@ -63,8 +63,7 @@ export interface IEnvironmentService {
 	// --- misc
 	disableTelemetry: boolean;
 
-	// TODO@sandeep move into node layer (https://github.com/microsoft/vscode/issues/94504)
-	serviceMachineIdResource?: URI;
+	serviceMachineIdResource: URI;
 
 	/**
 	 * @deprecated use IRemotePathService#userHome instead (https://github.com/microsoft/vscode/issues/94506)
