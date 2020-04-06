@@ -671,8 +671,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			while (!dom.hasClass(currentElement, 'part')) {
 				currentElement = currentElement.parentElement!;
 			}
-			const hidePanelElement = <HTMLElement>currentElement.querySelector('.hide-panel-action');
-			hidePanelElement.focus();
+			const hidePanelElement = currentElement.querySelector<HTMLElement>('.hide-panel-action');
+			hidePanelElement?.focus();
 		}));
 		xtermHelper.insertBefore(focusTrap, xterm.textarea);
 
