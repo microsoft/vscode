@@ -372,7 +372,7 @@
 
 /** Theming */
 
-.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown pre {
+/* .monaco-workbench .part.editor > .content .notebook-editor .cell.markdown pre {
 	background-color: rgba(220, 220, 220, 0.4);
 }
 
@@ -406,4 +406,4 @@
 .vs-dark .monaco-workbench .part.editor > .content .notebook-editor .cell.markdown hr,
 .vs-dark .monaco-workbench .part.editor > .content .notebook-editor .cell.markdown table > tbody > tr > td {
 	border-color: rgba(255, 255, 255, 0.18);
-}
+} */
