@@ -471,7 +471,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// Inject headers when requests are incoming
 		const urls = ['https://marketplace.visualstudio.com/*', 'https://*.vsassets.io/*'];
 		this._win.webContents.session.webRequest.onBeforeSendHeaders({ urls }, (details, cb) =>
-			this.marketplaceHeadersPromise.then(headers => cb({ cancel: false, requestHeaders: objects.assign(details.requestHeaders, headers) as Record<string, string> })));
+			this.marketplaceHeadersPromise.then(headers => cb({ cancel: false, requestHeaders: Object.assign(details.requestHeaders, headers) })));
 	}
 
 	private onWindowError(error: WindowError): void {
@@ -597,7 +597,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Add disable-extensions to the config, but do not preserve it on currentConfig or
 		// pendingLoadConfig so that it is applied only on this load
-		const configuration = objects.assign({}, config);
+		const configuration = { ...config };
 		if (disableExtensions !== undefined) {
 			configuration['disable-extensions'] = disableExtensions;
 		}
@@ -701,7 +701,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Config (combination of process.argv and window configuration)
 		const environment = parseArgs(process.argv, OPTIONS);
-		const config = objects.assign(environment, windowConfiguration);
+		const config = Object.assign(environment, windowConfiguration);
 		for (const key in config) {
 			const configValue = (config as any)[key];
 			if (configValue === undefined || configValue === null || configValue === '' || configValue === false) {

@@ -5,7 +5,6 @@
 
 import 'vs/platform/update/common/update.config.contribution';
 import { app, dialog } from 'electron';
-import { assign } from 'vs/base/common/objects';
 import { isWindows, IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
 import product from 'vs/platform/product/common/product';
 import { parseMainProcessArgv, addArg } from 'vs/platform/environment/node/argvHelper';
@@ -201,7 +200,7 @@ class CodeMain {
 			}
 		});
 
-		assign(process.env, instanceEnvironment);
+		Object.assign(process.env, instanceEnvironment);
 
 		return instanceEnvironment;
 	}

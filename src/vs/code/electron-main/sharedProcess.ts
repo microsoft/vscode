@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assign } from 'vs/base/common/objects';
 import { memoize } from 'vs/base/common/decorators';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { BrowserWindow, ipcMain, WebContents, Event as ElectronEvent } from 'electron';
@@ -47,13 +46,13 @@ export class SharedProcess implements ISharedProcess {
 				disableBlinkFeatures: 'Auxclick' // do NOT change, allows us to identify this window as shared-process in the process explorer
 			}
 		});
-		const config = assign({
+		const config = {
 			appRoot: this.environmentService.appRoot,
 			machineId: this.machineId,
 			nodeCachedDataDir: this.environmentService.nodeCachedDataDir,
 			userEnv: this.userEnv,
 			windowId: this.window.id
-		});
+		};
 
 		const url = `${require.toUrl('vs/code/electron-browser/sharedProcess/sharedProcess.html')}?config=${encodeURIComponent(JSON.stringify(config))}`;
 		this.window.loadURL(url);
