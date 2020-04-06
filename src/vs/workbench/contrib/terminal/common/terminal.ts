@@ -18,6 +18,8 @@ export const TERMINAL_VIEW_ID = 'workbench.panel.terminal';
 export const KEYBINDING_CONTEXT_TERMINAL_IS_OPEN = new RawContextKey<boolean>('terminalIsOpen', false);
 /** A context key that is set when the integrated terminal has focus. */
 export const KEYBINDING_CONTEXT_TERMINAL_FOCUS = new RawContextKey<boolean>('terminalFocus', false);
+/** A context key that is set to the detected shell for the most recently active terminal. */
+export const KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE = new RawContextKey<string>('terminalShellType', undefined);
 /** A context key that is set when the integrated terminal does not have focus. */
 export const KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED = KEYBINDING_CONTEXT_TERMINAL_FOCUS.toNegated();
 /** A context key that is set when the user is navigating the accessibility tree */

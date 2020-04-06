@@ -277,6 +277,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	public constructor(
 		private readonly _terminalFocusContextKey: IContextKey<boolean>,
+		private readonly _terminalShellTypeContextKey: IContextKey<string>,
 		private readonly _configHelper: TerminalConfigHelper,
 		private _container: HTMLElement | undefined,
 		private _shellLaunchConfig: IShellLaunchConfig,
