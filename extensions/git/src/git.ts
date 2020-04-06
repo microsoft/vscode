@@ -318,25 +318,23 @@ class SshAgent {
 	}
 
 	async start(): Promise<void> {
-		const sshAgentCommand = await this.getCommand('ssh-agent');
-		if (!sshAgentCommand) {
-			return;
-		}
+		return this.getCommand('ssh-agent')
+			.then(sshAgentCommand => exec(cp.spawn(sshAgentCommand, ['-s'])))
+			.then(sshAgentResult => sshAgentResult.stdout
+				.toString()
+				.split('\n')
+				.forEach(outputLine => {
+					const sshAgentPidMatch = outputLine.match(/SSH_AGENT_PID=([^;]*)/);
+					if (sshAgentPidMatch && sshAgentPidMatch.length === 2) {
+						this._sshAgentPid = sshAgentPidMatch[1];
+					}
 
-		const sshAgentProcess = cp.spawn(sshAgentCommand, ['-s']);
-		const sshAgentResult = await exec(sshAgentProcess);
-		sshAgentResult.stdout.toString().split('\n')
-			.forEach(outputLine => {
-				const sshAgentPidMatch = outputLine.match(/SSH_AGENT_PID=([^;]*)/);
-				if (sshAgentPidMatch && sshAgentPidMatch.length === 2) {
-					this._sshAgentPid = sshAgentPidMatch[1];
-				}
-
-				const sshAuthSockMatch = outputLine.match(/SSH_AUTH_SOCK=([^;]*)/);
-				if (sshAuthSockMatch && sshAuthSockMatch.length === 2) {
-					this._sshAuthSock = sshAuthSockMatch[1];
-				}
-			});
+					const sshAuthSockMatch = outputLine.match(/SSH_AUTH_SOCK=([^;]*)/);
+					if (sshAuthSockMatch && sshAuthSockMatch.length === 2) {
+						this._sshAuthSock = sshAuthSockMatch[1];
+					}
+				})
+			);
 	}
 
 	async addKey(privateKeyPath: string): Promise<boolean> {
@@ -375,20 +373,29 @@ class SshAgent {
 
 	private async getCommand(commandName: string): Promise<string> {
 		const gitConfig = workspace.getConfiguration('git');
-		const sshAgentDirectory = gitConfig.get<string>('sshAgentDirectory') ||
-			isWindows ? 'C:\\Program Files\\Git\\usr\\bin' : '/usr/bin';
+		const sshAgentDirectoryConfig = gitConfig.get<string>('sshAgentDirectory');
 
-		const command = sshAgentDirectory ? path.join(sshAgentDirectory, commandName) : commandName;
+		const basePromise = sshAgentDirectoryConfig
+			? this.checkIfCommandExists(path.join(sshAgentDirectoryConfig, commandName)).catch(() => this.checkIfCommandExists(commandName))
+			: this.checkIfCommandExists(commandName);
+		const directoriesToSearch = isWindows ? [
+			'C:\\Program Files\\Git\\usr\\bin',
+			'C:\\Program Files\\OpenSSH-Win64',
+			'C:\\Program Files\\OpenSSH',
+		] : [];
 
-		return (new Promise<string>((c, e) => which(command, (err, path) => err ? e(err) : c(path))))
-			.then(undefined, () => new Promise<string>(c => which(commandName, (err, path) => {
-				if (err) {
-					window.showErrorMessage(localize('failed to find command', "Failed to find command '{0}'", commandName));
-					return c();
-				} else {
-					return c(path);
-				}
-			})));
+		return directoriesToSearch
+			.reduce(
+				(previousPromise: Promise<string>, directoryName: string) => previousPromise.catch(() => this.checkIfCommandExists(directoryName)),
+				basePromise
+			).catch(reason => {
+				window.showErrorMessage(localize('failed to find command', "Failed to find command '{0}'", commandName));
+				return Promise.reject(reason);
+			});
+	}
+
+	private async checkIfCommandExists(command: string): Promise<string> {
+		return new Promise<string>((c, e) => which(command, (err, path) => err ? e(err) : c(path)));
 	}
 }
 
