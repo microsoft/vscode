@@ -79,7 +79,7 @@ export interface ITaskService {
 	tryResolveTask(configuringTask: ConfiguringTask): Promise<Task | undefined>;
 	getTasksForGroup(group: string): Promise<Task[]>;
 	getRecentlyUsedTasks(): LinkedMap<string, string>;
-	migrateRecentTasks(tasks: Task[]): void;
+	migrateRecentTasks(tasks: Task[]): Promise<void>;
 	createSorter(): TaskSorter;
 
 	getTaskDescription(task: Task | ConfiguringTask): string | undefined;
