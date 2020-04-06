@@ -15,12 +15,29 @@ const REMOTE_PATH_SERVICE_ID = 'remotePath';
 export const IRemotePathService = createDecorator<IRemotePathService>(REMOTE_PATH_SERVICE_ID);
 
 export interface IRemotePathService {
+
 	_serviceBrand: undefined;
 
+	/**
+	 * The path library to use for the target remote environment.
+	 */
 	readonly path: Promise<path.IPath>;
+
+	/**
+	 * Converts the given path to a file URI in the remote environment.
+	 */
 	fileURI(path: string): Promise<URI>;
 
+	/**
+	 * Resolves the user home of the remote environment if defined.
+	 */
 	readonly userHome: Promise<URI>;
+
+	/**
+	 * Provides access to the user home of the remote environment
+	 * if defined.
+	 */
+	readonly userHomeSync: URI | undefined;
 }
 
 /**
@@ -30,12 +47,15 @@ export class RemotePathService implements IRemotePathService {
 	_serviceBrand: undefined;
 
 	private _extHostOS: Promise<platform.OperatingSystem>;
+	private _userHomeSync: URI | undefined;
 
 	constructor(
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		this._extHostOS = remoteAgentService.getEnvironment().then(remoteEnvironment => {
+			this._userHomeSync = remoteEnvironment?.userHome;
+
 			return remoteEnvironment ? remoteEnvironment.os : platform.OS;
 		});
 	}
@@ -92,6 +112,10 @@ export class RemotePathService implements IRemotePathService {
 			// local: use the userHome from environment
 			return this.environmentService.userHome!;
 		});
+	}
+
+	get userHomeSync(): URI | undefined {
+		return this._userHomeSync || this.environmentService.userHome;
 	}
 }
 

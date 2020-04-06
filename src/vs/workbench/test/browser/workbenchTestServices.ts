@@ -1110,6 +1110,7 @@ export class TestRemotePathService implements IRemotePathService {
 	get path() { return Promise.resolve(isWindows ? win32 : posix); }
 
 	get userHome() { return Promise.resolve(this.environmentService.userHome!); }
+	get userHomeSync() { return this.environmentService.userHome; }
 
 	async fileURI(path: string): Promise<URI> {
 		return URI.file(path);
