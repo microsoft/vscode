@@ -12,7 +12,7 @@ jobs:
         uses: actions/checkout@v2
         with:
           repository: 'JacksonKearl/vscode-triage-github-actions'
-          ref: v21
+          ref: v22
       - name: Run Test Plan Item Validator
         if: contains(github.event.issue.labels.*.name, 'testplan-item') || contains(github.event.issue.labels.*.name, 'invalid-testplan-item')
         uses: ./test-plan-item-validator
