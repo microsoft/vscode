@@ -9,7 +9,6 @@ const os = require('os');
 const { remote } = require('electron');
 const dialog = remote.dialog;
 
-const productJsonPath = path.join(__dirname, '..', '..', 'product.json');
 const builtInExtensionsPath = path.join(__dirname, '..', 'builtInExtensions.json');
 const controlFilePath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions', 'control.json');
 
@@ -51,7 +50,6 @@ function render(el, state) {
 	}
 
 	const ul = document.createElement('ul');
-	const { quality } = readJson(productJsonPath);
 	const { builtin, control } = state;
 
 	for (const ext of builtin) {
@@ -62,10 +60,6 @@ function render(el, state) {
 
 		const name = document.createElement('code');
 		name.textContent = ext.name;
-		if (quality && ext.forQualities && !ext.forQualities.includes(quality)) {
-			name.textContent += ` (only on ${ext.forQualities.join(', ')})`;
-		}
-
 		li.appendChild(name);
 
 		const form = document.createElement('form');
