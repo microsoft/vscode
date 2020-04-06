@@ -331,13 +331,13 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	}
 
 	private onWillCloseEditorInGroup(e: IEditorCloseEvent): void {
-		this.clearEditorTitlebarZindex();
 		const editor = e.editor;
 		if (!(editor instanceof NotebookEditorInput)) {
 			return; // only handle files
 		}
 
 		if (editor === this.input) {
+			this.clearEditorTitlebarZindex();
 			this.saveTextEditorViewState(editor);
 		}
 	}
