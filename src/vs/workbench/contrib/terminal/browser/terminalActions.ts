@@ -609,7 +609,7 @@ export class SelectDefaultShellWindowsTerminalAction extends Action {
 	}
 
 	public run(event?: any): Promise<any> {
-		return this._terminalService.selectDefaultWindowsShell();
+		return this._terminalService.selectDefaultShell();
 	}
 }
 
@@ -707,7 +707,7 @@ export class SwitchTerminalAction extends Action {
 		}
 		if (item === SelectDefaultShellWindowsTerminalAction.LABEL) {
 			this.terminalService.refreshActiveTab();
-			return this.terminalService.selectDefaultWindowsShell();
+			return this.terminalService.selectDefaultShell();
 		}
 		const selectedTabIndex = parseInt(item.split(':')[0], 10) - 1;
 		this.terminalService.setActiveTabByIndex(selectedTabIndex);

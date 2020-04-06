@@ -139,7 +139,7 @@ export interface ITerminalService {
 	 */
 	addLinkHandler(key: string, callback: TerminalLinkHandlerCallback): IDisposable;
 
-	selectDefaultWindowsShell(): Promise<void>;
+	selectDefaultShell(): Promise<void>;
 
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 	manageWorkspaceShellPermissions(): void;

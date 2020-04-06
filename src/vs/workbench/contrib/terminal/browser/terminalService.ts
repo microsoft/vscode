@@ -584,8 +584,8 @@ export class TerminalService implements ITerminalService {
 		});
 	}
 
-	public async selectDefaultWindowsShell(): Promise<void> {
-		const shells = await this._detectWindowsShells();
+	public async selectDefaultShell(): Promise<void> {
+		const shells = await this._detectShells();
 		const options: IPickOptions<IQuickPickItem> = {
 			placeHolder: nls.localize('terminal.integrated.chooseWindowsShell', "Select your preferred terminal shell, you can change this later in your settings")
 		};
@@ -607,7 +607,7 @@ export class TerminalService implements ITerminalService {
 		await this._configurationService.updateValue(`terminal.integrated.shell.${platformKey}`, shell, ConfigurationTarget.USER);
 	}
 
-	private _detectWindowsShells(): Promise<IShellDefinition[]> {
+	private _detectShells(): Promise<IShellDefinition[]> {
 		return new Promise(r => this._onRequestAvailableShells.fire({ callback: r }));
 	}
 
