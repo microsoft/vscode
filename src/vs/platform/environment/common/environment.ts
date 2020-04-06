@@ -58,14 +58,18 @@ export interface IEnvironmentService {
 
 	// --- data paths
 	backupHome: URI;
-	userHome?: URI;
 	untitledWorkspacesHome: URI;
 
 	// --- misc
 	disableTelemetry: boolean;
 
-	// TODO@sandeep move into node layer
+	// TODO@sandeep move into node layer (https://github.com/microsoft/vscode/issues/94504)
 	serviceMachineIdResource?: URI;
+
+	/**
+	 * @deprecated use IRemotePathService#userHome instead (https://github.com/microsoft/vscode/issues/94506)
+	 */
+	userHome?: URI;
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	// NOTE: DO NOT ADD ANY OTHER PROPERTY INTO THE COLLECTION HERE
