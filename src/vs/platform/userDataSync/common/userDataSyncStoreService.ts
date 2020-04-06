@@ -43,9 +43,7 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 				const headers: IHeaders = {
 					'X-Sync-Client-Id': productService.version,
 				};
-				if (uuid) {
-					headers['X-Sync-Machine-Id'] = uuid;
-				}
+				headers['X-Sync-Machine-Id'] = uuid;
 				return headers;
 			});
 	}
@@ -75,6 +73,7 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 
 		const url = joinPath(this.userDataSyncStore.url, 'resource', resource, ref).toString();
 		const headers: IHeaders = {};
+		headers['Cache-Control'] = 'no-cache';
 
 		const context = await this.request({ type: 'GET', url, headers }, undefined, CancellationToken.None);
 

@@ -45,6 +45,7 @@ export class Keychain {
 
 	async setToken(token: string): Promise<void> {
 		try {
+			Logger.trace('Writing to keychain', token);
 			return await this.keytar.setPassword(SERVICE_ID, ACCOUNT_ID, token);
 		} catch (e) {
 			// Ignore
@@ -59,7 +60,9 @@ export class Keychain {
 
 	async getToken(): Promise<string | null | undefined> {
 		try {
-			return await this.keytar.getPassword(SERVICE_ID, ACCOUNT_ID);
+			const result = await this.keytar.getPassword(SERVICE_ID, ACCOUNT_ID);
+			Logger.trace('Reading from keychain', result);
+			return result;
 		} catch (e) {
 			// Ignore
 			Logger.error(`Getting token failed: ${e}`);

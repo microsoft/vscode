@@ -12,8 +12,9 @@ import { ICellViewModel, CellFindMatch, MarkdownCellLayoutInfo, MarkdownCellLayo
 import { MarkdownRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/mdRenderer';
 import { BaseCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/baseCellViewModel';
 import { CellKind, ICell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { CELL_MARGIN, CELL_RUN_GUTTER } from 'vs/workbench/contrib/notebook/browser/constants';
+import { CELL_MARGIN, CELL_RUN_GUTTER, BOTTOM_CELL_TOOLBAR_HEIGHT } from 'vs/workbench/contrib/notebook/browser/constants';
 import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 
 export class MarkdownCellViewModel extends BaseCellViewModel implements ICellViewModel {
 	cellKind: CellKind.Markdown = CellKind.Markdown;
@@ -26,6 +27,14 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 
 	get layoutInfo() {
 		return this._layoutInfo;
+	}
+
+	set totalHeight(newHeight: number) {
+		this.layoutChange({ totalHeight: newHeight });
+	}
+
+	get totalHeight() {
+		throw new Error('MarkdownCellViewModel.totalHeight is write only');
 	}
 
 	protected readonly _onDidChangeLayout = new Emitter<MarkdownCellLayoutChangeEvent>();
@@ -43,7 +52,9 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 
 		this._layoutInfo = {
 			fontInfo: initialNotebookLayoutInfo?.fontInfo || null,
-			editorWidth: initialNotebookLayoutInfo?.width || 0
+			editorWidth: initialNotebookLayoutInfo?.width || 0,
+			bottomToolbarOffset: BOTTOM_CELL_TOOLBAR_HEIGHT,
+			totalHeight: 0
 		};
 
 		this._register(eventDispatcher.onDidChangeLayout((e) => {
@@ -59,10 +70,24 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 
 		this._layoutInfo = {
 			fontInfo: state.font || null,
-			editorWidth
+			editorWidth,
+			bottomToolbarOffset: BOTTOM_CELL_TOOLBAR_HEIGHT,
+			totalHeight: state.totalHeight === undefined ? this._layoutInfo.totalHeight : state.totalHeight
 		};
 
 		this._onDidChangeLayout.fire(state);
+	}
+
+	restoreEditorViewState(editorViewStates: editorCommon.ICodeEditorViewState | null, totalHeight?: number) {
+		super.restoreEditorViewState(editorViewStates);
+		if (totalHeight !== undefined) {
+			this._layoutInfo = {
+				fontInfo: this._layoutInfo.fontInfo,
+				editorWidth: this._layoutInfo.editorWidth,
+				bottomToolbarOffset: this._layoutInfo.bottomToolbarOffset,
+				totalHeight: totalHeight
+			};
+		}
 	}
 
 	hasDynamicHeight() {
@@ -70,7 +95,11 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 	}
 
 	getHeight(lineHeight: number) {
-		return 100;
+		if (this._layoutInfo.totalHeight === 0) {
+			return 100;
+		} else {
+			return this._layoutInfo.totalHeight;
+		}
 	}
 
 	setText(strs: string[]) {

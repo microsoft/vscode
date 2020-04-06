@@ -18,7 +18,9 @@ import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IAction, IActionViewItem } from 'vs/base/common/actions';
 
 export class PaneComposite extends Composite implements IPaneComposite {
-	constructor(id: string,
+
+	constructor(
+		id: string,
 		protected readonly viewPaneContainer: ViewPaneContainer,
 		@ITelemetryService
 		telemetryService: ITelemetryService,
@@ -33,24 +35,30 @@ export class PaneComposite extends Composite implements IPaneComposite {
 		@IExtensionService
 		protected extensionService: IExtensionService,
 		@IWorkspaceContextService
-		protected contextService: IWorkspaceContextService) {
+		protected contextService: IWorkspaceContextService
+	) {
 		super(id, telemetryService, themeService, storageService);
 
 		this._register(this.viewPaneContainer.onTitleAreaUpdate(() => this.updateTitleArea()));
 	}
+
 	create(parent: HTMLElement): void {
 		this.viewPaneContainer.create(parent);
 	}
+
 	setVisible(visible: boolean): void {
 		super.setVisible(visible);
 		this.viewPaneContainer.setVisible(visible);
 	}
+
 	layout(dimension: Dimension): void {
 		this.viewPaneContainer.layout(dimension);
 	}
+
 	getOptimalWidth(): number {
 		return this.viewPaneContainer.getOptimalWidth();
 	}
+
 	openView(id: string, focus?: boolean): IView {
 		return this.viewPaneContainer.openView(id, focus);
 	}

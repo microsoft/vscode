@@ -6,10 +6,9 @@
 import * as os from 'os';
 import * as fs from 'fs';
 import { spawn, ChildProcess, SpawnOptions } from 'child_process';
-import { buildHelpMessage, buildVersionMessage, OPTIONS } from 'vs/platform/environment/node/argv';
+import { buildHelpMessage, buildVersionMessage, OPTIONS, ParsedArgs } from 'vs/platform/environment/node/argv';
 import { parseCLIProcessArgv, addArg } from 'vs/platform/environment/node/argvHelper';
 import { createWaitMarkerFile } from 'vs/platform/environment/node/waitMarkerFile';
-import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import product from 'vs/platform/product/common/product';
 import * as paths from 'vs/base/common/path';
 import { whenDeleted, writeFileSync } from 'vs/base/node/pfs';

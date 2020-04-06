@@ -27,7 +27,7 @@ import { SIDE_BAR_TITLE_FOREGROUND, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND, SI
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { EventType, addDisposableListener, trackFocus } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -77,9 +77,11 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 	get onDidViewletOpen(): Event<IViewlet> { return Event.map(this.onDidCompositeOpen.event, compositeEvent => <IViewlet>compositeEvent.composite); }
 	get onDidViewletClose(): Event<IViewlet> { return this.onDidCompositeClose.event as Event<IViewlet>; }
 
-	private viewletRegistry: ViewletRegistry;
-	private sideBarFocusContextKey: IContextKey<boolean>;
-	private activeViewletContextKey: IContextKey<string>;
+	private readonly viewletRegistry = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets);
+
+	private readonly sideBarFocusContextKey = SidebarFocusContext.bindTo(this.contextKeyService);
+	private readonly activeViewletContextKey = ActiveViewletContext.bindTo(this.contextKeyService);
+
 	private blockOpeningViewlet = false;
 
 	constructor(
@@ -91,7 +93,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IExtensionService private readonly extensionService: IExtensionService
 	) {
 		super(
@@ -112,11 +114,6 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 			Parts.SIDEBAR_PART,
 			{ hasTitle: true, borderWidth: () => (this.getColor(SIDE_BAR_BORDER) || this.getColor(contrastBorder)) ? 1 : 0 }
 		);
-
-		this.viewletRegistry = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets);
-
-		this.sideBarFocusContextKey = SidebarFocusContext.bindTo(contextKeyService);
-		this.activeViewletContextKey = ActiveViewletContext.bindTo(contextKeyService);
 
 		this.registerListeners();
 	}

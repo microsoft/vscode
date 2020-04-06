@@ -6,6 +6,9 @@
 .monaco-pane-view .split-view-view:first-of-type > .pane > .pane-header {
 	border-top: none !important; /* less clutter: do not show any border for first views in a pane */
 }
+.monaco-pane-view .split-view-view:first-of-type > .pane {
+	border-left: none !important; /* less clutter: do not show any border for first views in a pane */
+}
 
 .monaco-pane-view .pane > .pane-header {
 	position: relative;
@@ -22,10 +25,6 @@
 	font-size: 11px;
 	-webkit-margin-before: 0;
 	-webkit-margin-after: 0;
-}
-
-.monaco-pane-view .pane > .pane-header h3.title:first-child {
-	margin-left: 7px;
 }
 
 .monaco-pane-view .pane .monaco-progress-container {

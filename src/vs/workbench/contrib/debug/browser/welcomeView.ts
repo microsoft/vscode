@@ -75,6 +75,11 @@ export class WelcomeView extends ViewPane {
 		};
 		this._register(editorService.onDidActiveEditorChange(setContextKey));
 		this._register(this.debugService.getConfigurationManager().onDidRegisterDebugger(setContextKey));
+		this._register(this.onDidChangeBodyVisibility(visible => {
+			if (visible) {
+				setContextKey();
+			}
+		}));
 		setContextKey();
 
 		const debugKeybinding = this.keybindingService.lookupKeybinding(StartAction.ID);

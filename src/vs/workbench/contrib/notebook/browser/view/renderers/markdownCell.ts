@@ -8,7 +8,7 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/sizeObserver';
-import { INotebookEditor, CellRenderTemplate, CellFocusMode, CellEditState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor, MarkdownCellRenderTemplate, CellFocusMode, CellEditState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { raceCancellation } from 'vs/base/common/async';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
@@ -26,7 +26,7 @@ export class StatefullMarkdownCell extends Disposable {
 	constructor(
 		private notebookEditor: INotebookEditor,
 		private viewCell: MarkdownCellViewModel,
-		private templateData: CellRenderTemplate,
+		private templateData: MarkdownCellRenderTemplate,
 		editorOptions: IEditorOptions,
 		instantiationService: IInstantiationService
 	) {
@@ -47,7 +47,7 @@ export class StatefullMarkdownCell extends Disposable {
 
 				if (this.editor) {
 					// not first time, we don't need to create editor or bind listeners
-					this.editingContainer!.style.display = 'block';
+					this.editingContainer!.style.display = 'flex';
 					viewCell.attachTextEditor(this.editor!);
 					if (notebookEditor.getActiveCell() === viewCell) {
 						this.editor!.focus();
@@ -55,7 +55,7 @@ export class StatefullMarkdownCell extends Disposable {
 
 					this.bindEditorListeners(this.editor!.getModel()!);
 				} else {
-					this.editingContainer!.style.display = 'block';
+					this.editingContainer!.style.display = 'flex';
 					this.editingContainer!.innerHTML = '';
 					this.editor = instantiationService.createInstance(CodeEditorWidget, this.editingContainer!, {
 						...editorOptions,
@@ -101,6 +101,7 @@ export class StatefullMarkdownCell extends Disposable {
 				}
 
 				const clientHeight = this.cellContainer.clientHeight;
+				this.viewCell.totalHeight = totalHeight + 32 + clientHeight;
 				notebookEditor.layoutNotebookCell(viewCell, totalHeight + 32 + clientHeight);
 				this.editor.focus();
 			} else {
@@ -109,6 +110,7 @@ export class StatefullMarkdownCell extends Disposable {
 					// switch from editing mode
 					this.editingContainer!.style.display = 'none';
 					const clientHeight = templateData.container.clientHeight;
+					this.viewCell.totalHeight = clientHeight;
 					notebookEditor.layoutNotebookCell(viewCell, clientHeight);
 				} else {
 					// first time, readonly mode
@@ -123,6 +125,7 @@ export class StatefullMarkdownCell extends Disposable {
 
 					this.localDisposables.add(markdownRenderer.onDidUpdateRender(() => {
 						const clientHeight = templateData.container.clientHeight;
+						this.viewCell.totalHeight = clientHeight;
 						notebookEditor.layoutNotebookCell(viewCell, clientHeight);
 					}));
 
@@ -162,7 +165,8 @@ export class StatefullMarkdownCell extends Disposable {
 				clientHeight = this.cellContainer.clientHeight;
 			}
 
-			this.notebookEditor.layoutNotebookCell(this.viewCell, this.editor!.getContentHeight() + 32 + clientHeight);
+			this.viewCell.totalHeight = this.editor!.getContentHeight() + 32 + clientHeight;
+			this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
 		}));
 
 		this.localDisposables.add(this.editor!.onDidContentSizeChange(e => {
@@ -176,7 +180,8 @@ export class StatefullMarkdownCell extends Disposable {
 					}
 				);
 				const clientHeight = this.cellContainer.clientHeight;
-				this.notebookEditor.layoutNotebookCell(this.viewCell, e.contentHeight + 32 + clientHeight);
+				this.viewCell.totalHeight = e.contentHeight + 32 + clientHeight;
+				this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
 			}
 		}));
 
@@ -219,7 +224,8 @@ export class StatefullMarkdownCell extends Disposable {
 			this.cellContainer.appendChild(renderedHTML);
 			this.localDisposables.add(markdownRenderer.onDidUpdateRender(() => {
 				const clientHeight = this.cellContainer.clientHeight;
-				this.notebookEditor.layoutNotebookCell(this.viewCell, clientHeight);
+				this.viewCell.totalHeight = clientHeight;
+				this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
 			}));
 		}
 	}

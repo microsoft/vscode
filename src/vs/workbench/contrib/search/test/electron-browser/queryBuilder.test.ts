@@ -62,13 +62,13 @@ suite('QueryBuilder', () => {
 				[
 					'~/foo/bar',
 					{
-						searchPaths: [{ searchPath: getUri(userHome, '/foo/bar') }]
+						searchPaths: [{ searchPath: getUri(userHome.fsPath, '/foo/bar') }]
 					}
 				],
 				[
 					'~/foo/bar, a',
 					{
-						searchPaths: [{ searchPath: getUri(userHome, '/foo/bar') }],
+						searchPaths: [{ searchPath: getUri(userHome.fsPath, '/foo/bar') }],
 						pattern: patternsToIExpression(...globalGlob('a'))
 					}
 				],

@@ -156,8 +156,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(SearchEditorConstants.InSearchEditor),
 	handler: (accessor: ServicesAccessor) => modifySearchEditorContextLinesCommand(accessor, true),
-	primary: KeyMod.Alt | KeyCode.KEY_L,
-	mac: { primary: KeyMod.Alt | KeyCode.US_EQUAL }
+	primary: KeyMod.Alt | KeyCode.US_EQUAL
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -165,8 +164,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(SearchEditorConstants.InSearchEditor),
 	handler: (accessor: ServicesAccessor) => modifySearchEditorContextLinesCommand(accessor, false),
-	primary: KeyMod.Alt | KeyCode.KEY_L,
-	mac: { primary: KeyMod.Alt | KeyCode.US_MINUS }
+	primary: KeyMod.Alt | KeyCode.US_MINUS
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
