@@ -36,6 +36,11 @@ export interface NativeIterator<T> {
 
 export namespace Iterable {
 
+	const _empty: Iterable<any> = Object.freeze([]);
+	export function empty<T>(): Iterable<T> {
+		return _empty;
+	}
+
 	export function first<T>(iterable: Iterable<T>): T | undefined {
 		return iterable[Symbol.iterator]().next().value;
 	}
