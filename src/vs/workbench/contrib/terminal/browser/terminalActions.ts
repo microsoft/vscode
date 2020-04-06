@@ -259,20 +259,25 @@ export class SendSequenceTerminalAction extends Action2 {
 	public static readonly LABEL = nls.localize('workbench.action.terminal.sendSequence', "Send Custom Sequence To Terminal");
 
 	public run(accessor: ServicesAccessor, args: any): void {
-		const terminalInstance = accessor.get(ITerminalService).getActiveInstance();
-		if (!terminalInstance) {
-			return;
-		}
-
-		const configurationResolverService = accessor.get(IConfigurationResolverService);
-		const workspaceContextService = accessor.get(IWorkspaceContextService);
-		const historyService = accessor.get(IHistoryService);
-		const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.file);
-		const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
-		const resolvedText = configurationResolverService.resolve(lastActiveWorkspaceRoot, args.text);
-		terminalInstance.sendText(resolvedText, false);
+		console.log('args', args);
+		terminalSendSequenceCommand(accessor, args);
 	}
 }
+
+export const terminalSendSequenceCommand = (accessor: ServicesAccessor, args: any) => {
+	const terminalInstance = accessor.get(ITerminalService).getActiveInstance();
+	if (!terminalInstance) {
+		return;
+	}
+
+	const configurationResolverService = accessor.get(IConfigurationResolverService);
+	const workspaceContextService = accessor.get(IWorkspaceContextService);
+	const historyService = accessor.get(IHistoryService);
+	const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.file);
+	const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
+	const resolvedText = configurationResolverService.resolve(lastActiveWorkspaceRoot, args.text);
+	terminalInstance.sendText(resolvedText, false);
+};
 
 export class CreateNewWithCwdTerminalAction extends Action2 {
 	public static readonly ID = TERMINAL_COMMAND_ID.NEW_WITH_CWD;
@@ -679,6 +684,7 @@ export class RunActiveFileInTerminalAction extends Action {
 			return Promise.resolve(undefined);
 		}
 
+		// TODO: Convert this to ctrl+c, ctrl+v for pwsh?
 		const path = await this.terminalService.preparePathForTerminalAsync(uri.fsPath, instance.shellLaunchConfig.executable, instance.title, instance.shellType);
 		instance.sendText(path, true);
 		return this.terminalService.showPanel();

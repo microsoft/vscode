@@ -180,10 +180,10 @@ export interface ISearchOptions {
 }
 
 export enum WindowsShellType {
-	CommandPrompt,
-	PowerShell,
-	Wsl,
-	GitBash
+	CommandPrompt = 'cmd',
+	PowerShell = 'pwsh',
+	Wsl = 'wsl',
+	GitBash = 'gitbash'
 }
 export type TerminalShellType = WindowsShellType | undefined;
 

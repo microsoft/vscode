@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { TERMINAL_VIEW_ID, IShellLaunchConfig, ITerminalConfigHelper, ITerminalNativeService, ISpawnExtHostProcessRequest, IStartExtensionTerminalRequest, IAvailableShellsRequest, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, ITerminalProcessExtHostProxy, IShellDefinition, LinuxDistro } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TERMINAL_VIEW_ID, IShellLaunchConfig, ITerminalConfigHelper, ITerminalNativeService, ISpawnExtHostProcessRequest, IStartExtensionTerminalRequest, IAvailableShellsRequest, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, ITerminalProcessExtHostProxy, IShellDefinition, LinuxDistro, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -42,12 +42,13 @@ interface IExtHostReadyEntry {
 export class TerminalService implements ITerminalService {
 	public _serviceBrand: undefined;
 
-	protected _isShuttingDown: boolean;
-	protected _terminalFocusContextKey: IContextKey<boolean>;
-	protected _findWidgetVisible: IContextKey<boolean>;
-	protected _terminalTabs: ITerminalTab[] = [];
-	protected _backgroundedTerminalInstances: ITerminalInstance[] = [];
-	protected get _terminalInstances(): ITerminalInstance[] {
+	private _isShuttingDown: boolean;
+	private _terminalFocusContextKey: IContextKey<boolean>;
+	private _terminalShellTypeContextKey: IContextKey<string>;
+	private _findWidgetVisible: IContextKey<boolean>;
+	private _terminalTabs: ITerminalTab[] = [];
+	private _backgroundedTerminalInstances: ITerminalInstance[] = [];
+	private get _terminalInstances(): ITerminalInstance[] {
 		return this._terminalTabs.reduce((p, c) => p.concat(c.terminalInstances), <ITerminalInstance[]>[]);
 	}
 	private _findState: FindReplaceState;
@@ -64,31 +65,31 @@ export class TerminalService implements ITerminalService {
 
 	public get configHelper(): ITerminalConfigHelper { return this._configHelper; }
 
-	protected readonly _onActiveTabChanged = new Emitter<void>();
+	private readonly _onActiveTabChanged = new Emitter<void>();
 	public get onActiveTabChanged(): Event<void> { return this._onActiveTabChanged.event; }
-	protected readonly _onInstanceCreated = new Emitter<ITerminalInstance>();
+	private readonly _onInstanceCreated = new Emitter<ITerminalInstance>();
 	public get onInstanceCreated(): Event<ITerminalInstance> { return this._onInstanceCreated.event; }
-	protected readonly _onInstanceDisposed = new Emitter<ITerminalInstance>();
+	private readonly _onInstanceDisposed = new Emitter<ITerminalInstance>();
 	public get onInstanceDisposed(): Event<ITerminalInstance> { return this._onInstanceDisposed.event; }
-	protected readonly _onInstanceProcessIdReady = new Emitter<ITerminalInstance>();
+	private readonly _onInstanceProcessIdReady = new Emitter<ITerminalInstance>();
 	public get onInstanceProcessIdReady(): Event<ITerminalInstance> { return this._onInstanceProcessIdReady.event; }
-	protected readonly _onInstanceRequestSpawnExtHostProcess = new Emitter<ISpawnExtHostProcessRequest>();
+	private readonly _onInstanceRequestSpawnExtHostProcess = new Emitter<ISpawnExtHostProcessRequest>();
 	public get onInstanceRequestSpawnExtHostProcess(): Event<ISpawnExtHostProcessRequest> { return this._onInstanceRequestSpawnExtHostProcess.event; }
-	protected readonly _onInstanceRequestStartExtensionTerminal = new Emitter<IStartExtensionTerminalRequest>();
+	private readonly _onInstanceRequestStartExtensionTerminal = new Emitter<IStartExtensionTerminalRequest>();
 	public get onInstanceRequestStartExtensionTerminal(): Event<IStartExtensionTerminalRequest> { return this._onInstanceRequestStartExtensionTerminal.event; }
-	protected readonly _onInstanceDimensionsChanged = new Emitter<ITerminalInstance>();
+	private readonly _onInstanceDimensionsChanged = new Emitter<ITerminalInstance>();
 	public get onInstanceDimensionsChanged(): Event<ITerminalInstance> { return this._onInstanceDimensionsChanged.event; }
-	protected readonly _onInstanceMaximumDimensionsChanged = new Emitter<ITerminalInstance>();
+	private readonly _onInstanceMaximumDimensionsChanged = new Emitter<ITerminalInstance>();
 	public get onInstanceMaximumDimensionsChanged(): Event<ITerminalInstance> { return this._onInstanceMaximumDimensionsChanged.event; }
-	protected readonly _onInstancesChanged = new Emitter<void>();
+	private readonly _onInstancesChanged = new Emitter<void>();
 	public get onInstancesChanged(): Event<void> { return this._onInstancesChanged.event; }
-	protected readonly _onInstanceTitleChanged = new Emitter<ITerminalInstance>();
+	private readonly _onInstanceTitleChanged = new Emitter<ITerminalInstance>();
 	public get onInstanceTitleChanged(): Event<ITerminalInstance> { return this._onInstanceTitleChanged.event; }
-	protected readonly _onActiveInstanceChanged = new Emitter<ITerminalInstance | undefined>();
+	private readonly _onActiveInstanceChanged = new Emitter<ITerminalInstance | undefined>();
 	public get onActiveInstanceChanged(): Event<ITerminalInstance | undefined> { return this._onActiveInstanceChanged.event; }
-	protected readonly _onTabDisposed = new Emitter<ITerminalTab>();
+	private readonly _onTabDisposed = new Emitter<ITerminalTab>();
 	public get onTabDisposed(): Event<ITerminalTab> { return this._onTabDisposed.event; }
-	protected readonly _onRequestAvailableShells = new Emitter<IAvailableShellsRequest>();
+	private readonly _onRequestAvailableShells = new Emitter<IAvailableShellsRequest>();
 	public get onRequestAvailableShells(): Event<IAvailableShellsRequest> { return this._onRequestAvailableShells.event; }
 
 	private readonly _terminalNativeService: ITerminalNativeService | undefined;
@@ -120,6 +121,7 @@ export class TerminalService implements ITerminalService {
 			this._terminalNativeService.onOsResume(() => this._onOsResume());
 		}
 		this._terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this._contextKeyService);
+		this._terminalShellTypeContextKey = KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE.bindTo(this._contextKeyService);
 		this._findWidgetVisible = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE.bindTo(this._contextKeyService);
 		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper, this._terminalNativeService?.linuxDistro || LinuxDistro.Unknown);
 		this.onTabDisposed(tab => this._removeTab(tab));
@@ -613,7 +615,7 @@ export class TerminalService implements ITerminalService {
 
 
 	public createInstance(container: HTMLElement | undefined, shellLaunchConfig: IShellLaunchConfig): ITerminalInstance {
-		const instance = this._instantiationService.createInstance(TerminalInstance, this._terminalFocusContextKey, this._configHelper, container, shellLaunchConfig);
+		const instance = this._instantiationService.createInstance(TerminalInstance, this._terminalFocusContextKey, this._terminalShellTypeContextKey, this._configHelper, container, shellLaunchConfig);
 		this._onInstanceCreated.fire(instance);
 		return instance;
 	}
@@ -625,11 +627,7 @@ export class TerminalService implements ITerminalService {
 			this._initInstanceListeners(instance);
 			return instance;
 		}
-		const terminalTab = this._instantiationService.createInstance(TerminalTab,
-			this._terminalFocusContextKey,
-			this.configHelper,
-			this._terminalContainer,
-			shell);
+		const terminalTab = this._instantiationService.createInstance(TerminalTab, this._terminalContainer, shell);
 		this._terminalTabs.push(terminalTab);
 		const instance = terminalTab.terminalInstances[0];
 		terminalTab.addDisposable(terminalTab.onDisposed(this._onTabDisposed.fire, this._onTabDisposed));
@@ -646,11 +644,7 @@ export class TerminalService implements ITerminalService {
 	protected _showBackgroundTerminal(instance: ITerminalInstance): void {
 		this._backgroundedTerminalInstances.splice(this._backgroundedTerminalInstances.indexOf(instance), 1);
 		instance.shellLaunchConfig.hideFromUser = false;
-		const terminalTab = this._instantiationService.createInstance(TerminalTab,
-			this._terminalFocusContextKey,
-			this.configHelper,
-			this._terminalContainer,
-			instance);
+		const terminalTab = this._instantiationService.createInstance(TerminalTab, this._terminalContainer, instance);
 		this._terminalTabs.push(terminalTab);
 		terminalTab.addDisposable(terminalTab.onDisposed(this._onTabDisposed.fire, this._onTabDisposed));
 		terminalTab.addDisposable(terminalTab.onInstancesChanged(this._onInstancesChanged.fire, this._onInstancesChanged));
