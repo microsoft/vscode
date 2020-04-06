@@ -496,7 +496,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 		// If there are no existing comments, place focus on the text area. This must be done after show, which also moves focus.
 		// if this._commentThread.comments is undefined, it doesn't finish initialization yet, so we don't focus the editor immediately.
-		if (this._commentThread.comments && !this._commentThread.comments.length) {
+		if (!this._commentThread.comments || !this._commentThread.comments.length) {
 			this._commentEditor.focus();
 		} else if (this._commentEditor.getModel()!.getValueLength() > 0) {
 			this.expandReplyArea();
@@ -732,6 +732,10 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 			if (this._viewZone && currentPosition && currentPosition.lineNumber !== this._viewZone.afterLineNumber) {
 				this._viewZone.afterLineNumber = currentPosition.lineNumber;
+			}
+
+			if (!this._commentThread.comments || !this._commentThread.comments.length) {
+				this._commentEditor.focus();
 			}
 
 			this._relayout(computedLinesNumber);
