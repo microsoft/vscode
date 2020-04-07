@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IExtensionTipsService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { ExtensionTipsService } from 'vs/workbench/contrib/extensions/browser/extensionTipsService';
+import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { ExtensionRecommendationsService } from 'vs/workbench/contrib/extensions/browser/extensionRecommendationsService';
 
 // Singletons
-registerSingleton(IExtensionTipsService, ExtensionTipsService);
+registerSingleton(IExtensionRecommendationsService, ExtensionRecommendationsService);
 

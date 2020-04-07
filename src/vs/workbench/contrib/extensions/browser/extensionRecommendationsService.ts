@@ -9,7 +9,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { match } from 'vs/base/common/glob';
 import * as json from 'vs/base/common/json';
 import { IExtensionManagementService, IExtensionGalleryService, EXTENSION_IDENTIFIER_PATTERN, InstallOperation, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionTipsService, ExtensionRecommendationReason, IExtensionsConfigContent, RecommendationChangeNotification, IExtensionRecommendation, ExtensionRecommendationSource, IWorkbenchExtensionEnablementService, EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IExtensionRecommendationsService, ExtensionRecommendationReason, IExtensionsConfigContent, RecommendationChangeNotification, IExtensionRecommendation, ExtensionRecommendationSource, IWorkbenchExtensionEnablementService, EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextModel } from 'vs/editor/common/model';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -56,7 +56,7 @@ function caseInsensitiveGet<T>(obj: { [key: string]: T }, key: string): T | unde
 	return undefined;
 }
 
-export class ExtensionTipsService extends Disposable implements IExtensionTipsService {
+export class ExtensionRecommendationsService extends Disposable implements IExtensionRecommendationsService {
 
 	_serviceBrand: undefined;
 

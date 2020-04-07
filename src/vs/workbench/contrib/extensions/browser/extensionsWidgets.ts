@@ -9,7 +9,7 @@ import { IExtension, IExtensionsWorkbenchService, IExtensionContainer } from 'vs
 import { append, $, addClass, removeNode } from 'vs/base/browser/dom';
 import * as platform from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
-import { IExtensionTipsService, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IExtensionRecommendationsService, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { extensionButtonProminentBackground, extensionButtonProminentForeground, ExtensionToolTipAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
@@ -198,12 +198,12 @@ export class RecommendationWidget extends ExtensionWidget {
 	constructor(
 		private parent: HTMLElement,
 		@IThemeService private readonly themeService: IThemeService,
-		@IExtensionTipsService private readonly extensionTipsService: IExtensionTipsService
+		@IExtensionRecommendationsService private readonly extensionRecommendationsService: IExtensionRecommendationsService
 	) {
 		super();
 		this.render();
 		this._register(toDisposable(() => this.clear()));
-		this._register(this.extensionTipsService.onRecommendationChange(() => this.render()));
+		this._register(this.extensionRecommendationsService.onRecommendationChange(() => this.render()));
 	}
 
 	private clear(): void {
@@ -221,7 +221,7 @@ export class RecommendationWidget extends ExtensionWidget {
 		if (!this.extension) {
 			return;
 		}
-		const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
+		const extRecommendations = this.extensionRecommendationsService.getAllRecommendationsWithReason();
 		if (extRecommendations[this.extension.identifier.id.toLowerCase()]) {
 			this.element = append(this.parent, $('div.extension-bookmark'));
 			const recommendation = append(this.element, $('.recommendation'));

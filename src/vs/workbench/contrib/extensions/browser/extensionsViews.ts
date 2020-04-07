@@ -10,7 +10,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { isPromiseCanceledError, getErrorMessage } from 'vs/base/common/errors';
 import { PagedModel, IPagedModel, IPager, DelayedPagedModel } from 'vs/base/common/paging';
 import { SortBy, SortOrder, IQueryOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionManagementServer, IExtensionManagementServerService, IExtensionTipsService, IExtensionRecommendation, EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IExtensionManagementServer, IExtensionManagementServerService, IExtensionRecommendationsService, IExtensionRecommendation, EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -100,7 +100,7 @@ export class ExtensionsListView extends ViewPane {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IExtensionsWorkbenchService protected extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IExtensionTipsService protected tipsService: IExtensionTipsService,
+		@IExtensionRecommendationsService protected tipsService: IExtensionRecommendationsService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
@@ -873,7 +873,7 @@ export class ServerExtensionsView extends ExtensionsListView {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IExtensionService extensionService: IExtensionService,
 		@IEditorService editorService: IEditorService,
-		@IExtensionTipsService tipsService: IExtensionTipsService,
+		@IExtensionRecommendationsService tipsService: IExtensionRecommendationsService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,

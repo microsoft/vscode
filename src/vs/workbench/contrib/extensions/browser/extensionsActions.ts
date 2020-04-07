@@ -16,7 +16,7 @@ import { dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewPaneContainer, AutoUpdateConfigurationKey, IExtensionContainer, EXTENSIONS_CONFIG, TOGGLE_IGNORE_EXTENSION_ACTION_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/contrib/extensions/common/extensionsFileTemplate';
 import { IGalleryExtension, IExtensionGalleryService, INSTALL_ERROR_MALICIOUS, INSTALL_ERROR_INCOMPATIBLE, IGalleryExtensionVersion, ILocalExtension, INSTALL_ERROR_NOT_SUPPORTED } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionTipsService, IExtensionRecommendation, IExtensionsConfigContent, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionRecommendationsService, IExtensionRecommendation, IExtensionsConfigContent, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionType, ExtensionIdentifier, IExtensionDescription, IExtensionManifest, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -1802,7 +1802,7 @@ export class IgnoreExtensionRecommendationAction extends Action {
 
 	constructor(
 		private readonly extension: IExtension,
-		@IExtensionTipsService private readonly extensionsTipsService: IExtensionTipsService,
+		@IExtensionRecommendationsService private readonly extensionsTipsService: IExtensionRecommendationsService,
 	) {
 		super(IgnoreExtensionRecommendationAction.ID, 'Ignore Recommendation');
 
@@ -1825,7 +1825,7 @@ export class UndoIgnoreExtensionRecommendationAction extends Action {
 
 	constructor(
 		private readonly extension: IExtension,
-		@IExtensionTipsService private readonly extensionsTipsService: IExtensionTipsService,
+		@IExtensionRecommendationsService private readonly extensionsTipsService: IExtensionRecommendationsService,
 	) {
 		super(UndoIgnoreExtensionRecommendationAction.ID, 'Undo');
 

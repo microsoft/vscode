@@ -14,10 +14,10 @@ import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions,
 	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, SortBy
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IExtensionTipsService, ExtensionRecommendationReason } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IExtensionRecommendationsService, ExtensionRecommendationReason } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
-import { ExtensionTipsService } from 'vs/workbench/contrib/extensions/browser/extensionTipsService';
+import { ExtensionRecommendationsService } from 'vs/workbench/contrib/extensions/browser/extensionRecommendationsService';
 import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/browser/extensionEnablementService.test';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { IURLService } from 'vs/platform/url/common/url';
@@ -110,16 +110,16 @@ suite('ExtensionsListView Tests', () => {
 
 		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 
-		instantiationService.stub(IExtensionTipsService, ExtensionTipsService);
+		instantiationService.stub(IExtensionRecommendationsService, ExtensionRecommendationsService);
 		instantiationService.stub(IURLService, URLService);
 
-		instantiationService.stubPromise(IExtensionTipsService, 'getWorkspaceRecommendations', [
+		instantiationService.stubPromise(IExtensionRecommendationsService, 'getWorkspaceRecommendations', [
 			{ extensionId: workspaceRecommendationA.identifier.id },
 			{ extensionId: workspaceRecommendationB.identifier.id }]);
-		instantiationService.stub(IExtensionTipsService, 'getFileBasedRecommendations', [
+		instantiationService.stub(IExtensionRecommendationsService, 'getFileBasedRecommendations', [
 			{ extensionId: fileBasedRecommendationA.identifier.id },
 			{ extensionId: fileBasedRecommendationB.identifier.id }]);
-		instantiationService.stubPromise(IExtensionTipsService, 'getOtherRecommendations', [
+		instantiationService.stubPromise(IExtensionRecommendationsService, 'getOtherRecommendations', [
 			{ extensionId: otherRecommendationA.identifier.id }
 		]);
 		const reasons: { [key: string]: any } = {};
@@ -129,7 +129,7 @@ suite('ExtensionsListView Tests', () => {
 		reasons[fileBasedRecommendationB.identifier.id] = { reasonId: ExtensionRecommendationReason.File };
 		reasons[otherRecommendationA.identifier.id] = { reasonId: ExtensionRecommendationReason.Executable };
 
-		instantiationService.stub(IExtensionTipsService, 'getAllRecommendationsWithReason', reasons);
+		instantiationService.stub(IExtensionRecommendationsService, 'getAllRecommendationsWithReason', reasons);
 
 	});
 

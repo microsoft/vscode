@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionTipsService, milliSecondsInADay, choiceNever } from 'vs/workbench/contrib/extensions/browser/extensionTipsService';
-import { IExtensionTipsService, IWorkbenchExtensionEnablementService, ExtensionRecommendationReason, IExtensionRecommendation, ExtensionRecommendationSource } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { ExtensionRecommendationsService, milliSecondsInADay, choiceNever } from 'vs/workbench/contrib/extensions/browser/extensionRecommendationsService';
+import { IExtensionRecommendationsService, IWorkbenchExtensionEnablementService, ExtensionRecommendationReason, IExtensionRecommendation, ExtensionRecommendationSource } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
 import { join, basename } from 'vs/base/common/path';
 import { distinct, shuffle } from 'vs/base/common/arrays';
@@ -41,7 +41,7 @@ interface IDynamicWorkspaceRecommendations {
 	recommendations: string[];
 }
 
-export class NativeExtensionTipsService extends ExtensionTipsService implements IExtensionTipsService {
+export class NativeExtensionRecommendationsService extends ExtensionRecommendationsService implements IExtensionRecommendationsService {
 
 	private _exeBasedRecommendations: { [id: string]: IExeBasedExtensionTip; } = Object.create(null);
 	private _importantExeBasedRecommendations: { [id: string]: IExeBasedExtensionTip; } = Object.create(null);
