@@ -13,31 +13,6 @@
 	height: 100%;
 }
 
-.debug-pane .debug-start-view {
-	padding: 0 20px 0 20px;
-}
-
-.debug-pane .debug-start-view .monaco-button,
-.debug-pane .debug-start-view .section {
-	margin-top: 20px;
-}
-
-.debug-pane .debug-start-view .top-section {
-	margin-top: 10px;
-}
-
-.debug-pane .debug-start-view .monaco-button {
-	max-width: 260px;
-	margin-left: auto;
-	margin-right: auto;
-	display: block;
-}
-
-.debug-pane .debug-start-view .click {
-	cursor: pointer;
-	color: #007ACC;
-}
-
 .monaco-workbench .debug-action.notification:after {
 	content: '';
 	width: 6px;
@@ -108,6 +83,7 @@
 
 .debug-pane .disabled {
 	opacity: 0.65;
+	cursor: initial;
 }
 
 /* Call stack */
@@ -178,15 +154,22 @@
 
 .debug-pane .debug-call-stack .monaco-list-row .monaco-action-bar {
 	display: none;
+	flex-shrink: 0;
 }
 
 .debug-pane .debug-call-stack .monaco-list-row:hover .monaco-action-bar {
 	display: initial;
 }
 
+.debug-pane .debug-call-stack .session .codicon {
+	line-height: 22px;
+	margin-right: 2px;
+}
+
 .monaco-workbench  .debug-pane .debug-call-stack .monaco-action-bar .action-item > .action-label {
 	width: 16px;
 	height: 100%;
+	line-height: 22px;
 	margin-right: 8px;
 	vertical-align: text-top;
 }
@@ -256,13 +239,12 @@
 }
 
 .debug-pane .debug-call-stack .load-more {
-	font-style: italic;
 	text-align: center;
 }
 
 .debug-pane .debug-call-stack .show-more {
-	font-style: italic;
 	opacity: 0.35;
+	text-align: center;
 }
 
 .debug-pane .debug-call-stack .error {
@@ -338,6 +320,14 @@
 
 .vs-dark .debug-pane .monaco-list-row .expression .value.changed {
 	animation-name: debugViewletValueChanged;
+}
+
+.debug-pane .debug-variables .scope .error {
+	font-style: italic;
+	text-overflow: ellipsis;
+	overflow: hidden;
+	font-family: var(--monaco-monospace-font);
+	font-weight: normal;
 }
 
 /* Breakpoints */

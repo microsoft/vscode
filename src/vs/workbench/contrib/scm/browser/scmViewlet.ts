@@ -44,7 +44,7 @@ export interface ISpliceEvent<T> {
 export class EmptyPane extends ViewPane {
 
 	static readonly ID = 'workbench.scm';
-	static readonly TITLE = localize('scm providers', "Source Control Providers");
+	static readonly TITLE = localize('scm', "Source Control");
 
 	constructor(
 		options: IViewPaneOptions,
@@ -56,8 +56,9 @@ export class EmptyPane extends ViewPane {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 	}
 
 	shouldShowWelcome(): boolean {

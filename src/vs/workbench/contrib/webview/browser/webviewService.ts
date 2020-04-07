@@ -5,7 +5,7 @@
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWebviewService, WebviewContentOptions, WebviewEditorOverlay, WebviewElement, WebviewIcons, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewService, WebviewContentOptions, WebviewOverlay, WebviewElement, WebviewIcons, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { IFrameWebview } from 'vs/workbench/contrib/webview/browser/webviewElement';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/common/themeing';
 import { DynamicWebviewEditorOverlay } from './dynamicWebviewEditorOverlay';
@@ -24,7 +24,7 @@ export class WebviewService implements IWebviewService {
 		this._iconManager = this._instantiationService.createInstance(WebviewIconManager);
 	}
 
-	createWebview(
+	createWebviewElement(
 		id: string,
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions
@@ -32,11 +32,11 @@ export class WebviewService implements IWebviewService {
 		return this._instantiationService.createInstance(IFrameWebview, id, options, contentOptions, this._webviewThemeDataProvider);
 	}
 
-	createWebviewEditorOverlay(
+	createWebviewOverlay(
 		id: string,
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
-	): WebviewEditorOverlay {
+	): WebviewOverlay {
 		return this._instantiationService.createInstance(DynamicWebviewEditorOverlay, id, options, contentOptions);
 	}
 

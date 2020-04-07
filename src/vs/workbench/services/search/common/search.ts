@@ -9,17 +9,21 @@ import * as glob from 'vs/base/common/glob';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as extpath from 'vs/base/common/extpath';
-import { getNLines } from 'vs/base/common/strings';
+import { fuzzyContains, getNLines } from 'vs/base/common/strings';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { IFilesConfiguration } from 'vs/platform/files/common/files';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IFilesConfiguration, FILES_EXCLUDE_CONFIG } from 'vs/platform/files/common/files';
+import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { Event } from 'vs/base/common/event';
 import { relative } from 'vs/base/common/path';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
 
 export const VIEWLET_ID = 'workbench.view.search';
 export const PANEL_ID = 'workbench.panel.search';
 export const VIEW_ID = 'workbench.view.search';
+
+export const SEARCH_EXCLUDE_CONFIG = 'search.exclude';
 
 export const ISearchService = createDecorator<ISearchService>('searchService');
 
@@ -50,6 +54,7 @@ export interface ISearchResultProvider {
 
 export interface IFolderQuery<U extends UriComponents = URI> {
 	folder: U;
+	folderName?: string;
 	excludePattern?: glob.IExpression;
 	includePattern?: glob.IExpression;
 	fileEncoding?: string;
@@ -198,6 +203,12 @@ export interface ISearchCompleteStats {
 
 export interface ISearchComplete extends ISearchCompleteStats {
 	results: IFileMatch[];
+	exit?: SearchCompletionExitCode
+}
+
+export const enum SearchCompletionExitCode {
+	Normal,
+	NewSearchStarted
 }
 
 export interface ITextSearchStats {
@@ -334,9 +345,7 @@ export interface ISearchConfigurationProperties {
 	collapseResults: 'auto' | 'alwaysCollapse' | 'alwaysExpand';
 	searchOnType: boolean;
 	searchOnTypeDebouncePeriod: number;
-	enableSearchEditorPreview: boolean;
-	searchEditorPreview: { doubleClickBehaviour: 'selectWord' | 'goToLocation' | 'openLocationToSide' };
-	searchEditorPreviewForceAbsolutePaths: boolean;
+	searchEditor: { doubleClickBehaviour: 'selectWord' | 'goToLocation' | 'openLocationToSide' };
 	sortOrder: SearchSortOrder;
 }
 
@@ -365,6 +374,14 @@ export function getExcludes(configuration: ISearchConfiguration, includeSearchEx
 	allExcludes = objects.mixin(allExcludes, objects.deepClone(searchExcludes), true);
 
 	return allExcludes;
+}
+
+export function createResourceExcludeMatcher(instantiationService: IInstantiationService, configurationService: IConfigurationService): ResourceGlobMatcher {
+	return instantiationService.createInstance(
+		ResourceGlobMatcher,
+		root => getExcludes(root ? configurationService.getValue<ISearchConfiguration>({ resource: root }) : configurationService.getValue<ISearchConfiguration>()) || Object.create(null),
+		event => event.affectsConfiguration(FILES_EXCLUDE_CONFIG) || event.affectsConfiguration(SEARCH_EXCLUDE_CONFIG)
+	);
 }
 
 export function pathIncludedInQuery(queryProps: ICommonQueryProps<URI>, fsPath: string): boolean {
@@ -433,9 +450,19 @@ export interface IRawSearchService {
 
 export interface IRawFileMatch {
 	base?: string;
+	/**
+	 * The path of the file relative to the containing `base` folder.
+	 * This path is exactly as it appears on the filesystem.
+	 */
 	relativePath: string;
-	basename: string;
-	size?: number;
+	/**
+	 * This path is transformed for search purposes. For example, this could be
+	 * the `relativePath` with the workspace folder name prepended. This way the
+	 * search algorithm would also match against the name of the containing folder.
+	 *
+	 * If not given, the search algorithm should use `relativePath`.
+	 */
+	searchPath?: string;
 }
 
 export interface ISearchEngine<T> {
@@ -480,6 +507,11 @@ export function isSerializedSearchSuccess(arg: ISerializedSearchComplete): arg i
 
 export function isSerializedFileMatch(arg: ISerializedSearchProgressItem): arg is ISerializedFileMatch {
 	return !!(<ISerializedFileMatch>arg).path;
+}
+
+export function isFilePatternMatch(candidate: IRawFileMatch, normalizedFilePatternLowercase: string): boolean {
+	const pathToMatch = candidate.searchPath ? candidate.searchPath : candidate.relativePath;
+	return fuzzyContains(pathToMatch, normalizedFilePatternLowercase);
 }
 
 export interface ISerializedFileMatch {

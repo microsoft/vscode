@@ -125,10 +125,11 @@
 	}`;
 
 	/**
+	 * @param {boolean} allowMultipleAPIAcquire
 	 * @param {*} [state]
 	 * @return {string}
 	 */
-	function getVsCodeApiScript(state) {
+	function getVsCodeApiScript(allowMultipleAPIAcquire, state) {
 		return `
 			const acquireVsCodeApi = (function() {
 				const originalPostMessage = window.parent.postMessage.bind(window.parent);
@@ -138,7 +139,7 @@
 				let state = ${state ? `JSON.parse(${JSON.stringify(state)})` : undefined};
 
 				return () => {
-					if (acquired) {
+					if (acquired && !${allowMultipleAPIAcquire}) {
 						throw new Error('An instance of the VS Code API has already been acquired');
 					}
 					acquired = true;
@@ -267,6 +268,22 @@
 		};
 
 		let isHandlingScroll = false;
+
+		const handleWheel = (event) => {
+			if (isHandlingScroll) {
+				return;
+			}
+
+			host.postMessage('did-scroll-wheel', {
+				deltaMode: event.deltaMode,
+				deltaX: event.deltaX,
+				deltaY: event.deltaY,
+				deltaZ: event.deltaZ,
+				detail: event.detail,
+				type: event.type
+			});
+		};
+
 		const handleInnerScroll = (event) => {
 			if (!event.target || !event.target.body) {
 				return;
@@ -308,7 +325,8 @@
 			// apply default script
 			if (options.allowScripts) {
 				const defaultScript = newDocument.createElement('script');
-				defaultScript.textContent = getVsCodeApiScript(data.state);
+				defaultScript.id = '_vscodeApiScript';
+				defaultScript.textContent = getVsCodeApiScript(options.allowMultipleAPIAcquire, data.state);
 				newDocument.head.prepend(defaultScript);
 			}
 
@@ -475,6 +493,7 @@
 						}
 
 						contentWindow.addEventListener('scroll', handleInnerScroll);
+						contentWindow.addEventListener('wheel', handleWheel);
 
 						pendingMessages.forEach((data) => {
 							contentWindow.postMessage(data, '*');

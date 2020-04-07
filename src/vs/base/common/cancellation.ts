@@ -31,7 +31,7 @@ const shortcutEvent: Event<any> = Object.freeze(function (callback, context?): I
 
 export namespace CancellationToken {
 
-	export function isCancellationToken(thing: any): thing is CancellationToken {
+	export function isCancellationToken(thing: unknown): thing is CancellationToken {
 		if (thing === CancellationToken.None || thing === CancellationToken.Cancelled) {
 			return true;
 		}

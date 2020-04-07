@@ -92,7 +92,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		// Take name from first line if present and only if
 		// we have no associated file path. In that case we
 		// prefer the file name as title.
-		if (!this.hasAssociatedFilePath && this.cachedModelFirstLineWords) {
+		if (this.configuredLabelFormat === 'content' && !this.hasAssociatedFilePath && this.cachedModelFirstLineWords) {
 			return this.cachedModelFirstLineWords;
 		}
 
@@ -100,11 +100,13 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		return this.labelService.getUriBasenameLabel(this.resource);
 	}
 
-	private dirty = false;
+	private dirty = this.hasAssociatedFilePath || !!this.initialValue;
 	private ignoreDirtyOnModelContentChange = false;
 
 	private versionId = 0;
+
 	private configuredEncoding: string | undefined;
+	private configuredLabelFormat: 'content' | 'name' = 'content';
 
 	constructor(
 		public readonly resource: URI,
@@ -130,23 +132,37 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 			this.setMode(preferredMode);
 		}
 
+		// Fetch config
+		this.onConfigurationChange(false);
+
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
 
 		// Config Changes
-		this._register(this.textResourceConfigurationService.onDidChangeConfiguration(e => this.onConfigurationChange()));
+		this._register(this.textResourceConfigurationService.onDidChangeConfiguration(e => this.onConfigurationChange(true)));
 	}
 
-	private onConfigurationChange(): void {
-		const configuredEncoding = this.textResourceConfigurationService.getValue<string>(this.resource, 'files.encoding');
+	private onConfigurationChange(fromEvent: boolean): void {
 
+		// Encoding
+		const configuredEncoding = this.textResourceConfigurationService.getValue<string>(this.resource, 'files.encoding');
 		if (this.configuredEncoding !== configuredEncoding) {
 			this.configuredEncoding = configuredEncoding;
 
-			if (!this.preferredEncoding) {
+			if (fromEvent && !this.preferredEncoding) {
 				this._onDidChangeEncoding.fire(); // do not fire event if we have a preferred encoding set
+			}
+		}
+
+		// Label Format
+		const configuredLabelFormat = this.textResourceConfigurationService.getValue<string>(this.resource, 'workbench.editor.untitled.labelFormat');
+		if (this.configuredLabelFormat !== configuredLabelFormat && (configuredLabelFormat === 'content' || configuredLabelFormat === 'name')) {
+			this.configuredLabelFormat = configuredLabelFormat;
+
+			if (fromEvent) {
+				this._onDidChangeName.fire();
 			}
 		}
 	}
@@ -237,7 +253,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		return !!target;
 	}
 
-	async revert(): Promise<boolean> {
+	async revert(): Promise<void> {
 		this.setDirty(false);
 
 		// Emit as event
@@ -247,8 +263,6 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		// no actual source on disk to revert to. As such we
 		// dispose the model.
 		this.dispose();
-
-		return true;
 	}
 
 	async backup(): Promise<IWorkingCopyBackup> {
@@ -281,13 +295,10 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 			this.updateTextEditorModel(undefined, this.preferredMode);
 		}
 
-		// Figure out encoding now that model is present
-		this.configuredEncoding = this.textResourceConfigurationService.getValue<string>(this.resource, 'files.encoding');
-
 		// Listen to text model events
 		const textEditorModel = assertIsDefined(this.textEditorModel);
 		this._register(textEditorModel.onDidChangeContent(e => this.onModelContentChanged(textEditorModel, e)));
-		this._register(textEditorModel.onDidChangeLanguage(() => this.onConfigurationChange())); // mode change can have impact on config
+		this._register(textEditorModel.onDidChangeLanguage(() => this.onConfigurationChange(true))); // mode change can have impact on config
 
 		// Only adjust name and dirty state etc. if we
 		// actually created the untitled model

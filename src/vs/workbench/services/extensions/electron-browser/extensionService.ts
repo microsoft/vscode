@@ -11,8 +11,8 @@ import { AbstractExtensionService } from 'vs/workbench/services/extensions/commo
 import * as nls from 'vs/nls';
 import { runWhenIdle } from 'vs/base/common/async';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInitDataProvider, RemoteExtensionHostClient } from 'vs/workbench/services/extensions/common/remoteExtensionHostClient';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -35,12 +35,13 @@ import { Logger } from 'vs/workbench/services/extensions/common/extensionPoints'
 import { flatten } from 'vs/base/common/arrays';
 import { IStaticExtensionsService } from 'vs/workbench/services/extensions/common/staticExtensions';
 import { IElectronService } from 'vs/platform/electron/node/electron';
-import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { Action } from 'vs/base/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
+import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 
 class DeltaExtensionsQueueItem {
 	constructor(
@@ -59,7 +60,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@INotificationService notificationService: INotificationService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService protected readonly _environmentService: INativeWorkbenchEnvironmentService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkbenchExtensionEnablementService extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IFileService fileService: IFileService,
@@ -72,13 +73,13 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@IStaticExtensionsService private readonly _staticExtensions: IStaticExtensionsService,
 		@IElectronService private readonly _electronService: IElectronService,
 		@IHostService private readonly _hostService: IHostService,
-		@IElectronEnvironmentService private readonly _electronEnvironmentService: IElectronEnvironmentService,
-		@IRemoteExplorerService private readonly _remoteExplorerService: IRemoteExplorerService
+		@IRemoteExplorerService private readonly _remoteExplorerService: IRemoteExplorerService,
+		@IExtensionGalleryService private readonly _extensionGalleryService: IExtensionGalleryService,
 	) {
 		super(
 			instantiationService,
 			notificationService,
-			environmentService,
+			_environmentService,
 			telemetryService,
 			extensionEnablementService,
 			fileService,
@@ -359,7 +360,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 		const result: ExtensionHostProcessManager[] = [];
 
-		const extHostProcessWorker = this._instantiationService.createInstance(ExtensionHostProcessWorker, autoStart, extensions, this._electronEnvironmentService.extHostLogsPath);
+		const extHostProcessWorker = this._instantiationService.createInstance(ExtensionHostProcessWorker, autoStart, extensions, this._environmentService.extHostLogsPath);
 		const extHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, true, extHostProcessWorker, null, initialActivationEvents);
 		result.push(extHostProcessManager);
 
@@ -441,13 +442,13 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		const remoteAuthority = this._environmentService.configuration.remoteAuthority;
 		const extensionHost = this._extensionHostProcessManagers[0];
 
-		let localExtensions = flatten(await Promise.all([this._extensionScanner.scannedExtensions, this._staticExtensions.getExtensions()]));
+		const allExtensions = flatten(await Promise.all([this._extensionScanner.scannedExtensions, this._staticExtensions.getExtensions()]));
 
 		// enable or disable proposed API per extension
-		this._checkEnableProposedApi(localExtensions);
+		this._checkEnableProposedApi(allExtensions);
 
 		// remove disabled extensions
-		localExtensions = remove(localExtensions, extension => this._isDisabled(extension));
+		let localExtensions = remove(allExtensions, extension => this._isDisabled(extension));
 
 		if (remoteAuthority) {
 			let resolvedAuthority: ResolverResult;
@@ -455,15 +456,15 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			try {
 				resolvedAuthority = await extensionHost.resolveAuthority(remoteAuthority);
 			} catch (err) {
-				console.error(err);
-				const plusIndex = remoteAuthority.indexOf('+');
-				const authorityFriendlyName = plusIndex > 0 ? remoteAuthority.substr(0, plusIndex) : remoteAuthority;
-				if (!RemoteAuthorityResolverError.isHandledNotAvailable(err)) {
-					this._notificationService.notify({ severity: Severity.Error, message: nls.localize('resolveAuthorityFailure', "Resolving the authority `{0}` failed", authorityFriendlyName) });
+				const remoteName = getRemoteName(remoteAuthority);
+				if (RemoteAuthorityResolverError.isNoResolverFound(err)) {
+					err.isHandled = await this._handleNoResolverFound(remoteName, allExtensions);
 				} else {
-					console.log(`Not showing a notification for the error`);
+					console.log(err);
+					if (RemoteAuthorityResolverError.isHandled(err)) {
+						console.log(`Error handled: Not showing a notification for the error`);
+					}
 				}
-
 				this._remoteAuthorityResolverService.setResolvedAuthorityError(remoteAuthority, err);
 
 				// Proceed with the local extension host
@@ -578,6 +579,67 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			this._electronService.closeWindow();
 		}
 	}
+
+	private async _handleNoResolverFound(remoteName: string, allExtensions: IExtensionDescription[]): Promise<boolean> {
+		const recommendation = this._productService.remoteExtensionTips?.[remoteName];
+		if (!recommendation) {
+			return false;
+		}
+		const sendTelemetry = (userReaction: 'install' | 'enable' | 'cancel') => {
+			/* __GDPR__
+			"remoteExtensionRecommendations:popup" : {
+				"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+			}
+			*/
+			this._telemetryService.publicLog('remoteExtensionRecommendations:popup', { userReaction, extensionId: resolverExtensionId });
+		};
+
+		const resolverExtensionId = recommendation.extensionId;
+		const extension = allExtensions.filter(e => e.identifier.value === resolverExtensionId)[0];
+		if (extension) {
+			if (this._isDisabled(extension)) {
+				const message = nls.localize('enableResolver', "Extension '{0}' is required to open the remote window.\nOK to enable?", recommendation.friendlyName);
+				this._notificationService.prompt(Severity.Info, message,
+					[{
+						label: nls.localize('enable', 'Enable and Reload'),
+						run: async () => {
+							sendTelemetry('enable');
+							await this._extensionEnablementService.setEnablement([toExtension(extension)], EnablementState.EnabledGlobally);
+							await this._hostService.reload();
+						}
+					}],
+					{ sticky: true }
+				);
+			}
+		} else {
+			// Install the Extension and reload the window to handle.
+			const message = nls.localize('installResolver', "Extension '{0}' is required to open the remote window.\nnOK to install?", recommendation.friendlyName);
+			this._notificationService.prompt(Severity.Info, message,
+				[{
+					label: nls.localize('install', 'Install and Reload'),
+					run: async () => {
+						sendTelemetry('install');
+						const galleryExtension = await this._extensionGalleryService.getCompatibleExtension({ id: resolverExtensionId });
+						if (galleryExtension) {
+							await this._extensionManagementService.installFromGallery(galleryExtension);
+							await this._hostService.reload();
+						} else {
+							this._notificationService.error(nls.localize('resolverExtensionNotFound', "`{0}` not found on marketplace"));
+						}
+
+					}
+				}],
+				{
+					sticky: true,
+					onCancel: () => sendTelemetry('cancel')
+				}
+			);
+
+		}
+		return true;
+
+	}
 }
 
 function remove(arr: IExtensionDescription[], predicate: (item: IExtensionDescription) => boolean): IExtensionDescription[];
@@ -604,7 +666,7 @@ registerSingleton(IExtensionService, ExtensionService);
 class RestartExtensionHostAction extends Action {
 
 	public static readonly ID = 'workbench.action.restartExtensionHost';
-	public static readonly LABEL = nls.localize('restartExtensionHost', "Developer: Restart Extension Host");
+	public static readonly LABEL = nls.localize('restartExtensionHost', "Restart Extension Host");
 
 	constructor(
 		id: string,
@@ -620,4 +682,4 @@ class RestartExtensionHostAction extends Action {
 }
 
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(SyncActionDescriptor.create(RestartExtensionHostAction, RestartExtensionHostAction.ID, RestartExtensionHostAction.LABEL), 'Developer: Restart Extension Host');
+registry.registerWorkbenchAction(SyncActionDescriptor.create(RestartExtensionHostAction, RestartExtensionHostAction.ID, RestartExtensionHostAction.LABEL), 'Developer: Restart Extension Host', nls.localize('developer', "Developer"));

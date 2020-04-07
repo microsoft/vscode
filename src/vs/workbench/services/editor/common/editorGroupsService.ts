@@ -5,10 +5,9 @@
 
 import { Event } from 'vs/base/common/event';
 import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorInput, IEditor, GroupIdentifier, IEditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditorPane, GroupIdentifier, IEditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane } from 'vs/workbench/common/editor';
 import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IVisibleEditor } from 'vs/workbench/services/editor/common/editorService';
 import { IDimension } from 'vs/editor/common/editorCommon';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
@@ -403,13 +402,13 @@ export interface IEditorGroup {
 	readonly ariaLabel: string;
 
 	/**
-	 * The active control is the currently visible control of the group.
+	 * The active editor pane is the currently visible editor pane of the group.
 	 */
-	readonly activeControl: IVisibleEditor | undefined;
+	readonly activeEditorPane: IVisibleEditorPane | undefined;
 
 	/**
 	 * The active editor is the currently visible editor of the group
-	 * within the current active control.
+	 * within the current active editor pane.
 	 */
 	readonly activeEditor: IEditorInput | null;
 
@@ -452,7 +451,7 @@ export interface IEditorGroup {
 	 * @returns a promise that resolves around an IEditor instance unless
 	 * the call failed, or the editor was not opened as active editor.
 	 */
-	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions): Promise<IEditor | null>;
+	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions): Promise<IEditorPane | null>;
 
 	/**
 	 * Opens editors in this group.
@@ -462,7 +461,7 @@ export interface IEditorGroup {
 	 * a group can only ever have one active editor, even if many editors are
 	 * opened, the result will only be one editor.
 	 */
-	openEditors(editors: IEditorInputWithOptions[]): Promise<IEditor | null>;
+	openEditors(editors: IEditorInputWithOptions[]): Promise<IEditorPane | null>;
 
 	/**
 	 * Find out if the provided editor is opened in the group.

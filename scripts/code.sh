@@ -55,6 +55,9 @@ function code() {
 
 function code-wsl()
 {
+	HOST_IP=$(powershell.exe -Command "& {(Get-NetIPAddress | Where-Object {\$_.InterfaceAlias -like '*WSL*' -and \$_.AddressFamily -eq 'IPv4'}).IPAddress | Write-Host -NoNewline}")
+	export DISPLAY="$HOST_IP:0"
+
 	# in a wsl shell
 	ELECTRON="$ROOT/.build/electron/Code - OSS.exe"
 	if [ -f "$ELECTRON"  ]; then

@@ -14,6 +14,13 @@ export interface IProductService extends Readonly<IProductConfiguration> {
 
 }
 
+export interface IBuiltInExtension {
+	readonly name: string;
+	readonly version: string;
+	readonly repo: string;
+	readonly metadata: any;
+}
+
 export interface IProductConfiguration {
 	readonly version: string;
 	readonly date?: string;
@@ -29,6 +36,8 @@ export interface IProductConfiguration {
 
 	readonly urlProtocol: string;
 	readonly dataFolderName: string;
+
+	readonly builtInExtensions?: IBuiltInExtension[];
 
 	readonly downloadUrl?: string;
 	readonly updateUrl?: string;
@@ -49,6 +58,7 @@ export interface IProductConfiguration {
 	readonly extensionTips?: { [id: string]: string; };
 	readonly extensionImportantTips?: { [id: string]: { name: string; pattern: string; isExtensionPack?: boolean }; };
 	readonly exeBasedExtensionTips?: { [id: string]: IExeBasedExtensionTip; };
+	readonly remoteExtensionTips?: { [remoteName: string]: IRemoteExtensionTip; };
 	readonly extensionKeywords?: { [extension: string]: readonly string[]; };
 	readonly keymapExtensionTips?: readonly string[];
 
@@ -88,7 +98,7 @@ export interface IProductConfiguration {
 	readonly checksums?: { [path: string]: string; };
 	readonly checksumFailMoreInfoUrl?: string;
 
-	readonly hockeyApp?: {
+	readonly appCenter?: {
 		readonly 'win32-ia32': string;
 		readonly 'win32-x64': string;
 		readonly 'linux-x64': string;
@@ -102,6 +112,8 @@ export interface IProductConfiguration {
 
 	readonly msftInternalDomains?: string[];
 	readonly linkProtectionTrustedDomains?: readonly string[];
+
+	readonly 'configurationSync.store'?: { url: string, authenticationProviderId: string };
 }
 
 export interface IExeBasedExtensionTip {
@@ -110,6 +122,11 @@ export interface IExeBasedExtensionTip {
 	recommendations: readonly string[];
 	important?: boolean;
 	exeFriendlyName?: string;
+}
+
+export interface IRemoteExtensionTip {
+	friendlyName: string;
+	extensionId: string;
 }
 
 export interface ISurveyData {

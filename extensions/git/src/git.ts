@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { promises as fs, exists } from 'fs';
+import { promises as fs, exists, realpath } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import * as cp from 'child_process';
@@ -21,6 +21,7 @@ import { StringDecoder } from 'string_decoder';
 
 // https://github.com/microsoft/vscode/issues/65693
 const MAX_CLI_LENGTH = 30000;
+const isWindows = process.platform === 'win32';
 
 export interface IGit {
 	path: string;
@@ -45,13 +46,18 @@ interface MutableRemote extends Remote {
 	isReadOnly: boolean;
 }
 
-// TODO[ECA]: Move to git.d.ts once we are good with the api
+// TODO@eamodio: Move to git.d.ts once we are good with the api
 /**
  * Log file options.
  */
 export interface LogFileOptions {
-	/** Max number of log entries to retrieve. If not specified, the default is 32. */
-	readonly maxEntries?: number;
+	/** Optional. The maximum number of log entries to retrieve. */
+	readonly maxEntries?: number | string;
+	/** Optional. The Git sha (hash) to start retrieving log entries from. */
+	readonly hash?: string;
+	/** Optional. Specifies whether to start retrieving log entries in reverse order. */
+	readonly reverse?: boolean;
+	readonly sortByAuthorDate?: boolean;
 }
 
 function parseVersion(raw: string): string {
@@ -414,8 +420,40 @@ export class Git {
 
 	async getRepositoryRoot(repositoryPath: string): Promise<string> {
 		const result = await this.exec(repositoryPath, ['rev-parse', '--show-toplevel']);
+
 		// Keep trailing spaces which are part of the directory name
-		return path.normalize(result.stdout.trimLeft().replace(/(\r\n|\r|\n)+$/, ''));
+		const repoPath = path.normalize(result.stdout.trimLeft().replace(/(\r\n|\r|\n)+$/, ''));
+
+		if (isWindows) {
+			// On Git 2.25+ if you call `rev-parse --show-toplevel` on a mapped drive, instead of getting the mapped drive path back, you get the UNC path for the mapped drive.
+			// So we will try to normalize it back to the mapped drive path, if possible
+			const repoUri = Uri.file(repoPath);
+			const pathUri = Uri.file(repositoryPath);
+			if (repoUri.authority.length !== 0 && pathUri.authority.length === 0) {
+				let match = /(?<=^\/?)([a-zA-Z])(?=:\/)/.exec(pathUri.path);
+				if (match !== null) {
+					const [, letter] = match;
+
+					try {
+						const networkPath = await new Promise<string>(resolve =>
+							realpath.native(`${letter}:`, { encoding: 'utf8' }, (err, resolvedPath) =>
+								// eslint-disable-next-line eqeqeq
+								resolve(err != null ? undefined : resolvedPath),
+							),
+						);
+						if (networkPath !== undefined) {
+							return path.normalize(
+								repoUri.fsPath.replace(networkPath, `${letter.toLowerCase()}:`),
+							);
+						}
+					} catch { }
+				}
+
+				return path.normalize(pathUri.fsPath);
+			}
+		}
+
+		return repoPath;
 	}
 
 	async getRepositoryDotGit(repositoryPath: string): Promise<string> {
@@ -817,8 +855,26 @@ export class Repository {
 	}
 
 	async logFile(uri: Uri, options?: LogFileOptions): Promise<Commit[]> {
-		const maxEntries = options?.maxEntries ?? 32;
-		const args = ['log', `-n${maxEntries}`, `--format=${COMMIT_FORMAT}`, '-z', '--', uri.fsPath];
+		const args = ['log', `--format=${COMMIT_FORMAT}`, '-z'];
+
+		if (options?.maxEntries && !options?.reverse) {
+			args.push(`-n${options.maxEntries}`);
+		}
+
+		if (options?.hash) {
+			// If we are reversing, we must add a range (with HEAD) because we are using --ancestry-path for better reverse walking
+			if (options?.reverse) {
+				args.push('--reverse', '--ancestry-path', `${options.hash}..HEAD`);
+			} else {
+				args.push(options.hash);
+			}
+		}
+
+		if (options?.sortByAuthorDate) {
+			args.push('--author-date-order');
+		}
+
+		args.push('--', uri.fsPath);
 
 		const result = await this.run(args);
 		if (result.exitCode) {

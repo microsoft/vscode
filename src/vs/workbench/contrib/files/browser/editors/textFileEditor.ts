@@ -16,7 +16,7 @@ import { EditorOptions, TextEditorOptions, IEditorCloseEvent } from 'vs/workbenc
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { FileOperationError, FileOperationResult, FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
+import { FileOperationError, FileOperationResult, FileChangesEvent, IFileService, FileOperationEvent, FileOperation } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -31,6 +31,7 @@ import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
 import { MutableDisposable } from 'vs/base/common/lifecycle';
 import { EditorActivation, IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 /**
  * An implementation of editor for file system resources.
@@ -49,25 +50,35 @@ export class TextFileEditor extends BaseTextEditor {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IStorageService storageService: IStorageService,
-		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
+		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IEditorService editorService: IEditorService,
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITextFileService private readonly textFileService: ITextFileService,
-		@IExplorerService private readonly explorerService: IExplorerService
+		@IExplorerService private readonly explorerService: IExplorerService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
-		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, editorService, editorGroupService);
+		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService);
 
 		this.updateRestoreViewStateConfiguration();
 
 		// Clear view state for deleted files
-		this._register(this.fileService.onDidFilesChange(e => this.onFilesChanged(e)));
+		this._register(this.fileService.onDidFilesChange(e => this.onDidFilesChange(e)));
+
+		// Move view state for moved files
+		this._register(this.fileService.onDidRunOperation(e => this.onDidRunOperation(e)));
 	}
 
-	private onFilesChanged(e: FileChangesEvent): void {
+	private onDidFilesChange(e: FileChangesEvent): void {
 		const deleted = e.getDeleted();
 		if (deleted?.length) {
 			this.clearTextEditorViewState(deleted.map(d => d.resource));
+		}
+	}
+
+	private onDidRunOperation(e: FileOperationEvent): void {
+		if (e.operation === FileOperation.MOVE && e.target) {
+			this.moveTextEditorViewState(e.resource, e.target.resource);
 		}
 	}
 
@@ -78,7 +89,7 @@ export class TextFileEditor extends BaseTextEditor {
 	}
 
 	private updateRestoreViewStateConfiguration(): void {
-		this.restoreViewState = this.textResourceConfigurationService.getValue(undefined, 'workbench.editor.restoreViewState');
+		this.restoreViewState = this.configurationService.getValue('workbench.editor.restoreViewState') ?? true /* default */;
 	}
 
 	getTitle(): string {

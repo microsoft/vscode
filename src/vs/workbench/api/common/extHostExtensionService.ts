@@ -26,7 +26,7 @@ import { Schemas } from 'vs/base/common/network';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ExtensionMemento } from 'vs/workbench/api/common/extHostMemento';
 import { RemoteAuthorityResolverError } from 'vs/workbench/api/common/extHostTypes';
-import { ResolvedAuthority, ResolvedOptions } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { ResolvedAuthority, ResolvedOptions, RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
@@ -90,7 +90,7 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 	private readonly _storage: ExtHostStorage;
 	private readonly _storagePath: IExtensionStoragePaths;
 	private readonly _activator: ExtensionsActivator;
-	private _extensionPathIndex: Promise<TernarySearchTree<IExtensionDescription>> | null;
+	private _extensionPathIndex: Promise<TernarySearchTree<string, IExtensionDescription>> | null;
 
 	private readonly _resolvers: { [authorityPrefix: string]: vscode.RemoteAuthorityResolver; };
 
@@ -236,7 +236,7 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 	}
 
 	// create trie to enable fast 'filename -> extension id' look up
-	public getExtensionPathIndex(): Promise<TernarySearchTree<IExtensionDescription>> {
+	public getExtensionPathIndex(): Promise<TernarySearchTree<string, IExtensionDescription>> {
 		if (!this._extensionPathIndex) {
 			const tree = TernarySearchTree.forPaths<IExtensionDescription>();
 			const extensions = this._registry.getAllExtensionDescriptions().map(ext => {
@@ -366,6 +366,7 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 				globalState,
 				workspaceState,
 				subscriptions: [],
+				get extensionUri() { return extensionDescription.extensionLocation; },
 				get extensionPath() { return extensionDescription.extensionLocation.fsPath; },
 				get storagePath() { return that._storagePath.workspaceValue(extensionDescription); },
 				get globalStoragePath() { return that._storagePath.globalValue(extensionDescription); },
@@ -641,7 +642,14 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 
 		const resolver = this._resolvers[authorityPrefix];
 		if (!resolver) {
-			throw new Error(`No remote extension installed to resolve ${authorityPrefix}.`);
+			return {
+				type: 'error',
+				error: {
+					code: RemoteAuthorityResolverErrorCode.NoResolverFound,
+					message: `No remote extension installed to resolve ${authorityPrefix}.`,
+					detail: undefined
+				}
+			};
 		}
 
 		try {
@@ -784,6 +792,6 @@ export interface IExtHostExtensionService extends AbstractExtHostExtensionServic
 	deactivateAll(): Promise<void>;
 	getExtensionExports(extensionId: ExtensionIdentifier): IExtensionAPI | null | undefined;
 	getExtensionRegistry(): Promise<ExtensionDescriptionRegistry>;
-	getExtensionPathIndex(): Promise<TernarySearchTree<IExtensionDescription>>;
+	getExtensionPathIndex(): Promise<TernarySearchTree<string, IExtensionDescription>>;
 	registerRemoteAuthorityResolver(authorityPrefix: string, resolver: vscode.RemoteAuthorityResolver): vscode.Disposable;
 }

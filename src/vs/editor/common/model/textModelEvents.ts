@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IRange } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 
 /**
  * An event describing that the current mode associated with a model has changed.
@@ -86,6 +87,7 @@ export interface IModelDecorationsChangedEvent {
  */
 export interface IModelTokensChangedEvent {
 	readonly tokenizationSupportChanged: boolean;
+	readonly semanticTokensApplied: boolean;
 	readonly ranges: {
 		/**
 		 * The start of the range (inclusive)
@@ -225,11 +227,14 @@ export class ModelRawContentChangedEvent {
 	 */
 	public readonly isRedoing: boolean;
 
+	public resultingSelection: Selection[] | null;
+
 	constructor(changes: ModelRawChange[], versionId: number, isUndoing: boolean, isRedoing: boolean) {
 		this.changes = changes;
 		this.versionId = versionId;
 		this.isUndoing = isUndoing;
 		this.isRedoing = isRedoing;
+		this.resultingSelection = null;
 	}
 
 	public containsEvent(type: RawContentChangedType): boolean {

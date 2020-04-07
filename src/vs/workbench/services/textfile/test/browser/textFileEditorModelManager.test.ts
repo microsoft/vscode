@@ -7,30 +7,22 @@ import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { workbenchInstantiationService, TestFileService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { IFileService, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
 import { toResource } from 'vs/base/test/common/utils';
 import { ModesRegistry, PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
-
-class ServiceAccessor {
-	constructor(
-		@IFileService public fileService: TestFileService,
-		@IModelService public modelService: IModelService
-	) {
-	}
-}
+import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 
 suite('Files - TextFileEditorModelManager', () => {
 
 	let instantiationService: IInstantiationService;
-	let accessor: ServiceAccessor;
+	let accessor: TestServiceAccessor;
 
 	setup(() => {
 		instantiationService = workbenchInstantiationService();
-		accessor = instantiationService.createInstance(ServiceAccessor);
+		accessor = instantiationService.createInstance(TestServiceAccessor);
 	});
 
 	test('add, remove, clear, get, getAll', function () {
@@ -198,11 +190,11 @@ suite('Files - TextFileEditorModelManager', () => {
 		const model2 = await manager.resolve(resource2, { encoding: 'utf8' });
 		assert.equal(loadedCounter, 2);
 
-		model1.textEditorModel!.setValue('changed');
+		model1.updateTextEditorModel(createTextBufferFactory('changed'));
 		model1.updatePreferredEncoding('utf16');
 
 		await model1.revert();
-		model1.textEditorModel!.setValue('changed again');
+		model1.updateTextEditorModel(createTextBufferFactory('changed again'));
 
 		await model1.save();
 		model1.dispose();
@@ -239,7 +231,7 @@ suite('Files - TextFileEditorModelManager', () => {
 		const resource = toResource.call(this, '/path/index_something.txt');
 
 		const model = await manager.resolve(resource, { encoding: 'utf8' });
-		model.textEditorModel!.setValue('make dirty');
+		model.updateTextEditorModel(createTextBufferFactory('make dirty'));
 		manager.disposeModel((model as TextFileEditorModel));
 		assert.ok(!model.isDisposed());
 		model.revert({ soft: true });

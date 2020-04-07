@@ -18,13 +18,17 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 
 export class ResourceContextKey extends Disposable implements IContextKey<URI> {
 
+	// NOTE: DO NOT CHANGE THE DEFAULT VALUE TO ANYTHING BUT
+	// UNDEFINED! IT IS IMPORTANT THAT DEFAULTS ARE INHERITED
+	// FROM THE PARENT CONTEXT AND ONLY UNDEFINED DOES THIS
+
 	static readonly Scheme = new RawContextKey<string>('resourceScheme', undefined);
 	static readonly Filename = new RawContextKey<string>('resourceFilename', undefined);
 	static readonly LangId = new RawContextKey<string>('resourceLangId', undefined);
 	static readonly Resource = new RawContextKey<URI>('resource', undefined);
 	static readonly Extension = new RawContextKey<string>('resourceExtname', undefined);
-	static readonly HasResource = new RawContextKey<boolean>('resourceSet', false);
-	static readonly IsFileSystemResource = new RawContextKey<boolean>('isFileSystemResource', false);
+	static readonly HasResource = new RawContextKey<boolean>('resourceSet', undefined);
+	static readonly IsFileSystemResource = new RawContextKey<boolean>('isFileSystemResource', undefined);
 
 	private readonly _resourceKey: IContextKey<URI | null>;
 	private readonly _schemeKey: IContextKey<string | null>;
@@ -109,8 +113,8 @@ export class ResourceGlobMatcher extends Disposable {
 	private readonly _onExpressionChange = this._register(new Emitter<void>());
 	readonly onExpressionChange = this._onExpressionChange.event;
 
-	private readonly mapRootToParsedExpression: Map<string | null, ParsedExpression> = new Map<string, ParsedExpression>();
-	private readonly mapRootToExpressionConfig: Map<string | null, IExpression> = new Map<string, IExpression>();
+	private readonly mapRootToParsedExpression = new Map<string | null, ParsedExpression>();
+	private readonly mapRootToExpressionConfig = new Map<string | null, IExpression>();
 
 	constructor(
 		private globFn: (root?: URI) => IExpression,

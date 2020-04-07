@@ -18,8 +18,8 @@
     "watch": "gulp watch-extension:configuration-editing"
   },
   "dependencies": {
-    "jsonc-parser": "^2.1.1",
-    "vscode-nls": "^4.0.0"
+    "jsonc-parser": "^2.2.1",
+    "vscode-nls": "^4.1.1"
   },
   "contributes": {
     "languages": [
@@ -94,6 +94,10 @@
       },
       {
         "fileMatch": "%APP_SETTINGS_HOME%/snippets/*.json",
+        "url": "vscode://schemas/snippets"
+      },
+      {
+        "fileMatch": "%APP_SETTINGS_HOME%/sync/snippets/preview/*.json",
         "url": "vscode://schemas/snippets"
       },
       {

@@ -12,6 +12,7 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import { Workspace, toWorkspaceFolders, IWorkspace, IWorkspaceContextService, toWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { mock } from 'vs/editor/contrib/suggest/test/suggestModel.test';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 suite('Snippet Variables Resolver', function () {
 
@@ -25,7 +26,7 @@ suite('Snippet Variables Resolver', function () {
 	let resolver: VariableResolver;
 
 	setup(function () {
-		model = TextModel.createFromString([
+		model = createTextModel([
 			'this is line one',
 			'this is line two',
 			'    this is line three'
@@ -67,7 +68,7 @@ suite('Snippet Variables Resolver', function () {
 
 		resolver = new ModelBasedVariableResolver(
 			labelService,
-			TextModel.createFromString('', undefined, undefined, URI.parse('http://www.pb.o/abc/def/ghi'))
+			createTextModel('', undefined, undefined, URI.parse('http://www.pb.o/abc/def/ghi'))
 		);
 		assertVariableResolve(resolver, 'TM_FILENAME', 'ghi');
 		if (!isWindows) {
@@ -77,7 +78,7 @@ suite('Snippet Variables Resolver', function () {
 
 		resolver = new ModelBasedVariableResolver(
 			labelService,
-			TextModel.createFromString('', undefined, undefined, URI.parse('mem:fff.ts'))
+			createTextModel('', undefined, undefined, URI.parse('mem:fff.ts'))
 		);
 		assertVariableResolve(resolver, 'TM_DIRECTORY', '');
 		assertVariableResolve(resolver, 'TM_FILEPATH', 'fff.ts');
@@ -92,7 +93,7 @@ suite('Snippet Variables Resolver', function () {
 			}
 		};
 
-		const model = TextModel.createFromString([].join('\n'), undefined, undefined, URI.parse('foo:///foo/files/text.txt'));
+		const model = createTextModel([].join('\n'), undefined, undefined, URI.parse('foo:///foo/files/text.txt'));
 
 		const resolver = new CompositeSnippetVariableResolver([new ModelBasedVariableResolver(labelService, model)]);
 
@@ -144,19 +145,19 @@ suite('Snippet Variables Resolver', function () {
 
 		resolver = new ModelBasedVariableResolver(
 			labelService,
-			TextModel.createFromString('', undefined, undefined, URI.parse('http://www.pb.o/abc/def/ghi'))
+			createTextModel('', undefined, undefined, URI.parse('http://www.pb.o/abc/def/ghi'))
 		);
 		assertVariableResolve(resolver, 'TM_FILENAME_BASE', 'ghi');
 
 		resolver = new ModelBasedVariableResolver(
 			labelService,
-			TextModel.createFromString('', undefined, undefined, URI.parse('mem:.git'))
+			createTextModel('', undefined, undefined, URI.parse('mem:.git'))
 		);
 		assertVariableResolve(resolver, 'TM_FILENAME_BASE', '.git');
 
 		resolver = new ModelBasedVariableResolver(
 			labelService,
-			TextModel.createFromString('', undefined, undefined, URI.parse('mem:foo.'))
+			createTextModel('', undefined, undefined, URI.parse('mem:foo.'))
 		);
 		assertVariableResolve(resolver, 'TM_FILENAME_BASE', 'foo');
 	});

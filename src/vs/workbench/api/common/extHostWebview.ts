@@ -3,94 +3,112 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import * as modes from 'vs/editor/common/modes';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
+import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { EditorViewColumn } from 'vs/workbench/api/common/shared/editor';
 import { asWebviewUri, WebviewInitData } from 'vs/workbench/api/common/shared/webview';
 import type * as vscode from 'vscode';
-import { Cache } from './cache';
-import { ExtHostWebviewsShape, IMainContext, MainContext, MainThreadWebviewsShape, WebviewEditorCapabilities, WebviewPanelHandle, WebviewPanelViewStateData } from './extHost.protocol';
-import { Disposable as VSCodeDisposable } from './extHostTypes';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import * as extHostProtocol from './extHost.protocol';
+import * as extHostTypes from './extHostTypes';
 
 type IconPath = URI | { light: URI, dark: URI };
 
 export class ExtHostWebview implements vscode.Webview {
-	private _html: string = '';
-	private _isDisposed: boolean = false;
-	private _hasCalledAsWebviewUri = false;
 
-	public readonly _onMessageEmitter = new Emitter<any>();
-	public readonly onDidReceiveMessage: Event<any> = this._onMessageEmitter.event;
+	readonly #handle: extHostProtocol.WebviewPanelHandle;
+	readonly #proxy: extHostProtocol.MainThreadWebviewsShape;
+	readonly #deprecationService: IExtHostApiDeprecationService;
+
+	readonly #initData: WebviewInitData;
+	readonly #workspace: IExtHostWorkspace | undefined;
+	readonly #extension: IExtensionDescription;
+
+	#html: string = '';
+	#options: vscode.WebviewOptions;
+	#isDisposed: boolean = false;
+	#hasCalledAsWebviewUri = false;
 
 	constructor(
-		private readonly _handle: WebviewPanelHandle,
-		private readonly _proxy: MainThreadWebviewsShape,
-		private _options: vscode.WebviewOptions,
-		private readonly _initData: WebviewInitData,
-		private readonly _workspace: IExtHostWorkspace | undefined,
-		private readonly _extension: IExtensionDescription,
-		private readonly _logService: ILogService,
-	) { }
+		handle: extHostProtocol.WebviewPanelHandle,
+		proxy: extHostProtocol.MainThreadWebviewsShape,
+		options: vscode.WebviewOptions,
+		initData: WebviewInitData,
+		workspace: IExtHostWorkspace | undefined,
+		extension: IExtensionDescription,
+		deprecationService: IExtHostApiDeprecationService,
+	) {
+		this.#handle = handle;
+		this.#proxy = proxy;
+		this.#options = options;
+		this.#initData = initData;
+		this.#workspace = workspace;
+		this.#extension = extension;
+		this.#deprecationService = deprecationService;
+	}
+
+	/* internal */ readonly _onMessageEmitter = new Emitter<any>();
+	public readonly onDidReceiveMessage: Event<any> = this._onMessageEmitter.event;
 
 	public dispose() {
 		this._onMessageEmitter.dispose();
 	}
 
 	public asWebviewUri(resource: vscode.Uri): vscode.Uri {
-		this._hasCalledAsWebviewUri = true;
-		return asWebviewUri(this._initData, this._handle, resource);
+		this.#hasCalledAsWebviewUri = true;
+		return asWebviewUri(this.#initData, this.#handle, resource);
 	}
 
 	public get cspSource(): string {
-		return this._initData.webviewCspSource
-			.replace('{{uuid}}', this._handle);
+		return this.#initData.webviewCspSource
+			.replace('{{uuid}}', this.#handle);
 	}
 
 	public get html(): string {
 		this.assertNotDisposed();
-		return this._html;
+		return this.#html;
 	}
 
 	public set html(value: string) {
 		this.assertNotDisposed();
-		if (this._html !== value) {
-			this._html = value;
-			if (this._initData.isExtensionDevelopmentDebug && !this._hasCalledAsWebviewUri) {
-				if (/(["'])vscode-resource:([^\s'"]+?)(["'])/i.test(value)) {
-					this._hasCalledAsWebviewUri = true;
-					this._logService.warn(`${this._extension.identifier.value} created a webview that appears to use the vscode-resource scheme directly. Please migrate to use the 'webview.asWebviewUri' api instead: https://aka.ms/vscode-webview-use-aswebviewuri`);
-				}
+		if (this.#html !== value) {
+			this.#html = value;
+			if (!this.#hasCalledAsWebviewUri && /(["'])vscode-resource:([^\s'"]+?)(["'])/i.test(value)) {
+				this.#hasCalledAsWebviewUri = true;
+				this.#deprecationService.report('Webview vscode-resource: uris', this.#extension,
+					`Please migrate to use the 'webview.asWebviewUri' api instead: https://aka.ms/vscode-webview-use-aswebviewuri`);
 			}
-			this._proxy.$setHtml(this._handle, value);
+			this.#proxy.$setHtml(this.#handle, value);
 		}
 	}
 
 	public get options(): vscode.WebviewOptions {
 		this.assertNotDisposed();
-		return this._options;
+		return this.#options;
 	}
 
 	public set options(newOptions: vscode.WebviewOptions) {
 		this.assertNotDisposed();
-		this._proxy.$setOptions(this._handle, convertWebviewOptions(this._extension, this._workspace, newOptions));
-		this._options = newOptions;
+		this.#proxy.$setOptions(this.#handle, convertWebviewOptions(this.#extension, this.#workspace, newOptions));
+		this.#options = newOptions;
 	}
 
 	public postMessage(message: any): Promise<boolean> {
 		this.assertNotDisposed();
-		return this._proxy.$postMessage(this._handle, message);
+		return this.#proxy.$postMessage(this.#handle, message);
 	}
 
 	private assertNotDisposed() {
-		if (this._isDisposed) {
+		if (this.#isDisposed) {
 			throw new Error('Webview is disposed');
 		}
 	}
@@ -98,29 +116,29 @@ export class ExtHostWebview implements vscode.Webview {
 
 export class ExtHostWebviewEditor extends Disposable implements vscode.WebviewPanel {
 
-	private readonly _handle: WebviewPanelHandle;
-	private readonly _proxy: MainThreadWebviewsShape;
-	private readonly _viewType: string;
-	private _title: string;
-	private _iconPath?: IconPath;
+	readonly #handle: extHostProtocol.WebviewPanelHandle;
+	readonly #proxy: extHostProtocol.MainThreadWebviewsShape;
+	readonly #viewType: string;
 
-	private readonly _options: vscode.WebviewPanelOptions;
-	private readonly _webview: ExtHostWebview;
-	private _viewColumn: vscode.ViewColumn | undefined;
-	private _visible: boolean = true;
-	private _active: boolean = true;
+	readonly #webview: ExtHostWebview;
+	readonly #options: vscode.WebviewPanelOptions;
 
-	_isDisposed: boolean = false;
+	#title: string;
+	#iconPath?: IconPath;
+	#viewColumn: vscode.ViewColumn | undefined = undefined;
+	#visible: boolean = true;
+	#active: boolean = true;
+	#isDisposed: boolean = false;
 
-	readonly _onDisposeEmitter = this._register(new Emitter<void>());
-	public readonly onDidDispose: Event<void> = this._onDisposeEmitter.event;
+	readonly #onDidDispose = this._register(new Emitter<void>());
+	public readonly onDidDispose = this.#onDidDispose.event;
 
-	readonly _onDidChangeViewStateEmitter = this._register(new Emitter<vscode.WebviewPanelOnDidChangeViewStateEvent>());
-	public readonly onDidChangeViewState: Event<vscode.WebviewPanelOnDidChangeViewStateEvent> = this._onDidChangeViewStateEmitter.event;
+	readonly #onDidChangeViewState = this._register(new Emitter<vscode.WebviewPanelOnDidChangeViewStateEvent>());
+	public readonly onDidChangeViewState = this.#onDidChangeViewState.event;
 
 	constructor(
-		handle: WebviewPanelHandle,
-		proxy: MainThreadWebviewsShape,
+		handle: extHostProtocol.WebviewPanelHandle,
+		proxy: extHostProtocol.MainThreadWebviewsShape,
 		viewType: string,
 		title: string,
 		viewColumn: vscode.ViewColumn | undefined,
@@ -128,151 +146,213 @@ export class ExtHostWebviewEditor extends Disposable implements vscode.WebviewPa
 		webview: ExtHostWebview
 	) {
 		super();
-		this._handle = handle;
-		this._proxy = proxy;
-		this._viewType = viewType;
-		this._options = editorOptions;
-		this._viewColumn = viewColumn;
-		this._title = title;
-		this._webview = webview;
+		this.#handle = handle;
+		this.#proxy = proxy;
+		this.#viewType = viewType;
+		this.#options = editorOptions;
+		this.#viewColumn = viewColumn;
+		this.#title = title;
+		this.#webview = webview;
 	}
 
 	public dispose() {
-		if (this._isDisposed) {
+		if (this.#isDisposed) {
 			return;
 		}
-		this._isDisposed = true;
-		this._onDisposeEmitter.fire();
-		this._proxy.$disposeWebview(this._handle);
-		this._webview.dispose();
+
+		this.#isDisposed = true;
+		this.#onDidDispose.fire();
+		this.#proxy.$disposeWebview(this.#handle);
+		this.#webview.dispose();
 
 		super.dispose();
 	}
 
 	get webview() {
 		this.assertNotDisposed();
-		return this._webview;
+		return this.#webview;
 	}
 
 	get viewType(): string {
 		this.assertNotDisposed();
-		return this._viewType;
+		return this.#viewType;
 	}
 
 	get title(): string {
 		this.assertNotDisposed();
-		return this._title;
+		return this.#title;
 	}
 
 	set title(value: string) {
 		this.assertNotDisposed();
-		if (this._title !== value) {
-			this._title = value;
-			this._proxy.$setTitle(this._handle, value);
+		if (this.#title !== value) {
+			this.#title = value;
+			this.#proxy.$setTitle(this.#handle, value);
 		}
 	}
 
 	get iconPath(): IconPath | undefined {
 		this.assertNotDisposed();
-		return this._iconPath;
+		return this.#iconPath;
 	}
 
 	set iconPath(value: IconPath | undefined) {
 		this.assertNotDisposed();
-		if (this._iconPath !== value) {
-			this._iconPath = value;
+		if (this.#iconPath !== value) {
+			this.#iconPath = value;
 
-			this._proxy.$setIconPath(this._handle, URI.isUri(value) ? { light: value, dark: value } : value);
+			this.#proxy.$setIconPath(this.#handle, URI.isUri(value) ? { light: value, dark: value } : value);
 		}
 	}
 
 	get options() {
-		return this._options;
+		return this.#options;
 	}
 
 	get viewColumn(): vscode.ViewColumn | undefined {
 		this.assertNotDisposed();
-		if (typeof this._viewColumn === 'number' && this._viewColumn < 0) {
+		if (typeof this.#viewColumn === 'number' && this.#viewColumn < 0) {
 			// We are using a symbolic view column
 			// Return undefined instead to indicate that the real view column is currently unknown but will be resolved.
 			return undefined;
 		}
-		return this._viewColumn;
-	}
-
-	_setViewColumn(value: vscode.ViewColumn) {
-		this.assertNotDisposed();
-		this._viewColumn = value;
+		return this.#viewColumn;
 	}
 
 	public get active(): boolean {
 		this.assertNotDisposed();
-		return this._active;
-	}
-
-	_setActive(value: boolean) {
-		this.assertNotDisposed();
-		this._active = value;
+		return this.#active;
 	}
 
 	public get visible(): boolean {
 		this.assertNotDisposed();
-		return this._visible;
+		return this.#visible;
 	}
 
-	_setVisible(value: boolean) {
-		this.assertNotDisposed();
-		this._visible = value;
+	_updateViewState(newState: { active: boolean; visible: boolean; viewColumn: vscode.ViewColumn; }) {
+		if (this.#isDisposed) {
+			return;
+		}
+
+		if (this.active !== newState.active || this.visible !== newState.visible || this.viewColumn !== newState.viewColumn) {
+			this.#active = newState.active;
+			this.#visible = newState.visible;
+			this.#viewColumn = newState.viewColumn;
+			this.#onDidChangeViewState.fire({ webviewPanel: this });
+		}
 	}
 
 	public postMessage(message: any): Promise<boolean> {
 		this.assertNotDisposed();
-		return this._proxy.$postMessage(this._handle, message);
+		return this.#proxy.$postMessage(this.#handle, message);
 	}
 
 	public reveal(viewColumn?: vscode.ViewColumn, preserveFocus?: boolean): void {
 		this.assertNotDisposed();
-		this._proxy.$reveal(this._handle, {
+		this.#proxy.$reveal(this.#handle, {
 			viewColumn: viewColumn ? typeConverters.ViewColumn.from(viewColumn) : undefined,
 			preserveFocus: !!preserveFocus
 		});
 	}
 
 	private assertNotDisposed() {
-		if (this._isDisposed) {
+		if (this.#isDisposed) {
 			throw new Error('Webview is disposed');
 		}
 	}
 }
 
-export class ExtHostWebviews implements ExtHostWebviewsShape {
+class WebviewDocumentStore {
+	private readonly _documents = new Map<string, extHostTypes.CustomDocument>();
 
-	private static newHandle(): WebviewPanelHandle {
+	public get(viewType: string, resource: vscode.Uri): extHostTypes.CustomDocument | undefined {
+		return this._documents.get(this.key(viewType, resource));
+	}
+
+	public add(viewType: string, document: extHostTypes.CustomDocument) {
+		const key = this.key(viewType, document.uri);
+		if (this._documents.has(key)) {
+			throw new Error(`Document already exists for viewType:${viewType} resource:${document.uri}`);
+		}
+		this._documents.set(key, document);
+	}
+
+	public delete(viewType: string, document: extHostTypes.CustomDocument) {
+		const key = this.key(viewType, document.uri);
+		this._documents.delete(key);
+	}
+
+	private key(viewType: string, resource: vscode.Uri): string {
+		return `${viewType}@@@${resource}`;
+	}
+}
+
+const enum WebviewEditorType {
+	Text,
+	Custom
+}
+
+type ProviderEntry = {
+	readonly extension: IExtensionDescription;
+	readonly type: WebviewEditorType.Text;
+	readonly provider: vscode.CustomTextEditorProvider;
+} | {
+	readonly extension: IExtensionDescription;
+	readonly type: WebviewEditorType.Custom;
+	readonly provider: vscode.CustomEditorProvider;
+};
+
+class EditorProviderStore {
+	private readonly _providers = new Map<string, ProviderEntry>();
+
+	public addTextProvider(viewType: string, extension: IExtensionDescription, provider: vscode.CustomTextEditorProvider): vscode.Disposable {
+		return this.add(WebviewEditorType.Text, viewType, extension, provider);
+	}
+
+	public addCustomProvider(viewType: string, extension: IExtensionDescription, provider: vscode.CustomEditorProvider): vscode.Disposable {
+		return this.add(WebviewEditorType.Custom, viewType, extension, provider);
+	}
+
+	public get(viewType: string): ProviderEntry | undefined {
+		return this._providers.get(viewType);
+	}
+
+	private add(type: WebviewEditorType, viewType: string, extension: IExtensionDescription, provider: vscode.CustomTextEditorProvider | vscode.CustomEditorProvider): vscode.Disposable {
+		if (this._providers.has(viewType)) {
+			throw new Error(`Provider for viewType:${viewType} already registered`);
+		}
+		this._providers.set(viewType, { type, extension, provider } as ProviderEntry);
+		return new extHostTypes.Disposable(() => this._providers.delete(viewType));
+	}
+}
+
+export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
+
+	private static newHandle(): extHostProtocol.WebviewPanelHandle {
 		return generateUuid();
 	}
 
-	private readonly _proxy: MainThreadWebviewsShape;
-	private readonly _webviewPanels = new Map<WebviewPanelHandle, ExtHostWebviewEditor>();
+	private readonly _proxy: extHostProtocol.MainThreadWebviewsShape;
+	private readonly _webviewPanels = new Map<extHostProtocol.WebviewPanelHandle, ExtHostWebviewEditor>();
 
 	private readonly _serializers = new Map<string, {
 		readonly serializer: vscode.WebviewPanelSerializer;
 		readonly extension: IExtensionDescription;
 	}>();
 
-	private readonly _editorProviders = new Map<string, {
-		readonly provider: vscode.WebviewCustomEditorProvider;
-		readonly extension: IExtensionDescription;
-	}>();
+	private readonly _editorProviders = new EditorProviderStore();
 
-	private readonly _edits = new Cache<unknown>('edits');
+	private readonly _documents = new WebviewDocumentStore();
 
 	constructor(
-		mainContext: IMainContext,
+		mainContext: extHostProtocol.IMainContext,
 		private readonly initData: WebviewInitData,
 		private readonly workspace: IExtHostWorkspace | undefined,
 		private readonly _logService: ILogService,
+		private readonly _deprecationService: IExtHostApiDeprecationService,
+		private readonly _extHostDocuments: ExtHostDocuments,
 	) {
-		this._proxy = mainContext.getProxy(MainContext.MainThreadWebviews);
+		this._proxy = mainContext.getProxy(extHostProtocol.MainContext.MainThreadWebviews);
 	}
 
 	public createWebviewPanel(
@@ -289,9 +369,9 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		};
 
 		const handle = ExtHostWebviews.newHandle();
-		this._proxy.$createWebviewPanel({ id: extension.identifier, location: extension.extensionLocation }, handle, viewType, title, webviewShowOptions, convertWebviewOptions(extension, this.workspace, options));
+		this._proxy.$createWebviewPanel(toExtensionData(extension), handle, viewType, title, webviewShowOptions, convertWebviewOptions(extension, this.workspace, options));
 
-		const webview = new ExtHostWebview(handle, this._proxy, options, this.initData, this.workspace, extension, this._logService);
+		const webview = new ExtHostWebview(handle, this._proxy, options, this.initData, this.workspace, extension, this._deprecationService);
 		const panel = new ExtHostWebviewEditor(handle, this._proxy, viewType, title, viewColumn, options, webview);
 		this._webviewPanels.set(handle, panel);
 		return panel;
@@ -309,39 +389,45 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		this._serializers.set(viewType, { serializer, extension });
 		this._proxy.$registerSerializer(viewType);
 
-		return new VSCodeDisposable(() => {
+		return new extHostTypes.Disposable(() => {
 			this._serializers.delete(viewType);
 			this._proxy.$unregisterSerializer(viewType);
 		});
 	}
 
-	public registerWebviewCustomEditorProvider(
+	public registerCustomEditorProvider(
 		extension: IExtensionDescription,
 		viewType: string,
-		provider: vscode.WebviewCustomEditorProvider,
-		options?: vscode.WebviewPanelOptions,
+		provider: vscode.CustomEditorProvider | vscode.CustomTextEditorProvider,
+		options: vscode.WebviewPanelOptions | undefined = {}
 	): vscode.Disposable {
-		if (this._editorProviders.has(viewType)) {
-			throw new Error(`Editor provider for '${viewType}' already registered`);
+		const disposables = new DisposableStore();
+		if ('resolveCustomTextEditor' in provider) {
+			disposables.add(this._editorProviders.addTextProvider(viewType, extension, provider));
+			this._proxy.$registerTextEditorProvider(toExtensionData(extension), viewType, options, {
+				supportsMove: !!provider.moveCustomTextEditor,
+			});
+		} else {
+			disposables.add(this._editorProviders.addCustomProvider(viewType, extension, provider));
+			this._proxy.$registerCustomEditorProvider(toExtensionData(extension), viewType, options);
+			if (provider.editingDelegate) {
+				disposables.add(provider.editingDelegate.onDidEdit(e => {
+					const document = e.document;
+					const editId = (document as extHostTypes.CustomDocument)._addEdit(e.edit);
+					this._proxy.$onDidEdit(document.uri, viewType, editId, e.label);
+				}));
+			}
 		}
-		this._editorProviders.set(viewType, { extension, provider, });
 
-		this._proxy.$registerEditorProvider({ id: extension.identifier, location: extension.extensionLocation }, viewType, options || {}, this.getCapabilites(provider));
-
-		// Hook up events
-		provider?.editingDelegate?.onEdit(({ edit, resource }) => {
-			const id = this._edits.add([edit]);
-			this._proxy.$onEdit(resource, viewType, id);
-		});
-
-		return new VSCodeDisposable(() => {
-			this._editorProviders.delete(viewType);
-			this._proxy.$unregisterEditorProvider(viewType);
-		});
+		return extHostTypes.Disposable.from(
+			disposables,
+			new extHostTypes.Disposable(() => {
+				this._proxy.$unregisterEditorProvider(viewType);
+			}));
 	}
 
 	public $onMessage(
-		handle: WebviewPanelHandle,
+		handle: extHostProtocol.WebviewPanelHandle,
 		message: any
 	): void {
 		const panel = this.getWebviewPanel(handle);
@@ -351,13 +437,13 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 	}
 
 	public $onMissingCsp(
-		_handle: WebviewPanelHandle,
+		_handle: extHostProtocol.WebviewPanelHandle,
 		extensionId: string
 	): void {
 		this._logService.warn(`${extensionId} created a webview without a content security policy: https://aka.ms/vscode-webview-missing-csp`);
 	}
 
-	public $onDidChangeWebviewPanelViewStates(newStates: WebviewPanelViewStateData): void {
+	public $onDidChangeWebviewPanelViewStates(newStates: extHostProtocol.WebviewPanelViewStateData): void {
 		const handles = Object.keys(newStates);
 		// Notify webviews of state changes in the following order:
 		// - Non-visible
@@ -377,22 +463,20 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 
 		for (const handle of handles) {
 			const panel = this.getWebviewPanel(handle);
-			if (!panel || panel._isDisposed) {
+			if (!panel) {
 				continue;
 			}
 
 			const newState = newStates[handle];
-			const viewColumn = typeConverters.ViewColumn.to(newState.position);
-			if (panel.active !== newState.active || panel.visible !== newState.visible || panel.viewColumn !== viewColumn) {
-				panel._setActive(newState.active);
-				panel._setVisible(newState.visible);
-				panel._setViewColumn(viewColumn);
-				panel._onDidChangeViewStateEmitter.fire({ webviewPanel: panel });
-			}
+			panel._updateViewState({
+				active: newState.active,
+				visible: newState.visible,
+				viewColumn: typeConverters.ViewColumn.to(newState.position),
+			});
 		}
 	}
 
-	async $onDidDisposeWebviewPanel(handle: WebviewPanelHandle): Promise<void> {
+	async $onDidDisposeWebviewPanel(handle: extHostProtocol.WebviewPanelHandle): Promise<void> {
 		const panel = this.getWebviewPanel(handle);
 		if (panel) {
 			panel.dispose();
@@ -401,7 +485,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 	}
 
 	async $deserializeWebviewPanel(
-		webviewHandle: WebviewPanelHandle,
+		webviewHandle: extHostProtocol.WebviewPanelHandle,
 		viewType: string,
 		title: string,
 		state: any,
@@ -414,97 +498,177 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		}
 		const { serializer, extension } = entry;
 
-		const webview = new ExtHostWebview(webviewHandle, this._proxy, options, this.initData, this.workspace, extension, this._logService);
+		const webview = new ExtHostWebview(webviewHandle, this._proxy, options, this.initData, this.workspace, extension, this._deprecationService);
 		const revivedPanel = new ExtHostWebviewEditor(webviewHandle, this._proxy, viewType, title, typeof position === 'number' && position >= 0 ? typeConverters.ViewColumn.to(position) : undefined, options, webview);
 		this._webviewPanels.set(webviewHandle, revivedPanel);
 		await serializer.deserializeWebviewPanel(revivedPanel, state);
 	}
 
+	async $createWebviewCustomEditorDocument(resource: UriComponents, viewType: string, cancellation: CancellationToken) {
+		const entry = this._editorProviders.get(viewType);
+		if (!entry) {
+			throw new Error(`No provider found for '${viewType}'`);
+		}
+
+		if (entry.type !== WebviewEditorType.Custom) {
+			throw new Error(`Invalid provide type for '${viewType}'`);
+		}
+
+		const revivedResource = URI.revive(resource);
+		const document = await entry.provider.openCustomDocument(revivedResource, cancellation);
+		this._documents.add(viewType, document as extHostTypes.CustomDocument);
+		return {
+			editable: !!entry.provider.editingDelegate,
+		};
+	}
+
+	async $disposeWebviewCustomEditorDocument(resource: UriComponents, viewType: string): Promise<void> {
+		const entry = this._editorProviders.get(viewType);
+		if (!entry) {
+			throw new Error(`No provider found for '${viewType}'`);
+		}
+
+		if (entry.type !== WebviewEditorType.Custom) {
+			throw new Error(`Invalid provider type for '${viewType}'`);
+		}
+
+		const revivedResource = URI.revive(resource);
+		const document = this.getCustomDocument(viewType, revivedResource);
+		this._documents.delete(viewType, document);
+		document._dispose();
+	}
+
 	async $resolveWebviewEditor(
 		resource: UriComponents,
-		handle: WebviewPanelHandle,
+		handle: extHostProtocol.WebviewPanelHandle,
 		viewType: string,
 		title: string,
 		position: EditorViewColumn,
-		options: modes.IWebviewOptions & modes.IWebviewPanelOptions
+		options: modes.IWebviewOptions & modes.IWebviewPanelOptions,
+		cancellation: CancellationToken,
 	): Promise<void> {
 		const entry = this._editorProviders.get(viewType);
 		if (!entry) {
-			return Promise.reject(new Error(`No provider found for '${viewType}'`));
+			throw new Error(`No provider found for '${viewType}'`);
 		}
 
-		const { provider, extension } = entry;
-		const webview = new ExtHostWebview(handle, this._proxy, options, this.initData, this.workspace, extension, this._logService);
+		const webview = new ExtHostWebview(handle, this._proxy, options, this.initData, this.workspace, entry.extension, this._deprecationService);
 		const revivedPanel = new ExtHostWebviewEditor(handle, this._proxy, viewType, title, typeof position === 'number' && position >= 0 ? typeConverters.ViewColumn.to(position) : undefined, options, webview);
 		this._webviewPanels.set(handle, revivedPanel);
+
 		const revivedResource = URI.revive(resource);
-		await provider.resolveWebviewEditor(revivedResource, revivedPanel);
-	}
 
-	$undoEdits(resourceComponents: UriComponents, viewType: string, editIds: readonly number[]): void {
-		const provider = this.getEditorProvider(viewType);
-		if (!provider?.editingDelegate) {
-			return;
-		}
-
-		const resource = URI.revive(resourceComponents);
-		const edits = editIds.map(id => this._edits.get(id, 0));
-		provider.editingDelegate.undoEdits(resource, edits);
-	}
-
-	$applyEdits(resourceComponents: UriComponents, viewType: string, editIds: readonly number[]): void {
-		const provider = this.getEditorProvider(viewType);
-		if (!provider?.editingDelegate) {
-			return;
-		}
-
-		const resource = URI.revive(resourceComponents);
-		const edits = editIds.map(id => this._edits.get(id, 0));
-		provider.editingDelegate.applyEdits(resource, edits);
-	}
-
-	$disposeEdits(editIds: readonly number[]): void {
-		for (const edit of editIds) {
-			this._edits.delete(edit);
+		switch (entry.type) {
+			case WebviewEditorType.Custom:
+				{
+					const document = this.getCustomDocument(viewType, revivedResource);
+					return entry.provider.resolveCustomEditor(document, revivedPanel, cancellation);
+				}
+			case WebviewEditorType.Text:
+				{
+					const document = this._extHostDocuments.getDocument(revivedResource);
+					return entry.provider.resolveCustomTextEditor(document, revivedPanel, cancellation);
+				}
+			default:
+				{
+					throw new Error('Unknown webview provider type');
+				}
 		}
 	}
 
-	async $onSave(resource: UriComponents, viewType: string): Promise<void> {
-		const provider = this.getEditorProvider(viewType);
-		return provider?.editingDelegate?.save(URI.revive(resource));
+	$disposeEdits(resourceComponents: UriComponents, viewType: string, editIds: number[]): void {
+		const document = this.getCustomDocument(viewType, resourceComponents);
+		document._disposeEdits(editIds);
 	}
 
-	async $onSaveAs(resource: UriComponents, viewType: string, targetResource: UriComponents): Promise<void> {
-		const provider = this.getEditorProvider(viewType);
-		return provider?.editingDelegate?.saveAs(URI.revive(resource), URI.revive(targetResource));
-	}
-
-	async $backup(resource: UriComponents, viewType: string, cancellation: CancellationToken): Promise<boolean> {
-		const provider = this.getEditorProvider(viewType);
-		if (!provider?.editingDelegate?.backup) {
-			return false;
+	async $onMoveCustomEditor(handle: string, newResourceComponents: UriComponents, viewType: string): Promise<void> {
+		const entry = this._editorProviders.get(viewType);
+		if (!entry) {
+			throw new Error(`No provider found for '${viewType}'`);
 		}
-		return provider.editingDelegate.backup(URI.revive(resource), cancellation);
+
+		if (!(entry.provider as vscode.CustomTextEditorProvider).moveCustomTextEditor) {
+			throw new Error(`Provider does not implement move '${viewType}'`);
+		}
+
+		const webview = this.getWebviewPanel(handle);
+		if (!webview) {
+			throw new Error(`No webview found`);
+		}
+
+		const resource = URI.revive(newResourceComponents);
+		const document = this._extHostDocuments.getDocument(resource);
+		await (entry.provider as vscode.CustomTextEditorProvider).moveCustomTextEditor!(document, webview, CancellationToken.None);
 	}
 
-	private getWebviewPanel(handle: WebviewPanelHandle): ExtHostWebviewEditor | undefined {
+	async $undo(resourceComponents: UriComponents, viewType: string, editId: number, state: extHostProtocol.CustomDocumentEditState): Promise<void> {
+		const delegate = this.getEditingDelegate(viewType);
+		const document = this.getCustomDocument(viewType, resourceComponents);
+		document._updateEditState(state);
+		return delegate.undoEdits(document, [document._getEdit(editId)]);
+	}
+
+	async $redo(resourceComponents: UriComponents, viewType: string, editId: number, state: extHostProtocol.CustomDocumentEditState): Promise<void> {
+		const delegate = this.getEditingDelegate(viewType);
+		const document = this.getCustomDocument(viewType, resourceComponents);
+		document._updateEditState(state);
+		return delegate.applyEdits(document, [document._getEdit(editId)]);
+	}
+
+	async $revert(resourceComponents: UriComponents, viewType: string, changes: { undoneEdits: number[], redoneEdits: number[] }, state: extHostProtocol.CustomDocumentEditState): Promise<void> {
+		const delegate = this.getEditingDelegate(viewType);
+		const document = this.getCustomDocument(viewType, resourceComponents);
+		const undoneEdits = changes.undoneEdits.map(id => document._getEdit(id));
+		const appliedEdits = changes.redoneEdits.map(id => document._getEdit(id));
+		document._updateEditState(state);
+		return delegate.revert(document, { undoneEdits, appliedEdits });
+	}
+
+	async $onSave(resourceComponents: UriComponents, viewType: string, cancellation: CancellationToken): Promise<void> {
+		const delegate = this.getEditingDelegate(viewType);
+		const document = this.getCustomDocument(viewType, resourceComponents);
+		return delegate.save(document, cancellation);
+	}
+
+	async $onSaveAs(resourceComponents: UriComponents, viewType: string, targetResource: UriComponents, cancellation: CancellationToken): Promise<void> {
+		const delegate = this.getEditingDelegate(viewType);
+		const document = this.getCustomDocument(viewType, resourceComponents);
+		return delegate.saveAs(document, URI.revive(targetResource), cancellation);
+	}
+
+	async $backup(resourceComponents: UriComponents, viewType: string, cancellation: CancellationToken): Promise<void> {
+		const delegate = this.getEditingDelegate(viewType);
+		const document = this.getCustomDocument(viewType, resourceComponents);
+		return delegate.backup(document, cancellation);
+	}
+
+	private getWebviewPanel(handle: extHostProtocol.WebviewPanelHandle): ExtHostWebviewEditor | undefined {
 		return this._webviewPanels.get(handle);
 	}
 
-	private getEditorProvider(viewType: string): vscode.WebviewCustomEditorProvider | undefined {
-		return this._editorProviders.get(viewType)?.provider;
+	private getCustomDocument(viewType: string, resource: UriComponents): extHostTypes.CustomDocument {
+		const document = this._documents.get(viewType, URI.revive(resource));
+		if (!document) {
+			throw new Error('No webview editor custom document found');
+		}
+		return document;
 	}
 
-	private getCapabilites(capabilities: vscode.WebviewCustomEditorProvider) {
-		const declaredCapabilites: WebviewEditorCapabilities[] = [];
-		if (capabilities.editingDelegate) {
-			declaredCapabilites.push(WebviewEditorCapabilities.Editable);
+	private getEditingDelegate(viewType: string): vscode.CustomEditorEditingDelegate {
+		const entry = this._editorProviders.get(viewType);
+		if (!entry) {
+			throw new Error(`No provider found for '${viewType}'`);
 		}
-		if (capabilities.editingDelegate?.backup) {
-			declaredCapabilites.push(WebviewEditorCapabilities.SupportsHotExit);
+		const delegate = (entry.provider as vscode.CustomEditorProvider).editingDelegate;
+		if (!delegate) {
+			throw new Error(`Provider for ${viewType}' does not support editing`);
 		}
-		return declaredCapabilites;
+		return delegate;
 	}
+}
+
+function toExtensionData(extension: IExtensionDescription): extHostProtocol.WebviewExtensionDescription {
+	return { id: extension.identifier, location: extension.extensionLocation };
 }
 
 function convertWebviewOptions(

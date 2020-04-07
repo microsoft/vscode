@@ -36,6 +36,8 @@ import { TokensStore, MultilineTokens, countEOL, MultilineTokens2, TokensStore2 
 import { Color } from 'vs/base/common/color';
 import { Constants } from 'vs/base/common/uint';
 import { EditorTheme } from 'vs/editor/common/view/viewContext';
+import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
+import { TextChange } from 'vs/editor/common/model/textChange';
 
 function createTextBufferBuilder() {
 	return new PieceTreeTextBufferBuilder();
@@ -187,10 +189,6 @@ export class TextModel extends Disposable implements model.ITextModel {
 		largeFileOptimizations: EDITOR_MODEL_DEFAULTS.largeFileOptimizations,
 	};
 
-	public static createFromString(text: string, options: model.ITextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS, languageIdentifier: LanguageIdentifier | null = null, uri: URI | null = null): TextModel {
-		return new TextModel(text, options, languageIdentifier, uri);
-	}
-
 	public static resolveOptions(textBuffer: model.ITextBuffer, options: model.ITextModelCreationOptions): model.TextModelResolvedOptions {
 		if (options.detectIndentation) {
 			const guessedIndentation = guessIndentation(textBuffer, options.tabSize, options.insertSpaces);
@@ -253,6 +251,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 	public readonly id: string;
 	public readonly isForSimpleWidget: boolean;
 	private readonly _associatedResource: URI;
+	private readonly _undoRedoService: IUndoRedoService;
 	private _attachedEditorCount: number;
 	private _buffer: model.ITextBuffer;
 	private _options: model.TextModelResolvedOptions;
@@ -268,7 +267,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 	private readonly _isTooLargeForTokenization: boolean;
 
 	//#region Editing
-	private _commandManager: EditStack;
+	private readonly _commandManager: EditStack;
 	private _isUndoing: boolean;
 	private _isRedoing: boolean;
 	private _trimAutoWhitespaceLines: number[] | null;
@@ -293,7 +292,13 @@ export class TextModel extends Disposable implements model.ITextModel {
 	private readonly _tokenization: TextModelTokenization;
 	//#endregion
 
-	constructor(source: string | model.ITextBufferFactory, creationOptions: model.ITextModelCreationOptions, languageIdentifier: LanguageIdentifier | null, associatedResource: URI | null = null) {
+	constructor(
+		source: string | model.ITextBufferFactory,
+		creationOptions: model.ITextModelCreationOptions,
+		languageIdentifier: LanguageIdentifier | null,
+		associatedResource: URI | null = null,
+		undoRedoService: IUndoRedoService
+	) {
 		super();
 
 		// Generate a new unique model id
@@ -305,6 +310,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		} else {
 			this._associatedResource = associatedResource;
 		}
+		this._undoRedoService = undoRedoService;
 		this._attachedEditorCount = 0;
 
 		this._buffer = createTextBuffer(source, creationOptions.defaultEOL);
@@ -347,7 +353,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this._decorations = Object.create(null);
 		this._decorationsTree = new DecorationsTrees();
 
-		this._commandManager = new EditStack(this);
+		this._commandManager = new EditStack(this, undoRedoService);
 		this._isUndoing = false;
 		this._isRedoing = false;
 		this._trimAutoWhitespaceLines = null;
@@ -376,6 +382,11 @@ export class TextModel extends Disposable implements model.ITextModel {
 	public equalsTextBuffer(other: model.ITextBuffer): boolean {
 		this._assertNotDisposed();
 		return this._buffer.equals(other);
+	}
+
+	public getTextBuffer(): model.ITextBuffer {
+		this._assertNotDisposed();
+		return this._buffer;
 	}
 
 	private _emitContentChangedEvent(rawChange: ModelRawContentChangedEvent, change: IModelContentChangedEvent): void {
@@ -436,7 +447,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this._decorationsTree = new DecorationsTrees();
 
 		// Destroy my edit history and settings
-		this._commandManager = new EditStack(this);
+		this._commandManager.clear();
 		this._trimAutoWhitespaceLines = null;
 
 		this._emitContentChangedEvent(
@@ -700,7 +711,11 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this._alternativeVersionId = this._versionId;
 	}
 
-	private _overwriteAlternativeVersionId(newAlternativeVersionId: number): void {
+	public _overwriteVersionId(versionId: number): void {
+		this._versionId = versionId;
+	}
+
+	public _overwriteAlternativeVersionId(newAlternativeVersionId: number): void {
 		this._alternativeVersionId = newAlternativeVersionId;
 	}
 
@@ -1176,7 +1191,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return result;
 	}
 
-	public pushEditOperations(beforeCursorState: Selection[], editOperations: model.IIdentifiedSingleEditOperation[], cursorStateComputer: model.ICursorStateComputer | null): Selection[] | null {
+	public pushEditOperations(beforeCursorState: Selection[] | null, editOperations: model.IIdentifiedSingleEditOperation[], cursorStateComputer: model.ICursorStateComputer | null): Selection[] | null {
 		try {
 			this._onDidChangeDecorations.beginDeferredEmit();
 			this._eventEmitter.beginDeferredEmit();
@@ -1187,7 +1202,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		}
 	}
 
-	private _pushEditOperations(beforeCursorState: Selection[], editOperations: model.ValidAnnotatedEditOperation[], cursorStateComputer: model.ICursorStateComputer | null): Selection[] | null {
+	private _pushEditOperations(beforeCursorState: Selection[] | null, editOperations: model.ValidAnnotatedEditOperation[], cursorStateComputer: model.ICursorStateComputer | null): Selection[] | null {
 		if (this._options.trimAutoWhitespace && this._trimAutoWhitespaceLines) {
 			// Go through each saved line number and insert a trim whitespace edit
 			// if it is safe to do so (no conflicts with other edits).
@@ -1202,21 +1217,23 @@ export class TextModel extends Disposable implements model.ITextModel {
 			// Sometimes, auto-formatters change ranges automatically which can cause undesired auto whitespace trimming near the cursor
 			// We'll use the following heuristic: if the edits occur near the cursor, then it's ok to trim auto whitespace
 			let editsAreNearCursors = true;
-			for (let i = 0, len = beforeCursorState.length; i < len; i++) {
-				let sel = beforeCursorState[i];
-				let foundEditNearSel = false;
-				for (let j = 0, lenJ = incomingEdits.length; j < lenJ; j++) {
-					let editRange = incomingEdits[j].range;
-					let selIsAbove = editRange.startLineNumber > sel.endLineNumber;
-					let selIsBelow = sel.startLineNumber > editRange.endLineNumber;
-					if (!selIsAbove && !selIsBelow) {
-						foundEditNearSel = true;
+			if (beforeCursorState) {
+				for (let i = 0, len = beforeCursorState.length; i < len; i++) {
+					let sel = beforeCursorState[i];
+					let foundEditNearSel = false;
+					for (let j = 0, lenJ = incomingEdits.length; j < lenJ; j++) {
+						let editRange = incomingEdits[j].range;
+						let selIsAbove = editRange.startLineNumber > sel.endLineNumber;
+						let selIsBelow = sel.startLineNumber > editRange.endLineNumber;
+						if (!selIsAbove && !selIsBelow) {
+							foundEditNearSel = true;
+							break;
+						}
+					}
+					if (!foundEditNearSel) {
+						editsAreNearCursors = false;
 						break;
 					}
-				}
-				if (!foundEditNearSel) {
-					editsAreNearCursors = false;
-					break;
 				}
 			}
 
@@ -1272,21 +1289,66 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return this._commandManager.pushEditOperation(beforeCursorState, editOperations, cursorStateComputer);
 	}
 
-	public applyEdits(rawOperations: model.IIdentifiedSingleEditOperation[]): model.IValidEditOperation[] {
+	_applyUndo(changes: TextChange[], eol: model.EndOfLineSequence, resultingAlternativeVersionId: number, resultingSelection: Selection[] | null): void {
+		const edits = changes.map<model.IIdentifiedSingleEditOperation>((change) => {
+			const rangeStart = this.getPositionAt(change.newPosition);
+			const rangeEnd = this.getPositionAt(change.newEnd);
+			return {
+				range: new Range(rangeStart.lineNumber, rangeStart.column, rangeEnd.lineNumber, rangeEnd.column),
+				text: change.oldText
+			};
+		});
+		this._applyUndoRedoEdits(edits, eol, true, false, resultingAlternativeVersionId, resultingSelection);
+	}
+
+	_applyRedo(changes: TextChange[], eol: model.EndOfLineSequence, resultingAlternativeVersionId: number, resultingSelection: Selection[] | null): void {
+		const edits = changes.map<model.IIdentifiedSingleEditOperation>((change) => {
+			const rangeStart = this.getPositionAt(change.oldPosition);
+			const rangeEnd = this.getPositionAt(change.oldEnd);
+			return {
+				range: new Range(rangeStart.lineNumber, rangeStart.column, rangeEnd.lineNumber, rangeEnd.column),
+				text: change.newText
+			};
+		});
+		this._applyUndoRedoEdits(edits, eol, false, true, resultingAlternativeVersionId, resultingSelection);
+	}
+
+	private _applyUndoRedoEdits(edits: model.IIdentifiedSingleEditOperation[], eol: model.EndOfLineSequence, isUndoing: boolean, isRedoing: boolean, resultingAlternativeVersionId: number, resultingSelection: Selection[] | null): void {
 		try {
 			this._onDidChangeDecorations.beginDeferredEmit();
 			this._eventEmitter.beginDeferredEmit();
-			return this._applyEdits(this._validateEditOperations(rawOperations));
+			this._isUndoing = isUndoing;
+			this._isRedoing = isRedoing;
+			this.applyEdits(edits, false);
+			this.setEOL(eol);
+			this._overwriteAlternativeVersionId(resultingAlternativeVersionId);
+		} finally {
+			this._isUndoing = false;
+			this._isRedoing = false;
+			this._eventEmitter.endDeferredEmit(resultingSelection);
+			this._onDidChangeDecorations.endDeferredEmit();
+		}
+	}
+
+	public applyEdits(operations: model.IIdentifiedSingleEditOperation[]): void;
+	public applyEdits(operations: model.IIdentifiedSingleEditOperation[], computeUndoEdits: false): void;
+	public applyEdits(operations: model.IIdentifiedSingleEditOperation[], computeUndoEdits: true): model.IValidEditOperation[];
+	public applyEdits(rawOperations: model.IIdentifiedSingleEditOperation[], computeUndoEdits: boolean = false): void | model.IValidEditOperation[] {
+		try {
+			this._onDidChangeDecorations.beginDeferredEmit();
+			this._eventEmitter.beginDeferredEmit();
+			const operations = this._validateEditOperations(rawOperations);
+			return this._doApplyEdits(operations, computeUndoEdits);
 		} finally {
 			this._eventEmitter.endDeferredEmit();
 			this._onDidChangeDecorations.endDeferredEmit();
 		}
 	}
 
-	private _applyEdits(rawOperations: model.ValidAnnotatedEditOperation[]): model.IValidEditOperation[] {
+	private _doApplyEdits(rawOperations: model.ValidAnnotatedEditOperation[], computeUndoEdits: boolean): void | model.IValidEditOperation[] {
 
 		const oldLineCount = this._buffer.getLineCount();
-		const result = this._buffer.applyEdits(rawOperations, this._options.trimAutoWhitespace);
+		const result = this._buffer.applyEdits(rawOperations, this._options.trimAutoWhitespace, computeUndoEdits);
 		const newLineCount = this._buffer.getLineCount();
 
 		const contentChanges = result.changes;
@@ -1361,65 +1423,23 @@ export class TextModel extends Disposable implements model.ITextModel {
 			);
 		}
 
-		return result.reverseEdits;
+		return (result.reverseEdits === null ? undefined : result.reverseEdits);
 	}
 
-	private _undo(): Selection[] | null {
-		this._isUndoing = true;
-		let r = this._commandManager.undo();
-		this._isUndoing = false;
-
-		if (!r) {
-			return null;
-		}
-
-		this._overwriteAlternativeVersionId(r.recordedVersionId);
-
-		return r.selections;
-	}
-
-	public undo(): Selection[] | null {
-		try {
-			this._onDidChangeDecorations.beginDeferredEmit();
-			this._eventEmitter.beginDeferredEmit();
-			return this._undo();
-		} finally {
-			this._eventEmitter.endDeferredEmit();
-			this._onDidChangeDecorations.endDeferredEmit();
-		}
+	public undo(): void {
+		this._undoRedoService.undo(this.uri);
 	}
 
 	public canUndo(): boolean {
-		return this._commandManager.canUndo();
+		return this._undoRedoService.canUndo(this.uri);
 	}
 
-	private _redo(): Selection[] | null {
-		this._isRedoing = true;
-		let r = this._commandManager.redo();
-		this._isRedoing = false;
-
-		if (!r) {
-			return null;
-		}
-
-		this._overwriteAlternativeVersionId(r.recordedVersionId);
-
-		return r.selections;
-	}
-
-	public redo(): Selection[] | null {
-		try {
-			this._onDidChangeDecorations.beginDeferredEmit();
-			this._eventEmitter.beginDeferredEmit();
-			return this._redo();
-		} finally {
-			this._eventEmitter.endDeferredEmit();
-			this._onDidChangeDecorations.endDeferredEmit();
-		}
+	public redo(): void {
+		this._undoRedoService.redo(this.uri);
 	}
 
 	public canRedo(): boolean {
-		return this._commandManager.canRedo();
+		return this._undoRedoService.canRedo(this.uri);
 	}
 
 	//#endregion
@@ -1767,17 +1787,36 @@ export class TextModel extends Disposable implements model.ITextModel {
 		if (ranges.length > 0) {
 			this._emitModelTokensChangedEvent({
 				tokenizationSupportChanged: false,
+				semanticTokensApplied: false,
 				ranges: ranges
 			});
 		}
 	}
 
-	public setSemanticTokens(tokens: MultilineTokens2[] | null): void {
-		this._tokens2.set(tokens);
+	public setSemanticTokens(tokens: MultilineTokens2[] | null, isComplete: boolean): void {
+		this._tokens2.set(tokens, isComplete);
 
 		this._emitModelTokensChangedEvent({
 			tokenizationSupportChanged: false,
+			semanticTokensApplied: tokens !== null,
 			ranges: [{ fromLineNumber: 1, toLineNumber: this.getLineCount() }]
+		});
+	}
+
+	public hasSemanticTokens(): boolean {
+		return this._tokens2.isComplete();
+	}
+
+	public setPartialSemanticTokens(range: Range, tokens: MultilineTokens2[]): void {
+		if (this.hasSemanticTokens()) {
+			return;
+		}
+		const changedRange = this._tokens2.setPartial(range, tokens);
+
+		this._emitModelTokensChangedEvent({
+			tokenizationSupportChanged: false,
+			semanticTokensApplied: true,
+			ranges: [{ fromLineNumber: changedRange.startLineNumber, toLineNumber: changedRange.endLineNumber }]
 		});
 	}
 
@@ -1791,6 +1830,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this._tokens.flush();
 		this._emitModelTokensChangedEvent({
 			tokenizationSupportChanged: true,
+			semanticTokensApplied: false,
 			ranges: [{
 				fromLineNumber: 1,
 				toLineNumber: this._buffer.getLineCount()
@@ -1803,6 +1843,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 		this._emitModelTokensChangedEvent({
 			tokenizationSupportChanged: false,
+			semanticTokensApplied: false,
 			ranges: [{ fromLineNumber: 1, toLineNumber: this.getLineCount() }]
 		});
 	}
@@ -3066,6 +3107,7 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 	readonly minimap: ModelDecorationMinimapOptions | null;
 	readonly glyphMarginClassName: string | null;
 	readonly linesDecorationsClassName: string | null;
+	readonly firstLineDecorationClassName: string | null;
 	readonly marginClassName: string | null;
 	readonly inlineClassName: string | null;
 	readonly inlineClassNameAffectsLetterSpacing: boolean;
@@ -3085,6 +3127,7 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 		this.minimap = options.minimap ? new ModelDecorationMinimapOptions(options.minimap) : null;
 		this.glyphMarginClassName = options.glyphMarginClassName ? cleanClassName(options.glyphMarginClassName) : null;
 		this.linesDecorationsClassName = options.linesDecorationsClassName ? cleanClassName(options.linesDecorationsClassName) : null;
+		this.firstLineDecorationClassName = options.firstLineDecorationClassName ? cleanClassName(options.firstLineDecorationClassName) : null;
 		this.marginClassName = options.marginClassName ? cleanClassName(options.marginClassName) : null;
 		this.inlineClassName = options.inlineClassName ? cleanClassName(options.inlineClassName) : null;
 		this.inlineClassNameAffectsLetterSpacing = options.inlineClassNameAffectsLetterSpacing || false;
@@ -3191,10 +3234,11 @@ export class DidChangeContentEmitter extends Disposable {
 		this._deferredCnt++;
 	}
 
-	public endDeferredEmit(): void {
+	public endDeferredEmit(resultingSelection: Selection[] | null = null): void {
 		this._deferredCnt--;
 		if (this._deferredCnt === 0) {
 			if (this._deferredEvent !== null) {
+				this._deferredEvent.rawContentChangedEvent.resultingSelection = resultingSelection;
 				const e = this._deferredEvent;
 				this._deferredEvent = null;
 				this._fastEmitter.fire(e);

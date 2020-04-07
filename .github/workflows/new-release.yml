@@ -1,0 +1,23 @@
+name: New Release
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Actions
+        uses: actions/checkout@v2
+        with:
+          repository: 'microsoft/vscode-github-triage-actions'
+          ref: v1
+      - name: Install Actions
+        run: npm install --production
+      - name: Run New Release
+        uses: ./new-release
+        with:
+          label: new release
+          labelColor: "006b75"
+          labelDescription: Issues found in a recent release of VS Code
+          days: 5

@@ -4,44 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { TestLifecycleService, TestContextService, TestFileService, TestFilesConfigurationService, TestFileDialogService, TestTextFileService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/browser/workbenchTestServices';
 import { toResource } from 'vs/base/test/common/utils';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IFileService } from 'vs/platform/files/common/files';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-
-class ServiceAccessor {
-	constructor(
-		@ILifecycleService public lifecycleService: TestLifecycleService,
-		@ITextFileService public textFileService: TestTextFileService,
-		@IWorkingCopyFileService public workingCopyFileService: IWorkingCopyFileService,
-		@IFilesConfigurationService public filesConfigurationService: TestFilesConfigurationService,
-		@IWorkspaceContextService public contextService: TestContextService,
-		@IModelService public modelService: ModelServiceImpl,
-		@IFileService public fileService: TestFileService,
-		@IFileDialogService public fileDialogService: TestFileDialogService
-	) {
-	}
-}
 
 suite('Files - TextFileService', () => {
 
 	let instantiationService: IInstantiationService;
 	let model: TextFileEditorModel;
-	let accessor: ServiceAccessor;
+	let accessor: TestServiceAccessor;
 
 	setup(() => {
 		instantiationService = workbenchInstantiationService();
-		accessor = instantiationService.createInstance(ServiceAccessor);
+		accessor = instantiationService.createInstance(TestServiceAccessor);
 	});
 
 	teardown(() => {
@@ -120,8 +97,7 @@ suite('Files - TextFileService', () => {
 		model!.textEditorModel!.setValue('foo');
 		assert.ok(accessor.textFileService.isDirty(model.resource));
 
-		const res = await accessor.textFileService.revert(model.resource);
-		assert.ok(res);
+		await accessor.textFileService.revert(model.resource);
 		assert.ok(!accessor.textFileService.isDirty(model.resource));
 	});
 
@@ -135,12 +111,14 @@ suite('Files - TextFileService', () => {
 
 		let eventCounter = 0;
 
-		accessor.textFileService.onWillCreateTextFile(e => {
-			assert.equal(e.resource.toString(), model.resource.toString());
-			eventCounter++;
+		const disposable1 = accessor.workingCopyFileService.addFileOperationParticipant({
+			participate: async target => {
+				assert.equal(target.toString(), model.resource.toString());
+				eventCounter++;
+			}
 		});
 
-		accessor.textFileService.onDidCreateTextFile(e => {
+		const disposable2 = accessor.textFileService.onDidCreateTextFile(e => {
 			assert.equal(e.resource.toString(), model.resource.toString());
 			eventCounter++;
 		});
@@ -149,5 +127,8 @@ suite('Files - TextFileService', () => {
 		assert.ok(!accessor.textFileService.isDirty(model.resource));
 
 		assert.equal(eventCounter, 2);
+
+		disposable1.dispose();
+		disposable2.dispose();
 	});
 });

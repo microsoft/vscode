@@ -8,42 +8,33 @@ import { URI } from 'vs/base/common/uri';
 
 export const IUndoRedoService = createDecorator<IUndoRedoService>('undoRedoService');
 
-export interface IUndoRedoContext {
-	replaceCurrentElement(others: IUndoRedoElement[]): void;
+export const enum UndoRedoElementType {
+	Resource,
+	Workspace
 }
 
-export interface IUndoRedoElement {
-	/**
-	 * None, one or multiple resources that this undo/redo element impacts.
-	 */
-	readonly resources: URI[];
-
-	/**
-	 * The label of the undo/redo element.
-	 */
+export interface IResourceUndoRedoElement {
+	readonly type: UndoRedoElementType.Resource;
+	readonly resource: URI;
 	readonly label: string;
+	undo(): Promise<void> | void;
+	redo(): Promise<void> | void;
+}
 
-	/**
-	 * Undo.
-	 * Will always be called before `redo`.
-	 * Can be called multiple times.
-	 * e.g. `undo` -> `redo` -> `undo` -> `redo`
-	 */
-	undo(ctx: IUndoRedoContext): void;
+export interface IWorkspaceUndoRedoElement {
+	readonly type: UndoRedoElementType.Workspace;
+	readonly resources: readonly URI[];
+	readonly label: string;
+	undo(): Promise<void> | void;
+	redo(): Promise<void> | void;
+	split(): IResourceUndoRedoElement[];
+}
 
-	/**
-	 * Redo.
-	 * Will always be called after `undo`.
-	 * Can be called multiple times.
-	 * e.g. `undo` -> `redo` -> `undo` -> `redo`
-	 */
-	redo(ctx: IUndoRedoContext): void;
+export type IUndoRedoElement = IResourceUndoRedoElement | IWorkspaceUndoRedoElement;
 
-	/**
-	 * Invalidate the edits concerning `resource`.
-	 * i.e. the undo/redo stack for that particular resource has been destroyed.
-	 */
-	invalidate(resource: URI): boolean;
+export interface IPastFutureElements {
+	past: IUndoRedoElement[];
+	future: IUndoRedoElement[];
 }
 
 export interface IUndoRedoService {
@@ -60,14 +51,20 @@ export interface IUndoRedoService {
 	 */
 	getLastElement(resource: URI): IUndoRedoElement | null;
 
+	getElements(resource: URI): IPastFutureElements;
+
+	hasElements(resource: URI): boolean;
+
+	setElementsIsValid(resource: URI, isValid: boolean): void;
+
 	/**
 	 * Remove elements that target `resource`.
 	 */
 	removeElements(resource: URI): void;
 
 	canUndo(resource: URI): boolean;
-	undo(resource: URI): void;
+	undo(resource: URI): Promise<void> | void;
 
-	redo(resource: URI): void;
 	canRedo(resource: URI): boolean;
+	redo(resource: URI): Promise<void> | void;
 }

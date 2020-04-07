@@ -13,7 +13,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel } from 'vs/editor/common/model';
-import { CodeAction, CodeActionTriggerType } from 'vs/editor/common/modes';
+import { CodeActionTriggerType, DocumentFormattingEditProvider, CodeActionProvider } from 'vs/editor/common/modes';
 import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
 import { applyCodeAction } from 'vs/editor/contrib/codeAction/codeActionCommands';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/types';
@@ -22,15 +22,15 @@ import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IProgressStep, IProgress } from 'vs/platform/progress/common/progress';
-import { IResolvedTextFileEditorModel, ITextFileService, ITextFileSaveParticipant } from 'vs/workbench/services/textfile/common/textfiles';
+import { IProgressStep, IProgress, Progress } from 'vs/platform/progress/common/progress';
+import { ITextFileService, ITextFileSaveParticipant, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution, Extensions as WorkbenchContributionsExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
-class TrimWhitespaceParticipant implements ITextFileSaveParticipant {
+export class TrimWhitespaceParticipant implements ITextFileSaveParticipant {
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -39,7 +39,11 @@ class TrimWhitespaceParticipant implements ITextFileSaveParticipant {
 		// Nothing
 	}
 
-	async participate(model: IResolvedTextFileEditorModel, env: { reason: SaveReason; }): Promise<void> {
+	async participate(model: ITextFileEditorModel, env: { reason: SaveReason; }): Promise<void> {
+		if (!model.textEditorModel) {
+			return;
+		}
+
 		if (this.configurationService.getValue('files.trimTrailingWhitespace', { overrideIdentifier: model.textEditorModel.getLanguageIdentifier().language, resource: model.resource })) {
 			this.doTrimTrailingWhitespace(model.textEditorModel, env.reason === SaveReason.AUTO);
 		}
@@ -101,7 +105,11 @@ export class FinalNewLineParticipant implements ITextFileSaveParticipant {
 		// Nothing
 	}
 
-	async participate(model: IResolvedTextFileEditorModel, _env: { reason: SaveReason; }): Promise<void> {
+	async participate(model: ITextFileEditorModel, _env: { reason: SaveReason; }): Promise<void> {
+		if (!model.textEditorModel) {
+			return;
+		}
+
 		if (this.configurationService.getValue('files.insertFinalNewline', { overrideIdentifier: model.textEditorModel.getLanguageIdentifier().language, resource: model.resource })) {
 			this.doInsertFinalNewLine(model.textEditorModel);
 		}
@@ -135,7 +143,11 @@ export class TrimFinalNewLinesParticipant implements ITextFileSaveParticipant {
 		// Nothing
 	}
 
-	async participate(model: IResolvedTextFileEditorModel, env: { reason: SaveReason; }): Promise<void> {
+	async participate(model: ITextFileEditorModel, env: { reason: SaveReason; }): Promise<void> {
+		if (!model.textEditorModel) {
+			return;
+		}
+
 		if (this.configurationService.getValue('files.trimFinalNewlines', { overrideIdentifier: model.textEditorModel.getLanguageIdentifier().language, resource: model.resource })) {
 			this.doTrimFinalNewLines(model.textEditorModel, env.reason === SaveReason.AUTO);
 		}
@@ -205,17 +217,29 @@ class FormatOnSaveParticipant implements ITextFileSaveParticipant {
 		// Nothing
 	}
 
-	async participate(editorModel: IResolvedTextFileEditorModel, env: { reason: SaveReason; }, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
-		const model = editorModel.textEditorModel;
-		const overrides = { overrideIdentifier: model.getLanguageIdentifier().language, resource: model.uri };
+	async participate(model: ITextFileEditorModel, env: { reason: SaveReason; }, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
+		if (!model.textEditorModel) {
+			return;
+		}
+
+		const textEditorModel = model.textEditorModel;
+		const overrides = { overrideIdentifier: textEditorModel.getLanguageIdentifier().language, resource: textEditorModel.uri };
 
 		if (env.reason === SaveReason.AUTO || !this.configurationService.getValue('editor.formatOnSave', overrides)) {
 			return undefined;
 		}
 
-		progress.report({ message: localize('formatting', "Formatting") });
-		const editorOrModel = findEditor(model, this.codeEditorService) || model;
-		await this.instantiationService.invokeFunction(formatDocumentWithSelectedProvider, editorOrModel, FormattingMode.Silent, token);
+		const nestedProgress = new Progress<DocumentFormattingEditProvider>(provider => {
+			progress.report({
+				message: localize(
+					'formatting',
+					"Running '{0}' Formatter ([configure](command:workbench.action.openSettings?%5B%22editor.formatOnSave%22%5D)).",
+					provider.displayName || provider.extensionId && provider.extensionId.value || '???'
+				)
+			});
+		});
+		const editorOrModel = findEditor(textEditorModel, this.codeEditorService) || textEditorModel;
+		await this.instantiationService.invokeFunction(formatDocumentWithSelectedProvider, editorOrModel, FormattingMode.Silent, nestedProgress, token);
 	}
 }
 
@@ -226,21 +250,31 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) { }
 
-	async participate(editorModel: IResolvedTextFileEditorModel, env: { reason: SaveReason; }, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
+	async participate(model: ITextFileEditorModel, env: { reason: SaveReason; }, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
+		if (!model.textEditorModel) {
+			return;
+		}
+
 		if (env.reason === SaveReason.AUTO) {
 			return undefined;
 		}
-		const model = editorModel.textEditorModel;
+		const textEditorModel = model.textEditorModel;
 
-		const settingsOverrides = { overrideIdentifier: model.getLanguageIdentifier().language, resource: editorModel.resource };
-		const setting = this.configurationService.getValue<{ [kind: string]: boolean }>('editor.codeActionsOnSave', settingsOverrides);
+		const settingsOverrides = { overrideIdentifier: textEditorModel.getLanguageIdentifier().language, resource: model.resource };
+		const setting = this.configurationService.getValue<{ [kind: string]: boolean } | string[]>('editor.codeActionsOnSave', settingsOverrides);
 		if (!setting) {
 			return undefined;
 		}
 
-		const codeActionsOnSave = Object.keys(setting)
-			.filter(x => setting[x]).map(x => new CodeActionKind(x))
-			.sort((a, b) => {
+		const settingItems: string[] = Array.isArray(setting)
+			? setting
+			: Object.keys(setting).filter(x => setting[x]);
+
+		const codeActionsOnSave = settingItems
+			.map(x => new CodeActionKind(x));
+
+		if (!Array.isArray(setting)) {
+			codeActionsOnSave.sort((a, b) => {
 				if (CodeActionKind.SourceFixAll.contains(a)) {
 					if (CodeActionKind.SourceFixAll.contains(b)) {
 						return 0;
@@ -252,24 +286,50 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 				}
 				return 0;
 			});
+		}
 
 		if (!codeActionsOnSave.length) {
 			return undefined;
 		}
 
-		const excludedActions = Object.keys(setting)
-			.filter(x => setting[x] === false)
-			.map(x => new CodeActionKind(x));
+		const excludedActions = Array.isArray(setting)
+			? []
+			: Object.keys(setting)
+				.filter(x => setting[x] === false)
+				.map(x => new CodeActionKind(x));
 
 		progress.report({ message: localize('codeaction', "Quick Fixes") });
-		await this.applyOnSaveActions(model, codeActionsOnSave, excludedActions, token);
+		await this.applyOnSaveActions(textEditorModel, codeActionsOnSave, excludedActions, progress, token);
 	}
 
-	private async applyOnSaveActions(model: ITextModel, codeActionsOnSave: readonly CodeActionKind[], excludes: readonly CodeActionKind[], token: CancellationToken): Promise<void> {
+	private async applyOnSaveActions(model: ITextModel, codeActionsOnSave: readonly CodeActionKind[], excludes: readonly CodeActionKind[], progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
+
+		const getActionProgress = new class implements IProgress<CodeActionProvider> {
+			private _names: string[] = [];
+			private _report(): void {
+				progress.report({
+					message: localize(
+						'codeaction.get',
+						"Getting code actions from '{0}' ([configure](command:workbench.action.openSettings?%5B%22editor.codeActionsOnSave%22%5D)).",
+						this._names.map(name => `'${name}'`).join(', ')
+					)
+				});
+			}
+			report(provider: CodeActionProvider) {
+				if (provider.displayName) {
+					this._names.push(provider.displayName);
+					this._report();
+				}
+			}
+		};
+
 		for (const codeActionKind of codeActionsOnSave) {
-			const actionsToRun = await this.getActionsToRun(model, codeActionKind, excludes, token);
+			const actionsToRun = await this.getActionsToRun(model, codeActionKind, excludes, getActionProgress, token);
 			try {
-				await this.applyCodeActions(actionsToRun.validActions);
+				for (const action of actionsToRun.validActions) {
+					progress.report({ message: localize('codeAction.apply', "Applying code action '{0}'.", action.title) });
+					await this.instantiationService.invokeFunction(applyCodeAction, action);
+				}
 			} catch {
 				// Failure to apply a code action should not block other on save actions
 			} finally {
@@ -278,17 +338,11 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 		}
 	}
 
-	private async applyCodeActions(actionsToRun: readonly CodeAction[]) {
-		for (const action of actionsToRun) {
-			await this.instantiationService.invokeFunction(applyCodeAction, action);
-		}
-	}
-
-	private getActionsToRun(model: ITextModel, codeActionKind: CodeActionKind, excludes: readonly CodeActionKind[], token: CancellationToken) {
+	private getActionsToRun(model: ITextModel, codeActionKind: CodeActionKind, excludes: readonly CodeActionKind[], progress: IProgress<CodeActionProvider>, token: CancellationToken) {
 		return getCodeActions(model, model.getFullModelRange(), {
 			type: CodeActionTriggerType.Auto,
 			filter: { include: codeActionKind, excludes: excludes, includeSourceActions: true },
-		}, token);
+		}, progress, token);
 	}
 }
 

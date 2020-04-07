@@ -94,9 +94,9 @@ export interface IExtensionRecommendation {
 	sources: ExtensionRecommendationSource[];
 }
 
-export const IExtensionTipsService = createDecorator<IExtensionTipsService>('extensionTipsService');
+export const IExtensionRecommendationsService = createDecorator<IExtensionRecommendationsService>('extensionRecommendationsService');
 
-export interface IExtensionTipsService {
+export interface IExtensionRecommendationsService {
 	_serviceBrand: undefined;
 	getAllRecommendationsWithReason(): { [id: string]: { reasonId: ExtensionRecommendationReason, reasonText: string }; };
 	getFileBasedRecommendations(): IExtensionRecommendation[];

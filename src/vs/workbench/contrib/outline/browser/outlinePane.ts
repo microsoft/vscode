@@ -50,6 +50,7 @@ import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 class RequestState {
 
@@ -94,12 +95,12 @@ class RequestOracle {
 
 	private _update(): void {
 
-		let widget = this._editorService.activeTextEditorWidget;
+		let control = this._editorService.activeTextEditorControl;
 		let codeEditor: ICodeEditor | undefined = undefined;
-		if (isCodeEditor(widget)) {
-			codeEditor = widget;
-		} else if (isDiffEditor(widget)) {
-			codeEditor = widget.getModifiedEditor();
+		if (isCodeEditor(control)) {
+			codeEditor = control;
+		} else if (isDiffEditor(control)) {
+			codeEditor = control.getModifiedEditor();
 		}
 
 		if (!codeEditor || !codeEditor.hasModel()) {
@@ -270,8 +271,9 @@ export class OutlinePane extends ViewPane {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(options, keybindingService, contextMenuService, _configurationService, contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService);
+		super(options, keybindingService, contextMenuService, _configurationService, contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, telemetryService);
 		this._outlineViewState.restore(this._storageService);
 		this._contextKeyFocused = OutlineViewFocused.bindTo(contextKeyService);
 		this._contextKeyFiltered = OutlineViewFiltered.bindTo(contextKeyService);
@@ -636,7 +638,7 @@ export class OutlinePane extends ViewPane {
 				options: {
 					preserveFocus: !focus,
 					selection: Range.collapseToStart(element.symbol.selectionRange),
-					selectionRevealType: TextEditorSelectionRevealType.NearTop,
+					selectionRevealType: TextEditorSelectionRevealType.NearTopIfOutsideViewport,
 				}
 			},
 			this._editorService.getActiveCodeEditor(),
