@@ -1072,11 +1072,9 @@ class DirectDebugAdapter extends AbstractDebugAdapter {
 	constructor(private implementation: vscode.DebugAdapter) {
 		super();
 
-		if (this.implementation.onDidSendMessage) {
-			implementation.onDidSendMessage((message: vscode.DebugProtocolMessage) => {
-				this.acceptMessage(message as DebugProtocol.ProtocolMessage);
-			});
-		}
+		implementation.onDidSendMessage((message: vscode.DebugProtocolMessage) => {
+			this.acceptMessage(message as DebugProtocol.ProtocolMessage);
+		});
 	}
 
 	startSession(): Promise<void> {
@@ -1084,15 +1082,11 @@ class DirectDebugAdapter extends AbstractDebugAdapter {
 	}
 
 	sendMessage(message: DebugProtocol.ProtocolMessage): void {
-		if (this.implementation.handleMessage) {
-			this.implementation.handleMessage(message);
-		}
+		this.implementation.handleMessage(message);
 	}
 
 	stopSession(): Promise<void> {
-		if (this.implementation.dispose) {
-			this.implementation.dispose();
-		}
+		this.implementation.dispose();
 		return Promise.resolve(undefined);
 	}
 }

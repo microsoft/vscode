@@ -80,15 +80,11 @@ export class StandardMouseEvent implements IMouseEvent {
 	}
 
 	public preventDefault(): void {
-		if (this.browserEvent.preventDefault) {
-			this.browserEvent.preventDefault();
-		}
+		this.browserEvent.preventDefault();
 	}
 
 	public stopPropagation(): void {
-		if (this.browserEvent.stopPropagation) {
-			this.browserEvent.stopPropagation();
-		}
+		this.browserEvent.stopPropagation();
 	}
 }
 
@@ -208,17 +204,13 @@ export class StandardWheelEvent {
 
 	public preventDefault(): void {
 		if (this.browserEvent) {
-			if (this.browserEvent.preventDefault) {
-				this.browserEvent.preventDefault();
-			}
+			this.browserEvent.preventDefault();
 		}
 	}
 
 	public stopPropagation(): void {
 		if (this.browserEvent) {
-			if (this.browserEvent.stopPropagation) {
-				this.browserEvent.stopPropagation();
-			}
+			this.browserEvent.stopPropagation();
 		}
 	}
 }
