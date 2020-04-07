@@ -187,7 +187,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 					fontSize,
 					letterSpacing,
 					lineHeight,
-					charHeight: xtermCore._renderService.dimensions.actualCellHeight,
+					charHeight: xtermCore._renderService.dimensions.actualCellHeight / lineHeight,
 					charWidth: xtermCore._renderService.dimensions.actualCellWidth
 				};
 			}
