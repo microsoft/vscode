@@ -211,7 +211,7 @@ suite('ExtensionRecommendationsService Test', () => {
 			...productService,
 			...{
 				extensionTips: {
-					'ms-vscode.csharp': '{**/*.cs,**/project.json,**/global.json,**/*.csproj,**/*.sln,**/appsettings.json}',
+					'ms-dotnettools.csharp': '{**/*.cs,**/project.json,**/global.json,**/*.csproj,**/*.sln,**/appsettings.json}',
 					'msjsdiag.debugger-for-chrome': '{**/*.ts,**/*.tsx,**/*.js,**/*.jsx,**/*.es6,**/*.mjs,**/*.cjs,**/.babelrc}',
 					'lukehoban.Go': '**/*.go'
 				},
@@ -386,8 +386,8 @@ suite('ExtensionRecommendationsService Test', () => {
 
 	test('ExtensionRecommendationsService: No Recommendations of globally ignored recommendations', () => {
 		const storageGetterStub = (a: string, _: StorageScope, c?: string) => {
-			const storedRecommendations = '["ms-vscode.csharp", "ms-python.python", "ms-vscode.vscode-typescript-tslint-plugin"]';
-			const ignoredRecommendations = '["ms-vscode.csharp", "mockpublisher2.mockextension2"]'; // ignore a stored recommendation and a workspace recommendation.
+			const storedRecommendations = '["ms-dotnettools.csharp", "ms-python.python", "ms-vscode.vscode-typescript-tslint-plugin"]';
+			const ignoredRecommendations = '["ms-dotnettools.csharp", "mockpublisher2.mockextension2"]'; // ignore a stored recommendation and a workspace recommendation.
 			if (a === 'extensionsAssistant/recommendations') { return storedRecommendations; }
 			if (a === 'extensionsAssistant/ignored_recommendations') { return ignoredRecommendations; }
 			return c;
@@ -402,7 +402,7 @@ suite('ExtensionRecommendationsService Test', () => {
 			testObject = instantiationService.createInstance(ExtensionRecommendationsService);
 			return testObject.loadWorkspaceConfigPromise.then(() => {
 				const recommendations = testObject.getAllRecommendationsWithReason();
-				assert.ok(!recommendations['ms-vscode.csharp']); // stored recommendation that has been globally ignored
+				assert.ok(!recommendations['ms-dotnettools.csharp']); // stored recommendation that has been globally ignored
 				assert.ok(recommendations['ms-python.python']); // stored recommendation
 				assert.ok(recommendations['mockpublisher1.mockextension1']); // workspace recommendation
 				assert.ok(!recommendations['mockpublisher2.mockextension2']); // workspace recommendation that has been globally ignored
@@ -411,8 +411,8 @@ suite('ExtensionRecommendationsService Test', () => {
 	});
 
 	test('ExtensionRecommendationsService: No Recommendations of workspace ignored recommendations', () => {
-		const ignoredRecommendations = ['ms-vscode.csharp', 'mockpublisher2.mockextension2']; // ignore a stored recommendation and a workspace recommendation.
-		const storedRecommendations = '["ms-vscode.csharp", "ms-python.python"]';
+		const ignoredRecommendations = ['ms-dotnettools.csharp', 'mockpublisher2.mockextension2']; // ignore a stored recommendation and a workspace recommendation.
+		const storedRecommendations = '["ms-dotnettools.csharp", "ms-python.python"]';
 		instantiationService.stub(IStorageService, <Partial<IStorageService>>{
 			get: (a: string, b: StorageScope, c?: string) => a === 'extensionsAssistant/recommendations' ? storedRecommendations : c,
 			getBoolean: (a: string, _: StorageScope, c?: boolean) => a === 'extensionsAssistant/workspaceRecommendationsIgnore' || c
@@ -422,7 +422,7 @@ suite('ExtensionRecommendationsService Test', () => {
 			testObject = instantiationService.createInstance(ExtensionRecommendationsService);
 			return testObject.loadWorkspaceConfigPromise.then(() => {
 				const recommendations = testObject.getAllRecommendationsWithReason();
-				assert.ok(!recommendations['ms-vscode.csharp']); // stored recommendation that has been workspace ignored
+				assert.ok(!recommendations['ms-dotnettools.csharp']); // stored recommendation that has been workspace ignored
 				assert.ok(recommendations['ms-python.python']); // stored recommendation
 				assert.ok(recommendations['mockpublisher1.mockextension1']); // workspace recommendation
 				assert.ok(!recommendations['mockpublisher2.mockextension2']); // workspace recommendation that has been workspace ignored
@@ -433,14 +433,14 @@ suite('ExtensionRecommendationsService Test', () => {
 	test('ExtensionRecommendationsService: Able to retrieve collection of all ignored recommendations', () => {
 
 		const storageGetterStub = (a: string, _: StorageScope, c?: string) => {
-			const storedRecommendations = '["ms-vscode.csharp", "ms-python.python"]';
+			const storedRecommendations = '["ms-dotnettools.csharp", "ms-python.python"]';
 			const globallyIgnoredRecommendations = '["mockpublisher2.mockextension2"]'; // ignore a workspace recommendation.
 			if (a === 'extensionsAssistant/recommendations') { return storedRecommendations; }
 			if (a === 'extensionsAssistant/ignored_recommendations') { return globallyIgnoredRecommendations; }
 			return c;
 		};
 
-		const workspaceIgnoredRecommendations = ['ms-vscode.csharp']; // ignore a stored recommendation and a workspace recommendation.
+		const workspaceIgnoredRecommendations = ['ms-dotnettools.csharp']; // ignore a stored recommendation and a workspace recommendation.
 		instantiationService.stub(IStorageService, <Partial<IStorageService>>{
 			get: storageGetterStub,
 			getBoolean: (a: string, _: StorageScope, c?: boolean) => a === 'extensionsAssistant/workspaceRecommendationsIgnore' || c
@@ -453,14 +453,14 @@ suite('ExtensionRecommendationsService Test', () => {
 				assert.ok(recommendations['ms-python.python']);
 
 				assert.ok(!recommendations['mockpublisher2.mockextension2']);
-				assert.ok(!recommendations['ms-vscode.csharp']);
+				assert.ok(!recommendations['ms-dotnettools.csharp']);
 			});
 		});
 	});
 
 	test('ExtensionRecommendationsService: Able to dynamically ignore/unignore global recommendations', () => {
 		const storageGetterStub = (a: string, _: StorageScope, c?: string) => {
-			const storedRecommendations = '["ms-vscode.csharp", "ms-python.python"]';
+			const storedRecommendations = '["ms-dotnettools.csharp", "ms-python.python"]';
 			const globallyIgnoredRecommendations = '["mockpublisher2.mockextension2"]'; // ignore a workspace recommendation.
 			if (a === 'extensionsAssistant/recommendations') { return storedRecommendations; }
 			if (a === 'extensionsAssistant/ignored_recommendations') { return globallyIgnoredRecommendations; }
@@ -525,7 +525,7 @@ suite('ExtensionRecommendationsService Test', () => {
 	});
 
 	test('ExtensionRecommendationsService: Get file based recommendations from storage (old format)', () => {
-		const storedRecommendations = '["ms-vscode.csharp", "ms-python.python", "ms-vscode.vscode-typescript-tslint-plugin"]';
+		const storedRecommendations = '["ms-dotnettools.csharp", "ms-python.python", "ms-vscode.vscode-typescript-tslint-plugin"]';
 		instantiationService.stub(IStorageService, <Partial<IStorageService>>{ get: (a: string, b: StorageScope, c?: string) => a === 'extensionsAssistant/recommendations' ? storedRecommendations : c, getBoolean: (a: string, b: StorageScope, c: boolean) => c });
 
 		return setUpFolderWorkspace('myFolder', []).then(() => {
@@ -533,7 +533,7 @@ suite('ExtensionRecommendationsService Test', () => {
 			return testObject.loadWorkspaceConfigPromise.then(() => {
 				const recommendations = testObject.getFileBasedRecommendations();
 				assert.equal(recommendations.length, 2);
-				assert.ok(recommendations.some(({ extensionId }) => extensionId === 'ms-vscode.csharp')); // stored recommendation that exists in product.extensionTips
+				assert.ok(recommendations.some(({ extensionId }) => extensionId === 'ms-dotnettools.csharp')); // stored recommendation that exists in product.extensionTips
 				assert.ok(recommendations.some(({ extensionId }) => extensionId === 'ms-python.python')); // stored recommendation that exists in product.extensionImportantTips
 				assert.ok(recommendations.every(({ extensionId }) => extensionId !== 'ms-vscode.vscode-typescript-tslint-plugin')); // stored recommendation that is no longer in neither product.extensionTips nor product.extensionImportantTips
 			});
@@ -544,7 +544,7 @@ suite('ExtensionRecommendationsService Test', () => {
 		const milliSecondsInADay = 1000 * 60 * 60 * 24;
 		const now = Date.now();
 		const tenDaysOld = 10 * milliSecondsInADay;
-		const storedRecommendations = `{"ms-vscode.csharp": ${now}, "ms-python.python": ${now}, "ms-vscode.vscode-typescript-tslint-plugin": ${now}, "lukehoban.Go": ${tenDaysOld}}`;
+		const storedRecommendations = `{"ms-dotnettools.csharp": ${now}, "ms-python.python": ${now}, "ms-vscode.vscode-typescript-tslint-plugin": ${now}, "lukehoban.Go": ${tenDaysOld}}`;
 		instantiationService.stub(IStorageService, <Partial<IStorageService>>{ get: (a: string, b: StorageScope, c?: string) => a === 'extensionsAssistant/recommendations' ? storedRecommendations : c, getBoolean: (a: string, b: StorageScope, c: boolean) => c });
 
 		return setUpFolderWorkspace('myFolder', []).then(() => {
@@ -552,7 +552,7 @@ suite('ExtensionRecommendationsService Test', () => {
 			return testObject.loadWorkspaceConfigPromise.then(() => {
 				const recommendations = testObject.getFileBasedRecommendations();
 				assert.equal(recommendations.length, 2);
-				assert.ok(recommendations.some(({ extensionId }) => extensionId === 'ms-vscode.csharp')); // stored recommendation that exists in product.extensionTips
+				assert.ok(recommendations.some(({ extensionId }) => extensionId === 'ms-dotnettools.csharp')); // stored recommendation that exists in product.extensionTips
 				assert.ok(recommendations.some(({ extensionId }) => extensionId === 'ms-python.python')); // stored recommendation that exists in product.extensionImportantTips
 				assert.ok(recommendations.every(({ extensionId }) => extensionId !== 'ms-vscode.vscode-typescript-tslint-plugin')); // stored recommendation that is no longer in neither product.extensionTips nor product.extensionImportantTips
 				assert.ok(recommendations.every(({ extensionId }) => extensionId !== 'lukehoban.Go')); //stored recommendation that is older than a week
