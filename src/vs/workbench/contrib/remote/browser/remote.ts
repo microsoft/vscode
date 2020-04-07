@@ -397,6 +397,11 @@ class HelpPanel extends ViewPane {
 			new HelpDataSource(),
 			{
 				keyboardSupport: true,
+				accessibilityProvider: {
+					getAriaLabel: (item: HelpItemBase) => {
+						return item.label;
+					}
+				}
 			}
 		);
 
