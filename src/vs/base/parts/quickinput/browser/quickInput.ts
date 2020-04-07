@@ -1078,6 +1078,8 @@ export class QuickInputController extends Disposable {
 	private onHideEmitter = new Emitter<void>();
 	readonly onHide = this.onHideEmitter.event;
 
+	private previousFocusElement?: HTMLElement;
+
 	constructor(private options: IQuickInputOptions) {
 		super();
 		this.idPrefix = options.idPrefix;
@@ -1194,7 +1196,11 @@ export class QuickInputController extends Disposable {
 
 		const focusTracker = dom.trackFocus(container);
 		this._register(focusTracker);
+		this._register(dom.addDisposableListener(container, dom.EventType.FOCUS, e => {
+			this.previousFocusElement = e.relatedTarget instanceof HTMLElement ? e.relatedTarget : undefined;
+		}, true));
 		this._register(focusTracker.onDidBlur(() => {
+			this.previousFocusElement = undefined;
 			if (!this.getUI().ignoreFocusOut && !this.options.ignoreFocusOut()) {
 				this.hide(true);
 			}
@@ -1544,7 +1550,12 @@ export class QuickInputController extends Disposable {
 			this.onHideEmitter.fire();
 			this.getUI().container.style.display = 'none';
 			if (!focusLost) {
-				this.options.returnFocus();
+				if (this.previousFocusElement && this.previousFocusElement.offsetParent) {
+					this.previousFocusElement.focus();
+					this.previousFocusElement = undefined;
+				} else {
+					this.options.returnFocus();
+				}
 			}
 			controller.didHide();
 		}
