@@ -1041,9 +1041,10 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	// Util
 
 	private getItemIndexFromEventTarget(target: EventTarget | null): number | undefined {
+		const scrollableElement = this.scrollableElement.getDomNode();
 		let element: HTMLElement | null = target as (HTMLElement | null);
 
-		while (element instanceof HTMLElement && element !== this.rowsContainer) {
+		while (element instanceof HTMLElement && element !== this.rowsContainer && scrollableElement.contains(element)) {
 			const rawIndex = element.getAttribute('data-index');
 
 			if (rawIndex) {
