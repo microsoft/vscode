@@ -914,7 +914,11 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			return paneItemTitle ? `${this.viewContainer.name}: ${paneItemTitle}` : this.viewContainer.name;
 		}
 
-		return this.viewContainer.name;
+		if (this.viewContainer.name !== 'Custom Views') {
+			return this.viewContainer.name;
+		} else {
+			return this.paneItems[0].pane.title;
+		}
 	}
 
 	private showContextMenu(event: StandardMouseEvent): void {

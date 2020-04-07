@@ -6,7 +6,7 @@
 import 'vs/css!./media/activitybarpart';
 import * as nls from 'vs/nls';
 import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
+import { GLOBAL_ACTIVITY_ID, IActivity } from 'vs/workbench/common/activity';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Part } from 'vs/workbench/browser/part';
 import { GlobalActivityActionViewItem, ViewletActivityAction, ToggleViewletAction, PlaceHolderToggleCompositePinnedAction, PlaceHolderViewletActivityAction, AccountsActionViewItem } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
@@ -29,7 +29,7 @@ import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { IViewDescriptorService, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainer, TEST_VIEW_CONTAINER_ID, IViewDescriptorCollection, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IViewlet } from 'vs/workbench/common/viewlet';
-import { isUndefinedOrNull, assertIsDefined } from 'vs/base/common/types';
+import { isUndefinedOrNull, assertIsDefined, isString } from 'vs/base/common/types';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Schemas } from 'vs/base/common/network';
@@ -477,8 +477,29 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		this.hideComposite(viewletId);
 	}
 
+	private updateActivity(viewlet: ViewletDescriptor, viewDescriptors: IViewDescriptorCollection): void {
+		const viewDescriptor = viewDescriptors.activeViewDescriptors[0];
+		const activity: IActivity = {
+			id: viewlet.id,
+			name: viewDescriptor.name,
+			cssClass: isString(viewDescriptor.containerIcon) ? viewDescriptor.containerIcon : undefined,
+			iconUrl: viewDescriptor.containerIcon instanceof URI ? viewDescriptor.containerIcon : undefined,
+			keybindingId: viewlet.keybindingId
+		};
+
+		const { activityAction, pinnedAction } = this.getCompositeActions(viewlet.id);
+		// if (activityAction instanceof PlaceHolderViewletActivityAction) {
+		activityAction.setActivity(activity);
+		// }
+
+		if (pinnedAction instanceof PlaceHolderToggleCompositePinnedAction) {
+			pinnedAction.setActivity(activity);
+		}
+	}
+
 	private onDidChangeActiveViews(viewlet: ViewletDescriptor, viewDescriptors: IViewDescriptorCollection): void {
 		if (viewDescriptors.activeViewDescriptors.length) {
+			this.updateActivity(viewlet, viewDescriptors);
 			this.compositeBar.addComposite(viewlet);
 		} else {
 			this.hideComposite(viewlet.id);
