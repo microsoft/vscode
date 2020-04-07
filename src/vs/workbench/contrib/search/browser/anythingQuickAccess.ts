@@ -134,6 +134,16 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 				};
 			}
 		}
+
+		async restoreEditorViewState(): Promise<void> {
+			if (this.editorViewState) {
+				await this.editorService.openEditor(
+					this.editorViewState.editor,
+					{ viewState: this.editorViewState.state, preserveFocus: true /* import to not close the picker as a result */ },
+					this.editorViewState.group
+				);
+			}
+		}
 	}(this, this.editorService);
 
 	get defaultFilterValue(): DefaultQuickAccessFilterValue | undefined {
@@ -206,15 +216,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		}));
 
 		// Restore view state upon cancellation if we changed it
-		disposables.add(once(token.onCancellationRequested)(() => {
-			if (this.pickState.editorViewState) {
-				this.editorService.openEditor(
-					this.pickState.editorViewState.editor,
-					{ viewState: this.pickState.editorViewState.state, preserveFocus: true /* import to not close the picker as a result */ },
-					this.pickState.editorViewState.group
-				);
-			}
-		}));
+		disposables.add(once(token.onCancellationRequested)(() => this.pickState.restoreEditorViewState()));
 
 		// Start picker
 		disposables.add(super.provide(picker, token));
@@ -912,6 +914,12 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		const targetGroup = options.keyMods?.ctrlCmd || options.forceOpenSideBySide ? SIDE_GROUP : ACTIVE_GROUP;
 
+		// Restore any view state if the target is the side group
+		if (targetGroup === SIDE_GROUP) {
+			await this.pickState.restoreEditorViewState();
+		}
+
+		// Open editor
 		if (resourceOrEditor instanceof EditorInput) {
 			await this.editorService.openEditor(resourceOrEditor, editorOptions);
 		} else {
@@ -920,6 +928,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 				options: editorOptions
 			}, targetGroup);
 		}
+
 	}
 
 	//#endregion
