@@ -359,9 +359,9 @@ export class TimelinePane extends ViewPane {
 			}
 
 			if (this.isBodyVisible()) {
-				this.updateTimeline(timeline, e.reset ?? false);
+				this.updateTimeline(timeline, e.reset);
 			} else {
-				timeline.invalidate(e.reset ?? false);
+				timeline.invalidate(e.reset);
 			}
 		}
 	}

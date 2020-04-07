@@ -1890,9 +1890,8 @@ declare module 'vscode' {
 	export interface TimelineChangeEvent {
 		/**
 		 * The [uri](#Uri) of the resource for which the timeline changed.
-		 * If the [uri](#Uri) is `undefined` that signals that the timeline source for all resources changed.
 		 */
-		uri?: Uri;
+		uri: Uri;
 
 		/**
 		 * A flag which indicates whether the entire timeline should be reset.
@@ -1933,7 +1932,7 @@ declare module 'vscode' {
 		 * An optional event to signal that the timeline for a source has changed.
 		 * To signal that the timeline for all resources (uris) has changed, do not pass any argument or pass `undefined`.
 		 */
-		onDidChange?: Event<TimelineChangeEvent>;
+		onDidChange?: Event<TimelineChangeEvent | undefined>;
 
 		/**
 		 * An identifier of the source of the timeline items. This can be used to filter sources.

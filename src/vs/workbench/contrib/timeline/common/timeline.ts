@@ -38,8 +38,8 @@ export interface TimelineItem {
 
 export interface TimelineChangeEvent {
 	id: string;
-	uri?: URI;
-	reset?: boolean
+	uri: URI | undefined;
+	reset: boolean
 }
 
 export interface TimelineOptions {

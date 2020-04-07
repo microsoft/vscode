@@ -885,7 +885,7 @@ export interface MainThreadTunnelServiceShape extends IDisposable {
 export interface MainThreadTimelineShape extends IDisposable {
 	$registerTimelineProvider(provider: TimelineProviderDescriptor): void;
 	$unregisterTimelineProvider(source: string): void;
-	$emitTimelineChangeEvent(e: TimelineChangeEvent): void;
+	$emitTimelineChangeEvent(e: TimelineChangeEvent | undefined): void;
 }
 
 // -- extension host
