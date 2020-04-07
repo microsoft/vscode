@@ -766,6 +766,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!InMemoryTask.is(task) && key) {
 			const customizations = this.createCustomizableTask(task);
 			if (ContributedTask.is(task) && customizations) {
+				// reset the key so we can ignore this task if we can't make a new key for it
+				key = undefined;
 				let custom: CustomTask[] = [];
 				let customized: IStringDictionary<ConfiguringTask> = Object.create(null);
 				await this.computeTasksForSingleConfig(task._source.workspaceFolder ?? this.workspaceFolders[0], {
@@ -779,8 +781,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					}
 				}
 			}
-			this.getRecentlyUsedTasks().set(key, JSON.stringify(customizations));
-			this.saveRecentlyUsedTasks();
+			if (key) {
+				this.getRecentlyUsedTasks().set(key, JSON.stringify(customizations));
+				this.saveRecentlyUsedTasks();
+			}
 		}
 	}
 
