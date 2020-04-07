@@ -12,7 +12,7 @@ import * as uuid from 'vs/base/common/uuid';
 import { mkdirp, rimraf, RimRafMode } from 'vs/base/node/pfs';
 import {
 	IExtensionGalleryService, IGalleryExtensionAssets, IGalleryExtension, IExtensionManagementService,
-	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier
+	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, IExtensionTipsService
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
@@ -54,6 +54,7 @@ import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemPro
 import { IFileService } from 'vs/platform/files/common/files';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { NativeExtensionRecommendationsService as ExtensionRecommendationsService } from 'vs/workbench/contrib/extensions/electron-browser/extensionRecommendationsService';
+import { ExtensionTipsService } from 'vs/platform/extensionManagement/node/extensionTipsService';
 
 const mockExtensionGallery: IGalleryExtension[] = [
 	aGalleryExtension('MockExtension1', {
@@ -169,7 +170,7 @@ function aGalleryExtension(name: string, properties: any = {}, galleryExtensionP
 	return <IGalleryExtension>galleryExtension;
 }
 
-suite('ExtensionsTipsService Test', () => {
+suite('ExtensionRecommendationsService Test', () => {
 	let workspaceService: IWorkspaceContextService;
 	let instantiationService: TestInstantiationService;
 	let testConfigurationService: TestConfigurationService;
@@ -202,6 +203,7 @@ suite('ExtensionsTipsService Test', () => {
 		instantiationService.stub(IExtensionManagementService, 'onDidUninstallExtension', didUninstallEvent.event);
 		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		instantiationService.stub(IExtensionTipsService, ExtensionTipsService);
 		instantiationService.stub(IURLService, URLService);
 		instantiationService.set(IProductService, {
 			...productService,
