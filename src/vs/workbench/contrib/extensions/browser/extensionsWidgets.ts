@@ -159,12 +159,7 @@ export class TooltipWidget extends ExtensionWidget {
 	}
 
 	render(): void {
-		this.parent.title = '';
-		this.parent.removeAttribute('aria-label');
 		this.parent.title = this.getTooltip();
-		if (this.extension) {
-			this.parent.setAttribute('aria-label', localize('extension-arialabel', "{0}. Press enter for extension details.", this.extension.displayName));
-		}
 	}
 
 	private getTooltip(): string {
@@ -208,7 +203,6 @@ export class RecommendationWidget extends ExtensionWidget {
 
 	private clear(): void {
 		this.tooltip = '';
-		this.parent.setAttribute('aria-label', this.extension ? localize('viewExtensionDetailsAria', "{0}. Press enter for extension details.", this.extension.displayName) : '');
 		if (this.element) {
 			this.parent.removeChild(this.element);
 		}
