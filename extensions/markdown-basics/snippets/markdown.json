@@ -1,4 +1,5 @@
 {
+	"$schema": "vscode://schemas/snippets",
 	"Insert bold text": {
 		"prefix": "bold",
 		"body": "**${1:${TM_SELECTED_TEXT}}**$0",

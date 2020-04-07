@@ -1,4 +1,5 @@
 {
+	"$schema": "vscode://schemas/snippets",
 	"class …": {
 		"prefix": "class",
 		"body": [

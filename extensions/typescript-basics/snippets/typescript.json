@@ -1,4 +1,5 @@
 {
+	"$schema": "vscode://schemas/snippets",
 	"Constructor": {
 		"prefix": "ctor",
 		"body": [

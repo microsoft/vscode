@@ -1,4 +1,5 @@
 {
+	"$schema": "vscode://schemas/snippets",
 	"define module": {
 		"prefix": "define",
 		"body": [

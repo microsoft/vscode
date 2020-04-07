@@ -1,4 +1,5 @@
 {
+	"$schema": "vscode://schemas/snippets",
 	"Region Start": {
 		"prefix": "#region",
 		"body": [

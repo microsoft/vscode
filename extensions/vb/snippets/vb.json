@@ -1,4 +1,5 @@
 {
+	"$schema": "vscode://schemas/snippets",
 	"For Next Loop": {
 		"prefix": "for",
 		"body": [

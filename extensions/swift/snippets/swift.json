@@ -1,4 +1,5 @@
 {
+	"$schema": "vscode://schemas/snippets",
 	"print": {
 		"prefix": "print",
 		"body": "print(\"$1\")\n$0",
