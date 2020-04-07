@@ -825,12 +825,15 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		if (!this.visible) {
 			return;
 		}
-		let hideInput: boolean;
-		if (this.ui.isScreenReaderOptimized()) {
-			// Always show input if screen reader attached https://github.com/microsoft/vscode/issues/94360
-			hideInput = false;
-		} else {
-			hideInput = !!this._hideInput && this._items.length > 0; // do not allow to hide input without items
+		let hideInput = false;
+		let inputShownJustForScreenReader = false;
+		if (!!this._hideInput && this._items.length > 0) {
+			if (this.ui.isScreenReaderOptimized()) {
+				// Always show input if screen reader attached https://github.com/microsoft/vscode/issues/94360
+				inputShownJustForScreenReader = true;
+			} else {
+				hideInput = true;
+			}
 		}
 		dom.toggleClass(this.ui.container, 'hidden-input', hideInput);
 		const visibilities: Visibilities = {
@@ -858,7 +861,9 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		if (this.ui.inputBox.placeholder !== (this.placeholder || '')) {
 			this.ui.inputBox.placeholder = (this.placeholder || '');
 		}
-		if (this.ui.inputBox.ariaLabel !== this.ariaLabel) {
+		if (inputShownJustForScreenReader) {
+			this.ui.inputBox.ariaLabel = '';
+		} else if (this.ui.inputBox.ariaLabel !== this.ariaLabel) {
 			this.ui.inputBox.ariaLabel = this.ariaLabel;
 		}
 		this.ui.list.matchOnDescription = this.matchOnDescription;
