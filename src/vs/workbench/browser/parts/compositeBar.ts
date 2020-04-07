@@ -41,6 +41,7 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 		private openComposite: (id: string, focus?: boolean) => Promise<IPaneComposite | undefined>,
 		private moveComposite: (from: string, to: string, before?: Before2D) => void,
 	) { }
+
 	drop(data: CompositeDragAndDropData, targetCompositeId: string | undefined, originalEvent: DragEvent, before?: Before2D): void {
 		const dragData = data.getData();
 		const viewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
@@ -150,6 +151,7 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 }
 
 export interface ICompositeBarOptions {
+
 	readonly icon: boolean;
 	readonly orientation: ActionsOrientation;
 	readonly colors: (theme: IColorTheme) => ICompositeBarColors;
@@ -169,6 +171,9 @@ export interface ICompositeBarOptions {
 
 export class CompositeBar extends Widget implements ICompositeBar {
 
+	private readonly _onDidChange = this._register(new Emitter<void>());
+	readonly onDidChange = this._onDidChange.event;
+
 	private dimension: Dimension | undefined;
 
 	private compositeSwitcherBar: ActionBar | undefined;
@@ -179,12 +184,9 @@ export class CompositeBar extends Widget implements ICompositeBar {
 	private visibleComposites: string[];
 	private compositeSizeInBar: Map<string, number>;
 
-	private readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidChange = this._onDidChange.event;
-
 	constructor(
 		items: ICompositeBarItem[],
-		private options: ICompositeBarOptions,
+		private readonly options: ICompositeBarOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {

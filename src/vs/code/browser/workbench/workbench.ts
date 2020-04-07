@@ -322,7 +322,11 @@ class WorkspaceProvider implements IWorkspaceProvider {
 
 			// Payload
 			case WorkspaceProvider.QUERY_PARAM_PAYLOAD:
-				payload = JSON.parse(value);
+				try {
+					payload = JSON.parse(value);
+				} catch (error) {
+					console.error(error); // possible invalid JSON
+				}
 				break;
 		}
 	});

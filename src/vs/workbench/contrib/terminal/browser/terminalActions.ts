@@ -259,20 +259,25 @@ export class SendSequenceTerminalAction extends Action2 {
 	public static readonly LABEL = nls.localize('workbench.action.terminal.sendSequence', "Send Custom Sequence To Terminal");
 
 	public run(accessor: ServicesAccessor, args: any): void {
-		const terminalInstance = accessor.get(ITerminalService).getActiveInstance();
-		if (!terminalInstance) {
-			return;
-		}
-
-		const configurationResolverService = accessor.get(IConfigurationResolverService);
-		const workspaceContextService = accessor.get(IWorkspaceContextService);
-		const historyService = accessor.get(IHistoryService);
-		const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.file);
-		const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
-		const resolvedText = configurationResolverService.resolve(lastActiveWorkspaceRoot, args.text);
-		terminalInstance.sendText(resolvedText, false);
+		console.log('args', args);
+		terminalSendSequenceCommand(accessor, args);
 	}
 }
+
+export const terminalSendSequenceCommand = (accessor: ServicesAccessor, args: any) => {
+	const terminalInstance = accessor.get(ITerminalService).getActiveInstance();
+	if (!terminalInstance) {
+		return;
+	}
+
+	const configurationResolverService = accessor.get(IConfigurationResolverService);
+	const workspaceContextService = accessor.get(IWorkspaceContextService);
+	const historyService = accessor.get(IHistoryService);
+	const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.file);
+	const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
+	const resolvedText = configurationResolverService.resolve(lastActiveWorkspaceRoot, args.text);
+	terminalInstance.sendText(resolvedText, false);
+};
 
 export class CreateNewWithCwdTerminalAction extends Action2 {
 	public static readonly ID = TERMINAL_COMMAND_ID.NEW_WITH_CWD;
@@ -609,7 +614,7 @@ export class SelectDefaultShellWindowsTerminalAction extends Action {
 	}
 
 	public run(event?: any): Promise<any> {
-		return this._terminalService.selectDefaultWindowsShell();
+		return this._terminalService.selectDefaultShell();
 	}
 }
 
@@ -679,6 +684,7 @@ export class RunActiveFileInTerminalAction extends Action {
 			return Promise.resolve(undefined);
 		}
 
+		// TODO: Convert this to ctrl+c, ctrl+v for pwsh?
 		const path = await this.terminalService.preparePathForTerminalAsync(uri.fsPath, instance.shellLaunchConfig.executable, instance.title, instance.shellType);
 		instance.sendText(path, true);
 		return this.terminalService.showPanel();
@@ -707,7 +713,7 @@ export class SwitchTerminalAction extends Action {
 		}
 		if (item === SelectDefaultShellWindowsTerminalAction.LABEL) {
 			this.terminalService.refreshActiveTab();
-			return this.terminalService.selectDefaultWindowsShell();
+			return this.terminalService.selectDefaultShell();
 		}
 		const selectedTabIndex = parseInt(item.split(':')[0], 10) - 1;
 		this.terminalService.setActiveTabByIndex(selectedTabIndex);
@@ -738,7 +744,7 @@ export class SwitchTerminalActionViewItem extends SelectActionViewItem {
 		super.render(container);
 		addClass(container, 'switch-terminal');
 		this._register(attachStylerCallback(this.themeService, { selectBorder }, colors => {
-			container.style.border = colors.selectBorder ? `1px solid ${colors.selectBorder}` : '';
+			container.style.borderColor = colors.selectBorder ? `${colors.selectBorder}` : '';
 		}));
 	}
 

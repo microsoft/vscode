@@ -696,7 +696,7 @@ export class SearchResult extends Disposable {
 
 	private _folderMatches: FolderMatchWithResource[] = [];
 	private _otherFilesMatch: FolderMatch | null = null;
-	private _folderMatchesMap: TernarySearchTree<FolderMatchWithResource> = TernarySearchTree.forPaths<FolderMatchWithResource>();
+	private _folderMatchesMap: TernarySearchTree<string, FolderMatchWithResource> = TernarySearchTree.forPaths<FolderMatchWithResource>();
 	private _showHighlights: boolean = false;
 	private _query: ITextQuery | null = null;
 

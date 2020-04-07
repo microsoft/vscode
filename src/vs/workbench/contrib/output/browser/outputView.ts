@@ -293,7 +293,7 @@ class SwitchOutputActionViewItem extends SelectActionViewItem {
 		super.render(container);
 		addClass(container, 'switch-output');
 		this._register(attachStylerCallback(this.themeService, { selectBorder }, colors => {
-			container.style.border = colors.selectBorder ? `1px solid ${colors.selectBorder}` : '';
+			container.style.borderColor = colors.selectBorder ? `${colors.selectBorder}` : '';
 		}));
 	}
 

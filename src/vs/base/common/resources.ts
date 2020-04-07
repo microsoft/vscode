@@ -336,7 +336,7 @@ export namespace DataUri {
 export class ResourceGlobMatcher {
 
 	private readonly globalExpression: ParsedExpression;
-	private readonly expressionsByRoot: TernarySearchTree<{ root: URI, expression: ParsedExpression }> = TernarySearchTree.forPaths<{ root: URI, expression: ParsedExpression }>();
+	private readonly expressionsByRoot: TernarySearchTree<string, { root: URI, expression: ParsedExpression }> = TernarySearchTree.forPaths<{ root: URI, expression: ParsedExpression }>();
 
 	constructor(
 		globalExpression: IExpression,

@@ -277,6 +277,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	public constructor(
 		private readonly _terminalFocusContextKey: IContextKey<boolean>,
+		private readonly _terminalShellTypeContextKey: IContextKey<string>,
 		private readonly _configHelper: TerminalConfigHelper,
 		private _container: HTMLElement | undefined,
 		private _shellLaunchConfig: IShellLaunchConfig,
@@ -488,7 +489,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			fastScrollSensitivity: editorOptions.fastScrollSensitivity,
 			scrollSensitivity: editorOptions.mouseWheelScrollSensitivity,
 			rendererType: config.rendererType === 'auto' || config.rendererType === 'experimentalWebgl' ? 'canvas' : config.rendererType,
-			wordSeparator: ' ()[]{}\',"`'
+			wordSeparator: config.wordSeparators
 		});
 		this._xterm = xterm;
 		this._xtermCore = (xterm as any)._core as XTermCore;
@@ -671,13 +672,18 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			while (!dom.hasClass(currentElement, 'part')) {
 				currentElement = currentElement.parentElement!;
 			}
-			const hidePanelElement = <HTMLElement>currentElement.querySelector('.hide-panel-action');
-			hidePanelElement.focus();
+			const hidePanelElement = currentElement.querySelector<HTMLElement>('.hide-panel-action');
+			hidePanelElement?.focus();
 		}));
 		xtermHelper.insertBefore(focusTrap, xterm.textarea);
 
 		this._register(dom.addDisposableListener(xterm.textarea, 'focus', () => {
 			this._terminalFocusContextKey.set(true);
+			if (this.shellType) {
+				this._terminalShellTypeContextKey.set(this.shellType.toString());
+			} else {
+				this._terminalShellTypeContextKey.reset();
+			}
 			this._onFocused.fire(this);
 		}));
 		this._register(dom.addDisposableListener(xterm.textarea, 'blur', () => {
@@ -686,6 +692,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}));
 		this._register(dom.addDisposableListener(xterm.element, 'focus', () => {
 			this._terminalFocusContextKey.set(true);
+			if (this.shellType) {
+				this._terminalShellTypeContextKey.set(this.shellType.toString());
+			} else {
+				this._terminalShellTypeContextKey.reset();
+			}
 		}));
 		this._register(dom.addDisposableListener(xterm.element, 'blur', () => {
 			this._terminalFocusContextKey.reset();
@@ -1248,6 +1259,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._safeSetOption('macOptionIsMeta', config.macOptionIsMeta);
 		this._safeSetOption('macOptionClickForcesSelection', config.macOptionClickForcesSelection);
 		this._safeSetOption('rightClickSelectsWord', config.rightClickBehavior === 'selectWord');
+		this._safeSetOption('wordSeparator', config.wordSeparators);
 		if (config.rendererType !== 'experimentalWebgl') {
 			// Never set webgl as it's an addon not a rendererType
 			this._safeSetOption('rendererType', config.rendererType === 'auto' ? 'canvas' : config.rendererType);

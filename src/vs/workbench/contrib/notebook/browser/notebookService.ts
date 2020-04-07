@@ -34,7 +34,7 @@ export interface IMainNotebookController {
 
 export interface INotebookService {
 	_serviceBrand: undefined;
-	canResolve(viewType: string): Promise<void>;
+	canResolve(viewType: string): Promise<boolean>;
 	onDidChangeActiveEditor: Event<{ viewType: string, uri: URI }>;
 	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: IMainNotebookController): void;
 	unregisterNotebookProvider(viewType: string): void;
@@ -127,7 +127,6 @@ export class NotebookService extends Disposable implements INotebookService {
 	private readonly _models: { [modelId: string]: ModelData; };
 	private _onDidChangeActiveEditor = new Emitter<{ viewType: string, uri: URI }>();
 	onDidChangeActiveEditor: Event<{ viewType: string, uri: URI }> = this._onDidChangeActiveEditor.event;
-	private _resolvePool = new Map<string, (() => void)[]>();
 
 	constructor(
 		@IExtensionService private readonly extensionService: IExtensionService
@@ -167,33 +166,16 @@ export class NotebookService extends Disposable implements INotebookService {
 		});
 	}
 
-	async canResolve(viewType: string): Promise<void> {
-		if (this._notebookProviders.has(viewType)) {
-			return;
+	async canResolve(viewType: string): Promise<boolean> {
+		if (!this._notebookProviders.has(viewType)) {
+			// this awaits full activation of all matching extensions
+			await this.extensionService.activateByEvent(`onNotebookEditor:${viewType}`);
 		}
-
-		this.extensionService.activateByEvent(`onNotebookEditor:${viewType}`);
-
-		let resolve: () => void;
-		const promise = new Promise<void>(r => { resolve = r; });
-		if (!this._resolvePool.has(viewType)) {
-			this._resolvePool.set(viewType, []);
-		}
-
-		let resolves = this._resolvePool.get(viewType)!;
-		resolves.push(resolve!);
-		this._resolvePool.set(viewType, resolves);
-		return promise;
+		return this._notebookProviders.has(viewType);
 	}
 
 	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: IMainNotebookController) {
 		this._notebookProviders.set(viewType, { extensionData, controller });
-
-		let resolves = this._resolvePool.get(viewType);
-		if (resolves) {
-			resolves.forEach(resolve => resolve());
-			this._resolvePool.delete(viewType);
-		}
 	}
 
 	unregisterNotebookProvider(viewType: string): void {

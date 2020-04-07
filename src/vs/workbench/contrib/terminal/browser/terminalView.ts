@@ -232,6 +232,13 @@ export class TerminalViewPane extends ViewPane {
 					if (!terminal) {
 						return;
 					}
+
+					// copyPaste: Shift+right click should open context menu
+					if (rightClickBehavior === 'copyPaste' && event.shiftKey) {
+						this._openContextMenu(event);
+						return;
+					}
+
 					if (rightClickBehavior === 'copyPaste' && terminal.hasSelection()) {
 						await terminal.copySelection();
 						terminal.clearSelection();
@@ -253,13 +260,7 @@ export class TerminalViewPane extends ViewPane {
 		}));
 		this._register(dom.addDisposableListener(parentDomElement, 'contextmenu', (event: MouseEvent) => {
 			if (!this._cancelContextMenu) {
-				const standardEvent = new StandardMouseEvent(event);
-				const anchor: { x: number, y: number } = { x: standardEvent.posx, y: standardEvent.posy };
-				this._contextMenuService.showContextMenu({
-					getAnchor: () => anchor,
-					getActions: () => this._getContextMenuActions(),
-					getActionsContext: () => this._parentDomElement
-				});
+				this._openContextMenu(event);
 			}
 			event.preventDefault();
 			event.stopImmediatePropagation();
@@ -304,6 +305,16 @@ export class TerminalViewPane extends ViewPane {
 				}
 			}
 		}));
+	}
+
+	private _openContextMenu(event: MouseEvent): void {
+		const standardEvent = new StandardMouseEvent(event);
+		const anchor: { x: number, y: number } = { x: standardEvent.posx, y: standardEvent.posy };
+		this._contextMenuService.showContextMenu({
+			getAnchor: () => anchor,
+			getActions: () => this._getContextMenuActions(),
+			getActionsContext: () => this._parentDomElement
+		});
 	}
 
 	private _updateTheme(theme?: IColorTheme): void {

@@ -211,7 +211,7 @@ export class CodeCell extends Disposable {
 
 		if (viewCell.outputs.length > 0) {
 			let layoutCache = false;
-			if (this.viewCell.layoutInfo.totalHeight !== 0) {
+			if (this.viewCell.layoutInfo.totalHeight !== 0 && this.viewCell.layoutInfo.totalHeight > totalHeight) {
 				layoutCache = true;
 				this.relayoutCell();
 			}
