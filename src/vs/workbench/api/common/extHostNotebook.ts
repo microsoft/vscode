@@ -184,11 +184,17 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 			...notebookDocumentMetadataDefaults,
 			...newMetadata
 		};
+		if (this._metadataChangeListener) {
+			this._metadataChangeListener.dispose();
+		}
+
 		const observableMetadata = getObservable(newMetadata);
 		this._metadata = observableMetadata.proxy;
 		this._metadataChangeListener = this._register(observableMetadata.onDidChange(() => {
 			this.updateMetadata();
 		}));
+
+		this.updateMetadata();
 	}
 
 	private _displayOrder: string[] = [];
