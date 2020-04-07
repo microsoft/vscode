@@ -613,15 +613,15 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 			return false;
 		}
 
-		const id = recommendationsToSuggest[0];
-		const entry = this.productService.extensionImportantTips ? caseInsensitiveGet(this.productService.extensionImportantTips, id) : undefined;
+		const extensionId = recommendationsToSuggest[0];
+		const entry = this.productService.extensionImportantTips ? caseInsensitiveGet(this.productService.extensionImportantTips, extensionId) : undefined;
 		if (!entry) {
 			return false;
 		}
-		const extensionId = entry.name;
-		let message = localize('reallyRecommended2', "The '{0}' extension is recommended for this file type.", extensionId);
+		const extensionName = entry.name;
+		let message = localize('reallyRecommended2', "The '{0}' extension is recommended for this file type.", extensionName);
 		if (entry.isExtensionPack) {
-			message = localize('reallyRecommendedExtensionPack', "The '{0}' extension pack is recommended for this file type.", extensionId);
+			message = localize('reallyRecommendedExtensionPack', "The '{0}' extension pack is recommended for this file type.", extensionName);
 		}
 
 		this.notificationService.prompt(Severity.Info, message,
@@ -629,7 +629,7 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 				label: localize('install', 'Install'),
 				run: () => {
 					this.telemetryService.publicLog2<{ userReaction: string, extensionId: string }, ExtensionRecommendationsNotificationClassification>('extensionRecommendations:popup', { userReaction: 'install', extensionId });
-					this.instantiationService.createInstance(InstallRecommendedExtensionAction, id).run();
+					this.instantiationService.createInstance(InstallRecommendedExtensionAction, extensionId).run();
 				}
 			}, {
 				label: localize('showRecommendations', "Show Recommendations"),
@@ -644,7 +644,7 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 				label: choiceNever,
 				isSecondary: true,
 				run: () => {
-					this.addToImportantRecommendationsIgnore(id);
+					this.addToImportantRecommendationsIgnore(extensionId);
 					this.telemetryService.publicLog2<{ userReaction: string, extensionId: string }, ExtensionRecommendationsNotificationClassification>('extensionRecommendations:popup', { userReaction: 'neverShowAgain', extensionId });
 					this.notificationService.prompt(
 						Severity.Info,
