@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionRecommendationsService, milliSecondsInADay, choiceNever, ExtensionRecommendationsNotificationClassification } from 'vs/workbench/contrib/extensions/browser/extensionRecommendationsService';
+import { ExtensionRecommendationsService, milliSecondsInADay } from 'vs/workbench/contrib/extensions/browser/extensionRecommendationsService';
 import { IExtensionRecommendationsService, IWorkbenchExtensionEnablementService, ExtensionRecommendationReason, IExtensionRecommendation, ExtensionRecommendationSource } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { basename } from 'vs/base/common/path';
 import { distinct, shuffle, isNonEmptyArray } from 'vs/base/common/arrays';
@@ -20,14 +20,12 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IExtensionsWorkbenchService, IExtensionsConfiguration, ConfigurationKey, ShowRecommendationsOnlyOnDemandKey } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtensionsWorkbenchService, ShowRecommendationsOnlyOnDemandKey } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IExperimentService } from 'vs/workbench/contrib/experiments/common/experimentService';
 import { IWorkspaceTagsService } from 'vs/workbench/contrib/tags/common/workspaceTags';
 import { timeout } from 'vs/base/common/async';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { localize } from 'vs/nls';
-import Severity from 'vs/base/common/severity';
-import { InstallRecommendedExtensionAction, ShowRecommendedExtensionsAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { forEach, IStringDictionary } from 'vs/base/common/collections';
 import { isNumber } from 'vs/base/common/types';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
@@ -107,9 +105,42 @@ export class NativeExtensionRecommendationsService extends ExtensionRecommendati
 	}
 
 	private async fetchAndPromptImportantExeBasedRecommendations(): Promise<void> {
+		const importantExeBasedRecommendations: IStringDictionary<IExecutableBasedExtensionTip> = {};
 		const importantExectuableBasedTips = await this.extensionTipsService.getImportantExecutableBasedTips();
-		importantExectuableBasedTips.forEach(tip => this.exeBasedRecommendations[tip.extensionId.toLowerCase()] = tip);
-		await this.promptForImportantExeBasedExtension(importantExectuableBasedTips);
+		importantExectuableBasedTips.forEach(tip => {
+			this.exeBasedRecommendations[tip.extensionId.toLowerCase()] = tip;
+			importantExeBasedRecommendations[tip.extensionId.toLowerCase()] = tip;
+		});
+
+		const local = await this.extensionManagementService.getInstalled(ExtensionType.User);
+		const { installed, uninstalled } = this.groupByInstalled(Object.keys(importantExeBasedRecommendations), local);
+
+		/* Log installed and uninstalled exe based recommendations */
+		for (const extensionId of installed) {
+			const tip = importantExeBasedRecommendations[extensionId];
+			this.telemetryService.publicLog2<{ exeName: string, extensionId: string }, ExeExtensionRecommendationsClassification>('exeExtensionRecommendations:alreadyInstalled', { extensionId, exeName: basename(tip.windowsPath!) });
+		}
+		for (const extensionId of uninstalled) {
+			const tip = importantExeBasedRecommendations[extensionId];
+			this.telemetryService.publicLog2<{ exeName: string, extensionId: string }, ExeExtensionRecommendationsClassification>('exeExtensionRecommendations:notInstalled', { extensionId, exeName: basename(tip.windowsPath!) });
+		}
+
+		this.promptImportantExeBasedRecommendations(uninstalled, importantExeBasedRecommendations);
+	}
+
+	private promptImportantExeBasedRecommendations(recommendations: string[], importantExeBasedRecommendations: IStringDictionary<IExecutableBasedExtensionTip>): void {
+		if (this.hasToIgnoreRecommendationNotifications()) {
+			return;
+		}
+		recommendations = this.filterIgnoredOrNotAllowed(recommendations);
+		if (recommendations.length === 0) {
+			return;
+		}
+
+		const extensionId = recommendations[0];
+		const tip = importantExeBasedRecommendations[extensionId];
+		const message = localize('exeRecommended', "The '{0}' extension is recommended as you have {1} installed on your system.", tip.friendlyName!, tip.exeFriendlyName || basename(tip.windowsPath!));
+		this.promptExtensionInstallNotification(extensionId, message);
 	}
 
 	private async fetchOtherExeBasedRecommendations(): Promise<void> {
@@ -143,6 +174,10 @@ export class NativeExtensionRecommendationsService extends ExtensionRecommendati
 		}
 
 		const workspacesTips = await this.extensionTipsService.getAllWorkspacesTips();
+		if (!workspacesTips.length) {
+			return;
+		}
+
 		for (const hashedRemote of hashedRemotes) {
 			const workspaceTip = workspacesTips.filter(workspaceTip => isNonEmptyArray(workspaceTip.remoteSet) && workspaceTip.remoteSet.indexOf(hashedRemote) > -1)[0];
 			if (workspaceTip) {
@@ -167,92 +202,6 @@ export class NativeExtensionRecommendationsService extends ExtensionRecommendati
 			this.storageService.remove(dynamicWorkspaceRecommendationsStorageKey, StorageScope.WORKSPACE);
 		}
 		return undefined;
-	}
-
-	private async promptForImportantExeBasedExtension(importantExectuableBasedTips: IExecutableBasedExtensionTip[]): Promise<boolean> {
-
-		const importantExeBasedRecommendations: IStringDictionary<IExecutableBasedExtensionTip> = {};
-		importantExectuableBasedTips.forEach(tip => importantExeBasedRecommendations[tip.extensionId.toLowerCase()] = tip);
-
-		let recommendationsToSuggest = Object.keys(importantExeBasedRecommendations);
-
-		const installed = await this.extensionManagementService.getInstalled(ExtensionType.User);
-		recommendationsToSuggest = this.filterInstalled(recommendationsToSuggest, installed, (extensionId) => {
-			const tip = importantExeBasedRecommendations[extensionId];
-			this.telemetryService.publicLog2<{ exeName: string, extensionId: string }, ExeExtensionRecommendationsClassification>('exeExtensionRecommendations:alreadyInstalled', { extensionId, exeName: basename(tip.windowsPath!) });
-		});
-
-		if (recommendationsToSuggest.length === 0) {
-			return false;
-		}
-
-		for (const extensionId of recommendationsToSuggest) {
-			const tip = importantExeBasedRecommendations[extensionId];
-			this.telemetryService.publicLog2<{ exeName: string, extensionId: string }, ExeExtensionRecommendationsClassification>('exeExtensionRecommendations:notInstalled', { extensionId, exeName: basename(tip.windowsPath!) });
-		}
-
-		const storageKey = 'extensionsAssistant/workspaceRecommendationsIgnore';
-		const config = this.configurationService.getValue<IExtensionsConfiguration>(ConfigurationKey);
-
-		if (config.ignoreRecommendations
-			|| config.showRecommendationsOnlyOnDemand
-			|| this.storageService.getBoolean(storageKey, StorageScope.WORKSPACE, false)) {
-			return false;
-		}
-
-		recommendationsToSuggest = this.filterIgnoredOrNotAllowed(recommendationsToSuggest);
-		if (recommendationsToSuggest.length === 0) {
-			return false;
-		}
-
-		const extensionId = recommendationsToSuggest[0];
-		const tip = importantExeBasedRecommendations[extensionId];
-		const message = localize('exeRecommended', "The '{0}' extension is recommended as you have {1} installed on your system.", tip.friendlyName!, tip.exeFriendlyName || basename(tip.windowsPath!));
-
-		this.notificationService.prompt(Severity.Info, message,
-			[{
-				label: localize('install', 'Install'),
-				run: () => {
-					this.telemetryService.publicLog2<{ userReaction: string, extensionId: string }, ExtensionRecommendationsNotificationClassification>('extensionRecommendations:popup', { userReaction: 'install', extensionId });
-					this.instantiationService.createInstance(InstallRecommendedExtensionAction, extensionId).run();
-				}
-			}, {
-				label: localize('showRecommendations', "Show Recommendations"),
-				run: () => {
-					this.telemetryService.publicLog2<{ userReaction: string, extensionId: string }, ExtensionRecommendationsNotificationClassification>('extensionRecommendations:popup', { userReaction: 'show', extensionId });
-
-					const recommendationsAction = this.instantiationService.createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, localize('showRecommendations', "Show Recommendations"));
-					recommendationsAction.run();
-					recommendationsAction.dispose();
-				}
-			}, {
-				label: choiceNever,
-				isSecondary: true,
-				run: () => {
-					this.addToImportantRecommendationsIgnore(extensionId);
-					this.telemetryService.publicLog2<{ userReaction: string, extensionId: string }, ExtensionRecommendationsNotificationClassification>('extensionRecommendations:popup', { userReaction: 'neverShowAgain', extensionId });
-					this.notificationService.prompt(
-						Severity.Info,
-						localize('ignoreExtensionRecommendations', "Do you want to ignore all extension recommendations?"),
-						[{
-							label: localize('ignoreAll', "Yes, Ignore All"),
-							run: () => this.setIgnoreRecommendationsConfig(true)
-						}, {
-							label: localize('no', "No"),
-							run: () => this.setIgnoreRecommendationsConfig(false)
-						}]
-					);
-				}
-			}],
-			{
-				sticky: true,
-				onCancel: () => {
-					this.telemetryService.publicLog2<{ userReaction: string, extensionId: string }, ExtensionRecommendationsNotificationClassification>('extensionRecommendations:popup', { userReaction: 'cancelled', extensionId });
-				}
-			}
-		);
-
-		return true;
 	}
 
 	getAllRecommendationsWithReason(): { [id: string]: { reasonId: ExtensionRecommendationReason, reasonText: string }; } {
