@@ -821,6 +821,15 @@ export class TimelinePane extends ViewPane {
 		this.tree = <WorkbenchObjectTree<TreeElement, FuzzyScore>>this.instantiationService.createInstance(WorkbenchObjectTree, 'TimelinePane',
 			this.$tree, new TimelineListVirtualDelegate(), [this.treeRenderer], {
 			identityProvider: new TimelineIdentityProvider(),
+			accessibilityProvider: {
+				getAriaLabel(element: TreeElement): string {
+					if (isLoadMoreCommandItem(element)) {
+						return localize('timeline.loadMore', 'Load more');
+					}
+					return localize('timeline.aria.item', "{0}: {1}", element.relativeTime ?? '', element.label);
+				}
+			},
+			ariaLabel: this.title,
 			keyboardNavigationLabelProvider: new TimelineKeyboardNavigationLabelProvider(),
 			overrideStyles: {
 				listBackground: this.getBackgroundColor(),
