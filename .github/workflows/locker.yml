@@ -1,0 +1,29 @@
+name: Locker
+on:
+  schedule:
+    - cron: 20 23 * * * # 4:20pm Redmond
+  repository_dispatch:
+
+# Note for locker:
+# The query for is:unlocked will return issues that have only recently been locked
+# `Recent` can be a large number of days (I've seen up to 10)
+# This thus has the potential to burn through more quota than it probably ought to
+# Run sparingly.
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Actions
+        uses: actions/checkout@v2
+        with:
+          repository: 'microsoft/vscode-github-triage-actions'
+          ref: v1
+      - name: Install Actions
+        run: npm install --production
+      - name: Run Locker
+        uses: ./locker
+        with:
+          daysSinceClose: 45
+          daysSinceUpdate: 3
+          ignoredLabel: "*out-of-scope"

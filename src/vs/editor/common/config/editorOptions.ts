@@ -136,6 +136,11 @@ export interface IEditorOptions {
 	 */
 	readOnly?: boolean;
 	/**
+	 * Rename matching regions on type.
+	 * Defaults to false.
+	 */
+	renameOnType?: boolean;
+	/**
 	 * Should the editor render validation decorations.
 	 * Defaults to editable.
 	 */
@@ -507,6 +512,11 @@ export interface IEditorOptions {
 	 */
 	showFoldingControls?: 'always' | 'mouseover';
 	/**
+	 * Controls whether clicking on the empty content after a folded line will unfold the line.
+	 * Defaults to false.
+	 */
+	unfoldOnClickAfterEndOfLine?: boolean;
+	/**
 	 * Enable highlighting of matching brackets.
 	 * Defaults to 'always'.
 	 */
@@ -536,6 +546,11 @@ export interface IEditorOptions {
 	 * Defaults to all.
 	 */
 	renderLineHighlight?: 'none' | 'gutter' | 'line' | 'all';
+	/**
+	 * Control if the current line highlight should be rendered only the editor is focused.
+	 * Defaults to false.
+	 */
+	renderLineHighlightOnlyWhenFocus?: boolean;
 	/**
 	 * Inserting and deleting whitespace follows tab stops.
 	 */
@@ -1327,7 +1342,7 @@ export class EditorFontLigatures extends BaseEditorOption<EditorOption.fontLigat
 						description: nls.localize('fontFeatureSettings', "Explicit font-feature-settings.")
 					}
 				],
-				description: nls.localize('fontLigaturesGeneral', "Configures font ligatures."),
+				description: nls.localize('fontLigaturesGeneral', "Configures font ligatures or font features."),
 				default: false
 			}
 		);
@@ -1797,7 +1812,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		const minimapRenderCharacters = minimap.renderCharacters;
 		let minimapScale = (pixelRatio >= 2 ? Math.round(minimap.scale * 2) : minimap.scale);
 		const minimapMaxColumn = minimap.maxColumn | 0;
-		const minimapMode = minimap.mode;
+		const minimapSize = minimap.size;
 
 		const scrollbar = options.get(EditorOption.scrollbar);
 		const verticalScrollbarWidth = scrollbar.verticalScrollbarSize | 0;
@@ -1861,7 +1876,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 			let minimapCharWidth = minimapScale / pixelRatio;
 			let minimapWidthMultiplier: number = 1;
 
-			if (minimapMode === 'cover' || minimapMode === 'contain') {
+			if (minimapSize === 'fill' || minimapSize === 'fit') {
 				const viewLineCount = env.viewLineCount;
 				const { typicalViewportLineCount, extraLinesBeyondLastLine, desiredRatio, minimapLineCount } = EditorLayoutInfoComputer.computeContainedMinimapLineCount({
 					viewLineCount: viewLineCount,
@@ -1882,7 +1897,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 					minimapCharWidth = minimapScale / pixelRatio;
 				} else {
 					const effectiveMinimapHeight = Math.ceil((viewLineCount + extraLinesBeyondLastLine) * minimapLineHeight);
-					if (minimapMode === 'cover' || effectiveMinimapHeight > minimapCanvasInnerHeight) {
+					if (minimapSize === 'fill' || effectiveMinimapHeight > minimapCanvasInnerHeight) {
 						minimapHeightIsEditorHeight = true;
 						const configuredFontScale = minimapScale;
 						minimapLineHeight = Math.min(lineHeight * pixelRatio, Math.max(1, Math.floor(1 / desiredRatio)));
@@ -2069,7 +2084,7 @@ export interface IEditorMinimapOptions {
 	 * Control the minimap rendering mode.
 	 * Defaults to 'actual'.
 	 */
-	mode?: 'actual' | 'cover' | 'contain';
+	size?: 'proportional' | 'fill' | 'fit';
 	/**
 	 * Control the rendering of the minimap slider.
 	 * Defaults to 'mouseover'.
@@ -2098,7 +2113,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, EditorMinimap
 	constructor() {
 		const defaults: EditorMinimapOptions = {
 			enabled: true,
-			mode: 'actual',
+			size: 'proportional',
 			side: 'right',
 			showSlider: 'mouseover',
 			renderCharacters: true,
@@ -2113,16 +2128,16 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, EditorMinimap
 					default: defaults.enabled,
 					description: nls.localize('minimap.enabled', "Controls whether the minimap is shown.")
 				},
-				'editor.minimap.mode': {
+				'editor.minimap.size': {
 					type: 'string',
-					enum: ['actual', 'cover', 'contain'],
+					enum: ['proportional', 'fill', 'fit'],
 					enumDescriptions: [
-						nls.localize('minimap.mode.actual', "The minimap will be displayed in its original size, so it might be higher than the editor."),
-						nls.localize('minimap.mode.cover', "The minimap will always have the height of the editor and will stretch or shrink as necessary."),
-						nls.localize('minimap.mode.contain', "The minimap will shrink as necessary to never be higher than the editor."),
+						nls.localize('minimap.size.proportional', "The minimap has the same size as the editor contents (and might scroll)."),
+						nls.localize('minimap.size.fill', "The minimap will stretch or shrink as necessary to fill the height of the editor (no scrolling)."),
+						nls.localize('minimap.size.fit', "The minimap will shrink as necessary to never be larger than the editor (no scrolling)."),
 					],
-					default: defaults.mode,
-					description: nls.localize('minimap.mode', "Controls the rendering mode of the minimap.")
+					default: defaults.size,
+					description: nls.localize('minimap.size', "Controls the size of the minimap.")
 				},
 				'editor.minimap.side': {
 					type: 'string',
@@ -2141,7 +2156,8 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, EditorMinimap
 					default: defaults.scale,
 					minimum: 1,
 					maximum: 3,
-					description: nls.localize('minimap.scale', "Scale of content drawn in the minimap.")
+					enum: [1, 2, 3],
+					description: nls.localize('minimap.scale', "Scale of content drawn in the minimap: 1, 2 or 3.")
 				},
 				'editor.minimap.renderCharacters': {
 					type: 'boolean',
@@ -2164,7 +2180,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, EditorMinimap
 		const input = _input as IEditorMinimapOptions;
 		return {
 			enabled: EditorBooleanOption.boolean(input.enabled, this.defaultValue.enabled),
-			mode: EditorStringEnumOption.stringSet<'actual' | 'cover' | 'contain'>(input.mode, this.defaultValue.mode, ['actual', 'cover', 'contain']),
+			size: EditorStringEnumOption.stringSet<'proportional' | 'fill' | 'fit'>(input.size, this.defaultValue.size, ['proportional', 'fill', 'fit']),
 			side: EditorStringEnumOption.stringSet<'right' | 'left'>(input.side, this.defaultValue.side, ['right', 'left']),
 			showSlider: EditorStringEnumOption.stringSet<'always' | 'mouseover'>(input.showSlider, this.defaultValue.showSlider, ['always', 'mouseover']),
 			renderCharacters: EditorBooleanOption.boolean(input.renderCharacters, this.defaultValue.renderCharacters),
@@ -2701,10 +2717,6 @@ export interface ISuggestOptions {
 	 */
 	insertMode?: 'insert' | 'replace';
 	/**
-	 * Show a highlight when suggestion replaces or keep text after the cursor. Defaults to false.
-	 */
-	insertHighlight?: boolean;
-	/**
 	 * Enable graceful matching. Defaults to true.
 	 */
 	filterGraceful?: boolean;
@@ -2825,13 +2837,26 @@ export interface ISuggestOptions {
 	 */
 	showTypeParameters?: boolean;
 	/**
+	 * Show issue-suggestions.
+	 */
+	showIssues?: boolean;
+	/**
+	 * Show user-suggestions.
+	 */
+	showUsers?: boolean;
+	/**
 	 * Show snippet-suggestions.
 	 */
 	showSnippets?: boolean;
 	/**
-	 * Controls the visibility of the status bar at the bottom of the suggest widget.
+	 * Status bar related settings.
 	 */
-	hideStatusBar?: boolean;
+	statusBar?: {
+		/**
+		 * Controls the visibility of the status bar at the bottom of the suggest widget.
+		 */
+		visible?: boolean;
+	}
 }
 
 export type InternalSuggestOptions = Readonly<Required<ISuggestOptions>>;
@@ -2841,7 +2866,6 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 	constructor() {
 		const defaults: InternalSuggestOptions = {
 			insertMode: 'insert',
-			insertHighlight: true,
 			filterGraceful: true,
 			snippetsPreventQuickSuggestions: true,
 			localityBonus: false,
@@ -2873,7 +2897,11 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			showFolders: true,
 			showTypeParameters: true,
 			showSnippets: true,
-			hideStatusBar: true
+			showUsers: true,
+			showIssues: true,
+			statusBar: {
+				visible: false
+			}
 		};
 		super(
 			EditorOption.suggest, 'suggest', defaults,
@@ -2887,11 +2915,6 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 					],
 					default: defaults.insertMode,
 					description: nls.localize('suggest.insertMode', "Controls whether words are overwritten when accepting completions. Note that this depends on extensions opting into this feature.")
-				},
-				'editor.suggest.insertHighlight': {
-					type: 'boolean',
-					default: defaults.insertHighlight,
-					description: nls.localize('suggest.insertHighlight', "Controls whether unexpected text modifications while accepting completions should be highlighted, e.g `insertMode` is `replace` but the completion only supports `insert`.")
 				},
 				'editor.suggest.filterGraceful': {
 					type: 'boolean',
@@ -3059,10 +3082,20 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 					default: true,
 					markdownDescription: nls.localize('editor.suggest.showSnippets', "When enabled IntelliSense shows `snippet`-suggestions.")
 				},
-				'editor.suggest.hideStatusBar': {
+				'editor.suggest.showUsers': {
 					type: 'boolean',
 					default: true,
-					markdownDescription: nls.localize('editor.suggest.hideStatusBar', "Controls the visibility of the status bar at the bottom of the suggest widget.")
+					markdownDescription: nls.localize('editor.suggest.showUsers', "When enabled IntelliSense shows `user`-suggestions.")
+				},
+				'editor.suggest.showIssues': {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('editor.suggest.showIssues', "When enabled IntelliSense shows `issues`-suggestions.")
+				},
+				'editor.suggest.statusBar.visible': {
+					type: 'boolean',
+					default: false,
+					markdownDescription: nls.localize('editor.suggest.statusBar.visible', "Controls the visibility of the status bar at the bottom of the suggest widget.")
 				}
 			}
 		);
@@ -3075,7 +3108,6 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 		const input = _input as ISuggestOptions;
 		return {
 			insertMode: EditorStringEnumOption.stringSet(input.insertMode, this.defaultValue.insertMode, ['insert', 'replace']),
-			insertHighlight: EditorBooleanOption.boolean(input.insertHighlight, this.defaultValue.insertHighlight),
 			filterGraceful: EditorBooleanOption.boolean(input.filterGraceful, this.defaultValue.filterGraceful),
 			snippetsPreventQuickSuggestions: EditorBooleanOption.boolean(input.snippetsPreventQuickSuggestions, this.defaultValue.filterGraceful),
 			localityBonus: EditorBooleanOption.boolean(input.localityBonus, this.defaultValue.localityBonus),
@@ -3107,7 +3139,11 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			showFolders: EditorBooleanOption.boolean(input.showFolders, this.defaultValue.showFolders),
 			showTypeParameters: EditorBooleanOption.boolean(input.showTypeParameters, this.defaultValue.showTypeParameters),
 			showSnippets: EditorBooleanOption.boolean(input.showSnippets, this.defaultValue.showSnippets),
-			hideStatusBar: EditorBooleanOption.boolean(input.hideStatusBar, this.defaultValue.hideStatusBar),
+			showUsers: EditorBooleanOption.boolean(input.showUsers, this.defaultValue.showUsers),
+			showIssues: EditorBooleanOption.boolean(input.showIssues, this.defaultValue.showIssues),
+			statusBar: {
+				visible: EditorBooleanOption.boolean(input.statusBar?.visible, !!this.defaultValue.statusBar.visible)
+			}
 		};
 	}
 }
@@ -3320,6 +3356,7 @@ export const enum EditorOption {
 	folding,
 	foldingStrategy,
 	foldingHighlight,
+	unfoldOnClickAfterEndOfLine,
 	fontFamily,
 	fontInfo,
 	fontLigatures,
@@ -3358,10 +3395,12 @@ export const enum EditorOption {
 	quickSuggestions,
 	quickSuggestionsDelay,
 	readOnly,
+	renameOnType,
 	renderControlCharacters,
 	renderIndentGuides,
 	renderFinalNewline,
 	renderLineHighlight,
+	renderLineHighlightOnlyWhenFocus,
 	renderValidationDecorations,
 	renderWhitespace,
 	revealHorizontalRightPadding,
@@ -3619,6 +3658,10 @@ export const EditorOptions = {
 		EditorOption.foldingHighlight, 'foldingHighlight', true,
 		{ description: nls.localize('foldingHighlight', "Controls whether the editor should highlight folded ranges.") }
 	)),
+	unfoldOnClickAfterEndOfLine: register(new EditorBooleanOption(
+		EditorOption.unfoldOnClickAfterEndOfLine, 'unfoldOnClickAfterEndOfLine', false,
+		{ description: nls.localize('unfoldOnClickAfterEndOfLine', "Controls whether clicking on the empty content after a folded line will unfold the line.") }
+	)),
 	fontFamily: register(new EditorStringOption(
 		EditorOption.fontFamily, 'fontFamily', EDITOR_FONT_DEFAULTS.fontFamily,
 		{ description: nls.localize('fontFamily', "Controls the font family.") }
@@ -3759,7 +3802,7 @@ export const EditorOptions = {
 	)),
 	definitionLinkOpensInPeek: register(new EditorBooleanOption(
 		EditorOption.definitionLinkOpensInPeek, 'definitionLinkOpensInPeek', false,
-		{ description: nls.localize('definitionLinkOpensInPeek', "Controls whether the definition link opens element in the peek widget.") }
+		{ description: nls.localize('definitionLinkOpensInPeek', "Controls whether the Go to Definition mouse gesture always opens the peek widget.") }
 	)),
 	quickSuggestions: register(new EditorQuickSuggestions()),
 	quickSuggestionsDelay: register(new EditorIntOption(
@@ -3769,6 +3812,10 @@ export const EditorOptions = {
 	)),
 	readOnly: register(new EditorBooleanOption(
 		EditorOption.readOnly, 'readOnly', false,
+	)),
+	renameOnType: register(new EditorBooleanOption(
+		EditorOption.renameOnType, 'renameOnType', false,
+		{ description: nls.localize('renameOnType', "Controls whether the editor auto renames on type.") }
 	)),
 	renderControlCharacters: register(new EditorBooleanOption(
 		EditorOption.renderControlCharacters, 'renderControlCharacters', false,
@@ -3795,6 +3842,10 @@ export const EditorOptions = {
 			],
 			description: nls.localize('renderLineHighlight', "Controls how the editor should render the current line highlight.")
 		}
+	)),
+	renderLineHighlightOnlyWhenFocus: register(new EditorBooleanOption(
+		EditorOption.renderLineHighlightOnlyWhenFocus, 'renderLineHighlightOnlyWhenFocus', false,
+		{ description: nls.localize('renderLineHighlightOnlyWhenFocus', "Controls if the editor should render the current line highlight only when the editor is focused") }
 	)),
 	renderValidationDecorations: register(new EditorStringEnumOption(
 		EditorOption.renderValidationDecorations, 'renderValidationDecorations',

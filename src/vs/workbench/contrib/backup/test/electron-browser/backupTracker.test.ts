@@ -18,7 +18,7 @@ import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorInput, IUntitledTextResourceInput } from 'vs/workbench/common/editor';
+import { EditorInput, IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
@@ -32,7 +32,6 @@ import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/wo
 import { ILogService } from 'vs/platform/log/common/log';
 import { HotExitConfiguration } from 'vs/platform/files/common/files';
 import { ShutdownReason, ILifecycleService, BeforeShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IFileDialogService, ConfirmResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkspaceContextService, Workspace } from 'vs/platform/workspace/common/workspace';
 import { IElectronService } from 'vs/platform/electron/node/electron';
@@ -40,6 +39,12 @@ import { BackupTracker } from 'vs/workbench/contrib/backup/common/backupTracker'
 import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestFilesConfigurationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 const userdataDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backuprestorer');
 const backupHome = path.join(userdataDir, 'Backups');
@@ -55,15 +60,15 @@ class TestBackupTracker extends NativeBackupTracker {
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
 		@IWorkingCopyService workingCopyService: IWorkingCopyService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@IDialogService dialogService: IDialogService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IElectronService electronService: IElectronService,
 		@ILogService logService: ILogService,
-		@IEditorService editorService: IEditorService
+		@IEditorService editorService: IEditorService,
+		@IEnvironmentService environmentService: IEnvironmentService
 	) {
-		super(backupFileService, filesConfigurationService, workingCopyService, lifecycleService, environmentService, fileDialogService, dialogService, contextService, electronService, logService, editorService);
+		super(backupFileService, filesConfigurationService, workingCopyService, lifecycleService, fileDialogService, dialogService, contextService, electronService, logService, editorService, environmentService);
 
 		// Reduce timeout for tests
 		BackupTracker.BACKUP_FROM_CONTENT_CHANGE_DELAY = 10;
@@ -113,10 +118,21 @@ suite('BackupTracker', () => {
 		return pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
 	});
 
-	async function createTracker(): Promise<[TestServiceAccessor, EditorPart, BackupTracker, IInstantiationService]> {
+	async function createTracker(autoSaveEnabled = false): Promise<[TestServiceAccessor, EditorPart, BackupTracker, IInstantiationService]> {
 		const backupFileService = new NodeTestBackupFileService(workspaceBackupPath);
 		const instantiationService = workbenchInstantiationService();
 		instantiationService.stub(IBackupFileService, backupFileService);
+
+		const configurationService = new TestConfigurationService();
+		if (autoSaveEnabled) {
+			configurationService.setUserConfiguration('files', { autoSave: 'afterDelay', autoSaveDelay: 1 });
+		}
+		instantiationService.stub(IConfigurationService, configurationService);
+
+		instantiationService.stub(IFilesConfigurationService, new TestFilesConfigurationService(
+			<IContextKeyService>instantiationService.createInstance(MockContextKeyService),
+			configurationService
+		));
 
 		const part = instantiationService.createInstance(EditorPart);
 		part.create(document.createElement('div'));
@@ -136,7 +152,7 @@ suite('BackupTracker', () => {
 		return [accessor, part, tracker, instantiationService];
 	}
 
-	async function untitledBackupTest(untitled: IUntitledTextResourceInput = {}): Promise<void> {
+	async function untitledBackupTest(untitled: IUntitledTextResourceEditorInput = {}): Promise<void> {
 		const [accessor, part, tracker] = await createTracker();
 
 		const untitledEditor = (await accessor.editorService.openEditor(untitled))?.input as UntitledTextEditorInput;
@@ -198,7 +214,7 @@ suite('BackupTracker', () => {
 		tracker.dispose();
 	});
 
-	test('confirm onWillShutdown - no veto', async function () {
+	test('onWillShutdown - no veto if no dirty files', async function () {
 		const [accessor, part, tracker] = await createTracker();
 
 		const resource = toResource.call(this, '/path/index.txt');
@@ -207,18 +223,14 @@ suite('BackupTracker', () => {
 		const event = new BeforeShutdownEventImpl();
 		accessor.lifecycleService.fireWillShutdown(event);
 
-		const veto = event.value;
-		if (typeof veto === 'boolean') {
-			assert.ok(!veto);
-		} else {
-			assert.ok(!(await veto));
-		}
+		const veto = await event.value;
+		assert.ok(!veto);
 
 		part.dispose();
 		tracker.dispose();
 	});
 
-	test('confirm onWillShutdown - veto if user cancels', async function () {
+	test('onWillShutdown - veto if user cancels (hot.exit: off)', async function () {
 		const [accessor, part, tracker] = await createTracker();
 
 		const resource = toResource.call(this, '/path/index.txt');
@@ -227,6 +239,7 @@ suite('BackupTracker', () => {
 		const model = accessor.textFileService.files.get(resource);
 
 		accessor.fileDialogService.setConfirmResult(ConfirmResult.CANCEL);
+		accessor.filesConfigurationService.onFilesConfigurationChange({ files: { hotExit: 'off' } });
 
 		await model?.load();
 		model?.textEditorModel?.setValue('foo');
@@ -234,13 +247,39 @@ suite('BackupTracker', () => {
 
 		const event = new BeforeShutdownEventImpl();
 		accessor.lifecycleService.fireWillShutdown(event);
-		assert.ok(event.value);
+
+		const veto = await event.value;
+		assert.ok(veto);
 
 		part.dispose();
 		tracker.dispose();
 	});
 
-	test('confirm onWillShutdown - no veto and backups cleaned up if user does not want to save (hot.exit: off)', async function () {
+	test('onWillShutdown - no veto if auto save is on', async function () {
+		const [accessor, part, tracker] = await createTracker(true /* auto save enabled */);
+
+		const resource = toResource.call(this, '/path/index.txt');
+		await accessor.editorService.openEditor({ resource, options: { pinned: true } });
+
+		const model = accessor.textFileService.files.get(resource);
+
+		await model?.load();
+		model?.textEditorModel?.setValue('foo');
+		assert.equal(accessor.workingCopyService.dirtyCount, 1);
+
+		const event = new BeforeShutdownEventImpl();
+		accessor.lifecycleService.fireWillShutdown(event);
+
+		const veto = await event.value;
+		assert.ok(!veto);
+
+		assert.equal(accessor.workingCopyService.dirtyCount, 0);
+
+		part.dispose();
+		tracker.dispose();
+	});
+
+	test('onWillShutdown - no veto and backups cleaned up if user does not want to save (hot.exit: off)', async function () {
 		const [accessor, part, tracker] = await createTracker();
 
 		const resource = toResource.call(this, '/path/index.txt');
@@ -257,21 +296,15 @@ suite('BackupTracker', () => {
 		const event = new BeforeShutdownEventImpl();
 		accessor.lifecycleService.fireWillShutdown(event);
 
-		let veto = event.value;
-		if (typeof veto === 'boolean') {
-			assert.ok(accessor.backupFileService.discardedBackups.length > 0);
-			assert.ok(!veto);
-		} else {
-			veto = await veto;
-			assert.ok(accessor.backupFileService.discardedBackups.length > 0);
-			assert.ok(!veto);
-		}
+		const veto = await event.value;
+		assert.ok(!veto);
+		assert.ok(accessor.backupFileService.discardedBackups.length > 0);
 
 		part.dispose();
 		tracker.dispose();
 	});
 
-	test('confirm onWillShutdown - save (hot.exit: off)', async function () {
+	test('onWillShutdown - save (hot.exit: off)', async function () {
 		const [accessor, part, tracker] = await createTracker();
 
 		const resource = toResource.call(this, '/path/index.txt');
@@ -288,7 +321,7 @@ suite('BackupTracker', () => {
 		const event = new BeforeShutdownEventImpl();
 		accessor.lifecycleService.fireWillShutdown(event);
 
-		const veto = await (<Promise<boolean>>event.value);
+		const veto = await event.value;
 		assert.ok(!veto);
 		assert.ok(!model?.isDirty());
 
@@ -431,7 +464,7 @@ suite('BackupTracker', () => {
 			event.reason = shutdownReason;
 			accessor.lifecycleService.fireWillShutdown(event);
 
-			const veto = await (<Promise<boolean>>event.value);
+			const veto = await event.value;
 			assert.equal(accessor.backupFileService.discardedBackups.length, 0); // When hot exit is set, backups should never be cleaned since the confirm result is cancel
 			assert.equal(veto, shouldVeto);
 

@@ -17,7 +17,7 @@ export interface ISnippetsService {
 
 	_serviceBrand: undefined;
 
-	getSnippetFiles(): Promise<SnippetFile[]>;
+	getSnippetFiles(): Promise<Iterable<SnippetFile>>;
 
 	getSnippets(languageId: LanguageId): Promise<Snippet[]>;
 

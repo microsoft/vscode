@@ -115,9 +115,6 @@ async function createDriverHandle(): Promise<string> {
 }
 
 export async function spawn(options: SpawnOptions): Promise<Code> {
-	const codePath = options.codePath;
-	const electronPath = codePath ? getBuildElectronPath(codePath) : getDevElectronPath();
-	const outPath = codePath ? getBuildOutPath(codePath) : getDevOutPath();
 	const handle = await createDriverHandle();
 
 	let child: cp.ChildProcess | undefined;
@@ -126,63 +123,65 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 	if (options.web) {
 		await launch(options.userDataDir, options.workspacePath, options.codePath);
 		connectDriver = connectPlaywrightDriver.bind(connectPlaywrightDriver, options.browser);
-	} else {
-		const env = process.env;
-
-		const args = [
-			options.workspacePath,
-			'--skip-getting-started',
-			'--skip-release-notes',
-			'--sticky-quickopen',
-			'--disable-telemetry',
-			'--disable-updates',
-			'--disable-crash-reporter',
-			`--extensions-dir=${options.extensionsPath}`,
-			`--user-data-dir=${options.userDataDir}`,
-			'--driver', handle
-		];
-
-		if (options.remote) {
-			// Replace workspace path with URI
-			args[0] = `--${options.workspacePath.endsWith('.code-workspace') ? 'file' : 'folder'}-uri=vscode-remote://test+test/${URI.file(options.workspacePath).path}`;
-
-			if (codePath) {
-				// running against a build: copy the test resolver extension
-				const testResolverExtPath = path.join(options.extensionsPath, 'vscode-test-resolver');
-				if (!fs.existsSync(testResolverExtPath)) {
-					const orig = path.join(repoPath, 'extensions', 'vscode-test-resolver');
-					await new Promise((c, e) => ncp(orig, testResolverExtPath, err => err ? e(err) : c()));
-				}
-			}
-			args.push('--enable-proposed-api=vscode.vscode-test-resolver');
-			const remoteDataDir = `${options.userDataDir}-server`;
-			mkdirp.sync(remoteDataDir);
-			env['TESTRESOLVER_DATA_FOLDER'] = remoteDataDir;
-		}
-
-		if (!codePath) {
-			args.unshift(repoPath);
-		}
-
-		if (options.verbose) {
-			args.push('--driver-verbose');
-		}
-
-		if (options.log) {
-			args.push('--log', options.log);
-		}
-
-		if (options.extraArgs) {
-			args.push(...options.extraArgs);
-		}
-
-		const spawnOptions: cp.SpawnOptions = { env };
-		child = cp.spawn(electronPath, args, spawnOptions);
-		instances.add(child);
-		child.once('exit', () => instances.delete(child!));
-		connectDriver = connectElectronDriver;
+		return connect(connectDriver, child, '', handle, options.logger);
 	}
 
+	const env = process.env;
+	const codePath = options.codePath;
+	const outPath = codePath ? getBuildOutPath(codePath) : getDevOutPath();
+
+	const args = [
+		options.workspacePath,
+		'--skip-getting-started',
+		'--disable-telemetry',
+		'--disable-updates',
+		'--disable-crash-reporter',
+		`--extensions-dir=${options.extensionsPath}`,
+		`--user-data-dir=${options.userDataDir}`,
+		`--disable-restore-windows`,
+		'--driver', handle
+	];
+
+	if (options.remote) {
+		// Replace workspace path with URI
+		args[0] = `--${options.workspacePath.endsWith('.code-workspace') ? 'file' : 'folder'}-uri=vscode-remote://test+test/${URI.file(options.workspacePath).path}`;
+
+		if (codePath) {
+			// running against a build: copy the test resolver extension
+			const testResolverExtPath = path.join(options.extensionsPath, 'vscode-test-resolver');
+			if (!fs.existsSync(testResolverExtPath)) {
+				const orig = path.join(repoPath, 'extensions', 'vscode-test-resolver');
+				await new Promise((c, e) => ncp(orig, testResolverExtPath, err => err ? e(err) : c()));
+			}
+		}
+		args.push('--enable-proposed-api=vscode.vscode-test-resolver');
+		const remoteDataDir = `${options.userDataDir}-server`;
+		mkdirp.sync(remoteDataDir);
+		env['TESTRESOLVER_DATA_FOLDER'] = remoteDataDir;
+	}
+
+	if (!codePath) {
+		args.unshift(repoPath);
+	}
+
+	if (options.verbose) {
+		args.push('--driver-verbose');
+	}
+
+	if (options.log) {
+		args.push('--log', options.log);
+	}
+
+	if (options.extraArgs) {
+		args.push(...options.extraArgs);
+	}
+
+	const electronPath = codePath ? getBuildElectronPath(codePath) : getDevElectronPath();
+	const spawnOptions: cp.SpawnOptions = { env };
+	child = cp.spawn(electronPath, args, spawnOptions);
+	instances.add(child);
+	child.once('exit', () => instances.delete(child!));
+	connectDriver = connectElectronDriver;
 	return connect(connectDriver, child, outPath, handle, options.logger);
 }
 

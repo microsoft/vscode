@@ -10,6 +10,7 @@ import { WordCharacterClass, WordCharacterClassifier, getMapForWordSeparators } 
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
+import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
 
 interface IFindWordResult {
 	/**
@@ -237,7 +238,7 @@ export class WordOperations {
 			const left = lineContent.charCodeAt(column - 2);
 			const right = lineContent.charCodeAt(column - 1);
 
-			if (left !== CharCode.Underline && right === CharCode.Underline) {
+			if (left === CharCode.Underline && right !== CharCode.Underline) {
 				// snake_case_variables
 				return new Position(lineNumber, column);
 			}
@@ -339,7 +340,7 @@ export class WordOperations {
 			const left = lineContent.charCodeAt(column - 2);
 			const right = lineContent.charCodeAt(column - 1);
 
-			if (left === CharCode.Underline && right !== CharCode.Underline) {
+			if (left !== CharCode.Underline && right === CharCode.Underline) {
 				// snake_case_variables
 				return new Position(lineNumber, column);
 			}
@@ -533,6 +534,28 @@ export class WordOperations {
 		const pos = selection.getPosition();
 		const toPosition = WordOperations._moveWordPartRight(model, pos);
 		return new Range(pos.lineNumber, pos.column, toPosition.lineNumber, toPosition.column);
+	}
+
+	private static _createWordAtPosition(model: ITextModel, lineNumber: number, word: IFindWordResult): IWordAtPosition {
+		const range = new Range(lineNumber, word.start + 1, lineNumber, word.end + 1);
+		return {
+			word: model.getValueInRange(range),
+			startColumn: range.startColumn,
+			endColumn: range.endColumn
+		};
+	}
+
+	public static getWordAtPosition(model: ITextModel, _wordSeparators: string, position: Position): IWordAtPosition | null {
+		const wordSeparators = getMapForWordSeparators(_wordSeparators);
+		const prevWord = WordOperations._findPreviousWordOnLine(wordSeparators, model, position);
+		if (prevWord && prevWord.wordType === WordType.Regular && prevWord.start <= position.column - 1 && position.column - 1 <= prevWord.end) {
+			return WordOperations._createWordAtPosition(model, position.lineNumber, prevWord);
+		}
+		const nextWord = WordOperations._findNextWordOnLine(wordSeparators, model, position);
+		if (nextWord && nextWord.wordType === WordType.Regular && nextWord.start <= position.column - 1 && position.column - 1 <= nextWord.end) {
+			return WordOperations._createWordAtPosition(model, position.lineNumber, nextWord);
+		}
+		return null;
 	}
 
 	public static word(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean, position: Position): SingleCursorState {

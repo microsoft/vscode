@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/notificationsToasts';
-import { INotificationsModel, NotificationChangeType, INotificationChangeEvent, INotificationViewItem, NotificationViewItemLabelKind } from 'vs/workbench/common/notifications';
+import { INotificationsModel, NotificationChangeType, INotificationChangeEvent, INotificationViewItem, NotificationViewItemContentChangeKind } from 'vs/workbench/common/notifications';
 import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { addClass, removeClass, isAncestor, addDisposableListener, EventType, Dimension } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NotificationsList } from 'vs/workbench/browser/parts/notifications/notificationsList';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { Themable, NOTIFICATIONS_TOAST_BORDER, NOTIFICATIONS_BACKGROUND } from 'vs/workbench/common/theme';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { NOTIFICATIONS_TOAST_BORDER, NOTIFICATIONS_BACKGROUND } from 'vs/workbench/common/theme';
+import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { NotificationsToastsVisibleContext, INotificationsToastController } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
@@ -179,11 +179,8 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		const toast: INotificationToast = { item, list: notificationList, container: notificationToastContainer, toast: notificationToast, toDispose: itemDisposables };
 		this.mapNotificationToToast.set(item, toast);
 
-		itemDisposables.add(toDisposable(() => {
-			if (this.isToastVisible(toast) && notificationsToastsContainer) {
-				notificationsToastsContainer.removeChild(toast.container);
-			}
-		}));
+		// When disposed, remove as visible
+		itemDisposables.add(toDisposable(() => this.updateToastVisibility(toast, false)));
 
 		// Make visible
 		notificationList.show();
@@ -199,19 +196,24 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		// the height computation takes the content of it into account!
 		this.layoutContainer(maxDimensions.height);
 
-		// Update when item height changes due to expansion
+		// Re-draw entire item when expansion changes to reveal or hide details
 		itemDisposables.add(item.onDidChangeExpansion(() => {
 			notificationList.updateNotificationsList(0, 1, [item]);
 		}));
 
-		// Update when item height potentially changes due to label changes
-		itemDisposables.add(item.onDidChangeLabel(e => {
-			if (!item.expanded) {
-				return; // dynamic height only applies to expanded notifications
-			}
-
-			if (e.kind === NotificationViewItemLabelKind.ACTIONS || e.kind === NotificationViewItemLabelKind.MESSAGE) {
-				notificationList.updateNotificationsList(0, 1, [item]);
+		// Handle content changes
+		// - actions: re-draw to properly show them
+		// - message: update notification height unless collapsed
+		itemDisposables.add(item.onDidChangeContent(e => {
+			switch (e.kind) {
+				case NotificationViewItemContentChangeKind.ACTIONS:
+					notificationList.updateNotificationsList(0, 1, [item]);
+					break;
+				case NotificationViewItemContentChangeKind.MESSAGE:
+					if (item.expanded) {
+						notificationList.updateNotificationHeight(item);
+					}
+					break;
 			}
 		}));
 
@@ -235,6 +237,9 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 			removeClass(notificationToast, 'notification-fade-in');
 			addClass(notificationToast, 'notification-fade-in-done');
 		}));
+
+		// Mark as visible
+		item.updateVisibility(true);
 
 		// Events
 		if (!this._isVisible) {
@@ -292,12 +297,13 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 	}
 
 	private removeToast(item: INotificationViewItem): void {
+		let focusEditor = false;
+
 		const notificationToast = this.mapNotificationToToast.get(item);
-		let focusGroup = false;
 		if (notificationToast) {
 			const toastHasDOMFocus = isAncestor(document.activeElement, notificationToast.container);
 			if (toastHasDOMFocus) {
-				focusGroup = !(this.focusNext() || this.focusPrevious()); // focus next if any, otherwise focus editor
+				focusEditor = !(this.focusNext() || this.focusPrevious()); // focus next if any, otherwise focus editor
 			}
 
 			// Listeners
@@ -317,7 +323,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 			this.doHide();
 
 			// Move focus back to editor group as needed
-			if (focusGroup) {
+			if (focusEditor) {
 				this.editorGroupService.activeGroup.focus();
 			}
 		}
@@ -346,11 +352,11 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 	}
 
 	hide(): void {
-		const focusGroup = this.notificationsToastsContainer ? isAncestor(document.activeElement, this.notificationsToastsContainer) : false;
+		const focusEditor = this.notificationsToastsContainer ? isAncestor(document.activeElement, this.notificationsToastsContainer) : false;
 
 		this.removeToasts();
 
-		if (focusGroup) {
+		if (focusEditor) {
 			this.editorGroupService.activeGroup.focus();
 		}
 	}
@@ -459,12 +465,12 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 					notificationToasts.push(toast);
 					break;
 				case ToastVisibility.HIDDEN:
-					if (!this.isToastVisible(toast)) {
+					if (!this.isToastInDOM(toast)) {
 						notificationToasts.push(toast);
 					}
 					break;
 				case ToastVisibility.VISIBLE:
-					if (this.isToastVisible(toast)) {
+					if (this.isToastInDOM(toast)) {
 						notificationToasts.push(toast);
 					}
 					break;
@@ -530,7 +536,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 
 			// In order to measure the client height, the element cannot have display: none
 			toast.container.style.opacity = '0';
-			this.setVisibility(toast, true);
+			this.updateToastVisibility(toast, true);
 
 			heightToGive -= toast.container.offsetHeight;
 
@@ -542,7 +548,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 			}
 
 			// Hide or show toast based on context
-			this.setVisibility(toast, makeVisible);
+			this.updateToastVisibility(toast, makeVisible);
 			toast.container.style.opacity = '';
 
 			if (makeVisible) {
@@ -551,20 +557,24 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		});
 	}
 
-	private setVisibility(toast: INotificationToast, visible: boolean): void {
-		if (this.isToastVisible(toast) === visible) {
+	private updateToastVisibility(toast: INotificationToast, visible: boolean): void {
+		if (this.isToastInDOM(toast) === visible) {
 			return;
 		}
 
+		// Update visibility in DOM
 		const notificationsToastsContainer = assertIsDefined(this.notificationsToastsContainer);
 		if (visible) {
 			notificationsToastsContainer.appendChild(toast.container);
 		} else {
 			notificationsToastsContainer.removeChild(toast.container);
 		}
+
+		// Update visibility in model
+		toast.item.updateVisibility(visible);
 	}
 
-	private isToastVisible(toast: INotificationToast): boolean {
+	private isToastInDOM(toast: INotificationToast): boolean {
 		return !!toast.container.parentElement;
 	}
 }

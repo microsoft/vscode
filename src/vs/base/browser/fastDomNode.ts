@@ -244,11 +244,11 @@ export class FastDomNode<T extends HTMLElement> {
 		this.domNode.removeAttribute(name);
 	}
 
-	public appendChild(child: FastDomNode<any>): void {
+	public appendChild(child: FastDomNode<T>): void {
 		this.domNode.appendChild(child.domNode);
 	}
 
-	public removeChild(child: FastDomNode<any>): void {
+	public removeChild(child: FastDomNode<T>): void {
 		this.domNode.removeChild(child.domNode);
 	}
 }

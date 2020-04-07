@@ -113,23 +113,33 @@ class WebviewSession extends Disposable {
 }
 
 class WebviewProtocolProvider extends Disposable {
+
+	private _resolve!: () => void;
+	private _reject!: () => void;
+
+	public readonly ready: Promise<void>;
+
 	constructor(
 		handle: WebviewTagHandle,
-		private readonly _getExtensionLocation: () => URI | undefined,
-		private readonly _getLocalResourceRoots: () => ReadonlyArray<URI>,
-		private readonly _fileService: IFileService,
+		getExtensionLocation: () => URI | undefined,
+		getLocalResourceRoots: () => ReadonlyArray<URI>,
+		fileService: IFileService,
 	) {
 		super();
 
-		this._register(handle.onFirstLoad(contents => {
-			this.registerProtocols(contents);
-		}));
-	}
+		this.ready = new Promise((resolve, reject) => {
+			this._resolve = resolve;
+			this._reject = reject;
+		});
 
-	private registerProtocols(contents: WebContents) {
-		registerFileProtocol(contents, WebviewResourceScheme, this._fileService, this._getExtensionLocation(), () =>
-			this._getLocalResourceRoots()
-		);
+		this._register(handle.onFirstLoad(contents => {
+			try {
+				registerFileProtocol(contents, WebviewResourceScheme, fileService, getExtensionLocation(), getLocalResourceRoots);
+				this._resolve();
+			} catch {
+				this._reject();
+			}
+		}));
 	}
 }
 
@@ -204,6 +214,9 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 	private _findStarted: boolean = false;
 
 	public extension: WebviewExtensionDescription | undefined;
+	private readonly _protocolProvider: WebviewProtocolProvider;
+
+	private readonly _domReady: Promise<void>;
 
 	constructor(
 		id: string,
@@ -222,11 +235,11 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		const webviewAndContents = this._register(new WebviewTagHandle(this.element!));
 		const session = this._register(new WebviewSession(webviewAndContents));
 
-		this._register(new WebviewProtocolProvider(
-			webviewAndContents,
-			() => this.extension ? this.extension.location : undefined,
+		this._protocolProvider = new WebviewProtocolProvider(webviewAndContents,
+			() => this.extension?.location,
 			() => (this.content.options.localResourceRoots || []),
-			fileService));
+			fileService);
+		this._register(this._protocolProvider);
 
 		this._register(new WebviewPortMappingProvider(
 			session,
@@ -236,6 +249,13 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		));
 
 		this._register(new WebviewKeyboardHandler(webviewAndContents));
+
+		this._domReady = new Promise(resolve => {
+			const subscription = this._register(this.on(WebviewMessageChannels.webviewReady, () => {
+				subscription.dispose();
+				resolve();
+			}));
+		});
 
 		this._register(addDisposableListener(this.element!, 'console-message', function (e: { level: number; message: string; line: number; sourceId: string; }) {
 			console.log(`[Embedded Page] ${e.message}`);
@@ -304,7 +324,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		element.style.outline = '0';
 
 		element.preload = require.toUrl('./pre/electron-index.js');
-		element.src = 'data:text/html;charset=utf-8,%3C%21DOCTYPE%20html%3E%0D%0A%3Chtml%20lang%3D%22en%22%20style%3D%22width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3Chead%3E%0D%0A%09%3Ctitle%3EVirtual%20Document%3C%2Ftitle%3E%0D%0A%3C%2Fhead%3E%0D%0A%3Cbody%20style%3D%22margin%3A%200%3B%20overflow%3A%20hidden%3B%20width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3C%2Fbody%3E%0D%0A%3C%2Fhtml%3E';
+		element.src = 'data:text/html;charset=utf-8,%3C%21DOCTYPE%20html%3E%0D%0A%3Chtml%20lang%3D%22en%22%20style%3D%22width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3Chead%3E%0D%0A%3Ctitle%3EVirtual%20Document%3C%2Ftitle%3E%0D%0A%3C%2Fhead%3E%0D%0A%3Cbody%20style%3D%22margin%3A%200%3B%20overflow%3A%20hidden%3B%20width%3A%20100%25%3B%20height%3A%20100%25%22%20role%3D%22document%22%3E%0D%0A%3C%2Fbody%3E%0D%0A%3C%2Fhtml%3E';
 
 		return element;
 	}
@@ -322,7 +342,11 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		parent.appendChild(this.element);
 	}
 
-	protected postMessage(channel: string, data?: any): void {
+	protected async postMessage(channel: string, data?: any): Promise<void> {
+		await Promise.all([
+			this._protocolProvider.ready,
+			this._domReady,
+		]);
 		this.element?.send(channel, data);
 	}
 

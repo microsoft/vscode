@@ -37,7 +37,7 @@ export class VerticalScrollbar extends AbstractScrollbar {
 			let scrollbarDelta = (options.verticalScrollbarSize - ARROW_IMG_SIZE) / 2;
 
 			this._createArrow({
-				className: 'up-arrow',
+				className: 'scra codicon codicon-triangle-up',
 				top: arrowDelta,
 				left: scrollbarDelta,
 				bottom: undefined,
@@ -48,7 +48,7 @@ export class VerticalScrollbar extends AbstractScrollbar {
 			});
 
 			this._createArrow({
-				className: 'down-arrow',
+				className: 'scra codicon codicon-triangle-down',
 				top: undefined,
 				left: scrollbarDelta,
 				bottom: arrowDelta,
@@ -91,6 +91,10 @@ export class VerticalScrollbar extends AbstractScrollbar {
 
 	protected _sliderOrthogonalMousePosition(e: ISimplifiedMouseEvent): number {
 		return e.posx;
+	}
+
+	protected _updateScrollbarSize(size: number): void {
+		this.slider.setWidth(size);
 	}
 
 	public writeScrollPosition(target: INewScrollPosition, scrollPosition: number): void {

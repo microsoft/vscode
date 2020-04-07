@@ -33,7 +33,6 @@ import { WorkspaceService } from 'vs/workbench/services/configuration/browser/co
 import { ConfigurationCache } from 'vs/workbench/services/configuration/browser/configurationCache';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/browser/signService';
-import { hash } from 'vs/base/common/hash';
 import { IWorkbenchConstructionOptions, IWorkspace } from 'vs/workbench/workbench.web.api';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { BACKUPS } from 'vs/platform/environment/common/environment';
@@ -51,6 +50,7 @@ import { isWorkspaceToOpen, isFolderToOpen } from 'vs/platform/windows/common/wi
 import { getWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
 import { coalesce } from 'vs/base/common/arrays';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
+import { WebResourceIdentityService, IResourceIdentityService } from 'vs/platform/resource/common/resourceIdentityService';
 
 class BrowserMain extends Disposable {
 
@@ -130,7 +130,7 @@ class BrowserMain extends Disposable {
 	}
 
 	private restoreBaseTheme(): void {
-		addClass(this.domElement, window.localStorage.getItem('vscode.baseTheme') || getThemeTypeSelector(DARK));
+		addClass(this.domElement, window.localStorage.getItem('vscode.baseTheme') || getThemeTypeSelector(LIGHT) /* Fallback to a light theme by default on web */);
 	}
 
 	private saveBaseTheme(): void {
@@ -157,7 +157,11 @@ class BrowserMain extends Disposable {
 		const logService = new BufferLogService(this.configuration.logLevel);
 		serviceCollection.set(ILogService, logService);
 
-		const payload = this.resolveWorkspaceInitializationPayload();
+		// Resource Identity
+		const resourceIdentityService = this._register(new WebResourceIdentityService());
+		serviceCollection.set(IResourceIdentityService, resourceIdentityService);
+
+		const payload = await this.resolveWorkspaceInitializationPayload(resourceIdentityService);
 
 		// Environment
 		const environmentService = new BrowserWorkbenchEnvironmentService({ workspaceId: payload.id, logsPath, ...this.configuration });
@@ -175,7 +179,7 @@ class BrowserMain extends Disposable {
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
 
 		// Signing
-		const signService = new SignService(environmentService.configuration.connectionToken);
+		const signService = new SignService(environmentService.options.connectionToken || this.getCookieValue('vscode-tkn'));
 		serviceCollection.set(ISignService, signService);
 
 		// Remote Agent
@@ -292,7 +296,7 @@ class BrowserMain extends Disposable {
 		}
 	}
 
-	private resolveWorkspaceInitializationPayload(): IWorkspaceInitializationPayload {
+	private async resolveWorkspaceInitializationPayload(resourceIdentityService: IResourceIdentityService): Promise<IWorkspaceInitializationPayload> {
 		let workspace: IWorkspace | undefined = undefined;
 		if (this.configuration.workspaceProvider) {
 			workspace = this.configuration.workspaceProvider.workspace;
@@ -305,7 +309,8 @@ class BrowserMain extends Disposable {
 
 		// Single-folder workspace
 		if (workspace && isFolderToOpen(workspace)) {
-			return { id: hash(workspace.folderUri.toString()).toString(16), folder: workspace.folderUri };
+			const id = await resourceIdentityService.resolveResourceIdentity(workspace.folderUri);
+			return { id, folder: workspace.folderUri };
 		}
 
 		return { id: 'empty-window' };
@@ -321,6 +326,12 @@ class BrowserMain extends Disposable {
 		}
 
 		return undefined;
+	}
+
+	private getCookieValue(name: string): string | undefined {
+		const match = document.cookie.match('(^|[^;]+)\\s*' + name + '\\s*=\\s*([^;]+)'); // See https://stackoverflow.com/a/25490531
+
+		return match ? match.pop() : undefined;
 	}
 }
 

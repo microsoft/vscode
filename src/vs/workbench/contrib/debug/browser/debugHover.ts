@@ -177,7 +177,6 @@ export class DebugHoverWidget implements IContentWidget {
 	}
 
 	async showAt(range: Range, focus: boolean): Promise<void> {
-
 		const session = this.debugService.getViewModel().focusedSession;
 
 		if (!session || !this.editor.hasModel()) {
@@ -209,7 +208,7 @@ export class DebugHoverWidget implements IContentWidget {
 
 				if (!matchingExpression) {
 					const lineContent = model.getLineContent(pos.lineNumber);
-					matchingExpression = lineContent.substring(rng.startColumn - 1, rng.endColumn);
+					matchingExpression = lineContent.substring(rng.startColumn - 1, rng.endColumn - 1);
 				}
 			}
 
@@ -285,12 +284,12 @@ export class DebugHoverWidget implements IContentWidget {
 		this.valueContainer.hidden = true;
 		this.complexValueContainer.hidden = false;
 
-		await this.tree.setInput(expression);
 		this.complexValueTitle.textContent = expression.value;
 		this.complexValueTitle.title = expression.value;
 		this.layoutTreeAndContainer();
 		this.editor.layoutContentWidget(this);
 		this.scrollbar.scanDomNode();
+		await this.tree.setInput(expression);
 		this.tree.scrollTop = 0;
 		this.tree.scrollLeft = 0;
 

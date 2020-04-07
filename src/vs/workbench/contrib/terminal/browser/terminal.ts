@@ -131,7 +131,15 @@ export interface ITerminalService {
 	findNext(): void;
 	findPrevious(): void;
 
-	selectDefaultWindowsShell(): Promise<void>;
+	/**
+	 * Link handlers can be registered here to allow intercepting links clicked in the terminal.
+	 * When a link is clicked, the link will be considered handled when the first interceptor
+	 * resolves with true. It will be considered not handled when _all_ link handlers resolve with
+	 * false, or 3 seconds have elapsed.
+	 */
+	addLinkHandler(key: string, callback: TerminalLinkHandlerCallback): IDisposable;
+
+	selectDefaultShell(): Promise<void>;
 
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 	manageWorkspaceShellPermissions(): void;
@@ -172,12 +180,24 @@ export interface ISearchOptions {
 }
 
 export enum WindowsShellType {
-	CommandPrompt,
-	PowerShell,
-	Wsl,
-	GitBash
+	CommandPrompt = 'cmd',
+	PowerShell = 'pwsh',
+	Wsl = 'wsl',
+	GitBash = 'gitbash'
 }
 export type TerminalShellType = WindowsShellType | undefined;
+
+export const LINK_INTERCEPT_THRESHOLD = 3000;
+
+export interface ITerminalBeforeHandleLinkEvent {
+	terminal?: ITerminalInstance;
+	/** The text of the link */
+	link: string;
+	/** Call with whether the link was handled by the interceptor */
+	resolve(wasHandled: boolean): void;
+}
+
+export type TerminalLinkHandlerCallback = (e: ITerminalBeforeHandleLinkEvent) => Promise<boolean>;
 
 export interface ITerminalInstance {
 	/**
@@ -239,6 +259,11 @@ export interface ITerminalInstance {
 	 * the ITerminalInstance being disposed.
 	 */
 	onExit: Event<number | undefined>;
+
+	/**
+	 * Attach a listener to intercept and handle link clicks in the terminal.
+	 */
+	onBeforeHandleLink: Event<ITerminalBeforeHandleLinkEvent>;
 
 	readonly exitCode: number | undefined;
 

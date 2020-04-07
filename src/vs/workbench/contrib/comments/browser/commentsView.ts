@@ -10,7 +10,6 @@ import { IAction, Action } from 'vs/base/common/actions';
 import { CollapseAllAction } from 'vs/base/browser/ui/tree/treeDefaults';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TreeResourceNavigator } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { CommentNode, CommentsModel, ResourceWithCommentThreads, ICommentThreadChangedEvent } from 'vs/workbench/contrib/comments/common/commentModel';
 import { CommentController } from 'vs/workbench/contrib/comments/browser/commentsEditorContribution';
@@ -28,6 +27,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ResourceNavigator } from 'vs/platform/list/browser/listService';
 
 
 export class CommentsPanel extends ViewPane {
@@ -55,7 +55,7 @@ export class CommentsPanel extends ViewPane {
 		@ICommentService private readonly commentService: ICommentService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super({ ...(options as IViewPaneOptions), id: COMMENTS_VIEW_ID, ariaHeaderLabel: COMMENTS_VIEW_TITLE }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 	}
 
 	public renderBody(container: HTMLElement): void {
@@ -75,7 +75,7 @@ export class CommentsPanel extends ViewPane {
 
 		const styleElement = dom.createStyleSheet(container);
 		this.applyStyles(styleElement);
-		this._register(this.themeService.onThemeChange(_ => this.applyStyles(styleElement)));
+		this._register(this.themeService.onDidColorThemeChange(_ => this.applyStyles(styleElement)));
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible) {
@@ -89,7 +89,7 @@ export class CommentsPanel extends ViewPane {
 	private applyStyles(styleElement: HTMLStyleElement) {
 		const content: string[] = [];
 
-		const theme = this.themeService.getTheme();
+		const theme = this.themeService.getColorTheme();
 		const linkColor = theme.getColor(textLinkForeground);
 		if (linkColor) {
 			content.push(`.comments-panel .comments-panel-container a { color: ${linkColor}; }`);
@@ -121,7 +121,7 @@ export class CommentsPanel extends ViewPane {
 
 	public getActions(): IAction[] {
 		if (!this.collapseAllAction) {
-			this.collapseAllAction = new Action('vs.tree.collapse', nls.localize('collapseAll', "Collapse All"), 'monaco-tree-action collapse-all', true, () => this.tree ? new CollapseAllAction<any, any>(this.tree, true).run() : Promise.resolve());
+			this.collapseAllAction = new Action('vs.tree.collapse', nls.localize('collapseAll', "Collapse All"), 'collapse-all', true, () => this.tree ? new CollapseAllAction<any, any>(this.tree, true).run() : Promise.resolve());
 			this._register(this.collapseAllAction);
 		}
 
@@ -149,9 +149,9 @@ export class CommentsPanel extends ViewPane {
 
 	private createTree(): void {
 		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, this));
-		this.tree = this._register(this.instantiationService.createInstance(CommentsList, this.treeLabels, this.treeContainer));
+		this.tree = this._register(this.instantiationService.createInstance(CommentsList, this.treeLabels, this.treeContainer, { overrideStyles: { listBackground: this.getBackgroundColor() } }));
 
-		const commentsNavigator = this._register(new TreeResourceNavigator(this.tree, { openOnFocus: true }));
+		const commentsNavigator = this._register(ResourceNavigator.createTreeResourceNavigator(this.tree, { openOnFocus: true }));
 		this._register(commentsNavigator.onDidOpenResource(e => {
 			this.openFile(e.element, e.editorOptions.pinned, e.editorOptions.preserveFocus, e.sideBySide);
 		}));
@@ -173,7 +173,7 @@ export class CommentsPanel extends ViewPane {
 		if (currentActiveResource && currentActiveResource.toString() === element.resource.toString()) {
 			const threadToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].threadId : element.threadId;
 			const commentToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].comment.uniqueIdInThread : element.comment.uniqueIdInThread;
-			const control = this.editorService.activeTextEditorWidget;
+			const control = this.editorService.activeTextEditorControl;
 			if (threadToReveal && isCodeEditor(control)) {
 				const controller = CommentController.get(control);
 				controller.revealCommentThread(threadToReveal, commentToReveal, false);

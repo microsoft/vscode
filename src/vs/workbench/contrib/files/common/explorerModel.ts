@@ -80,6 +80,7 @@ export class ExplorerItem {
 	protected _isDirectoryResolved: boolean;
 	private _isDisposed: boolean;
 	public isError = false;
+	private _isExcluded = false;
 
 	constructor(
 		public resource: URI,
@@ -93,6 +94,21 @@ export class ExplorerItem {
 	) {
 		this._isDirectoryResolved = false;
 		this._isDisposed = false;
+	}
+
+	get isExcluded(): boolean {
+		if (this._isExcluded) {
+			return true;
+		}
+		if (!this._parent) {
+			return false;
+		}
+
+		return this._parent.isExcluded;
+	}
+
+	set isExcluded(value: boolean) {
+		this._isExcluded = value;
 	}
 
 	get isDisposed(): boolean {

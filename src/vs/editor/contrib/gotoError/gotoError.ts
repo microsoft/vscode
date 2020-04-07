@@ -397,7 +397,7 @@ class MarkerNavigationAction extends EditorAction {
 
 		return editorService.openCodeEditor({
 			resource: newMarker.resource,
-			options: { pinned: false, revealIfOpened: true, selectionRevealType: TextEditorSelectionRevealType.CenterIfOutsideViewport, selection: newMarker }
+			options: { pinned: false, revealIfOpened: true, selectionRevealType: TextEditorSelectionRevealType.NearTop, selection: newMarker }
 		}, editor).then(editor => {
 			if (!editor) {
 				return undefined;

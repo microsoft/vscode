@@ -9,7 +9,7 @@ import { endsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding } from 'vs/editor/contrib/find/findModel';
 import { localize } from 'vs/nls';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -20,16 +20,16 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { Extensions as EditorInputExtensions, IEditorInputFactory, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
-import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
+import { Extensions as EditorInputExtensions, IEditorInputFactory, IEditorInputFactoryRegistry, ActiveEditorContext } from 'vs/workbench/common/editor';
 import * as SearchConstants from 'vs/workbench/contrib/search/common/constants';
 import * as SearchEditorConstants from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditor';
-import { OpenResultsInEditorAction, OpenSearchEditorAction, toggleSearchEditorCaseSensitiveCommand, toggleSearchEditorContextLinesCommand, toggleSearchEditorRegexCommand, toggleSearchEditorWholeWordCommand } from 'vs/workbench/contrib/searchEditor/browser/searchEditorActions';
+import { OpenResultsInEditorAction, OpenSearchEditorAction, toggleSearchEditorCaseSensitiveCommand, toggleSearchEditorContextLinesCommand, toggleSearchEditorRegexCommand, toggleSearchEditorWholeWordCommand, selectAllSearchEditorMatchesCommand, RerunSearchEditorSearchAction, OpenSearchEditorToSideAction, modifySearchEditorContextLinesCommand } from 'vs/workbench/contrib/searchEditor/browser/searchEditorActions';
 import { getOrMakeSearchEditorInput, SearchEditorInput } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 
 //#region Editor Descriptior
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -54,10 +54,15 @@ class SearchEditorContribution implements IWorkbenchContribution {
 	) {
 
 		this.editorService.overrideOpenEditor((editor, options, group) => {
-			const resource = editor.resource;
-			if (!resource ||
-				!(endsWith(resource.path, '.code-search') || resource.scheme === SearchEditorConstants.SearchEditorScheme) ||
-				!(editor instanceof FileEditorInput || (resource.scheme === SearchEditorConstants.SearchEditorScheme))) {
+			let resource = editor.resource;
+			if (!resource) { return undefined; }
+
+			if (resource.scheme === SearchEditorConstants.SearchEditorBodyScheme) {
+				resource = resource.with({ scheme: SearchEditorConstants.SearchEditorScheme });
+			}
+
+			if (resource.scheme !== SearchEditorConstants.SearchEditorScheme
+				&& !(endsWith(resource.path, '.code-search') && editor instanceof FileEditorInput)) {
 				return undefined;
 			}
 
@@ -146,12 +151,36 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_L }
 });
 
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: SearchEditorConstants.IncreaseSearchEditorContextLinesCommandId,
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeyExpr.and(SearchEditorConstants.InSearchEditor),
+	handler: (accessor: ServicesAccessor) => modifySearchEditorContextLinesCommand(accessor, true),
+	primary: KeyMod.Alt | KeyCode.US_EQUAL
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: SearchEditorConstants.DecreaseSearchEditorContextLinesCommandId,
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeyExpr.and(SearchEditorConstants.InSearchEditor),
+	handler: (accessor: ServicesAccessor) => modifySearchEditorContextLinesCommand(accessor, false),
+	primary: KeyMod.Alt | KeyCode.US_MINUS
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: SearchEditorConstants.SelectAllSearchEditorMatchesCommandId,
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeyExpr.and(SearchEditorConstants.InSearchEditor),
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_L,
+	handler: selectAllSearchEditorMatchesCommand
+});
+
 CommandsRegistry.registerCommand(
-	SearchEditorConstants.RerunSearchEditorSearchCommandId,
+	SearchEditorConstants.CleanSearchEditorStateCommandId,
 	(accessor: ServicesAccessor) => {
-		const activeControl = accessor.get(IEditorService).activeControl;
-		if (activeControl instanceof SearchEditor) {
-			activeControl.triggerSearch({ resetCursor: false });
+		const activeEditorPane = accessor.get(IEditorService).activeEditorPane;
+		if (activeEditorPane instanceof SearchEditor) {
+			activeEditorPane.cleanState();
 		}
 	});
 //#endregion
@@ -169,4 +198,23 @@ registry.registerWorkbenchAction(
 registry.registerWorkbenchAction(
 	SyncActionDescriptor.create(OpenSearchEditorAction, OpenSearchEditorAction.ID, OpenSearchEditorAction.LABEL),
 	'Search Editor: Open New Search Editor', category);
+
+registry.registerWorkbenchAction(
+	SyncActionDescriptor.create(OpenSearchEditorToSideAction, OpenSearchEditorToSideAction.ID, OpenSearchEditorToSideAction.LABEL),
+	'Search Editor: Open New Search Editor to Side', category);
+
+registry.registerWorkbenchAction(SyncActionDescriptor.create(RerunSearchEditorSearchAction, RerunSearchEditorSearchAction.ID, RerunSearchEditorSearchAction.LABEL,
+	{ mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_R } }, ContextKeyExpr.and(SearchEditorConstants.InSearchEditor)),
+	'Search Editor: Search Again', category);
 //#endregion
+
+
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+	command: {
+		id: RerunSearchEditorSearchAction.ID,
+		title: RerunSearchEditorSearchAction.LABEL,
+		icon: { id: 'codicon/refresh' },
+	},
+	group: 'navigation',
+	when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(SearchEditorConstants.SearchEditorID))
+});

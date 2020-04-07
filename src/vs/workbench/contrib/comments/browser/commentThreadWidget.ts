@@ -35,7 +35,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { contrastBorder, editorForeground, focusBorder, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground, transparent } from 'vs/platform/theme/common/colorRegistry';
-import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { CommentFormActions } from 'vs/workbench/contrib/comments/browser/commentFormActions';
 import { CommentGlyphWidget } from 'vs/workbench/contrib/comments/browser/commentGlyphWidget';
 import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus';
@@ -50,7 +50,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
-const COLLAPSE_ACTION_CLASS = 'expand-review-action';
+const COLLAPSE_ACTION_CLASS = 'expand-review-action codicon-chevron-up';
 const COMMENT_SCHEME = 'comment';
 
 
@@ -144,13 +144,13 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this.create();
 
 		this._styleElement = dom.createStyleSheet(this.domNode);
-		this._globalToDispose.add(this.themeService.onThemeChange(this._applyTheme, this));
+		this._globalToDispose.add(this.themeService.onDidColorThemeChange(this._applyTheme, this));
 		this._globalToDispose.add(this.editor.onDidChangeConfiguration(e => {
 			if (e.hasChanged(EditorOption.fontInfo)) {
-				this._applyTheme(this.themeService.getTheme());
+				this._applyTheme(this.themeService.getColorTheme());
 			}
 		}));
-		this._applyTheme(this.themeService.getTheme());
+		this._applyTheme(this.themeService.getColorTheme());
 
 		this._markdownRenderer = this._globalToDispose.add(new MarkdownRenderer(editor, this.modeService, this.openerService));
 		this._parentEditor = editor;
@@ -496,7 +496,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 		// If there are no existing comments, place focus on the text area. This must be done after show, which also moves focus.
 		// if this._commentThread.comments is undefined, it doesn't finish initialization yet, so we don't focus the editor immediately.
-		if (this._commentThread.comments && !this._commentThread.comments.length) {
+		if (!this._commentThread.comments || !this._commentThread.comments.length) {
 			this._commentEditor.focus();
 		} else if (this._commentEditor.getModel()!.getValueLength() > 0) {
 			this.expandReplyArea();
@@ -734,6 +734,10 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 				this._viewZone.afterLineNumber = currentPosition.lineNumber;
 			}
 
+			if (!this._commentThread.comments || !this._commentThread.comments.length) {
+				this._commentEditor.focus();
+			}
+
 			this._relayout(computedLinesNumber);
 		}
 	}
@@ -758,7 +762,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 				renderOptions: {
 					after: {
 						contentText: placeholder,
-						color: `${transparent(editorForeground, 0.4)(this.themeService.getTheme())}`
+						color: `${transparent(editorForeground, 0.4)(this.themeService.getColorTheme())}`
 					}
 				}
 			}];
@@ -828,7 +832,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		}
 	}
 
-	private _applyTheme(theme: ITheme) {
+	private _applyTheme(theme: IColorTheme) {
 		const borderColor = theme.getColor(peekViewBorder) || Color.transparent;
 		this.style({
 			arrowColor: borderColor,
