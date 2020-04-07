@@ -66,10 +66,10 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 
 	layoutChange(state: MarkdownCellLayoutChangeEvent) {
 		// recompute
-		const editorWidth = state.outerWidth !== undefined ? state.outerWidth - CELL_MARGIN * 2 - CELL_RUN_GUTTER : 0;
+		const editorWidth = state.outerWidth !== undefined ? state.outerWidth - CELL_MARGIN * 2 - CELL_RUN_GUTTER : this._layoutInfo.editorWidth;
 
 		this._layoutInfo = {
-			fontInfo: state.font || null,
+			fontInfo: state.font || this._layoutInfo.fontInfo,
 			editorWidth,
 			bottomToolbarOffset: BOTTOM_CELL_TOOLBAR_HEIGHT,
 			totalHeight: state.totalHeight === undefined ? this._layoutInfo.totalHeight : state.totalHeight
