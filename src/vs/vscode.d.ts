@@ -3274,11 +3274,8 @@ declare module 'vscode' {
 		onDidChangeSemanticTokens?: Event<void>;
 
 		/**
-		 * A file can contain many tokens, perhaps even hundreds of thousands of tokens. Therefore, to improve
-		 * the memory consumption around describing semantic tokens, we have decided to avoid allocating an object
-		 * for each token and we represent tokens from a file as an array of integers. Furthermore, the position
-		 * of each token is expressed relative to the token before it because most tokens remain stable relative to
-		 * each other when edits are made in a file.
+		 * Tokens in a file are represented as an array of integers. The position of each token is expressed relative to
+		 * the token before it, because most tokens remain stable relative to each other when edits are made in a file.
 		 *
 		 * ---
 		 * In short, each token takes 5 integers to represent, so a specific token `i` in the file consists of the following array indices:
@@ -3331,6 +3328,7 @@ declare module 'vscode' {
 		 *    [  2,5,3,0,3,  0,5,4,1,0,  3,2,7,2,0 ]
 		 * ```
 		 *
+		 * @see [SemanticTokensBuilder](#SemanticTokensBuilder) for a helper to encode tokens as integers.
 		 * *NOTE*: When doing edits, it is possible that multiple edits occur until VS Code decides to invoke the semantic tokens provider.
 		 * *NOTE*: If the provider cannot temporarily compute semantic tokens, it can indicate this by throwing an error with the message 'Busy'.
 		 */
@@ -3343,16 +3341,13 @@ declare module 'vscode' {
 		 * ---
 		 * ### How tokens change when the document changes
 		 *
-		 * Let's look at how tokens might change.
+		 * Suppose that `provideDocumentSemanticTokens` has previously returned the following semantic tokens:
+		 * ```
+		 *    // 1st token,  2nd token,  3rd token
+		 *    [  2,5,3,0,3,  0,5,4,1,0,  3,2,7,2,0 ]
+		 * ```
 		 *
-		 * Continuing with the above example, suppose a new line was inserted at the top of the file.
-		 * That would make all the tokens move down by one line (notice how the line has changed for each one):
-		 * ```
-		 *    { line: 3, startChar:  5, length: 3, tokenType: "property", tokenModifiers: ["private", "static"] },
-		 *    { line: 3, startChar: 10, length: 4, tokenType: "type",     tokenModifiers: [] },
-		 *    { line: 6, startChar:  2, length: 7, tokenType: "class",    tokenModifiers: [] }
-		 * ```
-		 * The integer encoding of the tokens does not change substantially because of the delta-encoding of positions:
+		 * Also suppose that after some edits, the new semantic tokens in a file are:
 		 * ```
 		 *    // 1st token,  2nd token,  3rd token
 		 *    [  3,5,3,0,3,  0,5,4,1,0,  3,2,7,2,0 ]
@@ -3363,26 +3358,6 @@ declare module 'vscode' {
 		 *    [  3,5,3,0,3,  0,5,4,1,0,  3,2,7,2,0 ] // new tokens
 		 *
 		 *    edit: { start:  0, deleteCount: 1, data: [3] } // replace integer at offset 0 with 3
-		 * ```
-		 *
-		 * Furthermore, let's assume that a new token has appeared on line 4:
-		 * ```
-		 *    { line: 3, startChar:  5, length: 3, tokenType: "property", tokenModifiers: ["private", "static"] },
-		 *    { line: 3, startChar: 10, length: 4, tokenType: "type",      tokenModifiers: [] },
-		 *    { line: 4, startChar:  3, length: 5, tokenType: "property", tokenModifiers: ["static"] },
-		 *    { line: 6, startChar:  2, length: 7, tokenType: "class",    tokenModifiers: [] }
-		 * ```
-		 * The integer encoding of the tokens is:
-		 * ```
-		 *    // 1st token,  2nd token,  3rd token,  4th token
-		 *    [  3,5,3,0,3,  0,5,4,1,0,  1,3,5,0,2,  2,2,7,2,0, ]
-		 * ```
-		 * Again, it is possible to express these new tokens in terms of an edit applied to the previous tokens:
-		 * ```
-		 *    [  3,5,3,0,3,  0,5,4,1,0,  3,2,7,2,0 ]               // old tokens
-		 *    [  3,5,3,0,3,  0,5,4,1,0,  1,3,5,0,2,  2,2,7,2,0, ]  // new tokens
-		 *
-		 *    edit: { start: 10, deleteCount: 1, data: [1,3,5,0,2,2] } // replace integer at offset 10 with [1,3,5,0,2,2]
 		 * ```
 		 *
 		 * *NOTE*: If the provider cannot compute `SemanticTokensEdits`, it can "give up" and return all the tokens in the document again.
@@ -7894,7 +7869,7 @@ declare module 'vscode' {
 		/**
 		 * The icon path or [ThemeIcon](#ThemeIcon) for the tree item.
 		 * When `falsy`, [Folder Theme Icon](#ThemeIcon.Folder) is assigned, if item is collapsible otherwise [File Theme Icon](#ThemeIcon.File).
-		 * When a [ThemeIcon](#ThemeIcon) is specified, icon is derived from the current file icon theme for the specified theme icon using [resourceUri](#TreeItem.resourceUri) (if provided).
+		 * When a file or folder [ThemeIcon](#ThemeIcon) is specified, icon is derived from the current file icon theme for the specified theme icon using [resourceUri](#TreeItem.resourceUri) (if provided).
 		 */
 		iconPath?: string | Uri | { light: string | Uri; dark: string | Uri } | ThemeIcon;
 
@@ -7908,7 +7883,7 @@ declare module 'vscode' {
 		 * The [uri](#Uri) of the resource representing this item.
 		 *
 		 * Will be used to derive the [label](#TreeItem.label), when it is not provided.
-		 * Will be used to derive the icon from current icon theme, when [iconPath](#TreeItem.iconPath) has [ThemeIcon](#ThemeIcon) value.
+		 * Will be used to derive the icon from current file icon theme, when [iconPath](#TreeItem.iconPath) has [ThemeIcon](#ThemeIcon) value.
 		 */
 		resourceUri?: Uri;
 
@@ -9604,6 +9579,12 @@ declare module 'vscode' {
 
 		/**
 		 * Register a semantic tokens provider for a document range.
+		 *
+		 * *Note:* If a document has both a `DocumentSemanticTokensProvider` and a `DocumentRangeSemanticTokensProvider`,
+		 * the range provider will be invoked only initially, for the time in which the full document provider takes
+		 * to resolve the first request. Once the full document provider resolves the first request, the semantic tokens
+		 * provided via the range provider will be discarded and from that point forward, only the document provider
+		 * will be used.
 		 *
 		 * Multiple providers can be registered for a language. In that case providers are sorted
 		 * by their [score](#languages.match) and the best-matching provider is used. Failure

@@ -548,22 +548,34 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 
 	private async onWorkspaceConfigurationChanged(): Promise<void> {
 		if (this.workspace && this.workspace.configuration) {
-			const previous = { data: this._configuration.toData(), workspace: this.workspace };
-			const change = this._configuration.compareAndUpdateWorkspaceConfiguration(this.workspaceConfiguration.getConfiguration());
-			let configuredFolders = await this.toValidWorkspaceFolders(toWorkspaceFolders(this.workspaceConfiguration.getFolders(), this.workspace.configuration));
-			const changes = this.compareFolders(this.workspace.folders, configuredFolders);
-			if (changes.added.length || changes.removed.length || changes.changed.length) {
-				this.workspace.folders = configuredFolders;
-				return this.onFoldersChanged()
-					.then(change => {
-						this.triggerConfigurationChange(change, previous, ConfigurationTarget.WORKSPACE_FOLDER);
-						this._onDidChangeWorkspaceFolders.fire(changes);
-					});
-			} else {
-				this.triggerConfigurationChange(change, previous, ConfigurationTarget.WORKSPACE);
+			let newFolders = toWorkspaceFolders(this.workspaceConfiguration.getFolders(), this.workspace.configuration);
+			const { added, removed, changed } = this.compareFolders(this.workspace.folders, newFolders);
+
+			/* If changed validate new folders */
+			if (added.length || removed.length || changed.length) {
+				newFolders = await this.toValidWorkspaceFolders(newFolders);
 			}
+			/* Otherwise use existing */
+			else {
+				newFolders = this.workspace.folders;
+			}
+
+			await this.updateWorkspaceConfiguration(newFolders, this.workspaceConfiguration.getConfiguration());
 		}
-		return Promise.resolve(undefined);
+	}
+
+	private async updateWorkspaceConfiguration(workspaceFolders: WorkspaceFolder[], configuration: ConfigurationModel): Promise<void> {
+		const previous = { data: this._configuration.toData(), workspace: this.workspace };
+		const change = this._configuration.compareAndUpdateWorkspaceConfiguration(configuration);
+		const changes = this.compareFolders(this.workspace.folders, workspaceFolders);
+		if (changes.added.length || changes.removed.length || changes.changed.length) {
+			this.workspace.folders = workspaceFolders;
+			const change = await this.onFoldersChanged();
+			this.triggerConfigurationChange(change, previous, ConfigurationTarget.WORKSPACE_FOLDER);
+			this._onDidChangeWorkspaceFolders.fire(changes);
+		} else {
+			this.triggerConfigurationChange(change, previous, ConfigurationTarget.WORKSPACE);
+		}
 	}
 
 	private onWorkspaceFolderConfigurationChanged(folder: IWorkspaceFolder, key?: string): Promise<void> {
@@ -619,7 +631,7 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 		const validWorkspaceFolders = await this.toValidWorkspaceFolders(this.workspace.folders);
 		const { removed } = this.compareFolders(this.workspace.folders, validWorkspaceFolders);
 		if (removed.length) {
-			return this.onWorkspaceConfigurationChanged();
+			await this.updateWorkspaceConfiguration(validWorkspaceFolders, this.workspaceConfiguration.getConfiguration());
 		}
 	}
 

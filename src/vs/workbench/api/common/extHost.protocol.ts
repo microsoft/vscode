@@ -158,9 +158,8 @@ export interface MainThreadAuthenticationShape extends IDisposable {
 	$registerAuthenticationProvider(id: string, displayName: string): void;
 	$unregisterAuthenticationProvider(id: string): void;
 	$onDidChangeSessions(providerId: string, event: modes.AuthenticationSessionsChangeEvent): void;
-	$getSessionsPrompt(providerId: string, accountName: string, sessionId: string, providerName: string, extensionId: string, extensionName: string): Promise<boolean>;
+	$getSessionsPrompt(providerId: string, accountName: string, providerName: string, extensionId: string, extensionName: string): Promise<boolean>;
 	$loginPrompt(providerName: string, extensionName: string): Promise<boolean>;
-	$setTrustedExtension(providerId: string, accountName: string, extensionId: string, extensionName: string): Promise<void>;
 }
 
 export interface MainThreadConfigurationShape extends IDisposable {
@@ -886,7 +885,7 @@ export interface MainThreadTunnelServiceShape extends IDisposable {
 export interface MainThreadTimelineShape extends IDisposable {
 	$registerTimelineProvider(provider: TimelineProviderDescriptor): void;
 	$unregisterTimelineProvider(source: string): void;
-	$emitTimelineChangeEvent(e: TimelineChangeEvent): void;
+	$emitTimelineChangeEvent(e: TimelineChangeEvent | undefined): void;
 }
 
 // -- extension host

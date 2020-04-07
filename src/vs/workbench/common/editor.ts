@@ -5,7 +5,6 @@
 
 import { localize } from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
-import { assign } from 'vs/base/common/objects';
 import { withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -890,7 +889,7 @@ export class SideBySideEditorInput extends EditorInput {
 	getTelemetryDescriptor(): { [key: string]: unknown } {
 		const descriptor = this.master.getTelemetryDescriptor();
 
-		return assign(descriptor, super.getTelemetryDescriptor());
+		return Object.assign(descriptor, super.getTelemetryDescriptor());
 	}
 
 	private registerListeners(): void {

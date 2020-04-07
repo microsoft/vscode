@@ -14,8 +14,11 @@ jobs:
         if: github.event_name != 'issues' || contains(github.event.issue.labels.*.name, 'feature-request')
         uses: actions/checkout@v2
         with:
-          repository: 'JacksonKearl/vscode-triage-github-actions'
-          ref: v20
+          repository: 'microsoft/vscode-github-triage-actions'
+          ref: v1
+      - name: Install Actions
+        if: github.event_name != 'issues' || contains(github.event.issue.labels.*.name, 'feature-request')
+        run: npm install --production
       - name: Run Feature Request Manager
         if: github.event_name != 'issues' || contains(github.event.issue.labels.*.name, 'feature-request')
         uses: ./feature-request

@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.44.0",
-  "distro": "b24a15e9b680a7ee091f794d5c94d9ba777b34fd",
+  "version": "1.45.0",
+  "distro": "376dbb2c860116cca77316a6bc004b0d150e434a",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -40,7 +40,7 @@
     "https-proxy-agent": "^2.2.3",
     "iconv-lite": "0.5.0",
     "jschardet": "2.1.1",
-    "keytar": "^4.11.0",
+    "keytar": "github:rmacfarlane/node-keytar#334424bd26414923782f144110f4beda19168d24",
     "minimist": "^1.2.5",
     "native-is-elevated": "0.4.1",
     "native-keymap": "2.1.1",

@@ -825,7 +825,16 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		if (!this.visible) {
 			return;
 		}
-		const hideInput = !!this._hideInput && this._items.length > 0; // do not allow to hide input without items
+		let hideInput = false;
+		let inputShownJustForScreenReader = false;
+		if (!!this._hideInput && this._items.length > 0) {
+			if (this.ui.isScreenReaderOptimized()) {
+				// Always show input if screen reader attached https://github.com/microsoft/vscode/issues/94360
+				inputShownJustForScreenReader = true;
+			} else {
+				hideInput = true;
+			}
+		}
 		dom.toggleClass(this.ui.container, 'hidden-input', hideInput);
 		const visibilities: Visibilities = {
 			title: !!this.title || !!this.step,
@@ -852,7 +861,9 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		if (this.ui.inputBox.placeholder !== (this.placeholder || '')) {
 			this.ui.inputBox.placeholder = (this.placeholder || '');
 		}
-		if (this.ui.inputBox.ariaLabel !== this.ariaLabel) {
+		if (inputShownJustForScreenReader) {
+			this.ui.inputBox.ariaLabel = '';
+		} else if (this.ui.inputBox.ariaLabel !== this.ariaLabel) {
 			this.ui.inputBox.ariaLabel = this.ariaLabel;
 		}
 		this.ui.list.matchOnDescription = this.matchOnDescription;
@@ -1072,6 +1083,8 @@ export class QuickInputController extends Disposable {
 	private onHideEmitter = new Emitter<void>();
 	readonly onHide = this.onHideEmitter.event;
 
+	private previousFocusElement?: HTMLElement;
+
 	constructor(private options: IQuickInputOptions) {
 		super();
 		this.idPrefix = options.idPrefix;
@@ -1188,7 +1201,11 @@ export class QuickInputController extends Disposable {
 
 		const focusTracker = dom.trackFocus(container);
 		this._register(focusTracker);
+		this._register(dom.addDisposableListener(container, dom.EventType.FOCUS, e => {
+			this.previousFocusElement = e.relatedTarget instanceof HTMLElement ? e.relatedTarget : undefined;
+		}, true));
 		this._register(focusTracker.onDidBlur(() => {
+			this.previousFocusElement = undefined;
 			if (!this.getUI().ignoreFocusOut && !this.options.ignoreFocusOut()) {
 				this.hide(true);
 			}
@@ -1538,7 +1555,12 @@ export class QuickInputController extends Disposable {
 			this.onHideEmitter.fire();
 			this.getUI().container.style.display = 'none';
 			if (!focusLost) {
-				this.options.returnFocus();
+				if (this.previousFocusElement && this.previousFocusElement.offsetParent) {
+					this.previousFocusElement.focus();
+					this.previousFocusElement = undefined;
+				} else {
+					this.options.returnFocus();
+				}
 			}
 			controller.didHide();
 		}

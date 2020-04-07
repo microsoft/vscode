@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!../browser/media/debug.contribution';
-import 'vs/css!../browser/media/debugHover';
+import 'vs/css!./media/debug.contribution';
+import 'vs/css!./media/debugHover';
 import * as nls from 'vs/nls';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';

@@ -761,10 +761,22 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 	}
 
-	private setRecentlyUsedTask(task: Task): void {
-		const key = task.getRecentlyUsedKey();
+	private async setRecentlyUsedTask(task: Task): Promise<void> {
+		let key = task.getRecentlyUsedKey();
 		if (!InMemoryTask.is(task) && key) {
-			this.getRecentlyUsedTasks().set(key, JSON.stringify(this.createCustomizableTask(task)));
+			const customizations = this.createCustomizableTask(task);
+			if (ContributedTask.is(task) && customizations) {
+				let custom: CustomTask[] = [];
+				let customized: IStringDictionary<ConfiguringTask> = Object.create(null);
+				await this.computeTasksForSingleConfig(task._source.workspaceFolder ?? this.workspaceFolders[0], {
+					version: '2.0.0',
+					tasks: [customizations]
+				}, TaskRunSource.System, custom, customized, TaskConfig.TaskConfigSource.TasksJson, true);
+				for (const configuration in customized) {
+					key = customized[configuration].getRecentlyUsedKey()!;
+				}
+			}
+			this.getRecentlyUsedTasks().set(key, JSON.stringify(customizations));
 			this.saveRecentlyUsedTasks();
 		}
 	}
@@ -841,8 +853,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				} else {
 					resolve(undefined);
 				}
+			} else {
+				resolve(this.executeTask(task, resolver));
 			}
-			resolve(this.executeTask(task, resolver));
 		}).then((value) => {
 			if (runSource === TaskRunSource.User) {
 				this.getWorkspaceTasks().then(workspaceTasks => {
@@ -1397,7 +1410,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		});
 	}
 
-	private handleExecuteResult(executeResult: ITaskExecuteResult): Promise<ITaskSummary> {
+	private async handleExecuteResult(executeResult: ITaskExecuteResult): Promise<ITaskSummary> {
 		if (executeResult.task.taskLoadMessages && executeResult.task.taskLoadMessages.length > 0) {
 			executeResult.task.taskLoadMessages.forEach(loadMessage => {
 				this._outputChannel.append(loadMessage + '\n');
@@ -1405,7 +1418,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this.showOutput();
 		}
 
-		this.setRecentlyUsedTask(executeResult.task);
+		await this.setRecentlyUsedTask(executeResult.task);
 		if (executeResult.kind === TaskExecuteKind.Active) {
 			let active = executeResult.active;
 			if (active && active.same) {
@@ -1643,7 +1656,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				await Promise.all(customTasksPromises);
 				if (needsRecentTasksMigration) {
 					// At this point we have all the tasks and can migrate the recently used tasks.
-					this.migrateRecentTasks(result.all());
+					await this.migrateRecentTasks(result.all());
 				}
 				return result;
 			}, () => {
@@ -2243,7 +2256,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return (this.getRecentlyUsedTasksV1().size > 0) && (this.getRecentlyUsedTasks().size === 0);
 	}
 
-	public migrateRecentTasks(tasks: Task[]) {
+	public async migrateRecentTasks(tasks: Task[]) {
 		if (!this.needsRecentTasksMigration()) {
 			return;
 		}
@@ -2255,12 +2268,13 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				taskMap[key] = task;
 			}
 		});
-		recentlyUsedTasks.keys().reverse().forEach(key => {
+		const reversed = recentlyUsedTasks.keys().reverse();
+		for (const key in reversed) {
 			let task = taskMap[key];
 			if (task) {
-				this.setRecentlyUsedTask(task);
+				await this.setRecentlyUsedTask(task);
 			}
-		});
+		}
 		this.storageService.remove(AbstractTaskService.RecentlyUsedTasks_Key, StorageScope.WORKSPACE);
 	}
 

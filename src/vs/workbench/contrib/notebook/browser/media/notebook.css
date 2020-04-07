@@ -30,6 +30,11 @@
 	position: relative;
 }
 
+.monaco-workbench .part.editor > .content .notebook-editor .cell-list-container .webview-cover {
+	position: absolute;
+	top: 0;
+}
+
 .monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell {
 	display: flex;
 }
@@ -207,6 +212,7 @@
 	display: flex;
 	opacity: 0;
 	transition: opacity 0.2s ease-in-out;
+	cursor: auto;
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container:hover {
@@ -231,6 +237,7 @@
 	align-self: center;
 	align-items: center;
 	white-space: pre;
+	cursor: pointer;
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container span.codicon {
@@ -365,7 +372,7 @@
 
 /** Theming */
 
-.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown pre {
+/* .monaco-workbench .part.editor > .content .notebook-editor .cell.markdown pre {
 	background-color: rgba(220, 220, 220, 0.4);
 }
 
@@ -399,4 +406,4 @@
 .vs-dark .monaco-workbench .part.editor > .content .notebook-editor .cell.markdown hr,
 .vs-dark .monaco-workbench .part.editor > .content .notebook-editor .cell.markdown table > tbody > tr > td {
 	border-color: rgba(255, 255, 255, 0.18);
-}
+} */

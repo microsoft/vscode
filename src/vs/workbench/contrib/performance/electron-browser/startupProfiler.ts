@@ -8,7 +8,8 @@ import { exists, readdir, readFile, rimraf } from 'vs/base/node/pfs';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import product from 'vs/platform/product/common/product';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -24,7 +25,7 @@ export class StartupProfiler implements IWorkbenchContribution {
 
 	constructor(
 		@IDialogService private readonly _dialogService: IDialogService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,
 		@ITextModelService private readonly _textModelResolverService: ITextModelService,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@ILifecycleService lifecycleService: ILifecycleService,

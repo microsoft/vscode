@@ -149,6 +149,7 @@ interface IExtensionEditorTemplate {
 	preview: HTMLElement;
 	builtin: HTMLElement;
 	license: HTMLElement;
+	version: HTMLElement;
 	publisher: HTMLElement;
 	installCount: HTMLElement;
 	rating: HTMLElement;
@@ -239,6 +240,9 @@ export class ExtensionEditor extends BaseEditor {
 		license.style.display = 'none';
 		license.tabIndex = 0;
 
+		const version = append(subtitle, $('span.version'));
+		version.textContent = localize('version', 'Version');
+
 		const description = append(details, $('.description'));
 
 		const extensionActions = append(details, $('.actions'));
@@ -280,6 +284,7 @@ export class ExtensionEditor extends BaseEditor {
 			icon,
 			iconContainer,
 			identifier,
+			version,
 			ignoreActionbar,
 			installCount,
 			license,
@@ -339,6 +344,7 @@ export class ExtensionEditor extends BaseEditor {
 		template.builtin.style.display = extension.type === ExtensionType.System ? 'inherit' : 'none';
 
 		template.publisher.textContent = extension.publisherDisplayName;
+		template.version.textContent = extension.version;
 		template.description.textContent = extension.description;
 
 		const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
@@ -1166,7 +1172,7 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', { tabindex: '0' }, localize('iconThemes', "Icon Themes ({0})", contrib.length)),
+			$('summary', { tabindex: '0' }, localize('iconThemes', "File Icon Themes ({0})", contrib.length)),
 			$('ul', undefined, ...contrib.map(theme => $('li', undefined, theme.label)))
 		);
 

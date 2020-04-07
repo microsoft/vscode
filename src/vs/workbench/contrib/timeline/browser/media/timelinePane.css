@@ -8,10 +8,14 @@
 }
 
 .monaco-workbench .timeline-view.pane-header .description {
+	display: block;
+	font-weight: normal;
 	margin-left: 10px;
 	opacity: 0.6;
+	overflow: hidden;
+	text-overflow: ellipsis;
 	text-transform: none;
-	font-weight: normal;
+	white-space: nowrap;
 }
 
 .monaco-workbench .timeline-view.pane-header:not(.expanded) .description {

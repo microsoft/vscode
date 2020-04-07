@@ -109,7 +109,7 @@
                 "restrictions": [
                     "vs/nls",
                     "**/vs/base/{common,node}/**",
-                    "!path" // node modules (except path where we have our own impl)
+                    "*" // node modules
                 ]
             },
             {
@@ -146,7 +146,7 @@
                     "vs/nls",
                     "**/vs/base/{common,node}/**",
                     "**/vs/base/parts/*/{common,node}/**",
-                    "!path" // node modules (except path where we have our own impl)
+                    "*" // node modules
                 ]
             },
             {
@@ -156,7 +156,7 @@
                     "vs/css!./**/*",
                     "**/vs/base/{common,browser,node,electron-browser}/**",
                     "**/vs/base/parts/*/{common,browser,node,electron-browser}/**",
-                    "!path" // node modules (except path where we have our own impl)
+                    "*" // node modules
                 ]
             },
             {
@@ -165,7 +165,7 @@
                     "vs/nls",
                     "**/vs/base/{common,node,electron-main}/**",
                     "**/vs/base/parts/*/{common,node,electron-main}/**",
-                    "!path" // node modules (except path where we have our own impl)
+                    "*" // node modules
                 ]
             },
             {
@@ -206,7 +206,7 @@
                     "**/vs/base/{common,node}/**",
                     "**/vs/base/parts/*/{common,node}/**",
                     "**/vs/platform/*/{common,node}/**",
-                    "!path" // node modules (except path where we have our own impl)
+                    "*" // node modules
                 ]
             },
             {
@@ -217,7 +217,7 @@
                     "**/vs/base/{common,browser,node}/**",
                     "**/vs/base/parts/*/{common,browser,node,electron-browser}/**",
                     "**/vs/platform/*/{common,browser,node,electron-browser}/**",
-                    "!path" // node modules (except path where we have our own impl)
+                    "*" // node modules
                 ]
             },
             {
@@ -227,7 +227,8 @@
                     "**/vs/base/{common,node,electron-main}/**",
                     "**/vs/base/parts/*/{common,node,electron-main}/**",
                     "**/vs/platform/*/{common,node,electron-main}/**",
-                    "!path" // node modules (except path where we have our own impl)
+                    "**/vs/code/**",
+                    "*" // node modules
                 ]
             },
             {
@@ -397,12 +398,6 @@
                 ]
             },
             {
-                "target": "**/vs/workbench/workbench.desktop.main.ts",
-                "restrictions": [
-                    "**"
-                ]
-            },
-            {
                 "target": "**/vs/workbench/api/common/**",
                 "restrictions": [
                     "vscode",
@@ -437,7 +432,7 @@
                     "**/vs/editor/contrib/**", // editor/contrib is equivalent to /browser/ by convention
                     "**/vs/workbench/{common,browser,node,electron-browser,api}/**",
                     "**/vs/workbench/services/*/{common,browser,node,electron-browser}/**",
-                    "!path" // node modules (except path where we have our own impl)
+                    "*" // node modules
                 ]
             },
             {
@@ -452,7 +447,7 @@
                     "vs/workbench/contrib/files/common/editors/fileEditorInput",
                     "**/vs/workbench/services/**",
                     "**/vs/workbench/test/**",
-                    "!path" // node modules (except path where we have our own impl)
+                    "*" // node modules
                 ]
             },
             {
@@ -508,7 +503,7 @@
                     "**/vs/workbench/{common,node}/**",
                     "**/vs/workbench/api/{common,node}/**",
                     "**/vs/workbench/services/**/{common,node}/**",
-                    "!path" // node modules (except path where we have our own impl)
+                    "*" // node modules
                 ]
             },
             {
@@ -521,7 +516,23 @@
                     "**/vs/editor/**",
                     "**/vs/workbench/{common,browser,node,electron-browser,api}/**",
                     "**/vs/workbench/services/**/{common,browser,node,electron-browser}/**",
-                    "!path" // node modules (except path where we have our own impl)
+                    "*" // node modules
+                ]
+            },
+            {
+                "target": "**/vs/workbench/contrib/**/test/**",
+                "restrictions": [
+                    "assert",
+                    "vs/nls",
+                    "vs/css!./**/*",
+                    "**/vs/base/**",
+                    "**/vs/platform/**",
+                    "**/vs/editor/**",
+                    "**/vs/workbench/{common,browser,node,electron-browser}/**",
+                    "**/vs/workbench/services/**",
+                    "**/vs/workbench/contrib/**",
+                    "**/vs/workbench/test/**",
+                    "*"
                 ]
             },
             {
@@ -530,21 +541,99 @@
                     // xterm and its addons are strictly browser-only components
                     "xterm",
                     "xterm-addon-*",
-                    "**/vs/**"
+                    "vs/nls",
+                    "vs/css!./**/*",
+                    "**/vs/base/**/{common,browser}/**",
+                    "**/vs/platform/**/{common,browser}/**",
+                    "**/vs/editor/**",
+                    "**/vs/workbench/{common,browser}/**",
+                    "**/vs/workbench/contrib/**/{common,browser}/**",
+                    "**/vs/workbench/services/**/{common,browser}/**"
                 ]
             },
             {
                 "target": "**/vs/workbench/contrib/extensions/browser/**",
                 "restrictions": [
                     "semver-umd",
-                    "**/vs/**"
+                    "vs/nls",
+                    "vs/css!./**/*",
+                    "**/vs/base/**/{common,browser}/**",
+                    "**/vs/platform/**/{common,browser}/**",
+                    "**/vs/editor/**",
+                    "**/vs/workbench/{common,browser}/**",
+                    "**/vs/workbench/contrib/**/{common,browser}/**",
+                    "**/vs/workbench/services/**/{common,browser}/**"
                 ]
             },
             {
                 "target": "**/vs/workbench/contrib/update/browser/update.ts",
                 "restrictions": [
                     "semver-umd",
-                    "**/vs/**"
+                    "vs/nls",
+                    "vs/css!./**/*",
+                    "**/vs/base/**/{common,browser}/**",
+                    "**/vs/platform/**/{common,browser}/**",
+                    "**/vs/editor/**",
+                    "**/vs/workbench/{common,browser}/**",
+                    "**/vs/workbench/contrib/**/{common,browser}/**",
+                    "**/vs/workbench/services/**/{common,browser}/**"
+                ]
+            },
+            {
+                "target": "**/vs/workbench/contrib/**/common/**",
+                "restrictions": [
+                    "vs/nls",
+                    "vs/css!./**/*",
+                    "**/vs/base/**/common/**",
+                    "**/vs/platform/**/common/**",
+                    "**/vs/editor/**",
+                    "**/vs/workbench/common/**",
+                    "**/vs/workbench/api/common/**",
+                    "**/vs/workbench/services/**/common/**",
+                    "**/vs/workbench/contrib/**/common/**"
+                ]
+            },
+            {
+                "target": "**/vs/workbench/contrib/**/browser/**",
+                "restrictions": [
+                    "vs/nls",
+                    "vs/css!./**/*",
+                    "**/vs/base/**/{common,browser}/**",
+                    "**/vs/platform/**/{common,browser}/**",
+                    "**/vs/editor/**",
+                    "**/vs/workbench/{common,browser}/**",
+                    "**/vs/workbench/api/{common,browser}/**",
+                    "**/vs/workbench/services/**/{common,browser}/**",
+                    "**/vs/workbench/contrib/**/{common,browser}/**"
+                ]
+            },
+            {
+                "target": "**/vs/workbench/contrib/**/node/**",
+                "restrictions": [
+                    "vs/nls",
+                    "vs/css!./**/*",
+                    "**/vs/base/**/{common,node}/**",
+                    "**/vs/platform/**/{common,node}/**",
+                    "**/vs/editor/**/common/**",
+                    "**/vs/workbench/{common,node}/**",
+                    "**/vs/workbench/api/{common,node}/**",
+                    "**/vs/workbench/services/**/{common,node}/**",
+                    "**/vs/workbench/contrib/**/{common,node}/**",
+                    "*" // node modules
+                ]
+            },
+            {
+                "target": "**/vs/workbench/contrib/**/electron-browser/**",
+                "restrictions": [
+                    "vs/nls",
+                    "vs/css!./**/*",
+                    "**/vs/base/**/{common,browser,worker,node,electron-browser}/**",
+                    "**/vs/platform/**/{common,browser,node,electron-browser}/**",
+                    "**/vs/editor/**",
+                    "**/vs/workbench/{common,browser,node,electron-browser,api}/**",
+                    "**/vs/workbench/services/**/{common,browser,node,electron-browser}/**",
+                    "**/vs/workbench/contrib/**/{common,browser,node,electron-browser}/**",
+                    "*" // node modules
                 ]
             },
             {
@@ -555,7 +644,7 @@
                     "**/vs/base/parts/**/{common,node}/**",
                     "**/vs/platform/**/{common,node}/**",
                     "**/vs/code/**/{common,node}/**",
-                    "!path" // node modules (except path where we have our own impl)
+                    "*" // node modules
                 ]
             },
             {
@@ -567,7 +656,7 @@
                     "**/vs/base/parts/**/{common,browser,node,electron-browser}/**",
                     "**/vs/platform/**/{common,browser,node,electron-browser}/**",
                     "**/vs/code/**/{common,browser,node,electron-browser}/**",
-                    "!path" // node modules (except path where we have our own impl)
+                    "*" // node modules
                 ]
             },
             {
@@ -578,7 +667,7 @@
                     "**/vs/base/parts/**/{common,node,electron-main}/**",
                     "**/vs/platform/**/{common,node,electron-main}/**",
                     "**/vs/code/**/{common,node,electron-main}/**",
-                    "!path" // node modules (except path where we have our own impl)
+                    "*" // node modules
                 ]
             },
             {
@@ -591,12 +680,8 @@
                     "**/vs/workbench/**/{common,node}/**",
                     "**/vs/server/**",
                     "**/vs/code/**/{common,node}/**",
-                    "!path" // node modules (except path where we have our own impl)
+                    "*" // node modules
                 ]
-            },
-            {
-                "target": "**/{node,electron-browser,electron-main}/**",
-                "restrictions": "**/*"
             },
             {
                 "target": "**/extensions/**",
@@ -606,34 +691,73 @@
                 "target": "**/test/smoke/**",
                 "restrictions": [
                     "**/test/smoke/**",
-                    "*"
+                    "*" // node modules
                 ]
             },
             {
                 "target": "**/test/automation/**",
                 "restrictions": [
                     "**/test/automation/**",
-                    "*"
+                    "*" // node modules
                 ]
             },
             {
                 "target": "**/test/integration/**",
                 "restrictions": [
                     "**/test/integration/**",
-                    "*"
+                    "*" // node modules
                 ]
             },
             {
-                "target": "{**/api/**.test.ts,}",
-                "restrictions": "{**/vs/**,assert,sinon,crypto,vscode}"
+                "target": "**/api/**.test.ts",
+                "restrictions": [
+                    "**/vs/**",
+                    "assert",
+                    "sinon",
+                    "crypto",
+                    "vscode"
+                ]
             },
             {
-                "target": "{**/**.test.ts,**/test/**}",
-                "restrictions": "{**/vs/**,assert,sinon,crypto,xterm*}"
+                "target": "**/{node,electron-browser,electron-main}/**/*.test.ts",
+                "restrictions": [
+                    "**/vs/**",
+                    "*" // node modules
+                ]
             },
             {
-                "target": "**/{common,browser,workbench}/**",
-                "restrictions": "**/vs/**"
+                "target": "**/{node,electron-browser,electron-main}/**/test/**",
+                "restrictions": [
+                    "**/vs/**",
+                    "*" // node modules
+                ]
+            },
+            {
+                "target": "**/test/{node,electron-browser,electron-main}/**",
+                "restrictions": [
+                    "**/vs/**",
+                    "*" // node modules
+                ]
+            },
+            {
+                "target": "**/**.test.ts",
+                "restrictions": [
+                    "**/vs/**",
+                    "assert",
+                    "sinon",
+                    "crypto",
+                    "xterm*"
+                ]
+            },
+            {
+                "target": "**/test/**",
+                "restrictions": [
+                    "**/vs/**",
+                    "assert",
+                    "sinon",
+                    "crypto",
+                    "xterm*"
+                ]
             }
         ]
     },

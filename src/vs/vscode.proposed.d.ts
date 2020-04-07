@@ -1890,9 +1890,8 @@ declare module 'vscode' {
 	export interface TimelineChangeEvent {
 		/**
 		 * The [uri](#Uri) of the resource for which the timeline changed.
-		 * If the [uri](#Uri) is `undefined` that signals that the timeline source for all resources changed.
 		 */
-		uri?: Uri;
+		uri: Uri;
 
 		/**
 		 * A flag which indicates whether the entire timeline should be reset.
@@ -1933,7 +1932,7 @@ declare module 'vscode' {
 		 * An optional event to signal that the timeline for a source has changed.
 		 * To signal that the timeline for all resources (uris) has changed, do not pass any argument or pass `undefined`.
 		 */
-		onDidChange?: Event<TimelineChangeEvent>;
+		onDidChange?: Event<TimelineChangeEvent | undefined>;
 
 		/**
 		 * An identifier of the source of the timeline items. This can be used to filter sources.
@@ -2059,18 +2058,25 @@ declare module 'vscode' {
 
 		/**
 		 * Create a new uri which path is the result of joining
-		 * the path of the base uri with the provided path fragments.
+		 * the path of the base uri with the provided path segments.
 		 *
-		 * * Note that `joinPath` only affects the path component
+		 * - Note 1: `joinPath` only affects the path component
 		 * and all other components (scheme, authority, query, and fragment) are
 		 * left as they are.
-		 * * Note that the base uri must have a path; an error is thrown otherwise.
+		 * - Note 2: The base uri must have a path; an error is thrown otherwise.
+		 *
+		 * The path segments are normalized in the following ways:
+		 * - sequences of path separators (`/` or `\`) are replaced with a single separator
+		 * - for `file`-uris on windows, the backslash-character (`\`) is considered a path-separator
+		 * - the `..`-segment denotes the parent segment, the `.` denotes the current segement
+		 * - paths have a root which always remains, for instance on windows drive-letters are roots
+		 * so that is true: `joinPath(Uri.file('file:///c:/root'), '../../other').fsPath === 'c:/other'`
 		 *
 		 * @param base An uri. Must have a path.
-		 * @param pathFragments One more more path fragments
+		 * @param pathSegments One more more path fragments
 		 * @returns A new uri which path is joined with the given fragments
 		 */
-		export function joinPath(base: Uri, ...pathFragments: string[]): Uri;
+		export function joinPath(base: Uri, ...pathSegments: string[]): Uri;
 	}
 
 	//#endregion

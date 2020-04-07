@@ -9,7 +9,6 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IMainContext, MainContext, MainThreadAuthenticationShape, ExtHostAuthenticationShape } from 'vs/workbench/api/common/extHost.protocol';
 import { Disposable } from 'vs/workbench/api/common/extHostTypes';
 import { IExtensionDescription, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
 
 export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 	private _proxy: MainThreadAuthenticationShape;
@@ -21,8 +20,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 	private _onDidChangeSessions = new Emitter<{ [providerId: string]: vscode.AuthenticationSessionsChangeEvent }>();
 	readonly onDidChangeSessions: Event<{ [providerId: string]: vscode.AuthenticationSessionsChangeEvent }> = this._onDidChangeSessions.event;
 
-	constructor(mainContext: IMainContext,
-		@IExtHostStorage private readonly storageService: IExtHostStorage) {
+	constructor(mainContext: IMainContext) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadAuthentication);
 	}
 
@@ -35,20 +33,6 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		return ids;
 	}
 
-	private async hasNotBeenReadByOtherExtension(providerId: string, session: vscode.AuthenticationSession, extensionId: string): Promise<boolean> {
-		const readerId = await this.storageService.getValue(true, `${providerId}-${session.accountName}-${session.id}`);
-		if (!readerId) {
-			await this.storageService.setValue(true, `${providerId}-${session.accountName}-${session.id}`, extensionId as any);
-			return true;
-		}
-
-		return readerId === extensionId;
-	}
-
-	private async isMatchingSession(session: vscode.AuthenticationSession, scopes: string, providerId: string, extensionId: string): Promise<boolean> {
-		return session.scopes.sort().join(' ') === scopes && (await this.hasNotBeenReadByOtherExtension(providerId, session, extensionId));
-	}
-
 	async getSessions(requestingExtension: IExtensionDescription, providerId: string, scopes: string[]): Promise<readonly vscode.AuthenticationSession[]> {
 		const provider = this._authenticationProviders.get(providerId);
 		if (!provider) {
@@ -58,11 +42,8 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		const extensionId = ExtensionIdentifier.toKey(requestingExtension.identifier);
 		const orderedScopes = scopes.sort().join(' ');
 
-		const sessions = await provider.getSessions();
-		const filteredSessions = await Promise.all(sessions.map(session => this.isMatchingSession(session, orderedScopes, providerId, extensionId)));
-
-		return sessions
-			.filter((_, i) => { return filteredSessions[i]; })
+		return (await provider.getSessions())
+			.filter(session => session.scopes.sort().join(' ') === orderedScopes)
 			.map(session => {
 				return {
 					id: session.id,
@@ -72,7 +53,6 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 						const isAllowed = await this._proxy.$getSessionsPrompt(
 							provider.id,
 							session.accountName,
-							session.id,
 							provider.displayName,
 							extensionId,
 							requestingExtension.displayName || requestingExtension.name);
@@ -100,7 +80,6 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		}
 
 		const session = await provider.login(scopes);
-		await this._proxy.$setTrustedExtension(provider.id, session.accountName, ExtensionIdentifier.toKey(requestingExtension.identifier), extensionName);
 		return {
 			id: session.id,
 			accountName: session.accountName,
@@ -109,7 +88,6 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 				const isAllowed = await this._proxy.$getSessionsPrompt(
 					provider.id,
 					session.accountName,
-					session.id,
 					provider.displayName,
 					ExtensionIdentifier.toKey(requestingExtension.identifier),
 					requestingExtension.displayName || requestingExtension.name);

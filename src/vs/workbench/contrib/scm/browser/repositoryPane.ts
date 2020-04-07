@@ -28,14 +28,14 @@ import { IThemeService, LIGHT, registerThemingParticipant, IFileIconTheme } from
 import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar } from './util';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { disposableTimeout, ThrottledDelayer } from 'vs/base/common/async';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITreeNode, ITreeFilter, ITreeSorter, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 import { ResourceTree, IResourceNode } from 'vs/base/common/resourceTree';
 import { ISequence, ISplice } from 'vs/base/common/sequence';
 import { ICompressibleTreeRenderer, ICompressibleKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/tree/objectTree';
-import { Iterator } from 'vs/base/common/iterator';
+import { Iterable } from 'vs/base/common/iterator';
 import { ICompressedTreeNode, ICompressedTreeElement } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { URI } from 'vs/base/common/uri';
 import { FileKind } from 'vs/platform/files/common/files';
@@ -411,8 +411,8 @@ interface IGroupItem {
 
 function groupItemAsTreeElement(item: IGroupItem, mode: ViewModelMode): ICompressedTreeElement<TreeElement> {
 	const children = mode === ViewModelMode.List
-		? Iterator.map(Iterator.fromArray(item.resources), element => ({ element, incompressible: true }))
-		: Iterator.map(item.tree.root.children, node => asTreeElement(node, true));
+		? Iterable.map(item.resources, element => ({ element, incompressible: true }))
+		: Iterable.map(item.tree.root.children, node => asTreeElement(node, true));
 
 	return { element: item.group, children, incompressible: true, collapsible: true };
 }
@@ -420,7 +420,7 @@ function groupItemAsTreeElement(item: IGroupItem, mode: ViewModelMode): ICompres
 function asTreeElement(node: IResourceNode<ISCMResource, ISCMResourceGroup>, forceIncompressible: boolean): ICompressedTreeElement<TreeElement> {
 	return {
 		element: (node.childrenCount === 0 && node.element) ? node.element : node,
-		children: Iterator.map(node.children, node => asTreeElement(node, false)),
+		children: Iterable.map(node.children, node => asTreeElement(node, false)),
 		incompressible: !!node.element || forceIncompressible
 	};
 }
@@ -747,7 +747,6 @@ export class RepositoryPane extends ViewPane {
 			wrappingStrategy: 'advanced',
 			wrappingIndent: 'none',
 			padding: { top: 3, bottom: 3 },
-			suggest: { showWords: false },
 			quickSuggestions: false
 		};
 
@@ -786,6 +785,7 @@ export class RepositoryPane extends ViewPane {
 			query
 		});
 
+		this.configurationService.updateValue('editor.wordBasedSuggestions', false, { resource: uri }, ConfigurationTarget.MEMORY);
 		this.inputModel = this.modelService.getModel(uri) || this.modelService.createModel('', null, uri);
 		this.inputEditor.setModel(this.inputModel);
 
