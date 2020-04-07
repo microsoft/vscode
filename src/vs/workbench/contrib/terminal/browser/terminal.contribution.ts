@@ -593,7 +593,7 @@ if (BrowserFeatures.clipboard.readText) {
 		KeybindingsRegistry.registerCommandAndKeybindingRule({
 			id: SendSequenceTerminalAction.ID,
 			weight: KeybindingWeight.WorkbenchContrib,
-			when: ContextKeyExpr.equals(KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE_KEY, WindowsShellType.PowerShell),
+			when: ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_FOCUS, ContextKeyExpr.equals(KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE_KEY, WindowsShellType.PowerShell)),
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
 			handler: terminalSendSequenceCommand,
 			args: { text: String.fromCharCode('V'.charCodeAt(0) - 64) }
