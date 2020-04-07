@@ -961,6 +961,8 @@ export class TimelineElementTemplate implements IDisposable {
 	}
 
 	reset() {
+		this.icon.className = '';
+		this.icon.style.backgroundImage = '';
 		this.actionBar.clear();
 	}
 }
