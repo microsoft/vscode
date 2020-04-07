@@ -380,8 +380,9 @@ class SshAgent {
 		] : [];
 
 		return directoriesToSearch
+			.map(directoryName => path.join(directoryName, commandName))
 			.reduce(
-				(previousPromise: Promise<string>, directoryName: string) => previousPromise.catch(() => this.checkIfCommandExists(directoryName)),
+				(previousPromise: Promise<string>, commandName: string) => previousPromise.catch(() => this.checkIfCommandExists(commandName)),
 				basePromise
 			).catch(reason => {
 				window.showErrorMessage(localize('failed to find command', "Failed to find command '{0}'", commandName));
