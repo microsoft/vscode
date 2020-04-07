@@ -4,20 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IExtensionTipsService, IExecutableBasedExtensionTip } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionTipsService, IExecutableBasedExtensionTip, IWorkspaceTips } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 class WebExtensionTipsService implements IExtensionTipsService {
 
 	_serviceBrand: any;
 
-	constructor() {
-	}
+	constructor() { }
 
 	async getImportantExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]> {
 		return [];
 	}
 
 	async getOtherExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]> {
+		return [];
+	}
+
+	async getAllWorkspacesTips(): Promise<IWorkspaceTips[]> {
 		return [];
 	}
 

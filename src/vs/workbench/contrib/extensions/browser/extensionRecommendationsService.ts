@@ -39,6 +39,11 @@ import { setImmediate } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
+export type ExtensionRecommendationsNotificationClassification = {
+	userReaction: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	extensionId: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
+};
+
 export const milliSecondsInADay = 1000 * 60 * 60 * 24;
 export const choiceNever = localize('neverShowAgain', "Don't Show Again");
 const searchMarketplace = localize('searchMarketplace', "Search Marketplace");
@@ -635,25 +640,13 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 			[{
 				label: localize('install', 'Install'),
 				run: () => {
-					/* __GDPR__
-					"extensionRecommendations:popup" : {
-						"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
-					}
-					*/
-					this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'install', extensionId: name });
+					this.telemetryService.publicLog2<{ userReaction: string, extensionId: string }, ExtensionRecommendationsNotificationClassification>('extensionRecommendations:popup', { userReaction: 'install', extensionId: name });
 					this.instantiationService.createInstance(InstallRecommendedExtensionAction, id).run();
 				}
 			}, {
 				label: localize('showRecommendations', "Show Recommendations"),
 				run: () => {
-					/* __GDPR__
-						"extensionRecommendations:popup" : {
-							"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
-						}
-					*/
-					this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'show', extensionId: name });
+					this.telemetryService.publicLog2<{ userReaction: string, extensionId: string }, ExtensionRecommendationsNotificationClassification>('extensionRecommendations:popup', { userReaction: 'show', extensionId: name });
 
 					const recommendationsAction = this.instantiationService.createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, localize('showRecommendations', "Show Recommendations"));
 					recommendationsAction.run();
@@ -664,13 +657,7 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 				isSecondary: true,
 				run: () => {
 					this.addToImportantRecommendationsIgnore(id);
-					/* __GDPR__
-						"extensionRecommendations:popup" : {
-							"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
-						}
-					*/
-					this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'neverShowAgain', extensionId: name });
+					this.telemetryService.publicLog2<{ userReaction: string, extensionId: string }, ExtensionRecommendationsNotificationClassification>('extensionRecommendations:popup', { userReaction: 'neverShowAgain', extensionId: name });
 					this.notificationService.prompt(
 						Severity.Info,
 						localize('ignoreExtensionRecommendations', "Do you want to ignore all extension recommendations?"),
@@ -687,13 +674,7 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 			{
 				sticky: true,
 				onCancel: () => {
-					/* __GDPR__
-						"extensionRecommendations:popup" : {
-							"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
-						}
-					*/
-					this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'cancelled', extensionId: name });
+					this.telemetryService.publicLog2<{ userReaction: string, extensionId: string }, ExtensionRecommendationsNotificationClassification>('extensionRecommendations:popup', { userReaction: 'cancelled', extensionId: name });
 				}
 			}
 		);

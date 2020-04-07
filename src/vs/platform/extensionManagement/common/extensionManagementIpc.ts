@@ -144,6 +144,7 @@ export class ExtensionTipsChannel implements IServerChannel {
 		switch (command) {
 			case 'getImportantExecutableBasedTips': return this.service.getImportantExecutableBasedTips();
 			case 'getOtherExecutableBasedTips': return this.service.getOtherExecutableBasedTips();
+			case 'getAllWorkspacesTips': return this.service.getAllWorkspacesTips();
 		}
 
 		throw new Error('Invalid call');

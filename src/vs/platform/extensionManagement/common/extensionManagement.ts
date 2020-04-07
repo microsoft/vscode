@@ -223,6 +223,7 @@ export interface IGlobalExtensionEnablementService {
 }
 
 export type IExecutableBasedExtensionTip = { extensionId: string } & Omit<Omit<IExeBasedExtensionTip, 'recommendations'>, 'important'>;
+export type IWorkspaceTips = { readonly remoteSet: string[]; readonly recommendations: string[]; };
 
 export const IExtensionTipsService = createDecorator<IExtensionTipsService>('IExtensionTipsService');
 export interface IExtensionTipsService {
@@ -230,6 +231,7 @@ export interface IExtensionTipsService {
 
 	getImportantExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]>;
 	getOtherExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]>;
+	getAllWorkspacesTips(): Promise<IWorkspaceTips[]>;
 }
 
 

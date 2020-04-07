@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionRecommendationsService, milliSecondsInADay, choiceNever } from 'vs/workbench/contrib/extensions/browser/extensionRecommendationsService';
+import { ExtensionRecommendationsService, milliSecondsInADay, choiceNever, ExtensionRecommendationsNotificationClassification } from 'vs/workbench/contrib/extensions/browser/extensionRecommendationsService';
 import { IExtensionRecommendationsService, IWorkbenchExtensionEnablementService, ExtensionRecommendationReason, IExtensionRecommendation, ExtensionRecommendationSource } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { basename } from 'vs/base/common/path';
-import { distinct, shuffle } from 'vs/base/common/arrays';
+import { distinct, shuffle, isNonEmptyArray } from 'vs/base/common/arrays';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IExtensionGalleryService, IExtensionManagementService, IExtensionTipsService, IExecutableBasedExtensionTip } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -18,14 +18,12 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IRequestService, asJson } from 'vs/platform/request/common/request';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IExtensionsWorkbenchService, IExtensionsConfiguration, ConfigurationKey, ShowRecommendationsOnlyOnDemandKey } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IExperimentService } from 'vs/workbench/contrib/experiments/common/experimentService';
 import { IWorkspaceTagsService } from 'vs/workbench/contrib/tags/common/workspaceTags';
 import { timeout } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { localize } from 'vs/nls';
 import Severity from 'vs/base/common/severity';
@@ -34,10 +32,19 @@ import { forEach, IStringDictionary } from 'vs/base/common/collections';
 import { isNumber } from 'vs/base/common/types';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
-interface IDynamicWorkspaceRecommendations {
-	remoteSet: string[];
-	recommendations: string[];
-}
+type DynamicWorkspaceRecommendationsClassification = {
+	count: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+	cache: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+};
+
+type ExeExtensionRecommendationsClassification = {
+	extensionId: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
+	exeName: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
+};
+
+type IStoredDynamicWorkspaceRecommendations = { recommendations: string[], timestamp: number };
+
+const dynamicWorkspaceRecommendationsStorageKey = 'extensionsAssistant/dynamicWorkspaceRecommendations';
 
 export class NativeExtensionRecommendationsService extends ExtensionRecommendationsService implements IExtensionRecommendationsService {
 
@@ -64,7 +71,6 @@ export class NativeExtensionRecommendationsService extends ExtensionRecommendati
 		@IExtensionsWorkbenchService extensionWorkbenchService: IExtensionsWorkbenchService,
 		@IExperimentService experimentService: IExperimentService,
 		@IProductService productService: IProductService,
-		@IRequestService private readonly requestService: IRequestService,
 		@IWorkspaceTagsService private readonly workspaceTagsService: IWorkspaceTagsService,
 		@IExtensionTipsService private readonly extensionTipsService: IExtensionTipsService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
@@ -80,128 +86,87 @@ export class NativeExtensionRecommendationsService extends ExtensionRecommendati
 
 		this.sessionSeed = +new Date();
 
-		// Executable based recommendations carry out a lot of file stats, delay the resolution so that the startup is not affected
-		// 3 secs for important
-		timeout(3000).then(() => this.fetchImportantExeBasedRecommendation());
+		/* 3s has come out to be the good number to fetch and prompt important exe based recommendations */
+		/* Fetch important exe based recommendations always for reporting telemetry */
+		timeout(3000).then(() => this.fetchAndPromptImportantExeBasedRecommendations());
 
 		if (!this.configurationService.getValue<boolean>(ShowRecommendationsOnlyOnDemandKey)) {
-			this.fetchProactiveRecommendations();
+			this.lifecycleService.when(LifecyclePhase.Eventually).then(() => this.fetchProactiveRecommendations());
 		}
-
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ShowRecommendationsOnlyOnDemandKey) && !this.configurationService.getValue<boolean>(ShowRecommendationsOnlyOnDemandKey)) {
-				this.fetchProactiveRecommendations();
-			}
-		}));
-
-		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.dynamicWorkspaceRecommendations = []));
 	}
 
 	private proactiveRecommendationsPromise: Promise<void> | undefined = undefined;
 	private async fetchProactiveRecommendations(): Promise<void> {
 		if (!this.proactiveRecommendationsPromise) {
-			this.fetchCachedDynamicWorkspaceRecommendations();
-			// Executable based recommendations carry out a lot of file stats, delay the resolution so that the startup is not affected
-			this.proactiveRecommendationsPromise = this.lifecycleService.when(LifecyclePhase.Eventually)
-				.then(() => Promise.all([this.fetchDynamicWorkspaceRecommendations(), this.fetchOtherExeBasedRecommendations()]))
-				.then(() => undefined);
+			this.proactiveRecommendationsPromise = Promise.all([this.fetchDynamicWorkspaceRecommendations(), this.fetchOtherExeBasedRecommendations()])
+				.then(() => {
+					this._register(this.contextService.onDidChangeWorkbenchState(() => this.dynamicWorkspaceRecommendations = []));
+				});
 		}
 		return this.proactiveRecommendationsPromise;
 	}
 
-	private async fetchImportantExeBasedRecommendation(): Promise<void> {
+	private async fetchAndPromptImportantExeBasedRecommendations(): Promise<void> {
 		const importantExectuableBasedTips = await this.extensionTipsService.getImportantExecutableBasedTips();
 		importantExectuableBasedTips.forEach(tip => this.exeBasedRecommendations[tip.extensionId.toLowerCase()] = tip);
 		await this.promptForImportantExeBasedExtension(importantExectuableBasedTips);
 	}
 
-	/**
-	 * Fetch extensions used by others on the same workspace as recommendations from recommendation service
-	 */
-	private fetchDynamicWorkspaceRecommendations(): Promise<void> {
-		const extensionsRecommendationsUrl = this.productService.extensionsGallery?.recommendationsUrl;
-		if (this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER
-			|| !this.fileService.canHandleResource(this.contextService.getWorkspace().folders[0].uri)
-			|| this.dynamicWorkspaceRecommendations.length
-			|| !extensionsRecommendationsUrl) {
-			return Promise.resolve(undefined);
-		}
-
-		const storageKey = 'extensionsAssistant/dynamicWorkspaceRecommendations';
-		const workspaceUri = this.contextService.getWorkspace().folders[0].uri;
-		return Promise.all([this.workspaceTagsService.getHashedRemotesFromUri(workspaceUri, false), this.workspaceTagsService.getHashedRemotesFromUri(workspaceUri, true)]).then(([hashedRemotes1, hashedRemotes2]) => {
-			const hashedRemotes = (hashedRemotes1 || []).concat(hashedRemotes2 || []);
-			if (!hashedRemotes.length) {
-				return undefined;
-			}
-
-			return this.requestService.request({ type: 'GET', url: extensionsRecommendationsUrl }, CancellationToken.None).then(context => {
-				if (context.res.statusCode !== 200) {
-					return Promise.resolve(undefined);
-				}
-				return asJson(context).then((result: { [key: string]: any } | null) => {
-					if (!result) {
-						return;
-					}
-					const allRecommendations: IDynamicWorkspaceRecommendations[] = Array.isArray(result['workspaceRecommendations']) ? result['workspaceRecommendations'] : [];
-					if (!allRecommendations.length) {
-						return;
-					}
-
-					let foundRemote = false;
-					for (let i = 0; i < hashedRemotes.length && !foundRemote; i++) {
-						for (let j = 0; j < allRecommendations.length && !foundRemote; j++) {
-							if (Array.isArray(allRecommendations[j].remoteSet) && allRecommendations[j].remoteSet.indexOf(hashedRemotes[i]) > -1) {
-								foundRemote = true;
-								this.dynamicWorkspaceRecommendations = allRecommendations[j].recommendations.filter(id => this.isExtensionAllowedToBeRecommended(id)) || [];
-								this.storageService.store(storageKey, JSON.stringify({
-									recommendations: this.dynamicWorkspaceRecommendations,
-									timestamp: Date.now()
-								}), StorageScope.WORKSPACE);
-								/* __GDPR__
-									"dynamicWorkspaceRecommendations" : {
-										"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-										"cache" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-									}
-								*/
-								this.telemetryService.publicLog('dynamicWorkspaceRecommendations', { count: this.dynamicWorkspaceRecommendations.length, cache: 0 });
-							}
-						}
-					}
-				});
-			});
-		});
+	private async fetchOtherExeBasedRecommendations(): Promise<void> {
+		const otherExectuableBasedTips = await this.extensionTipsService.getOtherExecutableBasedTips();
+		otherExectuableBasedTips.forEach(tip => this.exeBasedRecommendations[tip.extensionId.toLowerCase()] = tip);
 	}
 
 	/**
-	 * Fetch extensions used by others on the same workspace as recommendations from cache
+	 * Fetch extensions used by others on the same workspace as recommendations
 	 */
-	private fetchCachedDynamicWorkspaceRecommendations() {
-		if (this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER) {
+	private async fetchDynamicWorkspaceRecommendations(): Promise<void> {
+		if (this.dynamicWorkspaceRecommendations.length
+			|| this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER
+			|| !this.fileService.canHandleResource(this.contextService.getWorkspace().folders[0].uri)
+		) {
 			return;
 		}
 
-		const storageKey = 'extensionsAssistant/dynamicWorkspaceRecommendations';
-		let storedRecommendationsJson: { [key: string]: any } = {};
-		try {
-			storedRecommendationsJson = JSON.parse(this.storageService.get(storageKey, StorageScope.WORKSPACE, '{}'));
-		} catch (e) {
-			this.storageService.remove(storageKey, StorageScope.WORKSPACE);
+		const cachedDynamicWorkspaceRecommendations = this.getCachedDynamicWorkspaceRecommendations();
+		if (cachedDynamicWorkspaceRecommendations) {
+			this.dynamicWorkspaceRecommendations = cachedDynamicWorkspaceRecommendations;
+			this.telemetryService.publicLog2<{ count: number, cache: number }, DynamicWorkspaceRecommendationsClassification>('dynamicWorkspaceRecommendations', { count: this.dynamicWorkspaceRecommendations.length, cache: 1 });
+			return;
 		}
 
-		if (Array.isArray(storedRecommendationsJson['recommendations'])
-			&& isNumber(storedRecommendationsJson['timestamp'])
-			&& storedRecommendationsJson['timestamp'] > 0
-			&& (Date.now() - storedRecommendationsJson['timestamp']) / milliSecondsInADay < 14) {
-			this.dynamicWorkspaceRecommendations = storedRecommendationsJson['recommendations'];
-			/* __GDPR__
-				"dynamicWorkspaceRecommendations" : {
-					"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-					"cache" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-				}
-			*/
-			this.telemetryService.publicLog('dynamicWorkspaceRecommendations', { count: this.dynamicWorkspaceRecommendations.length, cache: 1 });
+		const workspaceUri = this.contextService.getWorkspace().folders[0].uri;
+		const [hashedRemotes1, hashedRemotes2] = await Promise.all([this.workspaceTagsService.getHashedRemotesFromUri(workspaceUri, false), this.workspaceTagsService.getHashedRemotesFromUri(workspaceUri, true)]);
+		const hashedRemotes = (hashedRemotes1 || []).concat(hashedRemotes2 || []);
+		if (!hashedRemotes.length) {
+			return;
 		}
+
+		const workspacesTips = await this.extensionTipsService.getAllWorkspacesTips();
+		for (const hashedRemote of hashedRemotes) {
+			const workspaceTip = workspacesTips.filter(workspaceTip => isNonEmptyArray(workspaceTip.remoteSet) && workspaceTip.remoteSet.indexOf(hashedRemote) > -1)[0];
+			if (workspaceTip) {
+				this.dynamicWorkspaceRecommendations = workspaceTip.recommendations.filter(id => this.isExtensionAllowedToBeRecommended(id)) || [];
+				this.storageService.store(dynamicWorkspaceRecommendationsStorageKey, JSON.stringify(<IStoredDynamicWorkspaceRecommendations>{ recommendations: this.dynamicWorkspaceRecommendations, timestamp: Date.now() }), StorageScope.WORKSPACE);
+				this.telemetryService.publicLog2<{ count: number, cache: number }, DynamicWorkspaceRecommendationsClassification>('dynamicWorkspaceRecommendations', { count: this.dynamicWorkspaceRecommendations.length, cache: 0 });
+				return;
+			}
+		}
+	}
+
+	private getCachedDynamicWorkspaceRecommendations(): string[] | undefined {
+		try {
+			const storedDynamicWorkspaceRecommendations: IStoredDynamicWorkspaceRecommendations = JSON.parse(this.storageService.get(dynamicWorkspaceRecommendationsStorageKey, StorageScope.WORKSPACE, '{}'));
+			if (isNonEmptyArray(storedDynamicWorkspaceRecommendations.recommendations)
+				&& isNumber(storedDynamicWorkspaceRecommendations.timestamp)
+				&& storedDynamicWorkspaceRecommendations.timestamp > 0
+				&& (Date.now() - storedDynamicWorkspaceRecommendations.timestamp) / milliSecondsInADay < 14) {
+				return storedDynamicWorkspaceRecommendations.recommendations;
+			}
+		} catch (e) {
+			this.storageService.remove(dynamicWorkspaceRecommendationsStorageKey, StorageScope.WORKSPACE);
+		}
+		return undefined;
 	}
 
 	private async promptForImportantExeBasedExtension(importantExectuableBasedTips: IExecutableBasedExtensionTip[]): Promise<boolean> {
@@ -214,15 +179,7 @@ export class NativeExtensionRecommendationsService extends ExtensionRecommendati
 		const installed = await this.extensionManagementService.getInstalled(ExtensionType.User);
 		recommendationsToSuggest = this.filterInstalled(recommendationsToSuggest, installed, (extensionId) => {
 			const tip = importantExeBasedRecommendations[extensionId];
-
-			/* __GDPR__
-			"exeExtensionRecommendations:alreadyInstalled" : {
-				"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-				"exeName": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
-			}
-			*/
-			this.telemetryService.publicLog('exeExtensionRecommendations:alreadyInstalled', { extensionId, exeName: basename(tip.windowsPath!) });
-
+			this.telemetryService.publicLog2<{ exeName: string, extensionId: string }, ExeExtensionRecommendationsClassification>('exeExtensionRecommendations:alreadyInstalled', { extensionId, exeName: basename(tip.windowsPath!) });
 		});
 
 		if (recommendationsToSuggest.length === 0) {
@@ -231,16 +188,8 @@ export class NativeExtensionRecommendationsService extends ExtensionRecommendati
 
 		for (const extensionId of recommendationsToSuggest) {
 			const tip = importantExeBasedRecommendations[extensionId];
-
-			/* __GDPR__
-			"exeExtensionRecommendations:notInstalled" : {
-				"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-				"exeName": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
-			}
-			*/
-			this.telemetryService.publicLog('exeExtensionRecommendations:notInstalled', { extensionId, exeName: basename(tip.windowsPath!) });
+			this.telemetryService.publicLog2<{ exeName: string, extensionId: string }, ExeExtensionRecommendationsClassification>('exeExtensionRecommendations:notInstalled', { extensionId, exeName: basename(tip.windowsPath!) });
 		}
-
 
 		const storageKey = 'extensionsAssistant/workspaceRecommendationsIgnore';
 		const config = this.configurationService.getValue<IExtensionsConfiguration>(ConfigurationKey);
@@ -264,25 +213,13 @@ export class NativeExtensionRecommendationsService extends ExtensionRecommendati
 			[{
 				label: localize('install', 'Install'),
 				run: () => {
-					/* __GDPR__
-					"exeExtensionRecommendations:popup" : {
-						"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
-					}
-					*/
-					this.telemetryService.publicLog('exeExtensionRecommendations:popup', { userReaction: 'install', extensionId });
+					this.telemetryService.publicLog2<{ userReaction: string, extensionId: string }, ExtensionRecommendationsNotificationClassification>('extensionRecommendations:popup', { userReaction: 'install', extensionId });
 					this.instantiationService.createInstance(InstallRecommendedExtensionAction, extensionId).run();
 				}
 			}, {
 				label: localize('showRecommendations', "Show Recommendations"),
 				run: () => {
-					/* __GDPR__
-						"exeExtensionRecommendations:popup" : {
-							"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
-						}
-					*/
-					this.telemetryService.publicLog('exeExtensionRecommendations:popup', { userReaction: 'show', extensionId });
+					this.telemetryService.publicLog2<{ userReaction: string, extensionId: string }, ExtensionRecommendationsNotificationClassification>('extensionRecommendations:popup', { userReaction: 'show', extensionId });
 
 					const recommendationsAction = this.instantiationService.createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, localize('showRecommendations', "Show Recommendations"));
 					recommendationsAction.run();
@@ -293,13 +230,7 @@ export class NativeExtensionRecommendationsService extends ExtensionRecommendati
 				isSecondary: true,
 				run: () => {
 					this.addToImportantRecommendationsIgnore(extensionId);
-					/* __GDPR__
-						"exeExtensionRecommendations:popup" : {
-							"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
-						}
-					*/
-					this.telemetryService.publicLog('exeExtensionRecommendations:popup', { userReaction: 'neverShowAgain', extensionId });
+					this.telemetryService.publicLog2<{ userReaction: string, extensionId: string }, ExtensionRecommendationsNotificationClassification>('extensionRecommendations:popup', { userReaction: 'neverShowAgain', extensionId });
 					this.notificationService.prompt(
 						Severity.Info,
 						localize('ignoreExtensionRecommendations', "Do you want to ignore all extension recommendations?"),
@@ -316,13 +247,7 @@ export class NativeExtensionRecommendationsService extends ExtensionRecommendati
 			{
 				sticky: true,
 				onCancel: () => {
-					/* __GDPR__
-						"exeExtensionRecommendations:popup" : {
-							"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
-						}
-					*/
-					this.telemetryService.publicLog('exeExtensionRecommendations:popup', { userReaction: 'cancelled', extensionId });
+					this.telemetryService.publicLog2<{ userReaction: string, extensionId: string }, ExtensionRecommendationsNotificationClassification>('extensionRecommendations:popup', { userReaction: 'cancelled', extensionId });
 				}
 			}
 		);
@@ -330,12 +255,10 @@ export class NativeExtensionRecommendationsService extends ExtensionRecommendati
 		return true;
 	}
 
-	private async fetchOtherExeBasedRecommendations(): Promise<void> {
-		const otherExectuableBasedTips = await this.extensionTipsService.getOtherExecutableBasedTips();
-		otherExectuableBasedTips.forEach(tip => this.exeBasedRecommendations[tip.extensionId.toLowerCase()] = tip);
-	}
-
 	getAllRecommendationsWithReason(): { [id: string]: { reasonId: ExtensionRecommendationReason, reasonText: string }; } {
+		/* Trigger fetching recommendations */
+		this.fetchProactiveRecommendations();
+
 		const output = super.getAllRecommendationsWithReason();
 		if (this.contextService.getWorkspace().folders && this.contextService.getWorkspace().folders.length === 1) {
 			const currentRepo = this.contextService.getWorkspace().folders[0].name;
