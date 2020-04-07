@@ -32,7 +32,6 @@ import { find } from 'vs/base/common/arrays';
 import { timeout } from 'vs/base/common/async';
 import { IViewsService, ViewContainerLocation, IViewDescriptorService } from 'vs/workbench/common/views';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { Orientation } from 'vs/base/browser/ui/sash/sash';
 
 interface IExtHostReadyEntry {
 	promise: Promise<void>;
@@ -695,14 +694,11 @@ export class TerminalService implements ITerminalService {
 
 	public hidePanel(): void {
 		// Hide the panel if the terminal is in the panel and it has no sibling views
-		const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID) as TerminalViewPane;
-		if (pane && pane.orientation === Orientation.HORIZONTAL) {
-			const location = this._viewDescriptorService.getViewLocation(TERMINAL_VIEW_ID);
-			if (location === ViewContainerLocation.Panel) {
-				const panel = this._viewDescriptorService.getViewContainer(TERMINAL_VIEW_ID);
-				if (panel && this._viewDescriptorService.getViewDescriptors(panel).activeViewDescriptors.length === 1) {
-					this._layoutService.setPanelHidden(true);
-				}
+		const location = this._viewDescriptorService.getViewLocation(TERMINAL_VIEW_ID);
+		if (location === ViewContainerLocation.Panel) {
+			const panel = this._viewDescriptorService.getViewContainer(TERMINAL_VIEW_ID);
+			if (panel && this._viewDescriptorService.getViewDescriptors(panel).activeViewDescriptors.length === 1) {
+				this._layoutService.setPanelHidden(true);
 			}
 		}
 	}
