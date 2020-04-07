@@ -17,6 +17,7 @@ export const PANEL_ID = 'panel.view.outline';
 const _outlineDesc = <IViewDescriptor>{
 	id: OutlineViewId,
 	name: localize('name', "Outline"),
+	containerIcon: 'codicon-symbol-class',
 	ctorDescriptor: new SyncDescriptor(OutlinePane),
 	canToggleVisibility: true,
 	canMoveView: true,

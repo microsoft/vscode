@@ -22,6 +22,7 @@ import { ResourceContextKey } from 'vs/workbench/common/resources';
 export class TimelinePaneDescriptor implements IViewDescriptor {
 	readonly id = TimelinePaneId;
 	readonly name = TimelinePane.TITLE;
+	readonly containerIcon = 'codicon-history';
 	readonly ctorDescriptor = new SyncDescriptor(TimelinePane);
 	readonly order = 2;
 	readonly weight = 30;
