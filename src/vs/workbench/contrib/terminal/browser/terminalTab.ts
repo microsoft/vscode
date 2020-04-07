@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import * as nls from 'vs/nls';
-import { IShellLaunchConfig, ITerminalConfigHelper, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IShellLaunchConfig, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { SplitView, Orientation, IView, Sizing } from 'vs/base/browser/ui/splitview/splitview';
@@ -228,8 +227,6 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 	public readonly onInstancesChanged: Event<void> = this._onInstancesChanged.event;
 
 	constructor(
-		terminalFocusContextKey: IContextKey<boolean>,
-		configHelper: ITerminalConfigHelper,
 		private _container: HTMLElement | undefined,
 		shellLaunchConfigOrInstance: IShellLaunchConfig | ITerminalInstance,
 		@ITerminalService private readonly _terminalService: ITerminalService,

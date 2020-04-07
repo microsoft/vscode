@@ -98,7 +98,7 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 			},
 			'workbench.editor.showIcons': {
 				'type': 'boolean',
-				'description': nls.localize('showIcons', "Controls whether opened editors should show with an icon or not. This requires an icon theme to be enabled as well."),
+				'description': nls.localize('showIcons', "Controls whether opened editors should show with an icon or not. This requires an file icon theme to be enabled as well."),
 				'default': true
 			},
 			'workbench.editor.enablePreview': {

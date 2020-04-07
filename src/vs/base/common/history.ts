@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { INavigator, ArrayNavigator } from 'vs/base/common/iterator';
+import { INavigator, ArrayNavigator } from 'vs/base/common/navigator';
 
 export class HistoryNavigator<T> implements INavigator<T> {
 
@@ -43,10 +43,6 @@ export class HistoryNavigator<T> implements INavigator<T> {
 
 	public current(): T | null {
 		return this._navigator.current();
-	}
-
-	public parent(): null {
-		return null;
 	}
 
 	public first(): T | null {

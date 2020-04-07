@@ -2,7 +2,7 @@ name: Locker
 on:
   schedule:
     - cron: 20 23 * * * # 4:20pm Redmond
-# on: repository_dispatch
+  repository_dispatch:
 
 # Note for locker:
 # The query for is:unlocked will return issues that have only recently been locked
@@ -18,7 +18,7 @@ jobs:
         uses: actions/checkout@v2
         with:
           repository: 'JacksonKearl/vscode-triage-github-actions'
-          ref: v18
+          ref: v22
       - name: Run Locker
         uses: ./locker
         with:

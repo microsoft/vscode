@@ -17,7 +17,7 @@ import { URI } from 'vs/base/common/uri';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { FolderThemeIcon } from 'vs/platform/theme/common/themeService';
 import { fromNow } from 'vs/base/common/date';
-import { pad } from 'vs/base/common/strings';
+import { pad, uppercaseFirstLetter } from 'vs/base/common/strings';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 
 export class UserDataSyncViewContribution implements IWorkbenchContribution {
@@ -101,7 +101,7 @@ export class UserDataSyncViewContribution implements IWorkbenchContribution {
 			constructor() {
 				super({
 					id: `workbench.actions.sync.resolveResource`,
-					title: localize('workbench.actions.sync.resolveResourceRef', "Show full content"),
+					title: localize('workbench.actions.sync.resolveResourceRef', "Show raw JSON sync data"),
 					menu: {
 						id: MenuId.ViewItemContext,
 						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', viewId), ContextKeyExpr.regex('viewItem', /sync-resource-.*/i))
@@ -156,7 +156,7 @@ class UserDataSyncHistoryViewDataProvider implements ITreeViewDataProvider {
 			return ALL_SYNC_RESOURCES.map(resourceKey => ({
 				handle: resourceKey,
 				collapsibleState: TreeItemCollapsibleState.Collapsed,
-				label: { label: resourceKey },
+				label: { label: uppercaseFirstLetter(resourceKey) },
 				themeIcon: FolderThemeIcon,
 			}));
 		}

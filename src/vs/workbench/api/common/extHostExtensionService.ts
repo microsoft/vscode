@@ -90,7 +90,7 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 	private readonly _storage: ExtHostStorage;
 	private readonly _storagePath: IExtensionStoragePaths;
 	private readonly _activator: ExtensionsActivator;
-	private _extensionPathIndex: Promise<TernarySearchTree<IExtensionDescription>> | null;
+	private _extensionPathIndex: Promise<TernarySearchTree<string, IExtensionDescription>> | null;
 
 	private readonly _resolvers: { [authorityPrefix: string]: vscode.RemoteAuthorityResolver; };
 
@@ -236,7 +236,7 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 	}
 
 	// create trie to enable fast 'filename -> extension id' look up
-	public getExtensionPathIndex(): Promise<TernarySearchTree<IExtensionDescription>> {
+	public getExtensionPathIndex(): Promise<TernarySearchTree<string, IExtensionDescription>> {
 		if (!this._extensionPathIndex) {
 			const tree = TernarySearchTree.forPaths<IExtensionDescription>();
 			const extensions = this._registry.getAllExtensionDescriptions().map(ext => {
@@ -792,6 +792,6 @@ export interface IExtHostExtensionService extends AbstractExtHostExtensionServic
 	deactivateAll(): Promise<void>;
 	getExtensionExports(extensionId: ExtensionIdentifier): IExtensionAPI | null | undefined;
 	getExtensionRegistry(): Promise<ExtensionDescriptionRegistry>;
-	getExtensionPathIndex(): Promise<TernarySearchTree<IExtensionDescription>>;
+	getExtensionPathIndex(): Promise<TernarySearchTree<string, IExtensionDescription>>;
 	registerRemoteAuthorityResolver(authorityPrefix: string, resolver: vscode.RemoteAuthorityResolver): vscode.Disposable;
 }

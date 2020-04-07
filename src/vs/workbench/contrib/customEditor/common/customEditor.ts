@@ -7,6 +7,7 @@ import { distinct, mergeSort } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
 import { IDisposable, IReference } from 'vs/base/common/lifecycle';
+import { posix } from 'vs/base/common/path';
 import { basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -75,17 +76,20 @@ export class CustomEditorInfo {
 
 	public readonly id: string;
 	public readonly displayName: string;
+	public readonly providerDisplayName: string | undefined;
 	public readonly priority: CustomEditorPriority;
 	public readonly selector: readonly CustomEditorSelector[];
 
 	constructor(descriptor: {
 		readonly id: string;
 		readonly displayName: string;
+		readonly providerDisplayName: string | undefined;
 		readonly priority: CustomEditorPriority;
 		readonly selector: readonly CustomEditorSelector[];
 	}) {
 		this.id = descriptor.id;
 		this.displayName = descriptor.displayName;
+		this.providerDisplayName = descriptor.providerDisplayName;
 		this.priority = descriptor.priority;
 		this.selector = descriptor.selector;
 	}
@@ -96,7 +100,9 @@ export class CustomEditorInfo {
 
 	static selectorMatches(selector: CustomEditorSelector, resource: URI): boolean {
 		if (selector.filenamePattern) {
-			if (glob.match(selector.filenamePattern.toLowerCase(), basename(resource).toLowerCase())) {
+			const matchOnPath = selector.filenamePattern.indexOf(posix.sep) >= 0;
+			const target = matchOnPath ? resource.path : basename(resource);
+			if (glob.match(selector.filenamePattern.toLowerCase(), target.toLowerCase())) {
 				return true;
 			}
 		}

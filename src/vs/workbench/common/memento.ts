@@ -61,6 +61,7 @@ export class Memento {
 }
 
 class ScopedMemento {
+
 	private readonly mementoObj: MementoObject;
 
 	constructor(private id: string, private scope: StorageScope, private storageService: IStorageService) {

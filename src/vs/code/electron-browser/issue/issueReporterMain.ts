@@ -17,14 +17,13 @@ import { escape } from 'vs/base/common/strings';
 import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
 import { createChannelSender } from 'vs/base/parts/ipc/node/ipc';
 import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
-import { normalizeGitHubUrl } from 'vs/code/common/issue/issueReporterUtil';
+import { normalizeGitHubUrl } from 'vs/platform/issue/common/issueReporterUtil';
 import { IssueReporterData as IssueReporterModelData, IssueReporterModel } from 'vs/code/electron-browser/issue/issueReporterModel';
 import BaseHtml from 'vs/code/electron-browser/issue/issueReporterPage';
 import 'vs/css!./media/issueReporter';
 import { localize } from 'vs/nls';
 import { isRemoteDiagnosticError, SystemInfo } from 'vs/platform/diagnostics/common/diagnostics';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { EnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IMainProcessService, MainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
@@ -63,7 +62,7 @@ export function startup(configuration: IssueReporterConfiguration) {
 }
 
 export class IssueReporter extends Disposable {
-	private environmentService!: IEnvironmentService;
+	private environmentService!: INativeEnvironmentService;
 	private telemetryService!: ITelemetryService;
 	private logService!: ILogService;
 	private readonly issueReporterModel: IssueReporterModel;

@@ -54,7 +54,7 @@ export class ExtensionsGridView extends Disposable {
 	private renderExtension(extension: IExtension, index: number): void {
 		const extensionContainer = dom.append(this.element, dom.$('.extension-container'));
 		extensionContainer.style.height = `${this.delegate.getHeight()}px`;
-		extensionContainer.style.width = `350px`;
+		extensionContainer.style.width = `275px`;
 		extensionContainer.setAttribute('tabindex', '0');
 
 		const template = this.renderer.renderTemplate(extensionContainer);

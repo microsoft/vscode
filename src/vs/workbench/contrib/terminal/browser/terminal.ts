@@ -139,7 +139,7 @@ export interface ITerminalService {
 	 */
 	addLinkHandler(key: string, callback: TerminalLinkHandlerCallback): IDisposable;
 
-	selectDefaultWindowsShell(): Promise<void>;
+	selectDefaultShell(): Promise<void>;
 
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 	manageWorkspaceShellPermissions(): void;
@@ -180,10 +180,10 @@ export interface ISearchOptions {
 }
 
 export enum WindowsShellType {
-	CommandPrompt,
-	PowerShell,
-	Wsl,
-	GitBash
+	CommandPrompt = 'cmd',
+	PowerShell = 'pwsh',
+	Wsl = 'wsl',
+	GitBash = 'gitbash'
 }
 export type TerminalShellType = WindowsShellType | undefined;
 

@@ -168,12 +168,12 @@ export abstract class BaseSwitchWindow extends Action {
 	constructor(
 		id: string,
 		label: string,
-		private environmentService: INativeWorkbenchEnvironmentService,
-		private quickInputService: IQuickInputService,
-		private keybindingService: IKeybindingService,
-		private modelService: IModelService,
-		private modeService: IModeService,
-		private electronService: IElectronService
+		private readonly environmentService: INativeWorkbenchEnvironmentService,
+		private readonly quickInputService: IQuickInputService,
+		private readonly keybindingService: IKeybindingService,
+		private readonly modelService: IModelService,
+		private readonly modeService: IModeService,
+		private readonly electronService: IElectronService
 	) {
 		super(id, label);
 	}
@@ -191,6 +191,7 @@ export abstract class BaseSwitchWindow extends Action {
 			return {
 				payload: win.id,
 				label: win.title,
+				ariaLabel: win.dirty ? nls.localize('windowDirtyAriaLabel', "{0}, dirty window", win.title) : win.title,
 				iconClasses: getIconClasses(this.modelService, this.modeService, resource, fileKind),
 				description: (currentWindowId === win.id) ? nls.localize('current', "Current Window") : undefined,
 				buttons: currentWindowId !== win.id ? win.dirty ? [this.closeDirtyWindowAction] : [this.closeWindowAction] : undefined

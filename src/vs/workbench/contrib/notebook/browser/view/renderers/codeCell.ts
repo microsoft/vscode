@@ -6,7 +6,6 @@
 import * as DOM from 'vs/base/browser/dom';
 import { raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { debounce } from 'vs/base/common/decorators';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import * as nls from 'vs/nls';
@@ -45,7 +44,7 @@ export class CodeCell extends Disposable {
 				height: totalHeight
 			}
 		);
-		viewCell.editorHeight = totalHeight;
+		// viewCell.editorHeight = totalHeight;
 
 		const cts = new CancellationTokenSource();
 		this._register({ dispose() { cts.dispose(true); } });
@@ -93,24 +92,26 @@ export class CodeCell extends Disposable {
 			templateData.editor?.getModel()?.setMode(mode.languageIdentifier);
 		}));
 
-		let cellWidthResizeObserver = getResizesObserver(templateData.editorContainer!, {
-			width: width,
-			height: totalHeight
-		}, () => {
-			let newWidth = cellWidthResizeObserver.getWidth();
-			let realContentHeight = templateData.editor!.getContentHeight();
-			templateData.editor?.layout(
-				{
-					width: newWidth,
-					height: realContentHeight
-				}
-			);
+		this._register(viewCell.onDidChangeLayout((e) => {
+			if (e.outerWidth === undefined) {
+				return;
+			}
 
-			viewCell.editorHeight = realContentHeight;
-		});
+			const layoutInfo = templateData.editor!.getLayoutInfo();
+			const realContentHeight = templateData.editor!.getContentHeight();
 
-		cellWidthResizeObserver.startObserving();
-		this._register(cellWidthResizeObserver);
+			if (layoutInfo.width !== viewCell.layoutInfo.editorWidth) {
+				templateData.editor?.layout(
+					{
+						width: viewCell.layoutInfo.editorWidth,
+						height: realContentHeight
+					}
+				);
+
+				viewCell.editorHeight = realContentHeight;
+				this.relayoutCell();
+			}
+		}));
 
 		this._register(templateData.editor!.onDidContentSizeChange((e) => {
 			if (e.contentHeightChanged) {
@@ -209,6 +210,12 @@ export class CodeCell extends Disposable {
 		}));
 
 		if (viewCell.outputs.length > 0) {
+			let layoutCache = false;
+			if (this.viewCell.layoutInfo.totalHeight !== 0 && this.viewCell.layoutInfo.totalHeight > totalHeight) {
+				layoutCache = true;
+				this.relayoutCell();
+			}
+
 			this.templateData.outputContainer!.style.display = 'block';
 			// there are outputs, we need to calcualte their sizes and trigger relayout
 			// @todo, if there is no resizable output, we should not check their height individually, which hurts the performance
@@ -220,9 +227,15 @@ export class CodeCell extends Disposable {
 			}
 
 			viewCell.editorHeight = totalHeight;
-			this.relayoutCell();
+			if (layoutCache) {
+				this.relayoutCellDebounced();
+			} else {
+				this.relayoutCell();
+			}
 		} else {
 			// noop
+			viewCell.editorHeight = totalHeight;
+			this.relayoutCell();
 			this.templateData.outputContainer!.style.display = 'none';
 		}
 	}
@@ -388,12 +401,21 @@ export class CodeCell extends Disposable {
 	}
 
 	relayoutCell() {
+		if (this._timer !== null) {
+			clearTimeout(this._timer);
+		}
+
 		this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
 	}
 
-	@debounce(500)
+	private _timer: any = null;
+
 	relayoutCellDebounced() {
-		this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
+		clearTimeout(this._timer);
+		this._timer = setTimeout(() => {
+			this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
+			this._timer = null;
+		}, 500);
 	}
 
 	dispose() {

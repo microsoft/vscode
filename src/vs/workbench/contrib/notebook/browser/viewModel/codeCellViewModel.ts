@@ -13,6 +13,7 @@ import { CellEditState, ICellViewModel, CellFindMatch, CodeCellLayoutChangeEvent
 import { CellKind, ICell, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { BaseCellViewModel } from './baseCellViewModel';
 import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 
 export class CodeCellViewModel extends BaseCellViewModel implements ICellViewModel {
 	cellKind: CellKind.Code = CellKind.Code;
@@ -36,7 +37,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	private readonly _onDidChangeContent: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 
-	protected readonly _onDidChangeLayout = new Emitter<void>();
+	protected readonly _onDidChangeLayout = new Emitter<CodeCellLayoutChangeEvent>();
 	readonly onDidChangeLayout = this._onDidChangeLayout.event;
 
 	private _editorHeight = 0;
@@ -83,7 +84,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		this._layoutInfo = {
 			fontInfo: initialNotebookLayoutInfo?.fontInfo || null,
 			editorHeight: 0,
-			editorWidth: 0,
+			editorWidth: initialNotebookLayoutInfo ? initialNotebookLayoutInfo!.width - CELL_MARGIN * 2 - CELL_RUN_GUTTER : 0,
 			outputContainerOffset: 0,
 			outputTotalHeight: 0,
 			totalHeight: 0,
@@ -110,9 +111,9 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		const outputTotalHeight = this._outputsTop!.getTotalValue();
 		const totalHeight = EDITOR_TOOLBAR_HEIGHT + this.editorHeight + EDITOR_TOP_MARGIN + outputTotalHeight + BOTTOM_CELL_TOOLBAR_HEIGHT;
 		const indicatorHeight = this.editorHeight + outputTotalHeight;
-		const outputContainerOffset = EDITOR_TOOLBAR_HEIGHT + this.editorHeight;
+		const outputContainerOffset = EDITOR_TOOLBAR_HEIGHT + EDITOR_TOP_MARGIN + this.editorHeight;
 		const bottomToolbarOffset = totalHeight - BOTTOM_CELL_TOOLBAR_HEIGHT;
-		const editorWidth = state.outerWidth !== undefined ? state.outerWidth - CELL_MARGIN * 2 - CELL_RUN_GUTTER : 0;
+		const editorWidth = state.outerWidth !== undefined ? state.outerWidth - CELL_MARGIN * 2 - CELL_RUN_GUTTER : this._layoutInfo?.editorWidth;
 		this._layoutInfo = {
 			fontInfo: state.font || null,
 			editorHeight: this._editorHeight,
@@ -128,11 +129,27 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			state.totalHeight = true;
 		}
 
-		this._fireOnDidChangeLayout();
+		this._fireOnDidChangeLayout(state);
 	}
 
-	private _fireOnDidChangeLayout() {
-		this._onDidChangeLayout.fire();
+	private _fireOnDidChangeLayout(state: CodeCellLayoutChangeEvent) {
+		this._onDidChangeLayout.fire(state);
+	}
+
+	restoreEditorViewState(editorViewStates: editorCommon.ICodeEditorViewState | null, totalHeight?: number) {
+		super.restoreEditorViewState(editorViewStates);
+		if (totalHeight !== undefined) {
+			this._layoutInfo = {
+				fontInfo: this._layoutInfo.fontInfo,
+				editorHeight: this._layoutInfo.editorHeight,
+				editorWidth: this._layoutInfo.editorWidth,
+				outputContainerOffset: this._layoutInfo.outputContainerOffset,
+				outputTotalHeight: this._layoutInfo.outputTotalHeight,
+				totalHeight: totalHeight,
+				indicatorHeight: this._layoutInfo.indicatorHeight,
+				bottomToolbarOffset: this._layoutInfo.bottomToolbarOffset
+			};
+		}
 	}
 
 	hasDynamicHeight() {
@@ -153,7 +170,11 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	}
 
 	getHeight(lineHeight: number) {
-		return EDITOR_TOOLBAR_HEIGHT + EDITOR_TOP_MARGIN + this.lineCount * lineHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING + BOTTOM_CELL_TOOLBAR_HEIGHT;
+		if (this._layoutInfo.totalHeight === 0) {
+			return EDITOR_TOOLBAR_HEIGHT + EDITOR_TOP_MARGIN + this.lineCount * lineHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING + BOTTOM_CELL_TOOLBAR_HEIGHT;
+		} else {
+			return this._layoutInfo.totalHeight;
+		}
 	}
 
 	save() {

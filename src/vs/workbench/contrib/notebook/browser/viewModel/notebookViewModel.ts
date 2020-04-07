@@ -21,10 +21,12 @@ import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { CellKind, ICell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookEventDispatcher, NotebookMetadataChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 export interface INotebookEditorViewState {
 	editingCells: { [key: number]: boolean };
 	editorViewStates: { [key: number]: editorCommon.ICodeEditorViewState | null };
+	cellTotalHeights?: { [key: number]: number };
 	scrollPosition?: { left: number; top: number; };
 }
 
@@ -59,6 +61,16 @@ export interface INotebookViewCellsUpdateEvent {
 export class NotebookViewModel extends Disposable {
 	private _localStore: DisposableStore = this._register(new DisposableStore());
 	private _viewCells: CellViewModel[] = [];
+
+	private _currentTokenSource: CancellationTokenSource | undefined;
+
+	get currentTokenSource(): CancellationTokenSource | undefined {
+		return this._currentTokenSource;
+	}
+
+	set currentTokenSource(v: CancellationTokenSource | undefined) {
+		this._currentTokenSource = v;
+	}
 
 	get viewCells(): ICellViewModel[] {
 		return this._viewCells;
@@ -261,12 +273,13 @@ export class NotebookViewModel extends Disposable {
 			return;
 		}
 
-		this._viewCells.forEach(cell => {
+		this._viewCells.forEach((cell, index) => {
 			const isEditing = viewState.editingCells && viewState.editingCells[cell.handle];
 			const editorViewState = viewState.editorViewStates && viewState.editorViewStates[cell.handle];
 
 			cell.editState = isEditing ? CellEditState.Editing : CellEditState.Preview;
-			cell.restoreEditorViewState(editorViewState);
+			const cellHeight = viewState.cellTotalHeights ? viewState.cellTotalHeights[index] : undefined;
+			cell.restoreEditorViewState(editorViewState, cellHeight);
 		});
 	}
 

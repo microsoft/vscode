@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/dd81cfb5b08015f35b5617751d27c5584198393b",
+	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/84422d92e164c379ed817ef8e1d6c35b61de233e",
 	"name": "TypeScript",
 	"scopeName": "source.ts",
 	"patterns": [
@@ -2688,7 +2688,7 @@
 							"name": "keyword.control.as.ts"
 						}
 					},
-					"end": "(?=$|^|[,}]|\\|\\||\\&\\&|((?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(as)\\s+))",
+					"end": "(?=[;),}\\]:?\\-\\+\\>]|\\|\\||\\&\\&|\\!\\=\\=|$|^|((?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(as)\\s+))",
 					"patterns": [
 						{
 							"include": "#type"
@@ -2943,7 +2943,7 @@
 					"name": "keyword.operator.new.ts"
 				}
 			},
-			"end": "(?<=\\))|(?=[;),}\\]:\\-\\+]|\\|\\||\\&\\&|$|((?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))new(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.)))|((?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))function((\\s+[_$[:alpha:]][_$[:alnum:]]*)|(\\s*[\\(]))))",
+			"end": "(?<=\\))|(?=[;),}\\]:?\\-\\+\\>]|\\|\\||\\&\\&|\\!\\=\\=|$|((?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))new(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.)))|((?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))function((\\s+[_$[:alpha:]][_$[:alnum:]]*)|(\\s*[\\(]))))",
 			"patterns": [
 				{
 					"include": "#paren-expression"
@@ -2963,7 +2963,7 @@
 					"name": "keyword.operator.expression.instanceof.ts"
 				}
 			},
-			"end": "(?<=\\))|(?=[;),}\\]:?]|\\|\\||\\&\\&|$|((?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))function((\\s+[_$[:alpha:]][_$[:alnum:]]*)|(\\s*[\\(]))))",
+			"end": "(?<=\\))|(?=[;),}\\]:?\\-\\+\\>]|\\|\\||\\&\\&|\\!\\=\\=|$|(([\\&\\~\\^\\|]\\s*)?[_$[:alpha:]][_$[:alnum:]]*\\s+instanceof(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.)))|((?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))function((\\s+[_$[:alpha:]][_$[:alnum:]]*)|(\\s*[\\(]))))",
 			"patterns": [
 				{
 					"include": "#type"
@@ -3273,7 +3273,7 @@
 							"name": "keyword.control.as.ts"
 						}
 					},
-					"end": "(?=$|^|[;,:})\\]]|\\|\\||\\&\\&|((?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(as)\\s+)|(\\s+\\<))",
+					"end": "(?=^|[;),}\\]:?\\-\\+\\>]|\\|\\||\\&\\&|\\!\\=\\=|$|((?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(as)\\s+)|(\\s+\\<))",
 					"patterns": [
 						{
 							"include": "#type"
@@ -3667,30 +3667,6 @@
 					}
 				},
 				{
-					"name": "support.class.node.ts",
-					"match": "(?x)(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(Buffer|EventEmitter|Server|Pipe|Socket|REPLServer|ReadStream|WriteStream|Stream\n  |Inflate|Deflate|InflateRaw|DeflateRaw|GZip|GUnzip|Unzip|Zip)\\b(?!\\$)"
-				},
-				{
-					"match": "(?x)(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(process)(?:(?:(\\.)|(\\?\\.(?!\\s*[[:digit:]])))(?:\n  (arch|argv|config|connected|env|execArgv|execPath|exitCode|mainModule|pid|platform|release|stderr|stdin|stdout|title|version|versions)\n  |\n  (abort|chdir|cwd|disconnect|exit|[sg]ete?[gu]id|send|[sg]etgroups|initgroups|kill|memoryUsage|nextTick|umask|uptime|hrtime)\n))?\\b(?!\\$)",
-					"captures": {
-						"1": {
-							"name": "support.variable.object.process.ts"
-						},
-						"2": {
-							"name": "punctuation.accessor.ts"
-						},
-						"3": {
-							"name": "punctuation.accessor.optional.ts"
-						},
-						"4": {
-							"name": "support.variable.property.process.ts"
-						},
-						"5": {
-							"name": "support.function.process.ts"
-						}
-					}
-				},
-				{
 					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(?:(exports)|(module)(?:(?:(\\.)|(\\?\\.(?!\\s*[[:digit:]])))(exports|id|filename|loaded|parent|children))?)\\b(?!\\$)",
 					"captures": {
 						"1": {
@@ -3709,10 +3685,6 @@
 							"name": "support.type.object.module.ts"
 						}
 					}
-				},
-				{
-					"name": "support.variable.object.node.ts",
-					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(global|GLOBAL|root|__dirname|__filename)\\b(?!\\$)"
 				}
 			]
 		},
