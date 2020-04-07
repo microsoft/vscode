@@ -194,10 +194,6 @@ export class FindModelBoundToEditorModel {
 			this._decorations.getCount(),
 			undefined
 		);
-
-		if (moveCursor) {
-			this._moveToNextMatch(this._decorations.getStartPosition());
-		}
 	}
 
 	private _hasMatches(): boolean {
