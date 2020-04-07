@@ -11,8 +11,10 @@ jobs:
       - name: Checkout Actions
         uses: actions/checkout@v2
         with:
-          repository: 'JacksonKearl/vscode-triage-github-actions'
-          ref: v22
+          repository: 'microsoft/vscode-github-triage-actions'
+          ref: v1
+      - name: Install Actions
+        run: npm install --production
       - name: Run Needs More Info Closer
         uses: ./needs-more-info-closer
         with:
