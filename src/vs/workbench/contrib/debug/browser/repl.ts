@@ -58,7 +58,7 @@ import { IViewsService, IViewDescriptorService } from 'vs/workbench/common/views
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ReplGroup } from 'vs/workbench/contrib/debug/common/replModel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
+import { EDITOR_FONT_DEFAULTS, EditorOption } from 'vs/editor/common/config/editorOptions';
 
 const $ = dom.$;
 
@@ -284,6 +284,14 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			const lineHeight = debugConsole.lineHeight ? `${debugConsole.lineHeight}px` : '1.4em';
 			const backgroundColor = this.themeService.getColorTheme().getColor(this.getBackgroundColor());
 
+			this.replInput.updateOptions({
+				fontSize,
+				lineHeight: debugConsole.lineHeight,
+				fontFamily: debugConsole.fontFamily === 'default' ? EDITOR_FONT_DEFAULTS.fontFamily : debugConsole.fontFamily
+			});
+
+			const replInputLineHeight = this.replInput.getOption(EditorOption.lineHeight);
+
 			// Set the font size, font family, line height and align the twistie to be centered, and input theme color
 			this.styleElement.innerHTML = `
 				.repl .repl-tree .expression {
@@ -299,18 +307,16 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 					background-position-y: calc(100% - ${fontSize * 1.4 / 2 - 8}px);
 				}
 
+				.repl .repl-input-wrapper .repl-input-chevron {
+					line-height: ${replInputLineHeight}px
+				}
+
 				.repl .repl-input-wrapper .monaco-editor .lines-content {
 					background-color: ${backgroundColor};
 				}
 			`;
 
 			this.tree.rerender();
-
-			this.replInput.updateOptions({
-				fontSize,
-				lineHeight: debugConsole.lineHeight,
-				fontFamily: debugConsole.fontFamily === 'default' ? EDITOR_FONT_DEFAULTS.fontFamily : debugConsole.fontFamily
-			});
 
 			if (this.dimension) {
 				this.layoutBody(this.dimension.height, this.dimension.width);
@@ -406,7 +412,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 	protected layoutBody(height: number, width: number): void {
 		this.dimension = new dom.Dimension(width, height);
-		const replInputHeight = this.replInput.getContentHeight();
+		const replInputHeight = Math.min(this.replInput.getContentHeight(), height);
 		if (this.tree) {
 			const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight;
 			const treeHeight = height - replInputHeight;
@@ -418,7 +424,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		}
 		this.replInputContainer.style.height = `${replInputHeight}px`;
 
-		this.replInput.layout({ width: width - 20, height: replInputHeight });
+		this.replInput.layout({ width: width - 30, height: replInputHeight });
 	}
 
 	focus(): void {
@@ -553,6 +559,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 	private createReplInput(container: HTMLElement): void {
 		this.replInputContainer = dom.append(container, $('.repl-input-wrapper'));
+		dom.append(this.replInputContainer, $('.repl-input-chevron.codicon.codicon-chevron-right'));
 
 		const { scopedContextKeyService, historyNavigationEnablement } = createAndBindHistoryNavigationWidgetScopedContextKeyService(this.contextKeyService, { target: this.replInputContainer, historyNavigator: this });
 		this.historyNavigationEnablement = historyNavigationEnablement;
