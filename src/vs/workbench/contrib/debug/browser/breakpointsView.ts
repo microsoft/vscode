@@ -51,9 +51,9 @@ function createCheckbox(): HTMLInputElement {
 }
 
 const MAX_VISIBLE_BREAKPOINTS = 9;
-export function getExpandedBodySize(model: IDebugModel): number {
+export function getExpandedBodySize(model: IDebugModel, countLimit: number): number {
 	const length = model.getBreakpoints().length + model.getExceptionBreakpoints().length + model.getFunctionBreakpoints().length + model.getDataBreakpoints().length;
-	return Math.min(MAX_VISIBLE_BREAKPOINTS, length) * 22;
+	return Math.min(countLimit, length) * 22;
 }
 type BreakpointItem = IBreakpoint | IFunctionBreakpoint | IDataBreakpoint | IExceptionBreakpoint;
 
@@ -233,8 +233,8 @@ export class BreakpointsView extends ViewPane {
 
 	private updateSize(): void {
 		// Adjust expanded body size
-		this.minimumBodySize = this.orientation === Orientation.VERTICAL ? getExpandedBodySize(this.debugService.getModel()) : 170;
-		this.maximumBodySize = this.orientation === Orientation.VERTICAL ? this.minimumBodySize : Number.POSITIVE_INFINITY;
+		this.minimumBodySize = this.orientation === Orientation.VERTICAL ? getExpandedBodySize(this.debugService.getModel(), MAX_VISIBLE_BREAKPOINTS) : 170;
+		this.maximumBodySize = this.orientation === Orientation.VERTICAL ? getExpandedBodySize(this.debugService.getModel(), Number.POSITIVE_INFINITY) : Number.POSITIVE_INFINITY;
 	}
 
 	private onBreakpointsChange(): void {
