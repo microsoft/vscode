@@ -196,6 +196,7 @@ export class TestElectronService implements IElectronService {
 	async pickFolderAndOpen(options: INativeOpenDialogOptions): Promise<void> { }
 	async pickWorkspaceAndOpen(options: INativeOpenDialogOptions): Promise<void> { }
 	async showItemInFolder(path: string): Promise<void> { }
+	async openItem(path: string): Promise<void> { }
 	async setRepresentedFilename(path: string): Promise<void> { }
 	async setDocumentEdited(edited: boolean): Promise<void> { }
 	async openExternal(url: string): Promise<boolean> { return false; }

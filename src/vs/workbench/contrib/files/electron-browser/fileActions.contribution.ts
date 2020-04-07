@@ -17,7 +17,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { getMultiSelectedResources } from 'vs/workbench/contrib/files/browser/files';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { revealResourcesInOS } from 'vs/workbench/contrib/files/electron-browser/fileCommands';
+import { revealResourcesInOS, openWithDefaultApplication } from 'vs/workbench/contrib/files/electron-browser/fileCommands';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { appendToCommandPalette, appendEditorTitleContextMenuItem } from 'vs/workbench/contrib/files/browser/fileActions.contribution';
@@ -82,3 +82,66 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 
 const category = { value: nls.localize('filesCategory', "File"), original: 'File' };
 appendToCommandPalette(REVEAL_IN_OS_COMMAND_ID, { value: REVEAL_IN_OS_LABEL, original: isWindows ? 'Reveal in File Explorer' : isMacintosh ? 'Reveal in Finder' : 'Open Containing Folder' }, category, ResourceContextKey.Scheme.isEqualTo(Schemas.file));
+
+
+
+
+
+const OPEN_WITH_DEFAULT_APP_ID = 'openWithDefaultApp';
+const OPEN_WITH_DEFAULT_APP_LABEL = nls.localize('openWithDefaultApp', "Open with default application");
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: OPEN_WITH_DEFAULT_APP_ID,
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: EditorContextKeys.focus.toNegated(),
+	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_O,
+	win: {
+		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_O
+	},
+	handler: (accessor: ServicesAccessor, resource: URI | object) => {
+		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IExplorerService));
+		openWithDefaultApplication(resources, accessor.get(IElectronService), accessor.get(INotificationService), accessor.get(IWorkspaceContextService));
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: undefined,
+	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_O),
+	id: 'workbench.action.files.revealActiveFileInWindows',
+	handler: (accessor: ServicesAccessor) => {
+		const editorService = accessor.get(IEditorService);
+		const activeInput = editorService.activeEditor;
+		const resource = activeInput ? activeInput.resource : null;
+		const resources = resource ? [resource] : [];
+		openWithDefaultApplication(resources, accessor.get(IElectronService), accessor.get(INotificationService), accessor.get(IWorkspaceContextService));
+	}
+});
+
+appendEditorTitleContextMenuItem(OPEN_WITH_DEFAULT_APP_ID, OPEN_WITH_DEFAULT_APP_LABEL, ResourceContextKey.Scheme.isEqualTo(Schemas.file));
+
+// Menu registration - open editors
+
+const openWithDefaultAppCommand = {
+	id: OPEN_WITH_DEFAULT_APP_ID,
+	title: nls.localize('openWithDefaultApp', "Open with default application")
+};
+MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
+	group: 'navigation',
+	order: 20,
+	command: openWithDefaultAppCommand,
+	when: ResourceContextKey.IsFileSystemResource
+});
+
+// Menu registration - explorer
+
+MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+	group: 'navigation',
+	order: 20,
+	command: openWithDefaultAppCommand,
+	when: ResourceContextKey.Scheme.isEqualTo(Schemas.file)
+});
+
+// Command Palette
+
+appendToCommandPalette(OPEN_WITH_DEFAULT_APP_ID, { value: OPEN_WITH_DEFAULT_APP_LABEL, original: 'Open with default application' }, category, ResourceContextKey.Scheme.isEqualTo(Schemas.file));

@@ -29,3 +29,20 @@ export function revealResourcesInOS(resources: URI[], electronService: IElectron
 		notificationService.info(nls.localize('openFileToReveal', "Open a file first to reveal"));
 	}
 }
+
+export function openWithDefaultApplication(resources: URI[], electronService: IElectronService, notificationService: INotificationService, workspaceContextService: IWorkspaceContextService): void {
+	if (resources.length) {
+		sequence(resources.map(r => async () => {
+			if (r.scheme === Schemas.file) {
+				electronService.openItem(r.fsPath);
+			}
+		}));
+	} else if (workspaceContextService.getWorkspace().folders.length) {
+		const uri = workspaceContextService.getWorkspace().folders[0].uri;
+		if (uri.scheme === Schemas.file) {
+			electronService.openItem(uri.fsPath);
+		}
+	} else {
+		notificationService.info(nls.localize('openFileToReveal', "Open a file first to reveal"));
+	}
+}

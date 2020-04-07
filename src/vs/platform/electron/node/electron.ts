@@ -57,6 +57,7 @@ export interface IElectronService {
 
 	// OS
 	showItemInFolder(path: string): Promise<void>;
+	openItem(path: string): Promise<void>;
 	setRepresentedFilename(path: string): Promise<void>;
 	setDocumentEdited(edited: boolean): Promise<void>;
 	openExternal(url: string): Promise<boolean>;

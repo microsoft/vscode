@@ -262,6 +262,10 @@ export class ElectronMainService implements IElectronMainService {
 		shell.showItemInFolder(path);
 	}
 
+	async openItem(windowId: number | undefined, path: string): Promise<void> {
+		shell.openItem(path);
+	}
+
 	async setRepresentedFilename(windowId: number | undefined, path: string): Promise<void> {
 		const window = this.windowById(windowId);
 		if (window) {
