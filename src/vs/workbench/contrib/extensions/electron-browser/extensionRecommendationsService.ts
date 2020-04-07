@@ -5,11 +5,10 @@
 
 import { ExtensionRecommendationsService, milliSecondsInADay, choiceNever } from 'vs/workbench/contrib/extensions/browser/extensionRecommendationsService';
 import { IExtensionRecommendationsService, IWorkbenchExtensionEnablementService, ExtensionRecommendationReason, IExtensionRecommendation, ExtensionRecommendationSource } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { URI } from 'vs/base/common/uri';
-import { join, basename } from 'vs/base/common/path';
+import { basename } from 'vs/base/common/path';
 import { distinct, shuffle } from 'vs/base/common/arrays';
-import { IExeBasedExtensionTip, IProductService } from 'vs/platform/product/common/productService';
-import { IExtensionGalleryService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IExtensionGalleryService, IExtensionManagementService, IExtensionTipsService, IExecutableBasedExtensionTip } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -31,10 +30,8 @@ import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { localize } from 'vs/nls';
 import Severity from 'vs/base/common/severity';
 import { InstallRecommendedExtensionAction, ShowRecommendedExtensionsAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
-import { forEach } from 'vs/base/common/collections';
-import { platform, env as processEnv } from 'vs/base/common/process';
+import { forEach, IStringDictionary } from 'vs/base/common/collections';
 import { isNumber } from 'vs/base/common/types';
-import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 
 interface IDynamicWorkspaceRecommendations {
 	remoteSet: string[];
@@ -43,8 +40,7 @@ interface IDynamicWorkspaceRecommendations {
 
 export class NativeExtensionRecommendationsService extends ExtensionRecommendationsService implements IExtensionRecommendationsService {
 
-	private _exeBasedRecommendations: { [id: string]: IExeBasedExtensionTip; } = Object.create(null);
-	private _importantExeBasedRecommendations: { [id: string]: IExeBasedExtensionTip; } = Object.create(null);
+	private _exeBasedRecommendations: { [id: string]: IExecutableBasedExtensionTip; } = Object.create(null);
 	private proactiveRecommendationsFetched: boolean = false;
 	private _extensionsRecommendationsUrl: string | undefined;
 	private _dynamicWorkspaceRecommendations: string[] = [];
@@ -71,6 +67,7 @@ export class NativeExtensionRecommendationsService extends ExtensionRecommendati
 		@IProductService productService: IProductService,
 		@IRequestService private readonly requestService: IRequestService,
 		@IWorkspaceTagsService private readonly workspaceTagsService: IWorkspaceTagsService,
+		@IExtensionTipsService private readonly extensionTipsService: IExtensionTipsService,
 	) {
 		super(galleryService, modelService, storageService, extensionsService, extensionEnablementService, instantiationService, fileService, contextService,
 			configurationService, telemetryService, environmentService, extensionService, viewletService, notificationService, extensionManagementService, extensionWorkbenchService,
@@ -111,14 +108,15 @@ export class NativeExtensionRecommendationsService extends ExtensionRecommendati
 		if (!this.proactiveRecommendationsFetched) {
 			this.proactiveRecommendationsFetched = true;
 			// Executable based recommendations carry out a lot of file stats, delay the resolution so that the startup is not affected
-			fetchPromise = timeout(10000).then(() => Promise.all([this.fetchDynamicWorkspaceRecommendations(), this.fetchExecutableRecommendations(false)]));
+			fetchPromise = timeout(10000).then(() => Promise.all([this.fetchDynamicWorkspaceRecommendations(), this.fetchOtherExeBasedRecommendations()]));
 		}
 		return fetchPromise;
 	}
 
 	private async fetchImportantExeBasedRecommendation(): Promise<void> {
-		await this.fetchExecutableRecommendations(true);
-		await this.promptForImportantExeBasedExtension();
+		const importantExectuableBasedTips = await this.extensionTipsService.getImportantExecutableBasedTips();
+		importantExectuableBasedTips.forEach(tip => this._exeBasedRecommendations[tip.extensionId.toLowerCase()] = tip);
+		await this.promptForImportantExeBasedExtension(importantExectuableBasedTips);
 	}
 
 	/**
@@ -209,13 +207,16 @@ export class NativeExtensionRecommendationsService extends ExtensionRecommendati
 		}
 	}
 
-	private async promptForImportantExeBasedExtension(): Promise<boolean> {
+	private async promptForImportantExeBasedExtension(importantExectuableBasedTips: IExecutableBasedExtensionTip[]): Promise<boolean> {
 
-		let recommendationsToSuggest = Object.keys(this._importantExeBasedRecommendations);
+		const importantExeBasedRecommendations: IStringDictionary<IExecutableBasedExtensionTip> = {};
+		importantExectuableBasedTips.forEach(tip => importantExeBasedRecommendations[tip.extensionId.toLowerCase()] = tip);
+
+		let recommendationsToSuggest = Object.keys(importantExeBasedRecommendations);
 
 		const installed = await this.extensionManagementService.getInstalled(ExtensionType.User);
 		recommendationsToSuggest = this.filterInstalled(recommendationsToSuggest, installed, (extensionId) => {
-			const tip = this._importantExeBasedRecommendations[extensionId];
+			const tip = importantExeBasedRecommendations[extensionId];
 
 			/* __GDPR__
 			"exeExtensionRecommendations:alreadyInstalled" : {
@@ -232,7 +233,7 @@ export class NativeExtensionRecommendationsService extends ExtensionRecommendati
 		}
 
 		for (const extensionId of recommendationsToSuggest) {
-			const tip = this._importantExeBasedRecommendations[extensionId];
+			const tip = importantExeBasedRecommendations[extensionId];
 
 			/* __GDPR__
 			"exeExtensionRecommendations:notInstalled" : {
@@ -259,7 +260,7 @@ export class NativeExtensionRecommendationsService extends ExtensionRecommendati
 		}
 
 		const extensionId = recommendationsToSuggest[0];
-		const tip = this._importantExeBasedRecommendations[extensionId];
+		const tip = importantExeBasedRecommendations[extensionId];
 		const message = localize('exeRecommended', "The '{0}' extension is recommended as you have {1} installed on your system.", tip.friendlyName!, tip.exeFriendlyName || basename(tip.windowsPath!));
 
 		this.notificationService.prompt(Severity.Info, message,
@@ -332,59 +333,9 @@ export class NativeExtensionRecommendationsService extends ExtensionRecommendati
 		return true;
 	}
 
-	/**
-	 * If user has any of the tools listed in this.productService.exeBasedExtensionTips, fetch corresponding recommendations
-	 */
-	private async fetchExecutableRecommendations(important: boolean): Promise<void> {
-		if (!this.productService.exeBasedExtensionTips) {
-			return;
-		}
-
-		const foundExecutables: Set<string> = new Set<string>();
-		const findExecutable = (exeName: string, tip: IExeBasedExtensionTip, path: string) => {
-			return this.fileService.exists(URI.file(path)).then(exists => {
-				if (exists && !foundExecutables.has(exeName)) {
-					foundExecutables.add(exeName);
-					(tip['recommendations'] || []).forEach(extensionId => {
-						if (tip.friendlyName) {
-							if (important) {
-								this._importantExeBasedRecommendations[extensionId.toLowerCase()] = tip;
-							}
-							this._exeBasedRecommendations[extensionId.toLowerCase()] = tip;
-						}
-					});
-				}
-			});
-		};
-
-		const promises: Promise<void>[] = [];
-		// Loop through recommended extensions
-		forEach(this.productService.exeBasedExtensionTips, entry => {
-			if (typeof entry.value !== 'object' || !Array.isArray(entry.value['recommendations'])) {
-				return;
-			}
-			if (important !== !!entry.value.important) {
-				return;
-			}
-			const exeName = entry.key;
-			if (platform === 'win32') {
-				let windowsPath = entry.value['windowsPath'];
-				if (!windowsPath || typeof windowsPath !== 'string') {
-					return;
-				}
-				windowsPath = windowsPath.replace('%USERPROFILE%', processEnv['USERPROFILE']!)
-					.replace('%ProgramFiles(x86)%', processEnv['ProgramFiles(x86)']!)
-					.replace('%ProgramFiles%', processEnv['ProgramFiles']!)
-					.replace('%APPDATA%', processEnv['APPDATA']!)
-					.replace('%WINDIR%', processEnv['WINDIR']!);
-				promises.push(findExecutable(exeName, entry.value, windowsPath));
-			} else {
-				promises.push(findExecutable(exeName, entry.value, join('/usr/local/bin', exeName)));
-				promises.push(findExecutable(exeName, entry.value, join((this.environmentService as INativeEnvironmentService).userHome.fsPath, exeName)));
-			}
-		});
-
-		await Promise.all(promises);
+	private async fetchOtherExeBasedRecommendations(): Promise<void> {
+		const otherExectuableBasedTips = await this.extensionTipsService.getOtherExecutableBasedTips();
+		otherExectuableBasedTips.forEach(tip => this._exeBasedRecommendations[tip.extensionId.toLowerCase()] = tip);
 	}
 
 	getAllRecommendationsWithReason(): { [id: string]: { reasonId: ExtensionRecommendationReason, reasonText: string }; } {
