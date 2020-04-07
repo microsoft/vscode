@@ -5,7 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { CharCode } from 'vs/base/common/charCode';
-import { compareIgnoreCase } from 'vs/base/common/strings';
+import { compareIgnoreCase, compare } from 'vs/base/common/strings';
 
 /**
  * @deprecated ES6: use `[...SetOrMap.values()]`
@@ -184,8 +184,10 @@ export class UriIterator implements IKeyIterator<URI> {
 			this._states.push(UriIteratorState.Authority);
 		}
 		if (this._value.path) {
-			this._states.push(UriIteratorState.Path);
 			this._pathIterator.reset(key.path);
+			if (this._pathIterator.value()) {
+				this._states.push(UriIteratorState.Path);
+			}
 		}
 		if (this._value.query) {
 			this._states.push(UriIteratorState.Query);
@@ -219,9 +221,9 @@ export class UriIterator implements IKeyIterator<URI> {
 		} else if (this._states[this._stateIdx] === UriIteratorState.Path) {
 			return this._pathIterator.cmp(a);
 		} else if (this._states[this._stateIdx] === UriIteratorState.Query) {
-			return compareIgnoreCase(a, this._value.query);
+			return compare(a, this._value.query);
 		} else if (this._states[this._stateIdx] === UriIteratorState.Fragment) {
-			return compareIgnoreCase(a, this._value.fragment);
+			return compare(a, this._value.fragment);
 		}
 		throw new Error();
 	}

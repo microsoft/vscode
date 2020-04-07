@@ -550,6 +550,100 @@ suite('Map', () => {
 		assert.equal(map.findSuperstr('/userr'), undefined);
 	});
 
+
+	test('TernarySearchTree (URI) - basics', function () {
+		let trie = new TernarySearchTree<URI, number>(new UriIterator());
+
+		trie.set(URI.file('/user/foo/bar'), 1);
+		trie.set(URI.file('/user/foo'), 2);
+		trie.set(URI.file('/user/foo/flip/flop'), 3);
+
+		assert.equal(trie.get(URI.file('/user/foo/bar')), 1);
+		assert.equal(trie.get(URI.file('/user/foo')), 2);
+		assert.equal(trie.get(URI.file('/user/foo/flip/flop')), 3);
+
+		assert.equal(trie.findSubstr(URI.file('/user/bar')), undefined);
+		assert.equal(trie.findSubstr(URI.file('/user/foo')), 2);
+		assert.equal(trie.findSubstr(URI.file('/user/foo/ba')), 2);
+		assert.equal(trie.findSubstr(URI.file('/user/foo/far/boo')), 2);
+		assert.equal(trie.findSubstr(URI.file('/user/foo/bar')), 1);
+		assert.equal(trie.findSubstr(URI.file('/user/foo/bar/far/boo')), 1);
+	});
+
+	test('TernarySearchTree (URI) - lookup', function () {
+
+		const map = new TernarySearchTree<URI, number>(new UriIterator());
+		map.set(URI.parse('http://foo.bar/user/foo/bar'), 1);
+		map.set(URI.parse('http://foo.bar/user/foo?query'), 2);
+		map.set(URI.parse('http://foo.bar/user/foo?QUERY'), 3);
+		map.set(URI.parse('http://foo.bar/user/foo/flip/flop'), 3);
+
+		assert.equal(map.get(URI.parse('http://foo.bar/foo')), undefined);
+		assert.equal(map.get(URI.parse('http://foo.bar/user')), undefined);
+		assert.equal(map.get(URI.parse('http://foo.bar/user/foo/bar')), 1);
+		assert.equal(map.get(URI.parse('http://foo.bar/user/foo?query')), 2);
+		assert.equal(map.get(URI.parse('http://foo.bar/user/foo?Query')), undefined);
+		assert.equal(map.get(URI.parse('http://foo.bar/user/foo?QUERY')), 3);
+		assert.equal(map.get(URI.parse('http://foo.bar/user/foo/bar/boo')), undefined);
+	});
+
+	test('TernarySearchTree (PathSegments) - superstr', function () {
+
+		const map = new TernarySearchTree<URI, number>(new UriIterator());
+		map.set(URI.file('/user/foo/bar'), 1);
+		map.set(URI.file('/user/foo'), 2);
+		map.set(URI.file('/user/foo/flip/flop'), 3);
+		map.set(URI.file('/usr/foo'), 4);
+
+		let item: IteratorResult<number>;
+		let iter = map.findSuperstr(URI.file('/user'))!;
+
+		item = iter.next();
+		assert.equal(item.value, 2);
+		assert.equal(item.done, false);
+		item = iter.next();
+		assert.equal(item.value, 1);
+		assert.equal(item.done, false);
+		item = iter.next();
+		assert.equal(item.value, 3);
+		assert.equal(item.done, false);
+		item = iter.next();
+		assert.equal(item.value, undefined);
+		assert.equal(item.done, true);
+
+		iter = map.findSuperstr(URI.file('/usr'))!;
+		item = iter.next();
+		assert.equal(item.value, 4);
+		assert.equal(item.done, false);
+
+		item = iter.next();
+		assert.equal(item.value, undefined);
+		assert.equal(item.done, true);
+
+		iter = map.findSuperstr(URI.file('/'))!;
+		item = iter.next();
+		assert.equal(item.value, 2);
+		assert.equal(item.done, false);
+		item = iter.next();
+		assert.equal(item.value, 1);
+		assert.equal(item.done, false);
+		item = iter.next();
+		assert.equal(item.value, 3);
+		assert.equal(item.done, false);
+		item = iter.next();
+		assert.equal(item.value, 4);
+		assert.equal(item.done, false);
+		item = iter.next();
+		assert.equal(item.value, undefined);
+		assert.equal(item.done, true);
+
+		assert.equal(map.findSuperstr(URI.file('/not')), undefined);
+		assert.equal(map.findSuperstr(URI.file('/us')), undefined);
+		assert.equal(map.findSuperstr(URI.file('/usrr')), undefined);
+		assert.equal(map.findSuperstr(URI.file('/userr')), undefined);
+	});
+
+
 	test('ResourceMap - basics', function () {
 		const map = new ResourceMap<any>();
 
