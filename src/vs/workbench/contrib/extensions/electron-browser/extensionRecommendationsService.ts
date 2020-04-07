@@ -32,6 +32,7 @@ import Severity from 'vs/base/common/severity';
 import { InstallRecommendedExtensionAction, ShowRecommendedExtensionsAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { forEach, IStringDictionary } from 'vs/base/common/collections';
 import { isNumber } from 'vs/base/common/types';
+import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 interface IDynamicWorkspaceRecommendations {
 	remoteSet: string[];
@@ -40,10 +41,8 @@ interface IDynamicWorkspaceRecommendations {
 
 export class NativeExtensionRecommendationsService extends ExtensionRecommendationsService implements IExtensionRecommendationsService {
 
-	private _exeBasedRecommendations: { [id: string]: IExecutableBasedExtensionTip; } = Object.create(null);
-	private proactiveRecommendationsFetched: boolean = false;
-	private _extensionsRecommendationsUrl: string | undefined;
-	private _dynamicWorkspaceRecommendations: string[] = [];
+	private exeBasedRecommendations: { [id: string]: IExecutableBasedExtensionTip; } = Object.create(null);
+	private dynamicWorkspaceRecommendations: string[] = [];
 	private sessionSeed: number;
 
 	constructor(
@@ -68,6 +67,7 @@ export class NativeExtensionRecommendationsService extends ExtensionRecommendati
 		@IRequestService private readonly requestService: IRequestService,
 		@IWorkspaceTagsService private readonly workspaceTagsService: IWorkspaceTagsService,
 		@IExtensionTipsService private readonly extensionTipsService: IExtensionTipsService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 	) {
 		super(galleryService, modelService, storageService, extensionsService, extensionEnablementService, instantiationService, fileService, contextService,
 			configurationService, telemetryService, environmentService, extensionService, viewletService, notificationService, extensionManagementService, extensionWorkbenchService,
@@ -78,13 +78,7 @@ export class NativeExtensionRecommendationsService extends ExtensionRecommendati
 			return;
 		}
 
-		if (productService.extensionsGallery && productService.extensionsGallery.recommendationsUrl) {
-			this._extensionsRecommendationsUrl = productService.extensionsGallery.recommendationsUrl;
-		}
-
 		this.sessionSeed = +new Date();
-
-		this.fetchCachedDynamicWorkspaceRecommendations();
 
 		// Executable based recommendations carry out a lot of file stats, delay the resolution so that the startup is not affected
 		// 3 secs for important
@@ -95,27 +89,29 @@ export class NativeExtensionRecommendationsService extends ExtensionRecommendati
 		}
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (!this.proactiveRecommendationsFetched && !this.configurationService.getValue<boolean>(ShowRecommendationsOnlyOnDemandKey)) {
+			if (e.affectsConfiguration(ShowRecommendationsOnlyOnDemandKey) && !this.configurationService.getValue<boolean>(ShowRecommendationsOnlyOnDemandKey)) {
 				this.fetchProactiveRecommendations();
 			}
 		}));
 
-		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this._dynamicWorkspaceRecommendations = []));
+		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.dynamicWorkspaceRecommendations = []));
 	}
 
+	private proactiveRecommendationsPromise: Promise<void> | undefined = undefined;
 	private async fetchProactiveRecommendations(): Promise<void> {
-		let fetchPromise = Promise.resolve<any>(undefined);
-		if (!this.proactiveRecommendationsFetched) {
-			this.proactiveRecommendationsFetched = true;
+		if (!this.proactiveRecommendationsPromise) {
+			this.fetchCachedDynamicWorkspaceRecommendations();
 			// Executable based recommendations carry out a lot of file stats, delay the resolution so that the startup is not affected
-			fetchPromise = timeout(10000).then(() => Promise.all([this.fetchDynamicWorkspaceRecommendations(), this.fetchOtherExeBasedRecommendations()]));
+			this.proactiveRecommendationsPromise = this.lifecycleService.when(LifecyclePhase.Eventually)
+				.then(() => Promise.all([this.fetchDynamicWorkspaceRecommendations(), this.fetchOtherExeBasedRecommendations()]))
+				.then(() => undefined);
 		}
-		return fetchPromise;
+		return this.proactiveRecommendationsPromise;
 	}
 
 	private async fetchImportantExeBasedRecommendation(): Promise<void> {
 		const importantExectuableBasedTips = await this.extensionTipsService.getImportantExecutableBasedTips();
-		importantExectuableBasedTips.forEach(tip => this._exeBasedRecommendations[tip.extensionId.toLowerCase()] = tip);
+		importantExectuableBasedTips.forEach(tip => this.exeBasedRecommendations[tip.extensionId.toLowerCase()] = tip);
 		await this.promptForImportantExeBasedExtension(importantExectuableBasedTips);
 	}
 
@@ -123,10 +119,11 @@ export class NativeExtensionRecommendationsService extends ExtensionRecommendati
 	 * Fetch extensions used by others on the same workspace as recommendations from recommendation service
 	 */
 	private fetchDynamicWorkspaceRecommendations(): Promise<void> {
+		const extensionsRecommendationsUrl = this.productService.extensionsGallery?.recommendationsUrl;
 		if (this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER
 			|| !this.fileService.canHandleResource(this.contextService.getWorkspace().folders[0].uri)
-			|| this._dynamicWorkspaceRecommendations.length
-			|| !this._extensionsRecommendationsUrl) {
+			|| this.dynamicWorkspaceRecommendations.length
+			|| !extensionsRecommendationsUrl) {
 			return Promise.resolve(undefined);
 		}
 
@@ -138,7 +135,7 @@ export class NativeExtensionRecommendationsService extends ExtensionRecommendati
 				return undefined;
 			}
 
-			return this.requestService.request({ type: 'GET', url: this._extensionsRecommendationsUrl }, CancellationToken.None).then(context => {
+			return this.requestService.request({ type: 'GET', url: extensionsRecommendationsUrl }, CancellationToken.None).then(context => {
 				if (context.res.statusCode !== 200) {
 					return Promise.resolve(undefined);
 				}
@@ -156,9 +153,9 @@ export class NativeExtensionRecommendationsService extends ExtensionRecommendati
 						for (let j = 0; j < allRecommendations.length && !foundRemote; j++) {
 							if (Array.isArray(allRecommendations[j].remoteSet) && allRecommendations[j].remoteSet.indexOf(hashedRemotes[i]) > -1) {
 								foundRemote = true;
-								this._dynamicWorkspaceRecommendations = allRecommendations[j].recommendations.filter(id => this.isExtensionAllowedToBeRecommended(id)) || [];
+								this.dynamicWorkspaceRecommendations = allRecommendations[j].recommendations.filter(id => this.isExtensionAllowedToBeRecommended(id)) || [];
 								this.storageService.store(storageKey, JSON.stringify({
-									recommendations: this._dynamicWorkspaceRecommendations,
+									recommendations: this.dynamicWorkspaceRecommendations,
 									timestamp: Date.now()
 								}), StorageScope.WORKSPACE);
 								/* __GDPR__
@@ -167,7 +164,7 @@ export class NativeExtensionRecommendationsService extends ExtensionRecommendati
 										"cache" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 									}
 								*/
-								this.telemetryService.publicLog('dynamicWorkspaceRecommendations', { count: this._dynamicWorkspaceRecommendations.length, cache: 0 });
+								this.telemetryService.publicLog('dynamicWorkspaceRecommendations', { count: this.dynamicWorkspaceRecommendations.length, cache: 0 });
 							}
 						}
 					}
@@ -196,14 +193,14 @@ export class NativeExtensionRecommendationsService extends ExtensionRecommendati
 			&& isNumber(storedRecommendationsJson['timestamp'])
 			&& storedRecommendationsJson['timestamp'] > 0
 			&& (Date.now() - storedRecommendationsJson['timestamp']) / milliSecondsInADay < 14) {
-			this._dynamicWorkspaceRecommendations = storedRecommendationsJson['recommendations'];
+			this.dynamicWorkspaceRecommendations = storedRecommendationsJson['recommendations'];
 			/* __GDPR__
 				"dynamicWorkspaceRecommendations" : {
 					"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 					"cache" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 				}
 			*/
-			this.telemetryService.publicLog('dynamicWorkspaceRecommendations', { count: this._dynamicWorkspaceRecommendations.length, cache: 1 });
+			this.telemetryService.publicLog('dynamicWorkspaceRecommendations', { count: this.dynamicWorkspaceRecommendations.length, cache: 1 });
 		}
 	}
 
@@ -335,23 +332,20 @@ export class NativeExtensionRecommendationsService extends ExtensionRecommendati
 
 	private async fetchOtherExeBasedRecommendations(): Promise<void> {
 		const otherExectuableBasedTips = await this.extensionTipsService.getOtherExecutableBasedTips();
-		otherExectuableBasedTips.forEach(tip => this._exeBasedRecommendations[tip.extensionId.toLowerCase()] = tip);
+		otherExectuableBasedTips.forEach(tip => this.exeBasedRecommendations[tip.extensionId.toLowerCase()] = tip);
 	}
 
 	getAllRecommendationsWithReason(): { [id: string]: { reasonId: ExtensionRecommendationReason, reasonText: string }; } {
-		if (!this.proactiveRecommendationsFetched) {
-			return {};
-		}
 		const output = super.getAllRecommendationsWithReason();
 		if (this.contextService.getWorkspace().folders && this.contextService.getWorkspace().folders.length === 1) {
 			const currentRepo = this.contextService.getWorkspace().folders[0].name;
 
-			this._dynamicWorkspaceRecommendations.forEach(id => output[id.toLowerCase()] = {
+			this.dynamicWorkspaceRecommendations.forEach(id => output[id.toLowerCase()] = {
 				reasonId: ExtensionRecommendationReason.DynamicWorkspace,
 				reasonText: localize('dynamicWorkspaceRecommendation', "This extension may interest you because it's popular among users of the {0} repository.", currentRepo)
 			});
 		}
-		forEach(this._exeBasedRecommendations, entry => output[entry.key.toLowerCase()] = {
+		forEach(this.exeBasedRecommendations, entry => output[entry.key.toLowerCase()] = {
 			reasonId: ExtensionRecommendationReason.Executable,
 			reasonText: localize('exeBasedRecommendation', "This extension is recommended because you have {0} installed.", entry.value.friendlyName)
 		});
@@ -369,17 +363,17 @@ export class NativeExtensionRecommendationsService extends ExtensionRecommendati
 		const otherRecommendations = await super.getOtherRecommendations();
 		await this.fetchProactiveRecommendations();
 		const others = distinct([
-			...Object.keys(this._exeBasedRecommendations),
-			...this._dynamicWorkspaceRecommendations,
+			...Object.keys(this.exeBasedRecommendations),
+			...this.dynamicWorkspaceRecommendations,
 			...otherRecommendations.map(e => e.extensionId),
 		]).filter(extensionId => this.isExtensionAllowedToBeRecommended(extensionId));
 		shuffle(others, this.sessionSeed);
 		return others.map(extensionId => {
 			const sources: ExtensionRecommendationSource[] = [];
-			if (this._exeBasedRecommendations[extensionId]) {
+			if (this.exeBasedRecommendations[extensionId]) {
 				sources.push('executable');
 			}
-			if (this._dynamicWorkspaceRecommendations.indexOf(extensionId) !== -1) {
+			if (this.dynamicWorkspaceRecommendations.indexOf(extensionId) !== -1) {
 				sources.push('dynamic');
 			}
 			return (<IExtensionRecommendation>{ extensionId, sources });

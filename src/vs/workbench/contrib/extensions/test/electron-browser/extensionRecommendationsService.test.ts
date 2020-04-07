@@ -371,7 +371,6 @@ suite('ExtensionRecommendationsService Test', () => {
 		return setUpFolderWorkspace('myFolder', mockTestData.validRecommendedExtensions).then(() => {
 			testObject = instantiationService.createInstance(ExtensionRecommendationsService);
 			return testObject.loadWorkspaceConfigPromise.then(() => {
-				assert.equal(Object.keys(testObject.getAllRecommendationsWithReason()).length, 0);
 				assert.ok(!prompted);
 			});
 		});
