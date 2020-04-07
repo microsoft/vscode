@@ -301,6 +301,11 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 				})(),
 				'markdownDescription': windowTitleDescription
 			},
+			'window.titleSeparator': {
+				'type': 'string',
+				'default': isMacintosh ? ' — ' : ' - ',
+				'markdownDescription': nls.localize("window.titleSeparator", "Separator used by `window.title`.")
+			},
 			'window.menuBarVisibility': {
 				'type': 'string',
 				'enum': ['default', 'visible', 'toggle', 'hidden', 'compact'],

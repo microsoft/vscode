@@ -47,7 +47,6 @@ export class TitlebarPart extends Part implements ITitleService {
 	private static readonly NLS_USER_IS_ADMIN = isWindows ? nls.localize('userIsAdmin', "[Administrator]") : nls.localize('userIsSudo', "[Superuser]");
 	private static readonly NLS_EXTENSION_HOST = nls.localize('devExtensionWindowTitlePrefix', "[Extension Development Host]");
 	private static readonly TITLE_DIRTY = '\u25cf ';
-	private static readonly TITLE_SEPARATOR = isMacintosh ? ' — ' : ' - '; // macOS uses special - separator
 
 	//#region IView
 
@@ -126,7 +125,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	protected onConfigurationChanged(event: IConfigurationChangeEvent): void {
-		if (event.affectsConfiguration('window.title')) {
+		if (event.affectsConfiguration('window.title') || event.affectsConfiguration('window.titleSeparator')) {
 			this.titleUpdater.schedule();
 		}
 
@@ -283,7 +282,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		const dirty = editor?.isDirty() && !editor.isSaving() ? TitlebarPart.TITLE_DIRTY : '';
 		const appName = this.productService.nameLong;
 		const remoteName = this.labelService.getHostLabel(REMOTE_HOST_SCHEME, this.environmentService.configuration.remoteAuthority);
-		const separator = TitlebarPart.TITLE_SEPARATOR;
+		const separator = this.configurationService.getValue<string>('window.titleSeparator');
 		const titleTemplate = this.configurationService.getValue<string>('window.title');
 
 		return template(titleTemplate, {
