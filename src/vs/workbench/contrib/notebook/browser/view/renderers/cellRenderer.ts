@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// eslint-disable-next-line code-import-patterns
+import 'vs/css!vs/workbench/contrib/notebook/browser/media/notebook';
 import { getZoomLevel } from 'vs/base/browser/browser';
 import * as DOM from 'vs/base/browser/dom';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
@@ -12,7 +14,6 @@ import { IAction, ActionRunner } from 'vs/base/common/actions';
 import { escape } from 'vs/base/common/strings';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { deepClone } from 'vs/base/common/objects';
-import 'vs/css!vs/workbench/contrib/notebook/browser/notebook';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';

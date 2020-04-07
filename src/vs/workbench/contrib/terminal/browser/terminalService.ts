@@ -26,7 +26,7 @@ import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/termi
 import { isWindows, isMacintosh, OperatingSystem } from 'vs/base/common/platform';
 import { basename } from 'vs/base/common/path';
 // TODO@daniel code layering
-// eslint-disable-next-line code-layering
+// eslint-disable-next-line code-layering, code-import-patterns
 import { INativeOpenFileRequest } from 'vs/platform/windows/node/window';
 import { find } from 'vs/base/common/arrays';
 import { timeout } from 'vs/base/common/async';
