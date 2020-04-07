@@ -165,101 +165,12 @@ export class SelectAllTerminalAction extends Action {
 	}
 }
 
-export abstract class BaseSendTextTerminalAction extends Action {
-	constructor(
-		id: string,
-		label: string,
-		private _text: string,
-		@ITerminalService private readonly _terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	public run(event?: any): Promise<any> {
-		const terminalInstance = this._terminalService.getActiveInstance();
-		if (terminalInstance) {
-			terminalInstance.sendText(this._text, false);
-		}
-		return Promise.resolve(undefined);
-	}
-}
-
-export class DeleteWordLeftTerminalAction extends BaseSendTextTerminalAction {
-	public static readonly ID = TERMINAL_COMMAND_ID.DELETE_WORD_LEFT;
-	public static readonly LABEL = nls.localize('workbench.action.terminal.deleteWordLeft', "Delete Word Left");
-
-	constructor(
-		id: string,
-		label: string,
-		@ITerminalService terminalService: ITerminalService
-	) {
-		// Send ctrl+W
-		super(id, label, String.fromCharCode('W'.charCodeAt(0) - 64), terminalService);
-	}
-}
-
-export class DeleteWordRightTerminalAction extends BaseSendTextTerminalAction {
-	public static readonly ID = TERMINAL_COMMAND_ID.DELETE_WORD_RIGHT;
-	public static readonly LABEL = nls.localize('workbench.action.terminal.deleteWordRight', "Delete Word Right");
-
-	constructor(
-		id: string,
-		label: string,
-		@ITerminalService terminalService: ITerminalService
-	) {
-		// Send alt+d
-		super(id, label, '\x1bd', terminalService);
-	}
-}
-
-export class DeleteToLineStartTerminalAction extends BaseSendTextTerminalAction {
-	public static readonly ID = TERMINAL_COMMAND_ID.DELETE_TO_LINE_START;
-	public static readonly LABEL = nls.localize('workbench.action.terminal.deleteToLineStart', "Delete To Line Start");
-
-	constructor(
-		id: string,
-		label: string,
-		@ITerminalService terminalService: ITerminalService
-	) {
-		// Send ctrl+u
-		super(id, label, '\u0015', terminalService);
-	}
-}
-
-export class MoveToLineStartTerminalAction extends BaseSendTextTerminalAction {
-	public static readonly ID = TERMINAL_COMMAND_ID.MOVE_TO_LINE_START;
-	public static readonly LABEL = nls.localize('workbench.action.terminal.moveToLineStart', "Move To Line Start");
-
-	constructor(
-		id: string,
-		label: string,
-		@ITerminalService terminalService: ITerminalService
-	) {
-		// Send ctrl+A
-		super(id, label, String.fromCharCode('A'.charCodeAt(0) - 64), terminalService);
-	}
-}
-
-export class MoveToLineEndTerminalAction extends BaseSendTextTerminalAction {
-	public static readonly ID = TERMINAL_COMMAND_ID.MOVE_TO_LINE_END;
-	public static readonly LABEL = nls.localize('workbench.action.terminal.moveToLineEnd', "Move To Line End");
-
-	constructor(
-		id: string,
-		label: string,
-		@ITerminalService terminalService: ITerminalService
-	) {
-		// Send ctrl+E
-		super(id, label, String.fromCharCode('E'.charCodeAt(0) - 64), terminalService);
-	}
-}
 
 export class SendSequenceTerminalAction extends Action2 {
 	public static readonly ID = TERMINAL_COMMAND_ID.SEND_SEQUENCE;
 	public static readonly LABEL = nls.localize('workbench.action.terminal.sendSequence', "Send Custom Sequence To Terminal");
 
 	public run(accessor: ServicesAccessor, args: any): void {
-		console.log('args', args);
 		terminalSendSequenceCommand(accessor, args);
 	}
 }

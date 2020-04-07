@@ -12,14 +12,14 @@ import 'vs/css!./media/xterm';
 import * as nls from 'vs/nls';
 import { SyncActionDescriptor, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingWeight, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
+import { KeybindingWeight, KeybindingsRegistry, IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import * as panel from 'vs/workbench/browser/panel';
 import { getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { Extensions as ViewContainerExtensions, IViewContainersRegistry, ViewContainerLocation, IViewsRegistry } from 'vs/workbench/common/views';
-import { ClearSelectionTerminalAction, ClearTerminalAction, CopyTerminalSelectionAction, CreateNewInActiveWorkspaceTerminalAction, CreateNewTerminalAction, DeleteToLineStartTerminalAction, DeleteWordLeftTerminalAction, DeleteWordRightTerminalAction, FindNext, FindPrevious, FocusActiveTerminalAction, FocusNextPaneTerminalAction, FocusNextTerminalAction, FocusPreviousPaneTerminalAction, FocusPreviousTerminalAction, FocusTerminalFindWidgetAction, HideTerminalFindWidgetAction, KillTerminalAction, MoveToLineEndTerminalAction, MoveToLineStartTerminalAction, QuickAccessTerminalAction, RenameTerminalAction, ResizePaneDownTerminalAction, ResizePaneLeftTerminalAction, ResizePaneRightTerminalAction, ResizePaneUpTerminalAction, RunActiveFileInTerminalAction, RunSelectedTextInTerminalAction, ScrollDownPageTerminalAction, ScrollDownTerminalAction, ScrollToBottomTerminalAction, ScrollToNextCommandAction, ScrollToPreviousCommandAction, ScrollToTopTerminalAction, ScrollUpPageTerminalAction, ScrollUpTerminalAction, SelectAllTerminalAction, SelectDefaultShellWindowsTerminalAction, SelectToNextCommandAction, SelectToNextLineAction, SelectToPreviousCommandAction, SelectToPreviousLineAction, SplitInActiveWorkspaceTerminalAction, SplitTerminalAction, TerminalPasteAction, ToggleCaseSensitiveCommand, ToggleEscapeSequenceLoggingAction, ToggleRegexCommand, ToggleTerminalAction, ToggleWholeWordCommand, NavigationModeFocusPreviousTerminalAction, NavigationModeFocusNextTerminalAction, NavigationModeExitTerminalAction, ManageWorkspaceShellPermissionsTerminalCommand, CreateNewWithCwdTerminalAction, RenameWithArgTerminalAction, SendSequenceTerminalAction, terminalSendSequenceCommand } from 'vs/workbench/contrib/terminal/browser/terminalActions';
+import { ClearSelectionTerminalAction, ClearTerminalAction, CopyTerminalSelectionAction, CreateNewInActiveWorkspaceTerminalAction, CreateNewTerminalAction, FindNext, FindPrevious, FocusActiveTerminalAction, FocusNextPaneTerminalAction, FocusNextTerminalAction, FocusPreviousPaneTerminalAction, FocusPreviousTerminalAction, FocusTerminalFindWidgetAction, HideTerminalFindWidgetAction, KillTerminalAction, QuickAccessTerminalAction, RenameTerminalAction, ResizePaneDownTerminalAction, ResizePaneLeftTerminalAction, ResizePaneRightTerminalAction, ResizePaneUpTerminalAction, RunActiveFileInTerminalAction, RunSelectedTextInTerminalAction, ScrollDownPageTerminalAction, ScrollDownTerminalAction, ScrollToBottomTerminalAction, ScrollToNextCommandAction, ScrollToPreviousCommandAction, ScrollToTopTerminalAction, ScrollUpPageTerminalAction, ScrollUpTerminalAction, SelectAllTerminalAction, SelectDefaultShellWindowsTerminalAction, SelectToNextCommandAction, SelectToNextLineAction, SelectToPreviousCommandAction, SelectToPreviousLineAction, SplitInActiveWorkspaceTerminalAction, SplitTerminalAction, TerminalPasteAction, ToggleCaseSensitiveCommand, ToggleEscapeSequenceLoggingAction, ToggleRegexCommand, ToggleTerminalAction, ToggleWholeWordCommand, NavigationModeFocusPreviousTerminalAction, NavigationModeFocusNextTerminalAction, NavigationModeExitTerminalAction, ManageWorkspaceShellPermissionsTerminalCommand, CreateNewWithCwdTerminalAction, RenameWithArgTerminalAction, SendSequenceTerminalAction, terminalSendSequenceCommand } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
 import { KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_NOT_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE_KEY, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_VIEW_ID, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, TerminalCursorStyle, TERMINAL_ACTION_CATEGORY, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { registerColors } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
@@ -452,26 +452,6 @@ actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(HideTerminalF
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape]
 }, ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE)), 'Terminal: Hide Find Widget', category);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(DeleteWordLeftTerminalAction, DeleteWordLeftTerminalAction.ID, DeleteWordLeftTerminalAction.LABEL, {
-	primary: KeyMod.CtrlCmd | KeyCode.Backspace,
-	mac: { primary: KeyMod.Alt | KeyCode.Backspace }
-}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Delete Word Left', category);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(DeleteWordRightTerminalAction, DeleteWordRightTerminalAction.ID, DeleteWordRightTerminalAction.LABEL, {
-	primary: KeyMod.CtrlCmd | KeyCode.Delete,
-	mac: { primary: KeyMod.Alt | KeyCode.Delete }
-}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Delete Word Right', category);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(DeleteToLineStartTerminalAction, DeleteToLineStartTerminalAction.ID, DeleteToLineStartTerminalAction.LABEL, {
-	primary: 0,
-	mac: { primary: KeyMod.CtrlCmd | KeyCode.Backspace }
-}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Delete To Line Start', category);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(MoveToLineStartTerminalAction, MoveToLineStartTerminalAction.ID, MoveToLineStartTerminalAction.LABEL, {
-	primary: 0,
-	mac: { primary: KeyMod.CtrlCmd | KeyCode.LeftArrow }
-}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Move To Line Start', category);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(MoveToLineEndTerminalAction, MoveToLineEndTerminalAction.ID, MoveToLineEndTerminalAction.LABEL, {
-	primary: 0,
-	mac: { primary: KeyMod.CtrlCmd | KeyCode.RightArrow }
-}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Move To Line End', category);
 actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(SplitTerminalAction, SplitTerminalAction.ID, SplitTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_5,
 	mac: {
@@ -581,6 +561,21 @@ if (BrowserFeatures.clipboard.writeText) {
 		linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C }
 	}, ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, KEYBINDING_CONTEXT_TERMINAL_FOCUS)), 'Terminal: Copy Selection', category);
 }
+
+function registerSendSequenceKeybinding(text: string, rule: { when?: ContextKeyExpression } & IKeybindings): void {
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: SendSequenceTerminalAction.ID,
+		weight: KeybindingWeight.WorkbenchContrib,
+		when: rule.when || KEYBINDING_CONTEXT_TERMINAL_FOCUS,
+		primary: rule.primary,
+		mac: rule.mac,
+		linux: rule.linux,
+		win: rule.win,
+		handler: terminalSendSequenceCommand,
+		args: { text }
+	});
+}
+
 if (BrowserFeatures.clipboard.readText) {
 	actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(TerminalPasteAction, TerminalPasteAction.ID, TerminalPasteAction.LABEL, {
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
@@ -590,16 +585,35 @@ if (BrowserFeatures.clipboard.readText) {
 	// An extra Windows-only ctrl+v keybinding is used for pwsh that sends ctrl+v directly to the
 	// shell, this gets handled by PSReadLine which properly handles multi-line pastes
 	if (platform.isWindows) {
-		KeybindingsRegistry.registerCommandAndKeybindingRule({
-			id: SendSequenceTerminalAction.ID,
-			weight: KeybindingWeight.WorkbenchContrib,
+		registerSendSequenceKeybinding(String.fromCharCode('V'.charCodeAt(0) - 64), { // ctrl+v
 			when: ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_FOCUS, ContextKeyExpr.equals(KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE_KEY, WindowsShellType.PowerShell)),
-			primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
-			handler: terminalSendSequenceCommand,
-			args: { text: String.fromCharCode('V'.charCodeAt(0) - 64) }
+			primary: KeyMod.CtrlCmd | KeyCode.KEY_V
 		});
 	}
 }
+
+// Delete word left: ctrl+w
+registerSendSequenceKeybinding(String.fromCharCode('W'.charCodeAt(0) - 64), {
+	primary: KeyMod.CtrlCmd | KeyCode.Backspace,
+	mac: { primary: KeyMod.Alt | KeyCode.Backspace }
+});
+// Delete word right: alt+d
+registerSendSequenceKeybinding('\x1bd', {
+	primary: KeyMod.CtrlCmd | KeyCode.Delete,
+	mac: { primary: KeyMod.Alt | KeyCode.Delete }
+});
+// Delete to line start: ctrl+u
+registerSendSequenceKeybinding('\u0015', {
+	mac: { primary: KeyMod.CtrlCmd | KeyCode.Backspace }
+});
+// Move to line start: ctrl+A
+registerSendSequenceKeybinding(String.fromCharCode('A'.charCodeAt(0) - 64), {
+	mac: { primary: KeyMod.CtrlCmd | KeyCode.LeftArrow }
+});
+// Move to line end: ctrl+E
+registerSendSequenceKeybinding(String.fromCharCode('E'.charCodeAt(0) - 64), {
+	mac: { primary: KeyMod.CtrlCmd | KeyCode.RightArrow }
+});
 
 registerAction2(class extends SendSequenceTerminalAction {
 	constructor() {
