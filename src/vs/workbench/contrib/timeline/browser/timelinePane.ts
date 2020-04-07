@@ -42,34 +42,10 @@ import { Schemas } from 'vs/base/common/network';
 
 const PageSize = 20;
 
-interface CommandItem {
-	handle: 'vscode-command:loadMore';
-	timestamp: number;
-	label: string;
-	themeIcon?: { id: string };
-	description?: string;
-	detail?: string;
-	contextValue?: string;
+type TreeElement = TimelineItem | LoadMoreCommand;
 
-	// Make things easier for duck typing
-	id: undefined;
-	icon: undefined;
-	iconDark: undefined;
-	source: undefined;
-	relativeTime: undefined;
-	hideRelativeTime: undefined;
-}
-
-type TreeElement = TimelineItem | CommandItem;
-
-// function isCommandItem(item: TreeElement | undefined): item is CommandItem {
-// 	return item?.handle.startsWith('vscode-command:') ?? false;
-// }
-
-function isLoadMoreCommandItem(item: TreeElement | undefined): item is CommandItem & {
-	handle: 'vscode-command:loadMore';
-} {
-	return item?.handle === 'vscode-command:loadMore';
+function isLoadMoreCommand(item: TreeElement | undefined): item is LoadMoreCommand {
+	return item instanceof LoadMoreCommand;
 }
 
 function isTimelineItem(item: TreeElement | undefined): item is TimelineItem {
@@ -190,6 +166,44 @@ class TimelineAggregate {
 	invalidate(requiresReset: boolean) {
 		this._stale = true;
 		this._requiresReset = requiresReset;
+	}
+}
+
+class LoadMoreCommand {
+	readonly handle = 'vscode-command:loadMore';
+	readonly timestamp = 0;
+	readonly description = undefined;
+	readonly detail = undefined;
+	readonly contextValue = undefined;
+	// Make things easier for duck typing
+	readonly id = undefined;
+	readonly icon = undefined;
+	readonly iconDark = undefined;
+	readonly source = undefined;
+	readonly relativeTime = undefined;
+	readonly hideRelativeTime = undefined;
+
+	constructor(loading: boolean) {
+		this._loading = loading;
+	}
+	private _loading: boolean = false;
+	get loading(): boolean {
+		return this._loading;
+	}
+	set loading(value: boolean) {
+		this._loading = value;
+	}
+
+	get ariaLabel() {
+		return this.label;
+	}
+
+	get label() {
+		return this.loading ? localize('timeline.loadingMore', "Loading...") : localize('timeline.loadMore', "Load more");
+	}
+
+	get themeIcon(): { id: string; } | undefined {
+		return undefined; //this.loading ? { id: 'sync~spin' } : undefined;
 	}
 }
 
@@ -596,8 +610,12 @@ export class TimelinePane extends ViewPane {
 			} else {
 				this.refresh();
 			}
-		} else if (this.pendingRequests.size === 0 && this._pendingRefresh) {
-			this.refresh();
+		} else if (this.pendingRequests.size === 0) {
+			if (this._pendingRefresh) {
+				this.refresh();
+			} else {
+				this.tree.rerender();
+			}
 		}
 	}
 
@@ -714,11 +732,11 @@ export class TimelinePane extends ViewPane {
 
 		if (more) {
 			yield {
-				element: {
-					handle: 'vscode-command:loadMore',
-					label: localize('timeline.loadMore', 'Load more'),
-					timestamp: 0
-				} as CommandItem
+				element: new LoadMoreCommand(this.pendingRequests.size !== 0)
+			};
+		} else if (this.pendingRequests.size !== 0) {
+			yield {
+				element: new LoadMoreCommand(true)
 			};
 		}
 	}
@@ -733,13 +751,13 @@ export class TimelinePane extends ViewPane {
 
 		if (this.uri === undefined) {
 			this.titleDescription = undefined;
-			this.message = localize('timeline.editorCannotProvideTimeline', 'The active editor cannot provide timeline information.');
+			this.message = localize('timeline.editorCannotProvideTimeline', "The active editor cannot provide timeline information.");
 		} else if (this._isEmpty) {
 			if (this.pendingRequests.size !== 0) {
 				this.setLoadingUriMessage();
 			} else {
 				this.titleDescription = basename(this.uri.fsPath);
-				this.message = localize('timeline.noTimelineInfo', 'No timeline information was provided.');
+				this.message = localize('timeline.noTimelineInfo', "No timeline information was provided.");
 			}
 		} else {
 			this.titleDescription = basename(this.uri.fsPath);
@@ -811,7 +829,7 @@ export class TimelinePane extends ViewPane {
 		this.$message = DOM.append(this.$container, DOM.$('.message'));
 		DOM.addClass(this.$message, 'timeline-subtle');
 
-		this.message = localize('timeline.editorCannotProvideTimeline', 'The active editor cannot provide timeline information.');
+		this.message = localize('timeline.editorCannotProvideTimeline', "The active editor cannot provide timeline information.");
 
 		this.$tree = document.createElement('div');
 		DOM.addClasses(this.$tree, 'customview-tree', 'file-icon-themable-tree', 'hide-arrows');
@@ -824,10 +842,10 @@ export class TimelinePane extends ViewPane {
 			identityProvider: new TimelineIdentityProvider(),
 			accessibilityProvider: {
 				getAriaLabel(element: TreeElement): string {
-					if (isLoadMoreCommandItem(element)) {
-						return localize('timeline.loadMore', 'Load more');
+					if (isLoadMoreCommand(element)) {
+						return element.ariaLabel;
 					}
-					return localize('timeline.aria.item', "{0}: {1}", element.relativeTime ?? '', element.label);
+					return element.ariaLabel ?? localize('timeline.aria.item', "{0}: {1}", element.relativeTime ?? '', element.label);
 				}
 			},
 			ariaLabel: this.title,
@@ -860,7 +878,10 @@ export class TimelinePane extends ViewPane {
 						this.commandService.executeCommand(item.command.id, ...(item.command.arguments || []));
 					}
 				}
-				else if (isLoadMoreCommandItem(item)) {
+				else if (isLoadMoreCommand(item)) {
+					item.loading = true;
+					this.tree.rerender(item);
+
 					if (this.pendingRequests.size !== 0) {
 						return;
 					}
@@ -888,7 +909,7 @@ export class TimelinePane extends ViewPane {
 	setLoadingUriMessage() {
 		const file = this.uri && basename(this.uri.fsPath);
 		this.titleDescription = file ?? '';
-		this.message = file ? localize('timeline.loading', 'Loading timeline for {0}...', file) : '';
+		this.message = file ? localize('timeline.loading', "Loading timeline for {0}...", file) : '';
 	}
 
 	private onContextMenu(commands: TimelinePaneCommands, treeEvent: ITreeContextMenuEvent<TreeElement | null>): void {
