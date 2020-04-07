@@ -53,8 +53,10 @@ import { Schemas } from 'vs/base/common/network';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { NativeExtensionRecommendationsService as ExtensionRecommendationsService } from 'vs/workbench/contrib/extensions/electron-browser/extensionRecommendationsService';
 import { ExtensionTipsService } from 'vs/platform/extensionManagement/node/extensionTipsService';
+import { ExtensionRecommendationsService } from 'vs/workbench/contrib/extensions/browser/extensionRecommendationsService';
+import { NoOpWorkspaceTagsService } from 'vs/workbench/contrib/tags/browser/workspaceTagsService';
+import { IWorkspaceTagsService } from 'vs/workbench/contrib/tags/common/workspaceTags';
 
 const mockExtensionGallery: IGalleryExtension[] = [
 	aGalleryExtension('MockExtension1', {
@@ -203,8 +205,8 @@ suite('ExtensionRecommendationsService Test', () => {
 		instantiationService.stub(IExtensionManagementService, 'onDidUninstallExtension', didUninstallEvent.event);
 		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
-		instantiationService.stub(IExtensionTipsService, ExtensionTipsService);
 		instantiationService.stub(IURLService, URLService);
+		instantiationService.stub(IWorkspaceTagsService, new NoOpWorkspaceTagsService());
 		instantiationService.set(IProductService, {
 			...productService,
 			...{
@@ -228,6 +230,7 @@ suite('ExtensionRecommendationsService Test', () => {
 
 		experimentService = instantiationService.createInstance(TestExperimentService);
 		instantiationService.stub(IExperimentService, experimentService);
+		instantiationService.stub(IExtensionTipsService, instantiationService.createInstance(ExtensionTipsService));
 
 		onModelAddedEvent = new Emitter<ITextModel>();
 	});
