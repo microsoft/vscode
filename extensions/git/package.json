@@ -1001,6 +1001,31 @@
           "command": "git.ignore",
           "when": "scmProvider == git && scmResourceGroup == workingTree",
           "group": "1_modification@3"
+        },
+        {
+          "command": "git.stage",
+          "when": "scmProvider == git && scmResourceGroup == untracked",
+          "group": "1_modification"
+        },
+        {
+          "command": "git.stage",
+          "when": "scmProvider == git && scmResourceGroup == untracked",
+          "group": "inline"
+        },
+        {
+          "command": "git.clean",
+          "when": "scmProvider == git && scmResourceGroup == untracked",
+          "group": "1_modification"
+        },
+        {
+          "command": "git.clean",
+          "when": "scmProvider == git && scmResourceGroup == untracked",
+          "group": "inline"
+        },
+        {
+          "command": "git.ignore",
+          "when": "scmProvider == git && scmResourceGroup == untracked",
+          "group": "1_modification@3"
         }
       ],
       "scm/resourceState/context": [
