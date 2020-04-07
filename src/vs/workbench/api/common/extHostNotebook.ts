@@ -567,7 +567,7 @@ export class ExtHostNotebookOutputRenderer {
 		return false;
 	}
 
-	render(document: ExtHostNotebookDocument, output: vscode.CellOutput, mimeType: string): string {
+	render(document: ExtHostNotebookDocument, output: vscode.CellDisplayOutput, mimeType: string): string {
 		let html = this.renderer.render(document, output, mimeType);
 
 		return html;
