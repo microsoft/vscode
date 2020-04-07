@@ -773,7 +773,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					tasks: [customizations]
 				}, TaskRunSource.System, custom, customized, TaskConfig.TaskConfigSource.TasksJson, true);
 				for (const configuration in customized) {
-					key = customized[configuration].getRecentlyUsedKey()!;
+					// There should only be one configuration in customized, but check that it matches the original task just to be sure.
+					if (customized[configuration].configures._key === task.defines._key) {
+						key = customized[configuration].getRecentlyUsedKey()!;
+					}
 				}
 			}
 			this.getRecentlyUsedTasks().set(key, JSON.stringify(customizations));
