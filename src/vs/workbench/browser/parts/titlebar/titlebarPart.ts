@@ -203,6 +203,9 @@ export class TitlebarPart extends Part implements ITitleService {
 			title = `${TitlebarPart.NLS_EXTENSION_HOST} - ${title || this.productService.nameLong}`;
 		}
 
+		// Replace non-space whitespace
+		title = title.replace(/[^\S ]/g, ' ');
+
 		return title;
 	}
 
