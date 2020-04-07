@@ -497,6 +497,7 @@ export class TimelinePane extends ViewPane {
 		// don't bother querying for more
 		if (
 			!reset &&
+			options?.cursor !== undefined &&
 			timeline !== undefined &&
 			(!timeline?.more || timeline.items.length > timeline.lastRenderedIndex + PageSize)
 		) {
