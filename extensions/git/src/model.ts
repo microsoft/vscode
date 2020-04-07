@@ -277,10 +277,8 @@ export class Model implements IRemoteSourceProviderRegistry, IPushErrorHandlerRe
 			if (sshPrivateKeyPath) {
 				await this.git.sshAgent
 					.addKey(sshPrivateKeyPath)
-					.then(success => {
-						if (!success) {
-							window.showErrorMessage(localize('failed to add ssh key', "Failed to add SSH key '{0}'", sshPrivateKeyPath));
-						}
+					.catch(() => {
+						window.showErrorMessage(localize('failed to add ssh key', "Failed to add SSH key '{0}'", sshPrivateKeyPath));
 					});
 			}
 			const dotGit = await this.git.getRepositoryDotGit(repositoryRoot);

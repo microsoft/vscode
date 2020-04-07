@@ -337,38 +337,33 @@ class SshAgent {
 			);
 	}
 
-	async addKey(privateKeyPath: string): Promise<boolean> {
-		const sshAddCommand = await this.getCommand('ssh-add');
-		if (!sshAddCommand) {
-			return false;
-		}
+	async addKey(privateKeyPath: string): Promise<void> {
+		return this.getCommand('ssh-add').then(sshAddCommand => {
+			const sshAddProcess = cp.spawn(sshAddCommand, [privateKeyPath], { env: this.env });
+			let success = false;
 
-		const sshAddProcess = cp.spawn(sshAddCommand, [privateKeyPath], { env: this.env });
-		let success = false;
+			sshAddProcess.stderr.on('data', data => {
+				const message = data.toString();
 
-		sshAddProcess.stderr.on('data', data => {
-			const message = data.toString();
+				if (
+					message.match(/^Enter passphrase for .*: $/) ||
+					message.match(/^Bad passphrase, try again for .*: $/)
+				) {
+					window.showInputBox({ password: true, prompt: message }).then(password => {
+						sshAddProcess.stdin.write(`${password || ''}\n`);
+					});
+				} else if (message.match(/^Identity added: /)) {
+					success = true;
+				} else if (message) {
+					window.showErrorMessage(message);
+				}
+			});
 
-			if (
-				message.match(/^Enter passphrase for .*: $/) ||
-				message.match(/^Bad passphrase, try again for .*: $/)
-			) {
-				window.showInputBox({ password: true, prompt: message }).then(password => {
-					sshAddProcess.stdin.write(`${password || ''}\n`);
-				});
-			} else if (message.match(/^Identity added: /)) {
-				success = true;
-			} else if (message) {
-				window.showErrorMessage(message);
-			}
+			return new Promise((resolve, reject) => {
+				sshAddProcess.once('error', reject);
+				sshAddProcess.once('exit', () => success ? resolve() : reject());
+			});
 		});
-
-		await new Promise((resolve, reject) => {
-			sshAddProcess.once('error', reject);
-			sshAddProcess.once('exit', resolve);
-		});
-
-		return success;
 	}
 
 	private async getCommand(commandName: string): Promise<string> {
