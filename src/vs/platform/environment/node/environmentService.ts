@@ -13,7 +13,7 @@ import * as resources from 'vs/base/common/resources';
 import { memoize } from 'vs/base/common/decorators';
 import product from 'vs/platform/product/common/product';
 import { toLocalISOString } from 'vs/base/common/date';
-import { isWindows, isLinux } from 'vs/base/common/platform';
+import { isWindows, isLinux, Platform, platform } from 'vs/base/common/platform';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { URI } from 'vs/base/common/uri';
 
@@ -265,15 +265,31 @@ export class EnvironmentService implements INativeEnvironmentService {
 // Related to https://github.com/Microsoft/vscode/issues/30624
 export const xdgRuntimeDir = process.env['XDG_RUNTIME_DIR'];
 
+const safeIpcPathLengths: { [platform: number]: number } = {
+	[Platform.Linux]: 107,
+	[Platform.Mac]: 103
+};
+
 function getNixIPCHandle(userDataPath: string, type: string): string {
 	const vscodePortable = process.env['VSCODE_PORTABLE'];
 
+	let result: string;
 	if (xdgRuntimeDir && !vscodePortable) {
 		const scope = crypto.createHash('md5').update(userDataPath).digest('hex').substr(0, 8);
-		return path.join(xdgRuntimeDir, `vscode-${scope}-${product.version}-${type}.sock`);
+		result = path.join(xdgRuntimeDir, `vscode-${scope}-${product.version}-${type}.sock`);
+	} else {
+		result = path.join(userDataPath, `${product.version}-${type}.sock`);
 	}
 
-	return path.join(userDataPath, `${product.version}-${type}.sock`);
+	const limit = safeIpcPathLengths[platform];
+	if (typeof limit === 'number') {
+		if (result.length >= limit) {
+			// https://nodejs.org/api/net.html#net_identifying_paths_for_ipc_connections
+			console.warn(`WARNING: IPC handle "${result}" is longer than ${limit} chars, try a shorter --user-data-dir`);
+		}
+	}
+
+	return result;
 }
 
 function getWin32IPCHandle(userDataPath: string, type: string): string {
