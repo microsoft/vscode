@@ -1237,17 +1237,17 @@
       "timeline/item/context": [
         {
           "command": "git.timeline.openDiff",
-          "group": "1_timeline",
+          "group": "1_actions",
           "when": "config.git.enabled && !git.missing && timelineItem =~ /git:file\\b/"
         },
         {
           "command": "git.timeline.copyCommitId",
-          "group": "2_timeline@1",
+          "group": "5_copy@1",
           "when": "config.git.enabled && !git.missing && timelineItem =~ /git:file:commit\\b/"
         },
         {
           "command": "git.timeline.copyCommitMessage",
-          "group": "2_timeline@2",
+          "group": "5_copy@2",
           "when": "config.git.enabled && !git.missing && timelineItem =~ /git:file:commit\\b/"
         }
       ]
