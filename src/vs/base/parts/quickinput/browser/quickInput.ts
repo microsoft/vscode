@@ -1089,10 +1089,10 @@ export class QuickInputController extends Disposable {
 	private parentElement: HTMLElement;
 	private styles: IQuickInputStyles;
 
-	private onShowEmitter = new Emitter<void>();
+	private onShowEmitter = this._register(new Emitter<void>());
 	readonly onShow = this.onShowEmitter.event;
 
-	private onHideEmitter = new Emitter<void>();
+	private onHideEmitter = this._register(new Emitter<void>());
 	readonly onHide = this.onHideEmitter.event;
 
 	private previousFocusElement?: HTMLElement;
