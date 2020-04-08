@@ -1490,7 +1490,7 @@ declare module 'vscode' {
 		 *
 		 * @param data The event object.
 		 */
-		fire(data?: T): void;
+		fire(data: T): void;
 
 		/**
 		 * Dispose this object and free resources.
