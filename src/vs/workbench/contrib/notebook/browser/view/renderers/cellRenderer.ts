@@ -148,6 +148,7 @@ abstract class AbstractCellRenderer {
 		DOM.append(container, $('.seperator'));
 		const addCodeCell = DOM.append(container, $('span.button'));
 		addCodeCell.innerHTML = renderCodicons(escape(`$(add) Code `));
+		addCodeCell.tabIndex = 0;
 		const insertCellBelow = this.instantiationService.createInstance(InsertCodeCellAction);
 
 		disposables.add(DOM.addDisposableListener(addCodeCell, DOM.EventType.CLICK, () => {
@@ -157,6 +158,7 @@ abstract class AbstractCellRenderer {
 		DOM.append(container, $('.seperator-short'));
 		const addMarkdownCell = DOM.append(container, $('span.button'));
 		addMarkdownCell.innerHTML = renderCodicons(escape('$(add) Markdown '));
+		addMarkdownCell.tabIndex = 0;
 		const insertMarkdownBelow = this.instantiationService.createInstance(InsertMarkdownCellAction);
 		disposables.add(DOM.addDisposableListener(addMarkdownCell, DOM.EventType.CLICK, () => {
 			this.actionRunner.run(insertMarkdownBelow, context);
@@ -375,7 +377,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const runToolbar = this.createToolbar(runButtonContainer);
 		disposables.add(runToolbar);
 
-		const bottomCellContainer = DOM.append(container, $('.cell-bottom-toolbar-container'));
 
 		const executionOrderLabel = DOM.append(runButtonContainer, $('div.execution-count-label'));
 
@@ -397,6 +398,8 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const progressBar = new ProgressBar(editorContainer);
 		progressBar.hide();
 		disposables.add(progressBar);
+
+		const bottomCellContainer = DOM.append(container, $('.cell-bottom-toolbar-container'));
 
 		return {
 			container,
