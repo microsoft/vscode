@@ -242,11 +242,10 @@ export class QueryBuilder {
 			return path.isAbsolute(segment) || /^\.\.?([\/\\]|$)/.test(segment);
 		};
 
-		const userHome = this._userHome;
 		const segments = splitGlobPattern(pattern)
 			.map(segment => {
-				if (userHome) {
-					return untildify(segment, userHome.fsPath);
+				if (this._userHome) {
+					return untildify(segment, this._userHome.fsPath);
 				}
 
 				return segment;
