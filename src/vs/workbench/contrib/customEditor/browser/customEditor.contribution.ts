@@ -16,7 +16,8 @@ import { ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/c
 import { WebviewEditor } from 'vs/workbench/contrib/webview/browser/webviewEditor';
 import './commands';
 import { CustomEditorInput } from './customEditorInput';
-import { CustomEditorContribution, CustomEditorService, editorAssociationsConfigurationNode } from './customEditors';
+import { CustomEditorContribution, CustomEditorService } from './customEditors';
+import { editorAssociationsConfigurationNode } from './editorAssociationsSetting';
 
 registerSingleton(ICustomEditorService, CustomEditorService);
 
