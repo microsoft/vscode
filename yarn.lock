@@ -2707,10 +2707,10 @@ electron-to-chromium@^1.2.7:
   resolved "https://registry.yarnpkg.com/electron-to-chromium/-/electron-to-chromium-1.3.27.tgz#78ecb8a399066187bb374eede35d9c70565a803d"
   integrity sha1-eOy4o5kGYYe7N07t412ccFZagD0=
 
-electron@7.1.11:
-  version "7.1.11"
-  resolved "https://registry.yarnpkg.com/electron/-/electron-7.1.11.tgz#3a95e35804af083d58b590513afea5e2290c4b66"
-  integrity sha512-YDXfnovKY+8iZ5ISQh1kRqYIRKbpOSxGXCx2WVxPFPutEQ7Q/Xzr3h4GePEY25/NXMytMfhKaAZAYjtWUm3r9Q==
+electron@7.1.14:
+  version "7.1.14"
+  resolved "https://registry.yarnpkg.com/electron/-/electron-7.1.14.tgz#1a58aa5968677a4fe564442f3b72771166c8904c"
+  integrity sha512-y9Nbja4rl+5fPVw9e/lFudwRax3a+jenzS7WXzUkjF7GI8YFxNH2eH9K9PZFNuSwc/OOCja2ul70+D44tKTQEw==
   dependencies:
     "@electron/get" "^1.0.1"
     "@types/node" "^12.0.12"
