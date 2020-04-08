@@ -1398,8 +1398,16 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const saveBeforeRunTaskConfig: saveBeforeRunConfigOptions = this.configurationService.getValue('task.saveBeforeRun');
 
 		const execTask = async (task: Task, resolver: ITaskResolver): Promise<ITaskSummary> => {
-			let executeResult = this.getTaskSystem().run(task, resolver);
-			return this.handleExecuteResult(executeResult);
+			let result: Promise<ITaskSummary> = new Promise<ITaskSummary>((resolve) => {
+				resolve();
+			});
+
+			ProblemMatcherRegistry.onReady().then(() => {
+				let executeResult = this.getTaskSystem().run(task, resolver);
+				result = this.handleExecuteResult(executeResult);
+			});
+
+			return result;
 		};
 
 		const saveAllEditorsAndExecTask = async (task: Task, resolver: ITaskResolver): Promise<ITaskSummary> => {
@@ -1408,42 +1416,34 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			});
 		};
 
-		const promptAsk = (task: Task, resolver: ITaskResolver): Promise<ITaskSummary> => {
-			const message = nls.localize('TaskSystem.saveBeforeRun.prompt.title', 'Save all editors and run task?');
+		const promptAsk = async (task: Task, resolver: ITaskResolver): Promise<ITaskSummary> => {
+			const dialogOptions = await this.dialogService.show(
+				Severity.Info,
+				nls.localize('TaskSystem.saveBeforeRun.prompt.title', 'Save all editors and run task?'),
+				[nls.localize('Save', 'Save'), nls.localize('Do not save', 'Do not save')],
+				{ detail: nls.localize('detail', "Press 'Save' to save all editors before running the task.") }
+			);
 
-			let result: Promise<ITaskSummary> = new Promise<ITaskSummary>((resolve, reject) => {
+			let result: Promise<ITaskSummary> = new Promise<ITaskSummary>((resolve) => {
 				resolve();
 			});
 
-			this.notificationService.prompt(Severity.Warning, message,
-				[{
-					label: nls.localize('TaskSystem.saveBeforeRun.prompt.saveAndRunChoice', 'Save all editors and run task'),
-					run: async () => {
-						result = saveAllEditorsAndExecTask(task, resolver);
-					}
-				},
-				{
-					label: nls.localize('TaskSystem.saveBeforeRun.prompt.dontSaveAndRunChoice', 'Run task without saving'),
-					run: async () => {
-						result = execTask(task, resolver);
-					}
-
-				}],
-				{ sticky: true }
-			);
+			if (dialogOptions.choice === 0) {
+				result = saveAllEditorsAndExecTask(task, resolver);
+			} else {
+				result = execTask(task, resolver);
+			}
 
 			return result;
 		};
 
-		return ProblemMatcherRegistry.onReady().then(() => {
-			if (saveBeforeRunTaskConfig === saveBeforeRunConfigOptions.Never) {
-				return execTask(task, resolver);
-			} else if (saveBeforeRunTaskConfig === saveBeforeRunConfigOptions.Prompt) {
-				return promptAsk(task, resolver);
-			} else {
-				return saveAllEditorsAndExecTask(task, resolver);
-			}
-		});
+		if (saveBeforeRunTaskConfig === saveBeforeRunConfigOptions.Never) {
+			return execTask(task, resolver);
+		} else if (saveBeforeRunTaskConfig === saveBeforeRunConfigOptions.Prompt) {
+			return promptAsk(task, resolver);
+		} else {
+			return saveAllEditorsAndExecTask(task, resolver);
+		}
 	}
 
 	private handleExecuteResult(executeResult: ITaskExecuteResult): Promise<ITaskSummary> {
