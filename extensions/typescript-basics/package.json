@@ -110,11 +110,11 @@
     "snippets": [
       {
         "language": "typescript",
-        "path": "./snippets/typescript.json"
+        "path": "./snippets/typescript.code-snippets"
       },
       {
         "language": "typescriptreact",
-        "path": "./snippets/typescript.json"
+        "path": "./snippets/typescript.code-snippets"
       }
     ]
   }
