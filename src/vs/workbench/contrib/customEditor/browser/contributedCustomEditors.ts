@@ -8,8 +8,8 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { IWebviewEditorsExtensionPoint, webviewEditorsExtensionPoint } from 'vs/workbench/contrib/customEditor/browser/extensionPoint';
 import { CustomEditorInfo, CustomEditorPriority } from 'vs/workbench/contrib/customEditor/common/customEditor';
+import { IWebviewEditorsExtensionPoint, webviewEditorsExtensionPoint } from 'vs/workbench/contrib/customEditor/common/extensionPoint';
 
 const builtinProviderDisplayName = nls.localize('builtinProviderDisplayName', "Built-in");
 

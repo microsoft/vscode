@@ -579,5 +579,3 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.webview.modified { box-shadow: -6px 0 5px -5px ${shadow}; }`);
 	}
 });
-
-
