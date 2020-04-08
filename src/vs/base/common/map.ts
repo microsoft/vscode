@@ -5,7 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { CharCode } from 'vs/base/common/charCode';
-import { compareIgnoreCase, compare } from 'vs/base/common/strings';
+import { compareSubstringIgnoreCase, compare, compareSubstring } from 'vs/base/common/strings';
 
 /**
  * @deprecated ES6: use `[...SetOrMap.values()]`
@@ -102,7 +102,10 @@ export class PathIterator implements IKeyIterator<string> {
 	private _from!: number;
 	private _to!: number;
 
-	constructor(private _splitOnBackslash: boolean = true) { }
+	constructor(
+		private readonly _splitOnBackslash: boolean = true,
+		private readonly _caseSensitive: boolean = true
+	) { }
 
 	reset(key: string): this {
 		this._value = key.replace(/\\$|\/$/, '');
@@ -135,27 +138,9 @@ export class PathIterator implements IKeyIterator<string> {
 	}
 
 	cmp(a: string): number {
-
-		let aPos = 0;
-		const aLen = a.length;
-		let thisPos = this._from;
-
-		while (aPos < aLen && thisPos < this._to) {
-			const cmp = a.charCodeAt(aPos) - this._value.charCodeAt(thisPos);
-			if (cmp !== 0) {
-				return cmp;
-			}
-			aPos += 1;
-			thisPos += 1;
-		}
-
-		if (aLen === this._to - this._from) {
-			return 0;
-		} else if (aPos < aLen) {
-			return -1;
-		} else {
-			return 1;
-		}
+		return this._caseSensitive
+			? compareSubstring(a, this._value, 0, a.length, this._from, this._to)
+			: compareSubstringIgnoreCase(a, this._value, 0, a.length, this._from, this._to);
 	}
 
 	value(): string {
@@ -215,9 +200,9 @@ export class UriIterator implements IKeyIterator<URI> {
 
 	cmp(a: string): number {
 		if (this._states[this._stateIdx] === UriIteratorState.Scheme) {
-			return compareIgnoreCase(a, this._value.scheme);
+			return compareSubstringIgnoreCase(a, this._value.scheme);
 		} else if (this._states[this._stateIdx] === UriIteratorState.Authority) {
-			return compareIgnoreCase(a, this._value.authority);
+			return compareSubstringIgnoreCase(a, this._value.authority);
 		} else if (this._states[this._stateIdx] === UriIteratorState.Path) {
 			return this._pathIterator.cmp(a);
 		} else if (this._states[this._stateIdx] === UriIteratorState.Query) {

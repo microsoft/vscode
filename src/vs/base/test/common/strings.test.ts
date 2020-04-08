@@ -84,7 +84,7 @@ suite('Strings', () => {
 	test('compareIgnoreCase (substring)', () => {
 
 		function assertCompareIgnoreCase(a: string, b: string, aStart: number, aEnd: number, bStart: number, bEnd: number, recurse = true): void {
-			let actual = strings.compareIgnoreCase(a, b, aStart, aEnd, bStart, bEnd);
+			let actual = strings.compareSubstringIgnoreCase(a, b, aStart, aEnd, bStart, bEnd);
 			actual = actual > 0 ? 1 : actual < 0 ? -1 : actual;
 
 			let expected = strings.compare(a.toLowerCase().substring(aStart, aEnd), b.toLowerCase().substring(bStart, bEnd));
