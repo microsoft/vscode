@@ -7,7 +7,7 @@ import 'vs/css!./list';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { range } from 'vs/base/common/arrays';
 import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent } from './list';
-import { List, IListStyles, IListOptions, IAccessibilityProvider } from './listWidget';
+import { List, IListStyles, IListOptions, IListAccessibilityProvider } from './listWidget';
 import { IPagedModel } from 'vs/base/common/paging';
 import { Event } from 'vs/base/common/event';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -71,11 +71,11 @@ class PagedRenderer<TElement, TTemplateData> implements IListRenderer<number, IT
 	}
 }
 
-class PagedAccessibilityProvider<T> implements IAccessibilityProvider<number> {
+class PagedAccessibilityProvider<T> implements IListAccessibilityProvider<number> {
 
 	constructor(
 		private modelProvider: () => IPagedModel<T>,
-		private accessibilityProvider: IAccessibilityProvider<T>
+		private accessibilityProvider: IListAccessibilityProvider<T>
 	) { }
 
 	getAriaLabel(index: number): string | null {
@@ -95,7 +95,7 @@ export interface IPagedListOptions<T> {
 	readonly ariaLabel?: string;
 	readonly keyboardSupport?: boolean;
 	readonly multipleSelectionSupport?: boolean;
-	readonly accessibilityProvider?: IAccessibilityProvider<T>;
+	readonly accessibilityProvider?: IListAccessibilityProvider<T>;
 
 	// list view options
 	readonly useShadows?: boolean;

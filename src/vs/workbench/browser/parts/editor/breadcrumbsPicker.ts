@@ -29,7 +29,7 @@ import { IAsyncDataSource, ITreeRenderer, ITreeNode, ITreeFilter, TreeVisibility
 import { OutlineVirtualDelegate, OutlineGroupRenderer, OutlineElementRenderer, OutlineItemComparator, OutlineIdentityProvider, OutlineNavigationLabelProvider, OutlineDataSource, OutlineSortOrder, OutlineFilter, OutlineAccessibilityProvider } from 'vs/editor/contrib/documentSymbols/outlineTree';
 import { IIdentityProvider, IListVirtualDelegate, IKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/list/list';
 import { IFileIconTheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 
 export function createBreadcrumbsPicker(instantiationService: IInstantiationService, parent: HTMLElement, element: BreadcrumbElement): BreadcrumbsPicker {
 	return element instanceof FileElement
@@ -273,7 +273,7 @@ class FileNavigationLabelProvider implements IKeyboardNavigationLabelProvider<IW
 	}
 }
 
-class FileAccessibilityProvider implements IAccessibilityProvider<IWorkspaceFolder | IFileStat> {
+class FileAccessibilityProvider implements IListAccessibilityProvider<IWorkspaceFolder | IFileStat> {
 
 	getAriaLabel(element: IWorkspaceFolder | IFileStat): string | null {
 		return element.name;

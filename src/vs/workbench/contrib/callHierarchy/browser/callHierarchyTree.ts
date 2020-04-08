@@ -13,7 +13,7 @@ import { SymbolKinds, Location } from 'vs/editor/common/modes';
 import * as dom from 'vs/base/browser/dom';
 import { compare } from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
-import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { localize } from 'vs/nls';
 
 export class Call {
@@ -141,7 +141,7 @@ export class VirtualDelegate implements IListVirtualDelegate<Call> {
 	}
 }
 
-export class AccessibilityProvider implements IAccessibilityProvider<Call> {
+export class AccessibilityProvider implements IListAccessibilityProvider<Call> {
 
 	constructor(
 		public getDirection: () => CallHierarchyDirection

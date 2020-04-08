@@ -6,7 +6,7 @@
 import { createStyleSheet } from 'vs/base/browser/dom';
 import { IListMouseEvent, IListTouchEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IPagedRenderer, PagedList, IPagedListOptions } from 'vs/base/browser/ui/list/listPaging';
-import { DefaultStyleController, IListOptions, IMultipleSelectionController, IOpenController, isSelectionRangeChangeEvent, isSelectionSingleChangeEvent, List, IAccessibilityProvider, IListOptionsUpdate } from 'vs/base/browser/ui/list/listWidget';
+import { DefaultStyleController, IListOptions, IMultipleSelectionController, IOpenController, isSelectionRangeChangeEvent, isSelectionSingleChangeEvent, List, IListAccessibilityProvider, IListOptionsUpdate } from 'vs/base/browser/ui/list/listWidget';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, dispose, IDisposable, toDisposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
@@ -235,7 +235,7 @@ export interface IWorkbenchListOptionsUpdate extends IListOptionsUpdate {
 }
 
 export interface IWorkbenchListOptions<T> extends IWorkbenchListOptionsUpdate, IListOptions<T> {
-	readonly accessibilityProvider: IAccessibilityProvider<T>;
+	readonly accessibilityProvider: IListAccessibilityProvider<T>;
 }
 
 export class WorkbenchList<T> extends List<T> {
@@ -352,7 +352,7 @@ export class WorkbenchList<T> extends List<T> {
 }
 
 export interface IWorkbenchPagedListOptions<T> extends IWorkbenchListOptionsUpdate, IPagedListOptions<T> {
-	readonly accessibilityProvider: IAccessibilityProvider<T>;
+	readonly accessibilityProvider: IListAccessibilityProvider<T>;
 }
 
 export class WorkbenchPagedList<T> extends PagedList<T> {
@@ -599,7 +599,7 @@ function createKeyboardNavigationEventFilter(container: HTMLElement, keybindingS
 }
 
 export interface IWorkbenchObjectTreeOptions<T, TFilterData> extends IObjectTreeOptions<T, TFilterData> {
-	readonly accessibilityProvider: IAccessibilityProvider<T>;
+	readonly accessibilityProvider: IListAccessibilityProvider<T>;
 	readonly overrideStyles?: IColorMapping;
 }
 
@@ -635,7 +635,7 @@ export interface IWorkbenchCompressibleObjectTreeOptionsUpdate extends ICompress
 }
 
 export interface IWorkbenchCompressibleObjectTreeOptions<T, TFilterData> extends IWorkbenchCompressibleObjectTreeOptionsUpdate, ICompressibleObjectTreeOptions<T, TFilterData> {
-	readonly accessibilityProvider: IAccessibilityProvider<T>;
+	readonly accessibilityProvider: IListAccessibilityProvider<T>;
 }
 
 export class WorkbenchCompressibleObjectTree<T extends NonNullable<any>, TFilterData = void> extends CompressibleObjectTree<T, TFilterData> {
@@ -678,7 +678,7 @@ export interface IWorkbenchDataTreeOptionsUpdate extends IAbstractTreeOptionsUpd
 }
 
 export interface IWorkbenchDataTreeOptions<T, TFilterData> extends IWorkbenchDataTreeOptionsUpdate, IDataTreeOptions<T, TFilterData> {
-	readonly accessibilityProvider: IAccessibilityProvider<T>;
+	readonly accessibilityProvider: IListAccessibilityProvider<T>;
 }
 
 export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<TInput, T, TFilterData> {
@@ -722,7 +722,7 @@ export interface IWorkbenchAsyncDataTreeOptionsUpdate extends IAsyncDataTreeOpti
 }
 
 export interface IWorkbenchAsyncDataTreeOptions<T, TFilterData> extends IWorkbenchAsyncDataTreeOptionsUpdate, IAsyncDataTreeOptions<T, TFilterData> {
-	readonly accessibilityProvider: IAccessibilityProvider<T>;
+	readonly accessibilityProvider: IListAccessibilityProvider<T>;
 }
 
 export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends AsyncDataTree<TInput, T, TFilterData> {
@@ -762,7 +762,7 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 }
 
 export interface IWorkbenchCompressibleAsyncDataTreeOptions<T, TFilterData> extends ICompressibleAsyncDataTreeOptions<T, TFilterData> {
-	readonly accessibilityProvider: IAccessibilityProvider<T>;
+	readonly accessibilityProvider: IListAccessibilityProvider<T>;
 	readonly overrideStyles?: IColorMapping;
 }
 

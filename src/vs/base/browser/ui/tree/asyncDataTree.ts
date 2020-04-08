@@ -231,6 +231,14 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 		},
 		accessibilityProvider: options.accessibilityProvider && {
 			...options.accessibilityProvider,
+			getPosInSet: undefined,
+			getSetSize: undefined,
+			getRole: options.accessibilityProvider!.getRole ? (el) => {
+				return options.accessibilityProvider!.getRole!(el.element as T);
+			} : () => 'treeitem',
+			isChecked: options.accessibilityProvider!.isChecked ? (e) => {
+				return !!(options.accessibilityProvider?.isChecked!(e.element as T));
+			} : undefined,
 			getAriaLabel(e) {
 				return options.accessibilityProvider!.getAriaLabel(e.element as T);
 			},
@@ -258,20 +266,6 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 				e => (options.expandOnlyOnTwistieClick as ((e: T) => boolean))(e.element as T)
 			)
 		),
-		ariaProvider: options.ariaProvider && {
-			getPosInSet(el, index) {
-				return options.ariaProvider!.getPosInSet(el.element as T, index);
-			},
-			getSetSize(el, index, listLength) {
-				return options.ariaProvider!.getSetSize(el.element as T, index, listLength);
-			},
-			getRole: options.ariaProvider!.getRole ? (el) => {
-				return options.ariaProvider!.getRole!(el.element as T);
-			} : () => 'treeitem',
-			isChecked: options.ariaProvider!.isChecked ? (e) => {
-				return !!(options.ariaProvider?.isChecked!(e.element as T));
-			} : undefined
-		},
 		ariaRole: 'tree',
 		additionalScrollHeight: options.additionalScrollHeight
 	};

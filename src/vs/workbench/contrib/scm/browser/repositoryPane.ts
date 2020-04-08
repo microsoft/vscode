@@ -71,7 +71,7 @@ import { ColorDetector } from 'vs/editor/contrib/colorPicker/colorDetector';
 import { LinkDetector } from 'vs/editor/contrib/links/links';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 
 type TreeElement = ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -389,7 +389,7 @@ class SCMResourceIdentityProvider implements IIdentityProvider<TreeElement> {
 	}
 }
 
-export class SCMAccessibilityProvider implements IAccessibilityProvider<TreeElement> {
+export class SCMAccessibilityProvider implements IListAccessibilityProvider<TreeElement> {
 
 	getAriaLabel(element: TreeElement): string {
 		if (ResourceTree.isResourceNode(element)) {

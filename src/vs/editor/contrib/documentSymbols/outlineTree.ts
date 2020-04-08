@@ -24,7 +24,7 @@ import { registerColor, listErrorForeground, listWarningForeground, foreground }
 import { IdleValue } from 'vs/base/common/async';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { URI } from 'vs/base/common/uri';
-import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 
 export type OutlineItem = OutlineGroup | OutlineElement;
 
@@ -39,7 +39,7 @@ export class OutlineNavigationLabelProvider implements IKeyboardNavigationLabelP
 	}
 }
 
-export class OutlineAccessibilityProvider implements IAccessibilityProvider<OutlineItem> {
+export class OutlineAccessibilityProvider implements IListAccessibilityProvider<OutlineItem> {
 
 	getAriaLabel(element: OutlineItem): string | null {
 		if (element instanceof OutlineGroup) {

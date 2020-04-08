@@ -37,7 +37,7 @@ import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor'
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
-import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 
 const $ = dom.$;
 
@@ -100,12 +100,6 @@ export class BreakpointsView extends ViewPane {
 			identityProvider: { getId: (element: IEnablement) => element.getId() },
 			multipleSelectionSupport: false,
 			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IEnablement) => e },
-			ariaProvider: {
-				getSetSize: (_: IEnablement, index: number, listLength: number) => listLength,
-				getPosInSet: (_: IEnablement, index: number) => index,
-				getRole: (breakpoint: IEnablement) => 'checkbox',
-				isChecked: (breakpoint: IEnablement) => breakpoint.enabled
-			},
 			accessibilityProvider: new BreakpointsAccessibilityProvider(this.debugService),
 			overrideStyles: {
 				listBackground: this.getBackgroundColor()
@@ -624,9 +618,17 @@ class FunctionBreakpointInputRenderer implements IListRenderer<IFunctionBreakpoi
 	}
 }
 
-class BreakpointsAccessibilityProvider implements IAccessibilityProvider<BreakpointItem> {
+class BreakpointsAccessibilityProvider implements IListAccessibilityProvider<BreakpointItem> {
 
 	constructor(private readonly debugService: IDebugService) { }
+
+	getRole() {
+		return 'checkbox';
+	}
+
+	isChecked(breakpoint: IEnablement) {
+		return breakpoint.enabled;
+	}
 
 	getAriaLabel(element: BreakpointItem): string | null {
 		if (element instanceof ExceptionBreakpoint) {

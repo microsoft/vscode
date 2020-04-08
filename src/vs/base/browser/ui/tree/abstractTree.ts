@@ -162,6 +162,23 @@ function asListOptions<T, TFilterData, TRef>(modelProvider: () => ITreeModel<T, 
 		},
 		accessibilityProvider: options.accessibilityProvider && {
 			...options.accessibilityProvider,
+			getSetSize(node) {
+				const model = modelProvider();
+				const ref = model.getNodeLocation(node);
+				const parentRef = model.getParentNodeLocation(ref);
+				const parentNode = model.getNode(parentRef);
+
+				return parentNode.visibleChildrenCount;
+			},
+			getPosInSet(node) {
+				return node.visibleChildIndex + 1;
+			},
+			isChecked: options.accessibilityProvider && options.accessibilityProvider.isChecked ? (node) => {
+				return options.accessibilityProvider!.isChecked!(node.element);
+			} : undefined,
+			getRole: options.accessibilityProvider && options.accessibilityProvider.getRole ? (node) => {
+				return options.accessibilityProvider!.getRole!(node.element);
+			} : () => 'treeitem',
 			getAriaLabel(e) {
 				return options.accessibilityProvider!.getAriaLabel(e.element);
 			},
@@ -179,25 +196,6 @@ function asListOptions<T, TFilterData, TRef>(modelProvider: () => ITreeModel<T, 
 			}
 		},
 		enableKeyboardNavigation: options.simpleKeyboardNavigation,
-		ariaProvider: {
-			getSetSize(node) {
-				const model = modelProvider();
-				const ref = model.getNodeLocation(node);
-				const parentRef = model.getParentNodeLocation(ref);
-				const parentNode = model.getNode(parentRef);
-
-				return parentNode.visibleChildrenCount;
-			},
-			getPosInSet(node) {
-				return node.visibleChildIndex + 1;
-			},
-			isChecked: options.ariaProvider && options.ariaProvider.isChecked ? (node) => {
-				return options.ariaProvider!.isChecked!(node.element);
-			} : undefined,
-			getRole: options.ariaProvider && options.ariaProvider.getRole ? (node) => {
-				return options.ariaProvider!.getRole!(node.element);
-			} : () => 'treeitem'
-		},
 		ariaRole: 'tree'
 	};
 }

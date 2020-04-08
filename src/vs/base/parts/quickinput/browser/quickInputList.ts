@@ -25,7 +25,7 @@ import { Action } from 'vs/base/common/actions';
 import { getIconClass } from 'vs/base/parts/quickinput/browser/quickInputUtils';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IQuickInputOptions } from 'vs/base/parts/quickinput/browser/quickInput';
-import { IListOptions, List, IListStyles, IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IListOptions, List, IListStyles, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 
 const $ = dom.$;
@@ -281,11 +281,6 @@ export class QuickInputList {
 			multipleSelectionSupport: false,
 			horizontalScrolling: false,
 			accessibilityProvider,
-			ariaProvider: {
-				getRole: () => 'option',
-				getSetSize: (_: ListElement, _index: number, listLength: number) => listLength,
-				getPosInSet: (_: ListElement, index: number) => index
-			},
 			ariaRole: 'listbox'
 		} as IListOptions<ListElement>);
 		this.list.getHTMLElement().id = id;
@@ -699,8 +694,13 @@ function compareEntries(elementA: ListElement, elementB: ListElement, lookFor: s
 	return compareAnything(elementA.saneLabel, elementB.saneLabel, lookFor);
 }
 
-class QuickInputAccessibilityProvider implements IAccessibilityProvider<ListElement> {
+class QuickInputAccessibilityProvider implements IListAccessibilityProvider<ListElement> {
+
 	getAriaLabel(element: ListElement): string | null {
 		return element.saneAriaLabel;
+	}
+
+	getRole() {
+		return 'option';
 	}
 }

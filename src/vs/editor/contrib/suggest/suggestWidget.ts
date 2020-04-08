@@ -605,12 +605,8 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			openController: { shouldOpen: () => false },
 			mouseSupport: false,
 			ariaRole: 'listbox',
-			ariaProvider: {
-				getRole: () => 'option',
-				getSetSize: (_: CompletionItem, _index: number, listLength: number) => listLength,
-				getPosInSet: (_: CompletionItem, index: number) => index,
-			},
 			accessibilityProvider: {
+				getRole: () => 'option',
 				getAriaLabel: (item: CompletionItem) => {
 					const textLabel = typeof item.completion.label === 'string' ? item.completion.label : item.completion.label.name;
 					if (item.isResolved && this.expandDocsSettingFromStorage()) {

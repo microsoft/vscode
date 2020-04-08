@@ -46,7 +46,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Emitter, Event } from 'vs/base/common/event';
 import { MenuRegistry, MenuId, isIMenuItem } from 'vs/platform/actions/common/actions';
-import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 
 const $ = DOM.$;
 
@@ -1104,7 +1104,7 @@ class WhenColumn extends Column {
 	}
 }
 
-class AccessibilityProvider implements IAccessibilityProvider<IKeybindingItemEntry> {
+class AccessibilityProvider implements IListAccessibilityProvider<IKeybindingItemEntry> {
 
 	getAriaLabel(keybindingItemEntry: IKeybindingItemEntry): string {
 		let ariaLabel = localize('commandAriaLabel', "Command is {0}.", keybindingItemEntry.keybindingItem.commandLabel ? keybindingItemEntry.keybindingItem.commandLabel : keybindingItemEntry.keybindingItem.command);
