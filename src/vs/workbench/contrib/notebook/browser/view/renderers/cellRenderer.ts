@@ -37,6 +37,8 @@ import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/vie
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { renderCodicons } from 'vs/base/common/codicons';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 const $ = DOM.$;
 
@@ -155,6 +157,15 @@ abstract class AbstractCellRenderer {
 			this.actionRunner.run(insertCellBelow, context);
 		}));
 
+		disposables.add((DOM.addDisposableListener(addCodeCell, DOM.EventType.KEY_DOWN, async e => {
+			const event = new StandardKeyboardEvent(e);
+			if ((event.equals(KeyCode.Enter) || event.equals(KeyCode.Space))) {
+				e.preventDefault();
+				e.stopPropagation();
+				this.actionRunner.run(insertCellBelow, context);
+			}
+		})));
+
 		DOM.append(container, $('.seperator-short'));
 		const addMarkdownCell = DOM.append(container, $('span.button'));
 		addMarkdownCell.innerHTML = renderCodicons(escape('$(add) Markdown '));
@@ -163,6 +174,15 @@ abstract class AbstractCellRenderer {
 		disposables.add(DOM.addDisposableListener(addMarkdownCell, DOM.EventType.CLICK, () => {
 			this.actionRunner.run(insertMarkdownBelow, context);
 		}));
+
+		disposables.add((DOM.addDisposableListener(addMarkdownCell, DOM.EventType.KEY_DOWN, async e => {
+			const event = new StandardKeyboardEvent(e);
+			if ((event.equals(KeyCode.Enter) || event.equals(KeyCode.Space))) {
+				e.preventDefault();
+				e.stopPropagation();
+				this.actionRunner.run(insertMarkdownBelow, context);
+			}
+		})));
 
 		DOM.append(container, $('.seperator'));
 
