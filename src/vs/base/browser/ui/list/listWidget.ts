@@ -16,7 +16,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Event, Emitter, EventBufferer } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
-import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent, IListTouchEvent, IListGestureEvent, IIdentityProvider, IKeyboardNavigationLabelProvider, IListDragAndDrop, IListDragOverReaction, ListAriaRootRole, ListError, IKeyboardNavigationDelegate } from './list';
+import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent, IListTouchEvent, IListGestureEvent, IIdentityProvider, IKeyboardNavigationLabelProvider, IListDragAndDrop, IListDragOverReaction, ListError, IKeyboardNavigationDelegate } from './list';
 import { ListView, IListViewOptions, IListViewDragAndDrop, IAriaProvider } from './listView';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
@@ -836,7 +836,7 @@ export interface IListOptions<T> {
 	readonly automaticKeyboardNavigation?: boolean;
 	readonly keyboardNavigationLabelProvider?: IKeyboardNavigationLabelProvider<T>;
 	readonly keyboardNavigationDelegate?: IKeyboardNavigationDelegate;
-	readonly ariaRole?: ListAriaRootRole | string;
+	readonly ariaRole?: string;
 	readonly ariaLabel?: string;
 	readonly keyboardSupport?: boolean;
 	readonly multipleSelectionSupport?: boolean;
@@ -894,7 +894,7 @@ const defaultStyles: IListStyles = {
 	treeIndentGuidesStroke: Color.fromHex('#a9a9a9')
 };
 
-const DefaultOptions = {
+const DefaultOptions: IListOptions<any> = {
 	keyboardSupport: true,
 	mouseSupport: true,
 	multipleSelectionSupport: true,
@@ -903,8 +903,7 @@ const DefaultOptions = {
 		onDragStart(): void { },
 		onDragOver() { return false; },
 		drop() { }
-	},
-	ariaRootRole: ListAriaRootRole.LIST
+	}
 };
 
 // TODO@Joao: move these utils into a SortedArray class
@@ -1227,12 +1226,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		};
 
 		this.view = new ListView(container, virtualDelegate, renderers, viewOptions);
-
-		if (typeof _options.ariaRole !== 'string') {
-			this.view.domNode.setAttribute('role', ListAriaRootRole.LIST);
-		} else {
-			this.view.domNode.setAttribute('role', _options.ariaRole);
-		}
+		this.view.domNode.setAttribute('role', _options.ariaRole ?? 'list');
 
 		if (_options.styleController) {
 			this.styleController = _options.styleController(this.view.domId);
