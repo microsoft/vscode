@@ -64,24 +64,6 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 	}
 
 	private registerViews(): void {
-		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
-
-		this._register(viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
-			content: localize('noWorkspaceHelp', "You have not yet added a folder to the workspace.\n[Add Folder](command:{0})", AddRootFolderAction.ID),
-			when: WorkbenchStateContext.isEqualTo('workspace')
-		}));
-
-		const commandId = isMacintosh ? OpenFileFolderAction.ID : OpenFolderAction.ID;
-		this._register(viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
-			content: localize('remoteNoFolderHelp', "Connected to remote.\n[Open Folder](command:{0})", commandId),
-			when: ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('workspace'), RemoteNameContext.notEqualsTo(''), IsWebContext.toNegated())
-		}));
-
-		this._register(viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
-			content: localize('noFolderHelp', "You have not yet opened a folder.\n[Open Folder](command:{0})", commandId),
-			when: ContextKeyExpr.or(ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('workspace'), RemoteNameContext.isEqualTo('')), ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('workspace'), IsWebContext))
-		}));
-
 		const viewDescriptors = viewsRegistry.getViews(VIEW_CONTAINER);
 
 		let viewDescriptorsToRegister: IViewDescriptor[] = [];
@@ -275,3 +257,23 @@ export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry
 	icon: 'codicon-files',
 	order: 0
 }, ViewContainerLocation.Sidebar);
+
+const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
+viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
+	content: localize({ key: 'noWorkspaceHelp', comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'] },
+		"You have not yet added a folder to the workspace.\n[Add Folder](command:{0})", AddRootFolderAction.ID),
+	when: WorkbenchStateContext.isEqualTo('workspace')
+});
+
+const commandId = isMacintosh ? OpenFileFolderAction.ID : OpenFolderAction.ID;
+viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
+	content: localize({ key: 'remoteNoFolderHelp', comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'] },
+		"Connected to remote.\n[Open Folder](command:{0})", commandId),
+	when: ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('workspace'), RemoteNameContext.notEqualsTo(''), IsWebContext.toNegated())
+});
+
+viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
+	content: localize({ key: 'noFolderHelp', comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'] },
+		"You have not yet opened a folder.\n[Open Folder](command:{0})", commandId),
+	when: ContextKeyExpr.or(ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('workspace'), RemoteNameContext.isEqualTo('')), ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('workspace'), IsWebContext))
+});

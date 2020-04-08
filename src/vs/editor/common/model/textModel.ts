@@ -37,6 +37,7 @@ import { Color } from 'vs/base/common/color';
 import { Constants } from 'vs/base/common/uint';
 import { EditorTheme } from 'vs/editor/common/view/viewContext';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
+import { TextChange } from 'vs/editor/common/model/textChange';
 
 function createTextBufferBuilder() {
 	return new PieceTreeTextBufferBuilder();
@@ -367,7 +368,6 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this._onWillDispose.fire();
 		this._languageRegistryListener.dispose();
 		this._tokenization.dispose();
-		this._undoRedoService.removeElements(this.uri);
 		this._isDisposed = true;
 		super.dispose();
 		this._isDisposing = false;
@@ -382,6 +382,11 @@ export class TextModel extends Disposable implements model.ITextModel {
 	public equalsTextBuffer(other: model.ITextBuffer): boolean {
 		this._assertNotDisposed();
 		return this._buffer.equals(other);
+	}
+
+	public getTextBuffer(): model.ITextBuffer {
+		this._assertNotDisposed();
+		return this._buffer;
 	}
 
 	private _emitContentChangedEvent(rawChange: ModelRawContentChangedEvent, change: IModelContentChangedEvent): void {
@@ -706,7 +711,11 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this._alternativeVersionId = this._versionId;
 	}
 
-	private _overwriteAlternativeVersionId(newAlternativeVersionId: number): void {
+	public _overwriteVersionId(versionId: number): void {
+		this._versionId = versionId;
+	}
+
+	public _overwriteAlternativeVersionId(newAlternativeVersionId: number): void {
 		this._alternativeVersionId = newAlternativeVersionId;
 	}
 
@@ -1280,19 +1289,39 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return this._commandManager.pushEditOperation(beforeCursorState, editOperations, cursorStateComputer);
 	}
 
-	_applyUndoRedoEdits(edits: model.IValidEditOperations[], eol: model.EndOfLineSequence, isUndoing: boolean, isRedoing: boolean, resultingAlternativeVersionId: number, resultingSelection: Selection[] | null): model.IValidEditOperations[] {
+	_applyUndo(changes: TextChange[], eol: model.EndOfLineSequence, resultingAlternativeVersionId: number, resultingSelection: Selection[] | null): void {
+		const edits = changes.map<model.IIdentifiedSingleEditOperation>((change) => {
+			const rangeStart = this.getPositionAt(change.newPosition);
+			const rangeEnd = this.getPositionAt(change.newEnd);
+			return {
+				range: new Range(rangeStart.lineNumber, rangeStart.column, rangeEnd.lineNumber, rangeEnd.column),
+				text: change.oldText
+			};
+		});
+		this._applyUndoRedoEdits(edits, eol, true, false, resultingAlternativeVersionId, resultingSelection);
+	}
+
+	_applyRedo(changes: TextChange[], eol: model.EndOfLineSequence, resultingAlternativeVersionId: number, resultingSelection: Selection[] | null): void {
+		const edits = changes.map<model.IIdentifiedSingleEditOperation>((change) => {
+			const rangeStart = this.getPositionAt(change.oldPosition);
+			const rangeEnd = this.getPositionAt(change.oldEnd);
+			return {
+				range: new Range(rangeStart.lineNumber, rangeStart.column, rangeEnd.lineNumber, rangeEnd.column),
+				text: change.newText
+			};
+		});
+		this._applyUndoRedoEdits(edits, eol, false, true, resultingAlternativeVersionId, resultingSelection);
+	}
+
+	private _applyUndoRedoEdits(edits: model.IIdentifiedSingleEditOperation[], eol: model.EndOfLineSequence, isUndoing: boolean, isRedoing: boolean, resultingAlternativeVersionId: number, resultingSelection: Selection[] | null): void {
 		try {
 			this._onDidChangeDecorations.beginDeferredEmit();
 			this._eventEmitter.beginDeferredEmit();
 			this._isUndoing = isUndoing;
 			this._isRedoing = isRedoing;
-			let reverseEdits: model.IValidEditOperations[] = [];
-			for (let i = 0, len = edits.length; i < len; i++) {
-				reverseEdits[i] = { operations: this.applyEdits(edits[i].operations) };
-			}
+			this.applyEdits(edits, false);
 			this.setEOL(eol);
 			this._overwriteAlternativeVersionId(resultingAlternativeVersionId);
-			return reverseEdits;
 		} finally {
 			this._isUndoing = false;
 			this._isRedoing = false;
@@ -1301,21 +1330,25 @@ export class TextModel extends Disposable implements model.ITextModel {
 		}
 	}
 
-	public applyEdits(rawOperations: model.IIdentifiedSingleEditOperation[]): model.IValidEditOperation[] {
+	public applyEdits(operations: model.IIdentifiedSingleEditOperation[]): void;
+	public applyEdits(operations: model.IIdentifiedSingleEditOperation[], computeUndoEdits: false): void;
+	public applyEdits(operations: model.IIdentifiedSingleEditOperation[], computeUndoEdits: true): model.IValidEditOperation[];
+	public applyEdits(rawOperations: model.IIdentifiedSingleEditOperation[], computeUndoEdits: boolean = false): void | model.IValidEditOperation[] {
 		try {
 			this._onDidChangeDecorations.beginDeferredEmit();
 			this._eventEmitter.beginDeferredEmit();
-			return this._doApplyEdits(this._validateEditOperations(rawOperations));
+			const operations = this._validateEditOperations(rawOperations);
+			return this._doApplyEdits(operations, computeUndoEdits);
 		} finally {
 			this._eventEmitter.endDeferredEmit();
 			this._onDidChangeDecorations.endDeferredEmit();
 		}
 	}
 
-	private _doApplyEdits(rawOperations: model.ValidAnnotatedEditOperation[]): model.IValidEditOperation[] {
+	private _doApplyEdits(rawOperations: model.ValidAnnotatedEditOperation[], computeUndoEdits: boolean): void | model.IValidEditOperation[] {
 
 		const oldLineCount = this._buffer.getLineCount();
-		const result = this._buffer.applyEdits(rawOperations, this._options.trimAutoWhitespace);
+		const result = this._buffer.applyEdits(rawOperations, this._options.trimAutoWhitespace, computeUndoEdits);
 		const newLineCount = this._buffer.getLineCount();
 
 		const contentChanges = result.changes;
@@ -1390,7 +1423,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 			);
 		}
 
-		return result.reverseEdits;
+		return (result.reverseEdits === null ? undefined : result.reverseEdits);
 	}
 
 	public undo(): void {
@@ -1754,17 +1787,36 @@ export class TextModel extends Disposable implements model.ITextModel {
 		if (ranges.length > 0) {
 			this._emitModelTokensChangedEvent({
 				tokenizationSupportChanged: false,
+				semanticTokensApplied: false,
 				ranges: ranges
 			});
 		}
 	}
 
-	public setSemanticTokens(tokens: MultilineTokens2[] | null): void {
-		this._tokens2.set(tokens);
+	public setSemanticTokens(tokens: MultilineTokens2[] | null, isComplete: boolean): void {
+		this._tokens2.set(tokens, isComplete);
 
 		this._emitModelTokensChangedEvent({
 			tokenizationSupportChanged: false,
+			semanticTokensApplied: tokens !== null,
 			ranges: [{ fromLineNumber: 1, toLineNumber: this.getLineCount() }]
+		});
+	}
+
+	public hasSemanticTokens(): boolean {
+		return this._tokens2.isComplete();
+	}
+
+	public setPartialSemanticTokens(range: Range, tokens: MultilineTokens2[]): void {
+		if (this.hasSemanticTokens()) {
+			return;
+		}
+		const changedRange = this._tokens2.setPartial(range, tokens);
+
+		this._emitModelTokensChangedEvent({
+			tokenizationSupportChanged: false,
+			semanticTokensApplied: true,
+			ranges: [{ fromLineNumber: changedRange.startLineNumber, toLineNumber: changedRange.endLineNumber }]
 		});
 	}
 
@@ -1778,6 +1830,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this._tokens.flush();
 		this._emitModelTokensChangedEvent({
 			tokenizationSupportChanged: true,
+			semanticTokensApplied: false,
 			ranges: [{
 				fromLineNumber: 1,
 				toLineNumber: this._buffer.getLineCount()
@@ -1790,6 +1843,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 		this._emitModelTokensChangedEvent({
 			tokenizationSupportChanged: false,
+			semanticTokensApplied: false,
 			ranges: [{ fromLineNumber: 1, toLineNumber: this.getLineCount() }]
 		});
 	}

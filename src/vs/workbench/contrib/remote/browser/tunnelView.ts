@@ -28,7 +28,7 @@ import { IMenuService, MenuId, IMenu, MenuRegistry, MenuItemAction } from 'vs/pl
 import { createAndFillInContextMenuActions, createAndFillInActionBarActions, ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IRemoteExplorerService, TunnelModel, MakeAddress, TunnelType, ITunnelItem, Tunnel } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { once } from 'vs/base/common/functional';
@@ -282,13 +282,13 @@ class TunnelTreeRenderer extends Disposable implements ITreeRenderer<ITunnelGrou
 			ariaLabel: nls.localize('remote.tunnelsView.input', "Press Enter to confirm or Escape to cancel."),
 			validationOptions: {
 				validation: (value) => {
-					const content = editableData.validationMessage(value);
-					if (!content) {
+					const message = editableData.validationMessage(value);
+					if (!message || message.severity !== Severity.Error) {
 						return null;
 					}
 
 					return {
-						content,
+						content: message.content,
 						formatContent: true,
 						type: MessageType.ERROR
 					};
@@ -507,7 +507,20 @@ export class TunnelPanel extends ViewPane {
 						return item.label;
 					}
 				},
-				multipleSelectionSupport: false
+				multipleSelectionSupport: false,
+				accessibilityProvider: {
+					getAriaLabel: (item: ITunnelItem | ITunnelGroup) => {
+						if (item instanceof TunnelItem) {
+							if (item.localAddress) {
+								return nls.localize('remote.tunnel.ariaLabelForwarded', "Remote port {0}:{1} forwarded to local address {2}", item.remoteHost, item.remotePort, item.localAddress);
+							} else {
+								return nls.localize('remote.tunnel.ariaLabelCandidate', "Remote port {0}:{1} not forwarded", item.remoteHost, item.remotePort);
+							}
+						} else {
+							return item.label;
+						}
+					}
+				}
 			}
 		);
 		const actionRunner: ActionRunner = new ActionRunner();
@@ -657,6 +670,17 @@ export class TunnelPanelDescriptor implements IViewDescriptor {
 	}
 }
 
+function validationMessage(validationString: string | null): { content: string, severity: Severity } | null {
+	if (!validationString) {
+		return null;
+	}
+
+	return {
+		content: validationString,
+		severity: Severity.Error
+	};
+}
+
 namespace LabelTunnelAction {
 	export const ID = 'remote.tunnel.label';
 	export const LABEL = nls.localize('remote.tunnel.label', "Set Label");
@@ -733,7 +757,7 @@ namespace ForwardPortAction {
 						}
 						remoteExplorerService.setEditable(undefined, null);
 					},
-					validationMessage: validateInput,
+					validationMessage: (value) => validationMessage(validateInput(value)),
 					placeholder: forwardPrompt
 				});
 			}
@@ -916,7 +940,7 @@ namespace ChangeLocalPortAction {
 							}
 						}
 					},
-					validationMessage: validateInput,
+					validationMessage: (value) => validationMessage(validateInput(value)),
 					placeholder: nls.localize('remote.tunnelsView.changePort', "New local port")
 				});
 			}

@@ -136,6 +136,11 @@ export interface IEditorOptions {
 	 */
 	readOnly?: boolean;
 	/**
+	 * Rename matching regions on type.
+	 * Defaults to false.
+	 */
+	renameOnType?: boolean;
+	/**
 	 * Should the editor render validation decorations.
 	 * Defaults to editable.
 	 */
@@ -541,6 +546,11 @@ export interface IEditorOptions {
 	 * Defaults to all.
 	 */
 	renderLineHighlight?: 'none' | 'gutter' | 'line' | 'all';
+	/**
+	 * Control if the current line highlight should be rendered only the editor is focused.
+	 * Defaults to false.
+	 */
+	renderLineHighlightOnlyWhenFocus?: boolean;
 	/**
 	 * Inserting and deleting whitespace follows tab stops.
 	 */
@@ -2719,10 +2729,6 @@ export interface ISuggestOptions {
 	 */
 	insertMode?: 'insert' | 'replace';
 	/**
-	 * Show a highlight when suggestion replaces or keep text after the cursor. Defaults to false.
-	 */
-	insertHighlight?: boolean;
-	/**
 	 * Enable graceful matching. Defaults to true.
 	 */
 	filterGraceful?: boolean;
@@ -2843,6 +2849,14 @@ export interface ISuggestOptions {
 	 */
 	showTypeParameters?: boolean;
 	/**
+	 * Show issue-suggestions.
+	 */
+	showIssues?: boolean;
+	/**
+	 * Show user-suggestions.
+	 */
+	showUsers?: boolean;
+	/**
 	 * Show snippet-suggestions.
 	 */
 	showSnippets?: boolean;
@@ -2864,7 +2878,6 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 	constructor() {
 		const defaults: InternalSuggestOptions = {
 			insertMode: 'insert',
-			insertHighlight: true,
 			filterGraceful: true,
 			snippetsPreventQuickSuggestions: true,
 			localityBonus: false,
@@ -2896,6 +2909,8 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			showFolders: true,
 			showTypeParameters: true,
 			showSnippets: true,
+			showUsers: true,
+			showIssues: true,
 			statusBar: {
 				visible: false
 			}
@@ -2912,11 +2927,6 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 					],
 					default: defaults.insertMode,
 					description: nls.localize('suggest.insertMode', "Controls whether words are overwritten when accepting completions. Note that this depends on extensions opting into this feature.")
-				},
-				'editor.suggest.insertHighlight': {
-					type: 'boolean',
-					default: defaults.insertHighlight,
-					description: nls.localize('suggest.insertHighlight', "Controls whether unexpected text modifications while accepting completions should be highlighted, e.g `insertMode` is `replace` but the completion only supports `insert`.")
 				},
 				'editor.suggest.filterGraceful': {
 					type: 'boolean',
@@ -3084,6 +3094,16 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 					default: true,
 					markdownDescription: nls.localize('editor.suggest.showSnippets', "When enabled IntelliSense shows `snippet`-suggestions.")
 				},
+				'editor.suggest.showUsers': {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('editor.suggest.showUsers', "When enabled IntelliSense shows `user`-suggestions.")
+				},
+				'editor.suggest.showIssues': {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('editor.suggest.showIssues', "When enabled IntelliSense shows `issues`-suggestions.")
+				},
 				'editor.suggest.statusBar.visible': {
 					type: 'boolean',
 					default: false,
@@ -3100,7 +3120,6 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 		const input = _input as ISuggestOptions;
 		return {
 			insertMode: EditorStringEnumOption.stringSet(input.insertMode, this.defaultValue.insertMode, ['insert', 'replace']),
-			insertHighlight: EditorBooleanOption.boolean(input.insertHighlight, this.defaultValue.insertHighlight),
 			filterGraceful: EditorBooleanOption.boolean(input.filterGraceful, this.defaultValue.filterGraceful),
 			snippetsPreventQuickSuggestions: EditorBooleanOption.boolean(input.snippetsPreventQuickSuggestions, this.defaultValue.filterGraceful),
 			localityBonus: EditorBooleanOption.boolean(input.localityBonus, this.defaultValue.localityBonus),
@@ -3132,6 +3151,8 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			showFolders: EditorBooleanOption.boolean(input.showFolders, this.defaultValue.showFolders),
 			showTypeParameters: EditorBooleanOption.boolean(input.showTypeParameters, this.defaultValue.showTypeParameters),
 			showSnippets: EditorBooleanOption.boolean(input.showSnippets, this.defaultValue.showSnippets),
+			showUsers: EditorBooleanOption.boolean(input.showUsers, this.defaultValue.showUsers),
+			showIssues: EditorBooleanOption.boolean(input.showIssues, this.defaultValue.showIssues),
 			statusBar: {
 				visible: EditorBooleanOption.boolean(input.statusBar?.visible, !!this.defaultValue.statusBar.visible)
 			}
@@ -3386,10 +3407,12 @@ export const enum EditorOption {
 	quickSuggestions,
 	quickSuggestionsDelay,
 	readOnly,
+	renameOnType,
 	renderControlCharacters,
 	renderIndentGuides,
 	renderFinalNewline,
 	renderLineHighlight,
+	renderLineHighlightOnlyWhenFocus,
 	renderValidationDecorations,
 	renderWhitespace,
 	revealHorizontalRightPadding,
@@ -3802,6 +3825,10 @@ export const EditorOptions = {
 	readOnly: register(new EditorBooleanOption(
 		EditorOption.readOnly, 'readOnly', false,
 	)),
+	renameOnType: register(new EditorBooleanOption(
+		EditorOption.renameOnType, 'renameOnType', false,
+		{ description: nls.localize('renameOnType', "Controls whether the editor auto renames on type.") }
+	)),
 	renderControlCharacters: register(new EditorBooleanOption(
 		EditorOption.renderControlCharacters, 'renderControlCharacters', false,
 		{ description: nls.localize('renderControlCharacters', "Controls whether the editor should render control characters.") }
@@ -3827,6 +3854,10 @@ export const EditorOptions = {
 			],
 			description: nls.localize('renderLineHighlight', "Controls how the editor should render the current line highlight.")
 		}
+	)),
+	renderLineHighlightOnlyWhenFocus: register(new EditorBooleanOption(
+		EditorOption.renderLineHighlightOnlyWhenFocus, 'renderLineHighlightOnlyWhenFocus', false,
+		{ description: nls.localize('renderLineHighlightOnlyWhenFocus', "Controls if the editor should render the current line highlight only when the editor is focused") }
 	)),
 	renderValidationDecorations: register(new EditorStringEnumOption(
 		EditorOption.renderValidationDecorations, 'renderValidationDecorations',

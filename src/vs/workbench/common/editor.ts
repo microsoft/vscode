@@ -5,7 +5,6 @@
 
 import { localize } from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
-import { assign } from 'vs/base/common/objects';
 import { withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -168,6 +167,10 @@ export interface IFileEditorInputFactory {
 	isFileEditorInput(obj: unknown): obj is IFileEditorInput;
 }
 
+interface ICustomEditorInputFactory {
+	createCustomEditorInput(resource: URI, instantiationService: IInstantiationService): Promise<IEditorInput>;
+}
+
 export interface IEditorInputFactoryRegistry {
 
 	/**
@@ -179,6 +182,16 @@ export interface IEditorInputFactoryRegistry {
 	 * Returns the file editor input factory to use for file inputs.
 	 */
 	getFileEditorInputFactory(): IFileEditorInputFactory;
+
+	/**
+	 * Registers the custom editor input factory to use for custom inputs.
+	 */
+	registerCustomEditorInputFactory(factory: ICustomEditorInputFactory): void;
+
+	/**
+	 * Returns the custom editor input factory to use for custom inputs.
+	 */
+	getCustomEditorInputFactory(): ICustomEditorInputFactory;
 
 	/**
 	 * Registers a editor input factory for the given editor input to the registry. An editor input factory
@@ -876,7 +889,7 @@ export class SideBySideEditorInput extends EditorInput {
 	getTelemetryDescriptor(): { [key: string]: unknown } {
 		const descriptor = this.master.getTelemetryDescriptor();
 
-		return assign(descriptor, super.getTelemetryDescriptor());
+		return Object.assign(descriptor, super.getTelemetryDescriptor());
 	}
 
 	private registerListeners(): void {
@@ -1288,6 +1301,7 @@ interface IEditorPartConfiguration {
 	highlightModifiedTabs?: boolean;
 	tabCloseButton?: 'left' | 'right' | 'off';
 	tabSizing?: 'fit' | 'shrink';
+	titleScrollbarSizing?: 'default' | 'large';
 	focusRecentEditorAfterClose?: boolean;
 	showIcons?: boolean;
 	enablePreview?: boolean;
@@ -1319,7 +1333,8 @@ export interface IEditorPartOptionsChangeEvent {
 
 export enum SideBySideEditor {
 	MASTER = 1,
-	DETAILS = 2
+	DETAILS = 2,
+	BOTH = 3
 }
 
 export interface IResourceOptions {
@@ -1327,12 +1342,22 @@ export interface IResourceOptions {
 	filterByScheme?: string | string[];
 }
 
-export function toResource(editor: IEditorInput | undefined, options?: IResourceOptions): URI | undefined {
+export function toResource(editor: IEditorInput | undefined): URI | undefined;
+export function toResource(editor: IEditorInput | undefined, options: IResourceOptions & { supportSideBySide?: SideBySideEditor.MASTER | SideBySideEditor.DETAILS }): URI | undefined;
+export function toResource(editor: IEditorInput | undefined, options: IResourceOptions & { supportSideBySide: SideBySideEditor.BOTH }): URI | { master?: URI, detail?: URI } | undefined;
+export function toResource(editor: IEditorInput | undefined, options?: IResourceOptions): URI | { master?: URI, detail?: URI } | undefined {
 	if (!editor) {
 		return undefined;
 	}
 
 	if (options?.supportSideBySide && editor instanceof SideBySideEditorInput) {
+		if (options?.supportSideBySide === SideBySideEditor.BOTH) {
+			return {
+				master: toResource(editor.master, { filterByScheme: options.filterByScheme }),
+				detail: toResource(editor.details, { filterByScheme: options.filterByScheme })
+			};
+		}
+
 		editor = options.supportSideBySide === SideBySideEditor.MASTER ? editor.master : editor.details;
 	}
 
@@ -1341,12 +1366,14 @@ export function toResource(editor: IEditorInput | undefined, options?: IResource
 		return resource;
 	}
 
-	if (Array.isArray(options.filterByScheme) && options.filterByScheme.some(scheme => resource.scheme === scheme)) {
-		return resource;
-	}
-
-	if (options.filterByScheme === resource.scheme) {
-		return resource;
+	if (Array.isArray(options.filterByScheme)) {
+		if (options.filterByScheme.some(scheme => resource.scheme === scheme)) {
+			return resource;
+		}
+	} else {
+		if (options.filterByScheme === resource.scheme) {
+			return resource;
+		}
 	}
 
 	return undefined;
@@ -1374,6 +1401,7 @@ export interface IEditorMemento<T> {
 class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
 	private instantiationService: IInstantiationService | undefined;
 	private fileEditorInputFactory: IFileEditorInputFactory | undefined;
+	private customEditorInputFactory: ICustomEditorInputFactory | undefined;
 
 	private readonly editorInputFactoryConstructors: Map<string, IConstructorSignature0<IEditorInputFactory>> = new Map();
 	private readonly editorInputFactoryInstances: Map<string, IEditorInputFactory> = new Map();
@@ -1399,6 +1427,14 @@ class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
 
 	getFileEditorInputFactory(): IFileEditorInputFactory {
 		return assertIsDefined(this.fileEditorInputFactory);
+	}
+
+	registerCustomEditorInputFactory(factory: ICustomEditorInputFactory): void {
+		this.customEditorInputFactory = factory;
+	}
+
+	getCustomEditorInputFactory(): ICustomEditorInputFactory {
+		return assertIsDefined(this.customEditorInputFactory);
 	}
 
 	registerEditorInputFactory(editorInputId: string, ctor: IConstructorSignature0<IEditorInputFactory>): IDisposable {

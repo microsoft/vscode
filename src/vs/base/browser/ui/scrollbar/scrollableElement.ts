@@ -287,12 +287,22 @@ export abstract class AbstractScrollableElement extends Widget {
 	 * depend on Editor.
 	 */
 	public updateOptions(newOptions: ScrollableElementChangeOptions): void {
-		let massagedOptions = resolveOptions(newOptions);
-		this._options.handleMouseWheel = massagedOptions.handleMouseWheel;
-		this._options.mouseWheelScrollSensitivity = massagedOptions.mouseWheelScrollSensitivity;
-		this._options.fastScrollSensitivity = massagedOptions.fastScrollSensitivity;
-		this._options.scrollPredominantAxis = massagedOptions.scrollPredominantAxis;
-		this._setListeningToMouseWheel(this._options.handleMouseWheel);
+		if (typeof newOptions.handleMouseWheel !== 'undefined') {
+			this._options.handleMouseWheel = newOptions.handleMouseWheel;
+			this._setListeningToMouseWheel(this._options.handleMouseWheel);
+		}
+		if (typeof newOptions.mouseWheelScrollSensitivity !== 'undefined') {
+			this._options.mouseWheelScrollSensitivity = newOptions.mouseWheelScrollSensitivity;
+		}
+		if (typeof newOptions.fastScrollSensitivity !== 'undefined') {
+			this._options.fastScrollSensitivity = newOptions.fastScrollSensitivity;
+		}
+		if (typeof newOptions.scrollPredominantAxis !== 'undefined') {
+			this._options.scrollPredominantAxis = newOptions.scrollPredominantAxis;
+		}
+		if (typeof newOptions.horizontalScrollbarSize !== 'undefined') {
+			this._horizontalScrollbar.updateScrollbarSize(newOptions.horizontalScrollbarSize);
+		}
 
 		if (!this._options.lazyRender) {
 			this._render();

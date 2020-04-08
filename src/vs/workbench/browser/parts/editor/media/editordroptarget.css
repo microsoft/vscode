@@ -22,6 +22,7 @@
 
 	opacity: 0; /* hidden initially */
 	transition: opacity 150ms ease-out;
+	/* color: red; */
 }
 
 #monaco-workbench-editor-drop-overlay > .editor-group-overlay-indicator.overlay-move-transition {

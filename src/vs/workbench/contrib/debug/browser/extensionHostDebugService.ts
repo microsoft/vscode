@@ -13,7 +13,6 @@ import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService'
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { mapToSerializable } from 'vs/base/common/map';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkspaceProvider, IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
 import { IProcessEnvironment } from 'vs/base/common/platform';
@@ -107,8 +106,8 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 
 		// Open debug window as new window. Pass ParsedArgs over.
 		return this.workspaceProvider.open(debugWorkspace, {
-			reuse: false, 							// debugging always requires a new window
-			payload: mapToSerializable(environment)	// mandatory properties to enable debugging
+			reuse: false, 								// debugging always requires a new window
+			payload: Array.from(environment.entries())	// mandatory properties to enable debugging
 		});
 	}
 

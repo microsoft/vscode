@@ -53,6 +53,29 @@ exports.injectNodeModuleLookupPath = function (injectPath) {
 };
 //#endregion
 
+//#region Remove global paths from the node lookup paths
+
+exports.removeGlobalNodeModuleLookupPaths = function() {
+	// @ts-ignore
+	const Module = require('module');
+	// @ts-ignore
+	const globalPaths = Module.globalPaths;
+
+	// @ts-ignore
+	const originalResolveLookupPaths = Module._resolveLookupPaths;
+
+	// @ts-ignore
+	Module._resolveLookupPaths = function (moduleName, parent) {
+		const paths = originalResolveLookupPaths(moduleName, parent);
+		let commonSuffixLength = 0;
+		while (commonSuffixLength < paths.length && paths[paths.length - 1 - commonSuffixLength] === globalPaths[globalPaths.length - 1 - commonSuffixLength]) {
+			commonSuffixLength++;
+		}
+		return paths.slice(0, paths.length - commonSuffixLength);
+	};
+};
+//#endregion
+
 //#region Add support for using node_modules.asar
 /**
  * @param {string=} nodeModulesPath

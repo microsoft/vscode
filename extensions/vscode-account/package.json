@@ -27,7 +27,20 @@
 				"title": "%signOut%",
 				"category": "%displayName%"
 			}
-		]
+		],
+		"configuration": {
+			"title": "Microsoft Account",
+			"properties": {
+				"microsoftAccount.logLevel": {
+					"type": "string",
+					"enum": [
+						"info",
+						"trace"
+					],
+					"default": "info"
+				}
+			}
+		}
 	},
 	"scripts": {
 		"vscode:prepublish": "npm run compile",
@@ -38,9 +51,11 @@
 		"typescript": "^3.7.4",
 		"tslint": "^5.12.1",
 		"@types/node": "^10.12.21",
-		"@types/keytar": "^4.0.1"
+		"@types/keytar": "^4.0.1",
+		"@types/uuid": "^3.4.6"
 	},
 	"dependencies": {
+		"uuid": "^3.3.3",
 		"vscode-nls": "^4.1.1"
 	}
 }

@@ -22,7 +22,8 @@
     "postinstall": "node build/postinstall.js"
   },
   "dependencies": {
-    "uuid": "^3.3.3"
+    "uuid": "^3.3.3",
+    "vscode-nls": "^4.1.2"
   },
   "devDependencies": {
     "@types/keytar": "^4.4.2",

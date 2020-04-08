@@ -7,7 +7,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { ITreeNode, ITreeRenderer, ITreeDragAndDrop, ITreeDragOverReaction } from 'vs/base/browser/ui/tree/tree';
 import { IAction } from 'vs/base/common/actions';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -300,7 +300,7 @@ export class MatchRenderer extends Disposable implements ITreeRenderer<Match, vo
 	}
 }
 
-export class SearchAccessibilityProvider implements IAccessibilityProvider<RenderableMatch> {
+export class SearchAccessibilityProvider implements IListAccessibilityProvider<RenderableMatch> {
 
 	constructor(
 		private searchModel: SearchModel,

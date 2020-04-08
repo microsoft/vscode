@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { EnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { IWorkbenchEnvironmentService, IEnvironmentConfiguration } from 'vs/workbench/services/environment/common/environmentService';
 import { memoize } from 'vs/base/common/decorators';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
@@ -13,9 +13,9 @@ import { join } from 'vs/base/common/path';
 import product from 'vs/platform/product/common/product';
 import { INativeWindowConfiguration } from 'vs/platform/windows/node/window';
 
-export interface INativeWorkbenchEnvironmentService extends IWorkbenchEnvironmentService {
+export interface INativeWorkbenchEnvironmentService extends IWorkbenchEnvironmentService, INativeEnvironmentService {
 
-	readonly configuration: INativeWindowConfiguration;
+	readonly configuration: INativeEnvironmentConfiguration;
 
 	readonly disableCrashReporter: boolean;
 
@@ -23,7 +23,11 @@ export interface INativeWorkbenchEnvironmentService extends IWorkbenchEnvironmen
 
 	readonly log?: string;
 	readonly extHostLogsPath: URI;
+
+	readonly userHome: URI;
 }
+
+export interface INativeEnvironmentConfiguration extends IEnvironmentConfiguration, INativeWindowConfiguration { }
 
 export class NativeWorkbenchEnvironmentService extends EnvironmentService implements INativeWorkbenchEnvironmentService {
 
@@ -52,7 +56,7 @@ export class NativeWorkbenchEnvironmentService extends EnvironmentService implem
 	get extHostLogsPath(): URI { return URI.file(join(this.logsPath, `exthost${this.configuration.windowId}`)); }
 
 	constructor(
-		readonly configuration: INativeWindowConfiguration,
+		readonly configuration: INativeEnvironmentConfiguration,
 		execPath: string
 	) {
 		super(configuration, execPath);

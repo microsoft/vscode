@@ -27,8 +27,8 @@ export class PreviewManager implements vscode.CustomEditorProvider {
 		private readonly zoomStatusBarEntry: ZoomStatusBarEntry,
 	) { }
 
-	public async resolveCustomDocument(_document: vscode.CustomDocument): Promise<vscode.CustomEditorCapabilities> {
-		return {};
+	public async openCustomDocument(uri: vscode.Uri) {
+		return new vscode.CustomDocument(uri);
 	}
 
 	public async resolveCustomEditor(

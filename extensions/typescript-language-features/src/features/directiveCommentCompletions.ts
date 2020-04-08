@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { ITypeScriptServiceClient } from '../typescriptService';
+import API from '../utils/api';
 
 const localize = nls.loadMessageBundle();
 
@@ -14,7 +15,7 @@ interface Directive {
 	readonly description: string;
 }
 
-const directives: Directive[] = [
+const tsDirectives: Directive[] = [
 	{
 		value: '@ts-check',
 		description: localize(
@@ -30,6 +31,16 @@ const directives: Directive[] = [
 		description: localize(
 			'ts-ignore',
 			"Suppresses @ts-check errors on the next line of a file.")
+	}
+];
+
+const tsDirectives390: Directive[] = [
+	...tsDirectives,
+	{
+		value: '@ts-expect-error',
+		description: localize(
+			'ts-expect-error',
+			"Suppresses @ts-check errors on the next line of a file, expecting at least one to exist.")
 	}
 ];
 
@@ -53,6 +64,10 @@ class DirectiveCommentCompletionProvider implements vscode.CompletionItemProvide
 		const prefix = line.slice(0, position.character);
 		const match = prefix.match(/^\s*\/\/+\s?(@[a-zA-Z\-]*)?$/);
 		if (match) {
+			const directives = this.client.apiVersion.gte(API.v390)
+				? tsDirectives390
+				: tsDirectives;
+
 			return directives.map(directive => {
 				const item = new vscode.CompletionItem(directive.value, vscode.CompletionItemKind.Snippet);
 				item.detail = directive.description;

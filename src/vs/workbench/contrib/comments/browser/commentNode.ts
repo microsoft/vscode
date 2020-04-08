@@ -158,7 +158,7 @@ export class CommentNode extends Disposable {
 						},
 						this.actionRunner!,
 						undefined,
-						'toolbar-toggle-pickReactions',
+						'toolbar-toggle-pickReactions codicon codicon-reactions',
 						() => { return AnchorAlignment.RIGHT; }
 					);
 				}
@@ -438,6 +438,9 @@ export class CommentNode extends Disposable {
 			this._actionsToolbarContainer.classList.remove('hidden');
 			this._actionsToolbarContainer.classList.add('tabfocused');
 			this._domNode.tabIndex = 0;
+			if (this.comment.mode === modes.CommentMode.Editing) {
+				this._commentEditor?.focus();
+			}
 		} else {
 			if (this._actionsToolbarContainer.classList.contains('tabfocused') && !this._actionsToolbarContainer.classList.contains('mouseover')) {
 				this._actionsToolbarContainer.classList.add('hidden');

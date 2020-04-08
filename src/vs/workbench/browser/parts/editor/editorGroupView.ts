@@ -292,11 +292,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			localize('closeGroupAction', "Close"),
 			'codicon-close',
 			true,
-			() => {
-				this.accessor.removeGroup(this);
-
-				return Promise.resolve(true);
-			}));
+			async () => this.accessor.removeGroup(this)));
 
 		const keybinding = this.keybindingService.lookupKeybinding(removeGroupAction.id);
 		containerToolbar.push(removeGroupAction, { icon: true, label: false, keybinding: keybinding ? keybinding.getLabel() : undefined });
@@ -807,7 +803,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Guard against invalid inputs
 		if (!editor) {
-			return Promise.resolve(null);
+			return null;
 		}
 
 		// Editor opening event allows for prevention
@@ -822,13 +818,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return withUndefinedAsNull(await this.doOpenEditor(editor, options));
 	}
 
-	private doOpenEditor(editor: EditorInput, options?: EditorOptions): Promise<IEditorPane | undefined> {
+	private async doOpenEditor(editor: EditorInput, options?: EditorOptions): Promise<IEditorPane | undefined> {
 
 		// Guard against invalid inputs. Disposed inputs
 		// should never open because they emit no events
 		// e.g. to indicate dirty changes.
 		if (editor.isDisposed()) {
-			return Promise.resolve(undefined);
+			return;
 		}
 
 		// Determine options
@@ -898,7 +894,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private async doShowEditor(editor: EditorInput, active: boolean, options?: EditorOptions): Promise<IEditorPane | undefined> {
 
 		// Show in editor control if the active editor changed
-		let openEditorPromise: Promise<IEditorPane | undefined>;
+		let openEditorPromise: Promise<IEditorPane | undefined> | undefined;
 		if (active) {
 			openEditorPromise = (async () => {
 				try {
@@ -919,7 +915,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				}
 			})();
 		} else {
-			openEditorPromise = Promise.resolve(undefined); // inactive: return undefined as result to signal this
+			openEditorPromise = undefined; // inactive: return undefined as result to signal this
 		}
 
 		// Show in title control after editor control because some actions depend on it

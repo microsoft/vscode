@@ -47,7 +47,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IDialogService, IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { IExtensionService, NullExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IDecorationsService, IResourceDecorationChangeEvent, IDecoration, IDecorationData, IDecorationsProvider } from 'vs/workbench/services/decorations/browser/decorations';
 import { IDisposable, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -103,7 +103,9 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { QuickInputService } from 'vs/workbench/services/quickinput/browser/quickInputService';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { win32, posix } from 'vs/base/common/path';
-import { TestWorkingCopyService, TestContextService, TestStorageService, TestTextResourcePropertiesService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestWorkingCopyService, TestContextService, TestStorageService, TestTextResourcePropertiesService, TestExtensionService } from 'vs/workbench/test/common/workbenchTestServices';
+import { IViewsService, IView } from 'vs/workbench/common/views';
+import { IStorageKeysSyncRegistryService, StorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined);
@@ -125,7 +127,7 @@ export function workbenchInstantiationService(overrides?: { textFileService?: (i
 	instantiationService.stub(IWorkspaceContextService, workspaceContextService);
 	const configService = new TestConfigurationService();
 	instantiationService.stub(IConfigurationService, configService);
-	instantiationService.stub(IFilesConfigurationService, new TestFilesConfigurationService(contextKeyService, configService, TestEnvironmentService));
+	instantiationService.stub(IFilesConfigurationService, new TestFilesConfigurationService(contextKeyService, configService));
 	instantiationService.stub(ITextResourceConfigurationService, new TestTextResourceConfigurationService(configService));
 	instantiationService.stub(IUntitledTextEditorService, instantiationService.createInstance(UntitledTextEditorService));
 	instantiationService.stub(IStorageService, new TestStorageService());
@@ -140,6 +142,8 @@ export function workbenchInstantiationService(overrides?: { textFileService?: (i
 	instantiationService.stub(IHistoryService, new TestHistoryService());
 	instantiationService.stub(ITextResourcePropertiesService, new TestTextResourcePropertiesService(configService));
 	instantiationService.stub(IUndoRedoService, instantiationService.createInstance(UndoRedoService));
+	const themeService = new TestThemeService();
+	instantiationService.stub(IThemeService, themeService);
 	instantiationService.stub(IModelService, instantiationService.createInstance(ModelServiceImpl));
 	instantiationService.stub(IFileService, new TestFileService());
 	instantiationService.stub(IBackupFileService, new TestBackupFileService());
@@ -155,8 +159,6 @@ export function workbenchInstantiationService(overrides?: { textFileService?: (i
 	instantiationService.stub(ITextFileService, overrides?.textFileService ? overrides.textFileService(instantiationService) : <ITextFileService>instantiationService.createInstance(TestTextFileService));
 	instantiationService.stub(IHostService, <IHostService>instantiationService.createInstance(TestHostService));
 	instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
-	const themeService = new TestThemeService();
-	instantiationService.stub(IThemeService, themeService);
 	instantiationService.stub(ILogService, new NullLogService());
 	const editorGroupService = new TestEditorGroupsService([new TestEditorGroupView(0)]);
 	instantiationService.stub(IEditorGroupsService, editorGroupService);
@@ -166,7 +168,8 @@ export function workbenchInstantiationService(overrides?: { textFileService?: (i
 	instantiationService.stub(ICodeEditorService, new CodeEditorService(editorService, themeService));
 	instantiationService.stub(IViewletService, new TestViewletService());
 	instantiationService.stub(IListService, new TestListService());
-	instantiationService.stub(IQuickInputService, new QuickInputService(TestEnvironmentService, configService, instantiationService, keybindingService, contextKeyService, themeService, accessibilityService, layoutService));
+	instantiationService.stub(IQuickInputService, new QuickInputService(configService, instantiationService, keybindingService, contextKeyService, themeService, accessibilityService, layoutService));
+	instantiationService.stub(IStorageKeysSyncRegistryService, new StorageKeysSyncRegistryService());
 
 	return instantiationService;
 }
@@ -258,7 +261,11 @@ export class TestTextFileService extends BrowserTextFileService {
 	}
 }
 
-export const TestEnvironmentService = new BrowserWorkbenchEnvironmentService(Object.create(null));
+class TestEnvironmentServiceWithArgs extends BrowserWorkbenchEnvironmentService {
+	args = [];
+}
+
+export const TestEnvironmentService = new TestEnvironmentServiceWithArgs(Object.create(null));
 
 export class TestProgressService implements IProgressService {
 
@@ -294,8 +301,6 @@ export class TestDecorationsService implements IDecorationsService {
 	registerDecorationsProvider(_provider: IDecorationsProvider): IDisposable { return Disposable.None; }
 	getDecoration(_uri: URI, _includeChildren: boolean, _overwrite?: IDecorationData): IDecoration | undefined { return undefined; }
 }
-
-export class TestExtensionService extends NullExtensionService { }
 
 export class TestMenuService implements IMenuService {
 
@@ -451,13 +456,26 @@ export class TestPanelService implements IPanelService {
 	getPanel(id: string): any { return activeViewlet; }
 	getPanels() { return []; }
 	getPinnedPanels() { return []; }
-	getActivePanel(): IViewlet { return activeViewlet; }
+	getActivePanel(): IPanel { return activeViewlet; }
 	setPanelEnablement(id: string, enabled: boolean): void { }
 	dispose() { }
 	showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable { throw new Error('Method not implemented.'); }
 	getProgressIndicator(id: string) { return null!; }
 	hideActivePanel(): void { }
 	getLastActivePanelId(): string { return undefined!; }
+}
+
+export class TestViewsService implements IViewsService {
+	_serviceBrand: undefined;
+
+	onDidChangeViewVisibilityEmitter = new Emitter<{ id: string; visible: boolean; }>();
+
+	onDidChangeViewVisibility = this.onDidChangeViewVisibilityEmitter.event;
+	isViewVisible(id: string): boolean { return true; }
+	getActiveViewWithId<T extends IView>(id: string): T | null { return null; }
+	openView<T extends IView>(id: string, focus?: boolean | undefined): Promise<T | null> { return Promise.resolve(null); }
+	closeView(id: string): void { }
+	getProgressIndicator(id: string) { return null!; }
 }
 
 export class TestEditorGroupsService implements IEditorGroupsService {
@@ -795,6 +813,7 @@ export class TestBackupFileService implements IBackupFileService {
 	getBackups(): Promise<URI[]> { return Promise.resolve([]); }
 	resolve<T extends object>(_backup: URI): Promise<IResolvedBackup<T> | undefined> { return Promise.resolve(undefined); }
 	discardBackup(_resource: URI): Promise<void> { return Promise.resolve(); }
+	discardBackups(): Promise<void> { return Promise.resolve(); }
 	parseBackupContent(textBufferFactory: ITextBufferFactory): string {
 		const textBuffer = textBufferFactory.create(DefaultEndOfLine.LF);
 		const lineCount = textBuffer.getLineCount();
@@ -1090,7 +1109,8 @@ export class TestRemotePathService implements IRemotePathService {
 
 	get path() { return Promise.resolve(isWindows ? win32 : posix); }
 
-	get userHome() { return Promise.resolve(URI.file(this.environmentService.userHome)); }
+	get userHome() { return Promise.resolve(this.environmentService.userHome!); }
+	get userHomeSync() { return this.environmentService.userHome; }
 
 	async fileURI(path: string): Promise<URI> {
 		return URI.file(path);
