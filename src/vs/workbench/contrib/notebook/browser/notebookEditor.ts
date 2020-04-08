@@ -187,7 +187,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			this.instantiationService.createInstance(MarkdownCellRenderer, this.contextKeyService, this),
 		];
 
-		this.list = <NotebookCellList>this.instantiationService.createInstance(
+		this.list = this.instantiationService.createInstance(
 			NotebookCellList,
 			'NotebookCellList',
 			this.body,
@@ -221,6 +221,9 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 					listInactiveSelectionForeground: foreground,
 					listInactiveFocusBackground: editorBackground,
 					listInactiveFocusOutline: editorBackground,
+				},
+				accessibilityProvider: {
+					getAriaLabel() { return null; }
 				}
 			},
 		);

@@ -71,6 +71,7 @@ import { ColorDetector } from 'vs/editor/contrib/colorPicker/colorDetector';
 import { LinkDetector } from 'vs/editor/contrib/links/links';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 
 type TreeElement = ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -384,6 +385,19 @@ class SCMResourceIdentityProvider implements IIdentityProvider<TreeElement> {
 		} else {
 			const provider = element.provider;
 			return `${provider.contextValue}/${element.id}`;
+		}
+	}
+}
+
+export class SCMAccessibilityProvider implements IAccessibilityProvider<TreeElement> {
+
+	getAriaLabel(element: TreeElement): string {
+		if (ResourceTree.isResourceNode(element)) {
+			return element.name;
+		} else if (isSCMResourceGroup(element)) {
+			return element.label;
+		} else {
+			return `${basename(element.sourceUri)}, ${element.decorations.tooltip || ''}`;
 		}
 	}
 }
@@ -845,7 +859,7 @@ export class RepositoryPane extends ViewPane {
 		const keyboardNavigationLabelProvider = new SCMTreeKeyboardNavigationLabelProvider();
 		const identityProvider = new SCMResourceIdentityProvider();
 
-		this.tree = <WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>>this.instantiationService.createInstance(
+		this.tree = this.instantiationService.createInstance(
 			WorkbenchCompressibleObjectTree,
 			'SCM Tree Repo',
 			this.listContainer,
@@ -859,8 +873,9 @@ export class RepositoryPane extends ViewPane {
 				keyboardNavigationLabelProvider,
 				overrideStyles: {
 					listBackground: SIDE_BAR_BACKGROUND
-				}
-			});
+				},
+				accessibilityProvider: new SCMAccessibilityProvider()
+			}) as WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>;
 
 		this._register(Event.chain(this.tree.onDidOpen)
 			.map(e => e.elements[0])
