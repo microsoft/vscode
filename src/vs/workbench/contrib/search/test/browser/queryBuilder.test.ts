@@ -50,7 +50,7 @@ suite('QueryBuilder', () => {
 
 		instantiationService.stub(IWorkspaceContextService, mockContextService);
 		instantiationService.stub(IEnvironmentService, TestEnvironmentService);
-		instantiationService.stub(IRemotePathService, TestRemotePathService);
+		instantiationService.stub(IRemotePathService, new TestRemotePathService(TestEnvironmentService));
 
 		queryBuilder = instantiationService.createInstance(QueryBuilder);
 	});
