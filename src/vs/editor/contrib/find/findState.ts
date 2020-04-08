@@ -6,6 +6,7 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
+import { MATCHES_LIMIT } from './findModel';
 
 export interface FindReplaceStateChangedEvent {
 	moveCursor: boolean;
@@ -23,6 +24,7 @@ export interface FindReplaceStateChangedEvent {
 	matchesPosition: boolean;
 	matchesCount: boolean;
 	currentMatch: boolean;
+	loop: boolean;
 }
 
 export const enum FindOptionOverride {
@@ -45,6 +47,7 @@ export interface INewFindReplaceState {
 	preserveCase?: boolean;
 	preserveCaseOverride?: FindOptionOverride;
 	searchScope?: Range | null;
+	loop?: boolean;
 }
 
 function effectiveOptionValue(override: FindOptionOverride, value: boolean): boolean {
@@ -74,6 +77,7 @@ export class FindReplaceState extends Disposable {
 	private _matchesPosition: number;
 	private _matchesCount: number;
 	private _currentMatch: Range | null;
+	private _loop: boolean;
 	private readonly _onFindReplaceStateChange = this._register(new Emitter<FindReplaceStateChangedEvent>());
 
 	public get searchString(): string { return this._searchString; }
@@ -114,6 +118,7 @@ export class FindReplaceState extends Disposable {
 		this._matchesPosition = 0;
 		this._matchesCount = 0;
 		this._currentMatch = null;
+		this._loop = true;
 	}
 
 	public changeMatchInfo(matchesPosition: number, matchesCount: number, currentMatch: Range | undefined): void {
@@ -131,7 +136,8 @@ export class FindReplaceState extends Disposable {
 			searchScope: false,
 			matchesPosition: false,
 			matchesCount: false,
-			currentMatch: false
+			currentMatch: false,
+			loop: false
 		};
 		let somethingChanged = false;
 
@@ -181,7 +187,8 @@ export class FindReplaceState extends Disposable {
 			searchScope: false,
 			matchesPosition: false,
 			matchesCount: false,
-			currentMatch: false
+			currentMatch: false,
+			loop: false
 		};
 		let somethingChanged = false;
 
@@ -237,7 +244,13 @@ export class FindReplaceState extends Disposable {
 				somethingChanged = true;
 			}
 		}
-
+		if (typeof newState.loop !== 'undefined') {
+			if (this._loop !== newState.loop) {
+				this._loop = newState.loop;
+				changeEvent.loop = true;
+				somethingChanged = true;
+			}
+		}
 		// Overrides get set when they explicitly come in and get reset anytime something else changes
 		this._isRegexOverride = (typeof newState.isRegexOverride !== 'undefined' ? newState.isRegexOverride : FindOptionOverride.NotSet);
 		this._wholeWordOverride = (typeof newState.wholeWordOverride !== 'undefined' ? newState.wholeWordOverride : FindOptionOverride.NotSet);
@@ -266,4 +279,17 @@ export class FindReplaceState extends Disposable {
 			this._onFindReplaceStateChange.fire(changeEvent);
 		}
 	}
+
+	public canNavigateBack(): boolean {
+		return this.canNavigateInLoop() || (this.matchesPosition !== 1);
+	}
+
+	public canNavigateForward(): boolean {
+		return this.canNavigateInLoop() || (this.matchesPosition < this.matchesCount);
+	}
+
+	private canNavigateInLoop(): boolean {
+		return this._loop || (this.matchesCount >= MATCHES_LIMIT);
+	}
+
 }

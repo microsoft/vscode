@@ -1253,6 +1253,10 @@ export interface IEditorFindOptions {
 	 * Controls if the Find Widget should read or modify the shared find clipboard on macOS
 	 */
 	globalFindClipboard?: boolean;
+	/**
+	 * Controls whether the search automatically restarts from the beginning (or the end) when no further matches can be found
+	 */
+	loop?: boolean;
 }
 
 export type EditorFindOptions = Readonly<Required<IEditorFindOptions>>;
@@ -1264,7 +1268,8 @@ class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> 
 			seedSearchStringFromSelection: true,
 			autoFindInSelection: 'never',
 			globalFindClipboard: false,
-			addExtraSpaceOnTop: true
+			addExtraSpaceOnTop: true,
+			loop: true
 		};
 		super(
 			EditorOption.find, 'find', defaults,
@@ -1295,7 +1300,13 @@ class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> 
 					type: 'boolean',
 					default: defaults.addExtraSpaceOnTop,
 					description: nls.localize('find.addExtraSpaceOnTop', "Controls whether the Find Widget should add extra lines on top of the editor. When true, you can scroll beyond the first line when the Find Widget is visible.")
-				}
+				},
+				'editor.find.loop': {
+					type: 'boolean',
+					default: defaults.loop,
+					description: nls.localize('find.loop', "Controls whether the search automatically restarts from the beginning (or the end) when no further matches can be found.")
+				},
+
 			}
 		);
 	}
@@ -1311,7 +1322,8 @@ class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> 
 				? (_input.autoFindInSelection ? 'always' : 'never')
 				: EditorStringEnumOption.stringSet<'never' | 'always' | 'multiline'>(input.autoFindInSelection, this.defaultValue.autoFindInSelection, ['never', 'always', 'multiline']),
 			globalFindClipboard: EditorBooleanOption.boolean(input.globalFindClipboard, this.defaultValue.globalFindClipboard),
-			addExtraSpaceOnTop: EditorBooleanOption.boolean(input.addExtraSpaceOnTop, this.defaultValue.addExtraSpaceOnTop)
+			addExtraSpaceOnTop: EditorBooleanOption.boolean(input.addExtraSpaceOnTop, this.defaultValue.addExtraSpaceOnTop),
+			loop: EditorBooleanOption.boolean(input.loop, this.defaultValue.loop),
 		};
 	}
 }
