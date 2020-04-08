@@ -42,7 +42,7 @@ export class DefaultConfigurationExportHelper {
 	private writeConfigModelAndQuit(targetPath: string): Promise<void> {
 		return Promise.resolve(this.extensionService.whenInstalledExtensionsRegistered())
 			.then(() => this.writeConfigModel(targetPath))
-			.then(() => this.commandService.executeCommand('workbench.action.quit'))
+			.finally(() => this.commandService.executeCommand('workbench.action.quit'))
 			.then(() => { });
 	}
 
