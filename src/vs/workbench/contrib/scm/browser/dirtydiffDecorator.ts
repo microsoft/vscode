@@ -888,9 +888,9 @@ class DirtyDiffDecorator extends Disposable {
 		super();
 		this.editorModel = editorModel;
 		const decorations = configurationService.getValue<string>('scm.diffDecorations');
-		const gutter = decorations === 'all' || decorations === 'gutter';
-		const overview = decorations === 'all' || decorations === 'overview';
-		const minimap = decorations === 'all' || decorations === 'minimap';
+		const gutter = decorations.search(/gutter/) !== -1;
+		const overview = decorations.search(/overview/) !== -1;
+		const minimap = decorations.search(/minimap/) !== -1;
 
 		this.modifiedOptions = DirtyDiffDecorator.createDecoration('dirty-diff-modified', {
 			gutter,

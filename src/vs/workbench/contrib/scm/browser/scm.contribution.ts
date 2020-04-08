@@ -63,6 +63,13 @@ Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions
 	localize('view', "View")
 );
 
+let diffDecorationsDescription = localize('diffDecorations', "Controls diff decorations in the editor. Possible diff decorations (comma separated):");
+diffDecorationsDescription += '\n- ' + [
+	localize('scm.diffDecorations.gutter', "`gutter`: Show the diff decorations in the editor gutter."),
+	localize('scm.diffDecorations.overviewRuler', "`overview`: Show the diff decorations in the overview ruler."),
+	localize('scm.diffDecorations.minimap', "`minimap`: Show the diff decorations in the minimap."),
+].join('\n- '); // intentionally concatenated to not produce a string that is too long for translations
+
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'scm',
 	order: 5,
@@ -82,16 +89,8 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		'scm.diffDecorations': {
 			type: 'string',
-			enum: ['all', 'gutter', 'overview', 'minimap', 'none'],
-			enumDescriptions: [
-				localize('scm.diffDecorations.all', "Show the diff decorations in all available locations."),
-				localize('scm.diffDecorations.gutter', "Show the diff decorations only in the editor gutter."),
-				localize('scm.diffDecorations.overviewRuler', "Show the diff decorations only in the overview ruler."),
-				localize('scm.diffDecorations.minimap', "Show the diff decorations only in the minimap."),
-				localize('scm.diffDecorations.none', "Do not show the diff decorations.")
-			],
-			default: 'all',
-			description: localize('diffDecorations', "Controls diff decorations in the editor.")
+			default: 'gutter,overview,minimap',
+			markdownDescription: diffDecorationsDescription
 		},
 		'scm.diffDecorationsGutterWidth': {
 			type: 'number',
