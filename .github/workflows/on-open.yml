@@ -1,7 +1,7 @@
-name: On Label
+name: On Open
 on:
   issues:
-    types: [labeled]
+    types: [opened]
 
 jobs:
   main:
