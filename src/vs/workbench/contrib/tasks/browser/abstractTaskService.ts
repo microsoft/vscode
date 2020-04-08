@@ -1398,16 +1398,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const saveBeforeRunTaskConfig: saveBeforeRunConfigOptions = this.configurationService.getValue('task.saveBeforeRun');
 
 		const execTask = async (task: Task, resolver: ITaskResolver): Promise<ITaskSummary> => {
-			let result: Promise<ITaskSummary> = new Promise<ITaskSummary>((resolve) => {
-				resolve();
-			});
-
-			ProblemMatcherRegistry.onReady().then(() => {
+			return ProblemMatcherRegistry.onReady().then(() => {
 				let executeResult = this.getTaskSystem().run(task, resolver);
-				result = this.handleExecuteResult(executeResult);
+				return this.handleExecuteResult(executeResult);
 			});
-
-			return result;
 		};
 
 		const saveAllEditorsAndExecTask = async (task: Task, resolver: ITaskResolver): Promise<ITaskSummary> => {
