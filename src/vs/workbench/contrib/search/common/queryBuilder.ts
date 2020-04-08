@@ -8,17 +8,17 @@ import * as collections from 'vs/base/common/collections';
 import * as glob from 'vs/base/common/glob';
 import { untildify } from 'vs/base/common/labels';
 import { values } from 'vs/base/common/map';
+import { Schemas } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
 import { isEqual } from 'vs/base/common/resources';
 import * as strings from 'vs/base/common/strings';
-import { URI as uri } from 'vs/base/common/uri';
+import { URI as uri, URI } from 'vs/base/common/uri';
 import { isMultilineRegexSource } from 'vs/editor/common/model/textModelSearch';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWorkspaceContextService, WorkbenchState, toWorkspaceFolder, IWorkspaceFolderData } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspaceFolderData, toWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
 import { getExcludes, ICommonQueryProps, IFileQuery, IFolderQuery, IPatternInfo, ISearchConfiguration, ITextQuery, ITextSearchPreviewOptions, pathIncludedInQuery, QueryType } from 'vs/workbench/services/search/common/search';
-import { Schemas } from 'vs/base/common/network';
 
 /**
  * One folder to search and a glob expression that should be applied.
@@ -82,8 +82,14 @@ export class QueryBuilder {
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
-	) { }
+		@IRemotePathService private readonly remotePathService: IRemotePathService
+	) {
+		this.remotePathService.userHome.then(userHome => {
+			this._userHome = userHome;
+		});
+	}
+
+	private _userHome: URI | undefined;
 
 	text(contentPattern: IPatternInfo, folderResources?: uri[], options: ITextQueryBuilderOptions = {}): ITextQuery {
 		contentPattern = this.getContentPattern(contentPattern, options);
@@ -236,7 +242,7 @@ export class QueryBuilder {
 			return path.isAbsolute(segment) || /^\.\.?([\/\\]|$)/.test(segment);
 		};
 
-		const userHome = this.environmentService.userHome;
+		const userHome = this._userHome;
 		const segments = splitGlobPattern(pattern)
 			.map(segment => {
 				if (userHome) {
