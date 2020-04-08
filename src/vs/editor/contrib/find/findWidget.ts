@@ -36,6 +36,7 @@ import { ContextScopedFindInput, ContextScopedReplaceInput } from 'vs/platform/b
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
 export interface IFindController {
 	replace(): void;
@@ -152,6 +153,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		themeService: IThemeService,
 		storageService: IStorageService,
 		notificationService: INotificationService,
+		storageKeysSyncRegistryService: IStorageKeysSyncRegistryService
 	) {
 		super();
 		this._codeEditor = codeEditor;
@@ -163,6 +165,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		this._storageService = storageService;
 		this._notificationService = notificationService;
 
+		storageKeysSyncRegistryService.registerStorageKey({ key: ctrlEnterReplaceAllWarningPromptedKey, version: 1 });
 		this._ctrlEnterReplaceAllWarningPrompted = !!storageService.getBoolean(ctrlEnterReplaceAllWarningPromptedKey, StorageScope.GLOBAL);
 
 		this._isVisible = false;
