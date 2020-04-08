@@ -1029,7 +1029,7 @@ export class WorkspaceRecommendedExtensionsView extends ExtensionsListView {
 	private async setRecommendationsToInstall(): Promise<void> {
 		const recommendations = await this.getRecommendationsToInstall();
 		if (this.installAllAction) {
-			this.installAllAction.recommendations = recommendations;
+			this.installAllAction.recommendations = recommendations.map(({ extensionId }) => extensionId);
 		}
 	}
 
