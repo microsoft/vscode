@@ -6,6 +6,8 @@
 import { URI } from 'vs/base/common/uri';
 import { CharCode } from 'vs/base/common/charCode';
 import { compareSubstringIgnoreCase, compare, compareSubstring } from 'vs/base/common/strings';
+import { Schemas } from 'vs/base/common/network';
+import { isLinux } from 'vs/base/common/platform';
 
 /**
  * @deprecated ES6: use `[...SetOrMap.values()]`
@@ -154,7 +156,7 @@ const enum UriIteratorState {
 
 export class UriIterator implements IKeyIterator<URI> {
 
-	private _pathIterator = new PathIterator(false);
+	private _pathIterator!: PathIterator;
 	private _value!: URI;
 	private _states: UriIteratorState[] = [];
 	private _stateIdx: number = 0;
@@ -169,6 +171,10 @@ export class UriIterator implements IKeyIterator<URI> {
 			this._states.push(UriIteratorState.Authority);
 		}
 		if (this._value.path) {
+			//todo@jrieken the case-sensitive logic is copied form `resources.ts#hasToIgnoreCase`
+			// which cannot be used because it depends on this
+			const caseSensitive = key.scheme === Schemas.file && isLinux;
+			this._pathIterator = new PathIterator(false, caseSensitive);
 			this._pathIterator.reset(key.path);
 			if (this._pathIterator.value()) {
 				this._states.push(UriIteratorState.Path);
