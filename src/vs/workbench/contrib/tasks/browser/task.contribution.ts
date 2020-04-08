@@ -379,14 +379,14 @@ configurationRegistry.registerConfiguration({
 		'task.saveBeforeRun': {
 			markdownDescription: nls.localize(
 				'task.saveBeforeRun',
-				'Configures whether to save all editors before running a task, running it without saving or prompting the option every time is run'
+				'Configures whether all editor will be saved before running a task.'
 			),
 			type: 'string',
 			enum: ['always', 'never', 'prompt'],
 			enumDescriptions: [
-				nls.localize('task.saveBeforeRun.always', 'Save everytime before run'),
-				nls.localize('task.saveBeforeRun.never', 'Run without saving'),
-				nls.localize('task.SaveBeforeRun.prompt', 'Ask to save before run'),
+				nls.localize('task.saveBeforeRun.always', 'Always saves all editors before running.'),
+				nls.localize('task.saveBeforeRun.never', 'Never saves editors before running.'),
+				nls.localize('task.SaveBeforeRun.prompt', 'Prompts whether to save editors before running.'),
 			],
 			default: 'always',
 		},
