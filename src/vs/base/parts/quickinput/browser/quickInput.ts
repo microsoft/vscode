@@ -712,6 +712,18 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 						}
 
 						break;
+					case KeyCode.Home:
+						if (event.ctrlKey && !event.shiftKey && !event.altKey && !event.metaKey) {
+							this.ui.list.focus(QuickInputListFocus.First);
+							event.preventDefault();
+						}
+						break;
+					case KeyCode.End:
+						if (event.ctrlKey && !event.shiftKey && !event.altKey && !event.metaKey) {
+							this.ui.list.focus(QuickInputListFocus.Last);
+							event.preventDefault();
+						}
+						break;
 				}
 			}));
 			this.visibleDisposables.add(this.ui.onDidAccept(() => {
