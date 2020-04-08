@@ -1418,17 +1418,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				{ detail: nls.localize('detail', "Press 'Save' to save all editors before running the task.") }
 			);
 
-			let result: Promise<ITaskSummary> = new Promise<ITaskSummary>((resolve) => {
-				resolve();
-			});
-
 			if (dialogOptions.choice === 0) {
-				result = saveAllEditorsAndExecTask(task, resolver);
+				return saveAllEditorsAndExecTask(task, resolver);
 			} else {
-				result = execTask(task, resolver);
+				return execTask(task, resolver);
 			}
-
-			return result;
 		};
 
 		if (saveBeforeRunTaskConfig === saveBeforeRunConfigOptions.Never) {
