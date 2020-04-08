@@ -328,6 +328,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 		let lastCommentElement: HTMLElement | null = null;
 		let newCommentNodeList: CommentNode[] = [];
+		let newCommentsInEditMode: CommentNode[] = [];
 		for (let i = newCommentsLen - 1; i >= 0; i--) {
 			let currentComment = commentThread.comments![i];
 			let oldCommentNode = this._commentElements.filter(commentNode => commentNode.comment.uniqueIdInThread === currentComment.uniqueIdInThread);
@@ -344,6 +345,11 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 				} else {
 					this._commentsElement.appendChild(newElement.domNode);
 					lastCommentElement = newElement.domNode;
+				}
+
+				if (currentComment.mode === modes.CommentMode.Editing) {
+					newElement.switchToEditMode();
+					newCommentsInEditMode.push(newElement);
 				}
 			}
 		}
@@ -384,6 +390,11 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			this._commentThreadContextValue.set(this._commentThread.contextValue);
 		} else {
 			this._commentThreadContextValue.reset();
+		}
+
+		if (newCommentsInEditMode.length) {
+			const lastIndex = this._commentElements.indexOf(newCommentsInEditMode[newCommentsInEditMode.length - 1]);
+			this._focusedComment = lastIndex;
 		}
 
 		this.setFocusedComment(this._focusedComment);
@@ -432,6 +443,9 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 				this._commentElements.push(newCommentNode);
 				this._commentsElement.appendChild(newCommentNode.domNode);
+				if (comment.mode === modes.CommentMode.Editing) {
+					newCommentNode.switchToEditMode();
+				}
 			}
 		}
 
