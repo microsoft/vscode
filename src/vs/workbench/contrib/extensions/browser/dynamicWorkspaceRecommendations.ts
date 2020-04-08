@@ -17,6 +17,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { ExtensionRecommendationReason } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
 type DynamicWorkspaceRecommendationsClassification = {
 	count: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
@@ -43,8 +44,9 @@ export class DynamicWorkspaceRecommendations extends ExtensionRecommendations {
 		@INotificationService notificationService: INotificationService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService storageService: IStorageService,
+		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
 	) {
-		super(isExtensionAllowedToBeRecommended, instantiationService, configurationService, notificationService, telemetryService, storageService);
+		super(isExtensionAllowedToBeRecommended, instantiationService, configurationService, notificationService, telemetryService, storageService, storageKeysSyncRegistryService);
 	}
 
 	protected async doActivate(): Promise<void> {

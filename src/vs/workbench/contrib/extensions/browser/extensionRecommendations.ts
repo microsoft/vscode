@@ -13,6 +13,7 @@ import { ExtensionRecommendationSource, IExtensionRecommendationReson } from 'vs
 import { IExtensionsConfiguration, ConfigurationKey } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
 type ExtensionRecommendationsNotificationClassification = {
 	userReaction: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
@@ -40,8 +41,10 @@ export abstract class ExtensionRecommendations extends Disposable {
 		@INotificationService protected readonly notificationService: INotificationService,
 		@ITelemetryService protected readonly telemetryService: ITelemetryService,
 		@IStorageService protected readonly storageService: IStorageService,
+		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
 	) {
 		super();
+		storageKeysSyncRegistryService.registerStorageKey({ key: ignoreImportantExtensionRecommendation, version: 1 });
 	}
 
 	private _activationPromise: Promise<void> | null = null;
@@ -104,7 +107,7 @@ export abstract class ExtensionRecommendations extends Disposable {
 	}
 
 	protected filterIgnoredOrNotAllowed(recommendationsToSuggest: string[]): string[] {
-		const importantRecommendationsIgnoreList = <string[]>JSON.parse(this.storageService.get(ignoreImportantExtensionRecommendation, StorageScope.GLOBAL, '[]'));
+		const importantRecommendationsIgnoreList = (<string[]>JSON.parse(this.storageService.get(ignoreImportantExtensionRecommendation, StorageScope.GLOBAL, '[]'))).map(e => e.toLowerCase());
 		return recommendationsToSuggest.filter(id => {
 			if (importantRecommendationsIgnoreList.indexOf(id) !== -1) {
 				return false;
@@ -118,7 +121,7 @@ export abstract class ExtensionRecommendations extends Disposable {
 
 	private addToImportantRecommendationsIgnore(id: string) {
 		const importantRecommendationsIgnoreList = <string[]>JSON.parse(this.storageService.get(ignoreImportantExtensionRecommendation, StorageScope.GLOBAL, '[]'));
-		importantRecommendationsIgnoreList.push(id);
+		importantRecommendationsIgnoreList.push(id.toLowerCase());
 		this.storageService.store(ignoreImportantExtensionRecommendation, JSON.stringify(importantRecommendationsIgnoreList), StorageScope.GLOBAL);
 	}
 
