@@ -12,18 +12,22 @@ import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { EditorActivation, IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { FileOperation, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { Registry } from 'vs/platform/registry/common/platform';
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
+import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { EditorInput, EditorOptions, GroupIdentifier, IEditorInput, IEditorPane } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { webviewEditorsExtensionPoint, IWebviewEditorsExtensionPoint } from 'vs/workbench/contrib/customEditor/browser/extensionPoint';
+import { IWebviewEditorsExtensionPoint, webviewEditorsExtensionPoint } from 'vs/workbench/contrib/customEditor/browser/extensionPoint';
 import { CONTEXT_CUSTOM_EDITORS, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CustomEditorInfo, CustomEditorInfoCollection, CustomEditorPriority, CustomEditorSelector, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { CustomEditorModelManager } from 'vs/workbench/contrib/customEditor/common/customEditorModelManager';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
@@ -31,7 +35,54 @@ import { IWebviewService, webviewHasOwnEditFunctionsContext } from 'vs/workbench
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
 import { CustomEditorInput } from './customEditorInput';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
+
+export const customEditorsAssociationsSettingId = 'workbench.editorAssociations';
+
+export type CustomEditorAssociation = CustomEditorSelector & {
+	readonly viewType: string;
+};
+
+export type CustomEditorsAssociations = readonly CustomEditorAssociation[];
+
+const viewTypeSchamaAddition: IJSONSchema = {
+	type: 'string',
+	enum: []
+};
+
+export const editorAssociationsConfigurationNode: IConfigurationNode = {
+	...workbenchConfigurationNodeBase,
+	properties: {
+		[customEditorsAssociationsSettingId]: {
+			type: 'array',
+			markdownDescription: nls.localize('editor.editorAssociations', "Configure which editor to use for specific file types."),
+			items: {
+				type: 'object',
+				defaultSnippets: [{
+					body: {
+						'viewType': '$1',
+						'filenamePattern': '$2'
+					}
+				}],
+				properties: {
+					'viewType': {
+						anyOf: [
+							{
+								type: 'string',
+								description: nls.localize('editor.editorAssociations.viewType', "The unique id of the editor to use."),
+							},
+							viewTypeSchamaAddition
+						]
+					},
+					'filenamePattern': {
+						type: 'string',
+						description: nls.localize('editor.editorAssociations.filenamePattern', "Glob pattern specifying which files the editor should be used for."),
+					}
+				}
+			}
+		}
+	}
+};
 
 export const defaultEditorId = 'default';
 
@@ -74,6 +125,10 @@ export class CustomEditorInfoStore extends Disposable {
 
 	private readonly _onChange = this._register(new Emitter<void>());
 	public readonly onChange = this._onChange.event;
+
+	public [Symbol.iterator](): Iterator<CustomEditorInfo> {
+		return this._contributedEditors.values();
+	}
 
 	public get(viewType: string): CustomEditorInfo | undefined {
 		return viewType === defaultEditorId
@@ -122,7 +177,10 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		this._focusedCustomEditorIsEditable = CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE.bindTo(contextKeyService);
 		this._webviewHasOwnEditFunctions = webviewHasOwnEditFunctionsContext.bindTo(contextKeyService);
 
-		this._register(this._editorInfoStore.onChange(() => this.updateContexts()));
+		this._register(this._editorInfoStore.onChange(() => {
+			this.updateContexts();
+			this.updateSchema();
+		}));
 		this._register(this.editorService.onDidActiveEditorChange(() => this.updateContexts()));
 
 		this._register(fileService.onDidRunOperation(e => {
@@ -132,6 +190,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		}));
 
 		this.updateContexts();
+		this.updateSchema();
 	}
 
 	public get models() { return this._models; }
@@ -145,7 +204,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 	}
 
 	public getUserConfiguredCustomEditors(resource: URI): CustomEditorInfoCollection {
-		const rawAssociations = this.configurationService.getValue<CustomEditorsAssociations>(customEditorsAssociationsKey) || [];
+		const rawAssociations = this.configurationService.getValue<CustomEditorsAssociations>(customEditorsAssociationsSettingId) || [];
 		return new CustomEditorInfoCollection(
 			coalesce(rawAssociations
 				.filter(association => CustomEditorInfo.selectorMatches(association, resource))
@@ -221,21 +280,21 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 				// And persist the setting
 				if (pick) {
 					const newAssociation: CustomEditorAssociation = { viewType: pick, filenamePattern: '*' + resourceExt };
-					const currentAssociations = [...this.configurationService.getValue<CustomEditorsAssociations>(customEditorsAssociationsKey)] || [];
+					const currentAssociations = [...this.configurationService.getValue<CustomEditorsAssociations>(customEditorsAssociationsSettingId)] || [];
 
 					// First try updating existing association
 					for (let i = 0; i < currentAssociations.length; ++i) {
 						const existing = currentAssociations[i];
 						if (existing.filenamePattern === newAssociation.filenamePattern) {
 							currentAssociations.splice(i, 1, newAssociation);
-							this.configurationService.updateValue(customEditorsAssociationsKey, currentAssociations);
+							this.configurationService.updateValue(customEditorsAssociationsSettingId, currentAssociations);
 							return;
 						}
 					}
 
 					// Otherwise, create a new one
 					currentAssociations.unshift(newAssociation);
-					this.configurationService.updateValue(customEditorsAssociationsKey, currentAssociations);
+					this.configurationService.updateValue(customEditorsAssociationsSettingId, currentAssociations);
 				}
 			});
 			picker.show();
@@ -394,15 +453,21 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 			}), group);
 		}
 	}
+
+	private updateSchema() {
+		const enumValues: string[] = [];
+		const enumDescriptions: string[] = [];
+		for (const info of this._editorInfoStore) {
+			enumValues.push(info.id);
+			enumDescriptions.push(nls.localize('editorAssociations.viewType.sourceDescription', "Source: {0}", info.providerDisplayName));
+		}
+		viewTypeSchamaAddition.enum = enumValues;
+		viewTypeSchamaAddition.enumDescriptions = enumDescriptions;
+
+		Registry.as<IConfigurationRegistry>(Extensions.Configuration)
+			.notifyConfigurationSchemaUpdated(editorAssociationsConfigurationNode);
+	}
 }
-
-export const customEditorsAssociationsKey = 'workbench.editorAssociations';
-
-export type CustomEditorAssociation = CustomEditorSelector & {
-	readonly viewType: string;
-};
-
-export type CustomEditorsAssociations = readonly CustomEditorAssociation[];
 
 export class CustomEditorContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
