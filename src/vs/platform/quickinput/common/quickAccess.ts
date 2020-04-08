@@ -3,24 +3,66 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { IQuickPick, IQuickPickItem, IQuickNavigateConfiguration } from 'vs/platform/quickinput/common/quickInput';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { first } from 'vs/base/common/arrays';
-import { startsWith } from 'vs/base/common/strings';
-import { assertIsDefined } from 'vs/base/common/types';
-import { IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IQuickPickSeparator } from 'vs/base/parts/quickinput/common/quickInput';
+import { coalesce } from 'vs/base/common/arrays';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { ItemActivation } from 'vs/base/parts/quickinput/common/quickInput';
+
+export interface IQuickAccessOptions {
+
+	/**
+	 * Allows to enable quick navigate support in quick input.
+	 */
+	quickNavigateConfiguration?: IQuickNavigateConfiguration;
+
+	/**
+	 * Allows to configure a different item activation strategy.
+	 * By default the first item in the list will get activated.
+	 */
+	itemActivation?: ItemActivation;
+
+	/**
+	 * Wether to take the input value as is and not restore it
+	 * from any existing value if quick access is visible.
+	 */
+	preserveValue?: boolean;
+}
 
 export interface IQuickAccessController {
 
 	/**
 	 * Open the quick access picker with the optional value prefilled.
 	 */
-	show(value?: string): void;
+	show(value?: string, options?: IQuickAccessOptions): void;
+}
+
+export enum DefaultQuickAccessFilterValue {
+
+	/**
+	 * Keep the value as it is given to quick access.
+	 */
+	PRESERVE = 0,
+
+	/**
+	 * Use the value that was used last time something was accepted from the picker.
+	 */
+	LAST = 1
 }
 
 export interface IQuickAccessProvider {
+
+	/**
+	 * Allows to set a default filter value when the provider opens. This can be:
+	 * - `undefined` to not specify any default value
+	 * - `DefaultFilterValues.PRESERVE` to use the value that was last typed
+	 * - `string` for the actual value to use
+	 *
+	 * Note: the default filter will only be used if quick access was opened with
+	 * the exact prefix of the provider. Otherwise the filter value is preserved.
+	 */
+	readonly defaultFilterValue?: string | DefaultQuickAccessFilterValue;
 
 	/**
 	 * Called whenever a prefix was typed into quick pick that matches the provider.
@@ -94,11 +136,6 @@ export const Extensions = {
 export interface IQuickAccessRegistry {
 
 	/**
-	 * The default provider to use when no other provider matches.
-	 */
-	defaultProvider: IQuickAccessProviderDescriptor;
-
-	/**
 	 * Registers a quick access provider to the platform.
 	 */
 	registerQuickAccessProvider(provider: IQuickAccessProviderDescriptor): IDisposable;
@@ -114,129 +151,54 @@ export interface IQuickAccessRegistry {
 	getQuickAccessProvider(prefix: string): IQuickAccessProviderDescriptor | undefined;
 }
 
-class QuickAccessRegistry implements IQuickAccessRegistry {
+export class QuickAccessRegistry implements IQuickAccessRegistry {
 	private providers: IQuickAccessProviderDescriptor[] = [];
-
-	private _defaultProvider: IQuickAccessProviderDescriptor | undefined = undefined;
-	get defaultProvider(): IQuickAccessProviderDescriptor { return assertIsDefined(this._defaultProvider); }
-	set defaultProvider(provider: IQuickAccessProviderDescriptor) { this._defaultProvider = provider; }
+	private defaultProvider: IQuickAccessProviderDescriptor | undefined = undefined;
 
 	registerQuickAccessProvider(provider: IQuickAccessProviderDescriptor): IDisposable {
-		this.providers.push(provider);
+
+		// Extract the default provider when no prefix is present
+		if (provider.prefix.length === 0) {
+			this.defaultProvider = provider;
+		} else {
+			this.providers.push(provider);
+		}
 
 		// sort the providers by decreasing prefix length, such that longer
 		// prefixes take priority: 'ext' vs 'ext install' - the latter should win
 		this.providers.sort((providerA, providerB) => providerB.prefix.length - providerA.prefix.length);
 
-		return toDisposable(() => this.providers.splice(this.providers.indexOf(provider), 1));
+		return toDisposable(() => {
+			this.providers.splice(this.providers.indexOf(provider), 1);
+
+			if (this.defaultProvider === provider) {
+				this.defaultProvider = undefined;
+			}
+		});
 	}
 
 	getQuickAccessProviders(): IQuickAccessProviderDescriptor[] {
-		return [this.defaultProvider, ...this.providers];
+		return coalesce([this.defaultProvider, ...this.providers]);
 	}
 
 	getQuickAccessProvider(prefix: string): IQuickAccessProviderDescriptor | undefined {
-		return prefix ? (first(this.providers, provider => startsWith(prefix, provider.prefix)) || undefined) : undefined;
+		const result = prefix ? (this.providers.find(provider => prefix.startsWith(provider.prefix)) || undefined) : undefined;
+
+		return result || this.defaultProvider;
+	}
+
+	clear(): Function {
+		const providers = [...this.providers];
+		const defaultProvider = this.defaultProvider;
+
+		this.providers = [];
+		this.defaultProvider = undefined;
+
+		return () => {
+			this.providers = providers;
+			this.defaultProvider = defaultProvider;
+		};
 	}
 }
 
 Registry.add(Extensions.Quickaccess, new QuickAccessRegistry());
-
-//#region Helper class for simple picker based providers
-
-export interface IPickerQuickAccessItem extends IQuickPickItem {
-
-	/**
-	* A method that will be executed when the pick item is accepted from
-	* the picker. The picker will close automatically before running this.
-	*/
-	accept?(): void;
-
-	/**
-	 * A method that will be executed when a button of the pick item was
-	 * clicked on. The picker will only close if `true` is returned.
-	 *
-	 * @param buttonIndex index of the button of the item that
-	 * was clicked.
-	 *
-	 * @returns a valud indicating if the picker should close or not.
-	 */
-	trigger?(buttonIndex: number): boolean;
-}
-
-export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem> implements IQuickAccessProvider {
-
-	constructor(private prefix: string) { }
-
-	provide(picker: IQuickPick<T>, token: CancellationToken): IDisposable {
-		const disposables = new DisposableStore();
-
-		// Disable filtering & sorting, we control the results
-		picker.matchOnLabel = picker.matchOnDescription = picker.matchOnDetail = picker.sortByLabel = false;
-
-		// Set initial picks and update on type
-		let picksCts: CancellationTokenSource | undefined = undefined;
-		const updatePickerItems = async () => {
-
-			// Cancel any previous ask for picks and busy
-			picksCts?.dispose(true);
-			picker.busy = false;
-
-			// Create new cancellation source for this run
-			picksCts = new CancellationTokenSource(token);
-
-			// Collect picks and support both long running and short
-			const res = this.getPicks(picker.value.substr(this.prefix.length).trim(), picksCts.token);
-			if (Array.isArray(res)) {
-				picker.items = res;
-			} else {
-				picker.busy = true;
-				try {
-					picker.items = await res;
-				} finally {
-					picker.busy = false;
-				}
-			}
-
-			this.getPicks(picker.value.substr(this.prefix.length).trim(), picksCts.token);
-		};
-		disposables.add(picker.onDidChangeValue(() => updatePickerItems()));
-		updatePickerItems();
-
-		// Accept the pick on accept and hide picker
-		disposables.add(picker.onDidAccept(() => {
-			const [item] = picker.selectedItems;
-			if (typeof item?.accept === 'function') {
-				picker.hide();
-				item.accept();
-			}
-		}));
-
-		// Trigger the pick with button index if button triggered
-		disposables.add(picker.onDidTriggerItemButton(({ button, item }) => {
-			if (typeof item.trigger === 'function') {
-				const buttonIndex = item.buttons?.indexOf(button) ?? -1;
-				if (buttonIndex >= 0) {
-					const hide = item.trigger(buttonIndex);
-					if (hide !== false) {
-						picker.hide();
-					}
-				}
-			}
-		}));
-
-		return disposables;
-	}
-
-	/**
-	 * Returns an array of picks and separators as needed. If the picks are resolved
-	 * long running, the provided cancellation token should be used to cancel the
-	 * operation when the token signals this.
-	 *
-	 * The implementor is responsible for filtering and sorting the picks given the
-	 * provided `filter`.
-	 */
-	protected abstract getPicks(filter: string, token: CancellationToken): Array<T | IQuickPickSeparator> | Promise<Array<T | IQuickPickSeparator>>;
-}
-
-//#endregion

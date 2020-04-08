@@ -31,10 +31,10 @@ import { coalesce, find } from 'vs/base/common/arrays';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ToggleStatusbarVisibilityAction } from 'vs/workbench/browser/actions/layoutActions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import { values } from 'vs/base/common/map';
 import { assertIsDefined } from 'vs/base/common/types';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { Command } from 'vs/editor/common/modes';
+import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
 interface IPendingStatusbarEntry {
 	id: string;
@@ -55,7 +55,7 @@ interface IStatusbarViewModelEntry {
 
 class StatusbarViewModel extends Disposable {
 
-	private static readonly HIDDEN_ENTRIES_KEY = 'workbench.statusbar.hidden';
+	static readonly HIDDEN_ENTRIES_KEY = 'workbench.statusbar.hidden';
 
 	private readonly _entries: IStatusbarViewModelEntry[] = [];
 	get entries(): IStatusbarViewModelEntry[] { return this._entries; }
@@ -65,7 +65,7 @@ class StatusbarViewModel extends Disposable {
 	private readonly _onDidChangeEntryVisibility = this._register(new Emitter<{ id: string, visible: boolean }>());
 	readonly onDidChangeEntryVisibility = this._onDidChangeEntryVisibility.event;
 
-	constructor(private storageService: IStorageService) {
+	constructor(private readonly storageService: IStorageService) {
 		super();
 
 		this.restoreState();
@@ -226,7 +226,7 @@ class StatusbarViewModel extends Disposable {
 
 	private saveState(): void {
 		if (this.hidden.size > 0) {
-			this.storageService.store(StatusbarViewModel.HIDDEN_ENTRIES_KEY, JSON.stringify(values(this.hidden)), StorageScope.GLOBAL);
+			this.storageService.store(StatusbarViewModel.HIDDEN_ENTRIES_KEY, JSON.stringify(Array.from(this.hidden.values())), StorageScope.GLOBAL);
 		} else {
 			this.storageService.remove(StatusbarViewModel.HIDDEN_ENTRIES_KEY, StorageScope.GLOBAL);
 		}
@@ -341,25 +341,25 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 	private pendingEntries: IPendingStatusbarEntry[] = [];
 
-	private readonly viewModel: StatusbarViewModel;
+	private readonly viewModel = this._register(new StatusbarViewModel(this.storageService));
+
+	readonly onDidChangeEntryVisibility = this.viewModel.onDidChangeEntryVisibility;
 
 	private leftItemsContainer: HTMLElement | undefined;
 	private rightItemsContainer: HTMLElement | undefined;
-
-	readonly onDidChangeEntryVisibility: Event<{ id: string, visible: boolean }>;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IStorageService storageService: IStorageService,
+		@IStorageService private readonly storageService: IStorageService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IContextMenuService private contextMenuService: IContextMenuService
+		@IContextMenuService private contextMenuService: IContextMenuService,
+		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
 	) {
 		super(Parts.STATUSBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 
-		this.viewModel = this._register(new StatusbarViewModel(storageService));
-		this.onDidChangeEntryVisibility = this.viewModel.onDidChangeEntryVisibility;
+		storageKeysSyncRegistryService.registerStorageKey({ key: StatusbarViewModel.HIDDEN_ENTRIES_KEY, version: 1 });
 
 		this.registerListeners();
 	}
@@ -637,6 +637,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 }
 
 class StatusbarEntryItem extends Disposable {
+
 	private entry!: IStatusbarEntry;
 
 	private labelContainer!: HTMLElement;

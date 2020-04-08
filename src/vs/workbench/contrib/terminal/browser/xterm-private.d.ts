@@ -17,6 +17,10 @@ export interface XTermCore {
 	};
 
 	_renderService: {
+		dimensions: {
+			actualCellWidth: number;
+			actualCellHeight: number;
+		},
 		_renderer: {
 			_renderLayers: any[];
 		};

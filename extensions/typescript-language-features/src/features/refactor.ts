@@ -255,7 +255,6 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 		return this.appendInvalidActions(actions);
 	}
 
-
 	private convertApplicableRefactors(
 		body: Proto.ApplicableRefactorInfo[],
 		document: vscode.TextDocument,
@@ -273,7 +272,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 				actions.push(codeAction);
 			} else {
 				for (const action of info.actions) {
-					actions.push(this.refactorActionToCodeAction(action, document, info, rangeOrSelection));
+					actions.push(this.refactorActionToCodeAction(action, document, info, rangeOrSelection, info.actions));
 				}
 			}
 		}
@@ -284,7 +283,8 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 		action: Proto.RefactorActionInfo,
 		document: vscode.TextDocument,
 		info: Proto.ApplicableRefactorInfo,
-		rangeOrSelection: vscode.Range | vscode.Selection
+		rangeOrSelection: vscode.Range | vscode.Selection,
+		allActions: readonly Proto.RefactorActionInfo[],
 	) {
 		const codeAction = new vscode.CodeAction(action.description, TypeScriptRefactorProvider.getKind(action));
 		codeAction.command = {
@@ -292,7 +292,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 			command: ApplyRefactoringCommand.ID,
 			arguments: [document, info.name, action.name, rangeOrSelection],
 		};
-		codeAction.isPreferred = TypeScriptRefactorProvider.isPreferred(action);
+		codeAction.isPreferred = TypeScriptRefactorProvider.isPreferred(action, allActions);
 		return codeAction;
 	}
 
@@ -310,10 +310,26 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 	}
 
 	private static isPreferred(
-		action: Proto.RefactorActionInfo
+		action: Proto.RefactorActionInfo,
+		allActions: readonly Proto.RefactorActionInfo[],
 	): boolean {
 		if (Extract_Constant.matches(action)) {
-			return action.name.endsWith('scope_0');
+			// Only mark the action with the lowest scope as preferred
+			const getScope = (name: string) => {
+				const scope = name.match(/scope_(\d)/)?.[1];
+				return scope ? +scope : undefined;
+			};
+			const scope = getScope(action.name);
+			if (typeof scope !== 'number') {
+				return false;
+			}
+
+			return allActions
+				.filter(otherAtion => otherAtion !== action && Extract_Constant.matches(otherAtion))
+				.every(otherAction => {
+					const otherScope = getScope(otherAction.name);
+					return typeof otherScope === 'number' ? scope < otherScope : true;
+				});
 		}
 		if (Extract_Type.matches(action) || Extract_Interface.matches(action)) {
 			return true;

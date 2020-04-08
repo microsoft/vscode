@@ -1001,6 +1001,31 @@
           "command": "git.ignore",
           "when": "scmProvider == git && scmResourceGroup == workingTree",
           "group": "1_modification@3"
+        },
+        {
+          "command": "git.stage",
+          "when": "scmProvider == git && scmResourceGroup == untracked",
+          "group": "1_modification"
+        },
+        {
+          "command": "git.stage",
+          "when": "scmProvider == git && scmResourceGroup == untracked",
+          "group": "inline"
+        },
+        {
+          "command": "git.clean",
+          "when": "scmProvider == git && scmResourceGroup == untracked",
+          "group": "1_modification"
+        },
+        {
+          "command": "git.clean",
+          "when": "scmProvider == git && scmResourceGroup == untracked",
+          "group": "inline"
+        },
+        {
+          "command": "git.ignore",
+          "when": "scmProvider == git && scmResourceGroup == untracked",
+          "group": "1_modification@3"
         }
       ],
       "scm/resourceState/context": [
@@ -1237,22 +1262,17 @@
       "timeline/item/context": [
         {
           "command": "git.timeline.openDiff",
-          "group": "inline",
-          "when": "config.git.enabled && !git.missing && timelineItem =~ /git:file\\b/"
-        },
-        {
-          "command": "git.timeline.openDiff",
-          "group": "1_timeline",
+          "group": "1_actions",
           "when": "config.git.enabled && !git.missing && timelineItem =~ /git:file\\b/"
         },
         {
           "command": "git.timeline.copyCommitId",
-          "group": "2_timeline@1",
+          "group": "5_copy@1",
           "when": "config.git.enabled && !git.missing && timelineItem =~ /git:file:commit\\b/"
         },
         {
           "command": "git.timeline.copyCommitMessage",
-          "group": "2_timeline@2",
+          "group": "5_copy@2",
           "when": "config.git.enabled && !git.missing && timelineItem =~ /git:file:commit\\b/"
         }
       ]
@@ -1808,7 +1828,6 @@
   },
   "dependencies": {
     "byline": "^5.0.0",
-    "dayjs": "1.8.19",
     "file-type": "^7.2.0",
     "iconv-lite": "^0.4.24",
     "jschardet": "2.1.1",
@@ -1821,7 +1840,7 @@
     "@types/byline": "4.2.31",
     "@types/file-type": "^5.2.1",
     "@types/mocha": "2.2.43",
-    "@types/node": "^12.11.7",
+    "@types/node": "^12.12.31",
     "@types/which": "^1.0.28",
     "mocha": "^3.2.0",
     "mocha-junit-reporter": "^1.23.3",

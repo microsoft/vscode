@@ -24,7 +24,7 @@ import { editorHoverBackground, editorHoverBorder, editorHoverForeground } from 
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { getExactExpressionStartAndEnd } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { coalesce } from 'vs/base/common/arrays';
@@ -177,7 +177,6 @@ export class DebugHoverWidget implements IContentWidget {
 	}
 
 	async showAt(range: Range, focus: boolean): Promise<void> {
-
 		const session = this.debugService.getViewModel().focusedSession;
 
 		if (!session || !this.editor.hasModel()) {
@@ -285,12 +284,12 @@ export class DebugHoverWidget implements IContentWidget {
 		this.valueContainer.hidden = true;
 		this.complexValueContainer.hidden = false;
 
-		await this.tree.setInput(expression);
 		this.complexValueTitle.textContent = expression.value;
 		this.complexValueTitle.title = expression.value;
 		this.layoutTreeAndContainer();
 		this.editor.layoutContentWidget(this);
 		this.scrollbar.scanDomNode();
+		await this.tree.setInput(expression);
 		this.tree.scrollTop = 0;
 		this.tree.scrollLeft = 0;
 
@@ -336,7 +335,7 @@ export class DebugHoverWidget implements IContentWidget {
 	}
 }
 
-class DebugHoverAccessibilityProvider implements IAccessibilityProvider<IExpression> {
+class DebugHoverAccessibilityProvider implements IListAccessibilityProvider<IExpression> {
 	getAriaLabel(element: IExpression): string {
 		return nls.localize('variableAriaLabel', "{0} value {1}, variables, debug", element.name, element.value);
 	}

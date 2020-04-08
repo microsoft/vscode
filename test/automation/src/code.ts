@@ -133,8 +133,6 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 	const args = [
 		options.workspacePath,
 		'--skip-getting-started',
-		'--skip-release-notes',
-		'--sticky-quickopen',
 		'--disable-telemetry',
 		'--disable-updates',
 		'--disable-crash-reporter',

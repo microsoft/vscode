@@ -24,8 +24,7 @@ import 'vs/workbench/browser/actions/navigationActions';
 import 'vs/workbench/browser/actions/windowActions';
 import 'vs/workbench/browser/actions/workspaceActions';
 import 'vs/workbench/browser/actions/workspaceCommands';
-
-import 'vs/workbench/browser/parts/quickopen/quickOpenActions';
+import 'vs/workbench/browser/actions/quickAccessActions';
 
 //#endregion
 
@@ -41,7 +40,6 @@ import 'vs/workbench/api/browser/viewsExtensionPoint';
 
 //#region --- workbench parts
 
-import 'vs/workbench/browser/parts/quickopen/quickOpenController';
 import 'vs/workbench/browser/parts/editor/editorPart';
 import 'vs/workbench/browser/parts/activitybar/activitybarPart';
 import 'vs/workbench/browser/parts/panel/panelPart';
@@ -142,13 +140,13 @@ import 'vs/workbench/contrib/preferences/browser/preferences.contribution';
 import 'vs/workbench/contrib/preferences/browser/keybindingsEditorContribution';
 import 'vs/workbench/contrib/preferences/browser/preferencesSearch';
 
+// Notebook
+import 'vs/workbench/contrib/notebook/browser/notebook.contribution';
+
 // Logs
 import 'vs/workbench/contrib/logs/common/logs.contribution';
 
-// Quick Open Handlers
-import 'vs/workbench/contrib/quickopen/browser/quickopen.contribution';
-
-// Quick Access Providers
+// Quickaccess
 import 'vs/workbench/contrib/quickaccess/browser/quickAccess.contribution';
 
 // Explorer
@@ -165,7 +163,6 @@ import 'vs/workbench/contrib/bulkEdit/browser/bulkEdit.contribution';
 // Search
 import 'vs/workbench/contrib/search/browser/search.contribution';
 import 'vs/workbench/contrib/search/browser/searchView';
-import 'vs/workbench/contrib/search/browser/openAnythingHandler';
 
 // Search Editor
 import 'vs/workbench/contrib/searchEditor/browser/searchEditor.contribution';
@@ -176,7 +173,6 @@ import 'vs/workbench/contrib/scm/browser/scmViewlet';
 
 // Debug
 import 'vs/workbench/contrib/debug/browser/debug.contribution';
-import 'vs/workbench/contrib/debug/browser/debugQuickOpen';
 import 'vs/workbench/contrib/debug/browser/debugEditorContribution';
 import 'vs/workbench/contrib/debug/browser/breakpointEditorContribution';
 import 'vs/workbench/contrib/debug/browser/callStackEditorContribution';
@@ -194,11 +190,10 @@ import 'vs/workbench/contrib/url/common/url.contribution';
 
 // Webview
 import 'vs/workbench/contrib/webview/browser/webview.contribution';
-import 'vs/workbench/contrib/customEditor/browser/webviewEditor.contribution';
+import 'vs/workbench/contrib/customEditor/browser/customEditor.contribution';
 
 // Extensions Management
 import 'vs/workbench/contrib/extensions/browser/extensions.contribution';
-import 'vs/workbench/contrib/extensions/browser/extensionsQuickOpen';
 import 'vs/workbench/contrib/extensions/browser/extensionsViewlet';
 
 // Output View
@@ -206,8 +201,8 @@ import 'vs/workbench/contrib/output/browser/output.contribution';
 import 'vs/workbench/contrib/output/browser/outputView';
 
 // Terminal
+import 'vs/workbench/contrib/terminal/common/environmentVariable.contribution';
 import 'vs/workbench/contrib/terminal/browser/terminal.contribution';
-import 'vs/workbench/contrib/terminal/browser/terminalQuickOpen';
 import 'vs/workbench/contrib/terminal/browser/terminalView';
 
 // Relauncher

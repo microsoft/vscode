@@ -36,6 +36,8 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 
 const $ = dom.$;
 
@@ -49,14 +51,15 @@ function createCheckbox(): HTMLInputElement {
 }
 
 const MAX_VISIBLE_BREAKPOINTS = 9;
-export function getExpandedBodySize(model: IDebugModel): number {
+export function getExpandedBodySize(model: IDebugModel, countLimit: number): number {
 	const length = model.getBreakpoints().length + model.getExceptionBreakpoints().length + model.getFunctionBreakpoints().length + model.getDataBreakpoints().length;
-	return Math.min(MAX_VISIBLE_BREAKPOINTS, length) * 22;
+	return Math.min(countLimit, length) * 22;
 }
+type BreakpointItem = IBreakpoint | IFunctionBreakpoint | IDataBreakpoint | IExceptionBreakpoint;
 
 export class BreakpointsView extends ViewPane {
 
-	private list!: WorkbenchList<IEnablement>;
+	private list!: WorkbenchList<BreakpointItem>;
 	private needsRefresh = false;
 
 	constructor(
@@ -76,7 +79,7 @@ export class BreakpointsView extends ViewPane {
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
-		this.minimumBodySize = this.maximumBodySize = getExpandedBodySize(this.debugService.getModel());
+		this.updateSize();
 		this._register(this.debugService.getModel().onDidChangeBreakpoints(() => this.onBreakpointsChange()));
 	}
 
@@ -87,7 +90,7 @@ export class BreakpointsView extends ViewPane {
 		dom.addClass(container, 'debug-breakpoints');
 		const delegate = new BreakpointsDelegate(this.debugService);
 
-		this.list = <WorkbenchList<IEnablement>>this.instantiationService.createInstance(WorkbenchList, 'Breakpoints', container, delegate, [
+		this.list = <WorkbenchList<BreakpointItem>>this.instantiationService.createInstance(WorkbenchList, 'Breakpoints', container, delegate, [
 			this.instantiationService.createInstance(BreakpointsRenderer),
 			new ExceptionBreakpointsRenderer(this.debugService),
 			this.instantiationService.createInstance(FunctionBreakpointsRenderer),
@@ -97,12 +100,7 @@ export class BreakpointsView extends ViewPane {
 			identityProvider: { getId: (element: IEnablement) => element.getId() },
 			multipleSelectionSupport: false,
 			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IEnablement) => e },
-			ariaProvider: {
-				getSetSize: (_: IEnablement, index: number, listLength: number) => listLength,
-				getPosInSet: (_: IEnablement, index: number) => index,
-				getRole: (breakpoint: IEnablement) => 'checkbox',
-				isChecked: (breakpoint: IEnablement) => breakpoint.enabled
-			},
+			accessibilityProvider: new BreakpointsAccessibilityProvider(this.debugService),
 			overrideStyles: {
 				listBackground: this.getBackgroundColor()
 			}
@@ -227,12 +225,15 @@ export class BreakpointsView extends ViewPane {
 		];
 	}
 
+	private updateSize(): void {
+		// Adjust expanded body size
+		this.minimumBodySize = this.orientation === Orientation.VERTICAL ? getExpandedBodySize(this.debugService.getModel(), MAX_VISIBLE_BREAKPOINTS) : 170;
+		this.maximumBodySize = this.orientation === Orientation.VERTICAL ? getExpandedBodySize(this.debugService.getModel(), Number.POSITIVE_INFINITY) : Number.POSITIVE_INFINITY;
+	}
+
 	private onBreakpointsChange(): void {
 		if (this.isBodyVisible()) {
-			this.minimumBodySize = getExpandedBodySize(this.debugService.getModel());
-			if (this.maximumBodySize < Number.POSITIVE_INFINITY) {
-				this.maximumBodySize = this.minimumBodySize;
-			}
+			this.updateSize();
 			if (this.list) {
 				this.list.splice(0, this.list.length, this.elements);
 				this.needsRefresh = false;
@@ -242,25 +243,25 @@ export class BreakpointsView extends ViewPane {
 		}
 	}
 
-	private get elements(): IEnablement[] {
+	private get elements(): BreakpointItem[] {
 		const model = this.debugService.getModel();
 		const elements = (<ReadonlyArray<IEnablement>>model.getExceptionBreakpoints()).concat(model.getFunctionBreakpoints()).concat(model.getDataBreakpoints()).concat(model.getBreakpoints());
 
-		return elements;
+		return elements as BreakpointItem[];
 	}
 }
 
-class BreakpointsDelegate implements IListVirtualDelegate<IEnablement> {
+class BreakpointsDelegate implements IListVirtualDelegate<BreakpointItem> {
 
 	constructor(private debugService: IDebugService) {
 		// noop
 	}
 
-	getHeight(element: IEnablement): number {
+	getHeight(_element: BreakpointItem): number {
 		return 22;
 	}
 
-	getTemplateId(element: IEnablement): string {
+	getTemplateId(element: BreakpointItem): string {
 		if (element instanceof Breakpoint) {
 			return BreakpointsRenderer.ID;
 		}
@@ -287,7 +288,7 @@ interface IBaseBreakpointTemplateData {
 	breakpoint: HTMLElement;
 	name: HTMLElement;
 	checkbox: HTMLInputElement;
-	context: IEnablement;
+	context: BreakpointItem;
 	toDispose: IDisposable[];
 }
 
@@ -614,6 +615,30 @@ class FunctionBreakpointInputRenderer implements IListRenderer<IFunctionBreakpoi
 
 	disposeTemplate(templateData: IInputTemplateData): void {
 		dispose(templateData.toDispose);
+	}
+}
+
+class BreakpointsAccessibilityProvider implements IListAccessibilityProvider<BreakpointItem> {
+
+	constructor(private readonly debugService: IDebugService) { }
+
+	getRole() {
+		return 'checkbox';
+	}
+
+	isChecked(breakpoint: IEnablement) {
+		return breakpoint.enabled;
+	}
+
+	getAriaLabel(element: BreakpointItem): string | null {
+		if (element instanceof ExceptionBreakpoint) {
+			return element.toString();
+		}
+
+		const { message } = getBreakpointMessageAndClassName(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), element as IBreakpoint | IDataBreakpoint | IFunctionBreakpoint);
+		const toString = element.toString();
+
+		return message ? `${toString} ${message}` : toString;
 	}
 }
 

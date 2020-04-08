@@ -16,7 +16,7 @@ interface SerializedIconPath {
 	dark: string | UriComponents;
 }
 
-interface SerializedWebview {
+export interface SerializedWebview {
 	readonly id?: string;
 	readonly viewType: string;
 	readonly title: string;

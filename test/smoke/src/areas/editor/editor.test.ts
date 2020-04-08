@@ -9,14 +9,14 @@ export function setup() {
 	describe('Editor', () => {
 		it('shows correct quick outline', async function () {
 			const app = this.app as Application;
-			await app.workbench.quickopen.openFile('www');
+			await app.workbench.quickaccess.openFile('www');
 
-			await app.workbench.quickopen.openQuickOutline();
-			await app.workbench.quickopen.waitForQuickOpenElements(names => names.length >= 6);
+			await app.workbench.quickaccess.openQuickOutline();
+			await app.workbench.quickinput.waitForQuickInputElements(names => names.length >= 6);
 		});
 
 		// it('folds/unfolds the code correctly', async function () {
-		// 	await app.workbench.quickopen.openFile('www');
+		// 	await app.workbench.quickaccess.openFile('www');
 
 		// 	// Fold
 		// 	await app.workbench.editor.foldAtLine(3);

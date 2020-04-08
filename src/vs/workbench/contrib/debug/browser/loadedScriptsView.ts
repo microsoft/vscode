@@ -17,7 +17,6 @@ import { IDebugSession, IDebugService, CONTEXT_LOADED_SCRIPTS_ITEM_TYPE } from '
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { tildify } from 'vs/base/common/labels';
 import { isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -27,7 +26,7 @@ import { ResourceLabels, IResourceLabelProps, IResourceLabelOptions, IResourceLa
 import { FileKind } from 'vs/platform/files/common/files';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult, ITreeElement } from 'vs/base/browser/ui/tree/tree';
-import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ResourceNavigator, WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
 import { dispose } from 'vs/base/common/lifecycle';
@@ -40,6 +39,7 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
 
 const NEW_STYLE_COMPRESS = true;
 
@@ -241,12 +241,12 @@ class RootFolderTreeItem extends BaseTreeItem {
 
 class RootTreeItem extends BaseTreeItem {
 
-	constructor(private _environmentService: IEnvironmentService, private _contextService: IWorkspaceContextService, private _labelService: ILabelService) {
+	constructor(private _remotePathService: IRemotePathService, private _contextService: IWorkspaceContextService, private _labelService: ILabelService) {
 		super(undefined, 'Root');
 	}
 
 	add(session: IDebugSession): SessionTreeItem {
-		return this.createIfNeeded(session.getId(), () => new SessionTreeItem(this._labelService, this, session, this._environmentService, this._contextService));
+		return this.createIfNeeded(session.getId(), () => new SessionTreeItem(this._labelService, this, session, this._remotePathService, this._contextService));
 	}
 
 	find(session: IDebugSession): SessionTreeItem {
@@ -262,7 +262,7 @@ class SessionTreeItem extends BaseTreeItem {
 	private _map = new Map<string, BaseTreeItem>();
 	private _labelService: ILabelService;
 
-	constructor(labelService: ILabelService, parent: BaseTreeItem, session: IDebugSession, private _environmentService: IEnvironmentService, private rootProvider: IWorkspaceContextService) {
+	constructor(labelService: ILabelService, parent: BaseTreeItem, session: IDebugSession, private _remotePathService: IRemotePathService, private rootProvider: IWorkspaceContextService) {
 		super(parent, session.getLabel(), true);
 		this._labelService = labelService;
 		this._session = session;
@@ -347,8 +347,9 @@ class SessionTreeItem extends BaseTreeItem {
 				} else {
 					// on unix try to tildify absolute paths
 					path = normalize(path);
-					if (!isWindows) {
-						path = tildify(path, this._environmentService.userHome);
+					const userHome = this._remotePathService.userHomeSync;
+					if (userHome && !isWindows) {
+						path = tildify(path, userHome.fsPath);
 					}
 				}
 			}
@@ -423,9 +424,9 @@ export class LoadedScriptsView extends ViewPane {
 		@IEditorService private readonly editorService: IEditorService,
 		@IContextKeyService readonly contextKeyService: IContextKeyService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IDebugService private readonly debugService: IDebugService,
 		@ILabelService private readonly labelService: ILabelService,
+		@IRemotePathService private readonly remotePathService: IRemotePathService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -445,7 +446,7 @@ export class LoadedScriptsView extends ViewPane {
 
 		this.filter = new LoadedScriptsFilter();
 
-		const root = new RootTreeItem(this.environmentService, this.contextService, this.labelService);
+		const root = new RootTreeItem(this.remotePathService, this.contextService, this.labelService);
 
 		this.treeLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
 		this._register(this.treeLabels);
@@ -707,7 +708,7 @@ class LoadedScriptsRenderer implements ICompressibleTreeRenderer<BaseTreeItem, F
 	}
 }
 
-class LoadedSciptsAccessibilityProvider implements IAccessibilityProvider<LoadedScriptsItem> {
+class LoadedSciptsAccessibilityProvider implements IListAccessibilityProvider<LoadedScriptsItem> {
 
 	getAriaLabel(element: LoadedScriptsItem): string {
 

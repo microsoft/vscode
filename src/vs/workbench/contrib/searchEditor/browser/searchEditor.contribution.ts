@@ -156,8 +156,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(SearchEditorConstants.InSearchEditor),
 	handler: (accessor: ServicesAccessor) => modifySearchEditorContextLinesCommand(accessor, true),
-	primary: KeyMod.Alt | KeyCode.KEY_L,
-	mac: { primary: KeyMod.Alt | KeyCode.US_EQUAL }
+	primary: KeyMod.Alt | KeyCode.US_EQUAL
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -165,8 +164,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(SearchEditorConstants.InSearchEditor),
 	handler: (accessor: ServicesAccessor) => modifySearchEditorContextLinesCommand(accessor, false),
-	primary: KeyMod.Alt | KeyCode.KEY_L,
-	mac: { primary: KeyMod.Alt | KeyCode.US_MINUS }
+	primary: KeyMod.Alt | KeyCode.US_MINUS
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -207,7 +205,7 @@ registry.registerWorkbenchAction(
 
 registry.registerWorkbenchAction(SyncActionDescriptor.create(RerunSearchEditorSearchAction, RerunSearchEditorSearchAction.ID, RerunSearchEditorSearchAction.LABEL,
 	{ mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_R } }, ContextKeyExpr.and(SearchEditorConstants.InSearchEditor)),
-	'Search Editor: Rerun', category);
+	'Search Editor: Search Again', category);
 //#endregion
 
 

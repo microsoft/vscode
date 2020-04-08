@@ -62,7 +62,7 @@ suite('Configuration Resolver Service', () => {
 			index: 0,
 			toResource: (path: string) => uri.file(path)
 		};
-		configurationResolverService = new TestConfigurationResolverService(environmentService.userEnv, editorService, environmentService, new MockInputsConfigurationService(), mockCommandService, new TestContextService(), quickInputService);
+		configurationResolverService = new TestConfigurationResolverService({ getExecPath: () => undefined }, environmentService.userEnv, editorService, new MockInputsConfigurationService(), mockCommandService, new TestContextService(), quickInputService);
 	});
 
 	teardown(() => {
@@ -141,7 +141,7 @@ suite('Configuration Resolver Service', () => {
 			}
 		});
 
-		let service = new TestConfigurationResolverService(environmentService.userEnv, new TestEditorServiceWithActiveEditor(), environmentService, configurationService, mockCommandService, new TestContextService(), quickInputService);
+		let service = new TestConfigurationResolverService({ getExecPath: () => undefined }, environmentService.userEnv, new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService);
 		assert.strictEqual(service.resolve(workspace, 'abc ${config:editor.fontFamily} xyz'), 'abc foo xyz');
 	});
 
@@ -158,7 +158,7 @@ suite('Configuration Resolver Service', () => {
 			}
 		});
 
-		let service = new TestConfigurationResolverService(environmentService.userEnv, new TestEditorServiceWithActiveEditor(), environmentService, configurationService, mockCommandService, new TestContextService(), quickInputService);
+		let service = new TestConfigurationResolverService({ getExecPath: () => undefined }, environmentService.userEnv, new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService);
 		assert.strictEqual(service.resolve(workspace, 'abc ${config:editor.fontFamily} ${config:terminal.integrated.fontFamily} xyz'), 'abc foo bar xyz');
 	});
 
@@ -175,7 +175,7 @@ suite('Configuration Resolver Service', () => {
 			}
 		});
 
-		let service = new TestConfigurationResolverService(environmentService.userEnv, new TestEditorServiceWithActiveEditor(), environmentService, configurationService, mockCommandService, new TestContextService(), quickInputService);
+		let service = new TestConfigurationResolverService({ getExecPath: () => undefined }, environmentService.userEnv, new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService);
 		if (platform.isWindows) {
 			assert.strictEqual(service.resolve(workspace, 'abc ${config:editor.fontFamily} ${workspaceFolder} ${env:key1} xyz'), 'abc foo \\VSCode\\workspaceLocation Value for key1 xyz');
 		} else {
@@ -196,7 +196,7 @@ suite('Configuration Resolver Service', () => {
 			}
 		});
 
-		let service = new TestConfigurationResolverService(environmentService.userEnv, new TestEditorServiceWithActiveEditor(), environmentService, configurationService, mockCommandService, new TestContextService(), quickInputService);
+		let service = new TestConfigurationResolverService({ getExecPath: () => undefined }, environmentService.userEnv, new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService);
 		if (platform.isWindows) {
 			assert.strictEqual(service.resolve(workspace, '${config:editor.fontFamily} ${config:terminal.integrated.fontFamily} ${workspaceFolder} - ${workspaceFolder} ${env:key1} - ${env:key2}'), 'foo bar \\VSCode\\workspaceLocation - \\VSCode\\workspaceLocation Value for key1 - Value for key2');
 		} else {
@@ -230,7 +230,7 @@ suite('Configuration Resolver Service', () => {
 			}
 		});
 
-		let service = new TestConfigurationResolverService(environmentService.userEnv, new TestEditorServiceWithActiveEditor(), environmentService, configurationService, mockCommandService, new TestContextService(), quickInputService);
+		let service = new TestConfigurationResolverService({ getExecPath: () => undefined }, environmentService.userEnv, new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService);
 		assert.strictEqual(service.resolve(workspace, 'abc ${config:editor.fontFamily} ${config:editor.lineNumbers} ${config:editor.insertSpaces} xyz'), 'abc foo 123 false xyz');
 	});
 
@@ -240,7 +240,7 @@ suite('Configuration Resolver Service', () => {
 			editor: {}
 		});
 
-		let service = new TestConfigurationResolverService(environmentService.userEnv, new TestEditorServiceWithActiveEditor(), environmentService, configurationService, mockCommandService, new TestContextService(), quickInputService);
+		let service = new TestConfigurationResolverService({ getExecPath: () => undefined }, environmentService.userEnv, new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService);
 		assert.strictEqual(service.resolve(workspace, 'abc ${unknownVariable} xyz'), 'abc ${unknownVariable} xyz');
 		assert.strictEqual(service.resolve(workspace, 'abc ${env:unknownVariable} xyz'), 'abc  xyz');
 	});
@@ -253,7 +253,7 @@ suite('Configuration Resolver Service', () => {
 			}
 		});
 
-		let service = new TestConfigurationResolverService(environmentService.userEnv, new TestEditorServiceWithActiveEditor(), environmentService, configurationService, mockCommandService, new TestContextService(), quickInputService);
+		let service = new TestConfigurationResolverService({ getExecPath: () => undefined }, environmentService.userEnv, new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService);
 
 		assert.throws(() => service.resolve(workspace, 'abc ${env} xyz'));
 		assert.throws(() => service.resolve(workspace, 'abc ${env:} xyz'));
@@ -582,10 +582,6 @@ class MockQuickInputService implements IQuickInputService {
 	}
 
 	cancel(): Promise<void> {
-		throw new Error('not implemented.');
-	}
-
-	hide(): void {
 		throw new Error('not implemented.');
 	}
 }

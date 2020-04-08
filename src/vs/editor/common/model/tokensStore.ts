@@ -6,15 +6,23 @@
 import * as arrays from 'vs/base/common/arrays';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
-import { IRange } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { ColorId, FontStyle, LanguageId, MetadataConsts, StandardTokenType, TokenMetadata } from 'vs/editor/common/modes';
 import { writeUInt32BE, readUInt32BE } from 'vs/base/common/buffer';
 import { CharCode } from 'vs/base/common/charCode';
 
-export function countEOL(text: string): [number, number, number] {
+export const enum StringEOL {
+	Unknown = 0,
+	Invalid = 3,
+	LF = 1,
+	CRLF = 2
+}
+
+export function countEOL(text: string): [number, number, number, StringEOL] {
 	let eolCount = 0;
 	let firstLineLength = 0;
 	let lastLineStart = 0;
+	let eol: StringEOL = StringEOL.Unknown;
 	for (let i = 0, len = text.length; i < len; i++) {
 		const chr = text.charCodeAt(i);
 
@@ -25,12 +33,16 @@ export function countEOL(text: string): [number, number, number] {
 			eolCount++;
 			if (i + 1 < len && text.charCodeAt(i + 1) === CharCode.LineFeed) {
 				// \r\n... case
+				eol |= StringEOL.CRLF;
 				i++; // skip \n
 			} else {
 				// \r... case
+				eol |= StringEOL.Invalid;
 			}
 			lastLineStart = i + 1;
 		} else if (chr === CharCode.LineFeed) {
+			// \n... case
+			eol |= StringEOL.LF;
 			if (eolCount === 0) {
 				firstLineLength = i;
 			}
@@ -41,7 +53,7 @@ export function countEOL(text: string): [number, number, number] {
 	if (eolCount === 0) {
 		firstLineLength = text.length;
 	}
-	return [eolCount, firstLineLength, text.length - lastLineStart];
+	return [eolCount, firstLineLength, text.length - lastLineStart, eol];
 }
 
 function getDefaultMetadata(topLevelLanguageId: LanguageId): number {
@@ -112,20 +124,7 @@ export class MultilineTokensBuilder {
 	}
 }
 
-export interface IEncodedTokens {
-	getTokenCount(): number;
-	getDeltaLine(tokenIndex: number): number;
-	getMaxDeltaLine(): number;
-	getStartCharacter(tokenIndex: number): number;
-	getEndCharacter(tokenIndex: number): number;
-	getMetadata(tokenIndex: number): number;
-
-	clear(): void;
-	acceptDeleteRange(horizontalShiftForFirstLineTokens: number, startDeltaLine: number, startCharacter: number, endDeltaLine: number, endCharacter: number): void;
-	acceptInsertText(deltaLine: number, character: number, eolCount: number, firstLineLength: number, lastLineLength: number, firstCharCode: number): void;
-}
-
-export class SparseEncodedTokens implements IEncodedTokens {
+export class SparseEncodedTokens {
 	/**
 	 * The encoding of tokens is:
 	 *  4*i    deltaLine (from `startLineNumber`)
@@ -133,7 +132,7 @@ export class SparseEncodedTokens implements IEncodedTokens {
 	 *  4*i+2  endCharacter (from the line start)
 	 *  4*i+3  metadata
 	 */
-	private _tokens: Uint32Array;
+	private readonly _tokens: Uint32Array;
 	private _tokenCount: number;
 
 	constructor(tokens: Uint32Array) {
@@ -141,36 +140,165 @@ export class SparseEncodedTokens implements IEncodedTokens {
 		this._tokenCount = tokens.length / 4;
 	}
 
+	public toString(startLineNumber: number): string {
+		let pieces: string[] = [];
+		for (let i = 0; i < this._tokenCount; i++) {
+			pieces.push(`(${this._getDeltaLine(i) + startLineNumber},${this._getStartCharacter(i)}-${this._getEndCharacter(i)})`);
+		}
+		return `[${pieces.join(',')}]`;
+	}
+
 	public getMaxDeltaLine(): number {
-		const tokenCount = this.getTokenCount();
+		const tokenCount = this._getTokenCount();
 		if (tokenCount === 0) {
 			return -1;
 		}
-		return this.getDeltaLine(tokenCount - 1);
+		return this._getDeltaLine(tokenCount - 1);
 	}
 
-	public getTokenCount(): number {
+	public getRange(): Range | null {
+		const tokenCount = this._getTokenCount();
+		if (tokenCount === 0) {
+			return null;
+		}
+		const startChar = this._getStartCharacter(0);
+		const maxDeltaLine = this._getDeltaLine(tokenCount - 1);
+		const endChar = this._getEndCharacter(tokenCount - 1);
+		return new Range(0, startChar + 1, maxDeltaLine, endChar + 1);
+	}
+
+	private _getTokenCount(): number {
 		return this._tokenCount;
 	}
 
-	public getDeltaLine(tokenIndex: number): number {
+	private _getDeltaLine(tokenIndex: number): number {
 		return this._tokens[4 * tokenIndex];
 	}
 
-	public getStartCharacter(tokenIndex: number): number {
+	private _getStartCharacter(tokenIndex: number): number {
 		return this._tokens[4 * tokenIndex + 1];
 	}
 
-	public getEndCharacter(tokenIndex: number): number {
+	private _getEndCharacter(tokenIndex: number): number {
 		return this._tokens[4 * tokenIndex + 2];
 	}
 
-	public getMetadata(tokenIndex: number): number {
-		return this._tokens[4 * tokenIndex + 3];
+	public isEmpty(): boolean {
+		return (this._getTokenCount() === 0);
+	}
+
+	public getLineTokens(deltaLine: number): LineTokens2 | null {
+		let low = 0;
+		let high = this._getTokenCount() - 1;
+
+		while (low < high) {
+			const mid = low + Math.floor((high - low) / 2);
+			const midDeltaLine = this._getDeltaLine(mid);
+
+			if (midDeltaLine < deltaLine) {
+				low = mid + 1;
+			} else if (midDeltaLine > deltaLine) {
+				high = mid - 1;
+			} else {
+				let min = mid;
+				while (min > low && this._getDeltaLine(min - 1) === deltaLine) {
+					min--;
+				}
+				let max = mid;
+				while (max < high && this._getDeltaLine(max + 1) === deltaLine) {
+					max++;
+				}
+				return new LineTokens2(this._tokens.subarray(4 * min, 4 * max + 4));
+			}
+		}
+
+		if (this._getDeltaLine(low) === deltaLine) {
+			return new LineTokens2(this._tokens.subarray(4 * low, 4 * low + 4));
+		}
+
+		return null;
 	}
 
 	public clear(): void {
 		this._tokenCount = 0;
+	}
+
+	public removeTokens(startDeltaLine: number, startChar: number, endDeltaLine: number, endChar: number): number {
+		const tokens = this._tokens;
+		const tokenCount = this._tokenCount;
+		let newTokenCount = 0;
+		let hasDeletedTokens = false;
+		let firstDeltaLine = 0;
+		for (let i = 0; i < tokenCount; i++) {
+			const srcOffset = 4 * i;
+			const tokenDeltaLine = tokens[srcOffset];
+			const tokenStartCharacter = tokens[srcOffset + 1];
+			const tokenEndCharacter = tokens[srcOffset + 2];
+			const tokenMetadata = tokens[srcOffset + 3];
+
+			if (
+				(tokenDeltaLine > startDeltaLine || (tokenDeltaLine === startDeltaLine && tokenEndCharacter >= startChar))
+				&& (tokenDeltaLine < endDeltaLine || (tokenDeltaLine === endDeltaLine && tokenStartCharacter <= endChar))
+			) {
+				hasDeletedTokens = true;
+			} else {
+				if (newTokenCount === 0) {
+					firstDeltaLine = tokenDeltaLine;
+				}
+				if (hasDeletedTokens) {
+					// must move the token to the left
+					const destOffset = 4 * newTokenCount;
+					tokens[destOffset] = tokenDeltaLine - firstDeltaLine;
+					tokens[destOffset + 1] = tokenStartCharacter;
+					tokens[destOffset + 2] = tokenEndCharacter;
+					tokens[destOffset + 3] = tokenMetadata;
+				}
+				newTokenCount++;
+			}
+		}
+
+		this._tokenCount = newTokenCount;
+
+		return firstDeltaLine;
+	}
+
+	public split(startDeltaLine: number, startChar: number, endDeltaLine: number, endChar: number): [SparseEncodedTokens, SparseEncodedTokens, number] {
+		const tokens = this._tokens;
+		const tokenCount = this._tokenCount;
+		let aTokens: number[] = [];
+		let bTokens: number[] = [];
+		let destTokens: number[] = aTokens;
+		let destOffset = 0;
+		let destFirstDeltaLine: number = 0;
+		for (let i = 0; i < tokenCount; i++) {
+			const srcOffset = 4 * i;
+			const tokenDeltaLine = tokens[srcOffset];
+			const tokenStartCharacter = tokens[srcOffset + 1];
+			const tokenEndCharacter = tokens[srcOffset + 2];
+			const tokenMetadata = tokens[srcOffset + 3];
+
+			if ((tokenDeltaLine > startDeltaLine || (tokenDeltaLine === startDeltaLine && tokenEndCharacter >= startChar))) {
+				if ((tokenDeltaLine < endDeltaLine || (tokenDeltaLine === endDeltaLine && tokenStartCharacter <= endChar))) {
+					// this token is touching the range
+					continue;
+				} else {
+					// this token is after the range
+					if (destTokens !== bTokens) {
+						// this token is the first token after the range
+						destTokens = bTokens;
+						destOffset = 0;
+						destFirstDeltaLine = tokenDeltaLine;
+					}
+				}
+			}
+
+			destTokens[destOffset++] = tokenDeltaLine - destFirstDeltaLine;
+			destTokens[destOffset++] = tokenStartCharacter;
+			destTokens[destOffset++] = tokenEndCharacter;
+			destTokens[destOffset++] = tokenMetadata;
+		}
+
+		return [new SparseEncodedTokens(new Uint32Array(aTokens)), new SparseEncodedTokens(new Uint32Array(bTokens)), destFirstDeltaLine];
 	}
 
 	public acceptDeleteRange(horizontalShiftForFirstLineTokens: number, startDeltaLine: number, startCharacter: number, endDeltaLine: number, endCharacter: number): void {
@@ -402,30 +530,26 @@ export class SparseEncodedTokens implements IEncodedTokens {
 
 export class LineTokens2 {
 
-	private readonly _actual: IEncodedTokens;
-	private readonly _startTokenIndex: number;
-	private readonly _endTokenIndex: number;
+	private readonly _tokens: Uint32Array;
 
-	constructor(actual: IEncodedTokens, startTokenIndex: number, endTokenIndex: number) {
-		this._actual = actual;
-		this._startTokenIndex = startTokenIndex;
-		this._endTokenIndex = endTokenIndex;
+	constructor(tokens: Uint32Array) {
+		this._tokens = tokens;
 	}
 
 	public getCount(): number {
-		return this._endTokenIndex - this._startTokenIndex + 1;
+		return this._tokens.length / 4;
 	}
 
 	public getStartCharacter(tokenIndex: number): number {
-		return this._actual.getStartCharacter(this._startTokenIndex + tokenIndex);
+		return this._tokens[4 * tokenIndex + 1];
 	}
 
 	public getEndCharacter(tokenIndex: number): number {
-		return this._actual.getEndCharacter(this._startTokenIndex + tokenIndex);
+		return this._tokens[4 * tokenIndex + 2];
 	}
 
 	public getMetadata(tokenIndex: number): number {
-		return this._actual.getMetadata(this._startTokenIndex + tokenIndex);
+		return this._tokens[4 * tokenIndex + 3];
 	}
 }
 
@@ -433,59 +557,58 @@ export class MultilineTokens2 {
 
 	public startLineNumber: number;
 	public endLineNumber: number;
-	public tokens: IEncodedTokens;
+	public tokens: SparseEncodedTokens;
 
-	constructor(startLineNumber: number, tokens: IEncodedTokens) {
+	constructor(startLineNumber: number, tokens: SparseEncodedTokens) {
 		this.startLineNumber = startLineNumber;
 		this.tokens = tokens;
 		this.endLineNumber = this.startLineNumber + this.tokens.getMaxDeltaLine();
+	}
+
+	public toString(): string {
+		return this.tokens.toString(this.startLineNumber);
 	}
 
 	private _updateEndLineNumber(): void {
 		this.endLineNumber = this.startLineNumber + this.tokens.getMaxDeltaLine();
 	}
 
+	public isEmpty(): boolean {
+		return this.tokens.isEmpty();
+	}
+
 	public getLineTokens(lineNumber: number): LineTokens2 | null {
 		if (this.startLineNumber <= lineNumber && lineNumber <= this.endLineNumber) {
-			const findResult = MultilineTokens2._findTokensWithLine(this.tokens, lineNumber - this.startLineNumber);
-			if (findResult) {
-				const [startTokenIndex, endTokenIndex] = findResult;
-				return new LineTokens2(this.tokens, startTokenIndex, endTokenIndex);
-			}
+			return this.tokens.getLineTokens(lineNumber - this.startLineNumber);
 		}
 		return null;
 	}
 
-	private static _findTokensWithLine(tokens: IEncodedTokens, deltaLine: number): [number, number] | null {
-		let low = 0;
-		let high = tokens.getTokenCount() - 1;
-
-		while (low < high) {
-			const mid = low + Math.floor((high - low) / 2);
-			const midDeltaLine = tokens.getDeltaLine(mid);
-
-			if (midDeltaLine < deltaLine) {
-				low = mid + 1;
-			} else if (midDeltaLine > deltaLine) {
-				high = mid - 1;
-			} else {
-				let min = mid;
-				while (min > low && tokens.getDeltaLine(min - 1) === deltaLine) {
-					min--;
-				}
-				let max = mid;
-				while (max < high && tokens.getDeltaLine(max + 1) === deltaLine) {
-					max++;
-				}
-				return [min, max];
-			}
+	public getRange(): Range | null {
+		const deltaRange = this.tokens.getRange();
+		if (!deltaRange) {
+			return deltaRange;
 		}
+		return new Range(this.startLineNumber + deltaRange.startLineNumber, deltaRange.startColumn, this.startLineNumber + deltaRange.endLineNumber, deltaRange.endColumn);
+	}
 
-		if (tokens.getDeltaLine(low) === deltaLine) {
-			return [low, low];
-		}
+	public removeTokens(range: Range): void {
+		const startLineIndex = range.startLineNumber - this.startLineNumber;
+		const endLineIndex = range.endLineNumber - this.startLineNumber;
 
-		return null;
+		this.startLineNumber += this.tokens.removeTokens(startLineIndex, range.startColumn - 1, endLineIndex, range.endColumn - 1);
+		this._updateEndLineNumber();
+	}
+
+	public split(range: Range): [MultilineTokens2, MultilineTokens2] {
+		// split tokens to two:
+		// a) all the tokens before `range`
+		// b) all the tokens after `range`
+		const startLineIndex = range.startLineNumber - this.startLineNumber;
+		const endLineIndex = range.endLineNumber - this.startLineNumber;
+
+		const [a, b, bDeltaLine] = this.tokens.split(startLineIndex, range.startColumn - 1, endLineIndex, range.endColumn - 1);
+		return [new MultilineTokens2(this.startLineNumber, a), new MultilineTokens2(this.startLineNumber + bDeltaLine, b)];
 	}
 
 	public applyEdit(range: IRange, text: string): void {
@@ -749,17 +872,105 @@ function toUint32Array(arr: Uint32Array | ArrayBuffer): Uint32Array {
 export class TokensStore2 {
 
 	private _pieces: MultilineTokens2[];
+	private _isComplete: boolean;
 
 	constructor() {
 		this._pieces = [];
+		this._isComplete = false;
 	}
 
 	public flush(): void {
 		this._pieces = [];
+		this._isComplete = false;
 	}
 
-	public set(pieces: MultilineTokens2[] | null) {
+	public set(pieces: MultilineTokens2[] | null, isComplete: boolean): void {
 		this._pieces = pieces || [];
+		this._isComplete = isComplete;
+	}
+
+	public setPartial(_range: Range, pieces: MultilineTokens2[]): Range {
+		// console.log(`setPartial ${_range} ${pieces.map(p => p.toString()).join(', ')}`);
+
+		let range = _range;
+		if (pieces.length > 0) {
+			const _firstRange = pieces[0].getRange();
+			const _lastRange = pieces[pieces.length - 1].getRange();
+			if (!_firstRange || !_lastRange) {
+				return _range;
+			}
+			range = _range.plusRange(_firstRange).plusRange(_lastRange);
+		}
+
+		let insertPosition: { index: number; } | null = null;
+		for (let i = 0, len = this._pieces.length; i < len; i++) {
+			const piece = this._pieces[i];
+			if (piece.endLineNumber < range.startLineNumber) {
+				// this piece is before the range
+				continue;
+			}
+
+			if (piece.startLineNumber > range.endLineNumber) {
+				// this piece is after the range, so mark the spot before this piece
+				// as a good insertion position and stop looping
+				insertPosition = insertPosition || { index: i };
+				break;
+			}
+
+			// this piece might intersect with the range
+			piece.removeTokens(range);
+
+			if (piece.isEmpty()) {
+				// remove the piece if it became empty
+				this._pieces.splice(i, 1);
+				i--;
+				len--;
+				continue;
+			}
+
+			if (piece.endLineNumber < range.startLineNumber) {
+				// after removal, this piece is before the range
+				continue;
+			}
+
+			if (piece.startLineNumber > range.endLineNumber) {
+				// after removal, this piece is after the range
+				insertPosition = insertPosition || { index: i };
+				continue;
+			}
+
+			// after removal, this piece contains the range
+			const [a, b] = piece.split(range);
+			if (a.isEmpty()) {
+				// this piece is actually after the range
+				insertPosition = insertPosition || { index: i };
+				continue;
+			}
+			if (b.isEmpty()) {
+				// this piece is actually before the range
+				continue;
+			}
+			this._pieces.splice(i, 1, a, b);
+			i++;
+			len++;
+
+			insertPosition = insertPosition || { index: i };
+		}
+
+		insertPosition = insertPosition || { index: this._pieces.length };
+
+		if (pieces.length > 0) {
+			this._pieces = arrays.arrayInsert(this._pieces, insertPosition.index, pieces);
+		}
+
+		// console.log(`I HAVE ${this._pieces.length} pieces`);
+		// console.log(`${this._pieces.map(p => p.toString()).join('\n')}`);
+
+		return range;
+	}
+
+	public isComplete(): boolean {
+		return this._isComplete;
 	}
 
 	public addSemanticTokens(lineNumber: number, aTokens: LineTokens): LineTokens {
@@ -770,7 +981,7 @@ export class TokensStore2 {
 		}
 
 		const pieceIndex = TokensStore2._findFirstPieceWithLine(pieces, lineNumber);
-		const bTokens = this._pieces[pieceIndex].getLineTokens(lineNumber);
+		const bTokens = pieces[pieceIndex].getLineTokens(lineNumber);
 
 		if (!bTokens) {
 			return aTokens;

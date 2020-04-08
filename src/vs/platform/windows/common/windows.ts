@@ -4,18 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isMacintosh, isLinux, isWeb } from 'vs/base/common/platform';
-import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-
-export interface IOpenedWindow {
-	id: number;
-	workspace?: IWorkspaceIdentifier;
-	folderUri?: ISingleFolderWorkspaceIdentifier;
-	title: string;
-	filename?: string;
-}
 
 export interface IBaseOpenWindowsOptions {
 	forceReuseWindow?: boolean;
@@ -129,64 +120,10 @@ export function getTitleBarStyle(configurationService: IConfigurationService, en
 	return isLinux ? 'native' : 'custom'; // default to custom on all macOS and Windows
 }
 
-export const enum OpenContext {
-
-	// opening when running from the command line
-	CLI,
-
-	// macOS only: opening from the dock (also when opening files to a running instance from desktop)
-	DOCK,
-
-	// opening from the main application window
-	MENU,
-
-	// opening from a file or folder dialog
-	DIALOG,
-
-	// opening from the OS's UI
-	DESKTOP,
-
-	// opening through the API
-	API
-}
-
-export const enum ReadyState {
-
-	/**
-	 * This window has not loaded any HTML yet
-	 */
-	NONE,
-
-	/**
-	 * This window is loading HTML
-	 */
-	LOADING,
-
-	/**
-	 * This window is navigating to another HTML
-	 */
-	NAVIGATING,
-
-	/**
-	 * This window is done loading HTML
-	 */
-	READY
-}
-
 export interface IPath extends IPathData {
 
 	// the file path to open within the instance
 	fileUri?: URI;
-}
-
-export interface IPathsToWaitFor extends IPathsToWaitForData {
-	paths: IPath[];
-	waitMarkerFileUri: URI;
-}
-
-export interface IPathsToWaitForData {
-	paths: IPathData[];
-	waitMarkerFileUri: UriComponents;
 }
 
 export interface IPathData {
@@ -209,34 +146,15 @@ export interface IPathData {
 export interface IOpenFileRequest {
 	filesToOpenOrCreate?: IPathData[];
 	filesToDiff?: IPathData[];
-	filesToWait?: IPathsToWaitForData;
-	termProgram?: string;
 }
 
-export interface IAddFoldersRequest {
-	foldersToAdd: UriComponents[];
-}
-
-export interface IWindowConfiguration extends ParsedArgs {
+export interface IWindowConfiguration {
 	sessionId: string;
 
-	backupWorkspaceResource?: URI;
-
 	remoteAuthority?: string;
-	connectionToken?: string;
 
 	highContrast?: boolean;
 
 	filesToOpenOrCreate?: IPath[];
 	filesToDiff?: IPath[];
-}
-
-export interface IRunActionInWindowRequest {
-	id: string;
-	from: 'menu' | 'touchbar' | 'mouse';
-	args?: any[];
-}
-
-export interface IRunKeybindingInWindowRequest {
-	userSettingsLabel: string;
 }

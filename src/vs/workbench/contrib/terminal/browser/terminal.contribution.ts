@@ -12,19 +12,16 @@ import 'vs/css!./media/xterm';
 import * as nls from 'vs/nls';
 import { SyncActionDescriptor, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
+import { KeybindingWeight, KeybindingsRegistry, IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as ActionBarExtensions, IActionBarRegistry, Scope } from 'vs/workbench/browser/actions';
 import * as panel from 'vs/workbench/browser/panel';
-import { getQuickNavigateHandler } from 'vs/workbench/browser/parts/quickopen/quickopen';
-import { Extensions as QuickOpenExtensions, IQuickOpenRegistry, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
+import { getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { Extensions as ViewContainerExtensions, IViewContainersRegistry, ViewContainerLocation, IViewsRegistry } from 'vs/workbench/common/views';
-import { ClearSelectionTerminalAction, ClearTerminalAction, CopyTerminalSelectionAction, CreateNewInActiveWorkspaceTerminalAction, CreateNewTerminalAction, DeleteToLineStartTerminalAction, DeleteWordLeftTerminalAction, DeleteWordRightTerminalAction, FindNext, FindPrevious, FocusActiveTerminalAction, FocusNextPaneTerminalAction, FocusNextTerminalAction, FocusPreviousPaneTerminalAction, FocusPreviousTerminalAction, FocusTerminalFindWidgetAction, HideTerminalFindWidgetAction, KillTerminalAction, MoveToLineEndTerminalAction, MoveToLineStartTerminalAction, QuickOpenActionTermContributor, QuickOpenTermAction, RenameTerminalAction, ResizePaneDownTerminalAction, ResizePaneLeftTerminalAction, ResizePaneRightTerminalAction, ResizePaneUpTerminalAction, RunActiveFileInTerminalAction, RunSelectedTextInTerminalAction, ScrollDownPageTerminalAction, ScrollDownTerminalAction, ScrollToBottomTerminalAction, ScrollToNextCommandAction, ScrollToPreviousCommandAction, ScrollToTopTerminalAction, ScrollUpPageTerminalAction, ScrollUpTerminalAction, SelectAllTerminalAction, SelectDefaultShellWindowsTerminalAction, SelectToNextCommandAction, SelectToNextLineAction, SelectToPreviousCommandAction, SelectToPreviousLineAction, SplitInActiveWorkspaceTerminalAction, SplitTerminalAction, TerminalPasteAction, TERMINAL_PICKER_PREFIX, ToggleCaseSensitiveCommand, ToggleEscapeSequenceLoggingAction, ToggleRegexCommand, ToggleTerminalAction, ToggleWholeWordCommand, NavigationModeFocusPreviousTerminalAction, NavigationModeFocusNextTerminalAction, NavigationModeExitTerminalAction, ManageWorkspaceShellPermissionsTerminalCommand, CreateNewWithCwdTerminalAction, RenameWithArgTerminalAction, SendSequenceTerminalAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
+import { ClearSelectionTerminalAction, ClearTerminalAction, CopyTerminalSelectionAction, CreateNewInActiveWorkspaceTerminalAction, CreateNewTerminalAction, FindNext, FindPrevious, FocusActiveTerminalAction, FocusNextPaneTerminalAction, FocusNextTerminalAction, FocusPreviousPaneTerminalAction, FocusPreviousTerminalAction, FocusTerminalFindWidgetAction, HideTerminalFindWidgetAction, KillTerminalAction, QuickAccessTerminalAction, RenameTerminalAction, ResizePaneDownTerminalAction, ResizePaneLeftTerminalAction, ResizePaneRightTerminalAction, ResizePaneUpTerminalAction, RunActiveFileInTerminalAction, RunSelectedTextInTerminalAction, ScrollDownPageTerminalAction, ScrollDownTerminalAction, ScrollToBottomTerminalAction, ScrollToNextCommandAction, ScrollToPreviousCommandAction, ScrollToTopTerminalAction, ScrollUpPageTerminalAction, ScrollUpTerminalAction, SelectAllTerminalAction, SelectDefaultShellWindowsTerminalAction, SelectToNextCommandAction, SelectToNextLineAction, SelectToPreviousCommandAction, SelectToPreviousLineAction, SplitInActiveWorkspaceTerminalAction, SplitTerminalAction, TerminalPasteAction, ToggleCaseSensitiveCommand, ToggleEscapeSequenceLoggingAction, ToggleRegexCommand, ToggleTerminalAction, ToggleWholeWordCommand, NavigationModeFocusPreviousTerminalAction, NavigationModeFocusNextTerminalAction, NavigationModeExitTerminalAction, ManageWorkspaceShellPermissionsTerminalCommand, CreateNewWithCwdTerminalAction, RenameWithArgTerminalAction, SendSequenceTerminalAction, terminalSendSequenceCommand } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
-import { TerminalPickerHandler } from 'vs/workbench/contrib/terminal/browser/terminalQuickOpen';
-import { KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_NOT_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_VIEW_ID, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, TerminalCursorStyle, TERMINAL_ACTION_CATEGORY, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_NOT_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE_KEY, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_VIEW_ID, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, TerminalCursorStyle, TERMINAL_ACTION_CATEGORY, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { registerColors } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { setupTerminalCommands } from 'vs/workbench/contrib/terminal/browser/terminalCommands';
 import { setupTerminalMenu } from 'vs/workbench/contrib/terminal/common/terminalMenu';
@@ -35,10 +32,12 @@ import { TerminalService } from 'vs/workbench/contrib/terminal/browser/terminalS
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { registerShellConfiguration } from 'vs/workbench/contrib/terminal/common/terminalShellConfig';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalService, WindowsShellType } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
+import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalsQuickAccess';
 
 registerSingleton(ITerminalService, TerminalService, true);
 
@@ -46,27 +45,24 @@ if (platform.isWeb) {
 	registerShellConfiguration();
 }
 
-const quickOpenRegistry = (Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen));
-
 const inTerminalsPicker = 'inTerminalPicker';
+const quickAccessRegistry = (Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess));
 
-quickOpenRegistry.registerQuickOpenHandler(
-	QuickOpenHandlerDescriptor.create(
-		TerminalPickerHandler,
-		TerminalPickerHandler.ID,
-		TERMINAL_PICKER_PREFIX,
-		inTerminalsPicker,
-		nls.localize('quickOpen.terminal', "Show All Opened Terminals")
-	)
-);
+quickAccessRegistry.registerQuickAccessProvider({
+	ctor: TerminalQuickAccessProvider,
+	prefix: TerminalQuickAccessProvider.PREFIX,
+	contextKey: inTerminalsPicker,
+	placeholder: nls.localize('tasksQuickAccessPlaceholder', "Type the name of a terminal to open."),
+	helpEntries: [{ description: nls.localize('tasksQuickAccessHelp', "Show All Opened Terminals"), needsEditor: false }]
+});
 
-const quickOpenNavigateNextInTerminalPickerId = 'workbench.action.quickOpenNavigateNextInTerminalPicker';
+const quickAccessNavigateNextInTerminalPickerId = 'workbench.action.quickOpenNavigateNextInTerminalPicker';
 CommandsRegistry.registerCommand(
-	{ id: quickOpenNavigateNextInTerminalPickerId, handler: getQuickNavigateHandler(quickOpenNavigateNextInTerminalPickerId, true) });
+	{ id: quickAccessNavigateNextInTerminalPickerId, handler: getQuickNavigateHandler(quickAccessNavigateNextInTerminalPickerId, true) });
 
-const quickOpenNavigatePreviousInTerminalPickerId = 'workbench.action.quickOpenNavigatePreviousInTerminalPicker';
+const quickAccessNavigatePreviousInTerminalPickerId = 'workbench.action.quickOpenNavigatePreviousInTerminalPicker';
 CommandsRegistry.registerCommand(
-	{ id: quickOpenNavigatePreviousInTerminalPickerId, handler: getQuickNavigateHandler(quickOpenNavigatePreviousInTerminalPickerId, false) });
+	{ id: quickAccessNavigatePreviousInTerminalPickerId, handler: getQuickNavigateHandler(quickAccessNavigatePreviousInTerminalPickerId, false) });
 
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
@@ -282,8 +278,8 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: true
 		},
-		'terminal.integrated.allowMenubarMnemonics': {
-			markdownDescription: nls.localize('terminal.integrated.allowMenubarMnemonics', "Whether to allow menubar mnemonics (eg. alt+f) to trigger the open the menubar. Note that this will cause all alt keystrokes will skip the shell when true."),
+		'terminal.integrated.allowMnemonics': {
+			markdownDescription: nls.localize('terminal.integrated.allowMnemonics', "Whether to allow menubar mnemonics (eg. alt+f) to trigger the open the menubar. Note that this will cause all alt keystrokes will skip the shell when true. This does nothing on macOS."),
 			type: 'boolean',
 			default: false
 		},
@@ -337,6 +333,11 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: true
 		},
+		'terminal.integrated.wordSeparators': {
+			description: nls.localize('terminal.integrated.wordSeparators', "A string containing all characters to be considered word separators by the double click to select word feature."),
+			type: 'string',
+			default: ' ()[]{}\',"`'
+		},
 		'terminal.integrated.experimentalUseTitleEvent': {
 			description: nls.localize('terminal.integrated.experimentalUseTitleEvent', "An experimental setting that will use the terminal title event for the dropdown title. This setting will only apply to new terminals."),
 			type: 'boolean',
@@ -361,22 +362,24 @@ configurationRegistry.registerConfiguration({
 });
 
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(SyncActionDescriptor.create(QuickOpenTermAction, QuickOpenTermAction.ID, QuickOpenTermAction.LABEL), 'Terminal: Switch Active Terminal', nls.localize('terminal', "Terminal"));
-const actionBarRegistry = Registry.as<IActionBarRegistry>(ActionBarExtensions.Actionbar);
-actionBarRegistry.registerActionBarContributor(Scope.VIEWER, QuickOpenActionTermContributor);
+registry.registerWorkbenchAction(SyncActionDescriptor.create(QuickAccessTerminalAction, QuickAccessTerminalAction.ID, QuickAccessTerminalAction.LABEL), 'Terminal: Switch Active Terminal', nls.localize('terminal', "Terminal"));
 
 const VIEW_CONTAINER = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: TERMINAL_VIEW_ID,
 	name: nls.localize('terminal', "Terminal"),
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [TERMINAL_VIEW_ID, TERMINAL_VIEW_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
-	focusCommand: { id: TERMINAL_COMMAND_ID.FOCUS }
+	focusCommand: { id: TERMINAL_COMMAND_ID.FOCUS },
+	hideIfEmpty: true,
+	order: 3
 }, ViewContainerLocation.Panel);
 Registry.as<panel.PanelRegistry>(panel.Extensions.Panels).setDefaultPanelId(TERMINAL_VIEW_ID);
 
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
 	id: TERMINAL_VIEW_ID,
 	name: nls.localize('terminal', "Terminal"),
+	containerIcon: 'codicon-terminal',
 	canToggleVisibility: false,
+	canMoveView: true,
 	ctorDescriptor: new SyncDescriptor(TerminalViewPane)
 }], VIEW_CONTAINER);
 
@@ -444,34 +447,11 @@ actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ManageWorkspa
 actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(RenameTerminalAction, RenameTerminalAction.ID, RenameTerminalAction.LABEL), 'Terminal: Rename', category);
 actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(FocusTerminalFindWidgetAction, FocusTerminalFindWidgetAction.ID, FocusTerminalFindWidgetAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_F
-}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Focus Find Widget', category);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(FocusTerminalFindWidgetAction, FocusTerminalFindWidgetAction.ID, FocusTerminalFindWidgetAction.LABEL, {
-	primary: KeyMod.CtrlCmd | KeyCode.KEY_F
-}, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED), 'Terminal: Focus Find Widget', category);
+}, ContextKeyExpr.or(KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED, KEYBINDING_CONTEXT_TERMINAL_FOCUS)), 'Terminal: Focus Find Widget', category);
 actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(HideTerminalFindWidgetAction, HideTerminalFindWidgetAction.ID, HideTerminalFindWidgetAction.LABEL, {
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape]
 }, ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE)), 'Terminal: Hide Find Widget', category);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(DeleteWordLeftTerminalAction, DeleteWordLeftTerminalAction.ID, DeleteWordLeftTerminalAction.LABEL, {
-	primary: KeyMod.CtrlCmd | KeyCode.Backspace,
-	mac: { primary: KeyMod.Alt | KeyCode.Backspace }
-}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Delete Word Left', category);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(DeleteWordRightTerminalAction, DeleteWordRightTerminalAction.ID, DeleteWordRightTerminalAction.LABEL, {
-	primary: KeyMod.CtrlCmd | KeyCode.Delete,
-	mac: { primary: KeyMod.Alt | KeyCode.Delete }
-}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Delete Word Right', category);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(DeleteToLineStartTerminalAction, DeleteToLineStartTerminalAction.ID, DeleteToLineStartTerminalAction.LABEL, {
-	primary: 0,
-	mac: { primary: KeyMod.CtrlCmd | KeyCode.Backspace }
-}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Delete To Line Start', category);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(MoveToLineStartTerminalAction, MoveToLineStartTerminalAction.ID, MoveToLineStartTerminalAction.LABEL, {
-	primary: 0,
-	mac: { primary: KeyMod.CtrlCmd | KeyCode.LeftArrow }
-}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Move To Line Start', category);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(MoveToLineEndTerminalAction, MoveToLineEndTerminalAction.ID, MoveToLineEndTerminalAction.LABEL, {
-	primary: 0,
-	mac: { primary: KeyMod.CtrlCmd | KeyCode.RightArrow }
-}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Move To Line End', category);
 actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(SplitTerminalAction, SplitTerminalAction.ID, SplitTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_5,
 	mac: {
@@ -535,43 +515,25 @@ actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(NavigationMod
 }, ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, CONTEXT_ACCESSIBILITY_MODE_ENABLED)), 'Terminal: Exit Navigation Mode', category);
 actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(NavigationModeFocusPreviousTerminalAction, NavigationModeFocusPreviousTerminalAction.ID, NavigationModeFocusPreviousTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.UpArrow
-}, ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_FOCUS, CONTEXT_ACCESSIBILITY_MODE_ENABLED)), 'Terminal: Focus Previous Line (Navigation Mode)', category);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(NavigationModeFocusPreviousTerminalAction, NavigationModeFocusPreviousTerminalAction.ID, NavigationModeFocusPreviousTerminalAction.LABEL, {
-	primary: KeyMod.CtrlCmd | KeyCode.UpArrow
-}, ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, CONTEXT_ACCESSIBILITY_MODE_ENABLED)), 'Terminal: Focus Previous Line (Navigation Mode)', category);
+}, ContextKeyExpr.or(ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, CONTEXT_ACCESSIBILITY_MODE_ENABLED), ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_FOCUS, CONTEXT_ACCESSIBILITY_MODE_ENABLED))), 'Terminal: Focus Previous Line (Navigation Mode)', category);
 actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(NavigationModeFocusNextTerminalAction, NavigationModeFocusNextTerminalAction.ID, NavigationModeFocusNextTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.DownArrow
-}, ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_FOCUS, CONTEXT_ACCESSIBILITY_MODE_ENABLED)), 'Terminal: Focus Next Line (Navigation Mode)', category);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(NavigationModeFocusNextTerminalAction, NavigationModeFocusNextTerminalAction.ID, NavigationModeFocusNextTerminalAction.LABEL, {
-	primary: KeyMod.CtrlCmd | KeyCode.DownArrow
-}, ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, CONTEXT_ACCESSIBILITY_MODE_ENABLED)), 'Terminal: Focus Next Line (Navigation Mode)', category);
+}, ContextKeyExpr.or(ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, CONTEXT_ACCESSIBILITY_MODE_ENABLED), ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_FOCUS, CONTEXT_ACCESSIBILITY_MODE_ENABLED))), 'Terminal: Focus Next Line (Navigation Mode)', category);
 actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(SelectToPreviousLineAction, SelectToPreviousLineAction.ID, SelectToPreviousLineAction.LABEL), 'Terminal: Select To Previous Line', category);
 actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(SelectToNextLineAction, SelectToNextLineAction.ID, SelectToNextLineAction.LABEL), 'Terminal: Select To Next Line', category);
 actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleEscapeSequenceLoggingAction, ToggleEscapeSequenceLoggingAction.ID, ToggleEscapeSequenceLoggingAction.LABEL), 'Terminal: Toggle Escape Sequence Logging', category);
 actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleRegexCommand, ToggleRegexCommand.ID, ToggleRegexCommand.LABEL, {
 	primary: KeyMod.Alt | KeyCode.KEY_R,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R }
-}, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED), 'Terminal: Toggle find using regex', category);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleRegexCommand, ToggleRegexCommand.ID, ToggleRegexCommand.LABEL, {
-	primary: KeyMod.Alt | KeyCode.KEY_R,
-	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R }
-}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Toggle find using regex', category);
+}, ContextKeyExpr.or(KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED)), 'Terminal: Toggle find using regex', category);
 actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleWholeWordCommand, ToggleWholeWordCommand.ID, ToggleWholeWordCommand.LABEL, {
 	primary: KeyMod.Alt | KeyCode.KEY_W,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_W }
-}, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED), 'Terminal: Toggle find using whole word', category);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleWholeWordCommand, ToggleWholeWordCommand.ID, ToggleWholeWordCommand.LABEL, {
-	primary: KeyMod.Alt | KeyCode.KEY_W,
-	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_W }
-}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Toggle find using whole word', category);
+}, ContextKeyExpr.or(KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED)), 'Terminal: Toggle find using whole word', category);
 actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleCaseSensitiveCommand, ToggleCaseSensitiveCommand.ID, ToggleCaseSensitiveCommand.LABEL, {
 	primary: KeyMod.Alt | KeyCode.KEY_C,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_C }
-}, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED), 'Terminal: Toggle find using case sensitive', category);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleCaseSensitiveCommand, ToggleCaseSensitiveCommand.ID, ToggleCaseSensitiveCommand.LABEL, {
-	primary: KeyMod.Alt | KeyCode.KEY_C,
-	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_C }
-}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Toggle find using case sensitive', category);
+}, ContextKeyExpr.or(KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED)), 'Terminal: Toggle find using case sensitive', category);
 actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(FindNext, FindNext.ID, FindNext.LABEL, {
 	primary: KeyCode.F3,
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_G, secondary: [KeyCode.F3] }
@@ -599,13 +561,59 @@ if (BrowserFeatures.clipboard.writeText) {
 		linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C }
 	}, ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, KEYBINDING_CONTEXT_TERMINAL_FOCUS)), 'Terminal: Copy Selection', category);
 }
+
+function registerSendSequenceKeybinding(text: string, rule: { when?: ContextKeyExpression } & IKeybindings): void {
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: SendSequenceTerminalAction.ID,
+		weight: KeybindingWeight.WorkbenchContrib,
+		when: rule.when || KEYBINDING_CONTEXT_TERMINAL_FOCUS,
+		primary: rule.primary,
+		mac: rule.mac,
+		linux: rule.linux,
+		win: rule.win,
+		handler: terminalSendSequenceCommand,
+		args: { text }
+	});
+}
+
 if (BrowserFeatures.clipboard.readText) {
 	actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(TerminalPasteAction, TerminalPasteAction.ID, TerminalPasteAction.LABEL, {
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
 		win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_V] },
 		linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_V }
 	}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Paste into Active Terminal', category);
+	// An extra Windows-only ctrl+v keybinding is used for pwsh that sends ctrl+v directly to the
+	// shell, this gets handled by PSReadLine which properly handles multi-line pastes
+	if (platform.isWindows) {
+		registerSendSequenceKeybinding(String.fromCharCode('V'.charCodeAt(0) - 64), { // ctrl+v
+			when: ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_FOCUS, ContextKeyExpr.equals(KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE_KEY, WindowsShellType.PowerShell)),
+			primary: KeyMod.CtrlCmd | KeyCode.KEY_V
+		});
+	}
 }
+
+// Delete word left: ctrl+w
+registerSendSequenceKeybinding(String.fromCharCode('W'.charCodeAt(0) - 64), {
+	primary: KeyMod.CtrlCmd | KeyCode.Backspace,
+	mac: { primary: KeyMod.Alt | KeyCode.Backspace }
+});
+// Delete word right: alt+d
+registerSendSequenceKeybinding('\x1bd', {
+	primary: KeyMod.CtrlCmd | KeyCode.Delete,
+	mac: { primary: KeyMod.Alt | KeyCode.Delete }
+});
+// Delete to line start: ctrl+u
+registerSendSequenceKeybinding('\u0015', {
+	mac: { primary: KeyMod.CtrlCmd | KeyCode.Backspace }
+});
+// Move to line start: ctrl+A
+registerSendSequenceKeybinding(String.fromCharCode('A'.charCodeAt(0) - 64), {
+	mac: { primary: KeyMod.CtrlCmd | KeyCode.LeftArrow }
+});
+// Move to line end: ctrl+E
+registerSendSequenceKeybinding(String.fromCharCode('E'.charCodeAt(0) - 64), {
+	mac: { primary: KeyMod.CtrlCmd | KeyCode.RightArrow }
+});
 
 registerAction2(class extends SendSequenceTerminalAction {
 	constructor() {

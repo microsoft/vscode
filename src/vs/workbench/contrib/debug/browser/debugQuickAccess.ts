@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { PickerQuickAccessProvider, IPickerQuickAccessItem } from 'vs/platform/quickinput/common/quickAccess';
+import { PickerQuickAccessProvider, IPickerQuickAccessItem, TriggerAction } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { localize } from 'vs/nls';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
@@ -24,7 +24,11 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 		@ICommandService private readonly commandService: ICommandService,
 		@INotificationService private readonly notificationService: INotificationService
 	) {
-		super(StartDebugQuickAccessProvider.PREFIX);
+		super(StartDebugQuickAccessProvider.PREFIX, {
+			noResultsPick: {
+				label: localize('noDebugResults', "No matching launch configurations")
+			}
+		});
 	}
 
 	protected getPicks(filter: string): (IQuickPickSeparator | IPickerQuickAccessItem)[] {
@@ -47,9 +51,17 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 				// Launch entry
 				picks.push({
 					label: config.name,
-					ariaLabel: localize('entryAriaLabel', "{0}, debug", config.name),
 					description: this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? config.launch.name : '',
 					highlights: { label: highlights },
+					buttons: [{
+						iconClass: 'codicon-gear',
+						tooltip: localize('customizeLaunchConfig', "Configure Launch Configuration")
+					}],
+					trigger: () => {
+						config.launch.openConfigFile(false, false);
+
+						return TriggerAction.CLOSE_PICKER;
+					},
 					accept: async () => {
 						if (StartAction.isEnabled(this.debugService)) {
 							this.debugService.getConfigurationManager().selectConfiguration(config.launch, config.name);
@@ -80,7 +92,6 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 			// Add Config entry
 			picks.push({
 				label,
-				ariaLabel: localize('entryAriaLabel', "{0}, debug", label),
 				description: this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? launch.name : '',
 				highlights: { label: withNullAsUndefined(matchesFuzzy(filter, label, true)) },
 				accept: () => this.commandService.executeCommand('debug.addConfiguration', launch.uri.toString())

@@ -13,7 +13,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { URI } from 'vs/base/common/uri';
-import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { distinct, coalesce } from 'vs/base/common/arrays';
@@ -22,6 +22,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { ActiveGroupEditorsByMostRecentlyUsedQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -45,10 +46,6 @@ export const SPLIT_EDITOR_UP = 'workbench.action.splitEditorUp';
 export const SPLIT_EDITOR_DOWN = 'workbench.action.splitEditorDown';
 export const SPLIT_EDITOR_LEFT = 'workbench.action.splitEditorLeft';
 export const SPLIT_EDITOR_RIGHT = 'workbench.action.splitEditorRight';
-
-export const NAVIGATE_ALL_EDITORS_BY_APPEARANCE_PREFIX = 'edt ';
-export const NAVIGATE_ALL_EDITORS_BY_MOST_RECENTLY_USED_PREFIX = 'edt mru ';
-export const NAVIGATE_IN_ACTIVE_GROUP_BY_MOST_RECENTLY_USED_PREFIX = 'edt active ';
 
 export const OPEN_EDITOR_AT_INDEX_COMMAND_ID = 'workbench.action.openEditorAtIndex';
 
@@ -652,7 +649,7 @@ function registerCloseEditorCommands() {
 		primary: undefined,
 		handler: (accessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
 			const editorGroupService = accessor.get(IEditorGroupsService);
-			const quickOpenService = accessor.get(IQuickOpenService);
+			const quickInputService = accessor.get(IQuickInputService);
 
 			const commandsContext = getCommandsContext(resourceOrContext, context);
 			if (commandsContext && typeof commandsContext.groupId === 'number') {
@@ -662,7 +659,7 @@ function registerCloseEditorCommands() {
 				}
 			}
 
-			return quickOpenService.show(NAVIGATE_IN_ACTIVE_GROUP_BY_MOST_RECENTLY_USED_PREFIX);
+			return quickInputService.quickAccess.show(ActiveGroupEditorsByMostRecentlyUsedQuickAccess.PREFIX);
 		}
 	});
 

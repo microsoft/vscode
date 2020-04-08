@@ -414,7 +414,7 @@ export class TreeView extends Disposable implements ITreeView {
 		const actionViewItemProvider = (action: IAction) => action instanceof MenuItemAction ? this.instantiationService.createInstance(ContextAwareMenuEntryActionViewItem, action) : undefined;
 		const treeMenus = this._register(this.instantiationService.createInstance(TreeMenus, this.id));
 		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, this));
-		const dataSource = this.instantiationService.createInstance(TreeDataSource, this, <T>(task: Promise<T>) => this.progressService.withProgress({ location: this.viewContainer.id }, () => task));
+		const dataSource = this.instantiationService.createInstance(TreeDataSource, this, <T>(task: Promise<T>) => this.progressService.withProgress({ location: this.id }, () => task));
 		const aligner = new Aligner(this.themeService);
 		const renderer = this.instantiationService.createInstance(TreeRenderer, this.id, treeMenus, this.treeLabels, actionViewItemProvider, aligner);
 
@@ -609,7 +609,6 @@ export class TreeView extends Disposable implements ITreeView {
 				return tree.expand(element, false);
 			}));
 		}
-		return Promise.resolve(undefined);
 	}
 
 	setSelection(items: ITreeItem[]): void {
@@ -625,11 +624,10 @@ export class TreeView extends Disposable implements ITreeView {
 		}
 	}
 
-	reveal(item: ITreeItem): Promise<void> {
+	async reveal(item: ITreeItem): Promise<void> {
 		if (this.tree) {
-			return Promise.resolve(this.tree.reveal(item));
+			return this.tree.reveal(item);
 		}
-		return Promise.resolve();
 	}
 
 	private refreshing: boolean = false;
@@ -689,11 +687,11 @@ class TreeDataSource implements IAsyncDataSource<ITreeItem, ITreeItem> {
 		return !!this.treeView.dataProvider && (element.collapsibleState !== TreeItemCollapsibleState.None);
 	}
 
-	getChildren(element: ITreeItem): ITreeItem[] | Promise<ITreeItem[]> {
+	async getChildren(element: ITreeItem): Promise<ITreeItem[]> {
 		if (this.treeView.dataProvider) {
 			return this.withProgress(this.treeView.dataProvider.getChildren(element));
 		}
-		return Promise.resolve([]);
+		return [];
 	}
 }
 
@@ -1017,7 +1015,7 @@ export class CustomTreeView extends TreeView {
 
 	private activate() {
 		if (!this.activated) {
-			this.progressService.withProgress({ location: this.viewContainer.id }, () => this.extensionService.activateByEvent(`onView:${this.id}`))
+			this.progressService.withProgress({ location: this.id }, () => this.extensionService.activateByEvent(`onView:${this.id}`))
 				.then(() => timeout(2000))
 				.then(() => {
 					this.updateMessage();

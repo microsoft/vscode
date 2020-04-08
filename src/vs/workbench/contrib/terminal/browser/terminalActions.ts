@@ -9,22 +9,16 @@ import { EndOfLinePreference } from 'vs/editor/common/model';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { TERMINAL_VIEW_ID, ITerminalConfigHelper, TitleEventSource, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
+import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IQuickInputService, IPickOptions, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { ActionBarContributor } from 'vs/workbench/browser/actions';
-import { TerminalEntry } from 'vs/workbench/contrib/terminal/browser/terminalQuickOpen';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { timeout } from 'vs/base/common/async';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
@@ -35,8 +29,12 @@ import { isWindows } from 'vs/base/common/platform';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { ITerminalInstance, ITerminalService, Direction } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { Action2 } from 'vs/platform/actions/common/actions';
-
-export const TERMINAL_PICKER_PREFIX = 'term ';
+import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalsQuickAccess';
+import { ToggleViewAction } from 'vs/workbench/browser/actions/layoutActions';
+import { IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { addClass } from 'vs/base/browser/dom';
+import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
 
 async function getCwdForSplit(configHelper: ITerminalConfigHelper, instance: ITerminalInstance, folders?: IWorkspaceFolder[], commandService?: ICommandService): Promise<string | URI | undefined> {
 	switch (configHelper.config.splitCwd) {
@@ -65,18 +63,20 @@ async function getCwdForSplit(configHelper: ITerminalConfigHelper, instance: ITe
 	}
 }
 
-export class ToggleTerminalAction extends TogglePanelAction {
+export class ToggleTerminalAction extends ToggleViewAction {
 
 	public static readonly ID = TERMINAL_COMMAND_ID.TOGGLE;
 	public static readonly LABEL = nls.localize('workbench.action.terminal.toggleTerminal', "Toggle Integrated Terminal");
 
 	constructor(
 		id: string, label: string,
-		@IPanelService panelService: IPanelService,
+		@IViewsService viewsService: IViewsService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@ITerminalService private readonly terminalService: ITerminalService
 	) {
-		super(id, label, TERMINAL_VIEW_ID, panelService, layoutService);
+		super(id, label, TERMINAL_VIEW_ID, viewsService, viewDescriptorService, contextKeyService, layoutService);
 	}
 
 	public run(event?: any): Promise<any> {
@@ -115,29 +115,6 @@ export class KillTerminalAction extends Action {
 			}
 		}
 		return Promise.resolve(undefined);
-	}
-}
-
-export class QuickKillTerminalAction extends Action {
-
-	public static readonly ID = TERMINAL_COMMAND_ID.QUICK_KILL;
-	public static readonly LABEL = nls.localize('workbench.action.terminal.quickKill', "Kill Terminal Instance");
-
-	constructor(
-		id: string, label: string,
-		private terminalEntry: TerminalEntry,
-		@IQuickOpenService private readonly quickOpenService: IQuickOpenService
-	) {
-		super(id, label, 'terminal-action kill');
-	}
-
-	public async run(event?: any): Promise<any> {
-		const instance = this.terminalEntry.instance;
-		if (instance) {
-			instance.dispose(true);
-		}
-		await timeout(50);
-		return this.quickOpenService.show(TERMINAL_PICKER_PREFIX, undefined);
 	}
 }
 
@@ -188,114 +165,30 @@ export class SelectAllTerminalAction extends Action {
 	}
 }
 
-export abstract class BaseSendTextTerminalAction extends Action {
-	constructor(
-		id: string,
-		label: string,
-		private _text: string,
-		@ITerminalService private readonly _terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	public run(event?: any): Promise<any> {
-		const terminalInstance = this._terminalService.getActiveInstance();
-		if (terminalInstance) {
-			terminalInstance.sendText(this._text, false);
-		}
-		return Promise.resolve(undefined);
-	}
-}
-
-export class DeleteWordLeftTerminalAction extends BaseSendTextTerminalAction {
-	public static readonly ID = TERMINAL_COMMAND_ID.DELETE_WORD_LEFT;
-	public static readonly LABEL = nls.localize('workbench.action.terminal.deleteWordLeft', "Delete Word Left");
-
-	constructor(
-		id: string,
-		label: string,
-		@ITerminalService terminalService: ITerminalService
-	) {
-		// Send ctrl+W
-		super(id, label, String.fromCharCode('W'.charCodeAt(0) - 64), terminalService);
-	}
-}
-
-export class DeleteWordRightTerminalAction extends BaseSendTextTerminalAction {
-	public static readonly ID = TERMINAL_COMMAND_ID.DELETE_WORD_RIGHT;
-	public static readonly LABEL = nls.localize('workbench.action.terminal.deleteWordRight', "Delete Word Right");
-
-	constructor(
-		id: string,
-		label: string,
-		@ITerminalService terminalService: ITerminalService
-	) {
-		// Send alt+d
-		super(id, label, '\x1bd', terminalService);
-	}
-}
-
-export class DeleteToLineStartTerminalAction extends BaseSendTextTerminalAction {
-	public static readonly ID = TERMINAL_COMMAND_ID.DELETE_TO_LINE_START;
-	public static readonly LABEL = nls.localize('workbench.action.terminal.deleteToLineStart', "Delete To Line Start");
-
-	constructor(
-		id: string,
-		label: string,
-		@ITerminalService terminalService: ITerminalService
-	) {
-		// Send ctrl+u
-		super(id, label, '\u0015', terminalService);
-	}
-}
-
-export class MoveToLineStartTerminalAction extends BaseSendTextTerminalAction {
-	public static readonly ID = TERMINAL_COMMAND_ID.MOVE_TO_LINE_START;
-	public static readonly LABEL = nls.localize('workbench.action.terminal.moveToLineStart', "Move To Line Start");
-
-	constructor(
-		id: string,
-		label: string,
-		@ITerminalService terminalService: ITerminalService
-	) {
-		// Send ctrl+A
-		super(id, label, String.fromCharCode('A'.charCodeAt(0) - 64), terminalService);
-	}
-}
-
-export class MoveToLineEndTerminalAction extends BaseSendTextTerminalAction {
-	public static readonly ID = TERMINAL_COMMAND_ID.MOVE_TO_LINE_END;
-	public static readonly LABEL = nls.localize('workbench.action.terminal.moveToLineEnd', "Move To Line End");
-
-	constructor(
-		id: string,
-		label: string,
-		@ITerminalService terminalService: ITerminalService
-	) {
-		// Send ctrl+E
-		super(id, label, String.fromCharCode('E'.charCodeAt(0) - 64), terminalService);
-	}
-}
 
 export class SendSequenceTerminalAction extends Action2 {
 	public static readonly ID = TERMINAL_COMMAND_ID.SEND_SEQUENCE;
 	public static readonly LABEL = nls.localize('workbench.action.terminal.sendSequence', "Send Custom Sequence To Terminal");
 
 	public run(accessor: ServicesAccessor, args: any): void {
-		const terminalInstance = accessor.get(ITerminalService).getActiveInstance();
-		if (!terminalInstance) {
-			return;
-		}
-
-		const configurationResolverService = accessor.get(IConfigurationResolverService);
-		const workspaceContextService = accessor.get(IWorkspaceContextService);
-		const historyService = accessor.get(IHistoryService);
-		const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.file);
-		const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
-		const resolvedText = configurationResolverService.resolve(lastActiveWorkspaceRoot, args.text);
-		terminalInstance.sendText(resolvedText, false);
+		terminalSendSequenceCommand(accessor, args);
 	}
 }
+
+export const terminalSendSequenceCommand = (accessor: ServicesAccessor, args: any) => {
+	const terminalInstance = accessor.get(ITerminalService).getActiveInstance();
+	if (!terminalInstance) {
+		return;
+	}
+
+	const configurationResolverService = accessor.get(IConfigurationResolverService);
+	const workspaceContextService = accessor.get(IWorkspaceContextService);
+	const historyService = accessor.get(IHistoryService);
+	const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.file);
+	const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
+	const resolvedText = configurationResolverService.resolve(lastActiveWorkspaceRoot, args.text);
+	terminalInstance.sendText(resolvedText, false);
+};
 
 export class CreateNewWithCwdTerminalAction extends Action2 {
 	public static readonly ID = TERMINAL_COMMAND_ID.NEW_WITH_CWD;
@@ -632,7 +525,7 @@ export class SelectDefaultShellWindowsTerminalAction extends Action {
 	}
 
 	public run(event?: any): Promise<any> {
-		return this._terminalService.selectDefaultWindowsShell();
+		return this._terminalService.selectDefaultShell();
 	}
 }
 
@@ -702,6 +595,7 @@ export class RunActiveFileInTerminalAction extends Action {
 			return Promise.resolve(undefined);
 		}
 
+		// TODO: Convert this to ctrl+c, ctrl+v for pwsh?
 		const path = await this.terminalService.preparePathForTerminalAsync(uri.fsPath, instance.shellLaunchConfig.executable, instance.title, instance.shellType);
 		instance.sendText(path, true);
 		return this.terminalService.showPanel();
@@ -730,7 +624,7 @@ export class SwitchTerminalAction extends Action {
 		}
 		if (item === SelectDefaultShellWindowsTerminalAction.LABEL) {
 			this.terminalService.refreshActiveTab();
-			return this.terminalService.selectDefaultWindowsShell();
+			return this.terminalService.selectDefaultShell();
 		}
 		const selectedTabIndex = parseInt(item.split(':')[0], 10) - 1;
 		this.terminalService.setActiveTabByIndex(selectedTabIndex);
@@ -745,10 +639,10 @@ export class SwitchTerminalActionViewItem extends SelectActionViewItem {
 	constructor(
 		action: IAction,
 		@ITerminalService private readonly terminalService: ITerminalService,
-		@IThemeService themeService: IThemeService,
+		@IThemeService private readonly themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService
 	) {
-		super(null, action, terminalService.getTabLabels().map(label => <ISelectOptionItem>{ text: label }), terminalService.activeTabIndex, contextViewService, { ariaLabel: nls.localize('terminals', 'Open Terminals.') });
+		super(null, action, getTerminalSelectOpenItems(terminalService), terminalService.activeTabIndex, contextViewService, { ariaLabel: nls.localize('terminals', 'Open Terminals.') });
 
 		this._register(terminalService.onInstancesChanged(this._updateItems, this));
 		this._register(terminalService.onActiveTabChanged(this._updateItems, this));
@@ -757,12 +651,24 @@ export class SwitchTerminalActionViewItem extends SelectActionViewItem {
 		this._register(attachSelectBoxStyler(this.selectBox, themeService));
 	}
 
-	private _updateItems(): void {
-		const items = this.terminalService.getTabLabels().map(label => <ISelectOptionItem>{ text: label });
-		items.push({ text: SwitchTerminalActionViewItem.SEPARATOR, isDisabled: true });
-		items.push({ text: SelectDefaultShellWindowsTerminalAction.LABEL });
-		this.setOptions(items, this.terminalService.activeTabIndex);
+	render(container: HTMLElement): void {
+		super.render(container);
+		addClass(container, 'switch-terminal');
+		this._register(attachStylerCallback(this.themeService, { selectBorder }, colors => {
+			container.style.borderColor = colors.selectBorder ? `${colors.selectBorder}` : '';
+		}));
 	}
+
+	private _updateItems(): void {
+		this.setOptions(getTerminalSelectOpenItems(this.terminalService), this.terminalService.activeTabIndex);
+	}
+}
+
+function getTerminalSelectOpenItems(terminalService: ITerminalService): ISelectOptionItem[] {
+	const items = terminalService.getTabLabels().map(label => <ISelectOptionItem>{ text: label });
+	items.push({ text: SwitchTerminalActionViewItem.SEPARATOR, isDisabled: true });
+	items.push({ text: SelectDefaultShellWindowsTerminalAction.LABEL });
+	return items;
 }
 
 export class ScrollDownTerminalAction extends Action {
@@ -972,6 +878,7 @@ export class ClearTerminalAction extends Action {
 		const terminalInstance = this.terminalService.getActiveInstance();
 		if (terminalInstance) {
 			terminalInstance.clear();
+			terminalInstance.focus();
 		}
 		return Promise.resolve(undefined);
 	}
@@ -1022,15 +929,14 @@ export class RenameTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@IQuickOpenService protected quickOpenService: IQuickOpenService,
 		@IQuickInputService protected quickInputService: IQuickInputService,
 		@ITerminalService protected terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
 
-	public async run(entry?: TerminalEntry): Promise<any> {
-		const terminalInstance = entry ? entry.instance : this.terminalService.getActiveInstance();
+	public async run(): Promise<any> {
+		const terminalInstance = this.terminalService.getActiveInstance();
 		if (!terminalInstance) {
 			return Promise.resolve(undefined);
 		}
@@ -1103,64 +1009,21 @@ export class HideTerminalFindWidgetAction extends Action {
 	}
 }
 
-export class QuickOpenActionTermContributor extends ActionBarContributor {
-
-	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService
-	) {
-		super();
-	}
-
-	public getActions(context: any): ReadonlyArray<IAction> {
-		const actions: Action[] = [];
-		if (context.element instanceof TerminalEntry) {
-			actions.push(this.instantiationService.createInstance(RenameTerminalQuickOpenAction, RenameTerminalQuickOpenAction.ID, RenameTerminalQuickOpenAction.LABEL, context.element));
-			actions.push(this.instantiationService.createInstance(QuickKillTerminalAction, QuickKillTerminalAction.ID, QuickKillTerminalAction.LABEL, context.element));
-		}
-		return actions;
-	}
-
-	public hasActions(context: any): boolean {
-		return true;
-	}
-}
-
-export class QuickOpenTermAction extends Action {
+export class QuickAccessTerminalAction extends Action {
 
 	public static readonly ID = TERMINAL_COMMAND_ID.QUICK_OPEN_TERM;
-	public static readonly LABEL = nls.localize('quickOpenTerm', "Switch Active Terminal");
+	public static readonly LABEL = nls.localize('quickAccessTerminal', "Switch Active Terminal");
 
 	constructor(
 		id: string,
 		label: string,
-		@IQuickOpenService private readonly quickOpenService: IQuickOpenService
+		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
 		super(id, label);
 	}
 
-	public run(): Promise<void> {
-		return this.quickOpenService.show(TERMINAL_PICKER_PREFIX, undefined);
-	}
-}
-
-export class RenameTerminalQuickOpenAction extends RenameTerminalAction {
-
-	constructor(
-		id: string, label: string,
-		private terminal: TerminalEntry,
-		@IQuickOpenService quickOpenService: IQuickOpenService,
-		@IQuickInputService quickInputService: IQuickInputService,
-		@ITerminalService terminalService: ITerminalService
-	) {
-		super(id, label, quickOpenService, quickInputService, terminalService);
-		this.class = 'codicon codicon-gear';
-	}
-
-	public async run(): Promise<any> {
-		await super.run(this.terminal);
-		// This timeout is needed to make sure the previous quickOpen has time to close before we show the next one
-		await timeout(50);
-		await this.quickOpenService.show(TERMINAL_PICKER_PREFIX, undefined);
+	async run(): Promise<void> {
+		this.quickInputService.quickAccess.show(TerminalQuickAccessProvider.PREFIX);
 	}
 }
 

@@ -11,15 +11,19 @@ import * as objects from 'vs/base/common/objects';
 import * as extpath from 'vs/base/common/extpath';
 import { fuzzyContains, getNLines } from 'vs/base/common/strings';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { IFilesConfiguration } from 'vs/platform/files/common/files';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IFilesConfiguration, FILES_EXCLUDE_CONFIG } from 'vs/platform/files/common/files';
+import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { Event } from 'vs/base/common/event';
 import { relative } from 'vs/base/common/path';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
 
 export const VIEWLET_ID = 'workbench.view.search';
 export const PANEL_ID = 'workbench.panel.search';
 export const VIEW_ID = 'workbench.view.search';
+
+export const SEARCH_EXCLUDE_CONFIG = 'search.exclude';
 
 export const ISearchService = createDecorator<ISearchService>('searchService');
 
@@ -370,6 +374,14 @@ export function getExcludes(configuration: ISearchConfiguration, includeSearchEx
 	allExcludes = objects.mixin(allExcludes, objects.deepClone(searchExcludes), true);
 
 	return allExcludes;
+}
+
+export function createResourceExcludeMatcher(instantiationService: IInstantiationService, configurationService: IConfigurationService): ResourceGlobMatcher {
+	return instantiationService.createInstance(
+		ResourceGlobMatcher,
+		root => getExcludes(root ? configurationService.getValue<ISearchConfiguration>({ resource: root }) : configurationService.getValue<ISearchConfiguration>()) || Object.create(null),
+		event => event.affectsConfiguration(FILES_EXCLUDE_CONFIG) || event.affectsConfiguration(SEARCH_EXCLUDE_CONFIG)
+	);
 }
 
 export function pathIncludedInQuery(queryProps: ICommonQueryProps<URI>, fsPath: string): boolean {

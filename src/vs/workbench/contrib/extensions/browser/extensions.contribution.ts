@@ -9,7 +9,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncActionDescriptor, MenuRegistry, MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionsLabel, ExtensionsChannelId, PreferencesLabel, IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionManagementServerService, IExtensionTipsService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IExtensionManagementServerService, IExtensionRecommendationsService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } from 'vs/workbench/common/actions';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IOutputChannelRegistry, Extensions as OutputExtensions } from 'vs/workbench/services/output/common/output';
@@ -24,7 +24,6 @@ import {
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { ExtensionEditor } from 'vs/workbench/contrib/extensions/browser/extensionEditor';
 import { StatusUpdater, MaliciousExtensionChecker, ExtensionsViewletViewsContribution, ExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/browser/extensionsViewlet';
-import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import * as jsonContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { ExtensionsConfigurationSchema, ExtensionsConfigurationSchemaId } from 'vs/workbench/contrib/extensions/common/extensionsFileTemplate';
@@ -32,7 +31,6 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeymapExtensions } from 'vs/workbench/contrib/extensions/common/extensionsUtils';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { GalleryExtensionsHandler, ExtensionsHandler } from 'vs/workbench/contrib/extensions/browser/extensionsQuickOpen';
 import { EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -42,7 +40,6 @@ import { ExtensionDependencyChecker } from 'vs/workbench/contrib/extensions/brow
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { RemoteExtensionsInstaller } from 'vs/workbench/contrib/extensions/browser/remoteExtensionsInstaller';
-import { ExtensionTipsService } from 'vs/workbench/contrib/extensions/browser/extensionTipsService';
 import { IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
@@ -52,25 +49,14 @@ import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configur
 import { CONTEXT_SYNC_ENABLEMENT } from 'vs/platform/userDataSync/common/userDataSync';
 import { IQuickAccessRegistry, Extensions } from 'vs/platform/quickinput/common/quickAccess';
 import { InstallExtensionQuickAccessProvider, ManageExtensionsQuickAccessProvider } from 'vs/workbench/contrib/extensions/browser/extensionsQuickAccess';
+import { ExtensionRecommendationsService } from 'vs/workbench/contrib/extensions/browser/extensionRecommendationsService';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
-registerSingleton(IExtensionTipsService, ExtensionTipsService);
+registerSingleton(IExtensionRecommendationsService, ExtensionRecommendationsService);
 
 Registry.as<IOutputChannelRegistry>(OutputExtensions.OutputChannels)
 	.registerChannel({ id: ExtensionsChannelId, label: ExtensionsLabel, log: false });
-
-// Quickopen
-Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpenHandler(
-	QuickOpenHandlerDescriptor.create(
-		ExtensionsHandler,
-		ExtensionsHandler.ID,
-		'ext ',
-		undefined,
-		localize('extensionsCommands', "Manage Extensions"),
-		true
-	)
-);
 
 // Quick Access
 Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessProvider({
@@ -292,7 +278,7 @@ CommandsRegistry.registerCommand({
 		const installed = await extensionManagementService.getInstalled(ExtensionType.User);
 		const [extensionToUninstall] = installed.filter(e => areSameExtensions(e.identifier, { id }));
 		if (!extensionToUninstall) {
-			throw new Error(localize('notInstalled', "Extension '{0}' is not installed. Make sure you use the full extension ID, including the publisher, e.g.: ms-vscode.csharp.", id));
+			throw new Error(localize('notInstalled', "Extension '{0}' is not installed. Make sure you use the full extension ID, including the publisher, e.g.: ms-dotnettools.csharp.", id));
 		}
 
 		try {
@@ -486,17 +472,6 @@ class ExtensionsContributions implements IWorkbenchContribution {
 		const canManageExtensions = extensionManagementServerService.localExtensionManagementServer || extensionManagementServerService.remoteExtensionManagementServer;
 
 		if (canManageExtensions) {
-			Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpenHandler(
-				QuickOpenHandlerDescriptor.create(
-					GalleryExtensionsHandler,
-					GalleryExtensionsHandler.ID,
-					'ext install ',
-					undefined,
-					localize('galleryExtensionsCommands', "Install Gallery Extensions"),
-					true
-				)
-			);
-
 			Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessProvider({
 				ctor: InstallExtensionQuickAccessProvider,
 				prefix: InstallExtensionQuickAccessProvider.PREFIX,

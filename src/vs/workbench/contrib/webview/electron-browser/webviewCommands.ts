@@ -42,7 +42,7 @@ export class CopyWebviewEditorCommand extends Action2 {
 	public static readonly ID = 'editor.action.webvieweditor.copy';
 	public static readonly LABEL = nls.localize('editor.action.webvieweditor.copy', "Copy2");
 
-	constructor(contextKeyExpr: ContextKeyExpression) {
+	constructor(contextKeyExpr: ContextKeyExpression, readonly getActiveElectronBasedWebviewDelegate: (accessor: ServicesAccessor) => ElectronWebviewBasedWebview | undefined = getActiveElectronBasedWebview) {
 		super({
 			id: CopyWebviewEditorCommand.ID,
 			title: CopyWebviewEditorCommand.LABEL,
@@ -55,7 +55,7 @@ export class CopyWebviewEditorCommand extends Action2 {
 	}
 
 	public run(accessor: ServicesAccessor): void {
-		getActiveElectronBasedWebview(accessor)?.copy();
+		this.getActiveElectronBasedWebviewDelegate(accessor)?.copy();
 	}
 }
 
@@ -63,7 +63,7 @@ export class PasteWebviewEditorCommand extends Action2 {
 	public static readonly ID = 'editor.action.webvieweditor.paste';
 	public static readonly LABEL = nls.localize('editor.action.webvieweditor.paste', 'Paste');
 
-	constructor(contextKeyExpr: ContextKeyExpression) {
+	constructor(contextKeyExpr: ContextKeyExpression, readonly getActiveElectronBasedWebviewDelegate: (accessor: ServicesAccessor) => ElectronWebviewBasedWebview | undefined = getActiveElectronBasedWebview) {
 		super({
 			id: PasteWebviewEditorCommand.ID,
 			title: PasteWebviewEditorCommand.LABEL,
@@ -76,7 +76,7 @@ export class PasteWebviewEditorCommand extends Action2 {
 	}
 
 	public run(accessor: ServicesAccessor): void {
-		getActiveElectronBasedWebview(accessor)?.paste();
+		this.getActiveElectronBasedWebviewDelegate(accessor)?.paste();
 	}
 }
 
@@ -84,7 +84,7 @@ export class CutWebviewEditorCommand extends Action2 {
 	public static readonly ID = 'editor.action.webvieweditor.cut';
 	public static readonly LABEL = nls.localize('editor.action.webvieweditor.cut', 'Cut');
 
-	constructor(contextKeyExpr: ContextKeyExpression) {
+	constructor(contextKeyExpr: ContextKeyExpression, readonly getActiveElectronBasedWebviewDelegate: (accessor: ServicesAccessor) => ElectronWebviewBasedWebview | undefined = getActiveElectronBasedWebview) {
 		super({
 			id: CutWebviewEditorCommand.ID,
 			title: CutWebviewEditorCommand.LABEL,
@@ -97,7 +97,7 @@ export class CutWebviewEditorCommand extends Action2 {
 	}
 
 	public run(accessor: ServicesAccessor): void {
-		getActiveElectronBasedWebview(accessor)?.cut();
+		this.getActiveElectronBasedWebviewDelegate(accessor)?.cut();
 	}
 }
 
@@ -105,7 +105,7 @@ export class UndoWebviewEditorCommand extends Action2 {
 	public static readonly ID = 'editor.action.webvieweditor.undo';
 	public static readonly LABEL = nls.localize('editor.action.webvieweditor.undo', "Undo");
 
-	constructor(contextKeyExpr: ContextKeyExpression) {
+	constructor(contextKeyExpr: ContextKeyExpression, readonly getActiveElectronBasedWebviewDelegate: (accessor: ServicesAccessor) => ElectronWebviewBasedWebview | undefined = getActiveElectronBasedWebview) {
 		super({
 			id: UndoWebviewEditorCommand.ID,
 			title: UndoWebviewEditorCommand.LABEL,
@@ -118,7 +118,7 @@ export class UndoWebviewEditorCommand extends Action2 {
 	}
 
 	public run(accessor: ServicesAccessor): void {
-		getActiveElectronBasedWebview(accessor)?.undo();
+		this.getActiveElectronBasedWebviewDelegate(accessor)?.undo();
 	}
 }
 
@@ -126,7 +126,7 @@ export class RedoWebviewEditorCommand extends Action2 {
 	public static readonly ID = 'editor.action.webvieweditor.redo';
 	public static readonly LABEL = nls.localize('editor.action.webvieweditor.redo', "Redo");
 
-	constructor(contextKeyExpr: ContextKeyExpression) {
+	constructor(contextKeyExpr: ContextKeyExpression, readonly getActiveElectronBasedWebviewDelegate: (accessor: ServicesAccessor) => ElectronWebviewBasedWebview | undefined = getActiveElectronBasedWebview) {
 		super({
 			id: RedoWebviewEditorCommand.ID,
 			title: RedoWebviewEditorCommand.LABEL,
@@ -141,7 +141,7 @@ export class RedoWebviewEditorCommand extends Action2 {
 	}
 
 	public run(accessor: ServicesAccessor): void {
-		getActiveElectronBasedWebview(accessor)?.redo();
+		this.getActiveElectronBasedWebviewDelegate(accessor)?.redo();
 	}
 }
 

@@ -310,7 +310,7 @@ export interface ITextFileSaveParticipant {
 	 * before it is being saved to disk.
 	 */
 	participate(
-		model: IResolvedTextFileEditorModel,
+		model: ITextFileEditorModel,
 		context: { reason: SaveReason },
 		progress: IProgress<IProgressStep>,
 		token: CancellationToken
@@ -347,7 +347,10 @@ export interface ITextFileEditorModelManager {
 	 */
 	addSaveParticipant(participant: ITextFileSaveParticipant): IDisposable;
 
-	runSaveParticipants(model: IResolvedTextFileEditorModel, context: { reason: SaveReason; }, token: CancellationToken): Promise<void>
+	/**
+	 * Runs the registered save participants on the provided model.
+	 */
+	runSaveParticipants(model: ITextFileEditorModel, context: { reason: SaveReason; }, token: CancellationToken): Promise<void>
 
 	disposeModel(model: ITextFileEditorModel): void;
 }

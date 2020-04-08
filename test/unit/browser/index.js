@@ -22,7 +22,7 @@ const optimist = require('optimist')
 	.describe('run', 'only run tests matching <relative_file_path>').string('run')
 	.describe('glob', 'only run tests matching <glob_pattern>').string('glob')
 	.describe('debug', 'do not run browsers headless').boolean('debug')
-	.describe('browser', 'browsers in which tests should run').string('browser').default('browser', ['chromium'])
+	.describe('browser', 'browsers in which tests should run').string('browser').default('browser', ['chromium', 'firefox', 'webkit'])
 	.describe('reporter', 'the mocha reporter').string('reporter').default('reporter', defaultReporterName)
 	.describe('reporter-options', 'the mocha reporter options').string('reporter-options').default('reporter-options', '')
 	.describe('tfs', 'tfs').string('tfs')
@@ -155,7 +155,7 @@ async function runTestsInBrowser(testModules, browserType) {
 	});
 
 	try {
-		// @ts-ignore
+		// @ts-expect-error
 		await page.evaluate(modules => loadAndRun(modules), testModules);
 	} catch (err) {
 		console.error(err);

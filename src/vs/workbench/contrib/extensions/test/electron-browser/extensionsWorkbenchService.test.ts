@@ -12,12 +12,12 @@ import { IExtensionsWorkbenchService, ExtensionState, AutoCheckUpdatesConfigurat
 import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension,
-	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IGalleryExtensionAssets, IExtensionIdentifier, InstallOperation
+	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IGalleryExtensionAssets, IExtensionIdentifier, InstallOperation, IExtensionTipsService
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionTipsService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionRecommendationsService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
-import { ExtensionTipsService } from 'vs/workbench/contrib/extensions/browser/extensionTipsService';
+import { ExtensionRecommendationsService } from 'vs/workbench/contrib/extensions/browser/extensionRecommendationsService';
 import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/browser/extensionEnablementService.test';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { IURLService } from 'vs/platform/url/common/url';
@@ -41,6 +41,13 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
+import { IStorageKeysSyncRegistryService, StorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { IExperimentService } from 'vs/workbench/contrib/experiments/common/experimentService';
+import { TestExperimentService } from 'vs/workbench/contrib/experiments/test/electron-browser/experimentService.test';
+import { ExtensionTipsService } from 'vs/platform/extensionManagement/node/extensionTipsService';
 
 suite('ExtensionsWorkbenchServiceTest', () => {
 
@@ -62,6 +69,8 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(ILogService, NullLogService);
 		instantiationService.stub(IProgressService, ProgressService);
+		instantiationService.stub(IStorageKeysSyncRegistryService, new StorageKeysSyncRegistryService());
+		instantiationService.stub(IProductService, {});
 
 		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
 		instantiationService.stub(IURLService, URLService);
@@ -91,7 +100,10 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 
-		instantiationService.set(IExtensionTipsService, instantiationService.createInstance(ExtensionTipsService));
+		instantiationService.stub(ILifecycleService, new TestLifecycleService());
+		instantiationService.stub(IExperimentService, instantiationService.createInstance(TestExperimentService));
+		instantiationService.stub(IExtensionTipsService, instantiationService.createInstance(ExtensionTipsService));
+		instantiationService.set(IExtensionRecommendationsService, instantiationService.createInstance(ExtensionRecommendationsService));
 
 		instantiationService.stub(INotificationService, { prompt: () => null! });
 	});

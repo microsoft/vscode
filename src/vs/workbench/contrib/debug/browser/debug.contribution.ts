@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!../browser/media/debug.contribution';
-import 'vs/css!../browser/media/debugHover';
+import 'vs/css!./media/debug.contribution';
+import 'vs/css!./media/debugHover';
 import * as nls from 'vs/nls';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
@@ -27,13 +27,11 @@ import { DebugToolBar } from 'vs/workbench/contrib/debug/browser/debugToolBar';
 import * as service from 'vs/workbench/contrib/debug/browser/debugService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { registerCommands, ADD_CONFIGURATION_ID, TOGGLE_INLINE_BREAKPOINT_ID, COPY_STACK_TRACE_ID, REVERSE_CONTINUE_ID, STEP_BACK_ID, RESTART_SESSION_ID, TERMINATE_THREAD_ID, STEP_OVER_ID, STEP_INTO_ID, STEP_OUT_ID, PAUSE_ID, DISCONNECT_ID, STOP_ID, RESTART_FRAME_ID, CONTINUE_ID, FOCUS_REPL_ID, JUMP_TO_CURSOR_ID, RESTART_LABEL, STEP_INTO_LABEL, STEP_OVER_LABEL, STEP_OUT_LABEL, PAUSE_LABEL, DISCONNECT_LABEL, STOP_LABEL, CONTINUE_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
-import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 import { StatusBarColorProvider } from 'vs/workbench/contrib/debug/browser/statusbarColorProvider';
 import { IViewsRegistry, Extensions as ViewExtensions, IViewContainersRegistry, ViewContainerLocation, ViewContainer } from 'vs/workbench/common/views';
 import { isMacintosh } from 'vs/base/common/platform';
 import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
-import { DebugQuickOpenHandler } from 'vs/workbench/contrib/debug/browser/debugQuickOpen';
 import { DebugStatusContribution } from 'vs/workbench/contrib/debug/browser/debugStatus';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
@@ -46,7 +44,7 @@ import { ClearReplAction, Repl } from 'vs/workbench/contrib/debug/browser/repl';
 import { DebugContentProvider } from 'vs/workbench/contrib/debug/common/debugContentProvider';
 import { WelcomeView } from 'vs/workbench/contrib/debug/browser/welcomeView';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { DebugViewPaneContainer, OpenDebugPanelAction } from 'vs/workbench/contrib/debug/browser/debugViewlet';
+import { DebugViewPaneContainer, OpenDebugConsoleAction } from 'vs/workbench/contrib/debug/browser/debugViewlet';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { CallStackEditorContribution } from 'vs/workbench/contrib/debug/browser/callStackEditorContribution';
 import { BreakpointEditorContribution } from 'vs/workbench/contrib/debug/browser/breakpointEditorContribution';
@@ -54,6 +52,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
 import { StartDebugQuickAccessProvider } from 'vs/workbench/contrib/debug/browser/debugQuickAccess';
+import { DebugProgressContribution } from 'vs/workbench/contrib/debug/browser/debugProgress';
 
 class OpenDebugViewletAction extends ShowViewletAction {
 	public static readonly ID = VIEWLET_ID;
@@ -75,7 +74,7 @@ const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewCo
 	name: nls.localize('run', "Run"),
 	ctorDescriptor: new SyncDescriptor(DebugViewPaneContainer),
 	icon: 'codicon-debug-alt-2',
-	order: 3
+	order: 2
 }, ViewContainerLocation.Sidebar);
 
 const openViewletKb: IKeybindings = {
@@ -92,15 +91,19 @@ const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewE
 	name: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugPanel' }, 'Debug Console'),
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [DEBUG_PANEL_ID, DEBUG_PANEL_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
 	focusCommand: {
-		id: OpenDebugPanelAction.ID,
+		id: OpenDebugConsoleAction.ID,
 		keybindings: openPanelKb
-	}
+	},
+	order: 3,
+	hideIfEmpty: true
 }, ViewContainerLocation.Panel);
 
 Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([{
 	id: REPL_VIEW_ID,
 	name: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugPanel' }, 'Debug Console'),
+	containerIcon: 'codicon-debug-console',
 	canToggleVisibility: false,
+	canMoveView: true,
 	ctorDescriptor: new SyncDescriptor(Repl),
 }], VIEW_CONTAINER);
 
@@ -117,8 +120,8 @@ registerCommands();
 
 // register action to open viewlet
 const registry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionRegistryExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(SyncActionDescriptor.create(OpenDebugPanelAction, OpenDebugPanelAction.ID, OpenDebugPanelAction.LABEL, openPanelKb), 'View: Debug Console', nls.localize('view', "View"));
-registry.registerWorkbenchAction(SyncActionDescriptor.create(OpenDebugViewletAction, OpenDebugViewletAction.ID, OpenDebugViewletAction.LABEL, openViewletKb), 'View: Show Debug', nls.localize('view', "View"));
+registry.registerWorkbenchAction(SyncActionDescriptor.create(OpenDebugConsoleAction, OpenDebugConsoleAction.ID, OpenDebugConsoleAction.LABEL, openPanelKb), 'View: Debug Console', nls.localize('view', "View"));
+registry.registerWorkbenchAction(SyncActionDescriptor.create(OpenDebugViewletAction, OpenDebugViewletAction.ID, OpenDebugViewletAction.LABEL, openViewletKb), 'View: Show Run and Debug', nls.localize('view', "View"));
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DebugToolBar, LifecyclePhase.Restored);
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DebugContentProvider, LifecyclePhase.Eventually);
@@ -164,23 +167,13 @@ registerDebugCommandPaletteItem(RunToCursorAction.ID, RunToCursorAction.LABEL, C
 registerDebugCommandPaletteItem(TOGGLE_INLINE_BREAKPOINT_ID, nls.localize('inlineBreakpoint', "Inline Breakpoint"));
 
 
-// Register Quick Open
-(Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen)).registerQuickOpenHandler(
-	QuickOpenHandlerDescriptor.create(
-		DebugQuickOpenHandler,
-		DebugQuickOpenHandler.ID,
-		'debug ',
-		'inLaunchConfigurationsPicker',
-		nls.localize('debugCommands', "Debug Configuration")
-	)
-);
-
 // Register Quick Access
 Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess).registerQuickAccessProvider({
 	ctor: StartDebugQuickAccessProvider,
 	prefix: StartDebugQuickAccessProvider.PREFIX,
+	contextKey: 'inLaunchConfigurationsPicker',
 	placeholder: nls.localize('startDebugPlaceholder', "Type the name of a launch configuration to run."),
-	helpEntries: [{ description: nls.localize('startDebugHelp', "Start Debug Configurations"), needsEditor: false }]
+	helpEntries: [{ description: nls.localize('startDebuggingHelp', "Start Debugging"), needsEditor: false }]
 });
 
 // register service
@@ -298,6 +291,7 @@ configurationRegistry.registerConfiguration({
 
 // Register Debug Status
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DebugStatusContribution, LifecyclePhase.Eventually);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DebugProgressContribution, LifecyclePhase.Eventually);
 
 // Debug toolbar
 
@@ -369,7 +363,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	group: '4_panels',
 	command: {
-		id: OpenDebugPanelAction.ID,
+		id: OpenDebugConsoleAction.ID,
 		title: nls.localize({ key: 'miToggleDebugConsole', comment: ['&& denotes a mnemonic'] }, "De&&bug Console")
 	},
 	order: 2

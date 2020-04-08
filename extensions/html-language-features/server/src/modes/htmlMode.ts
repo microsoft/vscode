@@ -85,6 +85,10 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace:
 			const htmlDocument = htmlDocuments.get(document);
 			return htmlLanguageService.findMatchingTagPosition(document, position, htmlDocument);
 		},
+		doOnTypeRename(document: TextDocument, position: Position) {
+			const htmlDocument = htmlDocuments.get(document);
+			return htmlLanguageService.findSyncedRegions(document, position, htmlDocument);
+		},
 		dispose() {
 			htmlDocuments.dispose();
 		}

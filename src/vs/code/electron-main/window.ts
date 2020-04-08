@@ -6,15 +6,16 @@
 import * as path from 'vs/base/common/path';
 import * as objects from 'vs/base/common/objects';
 import * as nls from 'vs/nls';
-import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage, Rectangle, Display, TouchBarSegmentedControl, NativeImage, BrowserWindowConstructorOptions, SegmentedControlSegment, nativeTheme } from 'electron';
-import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
+import { parseArgs, OPTIONS, ParsedArgs } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/product/common/product';
-import { IWindowSettings, MenuBarVisibility, ReadyState, getTitleBarStyle, getMenuBarVisibility } from 'vs/platform/windows/common/windows';
+import { IWindowSettings, MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ICodeWindow, IWindowState, WindowMode } from 'vs/platform/windows/electron-main/windows';
@@ -26,14 +27,14 @@ import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import * as perf from 'vs/base/common/performance';
 import { resolveMarketplaceHeaders } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
-import { endsWith } from 'vs/base/common/strings';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { IFileService } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { IStorageMainService } from 'vs/platform/storage/node/storageMainService';
+import { IFileService } from 'vs/platform/files/common/files';
 
 const RUN_TEXTMATE_IN_WORKER = false;
 
@@ -60,6 +61,29 @@ const enum WindowError {
 	CRASHED = 2
 }
 
+const enum ReadyState {
+
+	/**
+	 * This window has not loaded any HTML yet
+	 */
+	NONE,
+
+	/**
+	 * This window is loading HTML
+	 */
+	LOADING,
+
+	/**
+	 * This window is navigating to another HTML
+	 */
+	NAVIGATING,
+
+	/**
+	 * This window is done loading HTML
+	 */
+	READY
+}
+
 export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private static readonly MIN_WIDTH = 600;
@@ -68,13 +92,13 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private static readonly MAX_URL_LENGTH = 2 * 1024 * 1024; // https://cs.chromium.org/chromium/src/url/url_constants.cc?l=32
 
 	private readonly _onClose = this._register(new Emitter<void>());
-	readonly onClose: CommonEvent<void> = this._onClose.event;
+	readonly onClose = this._onClose.event;
 
 	private readonly _onDestroy = this._register(new Emitter<void>());
-	readonly onDestroy: CommonEvent<void> = this._onDestroy.event;
+	readonly onDestroy = this._onDestroy.event;
 
 	private readonly _onLoad = this._register(new Emitter<void>());
-	readonly onLoad: CommonEvent<void> = this._onLoad.event;
+	readonly onLoad = this._onLoad.event;
 
 	private hiddenTitleBarStyle: boolean | undefined;
 	private showTimeoutHandle: NodeJS.Timeout | undefined;
@@ -82,7 +106,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private _readyState: ReadyState;
 	private windowState: IWindowState;
 	private currentMenuBarVisibility: MenuBarVisibility | undefined;
+
 	private representedFilename: string | undefined;
+	private documentEdited: boolean | undefined;
 
 	private readonly whenReadyCallbacks: { (window: ICodeWindow): void }[];
 
@@ -92,11 +118,14 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private readonly touchBarGroups: TouchBarSegmentedControl[];
 
+	private currentHttpProxy?: string;
+
 	constructor(
 		config: IWindowCreationOptions,
 		@ILogService private readonly logService: ILogService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@IFileService private readonly fileService: IFileService,
+		@IStorageMainService private readonly storageService: IStorageMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService,
 		@IWorkspacesMainService private readonly workspacesMainService: IWorkspacesMainService,
@@ -226,7 +255,11 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this.createTouchBar();
 
 		// Request handling
-		this.marketplaceHeadersPromise = resolveMarketplaceHeaders(product.version, this.environmentService, this.fileService);
+		const that = this;
+		this.marketplaceHeadersPromise = resolveMarketplaceHeaders(product.version, this.environmentService, this.fileService, {
+			get(key) { return that.storageService.get(key); },
+			store(key, value) { that.storageService.store(key, value); }
+		});
 
 		// Eventing
 		this.registerListeners();
@@ -263,6 +296,22 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 
 		return this.representedFilename;
+	}
+
+	setDocumentEdited(edited: boolean): void {
+		if (isMacintosh) {
+			this._win.setDocumentEdited(edited);
+		}
+
+		this.documentEdited = edited;
+	}
+
+	isDocumentEdited(): boolean {
+		if (isMacintosh) {
+			return this._win.isDocumentEdited();
+		}
+
+		return !!this.documentEdited;
 	}
 
 	focus(): void {
@@ -343,7 +392,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this._win.webContents.session.webRequest.onBeforeRequest(null!, (details, callback) => {
 			if (details.url.indexOf('.svg') > 0) {
 				const uri = URI.parse(details.url);
-				if (uri && !uri.scheme.match(/file/i) && endsWith(uri.path, '.svg')) {
+				if (uri && !uri.scheme.match(/file/i) && uri.path.endsWith('.svg')) {
 					return callback({ cancel: true });
 				}
 			}
@@ -448,7 +497,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// Inject headers when requests are incoming
 		const urls = ['https://marketplace.visualstudio.com/*', 'https://*.vsassets.io/*'];
 		this._win.webContents.session.webRequest.onBeforeSendHeaders({ urls }, (details, cb) =>
-			this.marketplaceHeadersPromise.then(headers => cb({ cancel: false, requestHeaders: objects.assign(details.requestHeaders, headers) as Record<string, string> })));
+			this.marketplaceHeadersPromise.then(headers => cb({ cancel: false, requestHeaders: Object.assign(details.requestHeaders, headers) })));
 	}
 
 	private onWindowError(error: WindowError): void {
@@ -547,6 +596,16 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			this.currentMenuBarVisibility = newMenuBarVisibility;
 			this.setMenuBarVisibility(newMenuBarVisibility);
 		}
+		// Do not set to empty configuration at startup if setting is empty to not override configuration through CLI options:
+		const newHttpProxy = (this.configurationService.getValue<string>('http.proxy') || '').trim() || undefined;
+		if (newHttpProxy !== this.currentHttpProxy) {
+			this.currentHttpProxy = newHttpProxy;
+			this._win.webContents.session.setProxy({
+				proxyRules: newHttpProxy || '',
+				proxyBypassRules: '',
+				pacScript: '',
+			});
+		}
 	}
 
 	addTabbedWindow(window: ICodeWindow): void {
@@ -574,15 +633,15 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Add disable-extensions to the config, but do not preserve it on currentConfig or
 		// pendingLoadConfig so that it is applied only on this load
-		const configuration = objects.assign({}, config);
+		const configuration = { ...config };
 		if (disableExtensions !== undefined) {
 			configuration['disable-extensions'] = disableExtensions;
 		}
 
 		// Clear Document Edited if needed
-		if (isMacintosh && this._win.isDocumentEdited()) {
+		if (this.isDocumentEdited()) {
 			if (!isReload || !this.backupMainService.isHotExitEnabled()) {
-				this._win.setDocumentEdited(false);
+				this.setDocumentEdited(false);
 			}
 		}
 
@@ -678,7 +737,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Config (combination of process.argv and window configuration)
 		const environment = parseArgs(process.argv, OPTIONS);
-		const config = objects.assign(environment, windowConfiguration);
+		const config = Object.assign(environment, windowConfiguration);
 		for (const key in config) {
 			const configValue = (config as any)[key];
 			if (configValue === undefined || configValue === null || configValue === '' || configValue === false) {
