@@ -32,7 +32,7 @@ import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileE
 import { IWebviewService, webviewHasOwnEditFunctionsContext } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
-import { ContributedCustomEditors, defaultCustomEditor } from './contributedCustomEditors';
+import { ContributedCustomEditors, defaultCustomEditor } from '../common/contributedCustomEditors';
 import { CustomEditorInput } from './customEditorInput';
 
 export const customEditorsAssociationsSettingId = 'workbench.editorAssociations';

@@ -16,7 +16,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { EditorViewColumn, viewColumnToEditorGroup } from 'vs/workbench/api/common/shared/editor';
 import { IEditorCommandsContext } from 'vs/workbench/common/editor';
-import { defaultCustomEditor } from 'vs/workbench/contrib/customEditor/browser/contributedCustomEditors';
+import { defaultCustomEditor } from 'vs/workbench/contrib/customEditor/common/contributedCustomEditors';
 import { CustomEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
 import { CONTEXT_CUSTOM_EDITORS, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
