@@ -12,11 +12,12 @@ jobs:
         uses: actions/checkout@v2
         with:
           repository: 'microsoft/vscode-github-triage-actions'
+          path: ./actions
           ref: v1
       - name: Install Actions
-        run: npm install --production
+        run: npm install --production --prefix ./actions
       - name: Run Needs More Info Closer
-        uses: ./needs-more-info-closer
+        uses: ./actions/needs-more-info-closer
         with:
           label: needs more info
           closeDays: 7

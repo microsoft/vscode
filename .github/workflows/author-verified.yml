@@ -4,8 +4,9 @@ on:
   schedule:
     - cron: 20 14 * * * # 4:20pm Zurich
   issues:
-    types: [labeled, closed]
+    types: [closed]
 
+# also make changes in ./on-label.yml
 jobs:
   main:
     runs-on: ubuntu-latest

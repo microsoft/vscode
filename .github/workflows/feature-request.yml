@@ -2,10 +2,11 @@ name: Feature Request Manager
 on:
   repository_dispatch:
   issues:
-    types: [labeled, milestoned]
+    types: [milestoned]
   schedule:
     - cron: 20 2 * * * # 4:20am Zurich
 
+# also make changes in ./on-label.yml
 jobs:
   main:
     runs-on: ubuntu-latest
@@ -15,13 +16,14 @@ jobs:
         uses: actions/checkout@v2
         with:
           repository: 'microsoft/vscode-github-triage-actions'
+          path: ./actions
           ref: v1
       - name: Install Actions
         if: github.event_name != 'issues' || contains(github.event.issue.labels.*.name, 'feature-request')
-        run: npm install --production
+        run: npm install --production --prefix ./actions
       - name: Run Feature Request Manager
         if: github.event_name != 'issues' || contains(github.event.issue.labels.*.name, 'feature-request')
-        uses: ./feature-request
+        uses: ./actions/feature-request
         with:
           token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
           candidateMilestoneID: 107

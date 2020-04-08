@@ -1,7 +1,7 @@
-name: CopyCat
+name: On Label
 on:
   issues:
-    types: [opened]
+    types: [labeled]
 
 jobs:
   main:
@@ -12,17 +12,27 @@ jobs:
         with:
           repository: 'microsoft/vscode-github-triage-actions'
           ref: v1
+          path: ./actions
       - name: Install Actions
-        run: npm install --production
+        run: npm install --production --prefix ./actions
+
       - name: Run CopyCat (JacksonKearl/testissues)
-        uses: ./copycat
+        uses: ./actions/copycat
         with:
           token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
           owner: JacksonKearl
           repo: testissues
       - name: Run CopyCat (chrmarti/testissues)
-        uses: ./copycat
+        uses: ./actions/copycat
         with:
           token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
           owner: chrmarti
           repo: testissues
+
+      - name: Run New Release
+        uses: ./actions/new-release
+        with:
+          label: new release
+          labelColor: "006b75"
+          labelDescription: Issues found in a recent release of VS Code
+          days: 5
