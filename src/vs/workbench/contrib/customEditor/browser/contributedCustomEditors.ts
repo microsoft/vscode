@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { CustomEditorInfo, CustomEditorPriority } from 'vs/workbench/contrib/customEditor/common/customEditor';
-import { IWebviewEditorsExtensionPoint, webviewEditorsExtensionPoint } from 'vs/workbench/contrib/customEditor/common/extensionPoint';
+import { ICustomEditorsExtensionPoint, customEditorsExtensionPoint } from 'vs/workbench/contrib/customEditor/common/extensionPoint';
 
 const builtinProviderDisplayName = nls.localize('builtinProviderDisplayName', "Built-in");
 
@@ -30,7 +30,7 @@ export class ContributedCustomEditors extends Disposable {
 	constructor() {
 		super();
 
-		webviewEditorsExtensionPoint.setHandler(extensions => {
+		customEditorsExtensionPoint.setHandler(extensions => {
 			this._editors.clear();
 
 			for (const extension of extensions) {
@@ -76,7 +76,7 @@ export class ContributedCustomEditors extends Disposable {
 }
 
 function getPriorityFromContribution(
-	contribution: IWebviewEditorsExtensionPoint,
+	contribution: ICustomEditorsExtensionPoint,
 	extension: IExtensionDescription,
 ): CustomEditorPriority {
 	switch (contribution.priority) {
