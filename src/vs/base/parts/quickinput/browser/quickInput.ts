@@ -1299,9 +1299,10 @@ export class QuickInputController extends Disposable {
 		return this.ui;
 	}
 
-	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options: O = <O>{}, token: CancellationToken = CancellationToken.None): Promise<O extends { canPickMany: true } ? T[] : T> {
-		return new Promise<O extends { canPickMany: true } ? T[] : T>((doResolve, reject) => {
-			let resolve = (result: any) => {
+	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options: O = <O>{}, token: CancellationToken = CancellationToken.None): Promise<(O extends { canPickMany: true } ? T[] : T) | undefined> {
+		type R = (O extends { canPickMany: true } ? T[] : T) | undefined;
+		return new Promise<R>((doResolve, reject) => {
+			let resolve = (result: R) => {
 				resolve = doResolve;
 				if (options.onKeyMods) {
 					options.onKeyMods(input.keyMods);
@@ -1318,12 +1319,12 @@ export class QuickInputController extends Disposable {
 				input,
 				input.onDidAccept(() => {
 					if (input.canSelectMany) {
-						resolve(<any>input.selectedItems.slice());
+						resolve(<R>input.selectedItems.slice());
 						input.hide();
 					} else {
 						const result = input.activeItems[0];
 						if (result) {
-							resolve(<any>result);
+							resolve(<R>result);
 							input.hide();
 						}
 					}
@@ -1338,7 +1339,7 @@ export class QuickInputController extends Disposable {
 					if (!input.canSelectMany) {
 						const result = items[0];
 						if (result) {
-							resolve(<any>result);
+							resolve(<R>result);
 							input.hide();
 						}
 					}
@@ -1400,7 +1401,7 @@ export class QuickInputController extends Disposable {
 		});
 	}
 
-	input(options: IInputOptions = {}, token: CancellationToken = CancellationToken.None): Promise<string> {
+	input(options: IInputOptions = {}, token: CancellationToken = CancellationToken.None): Promise<string | undefined> {
 		return new Promise<string>((resolve, reject) => {
 			if (token.isCancellationRequested) {
 				resolve(undefined);

@@ -1331,7 +1331,7 @@ export class ChangeEncodingAction extends Action {
 			}
 		}
 
-		let action: IQuickPickItem;
+		let action: IQuickPickItem | undefined;
 		if (encodingSupport instanceof UntitledTextEditorInput) {
 			action = saveWithEncodingPick;
 		} else if (activeEditorPane.input.isReadonly()) {

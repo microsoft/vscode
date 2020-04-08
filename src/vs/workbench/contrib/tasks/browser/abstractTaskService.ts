@@ -2691,7 +2691,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 	}
 
-	private handleSelection(selection: TaskQuickPickEntryType) {
+	private handleSelection(selection: TaskQuickPickEntryType | undefined) {
 		if (!selection) {
 			return;
 		}
