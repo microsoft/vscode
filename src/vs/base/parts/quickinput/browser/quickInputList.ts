@@ -45,7 +45,7 @@ interface IListElement {
 	readonly fireButtonTriggered: (event: IQuickPickItemButtonEvent<IQuickPickItem>) => void;
 }
 
-class ListElement implements IListElement {
+class ListElement implements IListElement, IDisposable {
 	index!: number;
 	item!: IQuickPickItem;
 	saneLabel!: string;
@@ -73,6 +73,10 @@ class ListElement implements IListElement {
 
 	constructor(init: IListElement) {
 		assign(this, init);
+	}
+
+	dispose() {
+		this._onChecked.dispose();
 	}
 }
 
@@ -336,6 +340,14 @@ export class QuickInputList {
 				this.list.setSelection([e.index]);
 			}
 		}));
+		this.disposables.push(
+			this._onChangedAllVisibleChecked,
+			this._onChangedCheckedCount,
+			this._onChangedVisibleCount,
+			this._onChangedCheckedElements,
+			this._onButtonTriggered,
+			this._onLeave,
+		);
 	}
 
 	@memoize
@@ -434,6 +446,7 @@ export class QuickInputList {
 			}
 			return result;
 		}, [] as ListElement[]);
+		this.elementDisposables.push(...this.elements);
 		this.elementDisposables.push(...this.elements.map(element => element.onChecked(() => this.fireCheckedEvents())));
 
 		this.elementsToIndexes = this.elements.reduce((map, element, index) => {
