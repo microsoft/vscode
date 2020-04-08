@@ -57,6 +57,7 @@ import { ExtensionTipsService } from 'vs/platform/extensionManagement/node/exten
 import { ExtensionRecommendationsService } from 'vs/workbench/contrib/extensions/browser/extensionRecommendationsService';
 import { NoOpWorkspaceTagsService } from 'vs/workbench/contrib/tags/browser/workspaceTagsService';
 import { IWorkspaceTagsService } from 'vs/workbench/contrib/tags/common/workspaceTags';
+import { IStorageKeysSyncRegistryService, StorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
 const mockExtensionGallery: IGalleryExtension[] = [
 	aGalleryExtension('MockExtension1', {
@@ -209,6 +210,7 @@ suite('ExtensionRecommendationsService Test', () => {
 		instantiationService.stub(IWorkspaceTagsService, new NoOpWorkspaceTagsService());
 		instantiationService.stub(IStorageService, new TestStorageService());
 		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IStorageKeysSyncRegistryService, new StorageKeysSyncRegistryService());
 		instantiationService.set(IProductService, {
 			...productService,
 			...{
