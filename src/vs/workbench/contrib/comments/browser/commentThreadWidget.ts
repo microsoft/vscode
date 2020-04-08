@@ -728,6 +728,10 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 			const computedLinesNumber = Math.ceil((headHeight + dimensions.height + arrowHeight + frameThickness + 8 /** margin bottom to avoid margin collapse */) / lineHeight);
 
+			if (this._viewZone?.heightInLines === computedLinesNumber) {
+				return;
+			}
+
 			let currentPosition = this.getPosition();
 
 			if (this._viewZone && currentPosition && currentPosition.lineNumber !== this._viewZone.afterLineNumber) {
