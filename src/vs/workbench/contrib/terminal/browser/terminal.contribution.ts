@@ -19,7 +19,7 @@ import * as panel from 'vs/workbench/browser/panel';
 import { getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { Extensions as ViewContainerExtensions, IViewContainersRegistry, ViewContainerLocation, IViewsRegistry } from 'vs/workbench/common/views';
-import { registerTerminalActions, ClearTerminalAction, CopyTerminalSelectionAction, CreateNewInActiveWorkspaceTerminalAction, CreateNewTerminalAction, FocusActiveTerminalAction, FocusNextPaneTerminalAction, FocusNextTerminalAction, FocusPreviousPaneTerminalAction, FocusPreviousTerminalAction, KillTerminalAction, ResizePaneDownTerminalAction, ResizePaneLeftTerminalAction, ResizePaneRightTerminalAction, ResizePaneUpTerminalAction, RunActiveFileInTerminalAction, RunSelectedTextInTerminalAction, SelectAllTerminalAction, SelectDefaultShellWindowsTerminalAction, SplitInActiveWorkspaceTerminalAction, SplitTerminalAction, TerminalPasteAction, ToggleTerminalAction, terminalSendSequenceCommand } from 'vs/workbench/contrib/terminal/browser/terminalActions';
+import { registerTerminalActions, ClearTerminalAction, CopyTerminalSelectionAction, CreateNewInActiveWorkspaceTerminalAction, CreateNewTerminalAction, FocusActiveTerminalAction, FocusNextPaneTerminalAction, FocusNextTerminalAction, FocusPreviousPaneTerminalAction, FocusPreviousTerminalAction, KillTerminalAction, ResizePaneDownTerminalAction, ResizePaneLeftTerminalAction, ResizePaneRightTerminalAction, ResizePaneUpTerminalAction, SelectAllTerminalAction, SelectDefaultShellWindowsTerminalAction, SplitInActiveWorkspaceTerminalAction, SplitTerminalAction, TerminalPasteAction, ToggleTerminalAction, terminalSendSequenceCommand } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
 import { KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE_KEY, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_VIEW_ID, TERMINAL_ACTION_CATEGORY, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { registerColors } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
@@ -103,8 +103,6 @@ actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(SelectAllTerm
 	// makes it easier for users to see how it works though.
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_A }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Select All', category);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(RunSelectedTextInTerminalAction, RunSelectedTextInTerminalAction.ID, RunSelectedTextInTerminalAction.LABEL), 'Terminal: Run Selected Text In Active Terminal', category);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(RunActiveFileInTerminalAction, RunActiveFileInTerminalAction.ID, RunActiveFileInTerminalAction.LABEL), 'Terminal: Run Active File In Active Terminal', category);
 actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleTerminalAction, ToggleTerminalAction.ID, ToggleTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.US_BACKTICK,
 	mac: { primary: KeyMod.WinCtrl | KeyCode.US_BACKTICK }

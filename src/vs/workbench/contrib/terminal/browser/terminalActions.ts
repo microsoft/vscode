@@ -479,73 +479,6 @@ export class SelectDefaultShellWindowsTerminalAction extends Action {
 	}
 }
 
-export class RunSelectedTextInTerminalAction extends Action {
-
-	public static readonly ID = TERMINAL_COMMAND_ID.RUN_SELECTED_TEXT;
-	public static readonly LABEL = localize('workbench.action.terminal.runSelectedText', "Run Selected Text In Active Terminal");
-
-	constructor(
-		id: string, label: string,
-		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
-		@ITerminalService private readonly _terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	async run() {
-		const instance = this._terminalService.getActiveOrCreateInstance();
-		let editor = this._codeEditorService.getFocusedCodeEditor();
-		if (!editor || !editor.hasModel()) {
-			return;
-		}
-		let selection = editor.getSelection();
-		let text: string;
-		if (selection.isEmpty()) {
-			text = editor.getModel().getLineContent(selection.selectionStartLineNumber).trim();
-		} else {
-			const endOfLinePreference = isWindows ? EndOfLinePreference.LF : EndOfLinePreference.CRLF;
-			text = editor.getModel().getValueInRange(selection, endOfLinePreference);
-		}
-		instance.sendText(text, true);
-		return this._terminalService.showPanel();
-	}
-}
-
-export class RunActiveFileInTerminalAction extends Action {
-
-	public static readonly ID = TERMINAL_COMMAND_ID.RUN_ACTIVE_FILE;
-	public static readonly LABEL = localize('workbench.action.terminal.runActiveFile', "Run Active File In Active Terminal");
-
-	constructor(
-		id: string, label: string,
-		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
-		@ITerminalService private readonly _terminalService: ITerminalService,
-		@INotificationService private readonly _notificationService: INotificationService
-	) {
-		super(id, label);
-	}
-
-	async run() {
-		const instance = this._terminalService.getActiveOrCreateInstance();
-		await instance.processReady;
-
-		const editor = this._codeEditorService.getActiveCodeEditor();
-		if (!editor || !editor.hasModel()) {
-			return;
-		}
-		const uri = editor.getModel().uri;
-		if (uri.scheme !== 'file') {
-			this._notificationService.warn(localize('workbench.action.terminal.runActiveFile.noFile', 'Only files on disk can be run in the terminal'));
-			return;
-		}
-
-		// TODO: Convert this to ctrl+c, ctrl+v for pwsh?
-		const path = await this._terminalService.preparePathForTerminalAsync(uri.fsPath, instance.shellLaunchConfig.executable, instance.title, instance.shellType);
-		instance.sendText(path, true);
-		return this._terminalService.showPanel();
-	}
-}
-
 export class SwitchTerminalAction extends Action {
 
 	public static readonly ID = TERMINAL_COMMAND_ID.SWITCH_TERMINAL;
@@ -638,6 +571,70 @@ export class ClearTerminalAction extends Action {
 export function registerTerminalActions() {
 	const category = TERMINAL_ACTION_CATEGORY;
 
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.RUN_SELECTED_TEXT,
+				title: localize('workbench.action.terminal.runSelectedText', "Run Selected Text In Active Terminal"),
+				f1: true,
+				category
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			const terminalService = accessor.get(ITerminalService);
+			const codeEditorService = accessor.get(ICodeEditorService);
+
+			const instance = terminalService.getActiveOrCreateInstance();
+			let editor = codeEditorService.getFocusedCodeEditor();
+			if (!editor || !editor.hasModel()) {
+				return;
+			}
+			let selection = editor.getSelection();
+			let text: string;
+			if (selection.isEmpty()) {
+				text = editor.getModel().getLineContent(selection.selectionStartLineNumber).trim();
+			} else {
+				const endOfLinePreference = isWindows ? EndOfLinePreference.LF : EndOfLinePreference.CRLF;
+				text = editor.getModel().getValueInRange(selection, endOfLinePreference);
+			}
+			instance.sendText(text, true);
+			return terminalService.showPanel();
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.RUN_ACTIVE_FILE,
+				title: localize('workbench.action.terminal.runActiveFile', "Run Active File In Active Terminal"),
+				f1: true,
+				category
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			const terminalService = accessor.get(ITerminalService);
+			const codeEditorService = accessor.get(ICodeEditorService);
+			const notificationService = accessor.get(INotificationService);
+
+			const instance = terminalService.getActiveOrCreateInstance();
+			await instance.processReady;
+
+			const editor = codeEditorService.getActiveCodeEditor();
+			if (!editor || !editor.hasModel()) {
+				return;
+			}
+
+			const uri = editor.getModel().uri;
+			if (uri.scheme !== 'file') {
+				notificationService.warn(localize('workbench.action.terminal.runActiveFile.noFile', 'Only files on disk can be run in the terminal'));
+				return;
+			}
+
+			// TODO: Convert this to ctrl+c, ctrl+v for pwsh?
+			const path = await terminalService.preparePathForTerminalAsync(uri.fsPath, instance.shellLaunchConfig.executable, instance.title, instance.shellType);
+			instance.sendText(path, true);
+			return terminalService.showPanel();
+		}
+	});
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
