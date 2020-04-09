@@ -802,6 +802,7 @@ export class RepositoryPane extends ViewPane {
 				return;
 			}
 			this.inputModel.setValue(value);
+			this.inputEditor.setPosition(this.inputModel.getFullModelRange().getEndPosition());
 		}));
 
 		// Keep API in sync with model and update placeholder and validation
