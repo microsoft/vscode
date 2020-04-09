@@ -6,7 +6,7 @@
 import { Action, IAction } from 'vs/base/common/actions';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { TERMINAL_VIEW_ID, ITerminalConfigHelper, TitleEventSource, TERMINAL_COMMAND_ID, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED, TERMINAL_ACTION_CATEGORY, KEYBINDING_CONTEXT_TERMINAL_FOCUS } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TERMINAL_VIEW_ID, ITerminalConfigHelper, TitleEventSource, TERMINAL_COMMAND_ID, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED, TERMINAL_ACTION_CATEGORY, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_NOT_VISIBLE } from 'vs/workbench/contrib/terminal/common/terminal';
 import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
@@ -863,127 +863,122 @@ export class ClearTerminalAction extends Action {
 	}
 }
 
-export class ClearSelectionTerminalAction extends Action {
-
-	public static readonly ID = TERMINAL_COMMAND_ID.CLEAR_SELECTION;
-	public static readonly LABEL = localize('workbench.action.terminal.clearSelection', "Clear Selection");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private readonly terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	public run(event?: any): Promise<any> {
-		const terminalInstance = this.terminalService.getActiveInstance();
-		if (terminalInstance && terminalInstance.hasSelection()) {
-			terminalInstance.clearSelection();
-		}
-		return Promise.resolve(undefined);
-	}
-}
-
-export class ManageWorkspaceShellPermissionsTerminalCommand extends Action {
-
-	public static readonly ID = TERMINAL_COMMAND_ID.MANAGE_WORKSPACE_SHELL_PERMISSIONS;
-	public static readonly LABEL = localize('workbench.action.terminal.manageWorkspaceShellPermissions', "Manage Workspace Shell Permissions");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private readonly terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	public async run(event?: any): Promise<any> {
-		await this.terminalService.manageWorkspaceShellPermissions();
-	}
-}
-
-export class RenameTerminalAction extends Action {
-
-	public static readonly ID = TERMINAL_COMMAND_ID.RENAME;
-	public static readonly LABEL = localize('workbench.action.terminal.rename', "Rename");
-
-	constructor(
-		id: string, label: string,
-		@IQuickInputService protected quickInputService: IQuickInputService,
-		@ITerminalService protected terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	public async run(): Promise<any> {
-		const terminalInstance = this.terminalService.getActiveInstance();
-		if (!terminalInstance) {
-			return Promise.resolve(undefined);
-		}
-		const name = await this.quickInputService.input({
-			value: terminalInstance.title,
-			prompt: localize('workbench.action.terminal.rename.prompt', "Enter terminal name"),
-		});
-		if (name) {
-			terminalInstance.setTitle(name, TitleEventSource.Api);
-		}
-	}
-}
-
-export class FocusTerminalFindWidgetAction extends Action {
-
-	public static readonly ID = TERMINAL_COMMAND_ID.FIND_WIDGET_FOCUS;
-	public static readonly LABEL = localize('workbench.action.terminal.focusFindWidget', "Focus Find Widget");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private readonly terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	public run(): Promise<any> {
-		return this.terminalService.focusFindWidget();
-	}
-}
-
-export class HideTerminalFindWidgetAction extends Action {
-
-	public static readonly ID = TERMINAL_COMMAND_ID.FIND_WIDGET_HIDE;
-	public static readonly LABEL = localize('workbench.action.terminal.hideFindWidget', "Hide Find Widget");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private readonly terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	public run(): Promise<any> {
-		return Promise.resolve(this.terminalService.hideFindWidget());
-	}
-}
-
-export class QuickAccessTerminalAction extends Action {
-
-	public static readonly ID = TERMINAL_COMMAND_ID.QUICK_OPEN_TERM;
-	public static readonly LABEL = localize('quickAccessTerminal', "Switch Active Terminal");
-
-	constructor(
-		id: string,
-		label: string,
-		@IQuickInputService private readonly quickInputService: IQuickInputService
-	) {
-		super(id, label);
-	}
-
-	async run(): Promise<void> {
-		this.quickInputService.quickAccess.show(TerminalQuickAccessProvider.PREFIX);
-	}
-}
-
 export function registerTerminalActions() {
 	const category = TERMINAL_ACTION_CATEGORY;
 
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.CLEAR_SELECTION,
+				title: localize('workbench.action.terminal.clearSelection', "Clear Selection"),
+				f1: true,
+				category,
+				keybinding: {
+					primary: KeyCode.Escape,
+					when: ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_NOT_VISIBLE),
+					weight: KeybindingWeight.WorkbenchContrib
+				}
+			});
+		}
+
+		run(accessor: ServicesAccessor) {
+			const terminalInstance = accessor.get(ITerminalService).getActiveInstance();
+			if (terminalInstance && terminalInstance.hasSelection()) {
+				terminalInstance.clearSelection();
+			}
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.MANAGE_WORKSPACE_SHELL_PERMISSIONS,
+				title: localize('workbench.action.terminal.manageWorkspaceShellPermissions', "Manage Workspace Shell Permissions"),
+				f1: true,
+				category
+			});
+		}
+
+		run(accessor: ServicesAccessor) {
+			accessor.get(ITerminalService).manageWorkspaceShellPermissions();
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.RENAME,
+				title: localize('workbench.action.terminal.rename', "Rename"),
+				f1: true,
+				category
+			});
+		}
+
+		async run(accessor: ServicesAccessor) {
+			const terminalInstance = accessor.get(ITerminalService).getActiveInstance();
+			if (!terminalInstance) {
+				return;
+			}
+			const name = await accessor.get(IQuickInputService).input({
+				value: terminalInstance.title,
+				prompt: localize('workbench.action.terminal.rename.prompt', "Enter terminal name"),
+			});
+			if (name) {
+				terminalInstance.setTitle(name, TitleEventSource.Api);
+			}
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.FIND_WIDGET_FOCUS,
+				title: localize('workbench.action.terminal.focusFindWidget', "Focus Find Widget"),
+				f1: true,
+				category,
+				keybinding: {
+					primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
+					when: ContextKeyExpr.or(KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED, KEYBINDING_CONTEXT_TERMINAL_FOCUS),
+					weight: KeybindingWeight.WorkbenchContrib
+				}
+			});
+		}
+
+		run(accessor: ServicesAccessor) {
+			accessor.get(ITerminalService).focusFindWidget();
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.FIND_WIDGET_HIDE,
+				title: localize('workbench.action.terminal.hideFindWidget', "Hide Find Widget"),
+				f1: true,
+				category,
+				keybinding: {
+					primary: KeyCode.Escape,
+					secondary: [KeyMod.Shift | KeyCode.Escape],
+					when: ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE),
+					weight: KeybindingWeight.WorkbenchContrib
+				}
+			});
+		}
+
+		run(accessor: ServicesAccessor) {
+			accessor.get(ITerminalService).hideFindWidget();
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.QUICK_OPEN_TERM,
+				title: localize('quickAccessTerminal', "Switch Active Terminal"),
+				f1: true,
+				category
+			});
+		}
+
+		run(accessor: ServicesAccessor) {
+			accessor.get(IQuickInputService).quickAccess.show(TerminalQuickAccessProvider.PREFIX);
+		}
+	});
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
@@ -1132,6 +1127,7 @@ export function registerTerminalActions() {
 			super({
 				id: TERMINAL_COMMAND_ID.SEND_SEQUENCE,
 				title,
+				category,
 				description: {
 					description: title,
 					args: [{
@@ -1158,6 +1154,7 @@ export function registerTerminalActions() {
 			super({
 				id: TERMINAL_COMMAND_ID.NEW_WITH_CWD,
 				title,
+				category,
 				description: {
 					description: title,
 					args: [{
@@ -1193,6 +1190,7 @@ export function registerTerminalActions() {
 			super({
 				id: TERMINAL_COMMAND_ID.RENAME_WITH_ARG,
 				title,
+				category,
 				description: {
 					description: title,
 					args: [{
