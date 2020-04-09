@@ -948,12 +948,12 @@ export class Repository {
 	}
 
 	async lstree(treeish: string, path: string): Promise<LsTreeElement[]> {
-		const { stdout } = await this.run(['ls-tree', '-l', treeish, '--', sanitizePath(path)]);
+		const { stdout } = await this.run(['ls-tree', '-l', treeish, '--', '"' + sanitizePath(path) + '"']);
 		return parseLsTree(stdout);
 	}
 
 	async lsfiles(path: string): Promise<LsFilesElement[]> {
-		const { stdout } = await this.run(['ls-files', '--stage', '--', sanitizePath(path)]);
+		const { stdout } = await this.run(['ls-files', '--stage', '--', '"' + sanitizePath(path) + '"']);
 		return parseLsFiles(stdout);
 	}
 
