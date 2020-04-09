@@ -674,6 +674,20 @@
           "description": "%typescript.preferences.importModuleSpecifierEnding%",
           "scope": "resource"
         },
+        "javascript.preferences.renameShorthandProperties": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.preferences.renameShorthandProperties%",
+          "deprecationMessage": "%typescript.preferences.renameShorthandProperties.deprecationMessage%",
+          "scope": "resource"
+        },
+        "typescript.preferences.renameShorthandProperties": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.preferences.renameShorthandProperties%",
+          "deprecationMessage": "%typescript.preferences.renameShorthandProperties.deprecationMessage%",
+          "scope": "resource"
+        },
         "javascript.preferences.useAliasesForRenames": {
           "type": "boolean",
           "default": true,
