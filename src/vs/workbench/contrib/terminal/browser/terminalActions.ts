@@ -1064,51 +1064,45 @@ export class SelectToNextCommandAction extends Action {
 	}
 }
 
-export class SelectToPreviousLineAction extends Action {
-	public static readonly ID = TERMINAL_COMMAND_ID.SELECT_TO_PREVIOUS_LINE;
-	public static readonly LABEL = localize('workbench.action.terminal.selectToPreviousLine', "Select To Previous Line");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private readonly terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	public run(): Promise<any> {
-		const instance = this.terminalService.getActiveInstance();
-		if (instance && instance.commandTracker) {
-			instance.commandTracker.selectToPreviousLine();
-			instance.focus();
-		}
-		return Promise.resolve(undefined);
-	}
-}
-
-export class SelectToNextLineAction extends Action {
-	public static readonly ID = TERMINAL_COMMAND_ID.SELECT_TO_NEXT_LINE;
-	public static readonly LABEL = localize('workbench.action.terminal.selectToNextLine', "Select To Next Line");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private readonly terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	public run(): Promise<any> {
-		const instance = this.terminalService.getActiveInstance();
-		if (instance && instance.commandTracker) {
-			instance.commandTracker.selectToNextLine();
-			instance.focus();
-		}
-		return Promise.resolve(undefined);
-	}
-}
-
 export function registerTerminalActions() {
 	const category = TERMINAL_ACTION_CATEGORY;
 
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.SELECT_TO_PREVIOUS_LINE,
+				title: localize('workbench.action.terminal.selectToPreviousLine', "Select To Previous Line"),
+				f1: true,
+				category
+			});
+		}
+
+		run(accessor: ServicesAccessor) {
+			const instance = accessor.get(ITerminalService).getActiveInstance();
+			if (instance && instance.commandTracker) {
+				instance.commandTracker.selectToPreviousLine();
+				instance.focus();
+			}
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.SELECT_TO_NEXT_LINE,
+				title: localize('workbench.action.terminal.selectToNextLine', "Select To Next Line"),
+				f1: true,
+				category
+			});
+		}
+
+		run(accessor: ServicesAccessor) {
+			const instance = accessor.get(ITerminalService).getActiveInstance();
+			if (instance && instance.commandTracker) {
+				instance.commandTracker.selectToNextLine();
+				instance.focus();
+			}
+		}
+	});
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
