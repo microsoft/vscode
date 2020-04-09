@@ -28,7 +28,7 @@ import { URI } from 'vs/base/common/uri';
 import { isWindows } from 'vs/base/common/platform';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { ITerminalInstance, ITerminalService, Direction } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { Action2 } from 'vs/platform/actions/common/actions';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalsQuickAccess';
 import { ToggleViewAction } from 'vs/workbench/browser/actions/layoutActions';
 import { IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
@@ -167,33 +167,6 @@ export class SelectAllTerminalAction extends Action {
 	}
 }
 
-export class SendSequenceTerminalAction2 extends Action2 {
-	constructor() {
-		const title = nls.localize('workbench.action.terminal.sendSequence', "Send Custom Sequence To Terminal");
-		super({
-			id: TERMINAL_COMMAND_ID.SEND_SEQUENCE,
-			title,
-			description: {
-				description: title,
-				args: [{
-					name: 'args',
-					schema: {
-						type: 'object',
-						required: ['text'],
-						properties: {
-							text: { type: 'string' }
-						},
-					}
-				}]
-			}
-		});
-	}
-
-	run(accessor: ServicesAccessor, args?: { text?: string }) {
-		terminalSendSequenceCommand(accessor, args);
-	}
-}
-
 export const terminalSendSequenceCommand = (accessor: ServicesAccessor, args: { text?: string } | undefined) => {
 	const terminalInstance = accessor.get(ITerminalService).getActiveInstance();
 	if (!terminalInstance || !args?.text) {
@@ -209,41 +182,6 @@ export const terminalSendSequenceCommand = (accessor: ServicesAccessor, args: { 
 	terminalInstance.sendText(resolvedText, false);
 };
 
-export class CreateNewWithCwdTerminalAction2 extends Action2 {
-	constructor() {
-		const title = nls.localize('workbench.action.terminal.newWithCwd', "Create New Integrated Terminal Starting in a Custom Working Directory");
-		super({
-			id: TERMINAL_COMMAND_ID.NEW_WITH_CWD,
-			title,
-			description: {
-				description: title,
-				args: [{
-					name: 'args',
-					schema: {
-						type: 'object',
-						required: ['cwd'],
-						properties: {
-							cwd: {
-								description: nls.localize('workbench.action.terminal.newWithCwd.cwd', "The directory to start the terminal at"),
-								type: 'string'
-							}
-						},
-					}
-				}]
-			}
-		});
-	}
-
-	public run(accessor: ServicesAccessor, args?: { cwd?: string }): Promise<void> {
-		const terminalService = accessor.get(ITerminalService);
-		const instance = terminalService.createTerminal({ cwd: args?.cwd });
-		if (!instance) {
-			return Promise.resolve(undefined);
-		}
-		terminalService.setActiveInstance(instance);
-		return terminalService.showPanel(true);
-	}
-}
 
 export class CreateNewTerminalAction extends Action {
 
@@ -990,49 +928,6 @@ export class RenameTerminalAction extends Action {
 		}
 	}
 }
-export class RenameWithArgTerminalAction2 extends Action2 {
-	constructor() {
-		const title = nls.localize('workbench.action.terminal.renameWithArg', "Rename the Currently Active Terminal");
-		super({
-			id: TERMINAL_COMMAND_ID.RENAME_WITH_ARG,
-			title,
-			description: {
-				description: title,
-				args: [{
-					name: 'args',
-					schema: {
-						type: 'object',
-						required: ['name'],
-						properties: {
-							name: {
-								description: nls.localize('workbench.action.terminal.renameWithArg.name', "The new name for the terminal"),
-								type: 'string',
-								minLength: 1
-							}
-						}
-					}
-				}]
-			}
-		});
-	}
-
-	public run(accessor: ServicesAccessor, args?: { name?: string }): void {
-		const notificationService = accessor.get(INotificationService);
-		const terminalInstance = accessor.get(ITerminalService).getActiveInstance();
-
-		if (!terminalInstance) {
-			notificationService.warn(nls.localize('workbench.action.terminal.renameWithArg.noTerminal', "No active terminal to rename"));
-			return;
-		}
-
-		if (!args || !args.name) {
-			notificationService.warn(nls.localize('workbench.action.terminal.renameWithArg.noName', "No name argument provided"));
-			return;
-		}
-
-		terminalInstance.setTitle(args.name, TitleEventSource.Api);
-	}
-}
 
 export class FocusTerminalFindWidgetAction extends Action {
 
@@ -1277,58 +1172,163 @@ export class ToggleCaseSensitiveCommand extends ToggleFindOptionCommand {
 	}
 }
 
-export class FindNextAction2 extends Action2 {
-	constructor() {
-		super({
-			id: TERMINAL_COMMAND_ID.FIND_NEXT,
-			title: nls.localize('workbench.action.terminal.findNext', "Find next"),
-			keybinding: [
-				{
-					primary: KeyCode.F3,
-					mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_G, secondary: [KeyCode.F3] },
-					when: ContextKeyExpr.or(KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED),
-					weight: KeybindingWeight.WorkbenchContrib
-				},
-				{
-					primary: KeyMod.Shift | KeyCode.Enter,
-					when: KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED,
-					weight: KeybindingWeight.WorkbenchContrib
+export function registerTerminalActions() {
+	registerAction2(class extends Action2 {
+		constructor() {
+			const title = nls.localize('workbench.action.terminal.sendSequence', "Send Custom Sequence To Terminal");
+			super({
+				id: TERMINAL_COMMAND_ID.SEND_SEQUENCE,
+				title,
+				description: {
+					description: title,
+					args: [{
+						name: 'args',
+						schema: {
+							type: 'object',
+							required: ['text'],
+							properties: {
+								text: { type: 'string' }
+							},
+						}
+					}]
 				}
-			],
-			category: TERMINAL_ACTION_CATEGORY,
-			f1: true
-		});
-	}
+			});
+		}
 
-	run(accessor: ServicesAccessor) {
-		accessor.get(ITerminalService).findNext();
-	}
-}
-
-export class FindPreviousAction2 extends Action2 {
-	constructor() {
-		super({
-			id: TERMINAL_COMMAND_ID.FIND_PREVIOUS,
-			title: nls.localize('workbench.action.terminal.findPrevious', "Find previous"),
-			keybinding: [
-				{
-					primary: KeyMod.Shift | KeyCode.F3,
-					mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G, secondary: [KeyMod.Shift | KeyCode.F3] },
-					when: ContextKeyExpr.or(KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED),
-					weight: KeybindingWeight.WorkbenchContrib
-				},
-				{
-					primary: KeyCode.Enter,
-					when: KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED,
-					weight: KeybindingWeight.WorkbenchContrib
+		run(accessor: ServicesAccessor, args?: { text?: string }) {
+			terminalSendSequenceCommand(accessor, args);
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			const title = nls.localize('workbench.action.terminal.newWithCwd', "Create New Integrated Terminal Starting in a Custom Working Directory");
+			super({
+				id: TERMINAL_COMMAND_ID.NEW_WITH_CWD,
+				title,
+				description: {
+					description: title,
+					args: [{
+						name: 'args',
+						schema: {
+							type: 'object',
+							required: ['cwd'],
+							properties: {
+								cwd: {
+									description: nls.localize('workbench.action.terminal.newWithCwd.cwd', "The directory to start the terminal at"),
+									type: 'string'
+								}
+							},
+						}
+					}]
 				}
-			],
-			category: TERMINAL_ACTION_CATEGORY,
-			f1: true
-		});
-	}
+			});
+		}
 
-	run(accessor: ServicesAccessor) {
-		accessor.get(ITerminalService).findPrevious();
-	}
+		public run(accessor: ServicesAccessor, args?: { cwd?: string }): Promise<void> {
+			const terminalService = accessor.get(ITerminalService);
+			const instance = terminalService.createTerminal({ cwd: args?.cwd });
+			if (!instance) {
+				return Promise.resolve(undefined);
+			}
+			terminalService.setActiveInstance(instance);
+			return terminalService.showPanel(true);
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			const title = nls.localize('workbench.action.terminal.renameWithArg', "Rename the Currently Active Terminal");
+			super({
+				id: TERMINAL_COMMAND_ID.RENAME_WITH_ARG,
+				title,
+				description: {
+					description: title,
+					args: [{
+						name: 'args',
+						schema: {
+							type: 'object',
+							required: ['name'],
+							properties: {
+								name: {
+									description: nls.localize('workbench.action.terminal.renameWithArg.name', "The new name for the terminal"),
+									type: 'string',
+									minLength: 1
+								}
+							}
+						}
+					}]
+				}
+			});
+		}
+
+		public run(accessor: ServicesAccessor, args?: { name?: string }): void {
+			const notificationService = accessor.get(INotificationService);
+			const terminalInstance = accessor.get(ITerminalService).getActiveInstance();
+
+			if (!terminalInstance) {
+				notificationService.warn(nls.localize('workbench.action.terminal.renameWithArg.noTerminal', "No active terminal to rename"));
+				return;
+			}
+
+			if (!args || !args.name) {
+				notificationService.warn(nls.localize('workbench.action.terminal.renameWithArg.noName', "No name argument provided"));
+				return;
+			}
+
+			terminalInstance.setTitle(args.name, TitleEventSource.Api);
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.FIND_NEXT,
+				title: nls.localize('workbench.action.terminal.findNext', "Find next"),
+				keybinding: [
+					{
+						primary: KeyCode.F3,
+						mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_G, secondary: [KeyCode.F3] },
+						when: ContextKeyExpr.or(KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED),
+						weight: KeybindingWeight.WorkbenchContrib
+					},
+					{
+						primary: KeyMod.Shift | KeyCode.Enter,
+						when: KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED,
+						weight: KeybindingWeight.WorkbenchContrib
+					}
+				],
+				category: TERMINAL_ACTION_CATEGORY,
+				f1: true
+			});
+		}
+
+		run(accessor: ServicesAccessor) {
+			accessor.get(ITerminalService).findNext();
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.FIND_PREVIOUS,
+				title: nls.localize('workbench.action.terminal.findPrevious', "Find previous"),
+				keybinding: [
+					{
+						primary: KeyMod.Shift | KeyCode.F3,
+						mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G, secondary: [KeyMod.Shift | KeyCode.F3] },
+						when: ContextKeyExpr.or(KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED),
+						weight: KeybindingWeight.WorkbenchContrib
+					},
+					{
+						primary: KeyCode.Enter,
+						when: KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED,
+						weight: KeybindingWeight.WorkbenchContrib
+					}
+				],
+				category: TERMINAL_ACTION_CATEGORY,
+				f1: true
+			});
+		}
+
+		run(accessor: ServicesAccessor) {
+			accessor.get(ITerminalService).findPrevious();
+		}
+	});
 }

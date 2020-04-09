@@ -10,7 +10,7 @@ import 'vs/css!./media/terminal';
 import 'vs/css!./media/widgets';
 import 'vs/css!./media/xterm';
 import * as nls from 'vs/nls';
-import { SyncActionDescriptor, registerAction2 } from 'vs/platform/actions/common/actions';
+import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight, KeybindingsRegistry, IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -19,7 +19,7 @@ import * as panel from 'vs/workbench/browser/panel';
 import { getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { Extensions as ViewContainerExtensions, IViewContainersRegistry, ViewContainerLocation, IViewsRegistry } from 'vs/workbench/common/views';
-import { ClearSelectionTerminalAction, ClearTerminalAction, CopyTerminalSelectionAction, CreateNewInActiveWorkspaceTerminalAction, CreateNewTerminalAction, FocusActiveTerminalAction, FocusNextPaneTerminalAction, FocusNextTerminalAction, FocusPreviousPaneTerminalAction, FocusPreviousTerminalAction, FocusTerminalFindWidgetAction, HideTerminalFindWidgetAction, KillTerminalAction, QuickAccessTerminalAction, RenameTerminalAction, ResizePaneDownTerminalAction, ResizePaneLeftTerminalAction, ResizePaneRightTerminalAction, ResizePaneUpTerminalAction, RunActiveFileInTerminalAction, RunSelectedTextInTerminalAction, ScrollDownPageTerminalAction, ScrollDownTerminalAction, ScrollToBottomTerminalAction, ScrollToNextCommandAction, ScrollToPreviousCommandAction, ScrollToTopTerminalAction, ScrollUpPageTerminalAction, ScrollUpTerminalAction, SelectAllTerminalAction, SelectDefaultShellWindowsTerminalAction, SelectToNextCommandAction, SelectToNextLineAction, SelectToPreviousCommandAction, SelectToPreviousLineAction, SplitInActiveWorkspaceTerminalAction, SplitTerminalAction, TerminalPasteAction, ToggleCaseSensitiveCommand, ToggleEscapeSequenceLoggingAction, ToggleRegexCommand, ToggleTerminalAction, ToggleWholeWordCommand, NavigationModeFocusPreviousTerminalAction, NavigationModeFocusNextTerminalAction, NavigationModeExitTerminalAction, ManageWorkspaceShellPermissionsTerminalCommand, CreateNewWithCwdTerminalAction2, RenameWithArgTerminalAction2, terminalSendSequenceCommand, SendSequenceTerminalAction2, FindPreviousAction2, FindNextAction2 } from 'vs/workbench/contrib/terminal/browser/terminalActions';
+import { registerTerminalActions, ClearSelectionTerminalAction, ClearTerminalAction, CopyTerminalSelectionAction, CreateNewInActiveWorkspaceTerminalAction, CreateNewTerminalAction, FocusActiveTerminalAction, FocusNextPaneTerminalAction, FocusNextTerminalAction, FocusPreviousPaneTerminalAction, FocusPreviousTerminalAction, FocusTerminalFindWidgetAction, HideTerminalFindWidgetAction, KillTerminalAction, QuickAccessTerminalAction, RenameTerminalAction, ResizePaneDownTerminalAction, ResizePaneLeftTerminalAction, ResizePaneRightTerminalAction, ResizePaneUpTerminalAction, RunActiveFileInTerminalAction, RunSelectedTextInTerminalAction, ScrollDownPageTerminalAction, ScrollDownTerminalAction, ScrollToBottomTerminalAction, ScrollToNextCommandAction, ScrollToPreviousCommandAction, ScrollToTopTerminalAction, ScrollUpPageTerminalAction, ScrollUpTerminalAction, SelectAllTerminalAction, SelectDefaultShellWindowsTerminalAction, SelectToNextCommandAction, SelectToNextLineAction, SelectToPreviousCommandAction, SelectToPreviousLineAction, SplitInActiveWorkspaceTerminalAction, SplitTerminalAction, TerminalPasteAction, ToggleCaseSensitiveCommand, ToggleEscapeSequenceLoggingAction, ToggleRegexCommand, ToggleTerminalAction, ToggleWholeWordCommand, NavigationModeFocusPreviousTerminalAction, NavigationModeFocusNextTerminalAction, NavigationModeExitTerminalAction, ManageWorkspaceShellPermissionsTerminalCommand, terminalSendSequenceCommand } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
 import { KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_NOT_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE_KEY, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_VIEW_ID, TERMINAL_ACTION_CATEGORY, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { registerColors } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
@@ -235,11 +235,8 @@ actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleCaseSen
 	primary: KeyMod.Alt | KeyCode.KEY_C,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_C }
 }, ContextKeyExpr.or(KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED)), 'Terminal: Toggle find using case sensitive', category);
-registerAction2(FindNextAction2);
-registerAction2(FindPreviousAction2);
-registerAction2(SendSequenceTerminalAction2);
-registerAction2(CreateNewWithCwdTerminalAction2);
-registerAction2(RenameWithArgTerminalAction2);
+
+registerTerminalActions();
 
 // Commands might be affected by Web restrictons
 if (BrowserFeatures.clipboard.writeText) {
