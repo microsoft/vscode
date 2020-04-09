@@ -165,19 +165,36 @@ export class SelectAllTerminalAction extends Action {
 	}
 }
 
+export class SendSequenceTerminalAction2 extends Action2 {
+	constructor() {
+		const title = nls.localize('workbench.action.terminal.sendSequence', "Send Custom Sequence To Terminal");
+		super({
+			id: TERMINAL_COMMAND_ID.SEND_SEQUENCE,
+			title,
+			description: {
+				description: title,
+				args: [{
+					name: 'args',
+					schema: {
+						type: 'object',
+						required: ['text'],
+						properties: {
+							text: { type: 'string' }
+						},
+					}
+				}]
+			}
+		});
+	}
 
-export class SendSequenceTerminalAction extends Action2 {
-	public static readonly ID = TERMINAL_COMMAND_ID.SEND_SEQUENCE;
-	public static readonly LABEL = nls.localize('workbench.action.terminal.sendSequence', "Send Custom Sequence To Terminal");
-
-	public run(accessor: ServicesAccessor, args: any): void {
+	run(accessor: ServicesAccessor, args: { text?: string } | undefined) {
 		terminalSendSequenceCommand(accessor, args);
 	}
 }
 
-export const terminalSendSequenceCommand = (accessor: ServicesAccessor, args: any) => {
+export const terminalSendSequenceCommand = (accessor: ServicesAccessor, args: { text?: string } | undefined) => {
 	const terminalInstance = accessor.get(ITerminalService).getActiveInstance();
-	if (!terminalInstance) {
+	if (!terminalInstance || !args?.text) {
 		return;
 	}
 
@@ -190,12 +207,32 @@ export const terminalSendSequenceCommand = (accessor: ServicesAccessor, args: an
 	terminalInstance.sendText(resolvedText, false);
 };
 
-export class CreateNewWithCwdTerminalAction extends Action2 {
-	public static readonly ID = TERMINAL_COMMAND_ID.NEW_WITH_CWD;
-	public static readonly LABEL = nls.localize('workbench.action.terminal.newWithCwd', "Create New Integrated Terminal Starting in a Custom Working Directory");
-	public static readonly CWD_ARG_LABEL = nls.localize('workbench.action.terminal.newWithCwd.cwd', "The directory to start the terminal at");
+export class CreateNewWithCwdTerminalAction2 extends Action2 {
+	constructor() {
+		const title = nls.localize('workbench.action.terminal.newWithCwd', "Create New Integrated Terminal Starting in a Custom Working Directory");
+		super({
+			id: TERMINAL_COMMAND_ID.NEW_WITH_CWD,
+			title,
+			description: {
+				description: title,
+				args: [{
+					name: 'args',
+					schema: {
+						type: 'object',
+						required: ['cwd'],
+						properties: {
+							cwd: {
+								description: nls.localize('workbench.action.terminal.newWithCwd.cwd', "The directory to start the terminal at"),
+								type: 'string'
+							}
+						},
+					}
+				}]
+			}
+		});
+	}
 
-	public run(accessor: ServicesAccessor, args: { cwd: string } | undefined): Promise<void> {
+	public run(accessor: ServicesAccessor, args: { cwd?: string } | undefined): Promise<void> {
 		const terminalService = accessor.get(ITerminalService);
 		const instance = terminalService.createTerminal({ cwd: args?.cwd });
 		if (!instance) {
