@@ -72,6 +72,7 @@ import { LinkDetector } from 'vs/editor/contrib/links/links';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 type TreeElement = ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -649,6 +650,7 @@ export class RepositoryPane extends ViewPane {
 		@IMenuService protected menuService: IMenuService,
 		@IStorageService private storageService: IStorageService,
 		@IModelService private modelService: IModelService,
+		@IModeService private modeService: IModeService,
 		@IOpenerService openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
@@ -786,7 +788,9 @@ export class RepositoryPane extends ViewPane {
 		});
 
 		this.configurationService.updateValue('editor.wordBasedSuggestions', false, { resource: uri }, ConfigurationTarget.MEMORY);
-		this.inputModel = this.modelService.getModel(uri) || this.modelService.createModel('', null, uri);
+
+		const mode = this.modeService.create('scminput');
+		this.inputModel = this.modelService.getModel(uri) || this.modelService.createModel('', mode, uri);
 		this.inputEditor.setModel(this.inputModel);
 
 		this._register(this.inputEditor.onDidChangeCursorPosition(triggerValidation));
