@@ -1219,7 +1219,7 @@ export class Repository {
 		args.push('--');
 
 		if (paths && paths.length) {
-			args.push.apply(args, paths.map((path: string) => '"' + sanitizePath(path) + '"'));
+			args.push.apply(args, paths.map((p: string) => '"' + sanitizePath(p) + '"'));
 		} else {
 			args.push('.');
 		}
@@ -1234,7 +1234,7 @@ export class Repository {
 			return;
 		}
 
-		args.push(...paths.map((path: string) => '"' + sanitizePath(path) + '"'));
+		args.push(...paths.map((p: string) => '"' + sanitizePath(p) + '"'));
 
 		await this.run(args);
 	}
