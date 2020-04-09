@@ -6,7 +6,7 @@
 import { Action, IAction } from 'vs/base/common/actions';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { TERMINAL_VIEW_ID, ITerminalConfigHelper, TitleEventSource, TERMINAL_COMMAND_ID, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED, TERMINAL_ACTION_CATEGORY, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_NOT_VISIBLE } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TERMINAL_VIEW_ID, ITerminalConfigHelper, TitleEventSource, TERMINAL_COMMAND_ID, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED, TERMINAL_ACTION_CATEGORY, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_NOT_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS } from 'vs/workbench/contrib/terminal/common/terminal';
 import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
@@ -717,59 +717,6 @@ export class ScrollToTopTerminalAction extends Action {
 	}
 }
 
-export class NavigationModeExitTerminalAction extends Action {
-
-	public static readonly ID = TERMINAL_COMMAND_ID.NAVIGATION_MODE_EXIT;
-	public static readonly LABEL = localize('workbench.action.terminal.navigationModeExit', "Exit Navigation Mode");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private readonly _terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	async run() {
-		this._terminalService.getActiveInstance()?.navigationMode?.exitNavigationMode();
-	}
-}
-
-
-
-export class NavigationModeFocusPreviousTerminalAction extends Action {
-
-	public static readonly ID = TERMINAL_COMMAND_ID.NAVIGATION_MODE_FOCUS_PREVIOUS;
-	public static readonly LABEL = localize('workbench.action.terminal.navigationModeFocusPrevious', "Focus Previous Line (Navigation Mode)");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private readonly _terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	async run() {
-		this._terminalService.getActiveInstance()?.navigationMode?.focusPreviousLine();
-	}
-}
-
-export class NavigationModeFocusNextTerminalAction extends Action {
-
-	public static readonly ID = TERMINAL_COMMAND_ID.NAVIGATION_MODE_FOCUS_NEXT;
-	public static readonly LABEL = localize('workbench.action.terminal.navigationModeFocusNext', "Focus Next Line (Navigation Mode)");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private readonly _terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	async run() {
-		this._terminalService.getActiveInstance()?.navigationMode?.focusNextLine();
-	}
-}
-
 export class ClearTerminalAction extends Action {
 
 	public static readonly ID = TERMINAL_COMMAND_ID.CLEAR;
@@ -796,6 +743,66 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
+				id: TERMINAL_COMMAND_ID.NAVIGATION_MODE_EXIT,
+				title: localize('workbench.action.terminal.navigationModeExit', "Exit Navigation Mode"),
+				f1: true,
+				category,
+				keybinding: {
+					primary: KeyCode.Escape,
+					when: ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
+					weight: KeybindingWeight.WorkbenchContrib
+				}
+			});
+		}
+		run(accessor: ServicesAccessor) {
+			accessor.get(ITerminalService).getActiveInstance()?.navigationMode?.focusPreviousLine();
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.NAVIGATION_MODE_FOCUS_PREVIOUS,
+				title: localize('workbench.action.terminal.navigationModeFocusPrevious', "Focus Previous Line (Navigation Mode)"),
+				f1: true,
+				category,
+				keybinding: {
+					primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
+					when: ContextKeyExpr.or(
+						ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
+						ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_FOCUS, CONTEXT_ACCESSIBILITY_MODE_ENABLED)
+					),
+					weight: KeybindingWeight.WorkbenchContrib
+				}
+			});
+		}
+		run(accessor: ServicesAccessor) {
+			accessor.get(ITerminalService).getActiveInstance()?.navigationMode?.focusPreviousLine();
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.NAVIGATION_MODE_FOCUS_NEXT,
+				title: localize('workbench.action.terminal.navigationModeFocusNext', "Focus Next Line (Navigation Mode)"),
+				f1: true,
+				category,
+				keybinding: {
+					primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
+					when: ContextKeyExpr.or(
+						ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
+						ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_FOCUS, CONTEXT_ACCESSIBILITY_MODE_ENABLED)
+					),
+					weight: KeybindingWeight.WorkbenchContrib
+				}
+			});
+		}
+		run(accessor: ServicesAccessor) {
+			accessor.get(ITerminalService).getActiveInstance()?.navigationMode?.focusNextLine();
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
 				id: TERMINAL_COMMAND_ID.CLEAR_SELECTION,
 				title: localize('workbench.action.terminal.clearSelection', "Clear Selection"),
 				f1: true,
@@ -807,7 +814,6 @@ export function registerTerminalActions() {
 				}
 			});
 		}
-
 		run(accessor: ServicesAccessor) {
 			const terminalInstance = accessor.get(ITerminalService).getActiveInstance();
 			if (terminalInstance && terminalInstance.hasSelection()) {
@@ -824,7 +830,6 @@ export function registerTerminalActions() {
 				category
 			});
 		}
-
 		run(accessor: ServicesAccessor) {
 			accessor.get(ITerminalService).manageWorkspaceShellPermissions();
 		}
@@ -838,7 +843,6 @@ export function registerTerminalActions() {
 				category
 			});
 		}
-
 		async run(accessor: ServicesAccessor) {
 			await accessor.get(ITerminalService).doWithActiveInstance(async t => {
 				const name = await accessor.get(IQuickInputService).input({
@@ -865,7 +869,6 @@ export function registerTerminalActions() {
 				}
 			});
 		}
-
 		run(accessor: ServicesAccessor) {
 			accessor.get(ITerminalService).focusFindWidget();
 		}
@@ -885,7 +888,6 @@ export function registerTerminalActions() {
 				}
 			});
 		}
-
 		run(accessor: ServicesAccessor) {
 			accessor.get(ITerminalService).hideFindWidget();
 		}
@@ -899,7 +901,6 @@ export function registerTerminalActions() {
 				category
 			});
 		}
-
 		run(accessor: ServicesAccessor) {
 			accessor.get(IQuickInputService).quickAccess.show(TerminalQuickAccessProvider.PREFIX);
 		}
@@ -918,7 +919,6 @@ export function registerTerminalActions() {
 				}
 			});
 		}
-
 		run(accessor: ServicesAccessor) {
 			accessor.get(ITerminalService).doWithActiveInstance(t => {
 				t.commandTracker?.scrollToPreviousCommand();
@@ -940,7 +940,6 @@ export function registerTerminalActions() {
 				}
 			});
 		}
-
 		run(accessor: ServicesAccessor) {
 			accessor.get(ITerminalService).doWithActiveInstance(t => {
 				t.commandTracker?.scrollToNextCommand();
@@ -962,7 +961,6 @@ export function registerTerminalActions() {
 				}
 			});
 		}
-
 		run(accessor: ServicesAccessor) {
 			accessor.get(ITerminalService).doWithActiveInstance(t => {
 				t.commandTracker?.selectToPreviousCommand();
@@ -984,7 +982,6 @@ export function registerTerminalActions() {
 				}
 			});
 		}
-
 		run(accessor: ServicesAccessor) {
 			accessor.get(ITerminalService).doWithActiveInstance(t => {
 				t.commandTracker?.selectToNextCommand();
@@ -1001,7 +998,6 @@ export function registerTerminalActions() {
 				category
 			});
 		}
-
 		run(accessor: ServicesAccessor) {
 			accessor.get(ITerminalService).doWithActiveInstance(t => {
 				t.commandTracker?.selectToPreviousLine();
@@ -1018,7 +1014,6 @@ export function registerTerminalActions() {
 				category
 			});
 		}
-
 		run(accessor: ServicesAccessor) {
 			accessor.get(ITerminalService).doWithActiveInstance(t => {
 				t.commandTracker?.selectToNextLine();
@@ -1035,7 +1030,6 @@ export function registerTerminalActions() {
 				category
 			});
 		}
-
 		run(accessor: ServicesAccessor) {
 			accessor.get(ITerminalService).getActiveInstance()?.toggleEscapeSequenceLogging();
 		}
@@ -1062,7 +1056,6 @@ export function registerTerminalActions() {
 				}
 			});
 		}
-
 		run(accessor: ServicesAccessor, args?: { text?: string }) {
 			terminalSendSequenceCommand(accessor, args);
 		}
@@ -1092,7 +1085,6 @@ export function registerTerminalActions() {
 				}
 			});
 		}
-
 		async run(accessor: ServicesAccessor, args?: { cwd?: string }) {
 			const terminalService = accessor.get(ITerminalService);
 			const instance = terminalService.createTerminal({ cwd: args?.cwd });
@@ -1129,7 +1121,6 @@ export function registerTerminalActions() {
 				}
 			});
 		}
-
 		run(accessor: ServicesAccessor, args?: { name?: string }) {
 			const notificationService = accessor.get(INotificationService);
 			if (!args?.name) {
@@ -1154,7 +1145,6 @@ export function registerTerminalActions() {
 				}
 			});
 		}
-
 		run(accessor: ServicesAccessor) {
 			const state = accessor.get(ITerminalService).getFindState();
 			state.change({ isRegex: !state.isRegex }, false);
@@ -1175,7 +1165,6 @@ export function registerTerminalActions() {
 				},
 			});
 		}
-
 		run(accessor: ServicesAccessor) {
 			const state = accessor.get(ITerminalService).getFindState();
 			state.change({ wholeWord: !state.wholeWord }, false);
@@ -1196,7 +1185,6 @@ export function registerTerminalActions() {
 				}
 			});
 		}
-
 		run(accessor: ServicesAccessor) {
 			const state = accessor.get(ITerminalService).getFindState();
 			state.change({ matchCase: !state.matchCase }, false);
@@ -1224,7 +1212,6 @@ export function registerTerminalActions() {
 				]
 			});
 		}
-
 		run(accessor: ServicesAccessor) {
 			accessor.get(ITerminalService).findNext();
 		}
@@ -1251,7 +1238,6 @@ export function registerTerminalActions() {
 				]
 			});
 		}
-
 		run(accessor: ServicesAccessor) {
 			accessor.get(ITerminalService).findPrevious();
 		}
