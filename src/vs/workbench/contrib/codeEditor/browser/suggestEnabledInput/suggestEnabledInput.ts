@@ -212,6 +212,10 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		}));
 	}
 
+	public updateAriaLabel(label: string): void {
+		this.inputWidget.updateOptions({ ariaLabel: label });
+	}
+
 	public get onFocus(): Event<void> { return this.inputWidget.onDidFocusEditorText; }
 
 	public setValue(val: string) {
