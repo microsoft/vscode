@@ -51,6 +51,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { ISetting, ISettingsGroup, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { IUserDataSyncEnablementService, getDefaultIgnoredSettings } from 'vs/platform/userDataSync/common/userDataSync';
 import { CodiconLabel } from 'vs/base/browser/ui/codiconLabel/codiconLabel';
+import { getInvalidTypeError } from 'vs/workbench/services/preferences/common/preferencesValidation';
 
 const $ = DOM.$;
 
@@ -228,6 +229,7 @@ interface ISettingEnumItemTemplate extends ISettingItemTemplate<number> {
 
 interface ISettingComplexItemTemplate extends ISettingItemTemplate<void> {
 	button: Button;
+	validationErrorMessageElement: HTMLElement;
 }
 
 interface ISettingListItemTemplate extends ISettingItemTemplate<string[] | undefined> {
@@ -706,9 +708,13 @@ export class SettingComplexRenderer extends AbstractSettingRenderer implements I
 			buttonForeground: 'foreground'
 		}));
 
+		const validationErrorMessageElement = $('.setting-item-validation-message');
+		common.containerElement.appendChild(validationErrorMessageElement);
+
 		const template: ISettingComplexItemTemplate = {
 			...common,
-			button: openSettingsButton
+			button: openSettingsButton,
+			validationErrorMessageElement
 		};
 
 		this.addSettingElementFocusHandler(template);
@@ -720,8 +726,20 @@ export class SettingComplexRenderer extends AbstractSettingRenderer implements I
 		super.renderSettingElement(element, index, templateData);
 	}
 
-	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingExcludeItemTemplate, onChange: (value: string) => void): void {
+	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingComplexItemTemplate, onChange: (value: string) => void): void {
 		template.onChange = () => this._onDidOpenSettings.fire(dataElement.setting.key);
+		this.renderValidations(dataElement, template);
+	}
+
+	private renderValidations(dataElement: SettingsTreeSettingElement, template: ISettingComplexItemTemplate) {
+		const errMsg = getInvalidTypeError(dataElement.value, dataElement.setting.type);
+		if (errMsg) {
+			DOM.addClass(template.containerElement, 'invalid-input');
+			template.validationErrorMessageElement.innerText = errMsg;
+			return;
+		}
+
+		DOM.removeClass(template.containerElement, 'invalid-input');
 	}
 }
 
@@ -1460,6 +1478,11 @@ class SettingsTreeDelegate extends CachedListVirtualDelegate<SettingsTreeGroupCh
 		}
 
 		if (element instanceof SettingsTreeSettingElement) {
+			const invalidTypeError = getInvalidTypeError(element.value, element.setting.type);
+			if (invalidTypeError) {
+				return SETTINGS_COMPLEX_TEMPLATE_ID;
+			}
+
 			if (element.valueType === SettingValueType.Boolean) {
 				return SETTINGS_BOOL_TEMPLATE_ID;
 			}
