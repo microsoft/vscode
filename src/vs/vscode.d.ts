@@ -810,7 +810,7 @@ declare module 'vscode' {
 
 		/**
 		 * Creates a reference to a theme icon.
-		 * @param id id of the icon. The avaiable icons are listed in https://microsoft.github.io/vscode-codicons/dist/codicon.html.
+		 * @param id id of the icon. The available icons are listed in https://microsoft.github.io/vscode-codicons/dist/codicon.html.
 		 */
 		constructor(id: string);
 	}
@@ -1490,7 +1490,7 @@ declare module 'vscode' {
 		 *
 		 * @param data The event object.
 		 */
-		fire(data?: T): void;
+		fire(data: T): void;
 
 		/**
 		 * Dispose this object and free resources.
@@ -6434,7 +6434,7 @@ declare module 'vscode' {
 	 * with files from the local disk as well as files from remote places, like the
 	 * remote extension host or ftp-servers.
 	 *
-	 * *Note* that an instance of this interface is avaiable as [`workspace.fs`](#workspace.fs).
+	 * *Note* that an instance of this interface is available as [`workspace.fs`](#workspace.fs).
 	 */
 	export interface FileSystem {
 

@@ -1185,98 +1185,121 @@ declare module 'vscode' {
 	//#region Custom editor https://github.com/microsoft/vscode/issues/77131
 
 	/**
-	 * Implements the editing functionality of a custom editor.
+	 * Represents a custom document used by a [`CustomEditorProvider`](#CustomEditorProvider).
 	 *
-	 * This delegate is how custom editors hook into standard VS Code operations such as save and undo. The delegate
-	 * is also how custom editors notify VS Code that an edit has taken place.
-	 *
-	 * @param EditType Type of edits used for the documents this delegate handles.
+	 * Custom documents are only used within a given `CustomEditorProvider`. The lifecycle of a `CustomDocument` is
+	 * managed by VS Code. When no more references remain to a `CustomDocument`, it is disposed of.
 	 */
-	interface CustomEditorEditingDelegate<EditType = unknown> {
+	interface CustomDocument {
+		/**
+		 * The associated uri for this document.
+		 */
+		readonly uri: Uri;
+
+		/**
+		 * Dispose of the custom document.
+		 *
+		 * This is invoked by VS Code when there are no more references to a given `CustomDocument` (for example when
+		 * all editors associated with the document have been closed.)
+		 */
+		dispose(): void;
+	}
+
+	/**
+	 * Event triggered by extensions to signal to VS Code that an edit has occurred on an [`EditableCustomDocument`](#EditableCustomDocument).
+	 */
+	interface CustomDocumentEditEvent {
+		/**
+		 * Undo the edit operation.
+		 *
+		 * This is invoked by VS Code when the user triggers an undo.
+		 */
+		undo(): Thenable<void>;
+
+		/**
+		 * Redo the edit operation.
+		 *
+		 * This is invoked by VS Code when the user triggers a redo.
+		 */
+		redo(): Thenable<void>;
+
+		/**
+		 * Display name describing the edit.
+		 *
+		 * This is shown in the UI to users.
+		 */
+		readonly label?: string;
+	}
+
+	/**
+	 * A backup for an [`EditableCustomDocument`](#EditableCustomDocument).
+	 */
+	interface CustomDocumentBackup {
+		/**
+		 * Unique identifier for the backup.
+		 *
+		 * This id is passed back to your extension in `openCustomDocument` when opening a custom editor from a backup.
+		 */
+		readonly backupId: string;
+
+		/**
+		 * Dispose of the current backup.
+		 *
+		 * This is called by VS Code when it is clear the current backup, such as when a new backup is made or when the
+		 * file is saveed.
+		 */
+		dispose(): void;
+	}
+
+	/**
+	 * Represents an editable custom document used by a [`CustomEditorProvider`](#CustomEditorProvider).
+	 *
+	 * `EditableCustomDocument` is how custom editors hook into standard VS Code operations such as save and undo. The
+	 * document is also how custom editors notify VS Code that an edit has taken place.
+	 */
+	interface EditableCustomDocument extends CustomDocument {
 		/**
 		 * Save the resource for a custom editor.
 		 *
 		 * This method is invoked by VS Code when the user saves a custom editor. This can happen when the user
 		 * triggers save while the custom editor is active, by commands such as `save all`, or by auto save if enabled.
 		 *
-		 * To implement `save`, the delegate must persist the custom editor. This usually means writing the
+		 * To implement `save`, the implementer must persist the custom editor. This usually means writing the
 		 * file data for the custom document to disk. After `save` completes, any associated editor instances will
 		 * no longer be marked as dirty.
 		 *
-		 * @param document Document to save.
 		 * @param cancellation Token that signals the save is no longer required (for example, if another save was triggered).
 		 *
 		 * @return Thenable signaling that saving has completed.
 		 */
-		save(document: CustomDocument<EditType>, cancellation: CancellationToken): Thenable<void>;
+		save(cancellation: CancellationToken): Thenable<void>;
 
 		/**
 		 * Save the resource for a custom editor to a different location.
 		 *
 		 * This method is invoked by VS Code when the user triggers `save as` on a custom editor.
 		 *
-		 * To implement `saveAs`, the delegate must persist the custom editor to `targetResource`. The
+		 * To implement `saveAs`, the implementer must persist the custom editor to `targetResource`. The
 		 * existing editor will remain open after `saveAs` completes.
 		 *
-		 * @param document Document to save.
 		 * @param targetResource Location to save to.
 		 * @param cancellation Token that signals the save is no longer required.
 		 *
 		 * @return Thenable signaling that saving has completed.
 		 */
-		saveAs(document: CustomDocument<EditType>, targetResource: Uri, cancellation: CancellationToken): Thenable<void>;
+		saveAs(targetResource: Uri, cancellation: CancellationToken): Thenable<void>;
 
 		/**
 		 * Signal that an edit has occurred inside a custom editor.
 		 *
 		 * This event must be fired by your extension whenever an edit happens in a custom editor. An edit can be
-		 * anything from changing some text, to cropping an image, to reordering a list.  Your extension is free to
+		 * anything from changing some text, to cropping an image, to reordering a list. Your extension is free to
 		 * define what an edit is and what data is stored on each edit.
 		 *
-		 * VS Code uses edits to determine if a custom editor is dirty or not. VS Code also passes the edit objects back
-		 * to your extension when triggers undo, redo, or revert (using the `undoEdits`, `applyEdits`, and `revert`
-		 * methods of `CustomEditorEditingDelegate`)
+		 * Firing this will cause VS Code to mark the editors as being dirty. This also allows the user to then undo and
+		 * redo the edit in the custom editor.
 		 */
-		readonly onDidEdit: Event<CustomDocumentEditEvent<EditType>>;
-
-		/**
-		 * Apply a list of edits to a custom editor.
-		 *
-		 * This method is invoked by VS Code when the user triggers `redo` in a custom editor.
-		 *
-		 * To implement `applyEdits`, the delegate must make sure all editor instances (webviews) for `document`
-		 * are updated to render the document's new state (that is, every webview must be updated to show the document
-		 * after applying `edits` to it).
-		 *
-		 * Note that `applyEdits` not invoked when `onDidEdit` is fired by your extension because `onDidEdit` implies
-		 * that your extension has also updated its editor instances (webviews) to reflect the edit that just occurred.
-		 *
-		 * @param document Document to apply edits to.
-		 * @param redoneEdits Array of edits that were redone. Sorted from oldest to most recent. Use [`document.appliedEdits`](#CustomDocument.appliedEdits)
-		 * to get the full set of edits applied to the file (when `applyEdits` is called `appliedEdits` will already include
-		 * the newly applied edit at the end).
-		 *
-		 * @return Thenable signaling that the change has completed.
-		 */
-		applyEdits(document: CustomDocument<EditType>, redoneEdits: ReadonlyArray<EditType>): Thenable<void>;
-
-		/**
-		 * Undo a list of edits to a custom editor.
-		 *
-		 * This method is invoked by VS Code when the user triggers `undo` in a custom editor.
-		 *
-		 * To implement `undoEdits`, the delegate must make sure all editor instances (webviews) for `document`
-		 * are updated to render the document's new state (that is, every webview must be updated to show the document
-		 * after undoing `edits` from it).
-		 *
-		 * @param document Document to undo edits from.
-		 * @param undoneEdits Array of undone edits. Sorted from most recent to oldest. Use [`document.appliedEdits`](#CustomDocument.appliedEdits)
-		 * to get the full set of edits applied to the file (when `undoEdits` is called, `appliedEdits` will already include
-		 * have the undone edits removed).
-		 *
-		 * @return Thenable signaling that the change has completed.
-		 */
-		undoEdits(document: CustomDocument<EditType>, undoneEdits: ReadonlyArray<EditType>): Thenable<void>;
+		readonly onDidEdit: Event<CustomDocumentEditEvent>;
 
 		/**
 		 * Revert a custom editor to its last saved state.
@@ -1284,21 +1307,18 @@ declare module 'vscode' {
 		 * This method is invoked by VS Code when the user triggers `File: Revert File` in a custom editor. (Note that
 		 * this is only used using VS Code's `File: Revert File` command and not on a `git revert` of the file).
 		 *
-		 * To implement `revert`, the delegate must make sure all editor instances (webviews) for `document`
+		 * To implement `revert`, the implementer must make sure all editor instances (webviews) for `document`
 		 * are displaying the document in the same state is saved in. This usually means reloading the file from the
 		 * workspace.
 		 *
 		 * During `revert`, your extension should also clear any backups for the custom editor. Backups are only needed
 		 * when there is a difference between an editor's state in VS Code and its save state on disk.
 		 *
-		 * @param document Document to revert.
-		 * @param revert Object with added or removed edits to get back to the saved state. Use [`document.appliedEdits`](#CustomDocument.appliedEdits)
-		 * to get the full set of edits applied to the file (when `revet` is called, `appliedEdits` will already have
-		 * removed any edits undone by the revert and added any edits applied by the revert).
+		 * @param cancellation Token that signals the revert is no longer required.
 		 *
 		 * @return Thenable signaling that the change has completed.
 		 */
-		revert(document: CustomDocument<EditType>, revert: CustomDocumentRevert<EditType>): Thenable<void>;
+		revert(cancellation: CancellationToken): Thenable<void>;
 
 		/**
 		 * Back up the resource in its current state.
@@ -1313,129 +1333,25 @@ declare module 'vscode' {
 		 * made in quick succession, `backup` is only triggered after the last one. `backup` is not invoked when
 		 * `auto save` is enabled (since auto save already persists resource ).
 		 *
-		 * @param document Document to backup.
 		 * @param cancellation Token that signals the current backup since a new backup is coming in. It is up to your
 		 * extension to decided how to respond to cancellation. If for example your extension is backing up a large file
 		 * in an operation that takes time to complete, your extension may decide to finish the ongoing backup rather
 		 * than cancelling it to ensure that VS Code has some valid backup.
 		 */
-		backup(document: CustomDocument<EditType>, cancellation: CancellationToken): Thenable<void>;
+		backup(cancellation: CancellationToken): Thenable<CustomDocumentBackup>;
 	}
 
 	/**
-	 * Event triggered by extensions to signal to VS Code that an edit has occurred on a `CustomDocument`.
-	 *
-	 * @param EditType Type of edits used for the document.
+	 * Additional information about the opening custom document.
 	 */
-	interface CustomDocumentEditEvent<EditType = unknown> {
+	interface OpenCustomDocumentContext {
 		/**
-		 * Document the edit is for.
-		 */
-		readonly document: CustomDocument<EditType>;
-
-		/**
-		 * Object that describes the edit.
+		 * The id of the backup to restore the document from or `undefined` if there is no backup.
 		 *
-		 * Edit objects are controlled entirely by your extension. Your extension should store whatever information it
-		 * needs to on the edit to understand what type of edit was made, how to render that edit, and how to save that
-		 * edit to disk.
-		 *
-		 * Edit objects are passed back to your extension in `CustomEditorEditingDelegate.undoEdits`,
-		 * `CustomEditorEditingDelegate.applyEdits`, and `CustomEditorEditingDelegate.revert`. They can also be accessed
-		 * using [`CustomDocument.appliedEdits`](#CustomDocument.appliedEdits) and [`CustomDocument.savedEdits`](#CustomDocument.savedEdits).
+		 * If this is provided, your extension should restore the editor from the backup instead of reading the file
+		 * the user's workspace.
 		 */
-		readonly edit: EditType;
-
-		/**
-		 * Display name describing the edit.
-		 */
-		readonly label?: string;
-	}
-
-	/**
-	 * Delta for edits undone/redone while reverting for a `CustomDocument`.
-	 *
-	 * @param EditType Type of edits used for the document being reverted.
-	 */
-	interface CustomDocumentRevert<EditType = unknown> {
-		/**
-		 * List of edits that were undone to get the document back to its on disk state.
-		 */
-		readonly undoneEdits: ReadonlyArray<EditType>;
-
-		/**
-		 * List of edits that were reapplied to get the document back to its on disk state.
-		 */
-		readonly appliedEdits: ReadonlyArray<EditType>;
-	}
-
-	/**
-	 * Represents a custom document used by a [`CustomEditorProvider`](#CustomEditorProvider).
-	 *
-	 * Custom documents are only used within a given `CustomEditorProvider`. The lifecycle of a `CustomDocument` is
-	 * managed by VS Code. When no more references remain to a `CustomDocument`, it is disposed of.
-	 *
-	 * @param EditType Type of edits used in this document.
-	 */
-	class CustomDocument<EditType = unknown> {
-		/**
-		 * @param uri The associated resource for this document.
-		 */
-		constructor(uri: Uri);
-
-		/**
-		 * The associated uri for this document.
-		 */
-		readonly uri: Uri;
-
-		/**
-		 * Is this document representing an untitled file which has never been saved yet.
-		 */
-		readonly isUntitled: boolean;
-
-		/**
-		 * The version number of this document (it will strictly increase after each
-		 * change, including undo/redo).
-		 */
-		readonly version: number;
-
-		/**
-		 * `true` if there are unpersisted changes.
-		 */
-		readonly isDirty: boolean;
-
-		/**
-		 * List of edits from document open to the document's current state.
-		 *
-		 * `appliedEdits` returns a copy of the edit stack at the current point in time. Your extension should always
-		 * use `CustomDocument.appliedEdits` to check the edit stack instead of holding onto a reference to `appliedEdits`.
-		 */
-		readonly appliedEdits: ReadonlyArray<EditType>;
-
-		/**
-		 * List of edits from document open to the document's last saved point.
-		 *
-		 * The save point will be behind `appliedEdits` if the user saves and then continues editing,
-		 * or in front of the last entry in `appliedEdits` if the user saves and then hits undo.
-		 *
-		 * `savedEdits` returns a copy of the edit stack at the current point in time. Your extension should always
-		 * use `CustomDocument.savedEdits` to check the edit stack instead of holding onto a reference to `savedEdits`.
-		 */
-		readonly savedEdits: ReadonlyArray<EditType>;
-
-		/**
-		 * `true` if the document has been closed. A closed document isn't synchronized anymore
-		 * and won't be reused when the same resource is opened again.
-		 */
-		readonly isClosed: boolean;
-
-		/**
-		 * Event fired when there are no more references to the `CustomDocument`.
-		 *
-		 * This happens when all custom editors for the document have been closed. Once a `CustomDocument` is disposed,
-		 * it will not be reused when the same resource is opened again.
-		 */
-		readonly onDidDispose: Event<void>;
+		readonly backupId?: string;
 	}
 
 	/**
@@ -1447,9 +1363,9 @@ declare module 'vscode' {
 	 * You should use this type of custom editor when dealing with binary files or more complex scenarios. For simple
 	 * text based documents, use [`CustomTextEditorProvider`](#CustomTextEditorProvider) instead.
 	 *
-	 * @param EditType Type of edits used by the editors of this provider.
+	 * @param DocumentType Type of the custom document returned by this provider.
 	 */
-	export interface CustomEditorProvider<EditType = unknown> {
+	export interface CustomEditorProvider<DocumentType extends CustomDocument = CustomDocument> {
 
 		/**
 		 * Create a new document for a given resource.
@@ -1460,11 +1376,12 @@ declare module 'vscode' {
 		 * this point will trigger another call to `openCustomDocument`.
 		 *
 		 * @param uri Uri of the document to open.
+		 * @param openContext Additional information about the opening custom document.
 		 * @param token A cancellation token that indicates the result is no longer needed.
 		 *
 		 * @return The custom document.
 		 */
-		openCustomDocument(uri: Uri, token: CancellationToken): Thenable<CustomDocument<EditType>> | CustomDocument<EditType>;
+		openCustomDocument(uri: Uri, openContext: OpenCustomDocumentContext, token: CancellationToken): Thenable<DocumentType> | DocumentType;
 
 		/**
 		 * Resolve a custom editor for a given resource.
@@ -1481,14 +1398,7 @@ declare module 'vscode' {
 		 *
 		 * @return Optional thenable indicating that the custom editor has been resolved.
 		 */
-		resolveCustomEditor(document: CustomDocument<EditType>, webviewPanel: WebviewPanel, token: CancellationToken): Thenable<void> | void;
-
-		/**
-		 * Defines the editing capability of the provider.
-		 *
-		 * When not provided, editors for this provider are considered readonly.
-		 */
-		readonly editingDelegate?: CustomEditorEditingDelegate<EditType>;
+		resolveCustomEditor(document: DocumentType, webviewPanel: WebviewPanel, token: CancellationToken): Thenable<void> | void;
 	}
 
 	namespace window {
