@@ -36,6 +36,7 @@ import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { localize } from 'vs/nls';
+import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 
 async function getCwdForSplit(configHelper: ITerminalConfigHelper, instance: ITerminalInstance, folders?: IWorkspaceFolder[], commandService?: ICommandService): Promise<string | URI | undefined> {
 	switch (configHelper.config.splitCwd) {
@@ -980,51 +981,55 @@ export class QuickAccessTerminalAction extends Action {
 	}
 }
 
-export class ScrollToPreviousCommandAction extends Action {
-	public static readonly ID = TERMINAL_COMMAND_ID.SCROLL_TO_PREVIOUS_COMMAND;
-	public static readonly LABEL = localize('workbench.action.terminal.scrollToPreviousCommand', "Scroll To Previous Command");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private readonly terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	public run(): Promise<any> {
-		const instance = this.terminalService.getActiveInstance();
-		if (instance && instance.commandTracker) {
-			instance.commandTracker.scrollToPreviousCommand();
-			instance.focus();
-		}
-		return Promise.resolve(undefined);
-	}
-}
-
-export class ScrollToNextCommandAction extends Action {
-	public static readonly ID = TERMINAL_COMMAND_ID.SCROLL_TO_NEXT_COMMAND;
-	public static readonly LABEL = localize('workbench.action.terminal.scrollToNextCommand', "Scroll To Next Command");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private readonly terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	public run(): Promise<any> {
-		const instance = this.terminalService.getActiveInstance();
-		if (instance && instance.commandTracker) {
-			instance.commandTracker.scrollToNextCommand();
-			instance.focus();
-		}
-		return Promise.resolve(undefined);
-	}
-}
-
 export function registerTerminalActions() {
 	const category = TERMINAL_ACTION_CATEGORY;
 
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.SCROLL_TO_PREVIOUS_COMMAND,
+				title: localize('workbench.action.terminal.scrollToPreviousCommand', "Scroll To Previous Command"),
+				f1: true,
+				category,
+				keybinding: {
+					mac: { primary: KeyMod.CtrlCmd | KeyCode.UpArrow },
+					when: ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_FOCUS, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
+					weight: KeybindingWeight.WorkbenchContrib
+				}
+			});
+		}
+
+		run(accessor: ServicesAccessor) {
+			const instance = accessor.get(ITerminalService).getActiveInstance();
+			if (instance && instance.commandTracker) {
+				instance.commandTracker.scrollToPreviousCommand();
+				instance.focus();
+			}
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.SCROLL_TO_NEXT_COMMAND,
+				title: localize('workbench.action.terminal.scrollToNextCommand', "Scroll To Next Command"),
+				f1: true,
+				category,
+				keybinding: {
+					mac: { primary: KeyMod.CtrlCmd | KeyCode.DownArrow },
+					when: ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_FOCUS, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
+					weight: KeybindingWeight.WorkbenchContrib
+				}
+			});
+		}
+
+		run(accessor: ServicesAccessor) {
+			const instance = accessor.get(ITerminalService).getActiveInstance();
+			if (instance && instance.commandTracker) {
+				instance.commandTracker.scrollToNextCommand();
+				instance.focus();
+			}
+		}
+	});
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
