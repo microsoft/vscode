@@ -960,10 +960,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		let smartActive = active;
 		const activeEditor = this.editorService.activeEditor;
-		if (
-			(this.editorGroupService.groups.length > 1 && this.configurationService.getValue('workbench.editor.centeredLayoutAutoResize'))
-			|| (this.editorGroupService.groups.length === 1 && activeEditor && activeEditor instanceof SideBySideEditorInput)
-		) {
+		if (this.configurationService.getValue('workbench.editor.centeredLayoutAutoResize')
+			&& (this.editorGroupService.groups.length > 1 || (activeEditor && activeEditor instanceof SideBySideEditorInput))) {
 			smartActive = false; // Respect the auto resize setting - do not go into centered layout if there is more than 1 group.
 		}
 
