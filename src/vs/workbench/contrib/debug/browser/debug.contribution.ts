@@ -43,7 +43,8 @@ import { VariablesView } from 'vs/workbench/contrib/debug/browser/variablesView'
 import { ClearReplAction, Repl } from 'vs/workbench/contrib/debug/browser/repl';
 import { DebugContentProvider } from 'vs/workbench/contrib/debug/common/debugContentProvider';
 import { WelcomeView } from 'vs/workbench/contrib/debug/browser/welcomeView';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { registerColor, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { DebugViewPaneContainer, OpenDebugConsoleAction } from 'vs/workbench/contrib/debug/browser/debugViewlet';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { CallStackEditorContribution } from 'vs/workbench/contrib/debug/browser/callStackEditorContribution';
@@ -586,3 +587,49 @@ if (isMacintosh) {
 	registerTouchBarEntry(RESTART_SESSION_ID, RESTART_LABEL, 5, CONTEXT_IN_DEBUG_MODE, URI.parse(require.toUrl('vs/workbench/contrib/debug/browser/media/restart-tb.png')));
 	registerTouchBarEntry(STOP_ID, STOP_LABEL, 6, CONTEXT_IN_DEBUG_MODE, URI.parse(require.toUrl('vs/workbench/contrib/debug/browser/media/stop-tb.png')));
 }
+
+// Color contributions
+
+const debugTokenExpressionName = registerColor('debugTokenExpression.name', { dark: '#c586c0', light: '#9b46b0', hc: foreground }, 'Foreground color for the token names shown in the debug views (ie. the Variables or Watch view).');
+const debugTokenExpressionValue = registerColor('debugTokenExpression.value', { dark: '#cccccc99', light: '#6c6c6ccc', hc: foreground }, 'Foreground color for the token values shown in the debug views (ie. the Variables or Watch view).');
+const debugTokenExpressionString = registerColor('debugTokenExpression.string', { dark: '#ce9178', light: '#a31515', hc: '#f48771' }, 'Foreground color for strings in the debug views (ie. the Variables or Watch view).');
+const debugTokenExpressionBoolean = registerColor('debugTokenExpression.boolean', { dark: '#4e94ce', light: '#0000ff', hc: '#75bdfe' }, 'Foreground color for booleans in the debug views (ie. the Variables or Watch view).');
+const debugTokenExpressionNumber = registerColor('debugTokenExpression.number', { dark: '#b5cea8', light: '#098658', hc: '#89d185' }, 'Foreground color for numbers in the debug views (ie. the Variables or Watch view).');
+const debugTokenExpressionError = registerColor('debugTokenExpression.error', { dark: '#f48771', light: '#e51400', hc: '#f48771' }, 'Foreground color for expression errors in the debug views (ie. the Variables or Watch view) and for error logs shown in the debug console.');
+
+registerThemingParticipant((theme, collector) => {
+	// All these colours provide a default value so they will never be undefined, hence the `!`
+	const tokenNameColor = theme.getColor(debugTokenExpressionName)!;
+	const tokenValueColor = theme.getColor(debugTokenExpressionValue)!;
+	const tokenStringColor = theme.getColor(debugTokenExpressionString)!;
+	const tokenBooleanColor = theme.getColor(debugTokenExpressionBoolean)!;
+	const tokenErrorColor = theme.getColor(debugTokenExpressionError)!;
+	const tokenNumberColor = theme.getColor(debugTokenExpressionNumber)!;
+
+	collector.addRule(`
+		.monaco-workbench .monaco-list-row .expression .name {
+			color: ${tokenNameColor};
+		}
+
+		.monaco-workbench .monaco-list-row .expression .value {
+			color: ${tokenValueColor};
+		}
+
+		.monaco-workbench .monaco-list-row .expression .value.string {
+			color: ${tokenStringColor};
+		}
+
+		.monaco-workbench .monaco-list-row .expression .value.boolean {
+			color: ${tokenBooleanColor};
+		}
+
+		.monaco-workbench .monaco-list-row .expression .error,
+		.monaco-workbench .debug-pane .debug-variables .scope .error {
+			color: ${tokenErrorColor};
+		}
+
+		.monaco-workbench .monaco-list-row .expression .value.number {
+			color: ${tokenNumberColor};
+		}
+	`);
+});
