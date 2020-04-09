@@ -481,7 +481,8 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 			selector: this.id.split(' ').join('.'), // to not break old clients
 			themeTokenColors: this.themeTokenColors,
 			tokenStylingRules: this.tokenStylingRules.map(TokenStylingRule.toJSONObject),
-			extensionData: this.extensionData,
+			extensionData: ExtensionData.toJSONObject(this.extensionData),
+			location: this.location?.toJSON(),
 			themeSemanticHighlighting: this.themeSemanticHighlighting,
 			colorMap: colorMapData,
 			watch: this.watch
@@ -543,7 +544,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 						}
 						break;
 					case 'themeTokenColors':
-					case 'id': case 'label': case 'settingsId': case 'extensionData': case 'watch': case 'themeSemanticHighlighting':
+					case 'id': case 'label': case 'settingsId': case 'watch': case 'themeSemanticHighlighting':
 						(theme as any)[key] = data[key];
 						break;
 					case 'tokenStylingRules':
@@ -556,6 +557,12 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 								}
 							}
 						}
+						break;
+					case 'location':
+						theme.location = URI.revive(data.location);
+						break;
+					case 'extensionData':
+						theme.extensionData = ExtensionData.fromJSONObject(data.extensionData);
 						break;
 				}
 			}
