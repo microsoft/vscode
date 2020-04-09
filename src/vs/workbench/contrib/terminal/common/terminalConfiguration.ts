@@ -7,7 +7,7 @@ import { IConfigurationNode } from 'vs/platform/configuration/common/configurati
 import { localize } from 'vs/nls';
 import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, TerminalCursorStyle, DEFAULT_COMMANDS_TO_SKIP_SHELL } from 'vs/workbench/contrib/terminal/common/terminal';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
+import { isMacintosh, isWindows, Platform } from 'vs/base/common/platform';
 
 export const terminalConfiguration: IConfigurationNode = {
 	id: 'terminal',
@@ -303,3 +303,38 @@ export const terminalConfiguration: IConfigurationNode = {
 		}
 	}
 };
+
+export function getTerminalShellConfiguration(getSystemShell?: (p: Platform) => string): IConfigurationNode {
+	return {
+		id: 'terminal',
+		order: 100,
+		title: localize('terminalIntegratedConfigurationTitle', "Integrated Terminal"),
+		type: 'object',
+		properties: {
+			'terminal.integrated.shell.linux': {
+				markdownDescription:
+					getSystemShell
+						? localize('terminal.integrated.shell.linux', "The path of the shell that the terminal uses on Linux (default: {0}). [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration).", getSystemShell(Platform.Linux))
+						: localize('terminal.integrated.shell.linux.noDefault', "The path of the shell that the terminal uses on Linux. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
+				type: ['string', 'null'],
+				default: null
+			},
+			'terminal.integrated.shell.osx': {
+				markdownDescription:
+					getSystemShell
+						? localize('terminal.integrated.shell.osx', "The path of the shell that the terminal uses on macOS (default: {0}). [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration).", getSystemShell(Platform.Mac))
+						: localize('terminal.integrated.shell.osx.noDefault', "The path of the shell that the terminal uses on macOS. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
+				type: ['string', 'null'],
+				default: null
+			},
+			'terminal.integrated.shell.windows': {
+				markdownDescription:
+					getSystemShell
+						? localize('terminal.integrated.shell.windows', "The path of the shell that the terminal uses on Windows (default: {0}). [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration).", getSystemShell(Platform.Windows))
+						: localize('terminal.integrated.shell.windows.noDefault', "The path of the shell that the terminal uses on Windows. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
+				type: ['string', 'null'],
+				default: null
+			}
+		}
+	};
+}
