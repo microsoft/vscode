@@ -874,7 +874,7 @@ export class Repository {
 			args.push('--author-date-order');
 		}
 
-		args.push('--', uri.fsPath);
+		args.push('--', '"' + uri.fsPath + '"');
 
 		const result = await this.run(args);
 		if (result.exitCode) {
@@ -1047,7 +1047,7 @@ export class Repository {
 			return await this.diffFiles(false);
 		}
 
-		const args = ['diff', '--', sanitizePath(path)];
+		const args = ['diff', '--', '"' + sanitizePath(path) + '"'];
 		const result = await this.run(args);
 		return result.stdout;
 	}
@@ -1060,7 +1060,7 @@ export class Repository {
 			return await this.diffFiles(false, ref);
 		}
 
-		const args = ['diff', ref, '--', sanitizePath(path)];
+		const args = ['diff', ref, '--', '"' + sanitizePath(path) + '"'];
 		const result = await this.run(args);
 		return result.stdout;
 	}
@@ -1073,7 +1073,7 @@ export class Repository {
 			return await this.diffFiles(true);
 		}
 
-		const args = ['diff', '--cached', '--', sanitizePath(path)];
+		const args = ['diff', '--cached', '--', '"' + sanitizePath(path) + '"'];
 		const result = await this.run(args);
 		return result.stdout;
 	}
@@ -1086,7 +1086,7 @@ export class Repository {
 			return await this.diffFiles(true, ref);
 		}
 
-		const args = ['diff', '--cached', ref, '--', sanitizePath(path)];
+		const args = ['diff', '--cached', ref, '--', '"' + sanitizePath(path) + '"'];
 		const result = await this.run(args);
 		return result.stdout;
 	}
@@ -1106,7 +1106,7 @@ export class Repository {
 			return await this.diffFiles(false, range);
 		}
 
-		const args = ['diff', range, '--', sanitizePath(path)];
+		const args = ['diff', range, '--', '"' + sanitizePath(path) + '"'];
 		const result = await this.run(args);
 
 		return result.stdout.trim();
@@ -1219,7 +1219,7 @@ export class Repository {
 		args.push('--');
 
 		if (paths && paths.length) {
-			args.push.apply(args, paths.map(sanitizePath));
+			args.push.apply(args, paths.map((path: string) => '"' + sanitizePath(path) + '"'));
 		} else {
 			args.push('.');
 		}
@@ -1234,13 +1234,13 @@ export class Repository {
 			return;
 		}
 
-		args.push(...paths.map(sanitizePath));
+		args.push(...paths.map((path: string) => '"' + sanitizePath(path) + '"'));
 
 		await this.run(args);
 	}
 
 	async stage(path: string, data: string): Promise<void> {
-		const child = this.stream(['hash-object', '--stdin', '-w', '--path', sanitizePath(path)], { stdio: [null, null, null] });
+		const child = this.stream(['hash-object', '--stdin', '-w', '--path', '"' + sanitizePath(path) + '"'], { stdio: [null, null, null] });
 		child.stdin!.end(data, 'utf8');
 
 		const { exitCode, stdout } = await exec(child);
@@ -1285,7 +1285,7 @@ export class Repository {
 
 		try {
 			if (paths && paths.length > 0) {
-				for (const chunk of splitInChunks(paths.map(sanitizePath), MAX_CLI_LENGTH)) {
+				for (const chunk of splitInChunks(paths.map((p: string) => '"' + sanitizePath(p) + '"'), MAX_CLI_LENGTH)) {
 					await this.run([...args, '--', ...chunk]);
 				}
 			} else {
@@ -1424,7 +1424,7 @@ export class Repository {
 	}
 
 	async clean(paths: string[]): Promise<void> {
-		const pathsByGroup = groupBy(paths.map(sanitizePath), p => path.dirname(p));
+		const pathsByGroup = groupBy(paths.map((p: string) => '"' + sanitizePath(p) + '"'), p => path.dirname(p));
 		const groups = Object.keys(pathsByGroup).map(k => pathsByGroup[k]);
 
 		const limiter = new Limiter(5);
@@ -1470,7 +1470,7 @@ export class Repository {
 		}
 
 		if (paths && paths.length) {
-			args.push.apply(args, paths.map(sanitizePath));
+			args.push.apply(args, paths.map((p: string) => '"' + sanitizePath(p) + '"'));
 		} else {
 			args.push('.');
 		}
@@ -1621,7 +1621,7 @@ export class Repository {
 
 	async blame(path: string): Promise<string> {
 		try {
-			const args = ['blame', sanitizePath(path)];
+			const args = ['blame', '"' + sanitizePath(path) + '"'];
 			const result = await this.run(args);
 			return result.stdout.trim();
 		} catch (err) {
@@ -1952,7 +1952,7 @@ export class Repository {
 	async updateSubmodules(paths: string[]): Promise<void> {
 		const args = ['submodule', 'update', '--'];
 
-		for (const chunk of splitInChunks(paths.map(sanitizePath), MAX_CLI_LENGTH)) {
+		for (const chunk of splitInChunks(paths.map((p: string) => '"' + sanitizePath(p) + '"'), MAX_CLI_LENGTH)) {
 			await this.run([...args, ...chunk]);
 		}
 	}
