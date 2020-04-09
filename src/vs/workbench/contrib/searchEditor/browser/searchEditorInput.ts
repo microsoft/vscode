@@ -14,17 +14,21 @@ import { DefaultEndOfLine, ITextModel, TrackedRangeStickiness } from 'vs/editor/
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { localize } from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { EditorInput, GroupIdentifier, IEditorInput, IMoveResult, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
+import { Memento } from 'vs/workbench/common/memento';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { SearchEditorFindMatchClass, SearchEditorScheme } from 'vs/workbench/contrib/searchEditor/browser/constants';
-import { extractSearchQueryFromModel, parseSavedSearchEditor, serializeSearchConfiguration } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
+import { defaultSearchConfig, extractSearchQueryFromModel, parseSavedSearchEditor, serializeSearchConfiguration } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
+import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
 import { ITextFileSaveOptions, ITextFileService, snapshotToString, stringToSnapshot } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkingCopy, IWorkingCopyBackup, IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
@@ -46,6 +50,8 @@ const SEARCH_EDITOR_EXT = '.code-search';
 export class SearchEditorInput extends EditorInput {
 	static readonly ID: string = 'workbench.editorinputs.searchEditorInput';
 
+	private memento: Memento;
+
 	private dirty: boolean = false;
 	private model: Promise<ITextModel>;
 	private _cachedModel: ITextModel | undefined;
@@ -57,7 +63,11 @@ export class SearchEditorInput extends EditorInput {
 
 	private _config: Readonly<SearchConfiguration>;
 	public get config(): Readonly<SearchConfiguration> { return this._config; }
-	public set config(value: Readonly<SearchConfiguration>) { this._config = value; this._onDidChangeLabel.fire(); }
+	public set config(value: Readonly<SearchConfiguration>) {
+		this._config = value;
+		this.memento.getMemento(StorageScope.WORKSPACE).searchConfig = value;
+		this._onDidChangeLabel.fire();
+	}
 
 	get resource() {
 		return this.backingUri || this.modelUri;
@@ -76,7 +86,8 @@ export class SearchEditorInput extends EditorInput {
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IRemotePathService private readonly remotePathService: IRemotePathService
+		@IRemotePathService private readonly remotePathService: IRemotePathService,
+		@IStorageService storageService: IStorageService,
 	) {
 		super();
 
@@ -92,6 +103,9 @@ export class SearchEditorInput extends EditorInput {
 		if (this.modelUri.scheme !== SearchEditorScheme) {
 			throw Error('SearchEditorInput must be invoked with a SearchEditorScheme uri');
 		}
+
+		this.memento = new Memento(SearchEditorInput.ID, storageService);
+		storageService.onWillSaveState(() => this.memento.saveMemento());
 
 		const input = this;
 		const workingCopyAdapter = new class implements IWorkingCopy {
@@ -283,15 +297,20 @@ export const getOrMakeSearchEditorInput = (
 		{ backingUri: URI, text?: never, modelUri?: never }))
 ): SearchEditorInput => {
 
-	const defaultConfig: SearchConfiguration = { caseSensitive: false, contextLines: 0, excludes: '', includes: '', query: '', regexp: false, showIncludesExcludes: false, useIgnores: true, wholeWord: false };
-	let config = { ...defaultConfig, ...existingData.config };
-
-	const modelUri = existingData.modelUri ?? URI.from({ scheme: SearchEditorScheme, fragment: `${Math.random()}` });
-
 	const instantiationService = accessor.get(IInstantiationService);
 	const modelService = accessor.get(IModelService);
 	const backupService = accessor.get(IBackupFileService);
 	const modeService = accessor.get(IModeService);
+	const storageService = accessor.get(IStorageService);
+	const configurationService = accessor.get(IConfigurationService);
+
+	const reuseOldSettings = configurationService.getValue<ISearchConfigurationProperties>('search').searchEditor?.experimental?.reusePriorSearchConfiguration;
+	const priorConfig: SearchConfiguration = reuseOldSettings ? new Memento(SearchEditorInput.ID, storageService).getMemento(StorageScope.WORKSPACE).searchConfig : {};
+	const defaultConfig = defaultSearchConfig();
+	let config = { ...defaultConfig, ...priorConfig, ...existingData.config };
+
+	const modelUri = existingData.modelUri ?? URI.from({ scheme: SearchEditorScheme, fragment: `${Math.random()}` });
+
 
 	const existing = inputs.get(modelUri.toString() + existingData.backingUri?.toString());
 	if (existing) {

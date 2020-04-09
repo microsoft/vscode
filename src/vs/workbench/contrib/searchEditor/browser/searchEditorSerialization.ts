@@ -106,15 +106,15 @@ function fileMatchToSearchResultFormat(fileMatch: FileMatch, labelFormatter: (x:
 	return { text, matchRanges };
 }
 
-const contentPatternToSearchConfiguration = (pattern: ITextQuery | null, includes: string, excludes: string, contextLines: number): Partial<SearchConfiguration> => {
+const contentPatternToSearchConfiguration = (pattern: ITextQuery, includes: string, excludes: string, contextLines: number): SearchConfiguration => {
 	return {
-		query: pattern?.contentPattern.pattern,
-		regexp: pattern?.contentPattern.isRegExp,
-		caseSensitive: pattern?.contentPattern.isCaseSensitive,
-		wholeWord: pattern?.contentPattern.isWordMatch,
+		query: pattern.contentPattern.pattern,
+		regexp: !!pattern.contentPattern.isRegExp,
+		caseSensitive: !!pattern.contentPattern.isCaseSensitive,
+		wholeWord: !!pattern.contentPattern.isWordMatch,
 		excludes, includes,
 		showIncludesExcludes: !!(includes || excludes || pattern?.userDisabledExcludesAndIgnoreFiles),
-		useIgnores: pattern?.userDisabledExcludesAndIgnoreFiles === undefined ? undefined : !pattern.userDisabledExcludesAndIgnoreFiles,
+		useIgnores: !!(pattern?.userDisabledExcludesAndIgnoreFiles === undefined ? undefined : !pattern.userDisabledExcludesAndIgnoreFiles),
 		contextLines,
 	};
 };
@@ -144,19 +144,21 @@ export const serializeSearchConfiguration = (config: Partial<SearchConfiguration
 export const extractSearchQueryFromModel = (model: ITextModel): SearchConfiguration =>
 	extractSearchQueryFromLines(model.getValueInRange(new Range(1, 1, 6, 1)).split(lineDelimiter));
 
+export const defaultSearchConfig = (): SearchConfiguration => ({
+	query: '',
+	includes: '',
+	excludes: '',
+	regexp: false,
+	caseSensitive: false,
+	useIgnores: true,
+	wholeWord: false,
+	contextLines: 0,
+	showIncludesExcludes: false,
+});
+
 export const extractSearchQueryFromLines = (lines: string[]): SearchConfiguration => {
 
-	const query: SearchConfiguration = {
-		query: '',
-		includes: '',
-		excludes: '',
-		regexp: false,
-		caseSensitive: false,
-		useIgnores: true,
-		wholeWord: false,
-		contextLines: 0,
-		showIncludesExcludes: false,
-	};
+	const query = defaultSearchConfig();
 
 	const unescapeNewlines = (str: string) => {
 		let out = '';
@@ -207,6 +209,7 @@ export const extractSearchQueryFromLines = (lines: string[]): SearchConfiguratio
 
 export const serializeSearchResultForEditor =
 	(searchResult: SearchResult, rawIncludePattern: string, rawExcludePattern: string, contextLines: number, labelFormatter: (x: URI) => string): { matchRanges: Range[], text: string, config: Partial<SearchConfiguration> } => {
+		if (!searchResult.query) { throw Error('Internal Error: Expected query, got null'); }
 		const config = contentPatternToSearchConfiguration(searchResult.query, rawIncludePattern, rawExcludePattern, contextLines);
 
 		const filecount = searchResult.fileCount() > 1 ? localize('numFiles', "{0} files", searchResult.fileCount()) : localize('oneFile', "1 file");
