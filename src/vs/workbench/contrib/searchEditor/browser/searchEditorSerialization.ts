@@ -3,16 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/searchEditor';
 import { coalesce, flatten } from 'vs/base/common/arrays';
 import { repeat } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
+import 'vs/css!./media/searchEditor';
+import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { Range } from 'vs/editor/common/core/range';
-import { FileMatch, Match, searchMatchComparer, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
-import { ITextQuery } from 'vs/workbench/services/search/common/search';
-import { localize } from 'vs/nls';
 import type { ITextModel } from 'vs/editor/common/model';
+import { localize } from 'vs/nls';
+import { FileMatch, Match, searchMatchComparer, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
 import type { SearchConfiguration } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
+import { ITextQuery } from 'vs/workbench/services/search/common/search';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 // Using \r\n on Windows inserts an extra newline between results.
 const lineDelimiter = '\n';
@@ -104,8 +106,8 @@ function fileMatchToSearchResultFormat(fileMatch: FileMatch, labelFormatter: (x:
 	return { text, matchRanges };
 }
 
-const contentPatternToSearchResultHeader = (pattern: ITextQuery | null, includes: string, excludes: string, contextLines: number): string[] => {
-	return serializeSearchConfiguration({
+const contentPatternToSearchConfiguration = (pattern: ITextQuery | null, includes: string, excludes: string, contextLines: number): Partial<SearchConfiguration> => {
+	return {
 		query: pattern?.contentPattern.pattern,
 		regexp: pattern?.contentPattern.isRegExp,
 		caseSensitive: pattern?.contentPattern.isCaseSensitive,
@@ -114,7 +116,7 @@ const contentPatternToSearchResultHeader = (pattern: ITextQuery | null, includes
 		showIncludesExcludes: !!(includes || excludes || pattern?.userDisabledExcludesAndIgnoreFiles),
 		useIgnores: pattern?.userDisabledExcludesAndIgnoreFiles === undefined ? undefined : !pattern.userDisabledExcludesAndIgnoreFiles,
 		contextLines,
-	}).split(lineDelimiter);
+	};
 };
 
 export const serializeSearchConfiguration = (config: Partial<SearchConfiguration>): string => {
@@ -139,11 +141,10 @@ export const serializeSearchConfiguration = (config: Partial<SearchConfiguration
 	]).join(lineDelimiter);
 };
 
+export const extractSearchQueryFromModel = (model: ITextModel): SearchConfiguration =>
+	extractSearchQueryFromLines(model.getValueInRange(new Range(1, 1, 6, 1)).split(lineDelimiter));
 
-export const extractSearchQuery = (model: ITextModel | string): SearchConfiguration => {
-	const header = (typeof model === 'string')
-		? model
-		: model.getValueInRange(new Range(1, 1, 6, 1)).split(lineDelimiter);
+export const extractSearchQueryFromLines = (lines: string[]): SearchConfiguration => {
 
 	const query: SearchConfiguration = {
 		query: '',
@@ -181,7 +182,7 @@ export const extractSearchQuery = (model: ITextModel | string): SearchConfigurat
 	};
 
 	const parseYML = /^# ([^:]*): (.*)$/;
-	for (const line of header) {
+	for (const line of lines) {
 		const parsed = parseYML.exec(line);
 		if (!parsed) { continue; }
 		const [, key, value] = parsed;
@@ -205,10 +206,8 @@ export const extractSearchQuery = (model: ITextModel | string): SearchConfigurat
 };
 
 export const serializeSearchResultForEditor =
-	(searchResult: SearchResult, rawIncludePattern: string, rawExcludePattern: string, contextLines: number, labelFormatter: (x: URI) => string, includeHeader: boolean): { matchRanges: Range[], text: string } => {
-		const header = includeHeader
-			? contentPatternToSearchResultHeader(searchResult.query, rawIncludePattern, rawExcludePattern, contextLines)
-			: [];
+	(searchResult: SearchResult, rawIncludePattern: string, rawExcludePattern: string, contextLines: number, labelFormatter: (x: URI) => string): { matchRanges: Range[], text: string, config: Partial<SearchConfiguration> } => {
+		const config = contentPatternToSearchConfiguration(searchResult.query, rawIncludePattern, rawExcludePattern, contextLines);
 
 		const filecount = searchResult.fileCount() > 1 ? localize('numFiles', "{0} files", searchResult.fileCount()) : localize('oneFile', "1 file");
 		const resultcount = searchResult.count() > 1 ? localize('numResults', "{0} results", searchResult.count()) : localize('oneResult', "1 result");
@@ -228,7 +227,8 @@ export const serializeSearchResultForEditor =
 
 		return {
 			matchRanges: allResults.matchRanges.map(translateRangeLines(info.length)),
-			text: header.concat(info).concat(allResults.text).join(lineDelimiter)
+			text: info.concat(allResults.text).join(lineDelimiter),
+			config
 		};
 	};
 
@@ -243,4 +243,27 @@ const flattenSearchResultSerializations = (serializations: SearchResultSerializa
 	});
 
 	return { text, matchRanges };
+};
+
+export const parseSavedSearchEditor = async (accessor: ServicesAccessor, resource: URI) => {
+	const textFileService = accessor.get(ITextFileService);
+
+	const text = (await textFileService.read(resource)).value;
+
+	const headerlines = [];
+	const bodylines = [];
+
+	let inHeader = true;
+	for (const line of text.split(/\r?\n/g)) {
+		if (inHeader) {
+			headerlines.push(line);
+			if (line === '') {
+				inHeader = false;
+			}
+		} else {
+			bodylines.push(line);
+		}
+	}
+
+	return { config: extractSearchQueryFromLines(headerlines), text: bodylines.join('\n') };
 };
