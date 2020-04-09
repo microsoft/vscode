@@ -988,10 +988,31 @@ export class RenameTerminalAction extends Action {
 		}
 	}
 }
-export class RenameWithArgTerminalAction extends Action2 {
-	public static readonly ID = TERMINAL_COMMAND_ID.RENAME_WITH_ARG;
-	public static readonly LABEL = nls.localize('workbench.action.terminal.renameWithArg', "Rename the Currently Active Terminal");
-	public static readonly NAME_ARG_LABEL = nls.localize('workbench.action.terminal.renameWithArg.name', "The new name for the terminal");
+export class RenameWithArgTerminalAction2 extends Action2 {
+	constructor() {
+		const title = nls.localize('workbench.action.terminal.renameWithArg', "Rename the Currently Active Terminal");
+		super({
+			id: TERMINAL_COMMAND_ID.RENAME_WITH_ARG,
+			title,
+			description: {
+				description: title,
+				args: [{
+					name: 'args',
+					schema: {
+						type: 'object',
+						required: ['name'],
+						properties: {
+							name: {
+								description: nls.localize('workbench.action.terminal.renameWithArg.name', "The new name for the terminal"),
+								type: 'string',
+								minLength: 1
+							}
+						}
+					}
+				}]
+			}
+		});
+	}
 
 	public run(
 		accessor: ServicesAccessor,

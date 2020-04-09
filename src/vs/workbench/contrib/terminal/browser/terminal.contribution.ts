@@ -19,15 +19,13 @@ import * as panel from 'vs/workbench/browser/panel';
 import { getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { Extensions as ViewContainerExtensions, IViewContainersRegistry, ViewContainerLocation, IViewsRegistry } from 'vs/workbench/common/views';
-import { ClearSelectionTerminalAction, ClearTerminalAction, CopyTerminalSelectionAction, CreateNewInActiveWorkspaceTerminalAction, CreateNewTerminalAction, FindNext, FindPrevious, FocusActiveTerminalAction, FocusNextPaneTerminalAction, FocusNextTerminalAction, FocusPreviousPaneTerminalAction, FocusPreviousTerminalAction, FocusTerminalFindWidgetAction, HideTerminalFindWidgetAction, KillTerminalAction, QuickAccessTerminalAction, RenameTerminalAction, ResizePaneDownTerminalAction, ResizePaneLeftTerminalAction, ResizePaneRightTerminalAction, ResizePaneUpTerminalAction, RunActiveFileInTerminalAction, RunSelectedTextInTerminalAction, ScrollDownPageTerminalAction, ScrollDownTerminalAction, ScrollToBottomTerminalAction, ScrollToNextCommandAction, ScrollToPreviousCommandAction, ScrollToTopTerminalAction, ScrollUpPageTerminalAction, ScrollUpTerminalAction, SelectAllTerminalAction, SelectDefaultShellWindowsTerminalAction, SelectToNextCommandAction, SelectToNextLineAction, SelectToPreviousCommandAction, SelectToPreviousLineAction, SplitInActiveWorkspaceTerminalAction, SplitTerminalAction, TerminalPasteAction, ToggleCaseSensitiveCommand, ToggleEscapeSequenceLoggingAction, ToggleRegexCommand, ToggleTerminalAction, ToggleWholeWordCommand, NavigationModeFocusPreviousTerminalAction, NavigationModeFocusNextTerminalAction, NavigationModeExitTerminalAction, ManageWorkspaceShellPermissionsTerminalCommand, CreateNewWithCwdTerminalAction2, RenameWithArgTerminalAction, terminalSendSequenceCommand, SendSequenceTerminalAction2 } from 'vs/workbench/contrib/terminal/browser/terminalActions';
+import { ClearSelectionTerminalAction, ClearTerminalAction, CopyTerminalSelectionAction, CreateNewInActiveWorkspaceTerminalAction, CreateNewTerminalAction, FindNext, FindPrevious, FocusActiveTerminalAction, FocusNextPaneTerminalAction, FocusNextTerminalAction, FocusPreviousPaneTerminalAction, FocusPreviousTerminalAction, FocusTerminalFindWidgetAction, HideTerminalFindWidgetAction, KillTerminalAction, QuickAccessTerminalAction, RenameTerminalAction, ResizePaneDownTerminalAction, ResizePaneLeftTerminalAction, ResizePaneRightTerminalAction, ResizePaneUpTerminalAction, RunActiveFileInTerminalAction, RunSelectedTextInTerminalAction, ScrollDownPageTerminalAction, ScrollDownTerminalAction, ScrollToBottomTerminalAction, ScrollToNextCommandAction, ScrollToPreviousCommandAction, ScrollToTopTerminalAction, ScrollUpPageTerminalAction, ScrollUpTerminalAction, SelectAllTerminalAction, SelectDefaultShellWindowsTerminalAction, SelectToNextCommandAction, SelectToNextLineAction, SelectToPreviousCommandAction, SelectToPreviousLineAction, SplitInActiveWorkspaceTerminalAction, SplitTerminalAction, TerminalPasteAction, ToggleCaseSensitiveCommand, ToggleEscapeSequenceLoggingAction, ToggleRegexCommand, ToggleTerminalAction, ToggleWholeWordCommand, NavigationModeFocusPreviousTerminalAction, NavigationModeFocusNextTerminalAction, NavigationModeExitTerminalAction, ManageWorkspaceShellPermissionsTerminalCommand, CreateNewWithCwdTerminalAction2, RenameWithArgTerminalAction2, terminalSendSequenceCommand, SendSequenceTerminalAction2 } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
-import { KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_NOT_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE_KEY, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_VIEW_ID, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, TerminalCursorStyle, TERMINAL_ACTION_CATEGORY, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_NOT_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE_KEY, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_VIEW_ID, TERMINAL_ACTION_CATEGORY, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { registerColors } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { setupTerminalCommands } from 'vs/workbench/contrib/terminal/browser/terminalCommands';
 import { setupTerminalMenu } from 'vs/workbench/contrib/terminal/common/terminalMenu';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
-import { DEFAULT_COMMANDS_TO_SKIP_SHELL } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { TerminalService } from 'vs/workbench/contrib/terminal/browser/terminalService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { registerShellConfiguration } from 'vs/workbench/contrib/terminal/common/terminalShellConfig';
@@ -38,6 +36,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
 import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalsQuickAccess';
+import { terminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminalConfiguration';
 
 registerSingleton(ITerminalService, TerminalService, true);
 
@@ -66,300 +65,7 @@ CommandsRegistry.registerCommand(
 
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
-configurationRegistry.registerConfiguration({
-	id: 'terminal',
-	order: 100,
-	title: nls.localize('terminalIntegratedConfigurationTitle', "Integrated Terminal"),
-	type: 'object',
-	properties: {
-		'terminal.integrated.automationShell.linux': {
-			markdownDescription: nls.localize('terminal.integrated.automationShell.linux', "A path that when set will override {0} and ignore {1} values for automation-related terminal usage like tasks and debug.", '`terminal.integrated.shell.linux`', '`shellArgs`'),
-			type: ['string', 'null'],
-			default: null
-		},
-		'terminal.integrated.automationShell.osx': {
-			markdownDescription: nls.localize('terminal.integrated.automationShell.osx', "A path that when set will override {0} and ignore {1} values for automation-related terminal usage like tasks and debug.", '`terminal.integrated.shell.osx`', '`shellArgs`'),
-			type: ['string', 'null'],
-			default: null
-		},
-		'terminal.integrated.automationShell.windows': {
-			markdownDescription: nls.localize('terminal.integrated.automationShell.windows', "A path that when set will override {0} and ignore {1} values for automation-related terminal usage like tasks and debug.", '`terminal.integrated.shell.windows`', '`shellArgs`'),
-			type: ['string', 'null'],
-			default: null
-		},
-		'terminal.integrated.shellArgs.linux': {
-			markdownDescription: nls.localize('terminal.integrated.shellArgs.linux', "The command line arguments to use when on the Linux terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
-			type: 'array',
-			items: {
-				type: 'string'
-			},
-			default: []
-		},
-		'terminal.integrated.shellArgs.osx': {
-			markdownDescription: nls.localize('terminal.integrated.shellArgs.osx', "The command line arguments to use when on the macOS terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
-			type: 'array',
-			items: {
-				type: 'string'
-			},
-			// Unlike on Linux, ~/.profile is not sourced when logging into a macOS session. This
-			// is the reason terminals on macOS typically run login shells by default which set up
-			// the environment. See http://unix.stackexchange.com/a/119675/115410
-			default: ['-l']
-		},
-		'terminal.integrated.shellArgs.windows': {
-			markdownDescription: nls.localize('terminal.integrated.shellArgs.windows', "The command line arguments to use when on the Windows terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
-			'anyOf': [
-				{
-					type: 'array',
-					items: {
-						type: 'string',
-						markdownDescription: nls.localize('terminal.integrated.shellArgs.windows', "The command line arguments to use when on the Windows terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration).")
-					},
-				},
-				{
-					type: 'string',
-					markdownDescription: nls.localize('terminal.integrated.shellArgs.windows.string', "The command line arguments in [command-line format](https://msdn.microsoft.com/en-au/08dfcab2-eb6e-49a4-80eb-87d4076c98c6) to use when on the Windows terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration).")
-				}
-			],
-			default: []
-		},
-		'terminal.integrated.macOptionIsMeta': {
-			description: nls.localize('terminal.integrated.macOptionIsMeta', "Controls whether to treat the option key as the meta key in the terminal on macOS."),
-			type: 'boolean',
-			default: false
-		},
-		'terminal.integrated.macOptionClickForcesSelection': {
-			description: nls.localize('terminal.integrated.macOptionClickForcesSelection', "Controls whether to force selection when using Option+click on macOS. This will force a regular (line) selection and disallow the use of column selection mode. This enables copying and pasting using the regular terminal selection, for example, when mouse mode is enabled in tmux."),
-			type: 'boolean',
-			default: false
-		},
-		'terminal.integrated.copyOnSelection': {
-			description: nls.localize('terminal.integrated.copyOnSelection', "Controls whether text selected in the terminal will be copied to the clipboard."),
-			type: 'boolean',
-			default: false
-		},
-		'terminal.integrated.drawBoldTextInBrightColors': {
-			description: nls.localize('terminal.integrated.drawBoldTextInBrightColors', "Controls whether bold text in the terminal will always use the \"bright\" ANSI color variant."),
-			type: 'boolean',
-			default: true
-		},
-		'terminal.integrated.fontFamily': {
-			markdownDescription: nls.localize('terminal.integrated.fontFamily', "Controls the font family of the terminal, this defaults to `#editor.fontFamily#`'s value."),
-			type: 'string'
-		},
-		// TODO: Support font ligatures
-		// 'terminal.integrated.fontLigatures': {
-		// 	'description': nls.localize('terminal.integrated.fontLigatures', "Controls whether font ligatures are enabled in the terminal."),
-		// 	'type': 'boolean',
-		// 	'default': false
-		// },
-		'terminal.integrated.fontSize': {
-			description: nls.localize('terminal.integrated.fontSize', "Controls the font size in pixels of the terminal."),
-			type: 'number',
-			default: EDITOR_FONT_DEFAULTS.fontSize
-		},
-		'terminal.integrated.letterSpacing': {
-			description: nls.localize('terminal.integrated.letterSpacing', "Controls the letter spacing of the terminal, this is an integer value which represents the amount of additional pixels to add between characters."),
-			type: 'number',
-			default: DEFAULT_LETTER_SPACING
-		},
-		'terminal.integrated.lineHeight': {
-			description: nls.localize('terminal.integrated.lineHeight', "Controls the line height of the terminal, this number is multiplied by the terminal font size to get the actual line-height in pixels."),
-			type: 'number',
-			default: DEFAULT_LINE_HEIGHT
-		},
-		'terminal.integrated.minimumContrastRatio': {
-			markdownDescription: nls.localize('terminal.integrated.minimumContrastRatio', "When set the foreground color of each cell will change to try meet the contrast ratio specified. Example values:\n\n- 1: The default, do nothing.\n- 4.5: [WCAG AA compliance (minimum)](https://www.w3.org/TR/UNDERSTANDING-WCAG20/visual-audio-contrast-contrast.html).\n- 7: [WCAG AAA compliance (enhanced)](https://www.w3.org/TR/UNDERSTANDING-WCAG20/visual-audio-contrast7.html).\n- 21: White on black or black on white."),
-			type: 'number',
-			default: 1
-		},
-		'terminal.integrated.fastScrollSensitivity': {
-			markdownDescription: nls.localize('terminal.integrated.fastScrollSensitivity', "Scrolling speed multiplier when pressing `Alt`."),
-			type: 'number',
-			default: 5
-		},
-		'terminal.integrated.mouseWheelScrollSensitivity': {
-			markdownDescription: nls.localize('terminal.integrated.mouseWheelScrollSensitivity', "A multiplier to be used on the `deltaY` of mouse wheel scroll events."),
-			type: 'number',
-			default: 1
-		},
-		'terminal.integrated.fontWeight': {
-			type: 'string',
-			enum: ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'],
-			description: nls.localize('terminal.integrated.fontWeight', "The font weight to use within the terminal for non-bold text."),
-			default: 'normal'
-		},
-		'terminal.integrated.fontWeightBold': {
-			type: 'string',
-			enum: ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'],
-			description: nls.localize('terminal.integrated.fontWeightBold', "The font weight to use within the terminal for bold text."),
-			default: 'bold'
-		},
-		'terminal.integrated.cursorBlinking': {
-			description: nls.localize('terminal.integrated.cursorBlinking', "Controls whether the terminal cursor blinks."),
-			type: 'boolean',
-			default: false
-		},
-		'terminal.integrated.cursorStyle': {
-			description: nls.localize('terminal.integrated.cursorStyle', "Controls the style of terminal cursor."),
-			enum: [TerminalCursorStyle.BLOCK, TerminalCursorStyle.LINE, TerminalCursorStyle.UNDERLINE],
-			default: TerminalCursorStyle.BLOCK
-		},
-		'terminal.integrated.cursorWidth': {
-			markdownDescription: nls.localize('terminal.integrated.cursorWidth', "Controls the width of the cursor when `#terminal.integrated.cursorStyle#` is set to `line`."),
-			type: 'number',
-			default: 1
-		},
-		'terminal.integrated.scrollback': {
-			description: nls.localize('terminal.integrated.scrollback', "Controls the maximum amount of lines the terminal keeps in its buffer."),
-			type: 'number',
-			default: 1000
-		},
-		'terminal.integrated.detectLocale': {
-			markdownDescription: nls.localize('terminal.integrated.detectLocale', "Controls whether to detect and set the `$LANG` environment variable to a UTF-8 compliant option since VS Code's terminal only supports UTF-8 encoded data coming from the shell."),
-			type: 'string',
-			enum: ['auto', 'off', 'on'],
-			markdownEnumDescriptions: [
-				nls.localize('terminal.integrated.detectLocale.auto', "Set the `$LANG` environment variable if the existing variable does not exist or it does not end in `'.UTF-8'`."),
-				nls.localize('terminal.integrated.detectLocale.off', "Do not set the `$LANG` environment variable."),
-				nls.localize('terminal.integrated.detectLocale.on', "Always set the `$LANG` environment variable.")
-			],
-			default: 'auto'
-		},
-		'terminal.integrated.rendererType': {
-			type: 'string',
-			enum: ['auto', 'canvas', 'dom', 'experimentalWebgl'],
-			markdownEnumDescriptions: [
-				nls.localize('terminal.integrated.rendererType.auto', "Let VS Code guess which renderer to use."),
-				nls.localize('terminal.integrated.rendererType.canvas', "Use the standard GPU/canvas-based renderer."),
-				nls.localize('terminal.integrated.rendererType.dom', "Use the fallback DOM-based renderer."),
-				nls.localize('terminal.integrated.rendererType.experimentalWebgl', "Use the experimental webgl-based renderer. Note that this has some [known issues](https://github.com/xtermjs/xterm.js/issues?q=is%3Aopen+is%3Aissue+label%3Aarea%2Faddon%2Fwebgl) and this will only be enabled for new terminals (not hot swappable like the other renderers).")
-			],
-			default: 'auto',
-			description: nls.localize('terminal.integrated.rendererType', "Controls how the terminal is rendered.")
-		},
-		'terminal.integrated.rightClickBehavior': {
-			type: 'string',
-			enum: ['default', 'copyPaste', 'paste', 'selectWord'],
-			enumDescriptions: [
-				nls.localize('terminal.integrated.rightClickBehavior.default', "Show the context menu."),
-				nls.localize('terminal.integrated.rightClickBehavior.copyPaste', "Copy when there is a selection, otherwise paste."),
-				nls.localize('terminal.integrated.rightClickBehavior.paste', "Paste on right click."),
-				nls.localize('terminal.integrated.rightClickBehavior.selectWord', "Select the word under the cursor and show the context menu.")
-			],
-			default: platform.isMacintosh ? 'selectWord' : platform.isWindows ? 'copyPaste' : 'default',
-			description: nls.localize('terminal.integrated.rightClickBehavior', "Controls how terminal reacts to right click.")
-		},
-		'terminal.integrated.cwd': {
-			description: nls.localize('terminal.integrated.cwd', "An explicit start path where the terminal will be launched, this is used as the current working directory (cwd) for the shell process. This may be particularly useful in workspace settings if the root directory is not a convenient cwd."),
-			type: 'string',
-			default: undefined
-		},
-		'terminal.integrated.confirmOnExit': {
-			description: nls.localize('terminal.integrated.confirmOnExit', "Controls whether to confirm on exit if there are active terminal sessions."),
-			type: 'boolean',
-			default: false
-		},
-		'terminal.integrated.enableBell': {
-			description: nls.localize('terminal.integrated.enableBell', "Controls whether the terminal bell is enabled."),
-			type: 'boolean',
-			default: false
-		},
-		'terminal.integrated.commandsToSkipShell': {
-			markdownDescription: nls.localize('terminal.integrated.commandsToSkipShell', "A set of command IDs whose keybindings will not be sent to the shell and instead always be handled by Code. This allows the use of keybindings that would normally be consumed by the shell to act the same as when the terminal is not focused, for example ctrl+p to launch Quick Open.\nDefault Skipped Commands:\n\n{0}", DEFAULT_COMMANDS_TO_SKIP_SHELL.sort().map(command => `- ${command}`).join('\n')),
-			type: 'array',
-			items: {
-				type: 'string'
-			},
-			default: []
-		},
-		'terminal.integrated.allowChords': {
-			markdownDescription: nls.localize('terminal.integrated.allowChords', "Whether or not to allow chord keybindings in the terminal. Note that when this is true and the keystroke results in a chord it will bypass `#terminal.integrated.commandsToSkipShell#`, setting this to false is particularly useful when you want ctrl+k to go to your shell (not VS Code)."),
-			type: 'boolean',
-			default: true
-		},
-		'terminal.integrated.allowMnemonics': {
-			markdownDescription: nls.localize('terminal.integrated.allowMnemonics', "Whether to allow menubar mnemonics (eg. alt+f) to trigger the open the menubar. Note that this will cause all alt keystrokes will skip the shell when true. This does nothing on macOS."),
-			type: 'boolean',
-			default: false
-		},
-		'terminal.integrated.inheritEnv': {
-			markdownDescription: nls.localize('terminal.integrated.inheritEnv', "Whether new shells should inherit their environment from VS Code. This is not supported on Windows."),
-			type: 'boolean',
-			default: true
-		},
-		'terminal.integrated.env.osx': {
-			markdownDescription: nls.localize('terminal.integrated.env.osx', "Object with environment variables that will be added to the VS Code process to be used by the terminal on macOS. Set to `null` to delete the environment variable."),
-			type: 'object',
-			additionalProperties: {
-				type: ['string', 'null']
-			},
-			default: {}
-		},
-		'terminal.integrated.env.linux': {
-			markdownDescription: nls.localize('terminal.integrated.env.linux', "Object with environment variables that will be added to the VS Code process to be used by the terminal on Linux. Set to `null` to delete the environment variable."),
-			type: 'object',
-			additionalProperties: {
-				type: ['string', 'null']
-			},
-			default: {}
-		},
-		'terminal.integrated.env.windows': {
-			markdownDescription: nls.localize('terminal.integrated.env.windows', "Object with environment variables that will be added to the VS Code process to be used by the terminal on Windows. Set to `null` to delete the environment variable."),
-			type: 'object',
-			additionalProperties: {
-				type: ['string', 'null']
-			},
-			default: {}
-		},
-		'terminal.integrated.showExitAlert': {
-			description: nls.localize('terminal.integrated.showExitAlert', "Controls whether to show the alert \"The terminal process terminated with exit code\" when exit code is non-zero."),
-			type: 'boolean',
-			default: true
-		},
-		'terminal.integrated.splitCwd': {
-			description: nls.localize('terminal.integrated.splitCwd', "Controls the working directory a split terminal starts with."),
-			type: 'string',
-			enum: ['workspaceRoot', 'initial', 'inherited'],
-			enumDescriptions: [
-				nls.localize('terminal.integrated.splitCwd.workspaceRoot', "A new split terminal will use the workspace root as the working directory. In a multi-root workspace a choice for which root folder to use is offered."),
-				nls.localize('terminal.integrated.splitCwd.initial', "A new split terminal will use the working directory that the parent terminal started with."),
-				nls.localize('terminal.integrated.splitCwd.inherited', "On macOS and Linux, a new split terminal will use the working directory of the parent terminal. On Windows, this behaves the same as initial."),
-			],
-			default: 'inherited'
-		},
-		'terminal.integrated.windowsEnableConpty': {
-			description: nls.localize('terminal.integrated.windowsEnableConpty', "Whether to use ConPTY for Windows terminal process communication (requires Windows 10 build number 18309+). Winpty will be used if this is false."),
-			type: 'boolean',
-			default: true
-		},
-		'terminal.integrated.wordSeparators': {
-			description: nls.localize('terminal.integrated.wordSeparators', "A string containing all characters to be considered word separators by the double click to select word feature."),
-			type: 'string',
-			default: ' ()[]{}\',"`'
-		},
-		'terminal.integrated.experimentalUseTitleEvent': {
-			description: nls.localize('terminal.integrated.experimentalUseTitleEvent', "An experimental setting that will use the terminal title event for the dropdown title. This setting will only apply to new terminals."),
-			type: 'boolean',
-			default: false
-		},
-		'terminal.integrated.enableFileLinks': {
-			description: nls.localize('terminal.integrated.enableFileLinks', "Whether to enable file links in the terminal. Links can be slow when working on a network drive in particular because each file link is verified against the file system."),
-			type: 'boolean',
-			default: true
-		},
-		'terminal.integrated.unicodeVersion': {
-			type: 'string',
-			enum: ['6', '11'],
-			enumDescriptions: [
-				nls.localize('terminal.integrated.unicodeVersion.six', "Version 6 of unicode, this is an older version which should work better on older systems."),
-				nls.localize('terminal.integrated.unicodeVersion.eleven', "Version 11 of unicode, this version provides better support on modern systems that use modern versions of unicode.")
-			],
-			default: '11',
-			description: nls.localize('terminal.integrated.unicodeVersion', "Controls what version of unicode to use when evaluating the width of characters in the terminal. If you experience emoji or other wide characters not taking up the right amount of space or backspace either deleting too much or too little then you may want to try tweaking this setting.")
-		}
-	}
-});
+configurationRegistry.registerConfiguration(terminalConfiguration);
 
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 registry.registerWorkbenchAction(SyncActionDescriptor.create(QuickAccessTerminalAction, QuickAccessTerminalAction.ID, QuickAccessTerminalAction.LABEL), 'Terminal: Switch Active Terminal', nls.localize('terminal', "Terminal"));
@@ -553,6 +259,10 @@ actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(FindPrevious,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G, secondary: [KeyMod.Shift | KeyCode.F3, KeyCode.Enter] },
 }, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED), 'Terminal: Find previous', category);
 
+registerAction2(SendSequenceTerminalAction2);
+registerAction2(CreateNewWithCwdTerminalAction2);
+registerAction2(RenameWithArgTerminalAction2);
+
 // Commands might be affected by Web restrictons
 if (BrowserFeatures.clipboard.writeText) {
 	actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(CopyTerminalSelectionAction, CopyTerminalSelectionAction.ID, CopyTerminalSelectionAction.LABEL, {
@@ -613,33 +323,6 @@ registerSendSequenceKeybinding(String.fromCharCode('A'.charCodeAt(0) - 64), {
 // Move to line end: ctrl+E
 registerSendSequenceKeybinding(String.fromCharCode('E'.charCodeAt(0) - 64), {
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.RightArrow }
-});
-registerAction2(SendSequenceTerminalAction2);
-registerAction2(CreateNewWithCwdTerminalAction2);
-registerAction2(class extends RenameWithArgTerminalAction {
-	constructor() {
-		super({
-			id: RenameWithArgTerminalAction.ID,
-			title: RenameWithArgTerminalAction.LABEL,
-			description: {
-				description: RenameWithArgTerminalAction.LABEL,
-				args: [{
-					name: 'args',
-					schema: {
-						type: 'object',
-						required: ['name'],
-						properties: {
-							name: {
-								description: RenameWithArgTerminalAction.NAME_ARG_LABEL,
-								type: 'string',
-								minLength: 1
-							}
-						}
-					}
-				}]
-			}
-		});
-	}
 });
 
 setupTerminalCommands();
