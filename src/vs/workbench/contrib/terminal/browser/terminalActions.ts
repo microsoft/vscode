@@ -1106,28 +1106,23 @@ export class SelectToNextLineAction extends Action {
 	}
 }
 
-
-export class ToggleEscapeSequenceLoggingAction extends Action {
-	public static readonly ID = TERMINAL_COMMAND_ID.TOGGLE_ESCAPE_SEQUENCE_LOGGING;
-	public static readonly LABEL = nls.localize('workbench.action.terminal.toggleEscapeSequenceLogging', "Toggle Escape Sequence Logging");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private readonly terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	public run(): Promise<any> {
-		const instance = this.terminalService.getActiveInstance();
-		if (instance) {
-			instance.toggleEscapeSequenceLogging();
-		}
-		return Promise.resolve(undefined);
-	}
-}
-
 export function registerTerminalActions() {
+	const category = TERMINAL_ACTION_CATEGORY;
+
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.TOGGLE_ESCAPE_SEQUENCE_LOGGING,
+				title: nls.localize('workbench.action.terminal.toggleEscapeSequenceLogging', "Toggle Escape Sequence Logging"),
+				f1: true,
+				category
+			});
+		}
+
+		run(accessor: ServicesAccessor) {
+			accessor.get(ITerminalService).getActiveInstance()?.toggleEscapeSequenceLogging();
+		}
+	});
 	registerAction2(class extends Action2 {
 		constructor() {
 			const title = nls.localize('workbench.action.terminal.sendSequence', "Send Custom Sequence To Terminal");
@@ -1232,22 +1227,19 @@ export function registerTerminalActions() {
 			terminalInstance.setTitle(args.name, TitleEventSource.Api);
 		}
 	});
-
-	const category = TERMINAL_ACTION_CATEGORY;
 	registerAction2(class extends Action2 {
 		constructor() {
-			const title = nls.localize('workbench.action.terminal.toggleFindRegex', "Toggle find using regex");
 			super({
 				id: TERMINAL_COMMAND_ID.TOGGLE_FIND_REGEX,
-				title,
+				title: nls.localize('workbench.action.terminal.toggleFindRegex', "Toggle find using regex"),
 				f1: true,
+				category,
 				keybinding: {
 					primary: KeyMod.Alt | KeyCode.KEY_R,
 					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R },
 					when: ContextKeyExpr.or(KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED),
 					weight: KeybindingWeight.WorkbenchContrib
-				},
-				category
+				}
 			});
 		}
 
@@ -1258,18 +1250,17 @@ export function registerTerminalActions() {
 	});
 	registerAction2(class extends Action2 {
 		constructor() {
-			const title = nls.localize('workbench.action.terminal.toggleFindWholeWord', "Toggle find using whole word");
 			super({
 				id: TERMINAL_COMMAND_ID.TOGGLE_FIND_WHOLE_WORD,
-				title,
+				title: nls.localize('workbench.action.terminal.toggleFindWholeWord', "Toggle find using whole word"),
 				f1: true,
+				category,
 				keybinding: {
 					primary: KeyMod.Alt | KeyCode.KEY_W,
 					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_W },
 					when: ContextKeyExpr.or(KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED),
 					weight: KeybindingWeight.WorkbenchContrib
 				},
-				category
 			});
 		}
 
@@ -1280,18 +1271,17 @@ export function registerTerminalActions() {
 	});
 	registerAction2(class extends Action2 {
 		constructor() {
-			const title = nls.localize('workbench.action.terminal.toggleFindCaseSensitive', "Toggle find using case sensitive");
 			super({
 				id: TERMINAL_COMMAND_ID.TOGGLE_FIND_CASE_SENSITIVE,
-				title,
+				title: nls.localize('workbench.action.terminal.toggleFindCaseSensitive', "Toggle find using case sensitive"),
 				f1: true,
+				category,
 				keybinding: {
 					primary: KeyMod.Alt | KeyCode.KEY_C,
 					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_C },
 					when: ContextKeyExpr.or(KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED),
 					weight: KeybindingWeight.WorkbenchContrib
-				},
-				category
+				}
 			});
 		}
 
@@ -1305,6 +1295,8 @@ export function registerTerminalActions() {
 			super({
 				id: TERMINAL_COMMAND_ID.FIND_NEXT,
 				title: nls.localize('workbench.action.terminal.findNext', "Find next"),
+				f1: true,
+				category,
 				keybinding: [
 					{
 						primary: KeyCode.F3,
@@ -1317,9 +1309,7 @@ export function registerTerminalActions() {
 						when: KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED,
 						weight: KeybindingWeight.WorkbenchContrib
 					}
-				],
-				category,
-				f1: true
+				]
 			});
 		}
 
@@ -1332,6 +1322,8 @@ export function registerTerminalActions() {
 			super({
 				id: TERMINAL_COMMAND_ID.FIND_PREVIOUS,
 				title: nls.localize('workbench.action.terminal.findPrevious', "Find previous"),
+				f1: true,
+				category,
 				keybinding: [
 					{
 						primary: KeyMod.Shift | KeyCode.F3,
@@ -1344,9 +1336,7 @@ export function registerTerminalActions() {
 						when: KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED,
 						weight: KeybindingWeight.WorkbenchContrib
 					}
-				],
-				category,
-				f1: true
+				]
 			});
 		}
 
