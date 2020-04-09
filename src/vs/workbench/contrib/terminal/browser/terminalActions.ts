@@ -19,7 +19,6 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -1128,50 +1127,6 @@ export class ToggleEscapeSequenceLoggingAction extends Action {
 	}
 }
 
-abstract class ToggleFindOptionCommand extends Action {
-	constructor(
-		id: string, label: string,
-		@ITerminalService private readonly terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	protected abstract runInner(state: FindReplaceState): void;
-
-	public run(): Promise<any> {
-		const state = this.terminalService.getFindState();
-		this.runInner(state);
-		return Promise.resolve(undefined);
-	}
-}
-
-export class ToggleRegexCommand extends ToggleFindOptionCommand {
-	public static readonly ID = TERMINAL_COMMAND_ID.TOGGLE_FIND_REGEX;
-	public static readonly LABEL = nls.localize('workbench.action.terminal.toggleFindRegex', "Toggle find using regex");
-
-	protected runInner(state: FindReplaceState): void {
-		state.change({ isRegex: !state.isRegex }, false);
-	}
-}
-
-export class ToggleWholeWordCommand extends ToggleFindOptionCommand {
-	public static readonly ID = TERMINAL_COMMAND_ID.TOGGLE_FIND_WHOLE_WORD;
-	public static readonly LABEL = nls.localize('workbench.action.terminal.toggleFindWholeWord', "Toggle find using whole word");
-
-	protected runInner(state: FindReplaceState): void {
-		state.change({ wholeWord: !state.wholeWord }, false);
-	}
-}
-
-export class ToggleCaseSensitiveCommand extends ToggleFindOptionCommand {
-	public static readonly ID = TERMINAL_COMMAND_ID.TOGGLE_FIND_CASE_SENSITIVE;
-	public static readonly LABEL = nls.localize('workbench.action.terminal.toggleFindCaseSensitive', "Toggle find using case sensitive");
-
-	protected runInner(state: FindReplaceState): void {
-		state.change({ matchCase: !state.matchCase }, false);
-	}
-}
-
 export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
@@ -1277,6 +1232,74 @@ export function registerTerminalActions() {
 			terminalInstance.setTitle(args.name, TitleEventSource.Api);
 		}
 	});
+
+	const category = TERMINAL_ACTION_CATEGORY;
+	registerAction2(class extends Action2 {
+		constructor() {
+			const title = nls.localize('workbench.action.terminal.toggleFindRegex', "Toggle find using regex");
+			super({
+				id: TERMINAL_COMMAND_ID.TOGGLE_FIND_REGEX,
+				title,
+				f1: true,
+				keybinding: {
+					primary: KeyMod.Alt | KeyCode.KEY_R,
+					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R },
+					when: ContextKeyExpr.or(KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED),
+					weight: KeybindingWeight.WorkbenchContrib
+				},
+				category
+			});
+		}
+
+		run(accessor: ServicesAccessor) {
+			const state = accessor.get(ITerminalService).getFindState();
+			state.change({ isRegex: !state.isRegex }, false);
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			const title = nls.localize('workbench.action.terminal.toggleFindWholeWord', "Toggle find using whole word");
+			super({
+				id: TERMINAL_COMMAND_ID.TOGGLE_FIND_WHOLE_WORD,
+				title,
+				f1: true,
+				keybinding: {
+					primary: KeyMod.Alt | KeyCode.KEY_W,
+					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_W },
+					when: ContextKeyExpr.or(KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED),
+					weight: KeybindingWeight.WorkbenchContrib
+				},
+				category
+			});
+		}
+
+		run(accessor: ServicesAccessor) {
+			const state = accessor.get(ITerminalService).getFindState();
+			state.change({ wholeWord: !state.wholeWord }, false);
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			const title = nls.localize('workbench.action.terminal.toggleFindCaseSensitive', "Toggle find using case sensitive");
+			super({
+				id: TERMINAL_COMMAND_ID.TOGGLE_FIND_CASE_SENSITIVE,
+				title,
+				f1: true,
+				keybinding: {
+					primary: KeyMod.Alt | KeyCode.KEY_C,
+					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_C },
+					when: ContextKeyExpr.or(KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED),
+					weight: KeybindingWeight.WorkbenchContrib
+				},
+				category
+			});
+		}
+
+		run(accessor: ServicesAccessor) {
+			const state = accessor.get(ITerminalService).getFindState();
+			state.change({ matchCase: !state.matchCase }, false);
+		}
+	});
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
@@ -1295,7 +1318,7 @@ export function registerTerminalActions() {
 						weight: KeybindingWeight.WorkbenchContrib
 					}
 				],
-				category: TERMINAL_ACTION_CATEGORY,
+				category,
 				f1: true
 			});
 		}
@@ -1322,7 +1345,7 @@ export function registerTerminalActions() {
 						weight: KeybindingWeight.WorkbenchContrib
 					}
 				],
-				category: TERMINAL_ACTION_CATEGORY,
+				category,
 				f1: true
 			});
 		}
