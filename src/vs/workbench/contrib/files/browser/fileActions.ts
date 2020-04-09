@@ -819,9 +819,8 @@ export class CompareWithClipboardAction extends Action {
 	static readonly ID = 'workbench.files.action.compareWithClipboard';
 	static readonly LABEL = nls.localize('compareWithClipboard', "Compare Active File with Clipboard");
 
-	private static readonly SCHEME = 'clipboardCompare';
-
 	private registrationDisposal: IDisposable | undefined;
+	private static SCHEME_COUNTER = 0;
 
 	constructor(
 		id: string,
@@ -838,16 +837,17 @@ export class CompareWithClipboardAction extends Action {
 
 	async run(): Promise<void> {
 		const resource = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER });
+		const scheme = `clipboardCompare${CompareWithClipboardAction.SCHEME_COUNTER++}`;
 		if (resource && (this.fileService.canHandleResource(resource) || resource.scheme === Schemas.untitled)) {
 			if (!this.registrationDisposal) {
 				const provider = this.instantiationService.createInstance(ClipboardContentProvider);
-				this.registrationDisposal = this.textModelService.registerTextModelContentProvider(CompareWithClipboardAction.SCHEME, provider);
+				this.registrationDisposal = this.textModelService.registerTextModelContentProvider(scheme, provider);
 			}
 
 			const name = resources.basename(resource);
 			const editorLabel = nls.localize('clipboardComparisonLabel', "Clipboard ↔ {0}", name);
 
-			await this.editorService.openEditor({ leftResource: resource.with({ scheme: CompareWithClipboardAction.SCHEME }), rightResource: resource, label: editorLabel }).finally(() => {
+			await this.editorService.openEditor({ leftResource: resource.with({ scheme }), rightResource: resource, label: editorLabel }).finally(() => {
 				dispose(this.registrationDisposal);
 				this.registrationDisposal = undefined;
 			});
