@@ -888,7 +888,7 @@ export class RepositoryPane extends ViewPane {
 		this._register(this.tree.onContextMenu(this.onListContextMenu, this));
 		this._register(this.tree);
 
-		let mode = this.configurationService.getValue<'tree' | 'list'>('scm.defaultViewMode') === 'list' ? ViewModelMode.List : ViewModelMode.Tree;
+		let viewMode = this.configurationService.getValue<'tree' | 'list'>('scm.defaultViewMode') === 'list' ? ViewModelMode.List : ViewModelMode.Tree;
 
 		const rootUri = this.repository.provider.rootUri;
 
@@ -896,11 +896,11 @@ export class RepositoryPane extends ViewPane {
 			const storageMode = this.storageService.get(`scm.repository.viewMode:${rootUri.toString()}`, StorageScope.WORKSPACE) as ViewModelMode;
 
 			if (typeof storageMode === 'string') {
-				mode = storageMode;
+				viewMode = storageMode;
 			}
 		}
 
-		this.viewModel = this.instantiationService.createInstance(ViewModel, this.repository.provider.groups, this.tree, mode);
+		this.viewModel = this.instantiationService.createInstance(ViewModel, this.repository.provider.groups, this.tree, viewMode);
 		this._register(this.viewModel);
 
 		addClass(this.listContainer, 'file-icon-themable-tree');
