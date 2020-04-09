@@ -220,28 +220,6 @@ export class CreateNewTerminalAction extends Action {
 	}
 }
 
-export class CreateNewInActiveWorkspaceTerminalAction extends Action {
-
-	public static readonly ID = TERMINAL_COMMAND_ID.NEW_IN_ACTIVE_WORKSPACE;
-	public static readonly LABEL = localize('workbench.action.terminal.newInActiveWorkspace', "Create New Integrated Terminal (In Active Workspace)");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private readonly _terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	async run() {
-		const instance = this._terminalService.createTerminal(undefined);
-		if (!instance) {
-			return;
-		}
-		this._terminalService.setActiveInstance(instance);
-		await this._terminalService.showPanel(true);
-	}
-}
-
 export class SplitTerminalAction extends Action {
 	public static readonly ID = TERMINAL_COMMAND_ID.SPLIT;
 	public static readonly LABEL = localize('workbench.action.terminal.split', "Split Terminal");
@@ -287,160 +265,6 @@ export class SplitInActiveWorkspaceTerminalAction extends Action {
 			this._terminalService.splitInstance(t, { cwd });
 			await this._terminalService.showPanel(true);
 		});
-	}
-}
-
-export class FocusPreviousPaneTerminalAction extends Action {
-	public static readonly ID = TERMINAL_COMMAND_ID.FOCUS_PREVIOUS_PANE;
-	public static readonly LABEL = localize('workbench.action.terminal.focusPreviousPane', "Focus Previous Pane");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private readonly _terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	async run() {
-		this._terminalService.getActiveTab()?.focusPreviousPane();
-		await this._terminalService.showPanel(true);
-	}
-}
-
-export class FocusNextPaneTerminalAction extends Action {
-	public static readonly ID = TERMINAL_COMMAND_ID.FOCUS_NEXT_PANE;
-	public static readonly LABEL = localize('workbench.action.terminal.focusNextPane', "Focus Next Pane");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private readonly _terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	async run() {
-		this._terminalService.getActiveTab()?.focusNextPane();
-		await this._terminalService.showPanel(true);
-	}
-}
-
-export abstract class BaseFocusDirectionTerminalAction extends Action {
-	constructor(
-		id: string, label: string,
-		private _direction: Direction,
-		@ITerminalService private readonly _terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	async run() {
-		this._terminalService.getActiveTab()?.resizePane(this._direction);
-	}
-}
-
-export class ResizePaneLeftTerminalAction extends BaseFocusDirectionTerminalAction {
-	public static readonly ID = TERMINAL_COMMAND_ID.RESIZE_PANE_LEFT;
-	public static readonly LABEL = localize('workbench.action.terminal.resizePaneLeft', "Resize Pane Left");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService readonly terminalService: ITerminalService
-	) {
-		super(id, label, Direction.Left, terminalService);
-	}
-}
-
-export class ResizePaneRightTerminalAction extends BaseFocusDirectionTerminalAction {
-	public static readonly ID = TERMINAL_COMMAND_ID.RESIZE_PANE_RIGHT;
-	public static readonly LABEL = localize('workbench.action.terminal.resizePaneRight', "Resize Pane Right");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService readonly terminalService: ITerminalService
-	) {
-		super(id, label, Direction.Right, terminalService);
-	}
-}
-
-export class ResizePaneUpTerminalAction extends BaseFocusDirectionTerminalAction {
-	public static readonly ID = TERMINAL_COMMAND_ID.RESIZE_PANE_UP;
-	public static readonly LABEL = localize('workbench.action.terminal.resizePaneUp', "Resize Pane Up");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService readonly terminalService: ITerminalService
-	) {
-		super(id, label, Direction.Up, terminalService);
-	}
-}
-
-export class ResizePaneDownTerminalAction extends BaseFocusDirectionTerminalAction {
-	public static readonly ID = TERMINAL_COMMAND_ID.RESIZE_PANE_DOWN;
-	public static readonly LABEL = localize('workbench.action.terminal.resizePaneDown', "Resize Pane Down");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService readonly terminalService: ITerminalService
-	) {
-		super(id, label, Direction.Down, terminalService);
-	}
-}
-
-export class FocusActiveTerminalAction extends Action {
-
-	public static readonly ID = TERMINAL_COMMAND_ID.FOCUS;
-	public static readonly LABEL = localize('workbench.action.terminal.focus', "Focus Terminal");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private readonly _terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	async run() {
-		const instance = this._terminalService.getActiveOrCreateInstance();
-		if (!instance) {
-			return;
-		}
-		this._terminalService.setActiveInstance(instance);
-		return this._terminalService.showPanel(true);
-	}
-}
-
-export class FocusNextTerminalAction extends Action {
-
-	public static readonly ID = TERMINAL_COMMAND_ID.FOCUS_NEXT;
-	public static readonly LABEL = localize('workbench.action.terminal.focusNext', "Focus Next Terminal");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private readonly _terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	async run() {
-		this._terminalService.setActiveTabToNext();
-		await this._terminalService.showPanel(true);
-	}
-}
-
-export class FocusPreviousTerminalAction extends Action {
-
-	public static readonly ID = TERMINAL_COMMAND_ID.FOCUS_PREVIOUS;
-	public static readonly LABEL = localize('workbench.action.terminal.focusPrevious', "Focus Previous Terminal");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private readonly _terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	async run() {
-		this._terminalService.setActiveTabToPrevious();
-		await this._terminalService.showPanel(true);
 	}
 }
 
@@ -571,6 +395,198 @@ export class ClearTerminalAction extends Action {
 export function registerTerminalActions() {
 	const category = TERMINAL_ACTION_CATEGORY;
 
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.NEW_IN_ACTIVE_WORKSPACE,
+				title: localize('workbench.action.terminal.newInActiveWorkspace', "Create New Integrated Terminal (In Active Workspace)"),
+				f1: true,
+				category
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			const terminalService = accessor.get(ITerminalService);
+			const instance = terminalService.createTerminal(undefined);
+			if (!instance) {
+				return;
+			}
+			terminalService.setActiveInstance(instance);
+			await terminalService.showPanel(true);
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.FOCUS_PREVIOUS_PANE,
+				title: localize('workbench.action.terminal.focusPreviousPane', "Focus Previous Pane"),
+				f1: true,
+				category,
+				keybinding: {
+					primary: KeyMod.Alt | KeyCode.LeftArrow,
+					secondary: [KeyMod.Alt | KeyCode.UpArrow],
+					mac: {
+						primary: KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.LeftArrow,
+						secondary: [KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.UpArrow]
+					},
+					when: KEYBINDING_CONTEXT_TERMINAL_FOCUS,
+					weight: KeybindingWeight.WorkbenchContrib
+				}
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			const terminalService = accessor.get(ITerminalService);
+			terminalService.getActiveTab()?.focusPreviousPane();
+			await terminalService.showPanel(true);
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.FOCUS_NEXT_PANE,
+				title: localize('workbench.action.terminal.focusNextPane', "Focus Next Pane"),
+				f1: true,
+				category,
+				keybinding: {
+					primary: KeyMod.Alt | KeyCode.RightArrow,
+					secondary: [KeyMod.Alt | KeyCode.DownArrow],
+					mac: {
+						primary: KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.RightArrow,
+						secondary: [KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.DownArrow]
+					},
+					when: KEYBINDING_CONTEXT_TERMINAL_FOCUS,
+					weight: KeybindingWeight.WorkbenchContrib
+				}
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			const terminalService = accessor.get(ITerminalService);
+			terminalService.getActiveTab()?.focusNextPane();
+			await terminalService.showPanel(true);
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.RESIZE_PANE_LEFT,
+				title: localize('workbench.action.terminal.resizePaneLeft', "Resize Pane Left"),
+				f1: true,
+				category,
+				keybinding: {
+					linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.LeftArrow },
+					mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.LeftArrow },
+					when: KEYBINDING_CONTEXT_TERMINAL_FOCUS,
+					weight: KeybindingWeight.WorkbenchContrib
+				}
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			accessor.get(ITerminalService).getActiveTab()?.resizePane(Direction.Left);
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.RESIZE_PANE_RIGHT,
+				title: localize('workbench.action.terminal.resizePaneRight', "Resize Pane Right"),
+				f1: true,
+				category,
+				keybinding: {
+					linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.RightArrow },
+					mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.RightArrow },
+					when: KEYBINDING_CONTEXT_TERMINAL_FOCUS,
+					weight: KeybindingWeight.WorkbenchContrib
+				}
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			accessor.get(ITerminalService).getActiveTab()?.resizePane(Direction.Right);
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.RESIZE_PANE_UP,
+				title: localize('workbench.action.terminal.resizePaneUp', "Resize Pane Up"),
+				f1: true,
+				category,
+				keybinding: {
+					mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.UpArrow },
+					when: KEYBINDING_CONTEXT_TERMINAL_FOCUS,
+					weight: KeybindingWeight.WorkbenchContrib
+				}
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			accessor.get(ITerminalService).getActiveTab()?.resizePane(Direction.Up);
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.RESIZE_PANE_DOWN,
+				title: localize('workbench.action.terminal.resizePaneDown', "Resize Pane Down"),
+				f1: true,
+				category,
+				keybinding: {
+					mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.DownArrow },
+					when: KEYBINDING_CONTEXT_TERMINAL_FOCUS,
+					weight: KeybindingWeight.WorkbenchContrib
+				}
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			accessor.get(ITerminalService).getActiveTab()?.resizePane(Direction.Down);
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.FOCUS,
+				title: localize('workbench.action.terminal.focus', "Focus Terminal"),
+				f1: true,
+				category
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			const terminalService = accessor.get(ITerminalService);
+			const instance = terminalService.getActiveOrCreateInstance();
+			if (!instance) {
+				return;
+			}
+			terminalService.setActiveInstance(instance);
+			return terminalService.showPanel(true);
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.FOCUS_NEXT,
+				title: localize('workbench.action.terminal.focusNext', "Focus Next Terminal"),
+				f1: true,
+				category
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			const terminalService = accessor.get(ITerminalService);
+			terminalService.setActiveTabToNext();
+			await terminalService.showPanel(true);
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.FOCUS_PREVIOUS,
+				title: localize('workbench.action.terminal.focusPrevious', "Focus Previous Terminal"),
+				f1: true,
+				category
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			const terminalService = accessor.get(ITerminalService);
+			terminalService.setActiveTabToPrevious();
+			await terminalService.showPanel(true);
+		}
+	});
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
