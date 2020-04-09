@@ -1022,51 +1022,55 @@ export class ScrollToNextCommandAction extends Action {
 	}
 }
 
-export class SelectToPreviousCommandAction extends Action {
-	public static readonly ID = TERMINAL_COMMAND_ID.SELECT_TO_PREVIOUS_COMMAND;
-	public static readonly LABEL = localize('workbench.action.terminal.selectToPreviousCommand', "Select To Previous Command");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private readonly terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	public run(): Promise<any> {
-		const instance = this.terminalService.getActiveInstance();
-		if (instance && instance.commandTracker) {
-			instance.commandTracker.selectToPreviousCommand();
-			instance.focus();
-		}
-		return Promise.resolve(undefined);
-	}
-}
-
-export class SelectToNextCommandAction extends Action {
-	public static readonly ID = TERMINAL_COMMAND_ID.SELECT_TO_NEXT_COMMAND;
-	public static readonly LABEL = localize('workbench.action.terminal.selectToNextCommand', "Select To Next Command");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private readonly terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	public run(): Promise<any> {
-		const instance = this.terminalService.getActiveInstance();
-		if (instance && instance.commandTracker) {
-			instance.commandTracker.selectToNextCommand();
-			instance.focus();
-		}
-		return Promise.resolve(undefined);
-	}
-}
-
 export function registerTerminalActions() {
 	const category = TERMINAL_ACTION_CATEGORY;
 
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.SELECT_TO_PREVIOUS_COMMAND,
+				title: localize('workbench.action.terminal.selectToPreviousCommand', "Select To Previous Command"),
+				f1: true,
+				category,
+				keybinding: {
+					mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.UpArrow },
+					when: KEYBINDING_CONTEXT_TERMINAL_FOCUS,
+					weight: KeybindingWeight.WorkbenchContrib
+				}
+			});
+		}
+
+		run(accessor: ServicesAccessor) {
+			const instance = accessor.get(ITerminalService).getActiveInstance();
+			if (instance && instance.commandTracker) {
+				instance.commandTracker.selectToPreviousCommand();
+				instance.focus();
+			}
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.SELECT_TO_NEXT_COMMAND,
+				title: localize('workbench.action.terminal.selectToNextCommand', "Select To Next Command"),
+				f1: true,
+				category,
+				keybinding: {
+					mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.DownArrow },
+					when: KEYBINDING_CONTEXT_TERMINAL_FOCUS,
+					weight: KeybindingWeight.WorkbenchContrib
+				}
+			});
+		}
+
+		run(accessor: ServicesAccessor) {
+			const instance = accessor.get(ITerminalService).getActiveInstance();
+			if (instance && instance.commandTracker) {
+				instance.commandTracker.selectToNextCommand();
+				instance.focus();
+			}
+		}
+	});
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
