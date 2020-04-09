@@ -248,6 +248,15 @@ export class SearchEditor extends BaseTextEditor {
 		}
 	}
 
+	focusSearchInput() {
+		const viewState = this.loadViewState();
+		if (viewState && viewState.focused === 'editor') {
+			this.queryEditorWidget.searchInput.focus();
+		} else {
+			this.searchResultEditor.focus();
+		}
+	}
+
 	focusNextInput() {
 		if (this.queryEditorWidget.searchInputHasFocus()) {
 			if (this.showingIncludesExcludes) {
