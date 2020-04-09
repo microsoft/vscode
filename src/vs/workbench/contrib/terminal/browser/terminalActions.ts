@@ -81,7 +81,7 @@ export class ToggleTerminalAction extends ToggleViewAction {
 		super(id, label, TERMINAL_VIEW_ID, viewsService, viewDescriptorService, contextKeyService, layoutService);
 	}
 
-	public run(event?: any): Promise<any> {
+	async run() {
 		if (this.terminalService.terminalInstances.length === 0) {
 			// If there is not yet an instance attempt to create it here so that we can suggest a
 			// new shell on Windows (and not do so when the panel is restored on reload).
@@ -103,20 +103,18 @@ export class KillTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private readonly terminalService: ITerminalService
+		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super(id, label, 'terminal-action codicon-trash');
 	}
 
-	public run(event?: any): Promise<any> {
-		const instance = this.terminalService.getActiveInstance();
-		if (instance) {
-			instance.dispose(true);
-			if (this.terminalService.terminalInstances.length > 0) {
-				this.terminalService.showPanel(true);
+	async run() {
+		await this._terminalService.doWithActiveInstance(async t => {
+			t.dispose(true);
+			if (this._terminalService.terminalInstances.length > 0) {
+				await this._terminalService.showPanel(true);
 			}
-		}
-		return Promise.resolve(undefined);
+		});
 	}
 }
 
@@ -132,17 +130,13 @@ export class CopyTerminalSelectionAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private readonly terminalService: ITerminalService
+		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
 
-	public async run(event?: any): Promise<any> {
-		const terminalInstance = this.terminalService.getActiveInstance();
-		if (terminalInstance) {
-			await terminalInstance.copySelection();
-		}
-		return Promise.resolve(undefined);
+	async run() {
+		await this._terminalService.getActiveInstance()?.copySelection();
 	}
 }
 
@@ -153,33 +147,29 @@ export class SelectAllTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private readonly terminalService: ITerminalService
+		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
 
-	public run(event?: any): Promise<any> {
-		const terminalInstance = this.terminalService.getActiveInstance();
-		if (terminalInstance) {
-			terminalInstance.selectAll();
-		}
-		return Promise.resolve(undefined);
+	async run() {
+		this._terminalService.getActiveInstance()?.selectAll();
 	}
 }
 
 export const terminalSendSequenceCommand = (accessor: ServicesAccessor, args: { text?: string } | undefined) => {
-	const terminalInstance = accessor.get(ITerminalService).getActiveInstance();
-	if (!terminalInstance || !args?.text) {
-		return;
-	}
-
-	const configurationResolverService = accessor.get(IConfigurationResolverService);
-	const workspaceContextService = accessor.get(IWorkspaceContextService);
-	const historyService = accessor.get(IHistoryService);
-	const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.file);
-	const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
-	const resolvedText = configurationResolverService.resolve(lastActiveWorkspaceRoot, args.text);
-	terminalInstance.sendText(resolvedText, false);
+	accessor.get(ITerminalService).doWithActiveInstance(t => {
+		if (!args?.text) {
+			return;
+		}
+		const configurationResolverService = accessor.get(IConfigurationResolverService);
+		const workspaceContextService = accessor.get(IWorkspaceContextService);
+		const historyService = accessor.get(IHistoryService);
+		const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.file);
+		const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
+		const resolvedText = configurationResolverService.resolve(lastActiveWorkspaceRoot, args.text);
+		t.sendText(resolvedText, false);
+	});
 };
 
 
@@ -191,21 +181,21 @@ export class CreateNewTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private readonly terminalService: ITerminalService,
-		@ICommandService private readonly commandService: ICommandService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
+		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ICommandService private readonly _commandService: ICommandService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
 	) {
 		super(id, label, 'terminal-action codicon-add');
 	}
 
-	public async run(event?: any): Promise<any> {
-		const folders = this.workspaceContextService.getWorkspace().folders;
+	async run(event?: any) {
+		const folders = this._workspaceContextService.getWorkspace().folders;
 		if (event instanceof MouseEvent && (event.altKey || event.ctrlKey)) {
-			const activeInstance = this.terminalService.getActiveInstance();
+			const activeInstance = this._terminalService.getActiveInstance();
 			if (activeInstance) {
-				const cwd = await getCwdForSplit(this.terminalService.configHelper, activeInstance);
-				this.terminalService.splitInstance(activeInstance, { cwd });
-				return undefined;
+				const cwd = await getCwdForSplit(this._terminalService.configHelper, activeInstance);
+				this._terminalService.splitInstance(activeInstance, { cwd });
+				return;
 			}
 		}
 
@@ -213,20 +203,20 @@ export class CreateNewTerminalAction extends Action {
 		if (folders.length <= 1) {
 			// Allow terminal service to handle the path when there is only a
 			// single root
-			instance = this.terminalService.createTerminal(undefined);
+			instance = this._terminalService.createTerminal(undefined);
 		} else {
 			const options: IPickOptions<IQuickPickItem> = {
 				placeHolder: localize('workbench.action.terminal.newWorkspacePlaceholder', "Select current working directory for new terminal")
 			};
-			const workspace = await this.commandService.executeCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, [options]);
+			const workspace = await this._commandService.executeCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, [options]);
 			if (!workspace) {
 				// Don't create the instance if the workspace picker was canceled
-				return undefined;
+				return;
 			}
-			instance = this.terminalService.createTerminal({ cwd: workspace.uri });
+			instance = this._terminalService.createTerminal({ cwd: workspace.uri });
 		}
-		this.terminalService.setActiveInstance(instance);
-		return this.terminalService.showPanel(true);
+		this._terminalService.setActiveInstance(instance);
+		await this._terminalService.showPanel(true);
 	}
 }
 
@@ -237,18 +227,18 @@ export class CreateNewInActiveWorkspaceTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private readonly terminalService: ITerminalService
+		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
 
-	public run(event?: any): Promise<any> {
-		const instance = this.terminalService.createTerminal(undefined);
+	async run() {
+		const instance = this._terminalService.createTerminal(undefined);
 		if (!instance) {
-			return Promise.resolve(undefined);
+			return;
 		}
-		this.terminalService.setActiveInstance(instance);
-		return this.terminalService.showPanel(true);
+		this._terminalService.setActiveInstance(instance);
+		await this._terminalService.showPanel(true);
 	}
 }
 
@@ -262,23 +252,21 @@ export class SplitTerminalAction extends Action {
 	constructor(
 		id: string, label: string,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@ICommandService private readonly commandService: ICommandService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
+		@ICommandService private readonly _commandService: ICommandService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
 	) {
 		super(id, label, SplitTerminalAction.HORIZONTAL_CLASS);
 	}
 
 	public async run(event?: any): Promise<any> {
-		const instance = this._terminalService.getActiveInstance();
-		if (!instance) {
-			return Promise.resolve(undefined);
-		}
-		const cwd = await getCwdForSplit(this._terminalService.configHelper, instance, this.workspaceContextService.getWorkspace().folders, this.commandService);
-		if (cwd === undefined) {
-			return undefined;
-		}
-		this._terminalService.splitInstance(instance, { cwd });
-		return this._terminalService.showPanel(true);
+		await this._terminalService.doWithActiveInstance(async t => {
+			const cwd = await getCwdForSplit(this._terminalService.configHelper, t, this._workspaceContextService.getWorkspace().folders, this._commandService);
+			if (cwd === undefined) {
+				return undefined;
+			}
+			this._terminalService.splitInstance(t, { cwd });
+			return this._terminalService.showPanel(true);
+		});
 	}
 }
 
@@ -293,14 +281,12 @@ export class SplitInActiveWorkspaceTerminalAction extends Action {
 		super(id, label);
 	}
 
-	public async run(event?: any): Promise<any> {
-		const instance = this._terminalService.getActiveInstance();
-		if (!instance) {
-			return Promise.resolve(undefined);
-		}
-		const cwd = await getCwdForSplit(this._terminalService.configHelper, instance);
-		this._terminalService.splitInstance(instance, { cwd });
-		return this._terminalService.showPanel(true);
+	async run() {
+		await this._terminalService.doWithActiveInstance(async t => {
+			const cwd = await getCwdForSplit(this._terminalService.configHelper, t);
+			this._terminalService.splitInstance(t, { cwd });
+			await this._terminalService.showPanel(true);
+		});
 	}
 }
 
@@ -315,13 +301,9 @@ export class FocusPreviousPaneTerminalAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): Promise<any> {
-		const tab = this._terminalService.getActiveTab();
-		if (!tab) {
-			return Promise.resolve(undefined);
-		}
-		tab.focusPreviousPane();
-		return this._terminalService.showPanel(true);
+	async run() {
+		this._terminalService.getActiveTab()?.focusPreviousPane();
+		await this._terminalService.showPanel(true);
 	}
 }
 
@@ -336,13 +318,9 @@ export class FocusNextPaneTerminalAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): Promise<any> {
-		const tab = this._terminalService.getActiveTab();
-		if (!tab) {
-			return Promise.resolve(undefined);
-		}
-		tab.focusNextPane();
-		return this._terminalService.showPanel(true);
+	async run() {
+		this._terminalService.getActiveTab()?.focusNextPane();
+		await this._terminalService.showPanel(true);
 	}
 }
 
@@ -355,12 +333,8 @@ export abstract class BaseFocusDirectionTerminalAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): Promise<any> {
-		const tab = this._terminalService.getActiveTab();
-		if (tab) {
-			tab.resizePane(this._direction);
-		}
-		return Promise.resolve(undefined);
+	async run() {
+		this._terminalService.getActiveTab()?.resizePane(this._direction);
 	}
 }
 
@@ -419,18 +393,18 @@ export class FocusActiveTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private readonly terminalService: ITerminalService
+		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
 
-	public run(event?: any): Promise<any> {
-		const instance = this.terminalService.getActiveOrCreateInstance();
+	async run() {
+		const instance = this._terminalService.getActiveOrCreateInstance();
 		if (!instance) {
-			return Promise.resolve(undefined);
+			return;
 		}
-		this.terminalService.setActiveInstance(instance);
-		return this.terminalService.showPanel(true);
+		this._terminalService.setActiveInstance(instance);
+		return this._terminalService.showPanel(true);
 	}
 }
 
@@ -441,14 +415,14 @@ export class FocusNextTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private readonly terminalService: ITerminalService
+		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
 
-	public run(event?: any): Promise<any> {
-		this.terminalService.setActiveTabToNext();
-		return this.terminalService.showPanel(true);
+	async run() {
+		this._terminalService.setActiveTabToNext();
+		await this._terminalService.showPanel(true);
 	}
 }
 
@@ -459,14 +433,14 @@ export class FocusPreviousTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private readonly terminalService: ITerminalService
+		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
 
-	public run(event?: any): Promise<any> {
-		this.terminalService.setActiveTabToPrevious();
-		return this.terminalService.showPanel(true);
+	async run() {
+		this._terminalService.setActiveTabToPrevious();
+		await this._terminalService.showPanel(true);
 	}
 }
 
@@ -478,16 +452,13 @@ export class TerminalPasteAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private readonly terminalService: ITerminalService
+		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
 
-	public async run(event?: any): Promise<any> {
-		const instance = this.terminalService.getActiveOrCreateInstance();
-		if (instance) {
-			await instance.paste();
-		}
+	async run() {
+		this._terminalService.getActiveOrCreateInstance()?.paste();
 	}
 }
 
@@ -503,8 +474,8 @@ export class SelectDefaultShellWindowsTerminalAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): Promise<any> {
-		return this._terminalService.selectDefaultShell();
+	async run() {
+		this._terminalService.selectDefaultShell();
 	}
 }
 
@@ -515,20 +486,17 @@ export class RunSelectedTextInTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
-		@ITerminalService private readonly terminalService: ITerminalService
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
+		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
 
-	public run(event?: any): Promise<any> {
-		const instance = this.terminalService.getActiveOrCreateInstance();
-		if (!instance) {
-			return Promise.resolve(undefined);
-		}
-		let editor = this.codeEditorService.getFocusedCodeEditor();
+	async run() {
+		const instance = this._terminalService.getActiveOrCreateInstance();
+		let editor = this._codeEditorService.getFocusedCodeEditor();
 		if (!editor || !editor.hasModel()) {
-			return Promise.resolve(undefined);
+			return;
 		}
 		let selection = editor.getSelection();
 		let text: string;
@@ -539,7 +507,7 @@ export class RunSelectedTextInTerminalAction extends Action {
 			text = editor.getModel().getValueInRange(selection, endOfLinePreference);
 		}
 		instance.sendText(text, true);
-		return this.terminalService.showPanel();
+		return this._terminalService.showPanel();
 	}
 }
 
@@ -550,34 +518,31 @@ export class RunActiveFileInTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
-		@ITerminalService private readonly terminalService: ITerminalService,
-		@INotificationService private readonly notificationService: INotificationService
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
+		@ITerminalService private readonly _terminalService: ITerminalService,
+		@INotificationService private readonly _notificationService: INotificationService
 	) {
 		super(id, label);
 	}
 
-	public async run(event?: any): Promise<any> {
-		const instance = this.terminalService.getActiveOrCreateInstance();
-		if (!instance) {
-			return Promise.resolve(undefined);
-		}
+	async run() {
+		const instance = this._terminalService.getActiveOrCreateInstance();
 		await instance.processReady;
 
-		const editor = this.codeEditorService.getActiveCodeEditor();
+		const editor = this._codeEditorService.getActiveCodeEditor();
 		if (!editor || !editor.hasModel()) {
-			return Promise.resolve(undefined);
+			return;
 		}
 		const uri = editor.getModel().uri;
 		if (uri.scheme !== 'file') {
-			this.notificationService.warn(localize('workbench.action.terminal.runActiveFile.noFile', 'Only files on disk can be run in the terminal'));
-			return Promise.resolve(undefined);
+			this._notificationService.warn(localize('workbench.action.terminal.runActiveFile.noFile', 'Only files on disk can be run in the terminal'));
+			return;
 		}
 
 		// TODO: Convert this to ctrl+c, ctrl+v for pwsh?
-		const path = await this.terminalService.preparePathForTerminalAsync(uri.fsPath, instance.shellLaunchConfig.executable, instance.title, instance.shellType);
+		const path = await this._terminalService.preparePathForTerminalAsync(uri.fsPath, instance.shellLaunchConfig.executable, instance.title, instance.shellType);
 		instance.sendText(path, true);
-		return this.terminalService.showPanel();
+		return this._terminalService.showPanel();
 	}
 }
 
@@ -588,7 +553,7 @@ export class SwitchTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private readonly terminalService: ITerminalService
+		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super(id, label, 'terminal-action switch-terminal');
 	}
@@ -598,16 +563,16 @@ export class SwitchTerminalAction extends Action {
 			return Promise.resolve(null);
 		}
 		if (item === SwitchTerminalActionViewItem.SEPARATOR) {
-			this.terminalService.refreshActiveTab();
+			this._terminalService.refreshActiveTab();
 			return Promise.resolve(null);
 		}
 		if (item === SelectDefaultShellWindowsTerminalAction.LABEL) {
-			this.terminalService.refreshActiveTab();
-			return this.terminalService.selectDefaultShell();
+			this._terminalService.refreshActiveTab();
+			return this._terminalService.selectDefaultShell();
 		}
 		const selectedTabIndex = parseInt(item.split(':')[0], 10) - 1;
-		this.terminalService.setActiveTabByIndex(selectedTabIndex);
-		return this.terminalService.showPanel(true);
+		this._terminalService.setActiveTabByIndex(selectedTabIndex);
+		return this._terminalService.showPanel(true);
 	}
 }
 
@@ -617,29 +582,29 @@ export class SwitchTerminalActionViewItem extends SelectActionViewItem {
 
 	constructor(
 		action: IAction,
-		@ITerminalService private readonly terminalService: ITerminalService,
-		@IThemeService private readonly themeService: IThemeService,
+		@ITerminalService private readonly _terminalService: ITerminalService,
+		@IThemeService private readonly _themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService
 	) {
-		super(null, action, getTerminalSelectOpenItems(terminalService), terminalService.activeTabIndex, contextViewService, { ariaLabel: localize('terminals', 'Open Terminals.') });
+		super(null, action, getTerminalSelectOpenItems(_terminalService), _terminalService.activeTabIndex, contextViewService, { ariaLabel: localize('terminals', 'Open Terminals.') });
 
-		this._register(terminalService.onInstancesChanged(this._updateItems, this));
-		this._register(terminalService.onActiveTabChanged(this._updateItems, this));
-		this._register(terminalService.onInstanceTitleChanged(this._updateItems, this));
-		this._register(terminalService.onTabDisposed(this._updateItems, this));
-		this._register(attachSelectBoxStyler(this.selectBox, themeService));
+		this._register(_terminalService.onInstancesChanged(this._updateItems, this));
+		this._register(_terminalService.onActiveTabChanged(this._updateItems, this));
+		this._register(_terminalService.onInstanceTitleChanged(this._updateItems, this));
+		this._register(_terminalService.onTabDisposed(this._updateItems, this));
+		this._register(attachSelectBoxStyler(this.selectBox, _themeService));
 	}
 
 	render(container: HTMLElement): void {
 		super.render(container);
 		addClass(container, 'switch-terminal');
-		this._register(attachStylerCallback(this.themeService, { selectBorder }, colors => {
+		this._register(attachStylerCallback(this._themeService, { selectBorder }, colors => {
 			container.style.borderColor = colors.selectBorder ? `${colors.selectBorder}` : '';
 		}));
 	}
 
 	private _updateItems(): void {
-		this.setOptions(getTerminalSelectOpenItems(this.terminalService), this.terminalService.activeTabIndex);
+		this.setOptions(getTerminalSelectOpenItems(this._terminalService), this._terminalService.activeTabIndex);
 	}
 }
 
@@ -657,17 +622,13 @@ export class ScrollDownTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private readonly terminalService: ITerminalService
+		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
 
-	public run(event?: any): Promise<any> {
-		const terminalInstance = this.terminalService.getActiveInstance();
-		if (terminalInstance) {
-			terminalInstance.scrollDownLine();
-		}
-		return Promise.resolve(undefined);
+	async run() {
+		this._terminalService.getActiveInstance()?.scrollDownLine();
 	}
 }
 
@@ -678,17 +639,13 @@ export class ScrollDownPageTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private readonly terminalService: ITerminalService
+		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
 
-	public run(event?: any): Promise<any> {
-		const terminalInstance = this.terminalService.getActiveInstance();
-		if (terminalInstance) {
-			terminalInstance.scrollDownPage();
-		}
-		return Promise.resolve(undefined);
+	async run() {
+		this._terminalService.getActiveInstance()?.scrollDownPage();
 	}
 }
 
@@ -699,17 +656,13 @@ export class ScrollToBottomTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private readonly terminalService: ITerminalService
+		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
 
-	public run(event?: any): Promise<any> {
-		const terminalInstance = this.terminalService.getActiveInstance();
-		if (terminalInstance) {
-			terminalInstance.scrollToBottom();
-		}
-		return Promise.resolve(undefined);
+	async run() {
+		this._terminalService.getActiveInstance()?.scrollToBottom();
 	}
 }
 
@@ -720,17 +673,13 @@ export class ScrollUpTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private readonly terminalService: ITerminalService
+		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
 
-	public run(event?: any): Promise<any> {
-		const terminalInstance = this.terminalService.getActiveInstance();
-		if (terminalInstance) {
-			terminalInstance.scrollUpLine();
-		}
-		return Promise.resolve(undefined);
+	async run() {
+		this._terminalService.getActiveInstance()?.scrollUpLine();
 	}
 }
 
@@ -741,17 +690,13 @@ export class ScrollUpPageTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private readonly terminalService: ITerminalService
+		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
 
-	public run(event?: any): Promise<any> {
-		const terminalInstance = this.terminalService.getActiveInstance();
-		if (terminalInstance) {
-			terminalInstance.scrollUpPage();
-		}
-		return Promise.resolve(undefined);
+	async run() {
+		this._terminalService.getActiveInstance()?.scrollUpPage();
 	}
 }
 
@@ -762,17 +707,13 @@ export class ScrollToTopTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private readonly terminalService: ITerminalService
+		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
 
-	public run(event?: any): Promise<any> {
-		const terminalInstance = this.terminalService.getActiveInstance();
-		if (terminalInstance) {
-			terminalInstance.scrollToTop();
-		}
-		return Promise.resolve(undefined);
+	async run() {
+		this._terminalService.getActiveInstance()?.scrollToTop();
 	}
 }
 
@@ -783,17 +724,13 @@ export class NavigationModeExitTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private readonly terminalService: ITerminalService
+		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
 
-	public run(event?: any): Promise<any> {
-		const terminalInstance = this.terminalService.getActiveInstance();
-		if (terminalInstance && terminalInstance.navigationMode) {
-			terminalInstance.navigationMode.exitNavigationMode();
-		}
-		return Promise.resolve(undefined);
+	async run() {
+		this._terminalService.getActiveInstance()?.navigationMode?.exitNavigationMode();
 	}
 }
 
@@ -806,17 +743,13 @@ export class NavigationModeFocusPreviousTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private readonly terminalService: ITerminalService
+		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
 
-	public run(event?: any): Promise<any> {
-		const terminalInstance = this.terminalService.getActiveInstance();
-		if (terminalInstance && terminalInstance.navigationMode) {
-			terminalInstance.navigationMode.focusPreviousLine();
-		}
-		return Promise.resolve(undefined);
+	async run() {
+		this._terminalService.getActiveInstance()?.navigationMode?.focusPreviousLine();
 	}
 }
 
@@ -827,17 +760,13 @@ export class NavigationModeFocusNextTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private readonly terminalService: ITerminalService
+		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
 
-	public run(event?: any): Promise<any> {
-		const terminalInstance = this.terminalService.getActiveInstance();
-		if (terminalInstance && terminalInstance.navigationMode) {
-			terminalInstance.navigationMode.focusNextLine();
-		}
-		return Promise.resolve(undefined);
+	async run() {
+		this._terminalService.getActiveInstance()?.navigationMode?.focusNextLine();
 	}
 }
 
@@ -848,18 +777,16 @@ export class ClearTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private readonly terminalService: ITerminalService
+		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
 
-	public run(event?: any): Promise<any> {
-		const terminalInstance = this.terminalService.getActiveInstance();
-		if (terminalInstance) {
-			terminalInstance.clear();
-			terminalInstance.focus();
-		}
-		return Promise.resolve(undefined);
+	async run() {
+		this._terminalService.doWithActiveInstance(t => {
+			t.clear();
+			t.focus();
+		});
 	}
 }
 
