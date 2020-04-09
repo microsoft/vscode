@@ -249,7 +249,7 @@ export namespace CellUri {
 
 	export function generate(notebook: URI, handle: number): URI {
 		return notebook.with({
-			path: `${notebook.path}#cell-${handle}`,
+			path: `${notebook.path}, cell ${handle + 1}`,
 			query: JSON.stringify({ cell: handle, notebook: notebook.toString() }),
 			scheme,
 		});

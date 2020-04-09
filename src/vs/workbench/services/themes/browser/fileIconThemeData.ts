@@ -121,7 +121,6 @@ export class FileIconThemeData implements IWorkbenchFileIconTheme {
 					case 'label':
 					case 'description':
 					case 'settingsId':
-					case 'extensionData':
 					case 'styleSheetContent':
 					case 'hasFileIcons':
 					case 'hidesExplorerArrows':
@@ -131,6 +130,9 @@ export class FileIconThemeData implements IWorkbenchFileIconTheme {
 						break;
 					case 'location':
 						theme.location = URI.revive(data.location);
+						break;
+					case 'extensionData':
+						theme.extensionData = ExtensionData.fromJSONObject(data.extensionData);
 						break;
 				}
 			}
@@ -146,11 +148,12 @@ export class FileIconThemeData implements IWorkbenchFileIconTheme {
 			label: this.label,
 			description: this.description,
 			settingsId: this.settingsId,
-			location: this.location,
+			location: this.location?.toJSON(),
 			styleSheetContent: this.styleSheetContent,
 			hasFileIcons: this.hasFileIcons,
 			hasFolderIcons: this.hasFolderIcons,
 			hidesExplorerArrows: this.hidesExplorerArrows,
+			extensionData: ExtensionData.toJSONObject(this.extensionData),
 			watch: this.watch
 		});
 		storageService.store(PERSISTED_FILE_ICON_THEME_STORAGE_KEY, data, StorageScope.GLOBAL);

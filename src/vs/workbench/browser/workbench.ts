@@ -369,6 +369,9 @@ export class Workbench extends Layout {
 		addClasses(part, 'part', ...classes);
 		part.id = id;
 		part.setAttribute('role', role);
+		if (role === 'status') {
+			part.setAttribute('aria-live', 'off');
+		}
 
 		return part;
 	}

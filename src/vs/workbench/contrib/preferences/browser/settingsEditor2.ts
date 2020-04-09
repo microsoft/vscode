@@ -54,6 +54,7 @@ import { IPreferencesService, ISearchResult, ISettingsEditorModel, ISettingsEdit
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { fromNow } from 'vs/base/common/date';
+import { Emitter } from 'vs/base/common/event';
 
 function createGroupIterator(group: SettingsTreeGroupElement): Iterable<ITreeElement<SettingsTreeGroupChild>> {
 	return Iterable.map(group.children, g => {
@@ -71,6 +72,8 @@ const $ = DOM.$;
 interface IFocusEventFromScroll extends KeyboardEvent {
 	fromScroll: true;
 }
+
+const searchBoxLabel = localize('SearchSettings.AriaLabel', "Search settings");
 
 const SETTINGS_AUTOSAVE_NOTIFIED_KEY = 'hasNotifiedOfSettingsAutosave';
 const SETTINGS_EDITOR_STATE_KEY = 'settingsEditorState';
@@ -405,6 +408,13 @@ export class SettingsEditor2 extends BaseEditor {
 		this.searchWidget.setValue(query.trim());
 	}
 
+	private updateInputAriaLabel(lastSyncedLabel: string) {
+		const label = lastSyncedLabel ?
+			`${searchBoxLabel}. ${lastSyncedLabel}` :
+			searchBoxLabel;
+		this.searchWidget.updateAriaLabel(label);
+	}
+
 	private createHeader(parent: HTMLElement): void {
 		this.headerContainer = DOM.append(parent, $('.settings-header'));
 
@@ -412,7 +422,6 @@ export class SettingsEditor2 extends BaseEditor {
 
 		const clearInputAction = new Action(SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, localize('clearInput', "Clear Settings Search Input"), 'codicon-clear-all', false, () => { this.clearSearchResults(); return Promise.resolve(null); });
 
-		const searchBoxLabel = localize('SearchSettings.AriaLabel', "Search settings");
 		this.searchWidget = this._register(this.instantiationService.createInstance(SuggestEnabledInput, `${SettingsEditor2.ID}.searchbox`, searchContainer, {
 			triggerCharacters: ['@'],
 			provideResults: (query: string) => {
@@ -460,7 +469,8 @@ export class SettingsEditor2 extends BaseEditor {
 		this.settingsTargetsWidget.onDidTargetChange(target => this.onDidSettingsTargetChange(target));
 
 		if (syncAllowed(this.productService, this.configurationService)) {
-			this._register(this.instantiationService.createInstance(SyncControls, headerControlsContainer));
+			const syncControls = this._register(this.instantiationService.createInstance(SyncControls, headerControlsContainer));
+			this._register(syncControls.onDidChangeLastSyncedLabel(lastSyncedLabel => this.updateInputAriaLabel(lastSyncedLabel)));
 		}
 
 		this.controlsElement = DOM.append(searchContainer, DOM.$('.settings-clear-widget'));
@@ -1384,6 +1394,9 @@ class SyncControls extends Disposable {
 	private readonly lastSyncedLabel!: HTMLElement;
 	private readonly turnOnSyncButton!: Button;
 
+	private readonly _onDidChangeLastSyncedLabel = this._register(new Emitter<string>());
+	public readonly onDidChangeLastSyncedLabel = this._onDidChangeLastSyncedLabel.event;
+
 	constructor(
 		container: HTMLElement,
 		@ICommandService private readonly commandService: ICommandService,
@@ -1426,12 +1439,16 @@ class SyncControls extends Disposable {
 
 	private updateLastSyncedTime(): void {
 		const last = this.userDataSyncService.lastSyncTime;
+		let label: string;
 		if (typeof last === 'number') {
 			const d = fromNow(last, true);
-			this.lastSyncedLabel.textContent = localize('lastSyncedLabel', "Last synced: {0}", d);
+			label = localize('lastSyncedLabel', "Last synced: {0}", d);
 		} else {
-			this.lastSyncedLabel.textContent = '';
+			label = '';
 		}
+
+		this.lastSyncedLabel.textContent = label;
+		this._onDidChangeLastSyncedLabel.fire(label);
 	}
 
 	private update(): void {

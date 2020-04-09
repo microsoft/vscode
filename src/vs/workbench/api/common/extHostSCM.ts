@@ -266,14 +266,14 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 		return this._resourceStatesMap.get(handle);
 	}
 
-	$executeResourceCommand(handle: number): Promise<void> {
+	$executeResourceCommand(handle: number, preserveFocus: boolean): Promise<void> {
 		const command = this._resourceStatesCommandsMap.get(handle);
 
 		if (!command) {
 			return Promise.resolve(undefined);
 		}
 
-		return asPromise(() => this._commands.executeCommand(command.command, ...(command.arguments || [])));
+		return asPromise(() => this._commands.executeCommand(command.command, ...(command.arguments || []), preserveFocus));
 	}
 
 	_takeResourceStateSnapshot(): SCMRawResourceSplice[] {
@@ -629,7 +629,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		return Promise.resolve(undefined);
 	}
 
-	$executeResourceCommand(sourceControlHandle: number, groupHandle: number, handle: number): Promise<void> {
+	$executeResourceCommand(sourceControlHandle: number, groupHandle: number, handle: number, preserveFocus: boolean): Promise<void> {
 		this.logService.trace('ExtHostSCM#$executeResourceCommand', sourceControlHandle, groupHandle, handle);
 
 		const sourceControl = this._sourceControls.get(sourceControlHandle);
@@ -644,7 +644,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 			return Promise.resolve(undefined);
 		}
 
-		return group.$executeResourceCommand(handle);
+		return group.$executeResourceCommand(handle, preserveFocus);
 	}
 
 	$validateInput(sourceControlHandle: number, value: string, cursorPosition: number): Promise<[string, number] | undefined> {

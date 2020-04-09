@@ -681,6 +681,7 @@ class StatusbarEntryItem extends Disposable {
 		// Update: Text
 		if (!this.entry || entry.text !== this.entry.text) {
 			this.label.text = entry.text;
+			this.container.setAttribute('aria-label', entry.text);
 
 			if (entry.text) {
 				show(this.labelContainer);

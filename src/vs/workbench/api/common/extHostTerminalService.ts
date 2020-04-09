@@ -692,7 +692,7 @@ export class EnvironmentVariableCollection implements vscode.EnvironmentVariable
 
 	forEach(callback: (variable: string, mutator: vscode.EnvironmentVariableMutator, collection: vscode.EnvironmentVariableCollection) => any, thisArg?: any): void {
 		this._checkDisposed();
-		this.map.forEach((value, key) => callback(key, value, this));
+		this.map.forEach((value, key) => callback.call(thisArg, key, value, this));
 	}
 
 	delete(variable: string): void {

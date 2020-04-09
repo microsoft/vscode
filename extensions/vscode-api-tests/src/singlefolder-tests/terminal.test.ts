@@ -380,8 +380,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 			// 	const terminal = window.createTerminal({ name: 'foo', pty });
 			// });
 
-			// https://github.com/microsoft/vscode/issues/90437
-			test.skip('should respect dimension overrides', (done) => {
+			test('should respect dimension overrides', (done) => {
 				disposables.push(window.onDidOpenTerminal(term => {
 					try {
 						equal(terminal, term);
@@ -394,15 +393,18 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 							// HACK: Ignore the event if dimension(s) are zero (#83778)
 							return;
 						}
-						try {
-							equal(e.dimensions.columns, 10);
-							equal(e.dimensions.rows, 5);
-							equal(e.terminal, terminal);
-						} catch (e) {
-							done(e);
+						// The default pty dimensions have a chance to appear here since override
+						// dimensions happens after the terminal is created. If so just ignore and
+						// wait for the right dimensions
+						if (e.dimensions.columns === 10 || e.dimensions.rows === 5) {
+							try {
+								equal(e.terminal, terminal);
+							} catch (e) {
+								done(e);
+							}
+							disposables.push(window.onDidCloseTerminal(() => done()));
+							terminal.dispose();
 						}
-						disposables.push(window.onDidCloseTerminal(() => done()));
-						terminal.dispose();
 					}));
 				}));
 				const writeEmitter = new EventEmitter<string>();
@@ -548,7 +550,6 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 					} catch (e) {
 						done(e);
 					}
-					console.log('Terminal data: ' + e.data);
 					// Multiple expected could show up in the same data event
 					while (expectedText.length > 0 && e.data.indexOf(expectedText[0]) >= 0) {
 						expectedText.shift();
@@ -594,7 +595,6 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 					} catch (e) {
 						done(e);
 					}
-					console.log('Terminal data: ' + e.data);
 					// Multiple expected could show up in the same data event
 					while (expectedText.length > 0 && e.data.indexOf(expectedText[0]) >= 0) {
 						expectedText.shift();
