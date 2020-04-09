@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { Action, IAction } from 'vs/base/common/actions';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { TERMINAL_VIEW_ID, ITerminalConfigHelper, TitleEventSource, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TERMINAL_VIEW_ID, ITerminalConfigHelper, TitleEventSource, TERMINAL_COMMAND_ID, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED, TERMINAL_ACTION_CATEGORY, KEYBINDING_CONTEXT_TERMINAL_FOCUS } from 'vs/workbench/contrib/terminal/common/terminal';
 import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
@@ -32,9 +32,11 @@ import { Action2 } from 'vs/platform/actions/common/actions';
 import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalsQuickAccess';
 import { ToggleViewAction } from 'vs/workbench/browser/actions/layoutActions';
 import { IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { addClass } from 'vs/base/browser/dom';
 import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
+import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 async function getCwdForSplit(configHelper: ITerminalConfigHelper, instance: ITerminalInstance, folders?: IWorkspaceFolder[], commandService?: ICommandService): Promise<string | URI | undefined> {
 	switch (configHelper.config.splitCwd) {
@@ -187,7 +189,7 @@ export class SendSequenceTerminalAction2 extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor, args: { text?: string } | undefined) {
+	run(accessor: ServicesAccessor, args?: { text?: string }) {
 		terminalSendSequenceCommand(accessor, args);
 	}
 }
@@ -232,7 +234,7 @@ export class CreateNewWithCwdTerminalAction2 extends Action2 {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, args: { cwd?: string } | undefined): Promise<void> {
+	public run(accessor: ServicesAccessor, args?: { cwd?: string }): Promise<void> {
 		const terminalService = accessor.get(ITerminalService);
 		const instance = terminalService.createTerminal({ cwd: args?.cwd });
 		if (!instance) {
@@ -1014,10 +1016,7 @@ export class RenameWithArgTerminalAction2 extends Action2 {
 		});
 	}
 
-	public run(
-		accessor: ServicesAccessor,
-		args?: { name?: string }
-	): void {
+	public run(accessor: ServicesAccessor, args?: { name?: string }): void {
 		const notificationService = accessor.get(INotificationService);
 		const terminalInstance = accessor.get(ITerminalService).getActiveInstance();
 
@@ -1295,19 +1294,31 @@ export class FindNext extends Action {
 	}
 }
 
-export class FindPrevious extends Action {
-	public static readonly ID = TERMINAL_COMMAND_ID.FIND_PREVIOUS;
-	public static readonly LABEL = nls.localize('workbench.action.terminal.findPrevious', "Find previous");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private readonly terminalService: ITerminalService
-	) {
-		super(id, label);
+export class FindPreviousAction2 extends Action2 {
+	constructor() {
+		super({
+			id: TERMINAL_COMMAND_ID.FIND_PREVIOUS,
+			title: nls.localize('workbench.action.terminal.findPrevious', "Find previous"),
+			keybinding: [
+				{
+					primary: KeyMod.Shift | KeyCode.F3,
+					mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G, secondary: [KeyMod.Shift | KeyCode.F3] },
+					when: ContextKeyExpr.or(KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED),
+					weight: KeybindingWeight.WorkbenchContrib
+				},
+				{
+					primary: KeyCode.Enter,
+					mac: { primary: KeyCode.Enter },
+					when: KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED,
+					weight: KeybindingWeight.WorkbenchContrib
+				}
+			],
+			category: TERMINAL_ACTION_CATEGORY,
+			f1: true
+		});
 	}
 
-	public run(): Promise<any> {
-		this.terminalService.findPrevious();
-		return Promise.resolve(undefined);
+	run(accessor: ServicesAccessor) {
+		accessor.get(ITerminalService).findPrevious();
 	}
 }
