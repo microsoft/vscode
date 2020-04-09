@@ -1277,20 +1277,31 @@ export class ToggleCaseSensitiveCommand extends ToggleFindOptionCommand {
 	}
 }
 
-export class FindNext extends Action {
-	public static readonly ID = TERMINAL_COMMAND_ID.FIND_NEXT;
-	public static readonly LABEL = nls.localize('workbench.action.terminal.findNext', "Find next");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private readonly terminalService: ITerminalService
-	) {
-		super(id, label);
+export class FindNextAction2 extends Action2 {
+	constructor() {
+		super({
+			id: TERMINAL_COMMAND_ID.FIND_NEXT,
+			title: nls.localize('workbench.action.terminal.findNext', "Find next"),
+			keybinding: [
+				{
+					primary: KeyCode.F3,
+					mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_G, secondary: [KeyCode.F3] },
+					when: ContextKeyExpr.or(KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED),
+					weight: KeybindingWeight.WorkbenchContrib
+				},
+				{
+					primary: KeyMod.Shift | KeyCode.Enter,
+					when: KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED,
+					weight: KeybindingWeight.WorkbenchContrib
+				}
+			],
+			category: TERMINAL_ACTION_CATEGORY,
+			f1: true
+		});
 	}
 
-	public run(): Promise<any> {
-		this.terminalService.findNext();
-		return Promise.resolve(undefined);
+	run(accessor: ServicesAccessor) {
+		accessor.get(ITerminalService).findNext();
 	}
 }
 
@@ -1308,7 +1319,6 @@ export class FindPreviousAction2 extends Action2 {
 				},
 				{
 					primary: KeyCode.Enter,
-					mac: { primary: KeyCode.Enter },
 					when: KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED,
 					weight: KeybindingWeight.WorkbenchContrib
 				}
