@@ -575,7 +575,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		this.updateColumnSelectionModeElement(!!this.state.columnSelectionMode);
 		this.updateScreenReaderModeElement(!!this.state.screenReaderMode);
 		this.updateIndentationElement(this.state.indentation);
-		this.updateSelectionElement(this.state.selectionStatus && !this.state.screenReaderMode ? this.state.selectionStatus : undefined);
+		this.updateSelectionElement(this.state.selectionStatus);
 		this.updateEncodingElement(this.state.encoding);
 		this.updateEOLElement(this.state.EOL ? this.state.EOL === '\r\n' ? nlsEOLCRLF : nlsEOLLF : undefined);
 		this.updateModeElement(this.state.mode);
