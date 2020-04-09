@@ -440,7 +440,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 				const pty: Pseudoterminal = {
 					onDidWrite: writeEmitter.event,
 					onDidClose: closeEmitter.event,
-					open: () => closeEmitter.fire(),
+					open: () => closeEmitter.fire(undefined),
 					close: () => { }
 				};
 				const terminal = window.createTerminal({ name: 'foo', pty });
