@@ -279,6 +279,8 @@ export class SplitTerminalAction extends Action {
 	public static readonly ID = TERMINAL_COMMAND_ID.SPLIT;
 	public static readonly LABEL = nls.localize('workbench.action.terminal.split', "Split Terminal");
 	public static readonly SHORT_LABEL = nls.localize('workbench.action.terminal.split.short', "Split");
+	public static readonly HORIZONTAL_CLASS = 'terminal-action codicon-split-horizontal';
+	public static readonly VERTICAL_CLASS = 'terminal-action codicon-split-vertical';
 
 	constructor(
 		id: string, label: string,
@@ -286,7 +288,7 @@ export class SplitTerminalAction extends Action {
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
 	) {
-		super(id, label, 'terminal-action codicon-split-horizontal');
+		super(id, label, SplitTerminalAction.HORIZONTAL_CLASS);
 	}
 
 	public async run(event?: any): Promise<any> {
