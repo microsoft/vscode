@@ -134,6 +134,8 @@ actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ScrollToTopTe
 	primary: KeyMod.CtrlCmd | KeyCode.Home,
 	linux: { primary: KeyMod.Shift | KeyCode.Home }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Scroll to Top', category);
+// Weight is higher than work workbench contributions so the keybinding remains
+// highest priority when chords are registered afterwards
 actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ClearTerminalAction, ClearTerminalAction.ID, ClearTerminalAction.LABEL, {
 	primary: 0,
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_K }

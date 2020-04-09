@@ -913,17 +913,15 @@ export function registerTerminalActions() {
 		}
 
 		async run(accessor: ServicesAccessor) {
-			const terminalInstance = accessor.get(ITerminalService).getActiveInstance();
-			if (!terminalInstance) {
-				return;
-			}
-			const name = await accessor.get(IQuickInputService).input({
-				value: terminalInstance.title,
-				prompt: localize('workbench.action.terminal.rename.prompt', "Enter terminal name"),
+			await accessor.get(ITerminalService).doWithActiveInstance(async t => {
+				const name = await accessor.get(IQuickInputService).input({
+					value: t.title,
+					prompt: localize('workbench.action.terminal.rename.prompt', "Enter terminal name"),
+				});
+				if (name) {
+					t.setTitle(name, TitleEventSource.Api);
+				}
 			});
-			if (name) {
-				terminalInstance.setTitle(name, TitleEventSource.Api);
-			}
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -995,11 +993,10 @@ export function registerTerminalActions() {
 		}
 
 		run(accessor: ServicesAccessor) {
-			const instance = accessor.get(ITerminalService).getActiveInstance();
-			if (instance && instance.commandTracker) {
-				instance.commandTracker.scrollToPreviousCommand();
-				instance.focus();
-			}
+			accessor.get(ITerminalService).doWithActiveInstance(t => {
+				t.commandTracker?.scrollToPreviousCommand();
+				t.focus();
+			});
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1018,11 +1015,10 @@ export function registerTerminalActions() {
 		}
 
 		run(accessor: ServicesAccessor) {
-			const instance = accessor.get(ITerminalService).getActiveInstance();
-			if (instance && instance.commandTracker) {
-				instance.commandTracker.scrollToNextCommand();
-				instance.focus();
-			}
+			accessor.get(ITerminalService).doWithActiveInstance(t => {
+				t.commandTracker?.scrollToNextCommand();
+				t.focus();
+			});
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1041,11 +1037,10 @@ export function registerTerminalActions() {
 		}
 
 		run(accessor: ServicesAccessor) {
-			const instance = accessor.get(ITerminalService).getActiveInstance();
-			if (instance && instance.commandTracker) {
-				instance.commandTracker.selectToPreviousCommand();
-				instance.focus();
-			}
+			accessor.get(ITerminalService).doWithActiveInstance(t => {
+				t.commandTracker?.selectToPreviousCommand();
+				t.focus();
+			});
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1064,11 +1059,10 @@ export function registerTerminalActions() {
 		}
 
 		run(accessor: ServicesAccessor) {
-			const instance = accessor.get(ITerminalService).getActiveInstance();
-			if (instance && instance.commandTracker) {
-				instance.commandTracker.selectToNextCommand();
-				instance.focus();
-			}
+			accessor.get(ITerminalService).doWithActiveInstance(t => {
+				t.commandTracker?.selectToNextCommand();
+				t.focus();
+			});
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1082,11 +1076,10 @@ export function registerTerminalActions() {
 		}
 
 		run(accessor: ServicesAccessor) {
-			const instance = accessor.get(ITerminalService).getActiveInstance();
-			if (instance && instance.commandTracker) {
-				instance.commandTracker.selectToPreviousLine();
-				instance.focus();
-			}
+			accessor.get(ITerminalService).doWithActiveInstance(t => {
+				t.commandTracker?.selectToPreviousLine();
+				t.focus();
+			});
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1100,11 +1093,10 @@ export function registerTerminalActions() {
 		}
 
 		run(accessor: ServicesAccessor) {
-			const instance = accessor.get(ITerminalService).getActiveInstance();
-			if (instance && instance.commandTracker) {
-				instance.commandTracker.selectToNextLine();
-				instance.focus();
-			}
+			accessor.get(ITerminalService).doWithActiveInstance(t => {
+				t.commandTracker?.selectToNextLine();
+				t.focus();
+			});
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1174,11 +1166,11 @@ export function registerTerminalActions() {
 			});
 		}
 
-		public run(accessor: ServicesAccessor, args?: { cwd?: string }): Promise<void> {
+		async run(accessor: ServicesAccessor, args?: { cwd?: string }) {
 			const terminalService = accessor.get(ITerminalService);
 			const instance = terminalService.createTerminal({ cwd: args?.cwd });
 			if (!instance) {
-				return Promise.resolve(undefined);
+				return;
 			}
 			terminalService.setActiveInstance(instance);
 			return terminalService.showPanel(true);
@@ -1211,21 +1203,13 @@ export function registerTerminalActions() {
 			});
 		}
 
-		public run(accessor: ServicesAccessor, args?: { name?: string }): void {
+		run(accessor: ServicesAccessor, args?: { name?: string }) {
 			const notificationService = accessor.get(INotificationService);
-			const terminalInstance = accessor.get(ITerminalService).getActiveInstance();
-
-			if (!terminalInstance) {
-				notificationService.warn(localize('workbench.action.terminal.renameWithArg.noTerminal', "No active terminal to rename"));
-				return;
-			}
-
-			if (!args || !args.name) {
+			if (!args?.name) {
 				notificationService.warn(localize('workbench.action.terminal.renameWithArg.noName', "No name argument provided"));
 				return;
 			}
-
-			terminalInstance.setTitle(args.name, TitleEventSource.Api);
+			accessor.get(ITerminalService).getActiveInstance()?.setTitle(args.name, TitleEventSource.Api);
 		}
 	});
 	registerAction2(class extends Action2 {

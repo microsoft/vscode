@@ -297,6 +297,13 @@ export class TerminalService implements ITerminalService {
 		return tab.activeInstance;
 	}
 
+	public doWithActiveInstance<T>(callback: (terminal: ITerminalInstance) => T): T | void {
+		const instance = this.getActiveInstance();
+		if (instance) {
+			return callback(instance);
+		}
+	}
+
 	public getInstanceFromId(terminalId: number): ITerminalInstance | undefined {
 		let bgIndex = -1;
 		this._backgroundedTerminalInstances.forEach((terminalInstance, i) => {
