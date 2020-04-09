@@ -22,7 +22,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { ActiveEditorContext, Extensions as EditorInputExtensions, IEditorInputFactory, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
+import { Extensions as EditorInputExtensions, IEditorInputFactory, IEditorInputFactoryRegistry, ActiveEditorContext } from 'vs/workbench/common/editor';
 import * as SearchConstants from 'vs/workbench/contrib/search/common/constants';
 import * as SearchEditorConstants from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditor';
@@ -54,27 +54,29 @@ class SearchEditorContribution implements IWorkbenchContribution {
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 	) {
 
-		this.editorService.overrideOpenEditor((editor, options, group) => {
-			const resource = editor.resource;
-			if (!resource) { return undefined; }
+		this.editorService.overrideOpenEditor({
+			open: (editor, options, group) => {
+				const resource = editor.resource;
+				if (!resource) { return undefined; }
 
-			if (!endsWith(resource.path, '.code-search')) {
-				return undefined;
+				if (!endsWith(resource.path, '.code-search')) {
+					return undefined;
+				}
+
+				if (group.isOpened(editor) && editor instanceof SearchEditorInput) {
+					return undefined;
+				}
+
+				this.telemetryService.publicLog2('searchEditor/openSavedSearchEditor');
+
+				return {
+					override: (async () => {
+						const { config } = await instantiationService.invokeFunction(parseSavedSearchEditor, resource);
+						const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { backingUri: resource, config });
+						return editorService.openEditor(input, { ...options, ignoreOverrides: true }, group);
+					})()
+				};
 			}
-
-			if (group.isOpened(editor)) {
-				return undefined;
-			}
-
-			this.telemetryService.publicLog2('searchEditor/openSavedSearchEditor');
-
-			return {
-				override: (async () => {
-					const { config } = await instantiationService.invokeFunction(parseSavedSearchEditor, resource);
-					const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { backingUri: resource, config });
-					return editorService.openEditor(input, { ...options, ignoreOverrides: true }, group);
-				})()
-			};
 		});
 	}
 }

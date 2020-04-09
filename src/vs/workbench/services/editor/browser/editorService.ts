@@ -17,7 +17,7 @@ import { URI } from 'vs/base/common/uri';
 import { basename, isEqualOrParent, joinPath } from 'vs/base/common/resources';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IResourceEditorInputType, SIDE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions } from 'vs/workbench/services/editor/common/editorService';
+import { IResourceEditorInputType, SIDE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions, IOpenEditorOverrideEntry } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { coalesce, distinct, insert } from 'vs/base/common/arrays';
@@ -477,13 +477,23 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return toDisposable(() => remove());
 	}
 
+	getEditorOverrides(editorInput: IEditorInput, options: IEditorOptions | undefined, group: IEditorGroup | undefined): [IOpenEditorOverrideHandler, IOpenEditorOverrideEntry][] {
+		const ret = [];
+		for (const handler of this.openEditorHandlers) {
+			const handlers = handler.getEditorOverrides ? handler.getEditorOverrides(editorInput, options, group).map(val => { return [handler, val] as [IOpenEditorOverrideHandler, IOpenEditorOverrideEntry]; }) : [];
+			ret.push(...handlers);
+		}
+
+		return ret;
+	}
+
 	private onGroupWillOpenEditor(group: IEditorGroup, event: IEditorOpeningEvent): void {
 		if (event.options && event.options.ignoreOverrides) {
 			return;
 		}
 
 		for (const handler of this.openEditorHandlers) {
-			const result = handler(event.editor, event.options, group);
+			const result = handler.open(event.editor, event.options, group);
 			const override = result?.override;
 			if (override) {
 				event.prevent((() => override.then(editor => withNullAsUndefined(editor))));
@@ -1109,6 +1119,10 @@ export class DelegatingEditorService implements IEditorService {
 		private editorOpenHandler: IEditorOpenHandler,
 		@IEditorService private editorService: EditorService
 	) { }
+
+	getEditorOverrides(editorInput: IEditorInput, options: IEditorOptions | undefined, group: IEditorGroup | undefined) {
+		return [];
+	}
 
 	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions, group?: OpenInEditorGroup): Promise<IEditorPane | undefined>;
 	openEditor(editor: IResourceEditorInput | IUntitledTextResourceEditorInput, group?: OpenInEditorGroup): Promise<ITextEditorPane | undefined>;

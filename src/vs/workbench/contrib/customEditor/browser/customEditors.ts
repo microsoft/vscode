@@ -343,8 +343,10 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 	) {
 		super();
 
-		this._register(this.editorService.overrideOpenEditor((editor, options, group) => {
-			return this.onEditorOpening(editor, options, group);
+		this._register(this.editorService.overrideOpenEditor({
+			open: (editor, options, group) => {
+				return this.onEditorOpening(editor, options, group);
+			}
 		}));
 
 		this._register(this.editorService.onDidCloseEditor(({ editor }) => {

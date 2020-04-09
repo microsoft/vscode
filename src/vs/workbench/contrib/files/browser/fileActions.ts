@@ -16,9 +16,9 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { VIEWLET_ID, IExplorerService, IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService } from 'vs/platform/files/common/files';
-import { toResource, SideBySideEditor } from 'vs/workbench/common/editor';
+import { toResource, SideBySideEditor, IEditorInput } from 'vs/workbench/common/editor';
 import { ExplorerViewPaneContainer } from 'vs/workbench/contrib/files/browser/explorerViewlet';
-import { IQuickInputService, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, ItemActivation, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModel } from 'vs/editor/common/model';
@@ -34,7 +34,7 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Schemas } from 'vs/base/common/network';
 import { IDialogService, IConfirmationResult, getFileNamesMessage, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, IOpenEditorOverrideHandler } from 'vs/workbench/services/editor/common/editorService';
 import { Constants } from 'vs/base/common/uint';
 import { CLOSE_EDITORS_AND_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { coalesce } from 'vs/base/common/arrays';
@@ -47,6 +47,9 @@ import { IWorkingCopyService, IWorkingCopy } from 'vs/workbench/services/working
 import { sequence, timeout } from 'vs/base/common/async';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { once } from 'vs/base/common/functional';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
@@ -480,23 +483,27 @@ export class GlobalCompareResourcesAction extends Action {
 		if (activeResource) {
 
 			// Compare with next editor that opens
-			const toDispose = this.editorService.overrideOpenEditor(editor => {
+			const toDispose = this.editorService.overrideOpenEditor({
+				getEditorOverrides: (editor: IEditorInput, options: IEditorOptions | undefined, group: IEditorGroup | undefined) => {
+					return [];
+				},
+				open: editor => {
+					// Only once!
+					toDispose.dispose();
 
-				// Only once!
-				toDispose.dispose();
+					// Open editor as diff
+					const resource = editor.resource;
+					if (resource) {
+						return {
+							override: this.editorService.openEditor({
+								leftResource: activeResource,
+								rightResource: resource
+							})
+						};
+					}
 
-				// Open editor as diff
-				const resource = editor.resource;
-				if (resource) {
-					return {
-						override: this.editorService.openEditor({
-							leftResource: activeResource,
-							rightResource: resource
-						})
-					};
+					return undefined;
 				}
-
-				return undefined;
 			});
 
 			once(this.quickInputService.onHide)((async () => {
@@ -509,6 +516,87 @@ export class GlobalCompareResourcesAction extends Action {
 		} else {
 			this.notificationService.info(nls.localize('openFileToCompare', "Open a file first to compare it with another file."));
 		}
+	}
+}
+
+const builtinProviderDisplayName = nls.localize('builtinProviderDisplayName', "Built-in");
+export class ReopenResourcesAction extends Action {
+
+	static readonly ID = 'workbench.files.action.reopenWithEditor';
+	static readonly LABEL = nls.localize('workbench.files.action.reopenWithEditor', "Reopen With...");
+
+	constructor(
+		id: string,
+		label: string,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IEditorService private readonly editorService: IEditorService,
+	) {
+		super(id, label);
+	}
+
+	async run(): Promise<void> {
+		const activeInput = this.editorService.activeEditor;
+		const activeEditorPane = this.editorService.activeEditorPane;
+		if (!activeEditorPane) {
+			return;
+		}
+
+		const options = activeEditorPane.options;
+		const group = activeEditorPane.group;
+		const activeResource = activeInput ? activeInput.resource : undefined;
+
+		if (!activeResource) {
+			return;
+		}
+
+		const overrides = this.editorService.getEditorOverrides(activeInput!, options, group);
+		const items: (IQuickPickItem & { handler?: IOpenEditorOverrideHandler })[] = overrides.map((override) => {
+			return {
+				handler: override[0],
+				id: override[1].id,
+				label: override[1].label,
+				description: override[1].active ? 'Currently Active' : undefined,
+				detail: override[1].detail
+			};
+		});
+
+		if (!items.length) {
+			return;
+		}
+
+		items.unshift({
+			id: 'default',
+			label: nls.localize('promptOpenWith.defaultEditor.displayName', "Text Editor"),
+			description: activeInput instanceof FileEditorInput ? 'Currently Active' : undefined,
+			detail: builtinProviderDisplayName
+		});
+
+		const picker = this.quickInputService.createQuickPick<(IQuickPickItem & { handler?: IOpenEditorOverrideHandler })>();
+		picker.items = items;
+		picker.placeholder = nls.localize('promptOpenWith.placeHolder', "Select editor to use for '{0}'...", resources.basename(activeResource));
+
+		const pickedItem = await new Promise<(IQuickPickItem & { handler?: IOpenEditorOverrideHandler }) | undefined>(resolve => {
+			picker.onDidAccept(() => {
+				resolve(picker.selectedItems.length === 1 ? picker.selectedItems[0] : undefined);
+				picker.dispose();
+			});
+
+			picker.show();
+		});
+
+		if (!pickedItem) {
+			return;
+		}
+
+		if (pickedItem.id === 'default') {
+			const fileEditorInput = this.editorService.createEditorInput({ resource: activeResource!, forceFile: true });
+			const textOptions = options ? { ...options, ignoreOverrides: true } : { ignoreOverrides: true };
+
+			await this.editorService.openEditor(fileEditorInput, textOptions, group);
+			return;
+		}
+
+		await pickedItem.handler!.open(activeInput!, options, group, pickedItem.id);
 	}
 }
 
