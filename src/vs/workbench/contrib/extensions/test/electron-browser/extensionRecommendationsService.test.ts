@@ -21,7 +21,7 @@ import { Emitter } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TestLifecycleService, productService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestContextService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { TestSharedProcessService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
@@ -211,23 +211,20 @@ suite('ExtensionRecommendationsService Test', () => {
 		instantiationService.stub(IStorageService, new TestStorageService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IStorageKeysSyncRegistryService, new StorageKeysSyncRegistryService());
-		instantiationService.set(IProductService, {
-			...productService,
-			...{
-				extensionTips: {
-					'ms-dotnettools.csharp': '{**/*.cs,**/project.json,**/global.json,**/*.csproj,**/*.sln,**/appsettings.json}',
-					'msjsdiag.debugger-for-chrome': '{**/*.ts,**/*.tsx,**/*.js,**/*.jsx,**/*.es6,**/*.mjs,**/*.cjs,**/.babelrc}',
-					'lukehoban.Go': '**/*.go'
+		instantiationService.stub(IProductService, <Partial<IProductService>>{
+			extensionTips: {
+				'ms-dotnettools.csharp': '{**/*.cs,**/project.json,**/global.json,**/*.csproj,**/*.sln,**/appsettings.json}',
+				'msjsdiag.debugger-for-chrome': '{**/*.ts,**/*.tsx,**/*.js,**/*.jsx,**/*.es6,**/*.mjs,**/*.cjs,**/.babelrc}',
+				'lukehoban.Go': '**/*.go'
+			},
+			extensionImportantTips: {
+				'ms-python.python': {
+					'name': 'Python',
+					'pattern': '{**/*.py}'
 				},
-				extensionImportantTips: {
-					'ms-python.python': {
-						'name': 'Python',
-						'pattern': '{**/*.py}'
-					},
-					'ms-vscode.PowerShell': {
-						'name': 'PowerShell',
-						'pattern': '{**/*.ps,**/*.ps1}'
-					}
+				'ms-vscode.PowerShell': {
+					'name': 'PowerShell',
+					'pattern': '{**/*.ps,**/*.ps1}'
 				}
 			}
 		});
