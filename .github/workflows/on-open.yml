@@ -41,5 +41,5 @@ jobs:
         uses: ./actions/regex-labeler
         with:
           label: "invalid"
-          mustNotMatch: "^We have written the needed data into your clipboard because it was too large to send\. Please paste\.$"
+          mustNotMatch: "^We have written the needed data into your clipboard because it was too large to send\\. Please paste\\.$"
           comment: "It looks like you're using our automatic issue generator but did not paste the generated text into the created issue. We've closed this issue, please open a new one with the text the generator placed on your clipboard.\n\nHappy Coding!"
