@@ -1192,14 +1192,14 @@ declare module 'vscode' {
 		 *
 		 * This is invoked by VS Code when the user triggers an undo.
 		 */
-		undo(): Thenable<void>;
+		undo(): Thenable<void> | void;
 
 		/**
 		 * Redo the edit operation.
 		 *
 		 * This is invoked by VS Code when the user triggers a redo.
 		 */
-		redo(): Thenable<void>;
+		redo(): Thenable<void> | void;
 
 		/**
 		 * Display name describing the edit.
@@ -1224,7 +1224,7 @@ declare module 'vscode' {
 		 * Dispose of the current backup.
 		 *
 		 * This is called by VS Code when it is clear the current backup, such as when a new backup is made or when the
-		 * file is saveed.
+		 * file is saved.
 		 */
 		dispose(): void;
 	}
