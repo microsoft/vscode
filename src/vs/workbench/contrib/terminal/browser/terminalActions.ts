@@ -615,108 +615,6 @@ function getTerminalSelectOpenItems(terminalService: ITerminalService): ISelectO
 	return items;
 }
 
-export class ScrollDownTerminalAction extends Action {
-
-	public static readonly ID = TERMINAL_COMMAND_ID.SCROLL_DOWN_LINE;
-	public static readonly LABEL = localize('workbench.action.terminal.scrollDown', "Scroll Down (Line)");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private readonly _terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	async run() {
-		this._terminalService.getActiveInstance()?.scrollDownLine();
-	}
-}
-
-export class ScrollDownPageTerminalAction extends Action {
-
-	public static readonly ID = TERMINAL_COMMAND_ID.SCROLL_DOWN_PAGE;
-	public static readonly LABEL = localize('workbench.action.terminal.scrollDownPage', "Scroll Down (Page)");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private readonly _terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	async run() {
-		this._terminalService.getActiveInstance()?.scrollDownPage();
-	}
-}
-
-export class ScrollToBottomTerminalAction extends Action {
-
-	public static readonly ID = TERMINAL_COMMAND_ID.SCROLL_TO_BOTTOM;
-	public static readonly LABEL = localize('workbench.action.terminal.scrollToBottom', "Scroll to Bottom");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private readonly _terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	async run() {
-		this._terminalService.getActiveInstance()?.scrollToBottom();
-	}
-}
-
-export class ScrollUpTerminalAction extends Action {
-
-	public static readonly ID = TERMINAL_COMMAND_ID.SCROLL_UP_LINE;
-	public static readonly LABEL = localize('workbench.action.terminal.scrollUp', "Scroll Up (Line)");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private readonly _terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	async run() {
-		this._terminalService.getActiveInstance()?.scrollUpLine();
-	}
-}
-
-export class ScrollUpPageTerminalAction extends Action {
-
-	public static readonly ID = TERMINAL_COMMAND_ID.SCROLL_UP_PAGE;
-	public static readonly LABEL = localize('workbench.action.terminal.scrollUpPage', "Scroll Up (Page)");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private readonly _terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	async run() {
-		this._terminalService.getActiveInstance()?.scrollUpPage();
-	}
-}
-
-export class ScrollToTopTerminalAction extends Action {
-
-	public static readonly ID = TERMINAL_COMMAND_ID.SCROLL_TO_TOP;
-	public static readonly LABEL = localize('workbench.action.terminal.scrollToTop', "Scroll to Top");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private readonly _terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	async run() {
-		this._terminalService.getActiveInstance()?.scrollToTop();
-	}
-}
-
 export class ClearTerminalAction extends Action {
 
 	public static readonly ID = TERMINAL_COMMAND_ID.CLEAR;
@@ -740,6 +638,120 @@ export class ClearTerminalAction extends Action {
 export function registerTerminalActions() {
 	const category = TERMINAL_ACTION_CATEGORY;
 
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.SCROLL_DOWN_LINE,
+				title: localize('workbench.action.terminal.scrollDown', "Scroll Down (Line)"),
+				f1: true,
+				category,
+				keybinding: {
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageDown,
+					linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.DownArrow },
+					when: KEYBINDING_CONTEXT_TERMINAL_FOCUS,
+					weight: KeybindingWeight.WorkbenchContrib
+				}
+			});
+		}
+		run(accessor: ServicesAccessor) {
+			accessor.get(ITerminalService).getActiveInstance()?.scrollDownLine();
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.SCROLL_DOWN_PAGE,
+				title: localize('workbench.action.terminal.scrollDownPage', "Scroll Down (Page)"),
+				f1: true,
+				category,
+				keybinding: {
+					primary: KeyMod.Shift | KeyCode.PageDown,
+					mac: { primary: KeyCode.PageDown },
+					when: KEYBINDING_CONTEXT_TERMINAL_FOCUS,
+					weight: KeybindingWeight.WorkbenchContrib
+				}
+			});
+		}
+		run(accessor: ServicesAccessor) {
+			accessor.get(ITerminalService).getActiveInstance()?.scrollDownPage();
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.SCROLL_TO_BOTTOM,
+				title: localize('workbench.action.terminal.scrollToBottom', "Scroll to Bottom"),
+				f1: true,
+				category,
+				keybinding: {
+					primary: KeyMod.CtrlCmd | KeyCode.End,
+					linux: { primary: KeyMod.Shift | KeyCode.End },
+					when: KEYBINDING_CONTEXT_TERMINAL_FOCUS,
+					weight: KeybindingWeight.WorkbenchContrib
+				}
+			});
+		}
+		run(accessor: ServicesAccessor) {
+			accessor.get(ITerminalService).getActiveInstance()?.scrollToBottom();
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.SCROLL_UP_LINE,
+				title: localize('workbench.action.terminal.scrollUp', "Scroll Up (Line)"),
+				f1: true,
+				category,
+				keybinding: {
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageUp,
+					linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.UpArrow },
+					when: KEYBINDING_CONTEXT_TERMINAL_FOCUS,
+					weight: KeybindingWeight.WorkbenchContrib
+				}
+			});
+		}
+		run(accessor: ServicesAccessor) {
+			accessor.get(ITerminalService).getActiveInstance()?.scrollUpLine();
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.SCROLL_UP_PAGE,
+				title: localize('workbench.action.terminal.scrollUpPage', "Scroll Up (Page)"),
+				f1: true,
+				category,
+				keybinding: {
+					primary: KeyMod.Shift | KeyCode.PageUp,
+					mac: { primary: KeyCode.PageUp },
+					when: KEYBINDING_CONTEXT_TERMINAL_FOCUS,
+					weight: KeybindingWeight.WorkbenchContrib
+				}
+			});
+		}
+		run(accessor: ServicesAccessor) {
+			accessor.get(ITerminalService).getActiveInstance()?.scrollUpPage();
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.SCROLL_TO_TOP,
+				title: localize('workbench.action.terminal.scrollToTop', "Scroll to Top"),
+				f1: true,
+				category,
+				keybinding: {
+					primary: KeyMod.CtrlCmd | KeyCode.Home,
+					linux: { primary: KeyMod.Shift | KeyCode.Home },
+					when: KEYBINDING_CONTEXT_TERMINAL_FOCUS,
+					weight: KeybindingWeight.WorkbenchContrib
+				}
+			});
+		}
+		run(accessor: ServicesAccessor) {
+			accessor.get(ITerminalService).getActiveInstance()?.scrollToTop();
+		}
+	});
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
