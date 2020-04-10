@@ -662,7 +662,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 					this.ui.list.clearFocus();
 				}
 			}));
-			this.visibleDisposables.add(this.ui.inputBox.onKeyDown(event => {
+			this.visibleDisposables.add((this._hideInput ? this.ui.list : this.ui.inputBox).onKeyDown((event: KeyboardEvent | StandardKeyboardEvent) => {
 				switch (event.keyCode) {
 					case KeyCode.DownArrow:
 						this.ui.list.focus(QuickInputListFocus.Next);
