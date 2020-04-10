@@ -222,6 +222,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 
 			const symbolLabel = trim(symbol.name);
 			const symbolLabelWithIcon = `$(symbol-${SymbolKinds.toString(symbol.kind) || 'property'}) ${symbolLabel}`;
+			const symbolLabelIconOffset = symbolLabelWithIcon.length - symbolLabel.length;
 
 			let containerLabel = symbol.containerName;
 			if (options?.extraContainerLabel) {
@@ -240,14 +241,28 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 
 			if (query.original.length > filterPos) {
 
-				// Score by symbol
-				[symbolScore, symbolMatches] = scoreFuzzy2(symbolLabel, symbolQuery, filterPos, symbolLabelWithIcon.length - symbolLabel.length /* Readjust matches to account for codicons in label */);
+				// First: try to score on the entire query, it is possible that
+				// the symbol matches perfectly (e.g. searching for "change log"
+				// can be a match on a markdown symbol "change log"). In that
+				// case we want to skip the container query altogether.
+				let skipContainerQuery = false;
+				if (symbolQuery !== query) {
+					[symbolScore, symbolMatches] = scoreFuzzy2(symbolLabel, query, filterPos, symbolLabelIconOffset);
+					if (symbolScore) {
+						skipContainerQuery = true; // since we consumed the query, skip any container matching
+					}
+				}
+
+				// Otherwise: score on the symbol query and match on the container later
 				if (!symbolScore) {
-					continue;
+					[symbolScore, symbolMatches] = scoreFuzzy2(symbolLabel, symbolQuery, filterPos, symbolLabelIconOffset);
+					if (!symbolScore) {
+						continue;
+					}
 				}
 
 				// Score by container if specified
-				if (containerQuery) {
+				if (!skipContainerQuery && containerQuery) {
 					if (containerLabel && containerQuery.original.length > 0) {
 						[containerScore, containerMatches] = scoreFuzzy2(containerLabel, containerQuery);
 					}
