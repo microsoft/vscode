@@ -458,12 +458,10 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		for (const viewlet of viewlets) {
 			this.enableCompositeActions(viewlet);
-			const viewContainer = this.getViewContainer(viewlet.id);
-			if (viewContainer?.hideIfEmpty) {
-				const viewDescriptors = this.viewDescriptorService.getViewDescriptors(viewContainer);
-				this.onDidChangeActiveViews(viewlet, viewDescriptors);
-				this.viewletDisposables.set(viewlet.id, viewDescriptors.onDidChangeActiveViews(() => this.onDidChangeActiveViews(viewlet, viewDescriptors)));
-			}
+			const viewContainer = this.getViewContainer(viewlet.id)!;
+			const viewDescriptors = this.viewDescriptorService.getViewDescriptors(viewContainer);
+			this.onDidChangeActiveViews(viewlet, viewDescriptors, viewContainer.hideIfEmpty);
+			this.viewletDisposables.set(viewlet.id, viewDescriptors.onDidChangeActiveViews(() => this.onDidChangeActiveViews(viewlet, viewDescriptors, viewContainer.hideIfEmpty)));
 		}
 	}
 
@@ -479,29 +477,29 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private updateActivity(viewlet: ViewletDescriptor, viewDescriptors: IViewDescriptorCollection): void {
 		const viewDescriptor = viewDescriptors.activeViewDescriptors[0];
+		const shouldUseContainerIcon = (viewlet.iconUrl || viewlet.cssClass) && viewDescriptors.activeViewDescriptors.some(v => v.containerIcon === viewlet.iconUrl || v.containerIcon === viewlet.cssClass);
+
 		const activity: IActivity = {
 			id: viewlet.id,
 			name: viewDescriptor.name,
-			cssClass: isString(viewDescriptor.containerIcon) ? viewDescriptor.containerIcon : undefined,
-			iconUrl: viewDescriptor.containerIcon instanceof URI ? viewDescriptor.containerIcon : undefined,
+			cssClass: shouldUseContainerIcon ? viewlet.cssClass : (isString(viewDescriptor.containerIcon) ? viewDescriptor.containerIcon : undefined),
+			iconUrl: shouldUseContainerIcon ? viewlet.iconUrl : (viewDescriptor.containerIcon instanceof URI ? viewDescriptor.containerIcon : undefined),
 			keybindingId: viewlet.keybindingId
 		};
 
 		const { activityAction, pinnedAction } = this.getCompositeActions(viewlet.id);
-		// if (activityAction instanceof PlaceHolderViewletActivityAction) {
 		activityAction.setActivity(activity);
-		// }
 
 		if (pinnedAction instanceof PlaceHolderToggleCompositePinnedAction) {
 			pinnedAction.setActivity(activity);
 		}
 	}
 
-	private onDidChangeActiveViews(viewlet: ViewletDescriptor, viewDescriptors: IViewDescriptorCollection): void {
+	private onDidChangeActiveViews(viewlet: ViewletDescriptor, viewDescriptors: IViewDescriptorCollection, hideIfEmpty?: boolean): void {
 		if (viewDescriptors.activeViewDescriptors.length) {
 			this.updateActivity(viewlet, viewDescriptors);
 			this.compositeBar.addComposite(viewlet);
-		} else {
+		} else if (hideIfEmpty) {
 			this.hideComposite(viewlet.id);
 		}
 	}
