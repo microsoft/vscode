@@ -263,6 +263,7 @@ export class QuickInputList {
 	onChangedCheckedElements: Event<IQuickPickItem[]> = this._onChangedCheckedElements.event;
 	private readonly _onButtonTriggered = new Emitter<IQuickPickItemButtonEvent<IQuickPickItem>>();
 	onButtonTriggered = this._onButtonTriggered.event;
+	readonly onKeyDown = this.list.onKeyDown;
 	private readonly _onLeave = new Emitter<void>();
 	onLeave: Event<void> = this._onLeave.event;
 	private _fireCheckedEvents = true;
