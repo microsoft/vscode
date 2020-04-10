@@ -195,7 +195,7 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 
 						return TriggerAction.CLOSE_PICKER;
 					},
-					accept: async (keyMods, event) => this.openSymbol(provider, symbol, token, { keyMods, preserveFocus: event.inBackground }),
+					accept: async (keyMods, event) => this.openSymbol(provider, symbol, token, { keyMods, preserveFocus: event.inBackground, forcePinned: event.inBackground }),
 				});
 			}
 		}
@@ -208,7 +208,7 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 		return symbolPicks;
 	}
 
-	private async openSymbol(provider: IWorkspaceSymbolProvider, symbol: IWorkspaceSymbol, token: CancellationToken, options: { keyMods: IKeyMods, forceOpenSideBySide?: boolean, preserveFocus?: boolean }): Promise<void> {
+	private async openSymbol(provider: IWorkspaceSymbolProvider, symbol: IWorkspaceSymbol, token: CancellationToken, options: { keyMods: IKeyMods, forceOpenSideBySide?: boolean, preserveFocus?: boolean, forcePinned?: boolean }): Promise<void> {
 
 		// Resolve actual symbol to open for providers that can resolve
 		let symbolToOpen = symbol;
@@ -231,7 +231,7 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 				resource: symbolToOpen.location.uri,
 				options: {
 					preserveFocus: options?.preserveFocus,
-					pinned: options.keyMods.alt || this.configuration.openEditorPinned,
+					pinned: options.keyMods.alt || options.forcePinned || this.configuration.openEditorPinned,
 					selection: symbolToOpen.location.range ? Range.collapseToStart(symbolToOpen.location.range) : undefined
 				}
 			}, options.keyMods.ctrlCmd || options?.forceOpenSideBySide ? SIDE_GROUP : ACTIVE_GROUP);
