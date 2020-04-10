@@ -317,7 +317,7 @@ export namespace DataUri {
 export class ResourceGlobMatcher {
 
 	private readonly globalExpression: ParsedExpression;
-	private readonly expressionsByRoot: TernarySearchTree<string, { root: URI, expression: ParsedExpression }> = TernarySearchTree.forPaths<{ root: URI, expression: ParsedExpression }>();
+	private readonly expressionsByRoot: TernarySearchTree<URI, { root: URI, expression: ParsedExpression }> = TernarySearchTree.forUris<{ root: URI, expression: ParsedExpression }>();
 
 	constructor(
 		globalExpression: IExpression,
@@ -325,12 +325,12 @@ export class ResourceGlobMatcher {
 	) {
 		this.globalExpression = parse(globalExpression);
 		for (const expression of rootExpressions) {
-			this.expressionsByRoot.set(expression.root.toString(), { root: expression.root, expression: parse(expression.expression) });
+			this.expressionsByRoot.set(expression.root, { root: expression.root, expression: parse(expression.expression) });
 		}
 	}
 
 	matches(resource: URI): boolean {
-		const rootExpression = this.expressionsByRoot.findSubstr(resource.toString());
+		const rootExpression = this.expressionsByRoot.findSubstr(resource);
 		if (rootExpression) {
 			const path = relativePath(rootExpression.root, resource);
 			if (path && !!rootExpression.expression(path)) {

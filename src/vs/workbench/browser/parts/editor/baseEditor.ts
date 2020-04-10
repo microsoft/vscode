@@ -48,6 +48,7 @@ export abstract class BaseEditor extends Composite implements IEditorPane {
 	get input(): EditorInput | undefined { return this._input; }
 
 	protected _options: EditorOptions | undefined;
+	get options(): EditorOptions | undefined { return this._options; }
 
 	private _group?: IEditorGroup;
 	get group(): IEditorGroup | undefined { return this._group; }

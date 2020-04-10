@@ -94,7 +94,26 @@ export class NotebookContribution implements IWorkbenchContribution {
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 
 	) {
-		this.editorService.overrideOpenEditor((editor, options, group) => this.onEditorOpening(editor, options, group));
+		this.editorService.overrideOpenEditor({
+			getEditorOverrides: (editor: IEditorInput, options: IEditorOptions | undefined, group: IEditorGroup | undefined) => {
+				let resource = editor.resource;
+				if (!resource) {
+					return [];
+				}
+
+				const infos = notebookService.getContributedNotebookProviders(resource);
+
+				return infos.map(info => {
+					return {
+						label: info.displayName,
+						id: info.id,
+						active: editor instanceof NotebookEditorInput && editor.viewType === info.id,
+						detail: info.providerDisplayName
+					};
+				});
+			},
+			open: (editor, options, group, id) => this.onEditorOpening(editor, options, group, id)
+		});
 
 		this.editorService.onDidActiveEditorChange(() => {
 			if (this.editorService.activeEditor && this.editorService.activeEditor! instanceof NotebookEditorInput) {
@@ -104,7 +123,7 @@ export class NotebookContribution implements IWorkbenchContribution {
 		});
 	}
 
-	private onEditorOpening(originalInput: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): IOpenEditorOverride | undefined {
+	private onEditorOpening(originalInput: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup, id: string | undefined): IOpenEditorOverride | undefined {
 		let resource = originalInput.resource;
 		if (!resource) {
 			return undefined;
@@ -112,15 +131,22 @@ export class NotebookContribution implements IWorkbenchContribution {
 
 		let info: NotebookProviderInfo | undefined;
 		const data = CellUri.parse(resource);
-		if (data && (info = getFirstNotebookInfo(this.notebookService, data.notebook))) {
-			// cell-uri -> open (container) notebook
-			const name = basename(data.notebook);
-			const input = this.instantiationService.createInstance(NotebookEditorInput, data.notebook, name, info.id);
-			this._resourceMapping.set(resource, input);
-			return { override: this.editorService.openEditor(input, new NotebookEditorOptions({ ...options, forceReload: true, cellOptions: { resource, options } }), group) };
+		if (data) {
+			const infos = this.notebookService.getContributedNotebookProviders(data.notebook);
+
+			if (infos.length) {
+				const info = id === undefined ? infos[0] : (infos.find(info => info.id === id) || infos[0]);
+				// cell-uri -> open (container) notebook
+				const name = basename(data.notebook);
+				const input = this.instantiationService.createInstance(NotebookEditorInput, data.notebook, name, info.id);
+				this._resourceMapping.set(resource, input);
+				return { override: this.editorService.openEditor(input, new NotebookEditorOptions({ ...options, forceReload: true, cellOptions: { resource, options } }), group) };
+			}
 		}
 
-		info = getFirstNotebookInfo(this.notebookService, resource);
+		const infos = this.notebookService.getContributedNotebookProviders(resource);
+		info = id === undefined ? infos[0] : infos.find(info => info.id === id);
+
 		if (!info) {
 			return undefined;
 		}

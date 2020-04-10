@@ -18,8 +18,7 @@ import { BulkFileOperations, BulkFileOperation, BulkFileOperationType, BulkTextE
 import { FileKind } from 'vs/platform/files/common/files';
 import { localize } from 'vs/nls';
 import { ILabelService } from 'vs/platform/label/common/label';
-import type { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import type { IAriaProvider } from 'vs/base/browser/ui/list/listView';
+import type { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { basename } from 'vs/base/common/resources';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -273,9 +272,13 @@ export class BulkEditSorter implements ITreeSorter<BulkEditElement> {
 
 // --- ACCESSI
 
-export class BulkEditAccessibilityProvider implements IAccessibilityProvider<BulkEditElement> {
+export class BulkEditAccessibilityProvider implements IListAccessibilityProvider<BulkEditElement> {
 
 	constructor(@ILabelService private readonly _labelService: ILabelService) { }
+
+	getRole(_element: BulkEditElement): string {
+		return 'checkbox';
+	}
 
 	getAriaLabel(element: BulkEditElement): string | null {
 		if (element instanceof FileElement) {
@@ -355,21 +358,6 @@ export class BulkEditIdentityProvider implements IIdentityProvider<BulkEditEleme
 		} else {
 			return JSON.stringify(element.category.metadata);
 		}
-	}
-}
-
-export class BulkEditAriaProvider implements IAriaProvider<BulkEditElement> {
-
-	getSetSize(_element: BulkEditElement, _index: number, listLength: number): number {
-		return listLength;
-	}
-
-	getPosInSet(_element: BulkEditElement, index: number): number {
-		return index;
-	}
-
-	getRole?(_element: BulkEditElement): string {
-		return 'checkbox';
 	}
 }
 

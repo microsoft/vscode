@@ -35,6 +35,12 @@ export interface CodeActionSet extends IDisposable {
 class ManagedCodeActionSet extends Disposable implements CodeActionSet {
 
 	private static codeActionsComparator(a: modes.CodeAction, b: modes.CodeAction): number {
+		if (a.isPreferred && !b.isPreferred) {
+			return -1;
+		} else if (!a.isPreferred && b.isPreferred) {
+			return 1;
+		}
+
 		if (isNonEmptyArray(a.diagnostics)) {
 			if (isNonEmptyArray(b.diagnostics)) {
 				return a.diagnostics[0].message.localeCompare(b.diagnostics[0].message);

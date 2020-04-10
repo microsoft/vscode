@@ -156,9 +156,12 @@ export class SCMStatusController implements IWorkbenchContribution {
 
 		const disposables = new DisposableStore();
 		for (const c of commands) {
+			const tooltip = `${label} - ${c.tooltip}`;
+
 			disposables.add(this.statusbarService.addEntry({
 				text: c.title,
-				tooltip: `${label} - ${c.tooltip}`,
+				ariaLabel: tooltip,
+				tooltip,
 				command: c
 			}, 'status.scm', localize('status.scm', "Source Control"), MainThreadStatusBarAlignment.LEFT, 10000));
 		}

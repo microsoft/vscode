@@ -72,6 +72,7 @@ export class NotificationsStatus extends Disposable {
 		// Show the bell with a dot if there are unread or in-progress notifications
 		const statusProperties: IStatusbarEntry = {
 			text: `${notificationsInProgress > 0 || this.newNotificationsCount > 0 ? '$(bell-dot)' : '$(bell)'}`,
+			ariaLabel: localize('status.notifications', "Notifications"),
 			command: this.isNotificationsCenterVisible ? HIDE_NOTIFICATIONS_CENTER : SHOW_NOTIFICATIONS_CENTER,
 			tooltip: this.getTooltip(notificationsInProgress),
 			showBeak: this.isNotificationsCenterVisible
@@ -179,7 +180,7 @@ export class NotificationsStatus extends Disposable {
 		let statusMessageEntry: IStatusbarEntryAccessor;
 		let showHandle: any = setTimeout(() => {
 			statusMessageEntry = this.statusbarService.addEntry(
-				{ text: message },
+				{ text: message, ariaLabel: message },
 				'status.message',
 				localize('status.message', "Status Message"),
 				StatusbarAlignment.LEFT,

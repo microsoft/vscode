@@ -689,6 +689,10 @@ class StatusbarEntryItem extends Disposable {
 			}
 		}
 
+		if (!this.entry || entry.ariaLabel !== this.entry.ariaLabel) {
+			this.container.setAttribute('aria-label', entry.ariaLabel);
+		}
+
 		// Update: Tooltip (on the container, because label can be disabled)
 		if (!this.entry || entry.tooltip !== this.entry.tooltip) {
 			if (entry.tooltip) {

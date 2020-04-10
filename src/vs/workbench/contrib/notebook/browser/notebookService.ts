@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
@@ -143,6 +144,7 @@ export class NotebookService extends Disposable implements INotebookService {
 						id: notebookContribution.viewType,
 						displayName: notebookContribution.displayName,
 						selector: notebookContribution.selector || [],
+						providerDisplayName: extension.description.isBuiltin ? nls.localize('builtinProviderDisplayName', "Built-in") : extension.description.displayName || extension.description.identifier.value,
 					}));
 				}
 			}

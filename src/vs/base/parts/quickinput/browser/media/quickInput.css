@@ -201,7 +201,8 @@
 	flex: 1; /* make sure the icon label grows within the row */
 }
 
-.quick-input-list .quick-input-list-rows > .quick-input-list-row .codicon {
+.quick-input-list .quick-input-list-rows > .quick-input-list-row .codicon[class*='codicon-'] {
+	color: currentColor !important;
 	vertical-align: sub;
 }
 
@@ -237,7 +238,7 @@
 .quick-input-list .quick-input-list-entry-action-bar .action-label {
 	/*
 	 * By default, actions in the quick input action bar are hidden
-	 * until hovered over them or selected. 
+	 * until hovered over them or selected.
 	 */
 	display: none;
 }

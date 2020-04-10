@@ -6,7 +6,7 @@
 import 'vs/css!./media/tree';
 import { IDisposable, dispose, Disposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IListOptions, List, IListStyles, MouseController, DefaultKeyboardNavigationDelegate } from 'vs/base/browser/ui/list/listWidget';
-import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListEvent, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IKeyboardNavigationLabelProvider, IIdentityProvider, IKeyboardNavigationDelegate, ListAriaRootRole } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListEvent, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IKeyboardNavigationLabelProvider, IIdentityProvider, IKeyboardNavigationDelegate } from 'vs/base/browser/ui/list/list';
 import { append, $, toggleClass, getDomNodePagePosition, removeClass, addClass, hasClass, hasParentWithClass, createStyleSheet, clearNode, addClasses, removeClasses } from 'vs/base/browser/dom';
 import { Event, Relay, Emitter, EventBufferer } from 'vs/base/common/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -162,6 +162,23 @@ function asListOptions<T, TFilterData, TRef>(modelProvider: () => ITreeModel<T, 
 		},
 		accessibilityProvider: options.accessibilityProvider && {
 			...options.accessibilityProvider,
+			getSetSize(node) {
+				const model = modelProvider();
+				const ref = model.getNodeLocation(node);
+				const parentRef = model.getParentNodeLocation(ref);
+				const parentNode = model.getNode(parentRef);
+
+				return parentNode.visibleChildrenCount;
+			},
+			getPosInSet(node) {
+				return node.visibleChildIndex + 1;
+			},
+			isChecked: options.accessibilityProvider && options.accessibilityProvider.isChecked ? (node) => {
+				return options.accessibilityProvider!.isChecked!(node.element);
+			} : undefined,
+			getRole: options.accessibilityProvider && options.accessibilityProvider.getRole ? (node) => {
+				return options.accessibilityProvider!.getRole!(node.element);
+			} : () => 'treeitem',
 			getAriaLabel(e) {
 				return options.accessibilityProvider!.getAriaLabel(e.element);
 			},
@@ -179,26 +196,7 @@ function asListOptions<T, TFilterData, TRef>(modelProvider: () => ITreeModel<T, 
 			}
 		},
 		enableKeyboardNavigation: options.simpleKeyboardNavigation,
-		ariaProvider: {
-			getSetSize(node) {
-				const model = modelProvider();
-				const ref = model.getNodeLocation(node);
-				const parentRef = model.getParentNodeLocation(ref);
-				const parentNode = model.getNode(parentRef);
-
-				return parentNode.visibleChildrenCount;
-			},
-			getPosInSet(node) {
-				return node.visibleChildIndex + 1;
-			},
-			isChecked: options.ariaProvider && options.ariaProvider.isChecked ? (node) => {
-				return options.ariaProvider!.isChecked!(node.element);
-			} : undefined,
-			getRole: options.ariaProvider && options.ariaProvider.getRole ? (node) => {
-				return options.ariaProvider!.getRole!(node.element);
-			} : () => 'treeitem'
-		},
-		ariaRole: ListAriaRootRole.TREE
+		ariaRole: 'tree'
 	};
 }
 

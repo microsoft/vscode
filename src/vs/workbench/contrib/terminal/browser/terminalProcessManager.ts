@@ -135,6 +135,9 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			const hasRemoteAuthority = !!this.remoteAuthority;
 			let launchRemotely = hasRemoteAuthority || forceExtHostProcess;
 
+			// userHomeSync is needed here as remote resolvers can launch local terminals before
+			// they're connected to the remote.
+			this.userHome = this._remotePathService.userHomeSync?.fsPath;
 			const userHomeUri = await this._remotePathService.userHome;
 			this.os = platform.OS;
 			if (launchRemotely) {
@@ -142,6 +145,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				if (hasRemoteAuthority) {
 					const remoteEnv = await this._remoteAgentService.getEnvironment();
 					if (remoteEnv) {
+						this.userHome = remoteEnv.userHome.path;
 						this.os = remoteEnv.os;
 					}
 				}
@@ -149,7 +153,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
 				this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, this._configHelper);
 			} else {
-				this.userHome = userHomeUri.fsPath;
 				this._process = await this._launchProcess(shellLaunchConfig, cols, rows, this.userHome, isScreenReaderModeEnabled);
 			}
 		}
@@ -195,7 +198,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		shellLaunchConfig: IShellLaunchConfig,
 		cols: number,
 		rows: number,
-		userHome: string,
+		userHome: string | undefined,
 		isScreenReaderModeEnabled: boolean
 	): Promise<ITerminalChildProcess> {
 		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);

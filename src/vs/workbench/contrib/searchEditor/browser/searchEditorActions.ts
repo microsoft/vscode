@@ -189,7 +189,7 @@ const openNewSearchEditor =
 
 		telemetryService.publicLog2('searchEditor/openNewSearchEditor');
 
-		const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { config: { query: selected } });
+		const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { config: { query: selected }, text: '' });
 		const editor = await editorService.openEditor(input, { pinned: true }, toSide ? SIDE_GROUP : ACTIVE_GROUP) as SearchEditor;
 
 		if (selected && configurationService.getValue<ISearchConfigurationProperties>('search').searchOnType) {
@@ -214,9 +214,9 @@ export const createEditorFromSearchResult =
 
 		const labelFormatter = (uri: URI): string => labelService.getUriLabel(uri, { relative: true });
 
-		const { text, matchRanges } = serializeSearchResultForEditor(searchResult, rawIncludePattern, rawExcludePattern, 0, labelFormatter, true);
+		const { text, matchRanges, config } = serializeSearchResultForEditor(searchResult, rawIncludePattern, rawExcludePattern, 0, labelFormatter);
 
-		const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { text });
+		const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { text, config });
 		await editorService.openEditor(input, { pinned: true });
 		input.setMatchRanges(matchRanges);
 	};

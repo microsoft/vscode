@@ -48,7 +48,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { domEvent } from 'vs/base/browser/event';
-import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 
 export const IExtensionHostProfileService = createDecorator<IExtensionHostProfileService>('extensionHostProfileService');
 export const CONTEXT_PROFILE_SESSION_STATE = new RawContextKey<string>('profileSessionState', 'none');
@@ -692,7 +692,7 @@ export class SaveExtensionHostProfileAction extends Action {
 	}
 }
 
-class RuntimeExtensionsEditorAccessibilityProvider implements IAccessibilityProvider<IRuntimeExtension> {
+class RuntimeExtensionsEditorAccessibilityProvider implements IListAccessibilityProvider<IRuntimeExtension> {
 	getAriaLabel(element: IRuntimeExtension): string | null {
 		return element.description.name;
 	}

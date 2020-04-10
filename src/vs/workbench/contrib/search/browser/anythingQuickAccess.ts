@@ -816,7 +816,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 					return TriggerAction.CLOSE_PICKER;
 				},
-				accept: (keyMods, event) => this.openAnything(activeGlobalResource, { keyMods, range: editorSymbolPick.range?.selection, preserveFocus: event.inBackground })
+				accept: (keyMods, event) => this.openAnything(activeGlobalResource, { keyMods, range: editorSymbolPick.range?.selection, preserveFocus: event.inBackground, forcePinned: event.inBackground })
 			};
 		});
 	}
@@ -901,14 +901,14 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 				return TriggerAction.NO_ACTION;
 			},
-			accept: (keyMods, event) => this.openAnything(resourceOrEditor, { keyMods, range: this.pickState.lastRange, preserveFocus: event.inBackground })
+			accept: (keyMods, event) => this.openAnything(resourceOrEditor, { keyMods, range: this.pickState.lastRange, preserveFocus: event.inBackground, forcePinned: event.inBackground })
 		};
 	}
 
-	private async openAnything(resourceOrEditor: URI | IEditorInput | IResourceEditorInput, options: { keyMods?: IKeyMods, preserveFocus?: boolean, range?: IRange, forceOpenSideBySide?: boolean }): Promise<void> {
+	private async openAnything(resourceOrEditor: URI | IEditorInput | IResourceEditorInput, options: { keyMods?: IKeyMods, preserveFocus?: boolean, range?: IRange, forceOpenSideBySide?: boolean, forcePinned?: boolean }): Promise<void> {
 		const editorOptions: ITextEditorOptions = {
 			preserveFocus: options.preserveFocus,
-			pinned: options.keyMods?.alt || this.configuration.openEditorPinned,
+			pinned: options.keyMods?.alt || options.forcePinned || this.configuration.openEditorPinned,
 			selection: options.range ? Range.collapseToStart(options.range) : undefined
 		};
 

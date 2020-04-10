@@ -16,7 +16,7 @@ import { dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewPaneContainer, AutoUpdateConfigurationKey, IExtensionContainer, EXTENSIONS_CONFIG, TOGGLE_IGNORE_EXTENSION_ACTION_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/contrib/extensions/common/extensionsFileTemplate';
 import { IGalleryExtension, IExtensionGalleryService, INSTALL_ERROR_MALICIOUS, INSTALL_ERROR_INCOMPATIBLE, IGalleryExtensionVersion, ILocalExtension, INSTALL_ERROR_NOT_SUPPORTED } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionRecommendationsService, IExtensionRecommendation, IExtensionsConfigContent, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionRecommendationsService, IExtensionsConfigContent, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionType, ExtensionIdentifier, IExtensionDescription, IExtensionManifest, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -1697,14 +1697,14 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 	static readonly ID = 'workbench.extensions.action.installWorkspaceRecommendedExtensions';
 	static readonly LABEL = localize('installWorkspaceRecommendedExtensions', "Install All Workspace Recommended Extensions");
 
-	private _recommendations: IExtensionRecommendation[] = [];
-	get recommendations(): IExtensionRecommendation[] { return this._recommendations; }
-	set recommendations(recommendations: IExtensionRecommendation[]) { this._recommendations = recommendations; this.enabled = this._recommendations.length > 0; }
+	private _recommendations: string[] = [];
+	get recommendations(): string[] { return this._recommendations; }
+	set recommendations(recommendations: string[]) { this._recommendations = recommendations; this.enabled = this._recommendations.length > 0; }
 
 	constructor(
 		id: string = InstallWorkspaceRecommendedExtensionsAction.ID,
 		label: string = InstallWorkspaceRecommendedExtensionsAction.LABEL,
-		recommendations: IExtensionRecommendation[],
+		recommendations: string[],
 		@IViewletService private readonly viewletService: IViewletService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IExtensionsWorkbenchService private readonly extensionWorkbenchService: IExtensionsWorkbenchService,
@@ -1722,7 +1722,7 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 			.then(viewlet => {
 				viewlet.search('@recommended ');
 				viewlet.focus();
-				const names = this.recommendations.map(({ extensionId }) => extensionId);
+				const names = this.recommendations;
 				return this.extensionWorkbenchService.queryGallery({ names, source: 'install-all-workspace-recommendations' }, CancellationToken.None).then(pager => {
 					let installPromises: Promise<any>[] = [];
 					let model = new PagedModel(pager);

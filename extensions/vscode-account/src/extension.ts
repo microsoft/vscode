@@ -35,7 +35,6 @@ export async function activate(context: vscode.ExtensionContext) {
 		logout: async (id: string) => {
 			await loginService.logout(id);
 			onDidChangeSessions.fire({ added: [], removed: [id], changed: [] });
-			vscode.window.showInformationMessage(localize('signedOut', "Successfully signed out."));
 		}
 	}));
 

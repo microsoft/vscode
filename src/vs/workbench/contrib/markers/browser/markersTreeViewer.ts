@@ -25,7 +25,7 @@ import { ITreeFilter, TreeVisibility, TreeFilterResult, ITreeRenderer, ITreeNode
 import { FilterOptions } from 'vs/workbench/contrib/markers/browser/markersFilterOptions';
 import { IMatch } from 'vs/base/common/filters';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { Action, IAction } from 'vs/base/common/actions';
@@ -71,7 +71,7 @@ interface IRelatedInformationTemplateData {
 	description: HighlightedLabel;
 }
 
-export class MarkersTreeAccessibilityProvider implements IAccessibilityProvider<TreeElement> {
+export class MarkersTreeAccessibilityProvider implements IListAccessibilityProvider<TreeElement> {
 
 	constructor(@ILabelService private readonly labelService: ILabelService) { }
 

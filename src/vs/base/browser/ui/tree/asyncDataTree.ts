@@ -5,7 +5,7 @@
 
 import { ComposedTreeDelegate, IAbstractTreeOptions, IAbstractTreeOptionsUpdate } from 'vs/base/browser/ui/tree/abstractTree';
 import { ObjectTree, IObjectTreeOptions, CompressibleObjectTree, ICompressibleTreeRenderer, ICompressibleKeyboardNavigationLabelProvider, ICompressibleObjectTreeOptions } from 'vs/base/browser/ui/tree/objectTree';
-import { IListVirtualDelegate, IIdentityProvider, IListDragAndDrop, IListDragOverReaction, ListAriaRootRole } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate, IIdentityProvider, IListDragAndDrop, IListDragOverReaction } from 'vs/base/browser/ui/list/list';
 import { ITreeElement, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeSorter, ICollapseStateChangeEvent, IAsyncDataSource, ITreeDragAndDrop, TreeError, WeakMapper, ITreeFilter, TreeVisibility, TreeFilterResult } from 'vs/base/browser/ui/tree/tree';
 import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -231,6 +231,14 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 		},
 		accessibilityProvider: options.accessibilityProvider && {
 			...options.accessibilityProvider,
+			getPosInSet: undefined,
+			getSetSize: undefined,
+			getRole: options.accessibilityProvider!.getRole ? (el) => {
+				return options.accessibilityProvider!.getRole!(el.element as T);
+			} : () => 'treeitem',
+			isChecked: options.accessibilityProvider!.isChecked ? (e) => {
+				return !!(options.accessibilityProvider?.isChecked!(e.element as T));
+			} : undefined,
 			getAriaLabel(e) {
 				return options.accessibilityProvider!.getAriaLabel(e.element as T);
 			},
@@ -258,21 +266,7 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 				e => (options.expandOnlyOnTwistieClick as ((e: T) => boolean))(e.element as T)
 			)
 		),
-		ariaProvider: options.ariaProvider && {
-			getPosInSet(el, index) {
-				return options.ariaProvider!.getPosInSet(el.element as T, index);
-			},
-			getSetSize(el, index, listLength) {
-				return options.ariaProvider!.getSetSize(el.element as T, index, listLength);
-			},
-			getRole: options.ariaProvider!.getRole ? (el) => {
-				return options.ariaProvider!.getRole!(el.element as T);
-			} : () => 'treeitem',
-			isChecked: options.ariaProvider!.isChecked ? (e) => {
-				return !!(options.ariaProvider?.isChecked!(e.element as T));
-			} : undefined
-		},
-		ariaRole: ListAriaRootRole.TREE,
+		ariaRole: 'tree',
 		additionalScrollHeight: options.additionalScrollHeight
 	};
 }

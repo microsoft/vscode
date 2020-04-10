@@ -152,6 +152,7 @@ export class ProgressService extends Disposable implements IProgressService {
 
 			const statusEntryProperties: IStatusbarEntry = {
 				text: `$(sync~spin) ${text}`,
+				ariaLabel: text,
 				tooltip: title,
 				command: progressCommand
 			};

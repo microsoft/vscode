@@ -16,6 +16,8 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebook
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/sizeObserver';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { CellOutputKind, IOutput, IRenderOutput, ITransformedDisplayOutputDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 interface IMimeTypeRenderer extends IQuickPickItem {
 	index: number;
@@ -255,12 +257,26 @@ export class CodeCell extends Disposable {
 				outputItemDiv.style.position = 'relative';
 				const mimeTypePicker = DOM.$('.multi-mimetype-output');
 				DOM.addClasses(mimeTypePicker, 'codicon', 'codicon-code');
+				mimeTypePicker.tabIndex = 0;
+				mimeTypePicker.title = nls.localize('mimeTypePicker', "Choose a different output mimetype");
 				outputItemDiv.appendChild(mimeTypePicker);
 				this.outputResizeListeners.get(currOutput)!.add(DOM.addStandardDisposableListener(mimeTypePicker, 'mousedown', async e => {
-					e.preventDefault();
-					e.stopPropagation();
-					await this.pickActiveMimeTypeRenderer(transformedDisplayOutput);
+					if (e.leftButton) {
+						e.preventDefault();
+						e.stopPropagation();
+						await this.pickActiveMimeTypeRenderer(transformedDisplayOutput);
+					}
 				}));
+
+				this.outputResizeListeners.get(currOutput)!.add((DOM.addDisposableListener(mimeTypePicker, DOM.EventType.KEY_DOWN, async e => {
+					const event = new StandardKeyboardEvent(e);
+					if ((event.equals(KeyCode.Enter) || event.equals(KeyCode.Space))) {
+						e.preventDefault();
+						e.stopPropagation();
+						await this.pickActiveMimeTypeRenderer(transformedDisplayOutput);
+					}
+				})));
+
 			}
 			let pickedMimeTypeRenderer = currOutput.orderedMimeTypes[currOutput.pickedMimeTypeIndex];
 
@@ -341,7 +357,7 @@ export class CodeCell extends Disposable {
 
 	generateRendererInfo(renderId: number | undefined): string {
 		if (renderId === undefined || renderId === -1) {
-			return 'builtin';
+			return nls.localize('builtinRenderInfo', "built-in");
 		}
 
 		let renderInfo = this.notebookService.getRendererInfo(renderId);
@@ -350,7 +366,7 @@ export class CodeCell extends Disposable {
 			return renderInfo.id.value;
 		}
 
-		return 'builtin';
+		return nls.localize('builtinRenderInfo', "built-in");
 	}
 
 	async pickActiveMimeTypeRenderer(output: ITransformedDisplayOutputDto) {

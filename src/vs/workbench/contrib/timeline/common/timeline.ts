@@ -24,6 +24,7 @@ export interface TimelineItem {
 	id?: string;
 	timestamp: number;
 	label: string;
+	ariaLabel?: string;
 	icon?: URI,
 	iconDark?: URI,
 	themeIcon?: { id: string },

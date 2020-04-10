@@ -18,7 +18,7 @@ import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { IActivity } from 'vs/workbench/common/activity';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Emitter } from 'vs/base/common/event';
-import { LocalSelectionTransfer, DraggedCompositeIdentifier, DraggedViewIdentifier, CompositeDragAndDropObserver, ICompositeDragAndDrop, Before2D } from 'vs/workbench/browser/dnd';
+import { CompositeDragAndDropObserver, ICompositeDragAndDrop, Before2D } from 'vs/workbench/browser/dnd';
 import { Color } from 'vs/base/common/color';
 
 export interface ICompositeActivity {
@@ -452,7 +452,6 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 	private static manageExtensionAction: ManageExtensionAction;
 
 	private compositeActivity: IActivity | undefined;
-	private compositeTransfer: LocalSelectionTransfer<DraggedCompositeIdentifier | DraggedViewIdentifier>;
 
 	constructor(
 		private compositeActivityAction: ActivityAction,
@@ -469,8 +468,6 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 		@IThemeService themeService: IThemeService
 	) {
 		super(compositeActivityAction, { draggable: true, colors, icon }, themeService);
-
-		this.compositeTransfer = LocalSelectionTransfer.getInstance<DraggedCompositeIdentifier | DraggedViewIdentifier>();
 
 		if (!CompositeActionViewItem.manageExtensionAction) {
 			CompositeActionViewItem.manageExtensionAction = instantiationService.createInstance(ManageExtensionAction);
@@ -670,9 +667,6 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 
 	dispose(): void {
 		super.dispose();
-
-		this.compositeTransfer.clearData(DraggedCompositeIdentifier.prototype);
-
 		this.label.remove();
 	}
 }

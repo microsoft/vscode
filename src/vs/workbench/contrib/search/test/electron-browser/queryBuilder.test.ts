@@ -11,6 +11,8 @@ import { ISearchPathsInfo, QueryBuilder } from 'vs/workbench/contrib/search/comm
 import { TestEnvironmentService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { assertEqualSearchPathResults, getUri, patternsToIExpression, globalGlob, fixPath } from 'vs/workbench/contrib/search/test/browser/queryBuilder.test';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestRemotePathService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
 
 const DEFAULT_EDITOR_CONFIG = {};
 const DEFAULT_USER_CONFIG = { useRipgrep: true, useIgnoreFiles: true, useGlobalIgnoreFiles: true };
@@ -25,7 +27,7 @@ suite('QueryBuilder', () => {
 	let mockContextService: TestContextService;
 	let mockWorkspace: Workspace;
 
-	setup(() => {
+	setup(async () => {
 		instantiationService = new TestInstantiationService();
 
 		mockConfigService = new TestConfigurationService();
@@ -39,8 +41,10 @@ suite('QueryBuilder', () => {
 
 		instantiationService.stub(IWorkspaceContextService, mockContextService);
 		instantiationService.stub(IEnvironmentService, TestEnvironmentService);
+		instantiationService.stub(IRemotePathService, new TestRemotePathService(TestEnvironmentService));
 
 		queryBuilder = instantiationService.createInstance(QueryBuilder);
+		await new Promise(resolve => setTimeout(resolve, 5)); // Wait for RemotePathService.userHome to resolve
 	});
 
 	suite('parseSearchPaths', () => {
