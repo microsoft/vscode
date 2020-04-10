@@ -103,6 +103,7 @@ export class FeedbackStatusbarConribution extends Disposable implements IWorkben
 	private getStatusEntry(showBeak?: boolean): IStatusbarEntry {
 		return {
 			text: '$(feedback)',
+			ariaLabel: localize('status.feedback', "Tweet Feedback"),
 			tooltip: localize('status.feedback', "Tweet Feedback"),
 			command: 'help.tweetFeedback',
 			showBeak
