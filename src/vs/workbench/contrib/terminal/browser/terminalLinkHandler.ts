@@ -335,11 +335,7 @@ export class TerminalLinkHandler extends DisposableStore {
 			}
 		}
 
-		const message: IMarkdownString = new MarkdownString(`[Follow Link](${uri}) (${label})`, true);
-		message.uris = {
-			[uri]: URI.parse(uri).toJSON()
-		};
-		return message;
+		return new MarkdownString(`[Follow Link](${uri}) (${label})`, true);
 	}
 
 	private get osPath(): IPath {
