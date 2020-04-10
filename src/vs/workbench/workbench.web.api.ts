@@ -233,7 +233,6 @@ export {
 	create,
 	IWorkbenchConstructionOptions,
 
-
 	// Basic Types
 	URI,
 	UriComponents,

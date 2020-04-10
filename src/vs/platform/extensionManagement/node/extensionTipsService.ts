@@ -27,7 +27,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@IProductService private readonly productService: IProductService,
 		@IRequestService private readonly requestService: IRequestService,
 		@ILogService private readonly logService: ILogService,
@@ -76,7 +76,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 				}
 			} else {
 				exePaths.push(join('/usr/local/bin', exeName));
-				exePaths.push(join((this.environmentService as INativeEnvironmentService).userHome.fsPath, exeName));
+				exePaths.push(join(this.environmentService.userHome.fsPath, exeName));
 			}
 
 			for (const exePath of exePaths) {
