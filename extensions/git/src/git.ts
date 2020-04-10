@@ -443,7 +443,10 @@ export class Git {
 						);
 						if (networkPath !== undefined) {
 							return path.normalize(
-								repoUri.fsPath.replace(networkPath, `${letter.toLowerCase()}:`),
+								repoUri.fsPath.replace(
+									networkPath,
+									`${letter.toLowerCase()}:${networkPath.endsWith('\\') ? '\\' : ''}`
+								),
 							);
 						}
 					} catch { }
