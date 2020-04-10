@@ -195,7 +195,7 @@ export class FindModelBoundToEditorModel {
 			undefined
 		);
 
-		if (moveCursor) {
+		if (moveCursor && this._editor.getOption(EditorOption.find).moveOnType) {
 			this._moveToNextMatch(this._decorations.getStartPosition());
 		}
 	}
