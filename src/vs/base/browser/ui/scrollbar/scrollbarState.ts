@@ -14,7 +14,7 @@ export class ScrollbarState {
 	 * For the vertical scrollbar: the width.
 	 * For the horizontal scrollbar: the height.
 	 */
-	private readonly _scrollbarSize: number;
+	private _scrollbarSize: number;
 
 	/**
 	 * For the vertical scrollbar: the height of the pair horizontal scrollbar.
@@ -112,6 +112,10 @@ export class ScrollbarState {
 			return true;
 		}
 		return false;
+	}
+
+	public setScrollbarSize(scrollbarSize: number): void {
+		this._scrollbarSize = scrollbarSize;
 	}
 
 	private static _computeValues(oppositeScrollbarSize: number, arrowSize: number, visibleSize: number, scrollSize: number, scrollPosition: number) {

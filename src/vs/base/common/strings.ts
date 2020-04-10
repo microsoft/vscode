@@ -14,7 +14,7 @@ export function isFalsyOrWhitespace(str: string | undefined): boolean {
 }
 
 /**
- * @returns the provided number with the given number of preceding zeros.
+ * @deprecated ES6: use `String.padStart`
  */
 export function pad(n: number, l: number, char: string = '0'): string {
 	const str = '' + n;
@@ -145,7 +145,7 @@ export function stripWildcards(pattern: string): string {
 }
 
 /**
- * Determines if haystack starts with needle.
+ * @deprecated ES6: use `String.startsWith`
  */
 export function startsWith(haystack: string, needle: string): boolean {
 	if (haystack.length < needle.length) {
@@ -166,7 +166,7 @@ export function startsWith(haystack: string, needle: string): boolean {
 }
 
 /**
- * Determines if haystack ends with needle.
+ * @deprecated ES6: use `String.endsWith`
  */
 export function endsWith(haystack: string, needle: string): boolean {
 	const diff = haystack.length - needle.length;
@@ -240,7 +240,7 @@ export function regExpFlags(regexp: RegExp): string {
 	return (regexp.global ? 'g' : '')
 		+ (regexp.ignoreCase ? 'i' : '')
 		+ (regexp.multiline ? 'm' : '')
-		+ ((regexp as any).unicode ? 'u' : '');
+		+ ((regexp as any /* standalone editor compilation */).unicode ? 'u' : '');
 }
 
 /**
@@ -295,47 +295,69 @@ export function compare(a: string, b: string): number {
 	}
 }
 
+export function compareSubstring(a: string, b: string, aStart: number = 0, aEnd: number = a.length, bStart: number = 0, bEnd: number = b.length): number {
+	for (; aStart < aEnd && bStart < bEnd; aStart++, bStart++) {
+		let codeA = a.charCodeAt(aStart);
+		let codeB = b.charCodeAt(bStart);
+		if (codeA < codeB) {
+			return -1;
+		} else if (codeA > codeB) {
+			return 1;
+		}
+	}
+	const aLen = aEnd - aStart;
+	const bLen = bEnd - bStart;
+	if (aLen < bLen) {
+		return -1;
+	} else if (aLen > bLen) {
+		return 1;
+	}
+	return 0;
+}
+
 export function compareIgnoreCase(a: string, b: string): number {
-	const len = Math.min(a.length, b.length);
-	for (let i = 0; i < len; i++) {
-		let codeA = a.charCodeAt(i);
-		let codeB = b.charCodeAt(i);
+	return compareSubstringIgnoreCase(a, b, 0, a.length, 0, b.length);
+}
+
+export function compareSubstringIgnoreCase(a: string, b: string, aStart: number = 0, aEnd: number = a.length, bStart: number = 0, bEnd: number = b.length): number {
+
+	for (; aStart < aEnd && bStart < bEnd; aStart++, bStart++) {
+
+		let codeA = a.charCodeAt(aStart);
+		let codeB = b.charCodeAt(bStart);
 
 		if (codeA === codeB) {
 			// equal
 			continue;
 		}
 
-		if (isUpperAsciiLetter(codeA)) {
-			codeA += 32;
-		}
-
-		if (isUpperAsciiLetter(codeB)) {
-			codeB += 32;
-		}
-
 		const diff = codeA - codeB;
-
-		if (diff === 0) {
-			// equal -> ignoreCase
+		if (diff === 32 && isUpperAsciiLetter(codeB)) { //codeB =[65-90] && codeA =[97-122]
 			continue;
 
-		} else if (isLowerAsciiLetter(codeA) && isLowerAsciiLetter(codeB)) {
+		} else if (diff === -32 && isUpperAsciiLetter(codeA)) {  //codeB =[97-122] && codeA =[65-90]
+			continue;
+		}
+
+		if (isLowerAsciiLetter(codeA) && isLowerAsciiLetter(codeB)) {
 			//
 			return diff;
 
 		} else {
-			return compare(a.toLowerCase(), b.toLowerCase());
+			return compareSubstring(a.toLowerCase(), b.toLowerCase(), aStart, aEnd, bStart, bEnd);
 		}
 	}
 
-	if (a.length < b.length) {
+	const aLen = aEnd - aStart;
+	const bLen = bEnd - bStart;
+
+	if (aLen < bLen) {
 		return -1;
-	} else if (a.length > b.length) {
+	} else if (aLen > bLen) {
 		return 1;
-	} else {
-		return 0;
 	}
+
+	return 0;
 }
 
 export function isLowerAsciiLetter(code: number): boolean {
@@ -428,64 +450,25 @@ export function commonSuffixLength(a: string, b: string): number {
 	return len;
 }
 
-function substrEquals(a: string, aStart: number, aEnd: number, b: string, bStart: number, bEnd: number): boolean {
-	while (aStart < aEnd && bStart < bEnd) {
-		if (a[aStart] !== b[bStart]) {
-			return false;
-		}
-		aStart += 1;
-		bStart += 1;
-	}
-	return true;
-}
-
 /**
- * Return the overlap between the suffix of `a` and the prefix of `b`.
- * For instance `overlap("foobar", "arr, I'm a pirate") === 2`.
+ * See http://en.wikipedia.org/wiki/Surrogate_pair
  */
-export function overlap(a: string, b: string): number {
-	const aEnd = a.length;
-	let bEnd = b.length;
-	let aStart = aEnd - bEnd;
-
-	if (aStart === 0) {
-		return a === b ? aEnd : 0;
-	} else if (aStart < 0) {
-		bEnd += aStart;
-		aStart = 0;
-	}
-
-	while (aStart < aEnd && bEnd > 0) {
-		if (substrEquals(a, aStart, aEnd, b, 0, bEnd)) {
-			return bEnd;
-		}
-		bEnd -= 1;
-		aStart += 1;
-	}
-	return 0;
-}
-
-// --- unicode
-// http://en.wikipedia.org/wiki/Surrogate_pair
-// Returns the code point starting at a specified index in a string
-// Code points U+0000 to U+D7FF and U+E000 to U+FFFF are represented on a single character
-// Code points U+10000 to U+10FFFF are represented on two consecutive characters
-//export function getUnicodePoint(str:string, index:number, len:number):number {
-//	const chrCode = str.charCodeAt(index);
-//	if (0xD800 <= chrCode && chrCode <= 0xDBFF && index + 1 < len) {
-//		const nextChrCode = str.charCodeAt(index + 1);
-//		if (0xDC00 <= nextChrCode && nextChrCode <= 0xDFFF) {
-//			return (chrCode - 0xD800) << 10 + (nextChrCode - 0xDC00) + 0x10000;
-//		}
-//	}
-//	return chrCode;
-//}
 export function isHighSurrogate(charCode: number): boolean {
 	return (0xD800 <= charCode && charCode <= 0xDBFF);
 }
 
+/**
+ * See http://en.wikipedia.org/wiki/Surrogate_pair
+ */
 export function isLowSurrogate(charCode: number): boolean {
 	return (0xDC00 <= charCode && charCode <= 0xDFFF);
+}
+
+/**
+ * See http://en.wikipedia.org/wiki/Surrogate_pair
+ */
+export function computeCodePoint(highSurrogate: number, lowSurrogate: number): number {
+	return ((highSurrogate - 0xD800) << 10) + (lowSurrogate - 0xDC00) + 0x10000;
 }
 
 /**
@@ -496,7 +479,7 @@ export function getNextCodePoint(str: string, len: number, offset: number): numb
 	if (isHighSurrogate(charCode) && offset + 1 < len) {
 		const nextCharCode = str.charCodeAt(offset + 1);
 		if (isLowSurrogate(nextCharCode)) {
-			return ((charCode - 0xD800) << 10) + (nextCharCode - 0xDC00) + 0x10000;
+			return computeCodePoint(charCode, nextCharCode);
 		}
 	}
 	return charCode;
@@ -510,7 +493,7 @@ function getPrevCodePoint(str: string, offset: number): number {
 	if (isLowSurrogate(charCode) && offset > 1) {
 		const prevCharCode = str.charCodeAt(offset - 2);
 		if (isHighSurrogate(prevCharCode)) {
-			return ((prevCharCode - 0xD800) << 10) + (charCode - 0xDC00) + 0x10000;
+			return computeCodePoint(prevCharCode, charCode);
 		}
 	}
 	return charCode;
@@ -851,21 +834,6 @@ export function removeAnsiEscapeCodes(str: string): string {
 
 	return str;
 }
-
-export const removeAccents: (str: string) => string = (function () {
-	if (typeof (String.prototype as any).normalize !== 'function') {
-		// ☹️ no ES6 features...
-		return function (str: string) { return str; };
-	} else {
-		// transform into NFD form and remove accents
-		// see: https://stackoverflow.com/questions/990904/remove-accents-diacritics-in-a-string-in-javascript/37511463#37511463
-		const regex = /[\u0300-\u036f]/g;
-		return function (str: string) {
-			return (str as any).normalize('NFD').replace(regex, '');
-		};
-	}
-})();
-
 
 // -- UTF-8 BOM
 

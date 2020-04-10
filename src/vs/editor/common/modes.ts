@@ -319,6 +319,8 @@ export const enum CompletionItemKind {
 	Customcolor,
 	Folder,
 	TypeParameter,
+	User,
+	Issue,
 	Snippet, // <- highest value (used for compare!)
 }
 
@@ -327,32 +329,34 @@ export const enum CompletionItemKind {
  */
 export const completionKindToCssClass = (function () {
 	let data = Object.create(null);
-	data[CompletionItemKind.Method] = 'method';
-	data[CompletionItemKind.Function] = 'function';
-	data[CompletionItemKind.Constructor] = 'constructor';
-	data[CompletionItemKind.Field] = 'field';
-	data[CompletionItemKind.Variable] = 'variable';
-	data[CompletionItemKind.Class] = 'class';
-	data[CompletionItemKind.Struct] = 'struct';
-	data[CompletionItemKind.Interface] = 'interface';
-	data[CompletionItemKind.Module] = 'module';
-	data[CompletionItemKind.Property] = 'property';
-	data[CompletionItemKind.Event] = 'event';
-	data[CompletionItemKind.Operator] = 'operator';
-	data[CompletionItemKind.Unit] = 'unit';
-	data[CompletionItemKind.Value] = 'value';
-	data[CompletionItemKind.Constant] = 'constant';
-	data[CompletionItemKind.Enum] = 'enum';
-	data[CompletionItemKind.EnumMember] = 'enum-member';
-	data[CompletionItemKind.Keyword] = 'keyword';
-	data[CompletionItemKind.Snippet] = 'snippet';
-	data[CompletionItemKind.Text] = 'text';
-	data[CompletionItemKind.Color] = 'color';
-	data[CompletionItemKind.File] = 'file';
-	data[CompletionItemKind.Reference] = 'reference';
-	data[CompletionItemKind.Customcolor] = 'customcolor';
-	data[CompletionItemKind.Folder] = 'folder';
-	data[CompletionItemKind.TypeParameter] = 'type-parameter';
+	data[CompletionItemKind.Method] = 'symbol-method';
+	data[CompletionItemKind.Function] = 'symbol-function';
+	data[CompletionItemKind.Constructor] = 'symbol-constructor';
+	data[CompletionItemKind.Field] = 'symbol-field';
+	data[CompletionItemKind.Variable] = 'symbol-variable';
+	data[CompletionItemKind.Class] = 'symbol-class';
+	data[CompletionItemKind.Struct] = 'symbol-struct';
+	data[CompletionItemKind.Interface] = 'symbol-interface';
+	data[CompletionItemKind.Module] = 'symbol-module';
+	data[CompletionItemKind.Property] = 'symbol-property';
+	data[CompletionItemKind.Event] = 'symbol-event';
+	data[CompletionItemKind.Operator] = 'symbol-operator';
+	data[CompletionItemKind.Unit] = 'symbol-unit';
+	data[CompletionItemKind.Value] = 'symbol-value';
+	data[CompletionItemKind.Constant] = 'symbol-constant';
+	data[CompletionItemKind.Enum] = 'symbol-enum';
+	data[CompletionItemKind.EnumMember] = 'symbol-enum-member';
+	data[CompletionItemKind.Keyword] = 'symbol-keyword';
+	data[CompletionItemKind.Snippet] = 'symbol-snippet';
+	data[CompletionItemKind.Text] = 'symbol-text';
+	data[CompletionItemKind.Color] = 'symbol-color';
+	data[CompletionItemKind.File] = 'symbol-file';
+	data[CompletionItemKind.Reference] = 'symbol-reference';
+	data[CompletionItemKind.Customcolor] = 'symbol-customcolor';
+	data[CompletionItemKind.Folder] = 'symbol-folder';
+	data[CompletionItemKind.TypeParameter] = 'symbol-type-parameter';
+	data[CompletionItemKind.User] = 'account';
+	data[CompletionItemKind.Issue] = 'issues';
 
 	return function (kind: CompletionItemKind) {
 		return data[kind] || 'property';
@@ -395,7 +399,8 @@ export let completionKindFromString: {
 	data['folder'] = CompletionItemKind.Folder;
 	data['type-parameter'] = CompletionItemKind.TypeParameter;
 	data['typeParameter'] = CompletionItemKind.TypeParameter;
-
+	data['account'] = CompletionItemKind.User;
+	data['issue'] = CompletionItemKind.Issue;
 	return function (value: string, strict?: true) {
 		let res = data[value];
 		if (typeof res === 'undefined' && !strict) {
@@ -412,9 +417,9 @@ export interface CompletionItemLabel {
 	name: string;
 
 	/**
-	 * The signature without the return type. Render after `name`.
+	 * The parameters without the return type. Render after `name`.
 	 */
-	signature?: string;
+	parameters?: string;
 
 	/**
 	 * The fully qualified name, like package name or file path. Rendered after `signature`.
@@ -787,6 +792,20 @@ export interface DocumentHighlightProvider {
 	 * all exit-points of a function.
 	 */
 	provideDocumentHighlights(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<DocumentHighlight[]>;
+}
+
+/**
+ * The rename provider interface defines the contract between extensions and
+ * the live-rename feature.
+ */
+export interface OnTypeRenameProvider {
+
+	stopPattern?: RegExp;
+
+	/**
+	 * Provide a list of ranges that can be live-renamed together.
+	 */
+	provideOnTypeRenameRanges(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<IRange[]>;
 }
 
 /**
@@ -1246,11 +1265,11 @@ export interface SelectionRangeProvider {
 export interface FoldingContext {
 }
 /**
- * A provider of colors for editor models.
+ * A provider of folding ranges for editor models.
  */
 export interface FoldingRangeProvider {
 	/**
-	 * Provides the color ranges for a specific model.
+	 * Provides the folding ranges for a specific model.
 	 */
 	provideFoldingRanges(model: model.ITextModel, context: FoldingContext, token: CancellationToken): ProviderResult<FoldingRange[]>;
 }
@@ -1373,8 +1392,17 @@ export interface RenameProvider {
  */
 export interface AuthenticationSession {
 	id: string;
-	accessToken(): Thenable<string>;
+	getAccessToken(): Thenable<string>;
 	accountName: string;
+}
+
+/**
+ * @internal
+ */
+export interface AuthenticationSessionsChangeEvent {
+	added: string[];
+	removed: string[];
+	changed: string[];
 }
 
 export interface Command {
@@ -1589,6 +1617,7 @@ export interface SemanticTokensEdits {
 }
 
 export interface DocumentSemanticTokensProvider {
+	onDidChange?: Event<void>;
 	getLegend(): SemanticTokensLegend;
 	provideDocumentSemanticTokens(model: model.ITextModel, lastResultId: string | null, token: CancellationToken): ProviderResult<SemanticTokens | SemanticTokensEdits>;
 	releaseDocumentSemanticTokens(resultId: string | undefined): void;
@@ -1640,6 +1669,11 @@ export const DocumentSymbolProviderRegistry = new LanguageFeatureRegistry<Docume
  * @internal
  */
 export const DocumentHighlightProviderRegistry = new LanguageFeatureRegistry<DocumentHighlightProvider>();
+
+/**
+ * @internal
+ */
+export const OnTypeRenameProviderRegistry = new LanguageFeatureRegistry<OnTypeRenameProvider>();
 
 /**
  * @internal

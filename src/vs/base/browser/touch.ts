@@ -131,7 +131,9 @@ export class Gesture extends Disposable {
 
 	@memoize
 	private static isTouchDevice(): boolean {
-		return 'ontouchstart' in window as any || navigator.maxTouchPoints > 0 || window.navigator.msMaxTouchPoints > 0;
+		// `'ontouchstart' in window` always evaluates to true with typescript's modern typings. This causes `window` to be
+		// `never` later in `window.navigator`. That's why we need the explicit `window as Window` cast
+		return 'ontouchstart' in window || navigator.maxTouchPoints > 0 || (window as Window).navigator.msMaxTouchPoints > 0;
 	}
 
 	public dispose(): void {
@@ -247,7 +249,7 @@ export class Gesture extends Disposable {
 	}
 
 	private newGestureEvent(type: string, initialTarget?: EventTarget): GestureEvent {
-		let event = <GestureEvent>(<any>document.createEvent('CustomEvent'));
+		let event = document.createEvent('CustomEvent') as unknown as GestureEvent;
 		event.initEvent(type, false, true);
 		event.initialTarget = initialTarget;
 		event.tapCount = 0;

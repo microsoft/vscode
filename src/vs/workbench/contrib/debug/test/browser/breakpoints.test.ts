@@ -18,9 +18,10 @@ import { createBreakpointDecorations } from 'vs/workbench/contrib/debug/browser/
 import { OverviewRulerLane } from 'vs/editor/common/model';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { generateUuid } from 'vs/base/common/uuid';
 
 function createMockSession(model: DebugModel, name = 'mockSession', options?: IDebugSessionOptions): DebugSession {
-	return new DebugSession({ resolved: { name, type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, options, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, NullOpenerService, undefined!, undefined!);
+	return new DebugSession(generateUuid(), { resolved: { name, type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, options, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, NullOpenerService, undefined!, undefined!);
 }
 
 function addBreakpointsAndCheckEvents(model: DebugModel, uri: uri, data: IBreakpointData[]): void {
@@ -97,10 +98,10 @@ suite('Debug - Breakpoints', () => {
 		const modelUri1 = uri.file('/myfolder/my file first.js');
 		const modelUri2 = uri.file('/secondfolder/second/second file.js');
 		addBreakpointsAndCheckEvents(model, modelUri1, [{ lineNumber: 5, enabled: true }, { lineNumber: 10, enabled: false }]);
-		assert.equal(getExpandedBodySize(model), 44);
+		assert.equal(getExpandedBodySize(model, 9), 44);
 
 		addBreakpointsAndCheckEvents(model, modelUri2, [{ lineNumber: 1, enabled: true }, { lineNumber: 2, enabled: true }, { lineNumber: 3, enabled: false }]);
-		assert.equal(getExpandedBodySize(model), 110);
+		assert.equal(getExpandedBodySize(model, 9), 110);
 
 		assert.equal(model.getBreakpoints().length, 5);
 		assert.equal(model.getBreakpoints({ uri: modelUri1 }).length, 2);
@@ -134,7 +135,7 @@ suite('Debug - Breakpoints', () => {
 		assert.equal(bp.enabled, true);
 
 		model.removeBreakpoints(model.getBreakpoints({ uri: modelUri1 }));
-		assert.equal(getExpandedBodySize(model), 66);
+		assert.equal(getExpandedBodySize(model, 9), 66);
 
 		assert.equal(model.getBreakpoints().length, 3);
 	});

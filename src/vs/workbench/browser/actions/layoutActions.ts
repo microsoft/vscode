@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/actions';
-
 import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Action } from 'vs/base/common/actions';
@@ -18,17 +16,17 @@ import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { getMenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { isWindows, isLinux, isWeb } from 'vs/base/common/platform';
-import { IsMacNativeContext } from 'vs/workbench/browser/contextkeys';
+import { IsMacNativeContext } from 'vs/platform/contextkey/common/contextkeys';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { InEditorZenModeContext, IsCenteredLayoutContext, EditorAreaVisibleContext } from 'vs/workbench/common/editor';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { SideBarVisibleContext } from 'vs/workbench/common/viewlet';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IViewDescriptorService, IViewContainersRegistry, Extensions as ViewContainerExtensions, IViewsService, FocusedViewContext, ViewContainerLocation } from 'vs/workbench/common/views';
+import { IViewDescriptorService, IViewContainersRegistry, Extensions as ViewContainerExtensions, IViewsService, FocusedViewContext, ViewContainerLocation, IViewDescriptor } from 'vs/workbench/common/views';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 
 const registry = Registry.as<IWorkbenchActionRegistry>(WorkbenchExtensions.WorkbenchActions);
 const viewCategory = nls.localize('view', "View");
@@ -50,14 +48,12 @@ export class CloseSidebarAction extends Action {
 		this.enabled = !!this.layoutService;
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<void> {
 		this.layoutService.setSideBarHidden(true);
-
-		return Promise.resolve();
 	}
 }
 
-registry.registerWorkbenchAction(SyncActionDescriptor.create(CloseSidebarAction, CloseSidebarAction.ID, CloseSidebarAction.LABEL), 'View: Close Side Bar ', viewCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.create(CloseSidebarAction, CloseSidebarAction.ID, CloseSidebarAction.LABEL), 'View: Close Side Bar', viewCategory);
 
 // --- Toggle Activity Bar
 
@@ -79,7 +75,7 @@ export class ToggleActivityBarVisibilityAction extends Action {
 		this.enabled = !!this.layoutService;
 	}
 
-	run(): Promise<any> {
+	run(): Promise<void> {
 		const visibility = this.layoutService.isVisible(Parts.ACTIVITYBAR_PART);
 		const newVisibilityValue = !visibility;
 
@@ -115,10 +111,8 @@ class ToggleCenteredLayout extends Action {
 		this.enabled = !!this.layoutService;
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<void> {
 		this.layoutService.centerEditorLayout(!this.layoutService.isEditorLayoutCentered());
-
-		return Promise.resolve();
 	}
 }
 
@@ -165,11 +159,9 @@ export class ToggleEditorLayoutAction extends Action {
 		this.enabled = this.editorGroupService.count > 1;
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<void> {
 		const newOrientation = (this.editorGroupService.orientation === GroupOrientation.VERTICAL) ? GroupOrientation.HORIZONTAL : GroupOrientation.VERTICAL;
 		this.editorGroupService.setGroupOrientation(newOrientation);
-
-		return Promise.resolve();
 	}
 }
 
@@ -205,7 +197,7 @@ export class ToggleSidebarPositionAction extends Action {
 		this.enabled = !!this.layoutService && !!this.configurationService;
 	}
 
-	run(): Promise<any> {
+	run(): Promise<void> {
 		const position = this.layoutService.getSideBarPosition();
 		const newPositionValue = (position === Position.LEFT) ? 'right' : 'left';
 
@@ -243,7 +235,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 
 export class ToggleEditorVisibilityAction extends Action {
 	static readonly ID = 'workbench.action.toggleEditorVisibility';
-	static readonly LABEL = nls.localize('toggleEditor', "Toggle Editor Area");
+	static readonly LABEL = nls.localize('toggleEditor', "Toggle Editor Area Visibility");
 
 	constructor(
 		id: string,
@@ -255,10 +247,8 @@ export class ToggleEditorVisibilityAction extends Action {
 		this.enabled = !!this.layoutService;
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<void> {
 		this.layoutService.toggleMaximizedPanel();
-
-		return Promise.resolve();
 	}
 }
 
@@ -289,11 +279,9 @@ export class ToggleSidebarVisibilityAction extends Action {
 		this.enabled = !!this.layoutService;
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<void> {
 		const hideSidebar = this.layoutService.isVisible(Parts.SIDEBAR_PART);
 		this.layoutService.setSideBarHidden(hideSidebar);
-
-		return Promise.resolve();
 	}
 }
 
@@ -336,7 +324,7 @@ export class ToggleStatusbarVisibilityAction extends Action {
 		this.enabled = !!this.layoutService;
 	}
 
-	run(): Promise<any> {
+	run(): Promise<void> {
 		const visibility = this.layoutService.isVisible(Parts.STATUSBAR_PART);
 		const newVisibilityValue = !visibility;
 
@@ -373,7 +361,7 @@ class ToggleTabsVisibilityAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<any> {
+	run(): Promise<void> {
 		const visibility = this.configurationService.getValue<string>(ToggleTabsVisibilityAction.tabsVisibleKey);
 		const newVisibilityValue = !visibility;
 
@@ -403,10 +391,8 @@ class ToggleZenMode extends Action {
 		this.enabled = !!this.layoutService;
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<void> {
 		this.layoutService.toggleZenMode();
-
-		return Promise.resolve();
 	}
 }
 
@@ -466,9 +452,7 @@ export class ToggleMenuBarAction extends Action {
 			newVisibilityValue = (isWeb && currentVisibilityValue === 'hidden') ? 'compact' : 'default';
 		}
 
-		this.configurationService.updateValue(ToggleMenuBarAction.menuBarVisibilityKey, newVisibilityValue, ConfigurationTarget.USER);
-
-		return Promise.resolve();
+		return this.configurationService.updateValue(ToggleMenuBarAction.menuBarVisibilityKey, newVisibilityValue, ConfigurationTarget.USER);
 	}
 }
 
@@ -501,7 +485,7 @@ export class ResetViewLocationsAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<void> {
+	async run(): Promise<void> {
 		const viewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 		viewContainerRegistry.all.forEach(viewContainer => {
 			const viewDescriptors = this.viewDescriptorService.getViewDescriptors(viewContainer);
@@ -515,12 +499,41 @@ export class ResetViewLocationsAction extends Action {
 				}
 			});
 		});
-
-		return Promise.resolve();
 	}
 }
 
 registry.registerWorkbenchAction(SyncActionDescriptor.create(ResetViewLocationsAction, ResetViewLocationsAction.ID, ResetViewLocationsAction.LABEL), 'View: Reset View Locations', viewCategory);
+
+// --- Toggle View with Command
+export abstract class ToggleViewAction extends Action {
+
+	constructor(
+		id: string,
+		label: string,
+		private readonly viewId: string,
+		protected viewsService: IViewsService,
+		protected viewDescriptorService: IViewDescriptorService,
+		protected contextKeyService: IContextKeyService,
+		private layoutService: IWorkbenchLayoutService,
+		cssClass?: string
+	) {
+		super(id, label, cssClass);
+	}
+
+	async run(): Promise<void> {
+		const focusedViewId = FocusedViewContext.getValue(this.contextKeyService);
+
+		if (focusedViewId === this.viewId) {
+			if (this.viewDescriptorService.getViewLocation(this.viewId) === ViewContainerLocation.Sidebar) {
+				this.layoutService.setSideBarHidden(true);
+			} else {
+				this.layoutService.setPanelHidden(true);
+			}
+		} else {
+			this.viewsService.openView(this.viewId, true);
+		}
+	}
+}
 
 // --- Move View with Command
 export class MoveFocusedViewAction extends Action {
@@ -536,60 +549,92 @@ export class MoveFocusedViewAction extends Action {
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@INotificationService private notificationService: INotificationService,
 		@IActivityBarService private activityBarService: IActivityBarService,
-		@IViewletService private viewletService: IViewletService
+		@IPanelService private panelService: IPanelService
 	) {
 		super(id, label);
 	}
 
-	run(): Promise<void> {
+	async run(): Promise<void> {
 		const viewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 
 		const focusedViewId = FocusedViewContext.getValue(this.contextKeyService);
 
 		if (focusedViewId === undefined || focusedViewId.trim() === '') {
 			this.notificationService.error(nls.localize('moveFocusedView.error.noFocusedView', "There is no view currently focused."));
-			return Promise.resolve();
+			return;
 		}
 
 		const viewDescriptor = this.viewDescriptorService.getViewDescriptor(focusedViewId);
 		if (!viewDescriptor || !viewDescriptor.canMoveView) {
-			this.notificationService.error(nls.localize('moveFocusedView.error.nonMovableView', "The currently focused view is not movable {0}.", focusedViewId));
-			return Promise.resolve();
+			this.notificationService.error(nls.localize('moveFocusedView.error.nonMovableView', "The currently focused view is not movable."));
+			return;
 		}
 
 		const quickPick = this.quickInputService.createQuickPick();
 		quickPick.placeholder = nls.localize('moveFocusedView.selectDestination', "Select a Destination for the View");
+		quickPick.title = nls.localize('moveFocusedView.title', "View: Move {0}", viewDescriptor.name);
+
+		const items: Array<IQuickPickItem | IQuickPickSeparator> = [];
+
+		items.push({
+			type: 'separator',
+			label: nls.localize('sidebar', "Side Bar")
+		});
+
+		const currentContainer = this.viewDescriptorService.getViewContainer(focusedViewId)!;
+		const currentLocation = this.viewDescriptorService.getViewLocation(focusedViewId)!;
+		const isViewSolo = this.viewDescriptorService.getViewDescriptors(currentContainer).allViewDescriptors.length === 1;
+
+		if (!(isViewSolo && currentLocation === ViewContainerLocation.Sidebar)) {
+			items.push({
+				id: '_.sidebar.newcontainer',
+				label: nls.localize('moveFocusedView.newContainerInSidebar', "New Container in Side Bar")
+			});
+		}
 
 		const pinnedViewlets = this.activityBarService.getPinnedViewletIds();
-		const items: Array<IQuickPickItem | IQuickPickSeparator> = this.viewletService.getViewlets()
-			.filter(viewlet => {
-				if (viewlet.id === this.viewDescriptorService.getViewContainer(focusedViewId)!.id) {
+		items.push(...pinnedViewlets
+			.filter(viewletId => {
+				if (viewletId === this.viewDescriptorService.getViewContainer(focusedViewId)!.id) {
 					return false;
 				}
 
-				return !viewContainerRegistry.get(viewlet.id)!.rejectAddedViews && pinnedViewlets.indexOf(viewlet.id) !== -1;
+				return !viewContainerRegistry.get(viewletId)!.rejectAddedViews;
 			})
-			.map(viewlet => {
+			.map(viewletId => {
 				return {
-					id: viewlet.id,
-					label: viewlet.name,
+					id: viewletId,
+					label: viewContainerRegistry.get(viewletId)!.name
 				};
-			});
+			}));
 
-		if (this.viewDescriptorService.getViewLocation(focusedViewId) !== ViewContainerLocation.Panel) {
-			items.unshift({
-				type: 'separator',
-				label: nls.localize('sidebar', "Side Bar")
-			});
-			items.push({
-				type: 'separator',
-				label: nls.localize('panel', "Panel")
-			});
+		items.push({
+			type: 'separator',
+			label: nls.localize('panel', "Panel")
+		});
+
+		if (!(isViewSolo && currentLocation === ViewContainerLocation.Panel)) {
 			items.push({
 				id: '_.panel.newcontainer',
 				label: nls.localize('moveFocusedView.newContainerInPanel', "New Container in Panel"),
 			});
 		}
+
+		const pinnedPanels = this.panelService.getPinnedPanels();
+		items.push(...pinnedPanels
+			.filter(panel => {
+				if (panel.id === this.viewDescriptorService.getViewContainer(focusedViewId)!.id) {
+					return false;
+				}
+
+				return !viewContainerRegistry.get(panel.id)!.rejectAddedViews;
+			})
+			.map(panel => {
+				return {
+					id: panel.id,
+					label: viewContainerRegistry.get(panel.id)!.name
+				};
+			}));
 
 		quickPick.items = items;
 
@@ -598,6 +643,9 @@ export class MoveFocusedViewAction extends Action {
 
 			if (destination.id === '_.panel.newcontainer') {
 				this.viewDescriptorService.moveViewToLocation(viewDescriptor!, ViewContainerLocation.Panel);
+				this.viewsService.openView(focusedViewId, true);
+			} else if (destination.id === '_.sidebar.newcontainer') {
+				this.viewDescriptorService.moveViewToLocation(viewDescriptor!, ViewContainerLocation.Sidebar);
 				this.viewsService.openView(focusedViewId, true);
 			} else if (destination.id) {
 				this.viewDescriptorService.moveViewsToContainer([viewDescriptor], viewContainerRegistry.get(destination.id)!);
@@ -608,12 +656,53 @@ export class MoveFocusedViewAction extends Action {
 		});
 
 		quickPick.show();
-
-		return Promise.resolve();
 	}
 }
 
-registry.registerWorkbenchAction(SyncActionDescriptor.create(MoveFocusedViewAction, MoveFocusedViewAction.ID, MoveFocusedViewAction.LABEL), 'View: Move Focused View', viewCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.create(MoveFocusedViewAction, MoveFocusedViewAction.ID, MoveFocusedViewAction.LABEL), 'View: Move Focused View', viewCategory, FocusedViewContext.notEqualsTo(''));
+
+
+// --- Reset View Location with Command
+export class ResetFocusedViewLocationAction extends Action {
+	static readonly ID = 'workbench.action.resetFocusedViewLocation';
+	static readonly LABEL = nls.localize('resetFocusedViewLocation', "Reset Focused View Location");
+
+	constructor(
+		id: string,
+		label: string,
+		@IViewDescriptorService private viewDescriptorService: IViewDescriptorService,
+		@IContextKeyService private contextKeyService: IContextKeyService,
+		@INotificationService private notificationService: INotificationService,
+		@IViewsService private viewsService: IViewsService
+	) {
+		super(id, label);
+	}
+
+	async run(): Promise<void> {
+		const focusedViewId = FocusedViewContext.getValue(this.contextKeyService);
+
+		let viewDescriptor: IViewDescriptor | null = null;
+		if (focusedViewId !== undefined && focusedViewId.trim() !== '') {
+			viewDescriptor = this.viewDescriptorService.getViewDescriptor(focusedViewId);
+		}
+
+		if (!viewDescriptor) {
+			this.notificationService.error(nls.localize('resetFocusedView.error.noFocusedView', "There is no view currently focused."));
+			return;
+		}
+
+		const defaultContainer = this.viewDescriptorService.getDefaultContainer(viewDescriptor.id);
+		if (!defaultContainer || defaultContainer === this.viewDescriptorService.getViewContainer(viewDescriptor.id)) {
+			return;
+		}
+
+		this.viewDescriptorService.moveViewsToContainer([viewDescriptor], defaultContainer);
+		this.viewsService.openView(viewDescriptor.id, true);
+
+	}
+}
+
+registry.registerWorkbenchAction(SyncActionDescriptor.create(ResetFocusedViewLocationAction, ResetFocusedViewLocationAction.ID, ResetFocusedViewLocationAction.LABEL), 'View: Reset Focused View Location', viewCategory, FocusedViewContext.notEqualsTo(''));
 
 
 // --- Resize View
@@ -663,9 +752,8 @@ export class IncreaseViewSizeAction extends BaseResizeViewAction {
 		super(id, label, layoutService);
 	}
 
-	run(): Promise<boolean> {
+	async run(): Promise<void> {
 		this.resizePart(BaseResizeViewAction.RESIZE_INCREMENT);
-		return Promise.resolve(true);
 	}
 }
 
@@ -683,9 +771,8 @@ export class DecreaseViewSizeAction extends BaseResizeViewAction {
 		super(id, label, layoutService);
 	}
 
-	run(): Promise<boolean> {
+	async run(): Promise<void> {
 		this.resizePart(-BaseResizeViewAction.RESIZE_INCREMENT);
-		return Promise.resolve(true);
 	}
 }
 

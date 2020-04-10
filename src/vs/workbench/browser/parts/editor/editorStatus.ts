@@ -13,7 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
 import { Language } from 'vs/base/common/platform';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { IFileEditorInput, EncodingMode, IEncodingSupport, toResource, SideBySideEditorInput, IEditor as IBaseEditor, IEditorInput, SideBySideEditor, IModeSupport } from 'vs/workbench/common/editor';
+import { IFileEditorInput, EncodingMode, IEncodingSupport, toResource, SideBySideEditorInput, IEditorPane, IEditorInput, SideBySideEditor, IModeSupport } from 'vs/workbench/common/editor';
 import { Disposable, MutableDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorAction } from 'vs/editor/common/editorCommon';
 import { EndOfLineSequence } from 'vs/editor/common/model';
@@ -363,8 +363,8 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	}
 
 	private async showIndentationPicker(): Promise<unknown> {
-		const activeTextEditorWidget = getCodeEditor(this.editorService.activeTextEditorWidget);
-		if (!activeTextEditorWidget) {
+		const activeTextEditorControl = getCodeEditor(this.editorService.activeTextEditorControl);
+		if (!activeTextEditorControl) {
 			return this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
 		}
 
@@ -373,19 +373,19 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		}
 
 		const picks: QuickPickInput<IQuickPickItem & { run(): void; }>[] = [
-			activeTextEditorWidget.getAction(IndentUsingSpaces.ID),
-			activeTextEditorWidget.getAction(IndentUsingTabs.ID),
-			activeTextEditorWidget.getAction(DetectIndentation.ID),
-			activeTextEditorWidget.getAction(IndentationToSpacesAction.ID),
-			activeTextEditorWidget.getAction(IndentationToTabsAction.ID),
-			activeTextEditorWidget.getAction(TrimTrailingWhitespaceAction.ID)
+			activeTextEditorControl.getAction(IndentUsingSpaces.ID),
+			activeTextEditorControl.getAction(IndentUsingTabs.ID),
+			activeTextEditorControl.getAction(DetectIndentation.ID),
+			activeTextEditorControl.getAction(IndentationToSpacesAction.ID),
+			activeTextEditorControl.getAction(IndentationToTabsAction.ID),
+			activeTextEditorControl.getAction(TrimTrailingWhitespaceAction.ID)
 		].map((a: IEditorAction) => {
 			return {
 				id: a.id,
 				label: a.label,
 				detail: (Language.isDefaultVariant() || a.label === a.alias) ? undefined : a.alias,
 				run: () => {
-					activeTextEditorWidget.focus();
+					activeTextEditorControl.focus();
 					a.run();
 				}
 			};
@@ -454,7 +454,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 
 		const props: IStatusbarEntry = {
 			text,
-			tooltip: nls.localize('gotoLine', "Go to Line"),
+			tooltip: nls.localize('gotoLine', "Go to Line/Column"),
 			command: 'workbench.action.gotoLine'
 		};
 
@@ -575,7 +575,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		this.updateColumnSelectionModeElement(!!this.state.columnSelectionMode);
 		this.updateScreenReaderModeElement(!!this.state.screenReaderMode);
 		this.updateIndentationElement(this.state.indentation);
-		this.updateSelectionElement(this.state.selectionStatus && !this.state.screenReaderMode ? this.state.selectionStatus : undefined);
+		this.updateSelectionElement(this.state.selectionStatus);
 		this.updateEncodingElement(this.state.encoding);
 		this.updateEOLElement(this.state.EOL ? this.state.EOL === '\r\n' ? nlsEOLCRLF : nlsEOLLF : undefined);
 		this.updateModeElement(this.state.mode);
@@ -608,8 +608,8 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 
 	private updateStatusBar(): void {
 		const activeInput = this.editorService.activeEditor;
-		const activeControl = this.editorService.activeControl;
-		const activeCodeEditor = activeControl ? withNullAsUndefined(getCodeEditor(activeControl.getControl())) : undefined;
+		const activeEditorPane = this.editorService.activeEditorPane;
+		const activeCodeEditor = activeEditorPane ? withNullAsUndefined(getCodeEditor(activeEditorPane.getControl())) : undefined;
 
 		// Update all states
 		this.onColumnSelectionModeChange(activeCodeEditor);
@@ -617,9 +617,9 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		this.onSelectionChange(activeCodeEditor);
 		this.onModeChange(activeCodeEditor, activeInput);
 		this.onEOLChange(activeCodeEditor);
-		this.onEncodingChange(activeControl, activeCodeEditor);
+		this.onEncodingChange(activeEditorPane, activeCodeEditor);
 		this.onIndentationChange(activeCodeEditor);
-		this.onMetadataChange(activeControl);
+		this.onMetadataChange(activeEditorPane);
 		this.currentProblemStatus.update(activeCodeEditor);
 
 		// Dispose old active editor listeners
@@ -672,25 +672,25 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		}
 
 		// Handle binary editors
-		else if (activeControl instanceof BaseBinaryResourceEditor || activeControl instanceof BinaryResourceDiffEditor) {
+		else if (activeEditorPane instanceof BaseBinaryResourceEditor || activeEditorPane instanceof BinaryResourceDiffEditor) {
 			const binaryEditors: BaseBinaryResourceEditor[] = [];
-			if (activeControl instanceof BinaryResourceDiffEditor) {
-				const details = activeControl.getDetailsEditor();
+			if (activeEditorPane instanceof BinaryResourceDiffEditor) {
+				const details = activeEditorPane.getDetailsEditorPane();
 				if (details instanceof BaseBinaryResourceEditor) {
 					binaryEditors.push(details);
 				}
 
-				const master = activeControl.getMasterEditor();
+				const master = activeEditorPane.getMasterEditorPane();
 				if (master instanceof BaseBinaryResourceEditor) {
 					binaryEditors.push(master);
 				}
 			} else {
-				binaryEditors.push(activeControl);
+				binaryEditors.push(activeEditorPane);
 			}
 
 			binaryEditors.forEach(editor => {
 				this.activeEditorListeners.add(editor.onMetadataChanged(metadata => {
-					this.onMetadataChange(activeControl);
+					this.onMetadataChange(activeEditorPane);
 				}));
 
 				this.activeEditorListeners.add(editor.onDidOpenInPlace(() => {
@@ -733,7 +733,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		this.updateState(update);
 	}
 
-	private onMetadataChange(editor: IBaseEditor | undefined): void {
+	private onMetadataChange(editor: IEditorPane | undefined): void {
 		const update: StateDelta = { type: 'metadata', metadata: undefined };
 
 		if (editor instanceof BaseBinaryResourceEditor || editor instanceof BinaryResourceDiffEditor) {
@@ -832,7 +832,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		this.updateState(info);
 	}
 
-	private onEncodingChange(editor: IBaseEditor | undefined, editorWidget: ICodeEditor | undefined): void {
+	private onEncodingChange(editor: IEditorPane | undefined, editorWidget: ICodeEditor | undefined): void {
 		if (editor && !this.isActiveEditor(editor)) {
 			return;
 		}
@@ -859,13 +859,13 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	}
 
 	private onResourceEncodingChange(resource: URI): void {
-		const activeControl = this.editorService.activeControl;
-		if (activeControl) {
-			const activeResource = toResource(activeControl.input, { supportSideBySide: SideBySideEditor.MASTER });
+		const activeEditorPane = this.editorService.activeEditorPane;
+		if (activeEditorPane) {
+			const activeResource = toResource(activeEditorPane.input, { supportSideBySide: SideBySideEditor.MASTER });
 			if (activeResource && isEqual(activeResource, resource)) {
-				const activeCodeEditor = withNullAsUndefined(getCodeEditor(activeControl.getControl()));
+				const activeCodeEditor = withNullAsUndefined(getCodeEditor(activeEditorPane.getControl()));
 
-				return this.onEncodingChange(activeControl, activeCodeEditor); // only update if the encoding changed for the active resource
+				return this.onEncodingChange(activeEditorPane, activeCodeEditor); // only update if the encoding changed for the active resource
 			}
 		}
 	}
@@ -876,10 +876,10 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		this.updateState(info);
 	}
 
-	private isActiveEditor(control: IBaseEditor): boolean {
-		const activeControl = this.editorService.activeControl;
+	private isActiveEditor(control: IEditorPane): boolean {
+		const activeEditorPane = this.editorService.activeEditorPane;
 
-		return !!activeControl && activeControl === control;
+		return !!activeEditorPane && activeEditorPane === control;
 	}
 }
 
@@ -1046,13 +1046,14 @@ export class ChangeModeAction extends Action {
 		super(actionId, actionLabel);
 	}
 
-	async run(): Promise<any> {
-		const activeTextEditorWidget = getCodeEditor(this.editorService.activeTextEditorWidget);
-		if (!activeTextEditorWidget) {
-			return this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
+	async run(): Promise<void> {
+		const activeTextEditorControl = getCodeEditor(this.editorService.activeTextEditorControl);
+		if (!activeTextEditorControl) {
+			await this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
+			return;
 		}
 
-		const textModel = activeTextEditorWidget.getModel();
+		const textModel = activeTextEditorControl.getModel();
 		const resource = this.editorService.activeEditor ? toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER }) : null;
 
 		let hasLanguageSupport = !!resource;
@@ -1136,7 +1137,7 @@ export class ChangeModeAction extends Action {
 
 		// User decided to configure settings for current language
 		if (pick === configureModeSettings) {
-			this.preferencesService.configureSettingsForLanguage(withUndefinedAsNull(modeId));
+			this.preferencesService.openGlobalSettings(true, { editSetting: `[${withUndefinedAsNull(modeId)}]` });
 			return;
 		}
 
@@ -1208,7 +1209,7 @@ export class ChangeModeAction extends Action {
 
 				this.configurationService.updateValue(FILES_ASSOCIATIONS_CONFIG, currentAssociations, target);
 			}
-		}, 50 /* quick open is sensitive to being opened so soon after another */);
+		}, 50 /* quick input is sensitive to being opened so soon after another */);
 	}
 
 	private getFakeResource(lang: string): URI | undefined {
@@ -1246,17 +1247,19 @@ export class ChangeEOLAction extends Action {
 		super(actionId, actionLabel);
 	}
 
-	async run(): Promise<any> {
-		const activeTextEditorWidget = getCodeEditor(this.editorService.activeTextEditorWidget);
-		if (!activeTextEditorWidget) {
-			return this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
+	async run(): Promise<void> {
+		const activeTextEditorControl = getCodeEditor(this.editorService.activeTextEditorControl);
+		if (!activeTextEditorControl) {
+			await this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
+			return;
 		}
 
 		if (this.editorService.activeEditor?.isReadonly()) {
-			return this.quickInputService.pick([{ label: nls.localize('noWritableCodeEditor', "The active code editor is read-only.") }]);
+			await this.quickInputService.pick([{ label: nls.localize('noWritableCodeEditor', "The active code editor is read-only.") }]);
+			return;
 		}
 
-		let textModel = activeTextEditorWidget.getModel();
+		let textModel = activeTextEditorControl.getModel();
 
 		const EOLOptions: IChangeEOLEntry[] = [
 			{ label: nlsEOLLF, eol: EndOfLineSequence.LF },
@@ -1267,7 +1270,7 @@ export class ChangeEOLAction extends Action {
 
 		const eol = await this.quickInputService.pick(EOLOptions, { placeHolder: nls.localize('pickEndOfLine', "Select End of Line Sequence"), activeItem: EOLOptions[selectedIndex] });
 		if (eol) {
-			const activeCodeEditor = getCodeEditor(this.editorService.activeTextEditorWidget);
+			const activeCodeEditor = getCodeEditor(this.editorService.activeTextEditorControl);
 			if (activeCodeEditor?.hasModel() && !this.editorService.activeEditor?.isReadonly()) {
 				textModel = activeCodeEditor.getModel();
 				textModel.pushStackElement();
@@ -1295,19 +1298,22 @@ export class ChangeEncodingAction extends Action {
 		super(actionId, actionLabel);
 	}
 
-	async run(): Promise<any> {
-		if (!getCodeEditor(this.editorService.activeTextEditorWidget)) {
-			return this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
+	async run(): Promise<void> {
+		if (!getCodeEditor(this.editorService.activeTextEditorControl)) {
+			await this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
+			return;
 		}
 
-		const activeControl = this.editorService.activeControl;
-		if (!activeControl) {
-			return this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
+		const activeEditorPane = this.editorService.activeEditorPane;
+		if (!activeEditorPane) {
+			await this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
+			return;
 		}
 
-		const encodingSupport: IEncodingSupport | null = toEditorWithEncodingSupport(activeControl.input);
+		const encodingSupport: IEncodingSupport | null = toEditorWithEncodingSupport(activeEditorPane.input);
 		if (!encodingSupport) {
-			return this.quickInputService.pick([{ label: nls.localize('noFileEditor', "No file active at this time") }]);
+			await this.quickInputService.pick([{ label: nls.localize('noFileEditor', "No file active at this time") }]);
+			return;
 		}
 
 		const saveWithEncodingPick: IQuickPickItem = { label: nls.localize('saveWithEncoding', "Save with Encoding") };
@@ -1325,10 +1331,10 @@ export class ChangeEncodingAction extends Action {
 			}
 		}
 
-		let action: IQuickPickItem;
+		let action: IQuickPickItem | undefined;
 		if (encodingSupport instanceof UntitledTextEditorInput) {
 			action = saveWithEncodingPick;
-		} else if (activeControl.input.isReadonly()) {
+		} else if (activeEditorPane.input.isReadonly()) {
 			action = reopenWithEncodingPick;
 		} else {
 			action = await this.quickInputService.pick([reopenWithEncodingPick, saveWithEncodingPick], { placeHolder: nls.localize('pickAction', "Select Action"), matchOnDetail: true });
@@ -1338,11 +1344,11 @@ export class ChangeEncodingAction extends Action {
 			return;
 		}
 
-		await timeout(50); // quick open is sensitive to being opened so soon after another
+		await timeout(50); // quick input is sensitive to being opened so soon after another
 
-		const resource = toResource(activeControl.input, { supportSideBySide: SideBySideEditor.MASTER });
+		const resource = toResource(activeEditorPane.input, { supportSideBySide: SideBySideEditor.MASTER });
 		if (!resource || (!this.fileService.canHandleResource(resource) && resource.scheme !== Schemas.untitled)) {
-			return null; // encoding detection only possible for resources the file service can handle or that are untitled
+			return; // encoding detection only possible for resources the file service can handle or that are untitled
 		}
 
 		let guessedEncoding: string | undefined = undefined;
@@ -1403,11 +1409,11 @@ export class ChangeEncodingAction extends Action {
 			return;
 		}
 
-		if (!this.editorService.activeControl) {
+		if (!this.editorService.activeEditorPane) {
 			return;
 		}
 
-		const activeEncodingSupport = toEditorWithEncodingSupport(this.editorService.activeControl.input);
+		const activeEncodingSupport = toEditorWithEncodingSupport(this.editorService.activeEditorPane.input);
 		if (typeof encoding.id !== 'undefined' && activeEncodingSupport && activeEncodingSupport.getEncoding() !== encoding.id) {
 			activeEncodingSupport.setEncoding(encoding.id, isReopenWithEncoding ? EncodingMode.Decode : EncodingMode.Encode); // Set new encoding
 		}

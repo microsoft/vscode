@@ -111,10 +111,6 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/openInDesktop",
-			"project": "vscode-workbench"
-		},
-		{
 			"name": "vs/workbench/contrib/performance",
 			"project": "vscode-workbench"
 		},
@@ -123,7 +119,11 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/quickopen",
+			"name": "vs/workbench/contrib/notebook",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/quickaccess",
 			"project": "vscode-workbench"
 		},
 		{
@@ -263,6 +263,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/log",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/integrity",
 			"project": "vscode-workbench"
 		},
@@ -336,6 +340,10 @@
 		},
 		{
 			"name": "vs/workbench/contrib/timeline",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/authentication",
 			"project": "vscode-workbench"
 		}
 	]

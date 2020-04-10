@@ -203,17 +203,22 @@ export class MainPane extends ViewPane {
 		const renderer = this.instantiationService.createInstance(ProviderRenderer);
 		const identityProvider = { getId: (r: ISCMRepository) => r.provider.id };
 
-		this.list = <WorkbenchList<ISCMRepository>>this.instantiationService.createInstance(WorkbenchList, `SCM Main`, container, delegate, [renderer], {
+		this.list = this.instantiationService.createInstance(WorkbenchList, `SCM Main`, container, delegate, [renderer], {
 			identityProvider,
 			horizontalScrolling: false,
 			overrideStyles: {
 				listBackground: SIDE_BAR_BACKGROUND
+			},
+			accessibilityProvider: {
+				getAriaLabel(r: ISCMRepository) {
+					return r.provider.label;
+				}
 			}
-		});
+		}) as WorkbenchList<ISCMRepository>;
 
 		this._register(renderer.onDidRenderElement(e => this.list.updateWidth(this.viewModel.repositories.indexOf(e)), null));
-		this._register(this.list.onSelectionChange(this.onListSelectionChange, this));
-		this._register(this.list.onFocusChange(this.onListFocusChange, this));
+		this._register(this.list.onDidChangeSelection(this.onListSelectionChange, this));
+		this._register(this.list.onDidChangeFocus(this.onListFocusChange, this));
 		this._register(this.list.onContextMenu(this.onListContextMenu, this));
 
 		this._register(this.viewModel.onDidChangeVisibleRepositories(this.updateListSelection, this));

@@ -504,34 +504,33 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		messageElement.innerText = message;
 
 		if (source || code) {
-			if (typeof code === 'string') {
+			// Code has link
+			if (code && typeof code !== 'string') {
+				const sourceAndCodeElement = $('span');
+				if (source) {
+					const sourceElement = dom.append(sourceAndCodeElement, $('span'));
+					sourceElement.innerText = source;
+				}
+				this._codeLink = dom.append(sourceAndCodeElement, $('a.code-link'));
+				this._codeLink.setAttribute('href', code.target.toString());
+
+				this._codeLink.onclick = (e) => {
+					this._openerService.open(code.target);
+					e.preventDefault();
+					e.stopPropagation();
+				};
+
+				const codeElement = dom.append(this._codeLink, $('span'));
+				codeElement.innerText = code.value;
+
+				const detailsElement = dom.append(markerElement, sourceAndCodeElement);
+				detailsElement.style.opacity = '0.6';
+				detailsElement.style.paddingLeft = '6px';
+			} else {
 				const detailsElement = dom.append(markerElement, $('span'));
 				detailsElement.style.opacity = '0.6';
 				detailsElement.style.paddingLeft = '6px';
 				detailsElement.innerText = source && code ? `${source}(${code})` : source ? source : `(${code})`;
-			} else {
-				if (code) {
-					const sourceAndCodeElement = $('span');
-					if (source) {
-						const sourceElement = dom.append(sourceAndCodeElement, $('span'));
-						sourceElement.innerText = source;
-					}
-					this._codeLink = dom.append(sourceAndCodeElement, $('a.code-link'));
-					this._codeLink.setAttribute('href', code.target.toString());
-
-					this._codeLink.onclick = (e) => {
-						this._openerService.open(code.target);
-						e.preventDefault();
-						e.stopPropagation();
-					};
-
-					const codeElement = dom.append(this._codeLink, $('span'));
-					codeElement.innerText = code.value;
-
-					const detailsElement = dom.append(markerElement, sourceAndCodeElement);
-					detailsElement.style.opacity = '0.6';
-					detailsElement.style.paddingLeft = '6px';
-				}
 			}
 		}
 
@@ -580,7 +579,6 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		setTimeout(() => quickfixPlaceholderElement.style.opacity = '1', 200);
 		quickfixPlaceholderElement.textContent = nls.localize('checkingForQuickFixes', "Checking for quick fixes...");
 		disposables.add(toDisposable(() => quickfixPlaceholderElement.remove()));
-
 
 		const codeActionsPromise = this.getCodeActions(markerHover.marker);
 		disposables.add(toDisposable(() => codeActionsPromise.cancel()));
@@ -639,11 +637,9 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			dom.append(action, $(`span.icon.${actionOptions.iconClass}`));
 		}
 		const label = dom.append(action, $('span'));
-		label.textContent = actionOptions.label;
 		const keybinding = this._keybindingService.lookupKeybinding(actionOptions.commandId);
-		if (keybinding) {
-			label.title = `${actionOptions.label} (${keybinding.getLabel()})`;
-		}
+		const keybindingLabel = keybinding ? keybinding.getLabel() : null;
+		label.textContent = keybindingLabel ? `${actionOptions.label} (${keybindingLabel})` : actionOptions.label;
 		return dom.addDisposableListener(actionContainer, dom.EventType.CLICK, e => {
 			e.stopPropagation();
 			e.preventDefault();

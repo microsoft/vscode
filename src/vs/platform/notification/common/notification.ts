@@ -21,20 +21,20 @@ export interface INotificationProperties {
 	 * Sticky notifications are not automatically removed after a certain timeout. By
 	 * default, notifications with primary actions and severity error are always sticky.
 	 */
-	sticky?: boolean;
+	readonly sticky?: boolean;
 
 	/**
 	 * Silent notifications are not shown to the user unless the notification center
 	 * is opened. The status bar will still indicate all number of notifications to
 	 * catch some attention.
 	 */
-	silent?: boolean;
+	readonly silent?: boolean;
 
 	/**
 	 * Adds an action to never show the notification again. The choice will be persisted
 	 * such as future requests will not cause the notification to show again.
 	 */
-	neverShowAgain?: INeverShowAgainOptions;
+	readonly neverShowAgain?: INeverShowAgainOptions;
 }
 
 export enum NeverShowAgainScope {
@@ -55,19 +55,19 @@ export interface INeverShowAgainOptions {
 	/**
 	 * The id is used to persist the selection of not showing the notification again.
 	 */
-	id: string;
+	readonly id: string;
 
 	/**
 	 * By default the action will show up as primary action. Setting this to true will
 	 * make it a secondary action instead.
 	 */
-	isSecondary?: boolean;
+	readonly isSecondary?: boolean;
 
 	/**
 	 * Whether to persist the choice in the current workspace or for all workspaces. By
-	 * default it will be persisted for all workspaces.
+	 * default it will be persisted for all workspaces (= `NeverShowAgainScope.GLOBAL`).
 	 */
-	scope?: NeverShowAgainScope;
+	readonly scope?: NeverShowAgainScope;
 }
 
 export interface INotification extends INotificationProperties {
@@ -75,18 +75,18 @@ export interface INotification extends INotificationProperties {
 	/**
 	 * The severity of the notification. Either `Info`, `Warning` or `Error`.
 	 */
-	severity: Severity;
+	readonly severity: Severity;
 
 	/**
 	 * The message of the notification. This can either be a `string` or `Error`. Messages
 	 * can optionally include links in the format: `[text](link)`
 	 */
-	message: NotificationMessage;
+	readonly message: NotificationMessage;
 
 	/**
 	 * The source of the notification appears as additional information.
 	 */
-	source?: string;
+	readonly source?: string;
 
 	/**
 	 * Actions to show as part of the notification. Primary actions show up as
@@ -106,7 +106,7 @@ export interface INotification extends INotificationProperties {
 	 * The initial set of progress properties for the notification. To update progress
 	 * later on, access the `INotificationHandle.progress` property.
 	 */
-	progress?: INotificationProgressProperties;
+	readonly progress?: INotificationProgressProperties;
 }
 
 export interface INotificationActions {
@@ -115,14 +115,14 @@ export interface INotificationActions {
 	 * Primary actions show up as buttons as part of the message and will close
 	 * the notification once clicked.
 	 */
-	primary?: ReadonlyArray<IAction>;
+	readonly primary?: ReadonlyArray<IAction>;
 
 	/**
 	 * Secondary actions are meant to provide additional configuration or context
 	 * for the notification and will show up less prominent. A notification does not
 	 * close automatically when invoking a secondary action.
 	 */
-	secondary?: ReadonlyArray<IAction>;
+	readonly secondary?: ReadonlyArray<IAction>;
 }
 
 export interface INotificationProgressProperties {
@@ -130,17 +130,17 @@ export interface INotificationProgressProperties {
 	/**
 	 * Causes the progress bar to spin infinitley.
 	 */
-	infinite?: boolean;
+	readonly infinite?: boolean;
 
 	/**
 	 * Indicate the total amount of work.
 	 */
-	total?: number;
+	readonly total?: number;
 
 	/**
 	 * Indicate that a specific chunk of work is done.
 	 */
-	worked?: number;
+	readonly worked?: number;
 }
 
 export interface INotificationProgress {
@@ -172,6 +172,13 @@ export interface INotificationHandle {
 	 * Will be fired once the notification is closed.
 	 */
 	readonly onDidClose: Event<void>;
+
+	/**
+	 * Will be fired whenever the visibility of the notification changes.
+	 * A notification can either be visible as toast or inside the notification
+	 * center if it is visible.
+	 */
+	readonly onDidChangeVisibility: Event<boolean>;
 
 	/**
 	 * Allows to indicate progress on the notification even after the
@@ -207,19 +214,19 @@ export interface IPromptChoice {
 	/**
 	 * Label to show for the choice to the user.
 	 */
-	label: string;
+	readonly label: string;
 
 	/**
 	 * Primary choices show up as buttons in the notification below the message.
 	 * Secondary choices show up under the gear icon in the header of the notification.
 	 */
-	isSecondary?: boolean;
+	readonly isSecondary?: boolean;
 
 	/**
 	 * Whether to keep the notification open after the choice was selected
 	 * by the user. By default, will close the notification upon click.
 	 */
-	keepOpen?: boolean;
+	readonly keepOpen?: boolean;
 
 	/**
 	 * Triggered when the user selects the choice.
@@ -242,13 +249,13 @@ export interface IStatusMessageOptions {
 	 * An optional timeout after which the status message should show. By default
 	 * the status message will show immediately.
 	 */
-	showAfter?: number;
+	readonly showAfter?: number;
 
 	/**
 	 * An optional timeout after which the status message is to be hidden. By default
 	 * the status message will not hide until another status message is displayed.
 	 */
-	hideAfter?: number;
+	readonly hideAfter?: number;
 }
 
 export enum NotificationsFilter {

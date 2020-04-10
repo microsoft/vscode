@@ -64,27 +64,6 @@ interface IShowCandidate {
 	(host: string, port: number, detail: string): Thenable<boolean>;
 }
 
-interface IApplicationLink {
-
-	/**
-	 * A link that is opened in the OS. If you want to open VSCode it must
-	 * follow our expected structure of links:
-	 *
-	 * <vscode|vscode-insiders>://<file|vscode-remote>/<remote-authority>/<path>
-	 *
-	 * For example:
-	 *
-	 * vscode://vscode-remote/vsonline+2005711d/home/vsonline/workspace for
-	 * a remote folder in VSO or vscode://file/home/workspace for a local folder.
-	 */
-	uri: URI;
-
-	/**
-	 * A label for the application link to display.
-	 */
-	label: string;
-}
-
 interface ICommand {
 
 	/**
@@ -94,9 +73,13 @@ interface ICommand {
 	id: string,
 
 	/**
-	 * A function that is being executed with any arguments passed over.
+	 * A function that is being executed with any arguments passed over. The
+	 * return type will be send back to the caller.
+	 *
+	 * Note: arguments and return type should be serializable so that they can
+	 * be exchanged across processes boundaries.
 	 */
-	handler: (...args: any[]) => void;
+	handler: (...args: any[]) => unknown;
 }
 
 interface IWorkbenchConstructionOptions {
@@ -187,18 +170,6 @@ interface IWorkbenchConstructionOptions {
 	readonly resolveCommonTelemetryProperties?: ICommontTelemetryPropertiesResolver;
 
 	/**
-	 * Provide entries for the "Open in Desktop" feature.
-	 *
-	 * Depending on the returned elements the behaviour is:
-	 * - no elements: there will not be a "Open in Desktop" affordance
-	 * - 1 element: there will be a "Open in Desktop" affordance that opens on click
-	 *   and it will use the label provided by the link
-	 * - N elements: there will be a "Open in Desktop" affordance that opens
-	 *   a picker on click to select which application to open.
-	 */
-	readonly applicationLinks?: readonly IApplicationLink[];
-
-	/**
 	 * A set of optional commands that should be registered with the commands
 	 * registry.
 	 *
@@ -230,7 +201,16 @@ interface IWorkbenchConstructionOptions {
  * @param domElement the container to create the workbench in
  * @param options for setting up the workbench
  */
+let created = false;
 async function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions): Promise<void> {
+
+	// Assert that the workbench is not created more than once. We currently
+	// do not support this and require a full context switch to clean-up.
+	if (created) {
+		throw new Error('Unable to create the VSCode workbench more than once.');
+	} else {
+		created = true;
+	}
 
 	// Startup workbench
 	await main(domElement, options);
@@ -238,10 +218,10 @@ async function create(domElement: HTMLElement, options: IWorkbenchConstructionOp
 	// Register commands if any
 	if (Array.isArray(options.commands)) {
 		for (const command of options.commands) {
-			CommandsRegistry.registerCommand(command.id, (accessor, ...args: any[]) => {
+			CommandsRegistry.registerCommand(command.id, (accessor, ...args) => {
 				// we currently only pass on the arguments but not the accessor
 				// to the command to reduce our exposure of internal API.
-				command.handler(...args);
+				return command.handler(...args);
 			});
 		}
 	}
@@ -252,7 +232,6 @@ export {
 	// Factory
 	create,
 	IWorkbenchConstructionOptions,
-
 
 	// Basic Types
 	URI,
@@ -301,9 +280,6 @@ export {
 
 	// External Uris
 	IExternalUriResolver,
-
-	// Protocol Links
-	IApplicationLink,
 
 	// Commands
 	ICommand

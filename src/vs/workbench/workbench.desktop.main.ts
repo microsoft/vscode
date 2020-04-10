@@ -39,18 +39,19 @@ import 'vs/workbench/services/keybinding/electron-browser/keybinding.contributio
 import 'vs/workbench/services/extensions/electron-browser/extensionService';
 import 'vs/workbench/services/contextmenu/electron-browser/contextmenuService';
 import 'vs/workbench/services/extensionManagement/electron-browser/extensionManagementServerService';
+import 'vs/workbench/services/extensionManagement/electron-browser/extensionTipsService';
 import 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import 'vs/workbench/services/telemetry/electron-browser/telemetryService';
 import 'vs/workbench/services/configurationResolver/electron-browser/configurationResolverService';
 import 'vs/workbench/services/extensionManagement/node/extensionManagementService';
-import 'vs/workbench/services/accessibility/node/accessibilityService';
+import 'vs/workbench/services/accessibility/electron-browser/accessibilityService';
 import 'vs/workbench/services/remote/node/tunnelService';
 import 'vs/workbench/services/backup/node/backupFileService';
 import 'vs/workbench/services/url/electron-browser/urlService';
 import 'vs/workbench/services/workspaces/electron-browser/workspacesService';
 import 'vs/workbench/services/workspaces/electron-browser/workspaceEditingService';
+import 'vs/workbench/services/userDataSync/electron-browser/storageKeysSyncRegistryService';
 import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncService';
-import 'vs/workbench/services/userDataSync/electron-browser/settingsSyncService';
 import 'vs/workbench/services/userDataSync/electron-browser/userDataAutoSyncService';
 import 'vs/workbench/services/authentication/electron-browser/authenticationTokenService';
 import 'vs/workbench/services/authentication/browser/authenticationService';
@@ -69,8 +70,11 @@ import 'vs/workbench/services/extensionResourceLoader/electron-browser/extension
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { KeytarCredentialsService } from 'vs/platform/credentials/node/credentialsService';
+import { TitlebarPart } from 'vs/workbench/electron-browser/parts/titlebar/titlebarPart';
+import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 
 registerSingleton(ICredentialsService, KeytarCredentialsService, true);
+registerSingleton(ITitleService, TitlebarPart);
 
 //#endregion
 
@@ -103,6 +107,9 @@ import 'vs/workbench/contrib/debug/electron-browser/extensionHostDebugService';
 
 // Webview
 import 'vs/workbench/contrib/webview/electron-browser/webview.contribution';
+
+// Notebook
+import 'vs/workbench/contrib/notebook/electron-browser/notebook.contribution';
 
 // Extensions Management
 import 'vs/workbench/contrib/extensions/electron-browser/extensions.contribution';
@@ -141,6 +148,6 @@ import 'vs/workbench/contrib/userDataSync/electron-browser/userDataSync.contribu
 import 'vs/workbench/contrib/welcome/telemetryOptOut/electron-browser/telemetryOptOut.contribution';
 
 // Configuration Exporter
-import 'vs/workbench/contrib/configExporter/node/configurationExportHelper.contribution';
+import 'vs/workbench/contrib/configExporter/electron-browser/configurationExportHelper.contribution';
 
 //#endregion

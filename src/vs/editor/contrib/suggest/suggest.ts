@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { first } from 'vs/base/common/async';
-import { assign } from 'vs/base/common/objects';
 import { onUnexpectedExternalError, canceled, isPromiseCanceledError } from 'vs/base/common/errors';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
@@ -98,7 +97,7 @@ export class CompletionItem {
 			this.resolve = (token) => {
 				if (!cached) {
 					cached = Promise.resolve(resolveCompletionItem.call(provider, model, Position.lift(position), completion, token)).then(value => {
-						assign(completion, value);
+						Object.assign(completion, value);
 						this.isResolved = true;
 					}, err => {
 						if (isPromiseCanceledError(err)) {

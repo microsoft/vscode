@@ -5,16 +5,18 @@
 import * as assert from 'assert';
 import { IExpression } from 'vs/base/common/glob';
 import { join } from 'vs/base/common/path';
+import { isWindows } from 'vs/base/common/platform';
 import { URI as uri } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IFolderQuery, IPatternInfo, QueryType, ITextQuery, IFileQuery } from 'vs/workbench/services/search/common/search';
-import { IWorkspaceContextService, toWorkspaceFolder, Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, toWorkspaceFolder, toWorkspaceFolders, Workspace } from 'vs/platform/workspace/common/workspace';
 import { ISearchPathsInfo, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
-import { TestContextService, TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { isWindows } from 'vs/base/common/platform';
+import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
+import { IFileQuery, IFolderQuery, IPatternInfo, ITextQuery, QueryType } from 'vs/workbench/services/search/common/search';
+import { TestRemotePathService, TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 const DEFAULT_EDITOR_CONFIG = {};
 const DEFAULT_USER_CONFIG = { useRipgrep: true, useIgnoreFiles: true, useGlobalIgnoreFiles: true };
@@ -25,6 +27,7 @@ suite('QueryBuilder', () => {
 	const PATTERN_INFO: IPatternInfo = { pattern: 'a' };
 	const ROOT_1 = fixPath('/foo/root1');
 	const ROOT_1_URI = getUri(ROOT_1);
+	const ROOT_1_NAMED_FOLDER = toWorkspaceFolder(ROOT_1_URI);
 	const WS_CONFIG_PATH = getUri('/bar/test.code-workspace'); // location of the workspace file (not important except that it is a file URI)
 
 	let instantiationService: TestInstantiationService;
@@ -47,6 +50,7 @@ suite('QueryBuilder', () => {
 
 		instantiationService.stub(IWorkspaceContextService, mockContextService);
 		instantiationService.stub(IEnvironmentService, TestEnvironmentService);
+		instantiationService.stub(IRemotePathService, new TestRemotePathService(TestEnvironmentService));
 
 		queryBuilder = instantiationService.createInstance(QueryBuilder);
 	});
@@ -89,7 +93,10 @@ suite('QueryBuilder', () => {
 
 	test('does not split glob pattern when expandPatterns disabled', () => {
 		assertEqualQueries(
-			queryBuilder.file([ROOT_1_URI], { includePattern: '**/foo, **/bar' }),
+			queryBuilder.file(
+				[ROOT_1_NAMED_FOLDER],
+				{ includePattern: '**/foo, **/bar' },
+			),
 			{
 				folderQueries: [{
 					folder: ROOT_1_URI
@@ -362,7 +369,7 @@ suite('QueryBuilder', () => {
 		const content = 'content';
 		assertEqualQueries(
 			queryBuilder.file(
-				undefined,
+				[],
 				{ filePattern: ` ${content} ` }
 			),
 			{
@@ -902,10 +909,13 @@ suite('QueryBuilder', () => {
 	suite('file', () => {
 		test('simple file query', () => {
 			const cacheKey = 'asdf';
-			const query = queryBuilder.file([ROOT_1_URI], {
-				cacheKey,
-				sortByScore: true
-			});
+			const query = queryBuilder.file(
+				[ROOT_1_NAMED_FOLDER],
+				{
+					cacheKey,
+					sortByScore: true
+				},
+			);
 
 			assert.equal(query.folderQueries.length, 1);
 			assert.equal(query.cacheKey, cacheKey);

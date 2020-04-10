@@ -172,7 +172,7 @@ export class ExplorerView extends ViewPane {
 		@IFileService private readonly fileService: IFileService,
 		@IOpenerService openerService: IOpenerService,
 	) {
-		super({ ...(options as IViewPaneOptions), id: ExplorerView.ID, ariaHeaderLabel: nls.localize('explorerSection', "Explorer Section: {0}", labelService.getWorkspaceLabel(contextService.getWorkspace())) }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
 		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
 		this._register(this.resourceContext);
@@ -354,6 +354,7 @@ export class ExplorerView extends ViewPane {
 	private createTree(container: HTMLElement): void {
 		this.filter = this.instantiationService.createInstance(FilesFilter);
 		this._register(this.filter);
+		this._register(this.filter.onDidChange(() => this.refresh(true)));
 		const explorerLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
 		this._register(explorerLabels);
 
@@ -458,18 +459,7 @@ export class ExplorerView extends ViewPane {
 		this.autoReveal = configuration?.explorer?.autoReveal;
 
 		// Push down config updates to components of viewer
-		let needsRefresh = false;
-		if (this.filter) {
-			needsRefresh = this.filter.updateConfiguration();
-		}
-
-		if (event && !needsRefresh) {
-			needsRefresh = event.affectsConfiguration('explorer.decorations.colors')
-				|| event.affectsConfiguration('explorer.decorations.badges');
-		}
-
-		// Refresh viewer as needed if this originates from a config event
-		if (event && needsRefresh) {
+		if (event && (event.affectsConfiguration('explorer.decorations.colors') || event.affectsConfiguration('explorer.decorations.badges'))) {
 			this.refresh(true);
 		}
 	}
@@ -509,7 +499,13 @@ export class ExplorerView extends ViewPane {
 
 		const actions: IAction[] = [];
 		const roots = this.explorerService.roots; // If the click is outside of the elements pass the root resource if there is only one root. If there are multiple roots pass empty object.
-		const arg = stat instanceof ExplorerItem ? stat.resource : roots.length === 1 ? roots[0].resource : {};
+		let arg: URI | {};
+		if (stat instanceof ExplorerItem) {
+			const compressedController = this.renderer.getCompressedNavigationController(stat);
+			arg = compressedController ? compressedController.current.resource : stat.resource;
+		} else {
+			arg = roots.length === 1 ? roots[0].resource : {};
+		}
 		disposables.add(createAndFillInContextMenuActions(this.contributedContextMenu, { arg, shouldForwardArgs: true }, actions, this.contextMenuService));
 
 		this.contextMenuService.showContextMenu({
@@ -672,19 +668,23 @@ export class ExplorerView extends ViewPane {
 		}
 
 		if (item && item.parent) {
-			if (reveal) {
-				if (item.isDisposed) {
-					return this.onSelectResource(resource, reveal, retry + 1);
+			try {
+				if (reveal) {
+					if (item.isDisposed) {
+						return this.onSelectResource(resource, reveal, retry + 1);
+					}
+
+					// Don't scroll to the item if it's already visible
+					if (this.tree.getRelativeTop(item) === null) {
+						this.tree.reveal(item, 0.5);
+					}
 				}
 
-				// Don't scroll to the item if it's already visible
-				if (this.tree.getRelativeTop(item) === null) {
-					this.tree.reveal(item, 0.5);
-				}
+				this.tree.setFocus([item]);
+				this.tree.setSelection([item]);
+			} catch (e) {
+				// Element might not be in the tree, silently fail
 			}
-
-			this.tree.setFocus([item]);
-			this.tree.setSelection([item]);
 		}
 	}
 

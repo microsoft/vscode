@@ -40,7 +40,7 @@ import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { OutlineConfigKeys, OutlineViewFocused, OutlineViewFiltered } from 'vs/editor/contrib/documentSymbols/outline';
 import { FuzzyScore } from 'vs/base/common/filters';
-import { OutlineDataSource, OutlineItemComparator, OutlineSortOrder, OutlineVirtualDelegate, OutlineGroupRenderer, OutlineElementRenderer, OutlineItem, OutlineIdentityProvider, OutlineNavigationLabelProvider, OutlineFilter } from 'vs/editor/contrib/documentSymbols/outlineTree';
+import { OutlineDataSource, OutlineItemComparator, OutlineSortOrder, OutlineVirtualDelegate, OutlineGroupRenderer, OutlineElementRenderer, OutlineItem, OutlineIdentityProvider, OutlineNavigationLabelProvider, OutlineFilter, OutlineAccessibilityProvider } from 'vs/editor/contrib/documentSymbols/outlineTree';
 import { IDataTreeViewState } from 'vs/base/browser/ui/tree/dataTree';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { basename } from 'vs/base/common/resources';
@@ -95,12 +95,12 @@ class RequestOracle {
 
 	private _update(): void {
 
-		let widget = this._editorService.activeTextEditorWidget;
+		let control = this._editorService.activeTextEditorControl;
 		let codeEditor: ICodeEditor | undefined = undefined;
-		if (isCodeEditor(widget)) {
-			codeEditor = widget;
-		} else if (isDiffEditor(widget)) {
-			codeEditor = widget.getModifiedEditor();
+		if (isCodeEditor(control)) {
+			codeEditor = control;
+		} else if (isDiffEditor(control)) {
+			codeEditor = control.getModifiedEditor();
 		}
 
 		if (!codeEditor || !codeEditor.hasModel()) {
@@ -340,6 +340,7 @@ export class OutlinePane extends ViewPane {
 				filter: this._treeFilter,
 				identityProvider: new OutlineIdentityProvider(),
 				keyboardNavigationLabelProvider: new OutlineNavigationLabelProvider(),
+				accessibilityProvider: new OutlineAccessibilityProvider(),
 				hideTwistiesOfChildlessElements: true,
 				overrideStyles: {
 					listBackground: this.getBackgroundColor()

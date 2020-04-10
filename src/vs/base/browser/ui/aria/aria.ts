@@ -23,7 +23,8 @@ export function setARIAContainer(parent: HTMLElement) {
 
 	statusContainer = document.createElement('div');
 	statusContainer.className = 'monaco-status';
-	statusContainer.setAttribute('role', 'status');
+	statusContainer.setAttribute('role', 'complementary');
+	statusContainer.setAttribute('aria-live', 'polite');
 	statusContainer.setAttribute('aria-atomic', 'true');
 	ariaContainer.appendChild(statusContainer);
 

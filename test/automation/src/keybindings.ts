@@ -11,7 +11,7 @@ export class KeybindingsEditor {
 
 	constructor(private code: Code) { }
 
-	async updateKeybinding(command: string, keybinding: string, ariaLabel: string): Promise<any> {
+	async updateKeybinding(command: string, keybinding: string, title: string): Promise<any> {
 		if (process.platform === 'darwin') {
 			await this.code.dispatchKeybinding('cmd+k cmd+s');
 		} else {
@@ -29,6 +29,6 @@ export class KeybindingsEditor {
 
 		await this.code.dispatchKeybinding(keybinding);
 		await this.code.dispatchKeybinding('enter');
-		await this.code.waitForElement(`.keybindings-list-container div[aria-label="Keybinding is ${ariaLabel}."]`);
+		await this.code.waitForElement(`.keybindings-list-container .keybinding-label div[title="${title}"]`);
 	}
 }
