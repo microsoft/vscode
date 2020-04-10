@@ -50,20 +50,28 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 						done(e);
 					}
 					data += e.data;
-					// Pass the test if there is a line that contains only the echo'd output. Note
-					// that echoing can print "echo ..." twice if the shell has not yet been fully
-					// initialized.
-					const lines = data.split('\r').map(d => d.trim());
-					console.log(lines);
-					if (lines.some(l => l === expected)) {
+					if (data.indexOf(expected) !== 0) {
 						terminal.dispose();
 						disposables.push(window.onDidCloseTerminal(() => done()));
 					}
 				}));
 			}));
-			const terminal = window.createTerminal();
-			const expected = new Date().getTime().toString();
-			doesNotThrow(terminal.sendText.bind(terminal, `echo "${expected}"`));
+			// Use a single character to avoid winpty/conpty issues with injected sequences
+			const expected = '`';
+			const terminal = window.createTerminal({
+				env: {
+					TEST: '`'
+				}
+			});
+			terminal.show();
+			doesNotThrow(() => {
+				// Print an environment variable value so the echo statement doesn't get matched
+				if (process.platform === 'win32') {
+					terminal.sendText(`$env:TEST`);
+				} else {
+					terminal.sendText(`echo $TEST`);
+				}
+			});
 		});
 
 		test('onDidCloseTerminal event fires when terminal is disposed', (done) => {
