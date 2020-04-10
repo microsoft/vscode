@@ -35,6 +35,45 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 			doesNotThrow(terminal.sendText.bind(terminal, 'echo "foo"'));
 		});
 
+		test('echo works in the default shell', (done) => {
+			disposables.push(window.onDidOpenTerminal(term => {
+				try {
+					equal(terminal, term);
+				} catch (e) {
+					done(e);
+				}
+				let data = '';
+				disposables.push(window.onDidWriteTerminalData(e => {
+					try {
+						equal(terminal, e.terminal);
+					} catch (e) {
+						done(e);
+					}
+					data += e.data;
+					if (data.indexOf(expected) !== 0) {
+						terminal.dispose();
+						disposables.push(window.onDidCloseTerminal(() => done()));
+					}
+				}));
+			}));
+			// Use a single character to avoid winpty/conpty issues with injected sequences
+			const expected = '`';
+			const terminal = window.createTerminal({
+				env: {
+					TEST: '`'
+				}
+			});
+			terminal.show();
+			doesNotThrow(() => {
+				// Print an environment variable value so the echo statement doesn't get matched
+				if (process.platform === 'win32') {
+					terminal.sendText(`$env:TEST`);
+				} else {
+					terminal.sendText(`echo $TEST`);
+				}
+			});
+		});
+
 		test('onDidCloseTerminal event fires when terminal is disposed', (done) => {
 			disposables.push(window.onDidOpenTerminal(term => {
 				try {
