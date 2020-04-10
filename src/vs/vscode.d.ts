@@ -7626,6 +7626,7 @@ declare module 'vscode' {
 		 * Register a [TerminalLinkHandler](#TerminalLinkHandler) that can be used to intercept and
 		 * handle links that are activated within terminals.
 		 * @param handler The link handler being registered.
+		 * @return A disposable that unregisters the link handler.
 		 */
 		export function registerTerminalLinkHandler(handler: TerminalLinkHandler): Disposable;
 
@@ -8189,6 +8190,9 @@ declare module 'vscode' {
 		readonly code: number | undefined;
 	}
 
+	/**
+	 * Describes how to handle terminal links.
+	 */
 	export interface TerminalLinkHandler {
 		/**
 		 * Handles a link that is activated within the terminal.
