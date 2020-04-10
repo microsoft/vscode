@@ -34,6 +34,7 @@ import { distinct } from 'vs/base/common/arrays';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { localize } from 'vs/nls';
+import { canceled } from 'vs/base/common/errors';
 
 export class DebugSession implements IDebugSession {
 
@@ -54,6 +55,9 @@ export class DebugSession implements IDebugSession {
 
 	private readonly _onDidLoadedSource = new Emitter<LoadedSourceEvent>();
 	private readonly _onDidCustomEvent = new Emitter<DebugProtocol.Event>();
+	private readonly _onDidProgressStart = new Emitter<DebugProtocol.ProgressStartEvent>();
+	private readonly _onDidProgressUpdate = new Emitter<DebugProtocol.ProgressUpdateEvent>();
+	private readonly _onDidProgressEnd = new Emitter<DebugProtocol.ProgressEndEvent>();
 
 	private readonly _onDidChangeREPLElements = new Emitter<void>();
 
@@ -184,6 +188,18 @@ export class DebugSession implements IDebugSession {
 		return this._onDidLoadedSource.event;
 	}
 
+	get onDidProgressStart(): Event<DebugProtocol.ProgressStartEvent> {
+		return this._onDidProgressStart.event;
+	}
+
+	get onDidProgressUpdate(): Event<DebugProtocol.ProgressUpdateEvent> {
+		return this._onDidProgressUpdate.event;
+	}
+
+	get onDidProgressEnd(): Event<DebugProtocol.ProgressEndEvent> {
+		return this._onDidProgressEnd.event;
+	}
+
 	//---- DAP requests
 
 	/**
@@ -213,12 +229,13 @@ export class DebugSession implements IDebugSession {
 				supportsVariableType: true, // #8858
 				supportsVariablePaging: true, // #9537
 				supportsRunInTerminalRequest: true, // #10574
-				locale: platform.locale
+				locale: platform.locale,
+				supportsProgressReporting: true // #92253
 			});
 
 			this.initialized = true;
 			this._onDidChangeState.fire();
-			this.model.setExceptionBreakpoints(this.raw!.capabilities.exceptionBreakpointFilters || []);
+			this.model.setExceptionBreakpoints((this.raw && this.raw.capabilities.exceptionBreakpointFilters) || []);
 		} catch (err) {
 			this.initialized = true;
 			this._onDidChangeState.fire();
@@ -233,6 +250,9 @@ export class DebugSession implements IDebugSession {
 	async launchOrAttach(config: IConfig): Promise<void> {
 		if (!this.raw) {
 			throw new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'launch or attach'));
+		}
+		if (this.parentSession && this.parentSession.state === State.Inactive) {
+			throw canceled();
 		}
 
 		// __sessionID only used for EH debugging (but we add it always for now...)
@@ -592,6 +612,14 @@ export class DebugSession implements IDebugSession {
 		}, token);
 	}
 
+	async cancel(progressId: string): Promise<DebugProtocol.CancelResponse> {
+		if (!this.raw) {
+			return Promise.reject(new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'cancel')));
+		}
+
+		return this.raw.cancel({ progressId });
+	}
+
 	//---- threads
 
 	getThread(threadId: number): Thread | undefined {
@@ -911,6 +939,16 @@ export class DebugSession implements IDebugSession {
 
 		this.rawListeners.push(this.raw.onDidCustomEvent(event => {
 			this._onDidCustomEvent.fire(event);
+		}));
+
+		this.rawListeners.push(this.raw.onDidProgressStart(event => {
+			this._onDidProgressStart.fire(event);
+		}));
+		this.rawListeners.push(this.raw.onDidProgressUpdate(event => {
+			this._onDidProgressUpdate.fire(event);
+		}));
+		this.rawListeners.push(this.raw.onDidProgressEnd(event => {
+			this._onDidProgressEnd.fire(event);
 		}));
 
 		this.rawListeners.push(this.raw.onDidExitAdapter(event => {

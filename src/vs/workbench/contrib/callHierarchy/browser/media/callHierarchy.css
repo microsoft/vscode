@@ -20,28 +20,6 @@
 	height: 100%;
 }
 
-.monaco-workbench .action-label.calls-to {
-	background-image: url(action-call-to.svg);
-	background-size: 14px 14px;
-	background-repeat: no-repeat;
-	background-position: left center;
-}
-
-.vs-dark .monaco-workbench .action-label.calls-to {
-	background-image: url(action-call-to-dark.svg);
-}
-
-.monaco-workbench .action-label.calls-from {
-	background-image: url(action-call-from.svg);
-	background-size: 14px 14px;
-	background-repeat: no-repeat;
-	background-position: left center;
-}
-
-.vs-dark .monaco-workbench .action-label.calls-from{
-	background-image: url(action-call-from-dark.svg);
-}
-
 .monaco-workbench .call-hierarchy .editor,
 .monaco-workbench .call-hierarchy .tree {
 	height: 100%;

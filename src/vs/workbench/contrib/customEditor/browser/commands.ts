@@ -11,16 +11,16 @@ import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
+import type { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { EditorViewColumn, viewColumnToEditorGroup } from 'vs/workbench/api/common/shared/editor';
 import { IEditorCommandsContext } from 'vs/workbench/common/editor';
+import { defaultCustomEditor } from 'vs/workbench/contrib/customEditor/common/contributedCustomEditors';
 import { CustomEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
-import { defaultEditorId } from 'vs/workbench/contrib/customEditor/browser/customEditors';
-import { CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CONTEXT_CUSTOM_EDITORS, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
+import { CONTEXT_CUSTOM_EDITORS, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import type { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 
 const viewCategory = nls.localize('viewCategory', "View");
 
@@ -95,7 +95,6 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 });
 
 // #endregion
-
 
 (new class UndoCustomEditorCommand extends Command {
 	public static readonly ID = 'editor.action.customEditor.undo';
@@ -176,7 +175,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 
 		const customEditorService = accessor.get<ICustomEditorService>(ICustomEditorService);
 
-		let toggleView = defaultEditorId;
+		let toggleView = defaultCustomEditor.id;
 		if (!(activeEditor instanceof CustomEditorInput)) {
 			const bestAvailableEditor = customEditorService.getContributedCustomEditors(targetResource).bestAvailableEditor;
 			if (bestAvailableEditor) {
@@ -186,7 +185,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 			}
 		}
 
-		const newEditorInput = customEditorService.createInput(targetResource, toggleView, activeGroup);
+		const newEditorInput = customEditorService.createInput(targetResource, toggleView, activeGroup.id);
 
 		editorService.replaceEditors([{
 			editor: activeEditor,

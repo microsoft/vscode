@@ -31,12 +31,12 @@ export class CustomTextEditorModel extends Disposable implements ICustomEditorMo
 	private constructor(
 		public readonly viewType: string,
 		private readonly _resource: URI,
-		model: IReference<IResolvedTextEditorModel>,
+		private readonly _model: IReference<IResolvedTextEditorModel>,
 		@ITextFileService private readonly textFileService: ITextFileService,
 	) {
 		super();
 
-		this._register(model);
+		this._register(_model);
 
 		this._register(this.textFileService.files.onDidChangeDirty(e => {
 			if (isEqual(this.resource, e.resource)) {
@@ -48,6 +48,10 @@ export class CustomTextEditorModel extends Disposable implements ICustomEditorMo
 
 	public get resource() {
 		return this._resource;
+	}
+
+	public isReadonly(): boolean {
+		return this._model.object.isReadonly();
 	}
 
 	public isDirty(): boolean {
@@ -64,11 +68,11 @@ export class CustomTextEditorModel extends Disposable implements ICustomEditorMo
 		return this.textFileService.revert(this.resource, options);
 	}
 
-	public async save(options?: ISaveOptions): Promise<boolean> {
-		return !!await this.textFileService.save(this.resource, options);
+	public saveCustomEditor(options?: ISaveOptions): Promise<URI | undefined> {
+		return this.textFileService.save(this.resource, options);
 	}
 
-	public async saveAs(resource: URI, targetResource: URI, options?: ISaveOptions): Promise<boolean> {
+	public async saveCustomEditorAs(resource: URI, targetResource: URI, options?: ISaveOptions): Promise<boolean> {
 		return !!await this.textFileService.saveAs(resource, targetResource, options);
 	}
 }

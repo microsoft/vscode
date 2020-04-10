@@ -63,7 +63,7 @@ interface ISuggestionTemplateData {
 	colorspan: HTMLElement;
 	iconLabel: IconLabel;
 	iconContainer: HTMLElement;
-	signatureLabel: HTMLElement;
+	parametersLabel: HTMLElement;
 	qualifierLabel: HTMLElement;
 	/**
 	 * Showing either `CompletionItem#details` or `CompletionItemLabel#type`
@@ -151,7 +151,7 @@ class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTemplateD
 		data.iconLabel = new IconLabel(data.left, { supportHighlights: true, supportCodicons: true });
 		data.disposables.add(data.iconLabel);
 
-		data.signatureLabel = append(data.left, $('span.signature-label'));
+		data.parametersLabel = append(data.left, $('span.signature-label'));
 		data.qualifierLabel = append(data.left, $('span.qualifier-label'));
 		data.detailsLabel = append(data.right, $('span.details-label'));
 
@@ -195,7 +195,6 @@ class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTemplateD
 		const textLabel = typeof suggestion.label === 'string' ? suggestion.label : suggestion.label.name;
 
 		data.root.id = getAriaId(index);
-		data.icon.className = 'icon ' + completionKindToCssClass(suggestion.kind);
 		data.colorspan.style.backgroundColor = '';
 
 		const labelOptions: IIconLabelValueOptions = {
@@ -230,7 +229,7 @@ class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTemplateD
 			// normal icon
 			data.icon.className = 'icon hide';
 			data.iconContainer.className = '';
-			addClasses(data.iconContainer, `suggest-icon codicon codicon-symbol-${completionKindToCssClass(suggestion.kind)}`);
+			addClasses(data.iconContainer, `suggest-icon codicon codicon-${completionKindToCssClass(suggestion.kind)}`);
 		}
 
 		if (suggestion.tags && suggestion.tags.indexOf(CompletionItemTag.Deprecated) >= 0) {
@@ -240,12 +239,12 @@ class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTemplateD
 
 		data.iconLabel.setLabel(textLabel, undefined, labelOptions);
 		if (typeof suggestion.label === 'string') {
-			data.signatureLabel.textContent = '';
+			data.parametersLabel.textContent = '';
 			data.qualifierLabel.textContent = '';
 			data.detailsLabel.textContent = (suggestion.detail || '').replace(/\n.*$/m, '');
 			addClass(data.root, 'string-label');
 		} else {
-			data.signatureLabel.textContent = (suggestion.label.signature || '').replace(/\n.*$/m, '');
+			data.parametersLabel.textContent = (suggestion.label.parameters || '').replace(/\n.*$/m, '');
 			data.qualifierLabel.textContent = (suggestion.label.qualifier || '').replace(/\n.*$/m, '');
 			data.detailsLabel.textContent = (suggestion.label.type || '').replace(/\n.*$/m, '');
 			removeClass(data.root, 'string-label');
@@ -605,7 +604,9 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			useShadows: false,
 			openController: { shouldOpen: () => false },
 			mouseSupport: false,
+			ariaRole: 'listbox',
 			accessibilityProvider: {
+				getRole: () => 'option',
 				getAriaLabel: (item: CompletionItem) => {
 					const textLabel = typeof item.completion.label === 'string' ? item.completion.label : item.completion.label.name;
 					if (item.isResolved && this.expandDocsSettingFromStorage()) {

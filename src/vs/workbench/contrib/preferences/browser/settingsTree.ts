@@ -13,7 +13,7 @@ import { alert as ariaAlert } from 'vs/base/browser/ui/aria/aria';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { CachedListVirtualDelegate, ListAriaRootRole } from 'vs/base/browser/ui/list/list';
+import { CachedListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { DefaultStyleController } from 'vs/base/browser/ui/list/listWidget';
 import { ISelectOptionItem, SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
@@ -50,6 +50,8 @@ import { SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ISetting, ISettingsGroup, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { IUserDataSyncEnablementService, getDefaultIgnoredSettings } from 'vs/platform/userDataSync/common/userDataSync';
+import { CodiconLabel } from 'vs/base/browser/ui/codiconLabel/codiconLabel';
+import { getInvalidTypeError } from 'vs/workbench/services/preferences/common/preferencesValidation';
 
 const $ = DOM.$;
 
@@ -204,6 +206,7 @@ interface ISettingItemTemplate<T = any> extends IDisposableTemplate {
 	controlElement: HTMLElement;
 	deprecationWarningElement: HTMLElement;
 	otherOverridesElement: HTMLElement;
+	syncIgnoredElement: HTMLElement;
 	toolbar: ToolBar;
 	elementDisposables: IDisposable[];
 }
@@ -226,6 +229,7 @@ interface ISettingEnumItemTemplate extends ISettingItemTemplate<number> {
 
 interface ISettingComplexItemTemplate extends ISettingItemTemplate<void> {
 	button: Button;
+	validationErrorMessageElement: HTMLElement;
 }
 
 interface ISettingListItemTemplate extends ISettingItemTemplate<string[] | undefined> {
@@ -300,6 +304,10 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 	private readonly _onDidFocusSetting = this._register(new Emitter<SettingsTreeSettingElement>());
 	readonly onDidFocusSetting: Event<SettingsTreeSettingElement> = this._onDidFocusSetting.event;
 
+	private ignoredSettings: string[];
+	private readonly _onDidChangeIgnoredSettings = this._register(new Emitter<void>());
+	readonly onDidChangeIgnoredSettings: Event<void> = this._onDidChangeIgnoredSettings.event;
+
 	// Put common injections back here
 	constructor(
 		private readonly settingActions: IAction[],
@@ -311,8 +319,17 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		@ICommandService protected readonly _commandService: ICommandService,
 		@IContextMenuService protected readonly _contextMenuService: IContextMenuService,
 		@IKeybindingService protected readonly _keybindingService: IKeybindingService,
+		@IConfigurationService protected readonly _configService: IConfigurationService,
 	) {
 		super();
+
+		this.ignoredSettings = getIgnoredSettings(getDefaultIgnoredSettings(), this._configService);
+		this._register(this._configService.onDidChangeConfiguration(e => {
+			if (e.affectedKeys.includes('sync.ignoredSettings')) {
+				this.ignoredSettings = getIgnoredSettings(getDefaultIgnoredSettings(), this._configService);
+				this._onDidChangeIgnoredSettings.fire();
+			}
+		}));
 	}
 
 	renderTemplate(container: HTMLElement): any {
@@ -321,6 +338,14 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 
 	renderElement(element: ITreeNode<SettingsTreeSettingElement, never>, index: number, templateData: any): void {
 		throw new Error('to override');
+	}
+
+	protected createSyncIgnoredElement(container: HTMLElement): HTMLElement {
+		const syncIgnoredElement = DOM.append(container, $('span.setting-item-ignored'));
+		const syncIgnoredLabel = new CodiconLabel(syncIgnoredElement);
+		syncIgnoredLabel.text = `($(sync-ignored) ${localize('extensionSyncIgnoredLabel', 'Sync: Ignored')})`;
+
+		return syncIgnoredElement;
 	}
 
 	protected renderCommonTemplate(tree: any, _container: HTMLElement, typeClass: string): ISettingItemTemplate {
@@ -333,6 +358,8 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		const categoryElement = DOM.append(labelCategoryContainer, $('span.setting-item-category'));
 		const labelElement = DOM.append(labelCategoryContainer, $('span.setting-item-label'));
 		const otherOverridesElement = DOM.append(titleElement, $('span.setting-item-overrides'));
+		const syncIgnoredElement = this.createSyncIgnoredElement(titleElement);
+
 		const descriptionElement = DOM.append(container, $('.setting-item-description'));
 		const modifiedIndicatorElement = DOM.append(container, $('.setting-item-modified-indicator'));
 		modifiedIndicatorElement.title = localize('modified', "Modified");
@@ -358,6 +385,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 			controlElement,
 			deprecationWarningElement,
 			otherOverridesElement,
+			syncIgnoredElement,
 			toolbar
 		};
 
@@ -447,8 +475,10 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		template.descriptionElement.id = baseId + '_setting_description';
 
 		template.otherOverridesElement.innerHTML = '';
-
+		template.otherOverridesElement.style.display = 'none';
 		if (element.overriddenScopeList.length) {
+			template.otherOverridesElement.style.display = 'inline';
+
 			const otherOverridesLabel = element.isConfigured ?
 				localize('alsoConfiguredIn', "Also modified in") :
 				localize('configuredIn', "Modified in");
@@ -482,6 +512,14 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		DOM.toggleClass(template.containerElement, 'is-deprecated', !!deprecationText);
 
 		this.renderValue(element, <ISettingItemTemplate>template, onChange);
+
+		const update = () => {
+			template.syncIgnoredElement.style.display = this.ignoredSettings.includes(element.setting.key) ? 'inline' : 'none';
+		};
+		update();
+		template.elementDisposables.push(this.onDidChangeIgnoredSettings(() => {
+			update();
+		}));
 	}
 
 	private renderDescriptionMarkdown(element: SettingsTreeSettingElement, text: string, disposeables: DisposableStore): HTMLElement {
@@ -670,9 +708,13 @@ export class SettingComplexRenderer extends AbstractSettingRenderer implements I
 			buttonForeground: 'foreground'
 		}));
 
+		const validationErrorMessageElement = $('.setting-item-validation-message');
+		common.containerElement.appendChild(validationErrorMessageElement);
+
 		const template: ISettingComplexItemTemplate = {
 			...common,
-			button: openSettingsButton
+			button: openSettingsButton,
+			validationErrorMessageElement
 		};
 
 		this.addSettingElementFocusHandler(template);
@@ -684,8 +726,20 @@ export class SettingComplexRenderer extends AbstractSettingRenderer implements I
 		super.renderSettingElement(element, index, templateData);
 	}
 
-	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingExcludeItemTemplate, onChange: (value: string) => void): void {
+	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingComplexItemTemplate, onChange: (value: string) => void): void {
 		template.onChange = () => this._onDidOpenSettings.fire(dataElement.setting.key);
+		this.renderValidations(dataElement, template);
+	}
+
+	private renderValidations(dataElement: SettingsTreeSettingElement, template: ISettingComplexItemTemplate) {
+		const errMsg = getInvalidTypeError(dataElement.value, dataElement.setting.type);
+		if (errMsg) {
+			DOM.addClass(template.containerElement, 'invalid-input');
+			template.validationErrorMessageElement.innerText = errMsg;
+			return;
+		}
+
+		DOM.removeClass(template.containerElement, 'invalid-input');
 	}
 }
 
@@ -1085,6 +1139,7 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 		const categoryElement = DOM.append(titleElement, $('span.setting-item-category'));
 		const labelElement = DOM.append(titleElement, $('span.setting-item-label'));
 		const otherOverridesElement = DOM.append(titleElement, $('span.setting-item-overrides'));
+		const syncIgnoredElement = this.createSyncIgnoredElement(titleElement);
 
 		const descriptionAndValueElement = DOM.append(container, $('.setting-item-value-description'));
 		const controlElement = DOM.append(descriptionAndValueElement, $('.setting-item-bool-control'));
@@ -1138,6 +1193,7 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 			descriptionElement,
 			deprecationWarningElement,
 			otherOverridesElement,
+			syncIgnoredElement,
 			toolbar
 		};
 
@@ -1422,6 +1478,11 @@ class SettingsTreeDelegate extends CachedListVirtualDelegate<SettingsTreeGroupCh
 		}
 
 		if (element instanceof SettingsTreeSettingElement) {
+			const invalidTypeError = getInvalidTypeError(element.value, element.setting.type);
+			if (invalidTypeError) {
+				return SETTINGS_COMPLEX_TEMPLATE_ID;
+			}
+
 			if (element.valueType === SettingValueType.Boolean) {
 				return SETTINGS_BOOL_TEMPLATE_ID;
 			}
@@ -1496,7 +1557,7 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 			renderers,
 			{
 				supportDynamicHeights: true,
-				ariaRole: ListAriaRootRole.FORM,
+				ariaRole: 'form',
 				ariaLabel: localize('treeAriaLabel', "Settings"),
 				identityProvider: {
 					getId(e) {

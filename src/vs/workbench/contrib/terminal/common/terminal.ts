@@ -16,10 +16,17 @@ export const TERMINAL_VIEW_ID = 'workbench.panel.terminal';
 
 /** A context key that is set when there is at least one opened integrated terminal. */
 export const KEYBINDING_CONTEXT_TERMINAL_IS_OPEN = new RawContextKey<boolean>('terminalIsOpen', false);
+
 /** A context key that is set when the integrated terminal has focus. */
 export const KEYBINDING_CONTEXT_TERMINAL_FOCUS = new RawContextKey<boolean>('terminalFocus', false);
+
+export const KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE_KEY = 'terminalShellType';
+/** A context key that is set to the detected shell for the most recently active terminal, this is set to the last known value when no terminals exist. */
+export const KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE = new RawContextKey<string>(KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE_KEY, undefined);
+
 /** A context key that is set when the integrated terminal does not have focus. */
 export const KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED = KEYBINDING_CONTEXT_TERMINAL_FOCUS.toNegated();
+
 /** A context key that is set when the user is navigating the accessibility tree */
 export const KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS = new RawContextKey<boolean>('terminalA11yTreeFocus', false);
 
@@ -107,7 +114,7 @@ export interface ITerminalConfiguration {
 	scrollback: number;
 	commandsToSkipShell: string[];
 	allowChords: boolean;
-	allowMenubarMnemonics: boolean;
+	allowMnemonics: boolean;
 	cwd: string;
 	confirmOnExit: boolean;
 	enableBell: boolean;
@@ -120,6 +127,7 @@ export interface ITerminalConfiguration {
 	showExitAlert: boolean;
 	splitCwd: 'workspaceRoot' | 'initial' | 'inherited';
 	windowsEnableConpty: boolean;
+	wordSeparators: string;
 	experimentalUseTitleEvent: boolean;
 	enableFileLinks: boolean;
 	unicodeVersion: '6' | '11';
@@ -476,3 +484,122 @@ export const enum TERMINAL_COMMAND_ID {
 	NAVIGATION_MODE_FOCUS_NEXT = 'workbench.action.terminal.navigationModeFocusNext',
 	NAVIGATION_MODE_FOCUS_PREVIOUS = 'workbench.action.terminal.navigationModeFocusPrevious'
 }
+
+export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
+	TERMINAL_COMMAND_ID.CLEAR_SELECTION,
+	TERMINAL_COMMAND_ID.CLEAR,
+	TERMINAL_COMMAND_ID.COPY_SELECTION,
+	TERMINAL_COMMAND_ID.DELETE_TO_LINE_START,
+	TERMINAL_COMMAND_ID.DELETE_WORD_LEFT,
+	TERMINAL_COMMAND_ID.DELETE_WORD_RIGHT,
+	TERMINAL_COMMAND_ID.FIND_WIDGET_FOCUS,
+	TERMINAL_COMMAND_ID.FIND_WIDGET_HIDE,
+	TERMINAL_COMMAND_ID.FIND_NEXT,
+	TERMINAL_COMMAND_ID.FIND_PREVIOUS,
+	TERMINAL_COMMAND_ID.TOGGLE_FIND_REGEX,
+	TERMINAL_COMMAND_ID.TOGGLE_FIND_WHOLE_WORD,
+	TERMINAL_COMMAND_ID.TOGGLE_FIND_CASE_SENSITIVE,
+	TERMINAL_COMMAND_ID.FOCUS_NEXT_PANE,
+	TERMINAL_COMMAND_ID.FOCUS_NEXT,
+	TERMINAL_COMMAND_ID.FOCUS_PREVIOUS_PANE,
+	TERMINAL_COMMAND_ID.FOCUS_PREVIOUS,
+	TERMINAL_COMMAND_ID.FOCUS,
+	TERMINAL_COMMAND_ID.KILL,
+	TERMINAL_COMMAND_ID.MOVE_TO_LINE_END,
+	TERMINAL_COMMAND_ID.MOVE_TO_LINE_START,
+	TERMINAL_COMMAND_ID.NEW_IN_ACTIVE_WORKSPACE,
+	TERMINAL_COMMAND_ID.NEW,
+	TERMINAL_COMMAND_ID.PASTE,
+	TERMINAL_COMMAND_ID.RESIZE_PANE_DOWN,
+	TERMINAL_COMMAND_ID.RESIZE_PANE_LEFT,
+	TERMINAL_COMMAND_ID.RESIZE_PANE_RIGHT,
+	TERMINAL_COMMAND_ID.RESIZE_PANE_UP,
+	TERMINAL_COMMAND_ID.RUN_ACTIVE_FILE,
+	TERMINAL_COMMAND_ID.RUN_SELECTED_TEXT,
+	TERMINAL_COMMAND_ID.SCROLL_DOWN_LINE,
+	TERMINAL_COMMAND_ID.SCROLL_DOWN_PAGE,
+	TERMINAL_COMMAND_ID.SCROLL_TO_BOTTOM,
+	TERMINAL_COMMAND_ID.SCROLL_TO_NEXT_COMMAND,
+	TERMINAL_COMMAND_ID.SCROLL_TO_PREVIOUS_COMMAND,
+	TERMINAL_COMMAND_ID.SCROLL_TO_TOP,
+	TERMINAL_COMMAND_ID.SCROLL_UP_LINE,
+	TERMINAL_COMMAND_ID.SCROLL_UP_PAGE,
+	TERMINAL_COMMAND_ID.SEND_SEQUENCE,
+	TERMINAL_COMMAND_ID.SELECT_ALL,
+	TERMINAL_COMMAND_ID.SELECT_TO_NEXT_COMMAND,
+	TERMINAL_COMMAND_ID.SELECT_TO_NEXT_LINE,
+	TERMINAL_COMMAND_ID.SELECT_TO_PREVIOUS_COMMAND,
+	TERMINAL_COMMAND_ID.SELECT_TO_PREVIOUS_LINE,
+	TERMINAL_COMMAND_ID.SPLIT_IN_ACTIVE_WORKSPACE,
+	TERMINAL_COMMAND_ID.SPLIT,
+	TERMINAL_COMMAND_ID.TOGGLE,
+	TERMINAL_COMMAND_ID.NAVIGATION_MODE_EXIT,
+	TERMINAL_COMMAND_ID.NAVIGATION_MODE_FOCUS_NEXT,
+	TERMINAL_COMMAND_ID.NAVIGATION_MODE_FOCUS_PREVIOUS,
+	'editor.action.toggleTabFocusMode',
+	'workbench.action.quickOpen',
+	'workbench.action.quickOpenPreviousEditor',
+	'workbench.action.showCommands',
+	'workbench.action.tasks.build',
+	'workbench.action.tasks.restartTask',
+	'workbench.action.tasks.runTask',
+	'workbench.action.tasks.reRunTask',
+	'workbench.action.tasks.showLog',
+	'workbench.action.tasks.showTasks',
+	'workbench.action.tasks.terminate',
+	'workbench.action.tasks.test',
+	'workbench.action.toggleFullScreen',
+	'workbench.action.terminal.focusAtIndex1',
+	'workbench.action.terminal.focusAtIndex2',
+	'workbench.action.terminal.focusAtIndex3',
+	'workbench.action.terminal.focusAtIndex4',
+	'workbench.action.terminal.focusAtIndex5',
+	'workbench.action.terminal.focusAtIndex6',
+	'workbench.action.terminal.focusAtIndex7',
+	'workbench.action.terminal.focusAtIndex8',
+	'workbench.action.terminal.focusAtIndex9',
+	'workbench.action.focusSecondEditorGroup',
+	'workbench.action.focusThirdEditorGroup',
+	'workbench.action.focusFourthEditorGroup',
+	'workbench.action.focusFifthEditorGroup',
+	'workbench.action.focusSixthEditorGroup',
+	'workbench.action.focusSeventhEditorGroup',
+	'workbench.action.focusEighthEditorGroup',
+	'workbench.action.nextPanelView',
+	'workbench.action.previousPanelView',
+	'workbench.action.nextSideBarView',
+	'workbench.action.previousSideBarView',
+	'workbench.action.debug.start',
+	'workbench.action.debug.stop',
+	'workbench.action.debug.run',
+	'workbench.action.debug.restart',
+	'workbench.action.debug.continue',
+	'workbench.action.debug.pause',
+	'workbench.action.debug.stepInto',
+	'workbench.action.debug.stepOut',
+	'workbench.action.debug.stepOver',
+	'workbench.action.nextEditor',
+	'workbench.action.previousEditor',
+	'workbench.action.nextEditorInGroup',
+	'workbench.action.previousEditorInGroup',
+	'workbench.action.openNextRecentlyUsedEditor',
+	'workbench.action.openPreviousRecentlyUsedEditor',
+	'workbench.action.openNextRecentlyUsedEditorInGroup',
+	'workbench.action.openPreviousRecentlyUsedEditorInGroup',
+	'workbench.action.quickOpenPreviousRecentlyUsedEditor',
+	'workbench.action.quickOpenLeastRecentlyUsedEditor',
+	'workbench.action.quickOpenPreviousRecentlyUsedEditorInGroup',
+	'workbench.action.quickOpenLeastRecentlyUsedEditorInGroup',
+	'workbench.action.focusActiveEditorGroup',
+	'workbench.action.focusFirstEditorGroup',
+	'workbench.action.focusLastEditorGroup',
+	'workbench.action.firstEditorInGroup',
+	'workbench.action.lastEditorInGroup',
+	'workbench.action.navigateUp',
+	'workbench.action.navigateDown',
+	'workbench.action.navigateRight',
+	'workbench.action.navigateLeft',
+	'workbench.action.togglePanel',
+	'workbench.action.quickOpenView',
+	'workbench.action.toggleMaximizedPanel'
+];

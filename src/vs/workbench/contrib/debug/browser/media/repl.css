@@ -79,7 +79,8 @@
 }
 
 .repl .repl-input-wrapper {
-	padding-left: 20px;
+	display: flex;
+	align-items: center;
 	border-top: 1px solid rgba(128, 128, 128, 0.35);
 }
 
@@ -92,15 +93,14 @@
 	border-top-color: #6FC3DF;
 }
 
-.repl .repl-input-wrapper:before {
-	left: 8px;
-	position: absolute;
-	content: '\276f';
-	line-height: 18px;
-}
-
-.monaco-workbench.linux .repl .repl-input-wrapper:before {
-	font-size: 9px;
+.repl .repl-input-wrapper .repl-input-chevron {
+	padding: 0 6px 0 8px;
+	width: 16px;
+	height: 100%;
+	display: flex;
+	flex-shrink: 0;
+	justify-content: center;
+	font-weight: 600;
 }
 
 /* Output coloring  and styling */

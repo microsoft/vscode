@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ISpliceable } from 'vs/base/common/sequence';
-import { Iterator, ISequence, getSequenceIterator } from 'vs/base/common/iterator';
+import { Iterable } from 'vs/base/common/iterator';
 import { IndexTreeModel, IIndexTreeModelOptions } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { Event } from 'vs/base/common/event';
 import { ITreeModel, ITreeNode, ITreeElement, ITreeSorter, ICollapseStateChangeEvent, ITreeModelSpliceEvent, TreeError } from 'vs/base/browser/ui/tree/tree';
@@ -14,7 +14,7 @@ import { mergeSort } from 'vs/base/common/arrays';
 export type ITreeNodeCallback<T, TFilterData> = (node: ITreeNode<T, TFilterData>) => void;
 
 export interface IObjectTreeModel<T extends NonNullable<any>, TFilterData extends NonNullable<any> = void> extends ITreeModel<T | null, TFilterData, T | null> {
-	setChildren(element: T | null, children: ISequence<ITreeElement<T>> | undefined): void;
+	setChildren(element: T | null, children: Iterable<ITreeElement<T>> | undefined): void;
 	resort(element?: T | null, recursive?: boolean): void;
 }
 
@@ -62,7 +62,7 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 
 	setChildren(
 		element: T | null,
-		children: ISequence<ITreeElement<T>> | undefined,
+		children: Iterable<ITreeElement<T>> = Iterable.empty(),
 		onDidCreateNode?: ITreeNodeCallback<T, TFilterData>,
 		onDidDeleteNode?: ITreeNodeCallback<T, TFilterData>
 	): void {
@@ -72,7 +72,7 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 
 	private _setChildren(
 		location: number[],
-		children: ISequence<ITreeElement<T>> | undefined,
+		children: Iterable<ITreeElement<T>> = Iterable.empty(),
 		onDidCreateNode?: ITreeNodeCallback<T, TFilterData>,
 		onDidDeleteNode?: ITreeNodeCallback<T, TFilterData>
 	): void {
@@ -132,14 +132,12 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 		);
 	}
 
-	private preserveCollapseState(elements: ISequence<ITreeElement<T>> | undefined): ISequence<ITreeElement<T>> {
-		let iterator = elements ? getSequenceIterator(elements) : Iterator.empty<ITreeElement<T>>();
-
+	private preserveCollapseState(elements: Iterable<ITreeElement<T>> = Iterable.empty()): Iterable<ITreeElement<T>> {
 		if (this.sorter) {
-			iterator = Iterator.fromArray(mergeSort(Iterator.collect(iterator), this.sorter.compare.bind(this.sorter)));
+			elements = mergeSort([...elements], this.sorter.compare.bind(this.sorter));
 		}
 
-		return Iterator.map(iterator, treeElement => {
+		return Iterable.map(elements, treeElement => {
 			let node = this.nodes.get(treeElement.element);
 
 			if (!node && this.identityProvider) {
@@ -182,14 +180,14 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 		this._setChildren(location, this.resortChildren(node, recursive));
 	}
 
-	private resortChildren(node: ITreeNode<T | null, TFilterData>, recursive: boolean, first = true): ISequence<ITreeElement<T>> {
-		let childrenNodes = Iterator.fromArray(node.children as ITreeNode<T, TFilterData>[]);
+	private resortChildren(node: ITreeNode<T | null, TFilterData>, recursive: boolean, first = true): Iterable<ITreeElement<T>> {
+		let childrenNodes = [...node.children] as ITreeNode<T, TFilterData>[];
 
 		if (recursive || first) {
-			childrenNodes = Iterator.fromArray(Iterator.collect(childrenNodes).sort(this.sorter!.compare.bind(this.sorter)));
+			childrenNodes = mergeSort(childrenNodes, this.sorter!.compare.bind(this.sorter));
 		}
 
-		return Iterator.map<ITreeNode<T | null, TFilterData>, ITreeElement<T>>(childrenNodes, node => ({
+		return Iterable.map<ITreeNode<T | null, TFilterData>, ITreeElement<T>>(childrenNodes, node => ({
 			element: node.element as T,
 			collapsible: node.collapsible,
 			collapsed: node.collapsed,

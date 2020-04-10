@@ -5,7 +5,7 @@
 
 import severity from 'vs/base/common/severity';
 import * as dom from 'vs/base/browser/dom';
-import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { Variable } from 'vs/workbench/contrib/debug/common/debugModel';
 import { SimpleReplElement, RawObjectReplElement, ReplEvaluationInput, ReplEvaluationResult, ReplGroup } from 'vs/workbench/contrib/debug/common/replModel';
 import { CachedListVirtualDelegate } from 'vs/base/browser/ui/list/list';
@@ -365,7 +365,7 @@ export class ReplDataSource implements IAsyncDataSource<IDebugSession, IReplElem
 	}
 }
 
-export class ReplAccessibilityProvider implements IAccessibilityProvider<IReplElement> {
+export class ReplAccessibilityProvider implements IListAccessibilityProvider<IReplElement> {
 	getAriaLabel(element: IReplElement): string {
 		if (element instanceof Variable) {
 			return localize('replVariableAriaLabel', "Variable {0} has value {1}, read eval print loop, debug", element.name, element.value);

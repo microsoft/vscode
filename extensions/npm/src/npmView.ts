@@ -225,7 +225,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 
 	public refresh() {
 		this.taskTree = null;
-		this._onDidChangeTreeData.fire();
+		this._onDidChangeTreeData.fire(null);
 	}
 
 	getTreeItem(element: TreeItem): TreeItem {

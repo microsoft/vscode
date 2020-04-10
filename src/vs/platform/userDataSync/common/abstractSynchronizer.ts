@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IFileService, IFileContent, FileChangesEvent, FileSystemProviderError, FileSystemProviderErrorCode, FileOperationResult, FileOperationError } from 'vs/platform/files/common/files';
+import { IFileService, IFileContent, FileChangesEvent, FileOperationResult, FileOperationError } from 'vs/platform/files/common/files';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { URI } from 'vs/base/common/uri';
-import { SyncResource, SyncStatus, IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, UserDataSyncError, IUserDataSyncLogService, IUserDataSyncUtilService, IUserDataSyncEnablementService, IUserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSync';
+import { SyncResource, SyncStatus, IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, UserDataSyncError, IUserDataSyncLogService, IUserDataSyncUtilService, IUserDataSyncEnablementService, IUserDataSyncBackupStoreService, Conflict, ISyncResourceHandle, USER_DATA_SYNC_SCHEME, ISyncPreviewResult } from 'vs/platform/userDataSync/common/userDataSync';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { joinPath, dirname } from 'vs/base/common/resources';
+import { joinPath, dirname, isEqual, basename } from 'vs/base/common/resources';
 import { CancelablePromise } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -20,6 +20,7 @@ import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { isString } from 'vs/base/common/types';
 import { uppercaseFirstLetter } from 'vs/base/common/strings';
+import { equals } from 'vs/base/common/arrays';
 
 type SyncSourceClassification = {
 	source?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
@@ -50,6 +51,11 @@ export abstract class AbstractSynchroniser extends Disposable {
 	get status(): SyncStatus { return this._status; }
 	private _onDidChangStatus: Emitter<SyncStatus> = this._register(new Emitter<SyncStatus>());
 	readonly onDidChangeStatus: Event<SyncStatus> = this._onDidChangStatus.event;
+
+	private _conflicts: Conflict[] = [];
+	get conflicts(): Conflict[] { return this._conflicts; }
+	private _onDidChangeConflicts: Emitter<Conflict[]> = this._register(new Emitter<Conflict[]>());
+	readonly onDidChangeConflicts: Event<Conflict[]> = this._onDidChangeConflicts.event;
 
 	protected readonly _onDidChangeLocal: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeLocal: Event<void> = this._onDidChangeLocal.event;
@@ -87,6 +93,16 @@ export abstract class AbstractSynchroniser extends Disposable {
 				// Log to telemetry when conflicts are resolved
 				this.telemetryService.publicLog2<{ source: string }, SyncSourceClassification>('sync/conflictsResolved', { source: this.resource });
 			}
+			if (this.status !== SyncStatus.HasConflicts) {
+				this.setConflicts([]);
+			}
+		}
+	}
+
+	protected setConflicts(conflicts: Conflict[]) {
+		if (!equals(this._conflicts, conflicts, (a, b) => isEqual(a.local, b.local) && isEqual(a.remote, b.remote))) {
+			this._conflicts = conflicts;
+			this._onDidChangeConflicts.fire(this._conflicts);
 		}
 	}
 
@@ -94,6 +110,9 @@ export abstract class AbstractSynchroniser extends Disposable {
 
 	async sync(ref?: string): Promise<void> {
 		if (!this.isEnabled()) {
+			if (this.status !== SyncStatus.Idle) {
+				await this.stop();
+			}
 			this.logService.info(`${this.syncResourceLogLabel}: Skipped synchronizing ${this.resource.toLowerCase()} as it is disabled.`);
 			return;
 		}
@@ -125,6 +144,16 @@ export abstract class AbstractSynchroniser extends Disposable {
 		}
 	}
 
+	async getSyncPreview(): Promise<ISyncPreviewResult> {
+		if (!this.isEnabled()) {
+			return { hasLocalChanged: false, hasRemoteChanged: false };
+		}
+
+		const lastSyncUserData = await this.getLastSyncUserData();
+		const remoteUserData = await this.getRemoteUserData(lastSyncUserData);
+		return this.generatePreview(remoteUserData, lastSyncUserData);
+	}
+
 	protected async doSync(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<SyncStatus> {
 		if (remoteUserData.syncData && remoteUserData.syncData.version > this.version) {
 			// current version is not compatible with cloud version
@@ -154,18 +183,34 @@ export abstract class AbstractSynchroniser extends Disposable {
 		return !!lastSyncData;
 	}
 
-	async getRemoteContentFromPreview(): Promise<string | null> {
+	async getRemoteSyncResourceHandles(): Promise<ISyncResourceHandle[]> {
+		const handles = await this.userDataSyncStoreService.getAllRefs(this.resource);
+		return handles.map(({ created, ref }) => ({ created, uri: this.toRemoteBackupResource(ref) }));
+	}
+
+	async getLocalSyncResourceHandles(): Promise<ISyncResourceHandle[]> {
+		const handles = await this.userDataSyncBackupStoreService.getAllRefs(this.resource);
+		return handles.map(({ created, ref }) => ({ created, uri: this.toLocalBackupResource(ref) }));
+	}
+
+	private toRemoteBackupResource(ref: string): URI {
+		return URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote-backup', path: `/${this.resource}/${ref}` });
+	}
+
+	private toLocalBackupResource(ref: string): URI {
+		return URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local-backup', path: `/${this.resource}/${ref}` });
+	}
+
+	async resolveContent(uri: URI): Promise<string | null> {
+		const ref = basename(uri);
+		if (isEqual(uri, this.toRemoteBackupResource(ref))) {
+			const { content } = await this.getUserData(ref);
+			return content;
+		}
+		if (isEqual(uri, this.toLocalBackupResource(ref))) {
+			return this.userDataSyncBackupStoreService.resolveContent(this.resource, ref);
+		}
 		return null;
-	}
-
-	async getRemoteContent(ref?: string): Promise<string | null> {
-		const refOrLastSyncUserData: string | IRemoteUserData | null = ref || await this.getLastSyncUserData();
-		const { content } = await this.getUserData(refOrLastSyncUserData);
-		return content;
-	}
-
-	async getLocalBackupContent(ref?: string): Promise<string | null> {
-		return this.userDataSyncBackupStoreService.resolveContent(this.resource, ref);
 	}
 
 	async resetLocal(): Promise<void> {
@@ -246,17 +291,18 @@ export abstract class AbstractSynchroniser extends Disposable {
 		return this.userDataSyncBackupStoreService.backup(this.resource, JSON.stringify(syncData));
 	}
 
+	abstract stop(): Promise<void>;
+
 	protected abstract readonly version: number;
 	protected abstract performSync(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<SyncStatus>;
+	protected abstract generatePreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<ISyncPreviewResult>;
 }
 
-export interface IFileSyncPreviewResult {
+export interface IFileSyncPreviewResult extends ISyncPreviewResult {
 	readonly fileContent: IFileContent | null;
 	readonly remoteUserData: IRemoteUserData;
 	readonly lastSyncUserData: IRemoteUserData | null;
 	readonly content: string | null;
-	readonly hasLocalChanged: boolean;
-	readonly hasRemoteChanged: boolean;
 	readonly hasConflicts: boolean;
 }
 
@@ -283,17 +329,24 @@ export abstract class AbstractFileSynchroniser extends AbstractSynchroniser {
 
 	async stop(): Promise<void> {
 		this.cancel();
-		this.logService.trace(`${this.syncResourceLogLabel}: Stopped synchronizing ${this.resource.toLowerCase()}.`);
+		this.logService.info(`${this.syncResourceLogLabel}: Stopped synchronizing ${this.resource.toLowerCase()}.`);
 		try {
-			await this.fileService.del(this.conflictsPreviewResource);
+			await this.fileService.del(this.localPreviewResource);
 		} catch (e) { /* ignore */ }
 		this.setStatus(SyncStatus.Idle);
 	}
 
-	async getRemoteContentFromPreview(): Promise<string | null> {
-		if (this.syncPreviewResultPromise) {
-			const result = await this.syncPreviewResultPromise;
-			return result.remoteUserData && result.remoteUserData.syncData ? result.remoteUserData.syncData.content : null;
+	protected async getConflictContent(conflictResource: URI): Promise<string | null> {
+		if (isEqual(this.remotePreviewResource, conflictResource) || isEqual(this.localPreviewResource, conflictResource)) {
+			if (this.syncPreviewResultPromise) {
+				const result = await this.syncPreviewResultPromise;
+				if (isEqual(this.remotePreviewResource, conflictResource)) {
+					return result.remoteUserData && result.remoteUserData.syncData ? result.remoteUserData.syncData.content : null;
+				}
+				if (isEqual(this.localPreviewResource, conflictResource)) {
+					return result.fileContent ? result.fileContent.value.toString() : null;
+				}
+			}
 		}
 		return null;
 	}
@@ -316,7 +369,7 @@ export abstract class AbstractFileSynchroniser extends AbstractSynchroniser {
 				await this.fileService.createFile(this.file, VSBuffer.fromString(newContent), { overwrite: false });
 			}
 		} catch (e) {
-			if ((e instanceof FileSystemProviderError && e.code === FileSystemProviderErrorCode.FileExists) ||
+			if ((e instanceof FileOperationError && e.fileOperationResult === FileOperationResult.FILE_NOT_FOUND) ||
 				(e instanceof FileOperationError && e.fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE)) {
 				throw new UserDataSyncError(e.message, UserDataSyncErrorCode.LocalPreconditionFailed);
 			} else {
@@ -356,7 +409,8 @@ export abstract class AbstractFileSynchroniser extends AbstractSynchroniser {
 		}
 	}
 
-	protected abstract readonly conflictsPreviewResource: URI;
+	protected abstract readonly localPreviewResource: URI;
+	protected abstract readonly remotePreviewResource: URI;
 }
 
 export abstract class AbstractJsonFileSynchroniser extends AbstractFileSynchroniser {

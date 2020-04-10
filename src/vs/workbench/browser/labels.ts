@@ -364,8 +364,8 @@ class ResourceLabelWidget extends IconLabel {
 	}
 
 	setResource(label: IResourceLabelProps, options: IResourceLabelOptions = Object.create(null)): void {
-		const resource = toResource(this.label);
-		const isMasterDetail = this.label?.resource && !URI.isUri(this.label.resource);
+		const resource = toResource(label);
+		const isMasterDetail = label?.resource && !URI.isUri(label.resource);
 
 		if (!isMasterDetail && resource?.scheme === Schemas.untitled) {
 			// Untitled labels are very dynamic because they may change
@@ -488,8 +488,9 @@ class ResourceLabelWidget extends IconLabel {
 
 		const iconLabelOptions: IIconLabelValueOptions & { extraClasses: string[] } = {
 			title: '',
-			italic: this.options && this.options.italic,
-			matches: this.options && this.options.matches,
+			italic: this.options?.italic,
+			strikethrough: this.options?.strikethrough,
+			matches: this.options?.matches,
 			extraClasses: [],
 			separator: this.options?.separator,
 			domId: this.options?.domId

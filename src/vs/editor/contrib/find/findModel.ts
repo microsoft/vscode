@@ -251,6 +251,9 @@ export class FindModelBoundToEditorModel {
 	}
 
 	private _moveToPrevMatch(before: Position, isRecursed: boolean = false): void {
+		if (!this._state.canNavigateBack()) {
+			return;
+		}
 		if (this._decorations.getCount() < MATCHES_LIMIT) {
 			let prevMatchRange = this._decorations.matchBeforePosition(before);
 
@@ -336,6 +339,9 @@ export class FindModelBoundToEditorModel {
 	}
 
 	private _moveToNextMatch(after: Position): void {
+		if (!this._state.canNavigateForward()) {
+			return;
+		}
 		if (this._decorations.getCount() < MATCHES_LIMIT) {
 			let nextMatchRange = this._decorations.matchAfterPosition(after);
 

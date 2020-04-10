@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { createValidator } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
+import { createValidator } from 'vs/workbench/services/preferences/common/preferencesValidation';
 
 
 suite('Preferences Model test', () => {

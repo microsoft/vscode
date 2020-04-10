@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IQuickPickItem, IPickOptions, IInputOptions, IQuickNavigateConfiguration, IQuickPick, IQuickInputButton, IInputBox, QuickPickInput } from 'vs/base/parts/quickinput/common/quickInput';
+import { IQuickPickItem, IPickOptions, IInputOptions, IQuickNavigateConfiguration, IQuickPick, IQuickInputButton, IInputBox, QuickPickInput, IKeyMods } from 'vs/base/parts/quickinput/common/quickInput';
 import { IQuickAccessController } from 'vs/platform/quickinput/common/quickAccess';
 
 export * from 'vs/base/parts/quickinput/common/quickInput';
@@ -43,14 +43,14 @@ export interface IQuickInputService {
 	 * Opens the quick input box for selecting items and returns a promise
 	 * with the user selected item(s) if any.
 	 */
-	pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: true }, token?: CancellationToken): Promise<T[]>;
-	pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: false }, token?: CancellationToken): Promise<T>;
-	pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: Omit<IPickOptions<T>, 'canPickMany'>, token?: CancellationToken): Promise<T>;
+	pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: true }, token?: CancellationToken): Promise<T[] | undefined>;
+	pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: false }, token?: CancellationToken): Promise<T | undefined>;
+	pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: Omit<IPickOptions<T>, 'canPickMany'>, token?: CancellationToken): Promise<T | undefined>;
 
 	/**
 	 * Opens the quick input box for text input and returns a promise with the user typed value if any.
 	 */
-	input(options?: IInputOptions, token?: CancellationToken): Promise<string>;
+	input(options?: IInputOptions, token?: CancellationToken): Promise<string | undefined>;
 
 	/**
 	 * Provides raw access to the quick pick controller.
@@ -84,14 +84,14 @@ export interface IQuickInputService {
 
 	/**
 	 * Accept the selected item.
+	 *
+	 * @param keyMods allows to override the state of key
+	 * modifiers that should be present when invoking.
 	 */
-	accept(): Promise<void>;
+	accept(keyMods?: IKeyMods): Promise<void>;
 
 	/**
 	 * Cancels quick input and closes it.
 	 */
 	cancel(): Promise<void>;
-
-	// TODO@Ben remove once quick open is gone
-	hide(focusLost?: boolean): void;
 }

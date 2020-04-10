@@ -97,7 +97,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 		}
 
 		if (tsEntry.kindModifiers) {
-			const kindModifiers = new Set(tsEntry.kindModifiers.split(/\s+/g));
+			const kindModifiers = new Set(tsEntry.kindModifiers.split(/,|\s+/g));
 			if (kindModifiers.has(PConst.KindModifiers.optional)) {
 				if (!this.insertText) {
 					this.insertText = this.label;

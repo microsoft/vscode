@@ -235,7 +235,7 @@ export class SimpleFileDialog {
 		if (this.scheme !== Schemas.file) {
 			return this.remotePathService.userHome;
 		}
-		return URI.from({ scheme: this.scheme, path: this.environmentService.userHome });
+		return this.environmentService.userHome!;
 	}
 
 	private async pickResource(isSave: boolean = false): Promise<URI | undefined> {

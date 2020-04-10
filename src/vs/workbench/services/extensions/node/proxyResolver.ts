@@ -22,6 +22,7 @@ import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionS
 import { URI } from 'vs/base/common/uri';
 import { promisify } from 'util';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 interface ConnectionResult {
 	proxy: string;
@@ -318,14 +319,14 @@ function createPatchedModules(configProvider: ExtHostConfigProvider, resolveProx
 			override: assign({}, http, patches(http, resolveProxy, { config: 'override' }, certSetting, true)),
 			onRequest: assign({}, http, patches(http, resolveProxy, proxySetting, certSetting, true)),
 			default: assign(http, patches(http, resolveProxy, proxySetting, certSetting, false)) // run last
-		},
+		} as Record<string, typeof http>,
 		https: {
 			off: assign({}, https, patches(https, resolveProxy, { config: 'off' }, certSetting, true)),
 			on: assign({}, https, patches(https, resolveProxy, { config: 'on' }, certSetting, true)),
 			override: assign({}, https, patches(https, resolveProxy, { config: 'override' }, certSetting, true)),
 			onRequest: assign({}, https, patches(https, resolveProxy, proxySetting, certSetting, true)),
 			default: assign(https, patches(https, resolveProxy, proxySetting, certSetting, false)) // run last
-		},
+		} as Record<string, typeof https>,
 		tls: assign(tls, tlsPatches(tls))
 	};
 }
@@ -411,6 +412,7 @@ function tlsPatches(originals: typeof tls) {
 	}
 }
 
+const modulesCache = new Map<IExtensionDescription | undefined, { http?: typeof http, https?: typeof https }>();
 function configureModuleLoading(extensionService: ExtHostExtensionService, lookup: ReturnType<typeof createPatchedModules>): Promise<void> {
 	return extensionService.getExtensionPathIndex()
 		.then(extensionPaths => {
@@ -427,10 +429,18 @@ function configureModuleLoading(extensionService: ExtHostExtensionService, looku
 
 				const modules = lookup[request];
 				const ext = extensionPaths.findSubstr(URI.file(parent.filename).fsPath);
-				if (ext && ext.enableProposedApi) {
-					return (modules as any)[(<any>ext).proxySupport] || modules.onRequest;
+				let cache = modulesCache.get(ext);
+				if (!cache) {
+					modulesCache.set(ext, cache = {});
 				}
-				return modules.default;
+				if (!cache[request]) {
+					let mod = modules.default;
+					if (ext && ext.enableProposedApi) {
+						mod = (modules as any)[(<any>ext).proxySupport] || modules.onRequest;
+					}
+					cache[request] = <any>{ ...mod }; // Copy to work around #93167.
+				}
+				return cache[request];
 			};
 		});
 }

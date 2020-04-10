@@ -17,11 +17,11 @@ import { URI } from 'vs/base/common/uri';
 import { basename, isEqualOrParent, joinPath } from 'vs/base/common/resources';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IResourceEditorInputType, SIDE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions } from 'vs/workbench/services/editor/common/editorService';
+import { IResourceEditorInputType, SIDE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions, IOpenEditorOverrideEntry } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { coalesce, distinct } from 'vs/base/common/arrays';
-import { isCodeEditor, isDiffEditor, ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { coalesce, distinct, insert } from 'vs/base/common/arrays';
+import { isCodeEditor, isDiffEditor, ICodeEditor, IDiffEditor, isCompositeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorGroupView, IEditorOpeningEvent, EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -30,7 +30,6 @@ import { EditorsObserver } from 'vs/workbench/browser/parts/editor/editorsObserv
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { timeout } from 'vs/base/common/async';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { indexOfPath } from 'vs/base/common/extpath';
@@ -68,7 +67,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		@ILabelService private readonly labelService: ILabelService,
 		@IFileService private readonly fileService: IFileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) {
 		super();
@@ -348,8 +346,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 					if (!exists && !editor.isDisposed()) {
 						editor.dispose();
-					} else if (this.environmentService.verbose) {
-						console.warn(`File exists even though we received a delete event: ${resource.toString()}`);
 					}
 				}
 			})();
@@ -399,6 +395,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			const activeControl = activeEditorPane.getControl();
 			if (isCodeEditor(activeControl) || isDiffEditor(activeControl)) {
 				return activeControl;
+			}
+			if (isCompositeEditor(activeControl) && isCodeEditor(activeControl.activeCodeEditor)) {
+				return activeControl.activeCodeEditor;
 			}
 		}
 
@@ -473,14 +472,19 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	private readonly openEditorHandlers: IOpenEditorOverrideHandler[] = [];
 
 	overrideOpenEditor(handler: IOpenEditorOverrideHandler): IDisposable {
-		this.openEditorHandlers.push(handler);
+		const remove = insert(this.openEditorHandlers, handler);
 
-		return toDisposable(() => {
-			const index = this.openEditorHandlers.indexOf(handler);
-			if (index >= 0) {
-				this.openEditorHandlers.splice(index, 1);
-			}
-		});
+		return toDisposable(() => remove());
+	}
+
+	getEditorOverrides(editorInput: IEditorInput, options: IEditorOptions | undefined, group: IEditorGroup | undefined): [IOpenEditorOverrideHandler, IOpenEditorOverrideEntry][] {
+		const ret = [];
+		for (const handler of this.openEditorHandlers) {
+			const handlers = handler.getEditorOverrides ? handler.getEditorOverrides(editorInput, options, group).map(val => { return [handler, val] as [IOpenEditorOverrideHandler, IOpenEditorOverrideEntry]; }) : [];
+			ret.push(...handlers);
+		}
+
+		return ret;
 	}
 
 	private onGroupWillOpenEditor(group: IEditorGroup, event: IEditorOpeningEvent): void {
@@ -489,7 +493,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		for (const handler of this.openEditorHandlers) {
-			const result = handler(event.editor, event.options, group);
+			const result = handler.open(event.editor, event.options, group);
 			const override = result?.override;
 			if (override) {
 				event.prevent((() => override.then(editor => withNullAsUndefined(editor))));
@@ -1115,6 +1119,10 @@ export class DelegatingEditorService implements IEditorService {
 		private editorOpenHandler: IEditorOpenHandler,
 		@IEditorService private editorService: EditorService
 	) { }
+
+	getEditorOverrides(editorInput: IEditorInput, options: IEditorOptions | undefined, group: IEditorGroup | undefined) {
+		return [];
+	}
 
 	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions, group?: OpenInEditorGroup): Promise<IEditorPane | undefined>;
 	openEditor(editor: IResourceEditorInput | IUntitledTextResourceEditorInput, group?: OpenInEditorGroup): Promise<ITextEditorPane | undefined>;

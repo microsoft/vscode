@@ -21,7 +21,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import * as callh from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { mixin } from 'vs/base/common/objects';
-import { decodeSemanticTokensDto } from 'vs/workbench/api/common/shared/semanticTokens';
+import { decodeSemanticTokensDto } from 'vs/workbench/api/common/shared/semanticTokensDto';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesShape {
@@ -257,6 +257,18 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		this._registrations.set(handle, modes.DocumentHighlightProviderRegistry.register(selector, <modes.DocumentHighlightProvider>{
 			provideDocumentHighlights: (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<modes.DocumentHighlight[] | undefined> => {
 				return this._proxy.$provideDocumentHighlights(handle, model.uri, position, token);
+			}
+		}));
+	}
+
+	// --- on type rename
+
+	$registerOnTypeRenameProvider(handle: number, selector: IDocumentFilterDto[], stopPattern?: IRegExpDto): void {
+		const revivedStopPattern = stopPattern ? MainThreadLanguageFeatures._reviveRegExp(stopPattern) : undefined;
+		this._registrations.set(handle, modes.OnTypeRenameProviderRegistry.register(selector, <modes.OnTypeRenameProvider>{
+			stopPattern: revivedStopPattern,
+			provideOnTypeRenameRanges: (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<IRange[] | undefined> => {
+				return this._proxy.$provideOnTypeRenameRanges(handle, model.uri, position, token);
 			}
 		}));
 	}

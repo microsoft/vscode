@@ -454,7 +454,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 
 		const props: IStatusbarEntry = {
 			text,
-			tooltip: nls.localize('gotoLine', "Go to Line"),
+			tooltip: nls.localize('gotoLine', "Go to Line/Column"),
 			command: 'workbench.action.gotoLine'
 		};
 
@@ -575,7 +575,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		this.updateColumnSelectionModeElement(!!this.state.columnSelectionMode);
 		this.updateScreenReaderModeElement(!!this.state.screenReaderMode);
 		this.updateIndentationElement(this.state.indentation);
-		this.updateSelectionElement(this.state.selectionStatus && !this.state.screenReaderMode ? this.state.selectionStatus : undefined);
+		this.updateSelectionElement(this.state.selectionStatus);
 		this.updateEncodingElement(this.state.encoding);
 		this.updateEOLElement(this.state.EOL ? this.state.EOL === '\r\n' ? nlsEOLCRLF : nlsEOLLF : undefined);
 		this.updateModeElement(this.state.mode);
@@ -1209,7 +1209,7 @@ export class ChangeModeAction extends Action {
 
 				this.configurationService.updateValue(FILES_ASSOCIATIONS_CONFIG, currentAssociations, target);
 			}
-		}, 50 /* quick open is sensitive to being opened so soon after another */);
+		}, 50 /* quick input is sensitive to being opened so soon after another */);
 	}
 
 	private getFakeResource(lang: string): URI | undefined {
@@ -1331,7 +1331,7 @@ export class ChangeEncodingAction extends Action {
 			}
 		}
 
-		let action: IQuickPickItem;
+		let action: IQuickPickItem | undefined;
 		if (encodingSupport instanceof UntitledTextEditorInput) {
 			action = saveWithEncodingPick;
 		} else if (activeEditorPane.input.isReadonly()) {
@@ -1344,7 +1344,7 @@ export class ChangeEncodingAction extends Action {
 			return;
 		}
 
-		await timeout(50); // quick open is sensitive to being opened so soon after another
+		await timeout(50); // quick input is sensitive to being opened so soon after another
 
 		const resource = toResource(activeEditorPane.input, { supportSideBySide: SideBySideEditor.MASTER });
 		if (!resource || (!this.fileService.canHandleResource(resource) && resource.scheme !== Schemas.untitled)) {

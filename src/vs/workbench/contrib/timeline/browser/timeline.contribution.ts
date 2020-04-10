@@ -16,15 +16,14 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'v
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import product from 'vs/platform/product/common/product';
 import { ExplorerFolderContext } from 'vs/workbench/contrib/files/common/files';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 
 export class TimelinePaneDescriptor implements IViewDescriptor {
 	readonly id = TimelinePaneId;
 	readonly name = TimelinePane.TITLE;
+	readonly containerIcon = 'codicon-history';
 	readonly ctorDescriptor = new SyncDescriptor(TimelinePane);
-	readonly when = ContextKeyExpr.equals('config.timeline.showView', true);
 	readonly order = 2;
 	readonly weight = 30;
 	readonly collapsed = true;
@@ -43,11 +42,6 @@ configurationRegistry.registerConfiguration({
 	title: localize('timelineConfigurationTitle', "Timeline"),
 	type: 'object',
 	properties: {
-		'timeline.showView': {
-			type: 'boolean',
-			description: localize('timeline.showView', "Experimental: When enabled, shows a Timeline view in the Explorer sidebar."),
-			default: product.quality !== 'stable'
-		},
 		'timeline.excludeSources': {
 			type: 'array',
 			description: localize('timeline.excludeSources', "Experimental: An array of Timeline sources that should be excluded from the Timeline view"),

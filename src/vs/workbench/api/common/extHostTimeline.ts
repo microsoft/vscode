@@ -60,7 +60,7 @@ export class ExtHostTimeline implements IExtHostTimeline {
 
 		let disposable: IDisposable | undefined;
 		if (provider.onDidChange) {
-			disposable = provider.onDidChange(e => this._proxy.$emitTimelineChangeEvent({ ...e, id: provider.id }), this);
+			disposable = provider.onDidChange(e => this._proxy.$emitTimelineChangeEvent({ uri: undefined, reset: true, ...e, id: provider.id }), this);
 		}
 
 		const itemsBySourceAndUriMap = this._itemsBySourceAndUriMap;

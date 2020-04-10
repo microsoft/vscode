@@ -45,8 +45,7 @@ export const enum ProgressLocation {
 	Extensions = 5,
 	Window = 10,
 	Notification = 15,
-	Dialog = 20,
-	View = 25
+	Dialog = 20
 }
 
 export interface IProgressOptions {
@@ -63,6 +62,7 @@ export interface IProgressNotificationOptions extends IProgressOptions {
 	readonly primaryActions?: ReadonlyArray<IAction>;
 	readonly secondaryActions?: ReadonlyArray<IAction>;
 	readonly delay?: number;
+	readonly silent?: boolean;
 }
 
 export interface IProgressWindowOptions extends IProgressOptions {

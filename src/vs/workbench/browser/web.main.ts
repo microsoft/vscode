@@ -130,7 +130,7 @@ class BrowserMain extends Disposable {
 	}
 
 	private restoreBaseTheme(): void {
-		addClass(this.domElement, window.localStorage.getItem('vscode.baseTheme') || getThemeTypeSelector(DARK));
+		addClass(this.domElement, window.localStorage.getItem('vscode.baseTheme') || getThemeTypeSelector(LIGHT) /* Fallback to a light theme by default on web */);
 	}
 
 	private saveBaseTheme(): void {
@@ -179,7 +179,7 @@ class BrowserMain extends Disposable {
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
 
 		// Signing
-		const signService = new SignService(environmentService.configuration.connectionToken);
+		const signService = new SignService(environmentService.options.connectionToken || this.getCookieValue('vscode-tkn'));
 		serviceCollection.set(ISignService, signService);
 
 		// Remote Agent
@@ -326,6 +326,12 @@ class BrowserMain extends Disposable {
 		}
 
 		return undefined;
+	}
+
+	private getCookieValue(name: string): string | undefined {
+		const match = document.cookie.match('(^|[^;]+)\\s*' + name + '\\s*=\\s*([^;]+)'); // See https://stackoverflow.com/a/25490531
+
+		return match ? match.pop() : undefined;
 	}
 }
 

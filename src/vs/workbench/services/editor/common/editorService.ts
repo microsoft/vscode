@@ -26,8 +26,16 @@ export type ACTIVE_GROUP_TYPE = typeof ACTIVE_GROUP;
 export const SIDE_GROUP = -2;
 export type SIDE_GROUP_TYPE = typeof SIDE_GROUP;
 
+export interface IOpenEditorOverrideEntry {
+	id: string;
+	label: string;
+	active: boolean;
+	detail?: string;
+}
+
 export interface IOpenEditorOverrideHandler {
-	(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): IOpenEditorOverride | undefined;
+	open(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup, id?: string): IOpenEditorOverride | undefined;
+	getEditorOverrides?(editor: IEditorInput, options: IEditorOptions | undefined, group: IEditorGroup | undefined): IOpenEditorOverrideEntry[];
 }
 
 export interface IOpenEditorOverride {
@@ -200,6 +208,11 @@ export interface IEditorService {
 	 */
 	isOpen(editor: IResourceEditorInput): boolean;
 	isOpen(editor: IEditorInput): boolean;
+
+	/**
+	 * Get all available editor overrides for the editor input.
+	 */
+	getEditorOverrides(editorInput: IEditorInput, options: IEditorOptions | undefined, group: IEditorGroup | undefined): [IOpenEditorOverrideHandler, IOpenEditorOverrideEntry][];
 
 	/**
 	 * Allows to override the opening of editors by installing a handler that will

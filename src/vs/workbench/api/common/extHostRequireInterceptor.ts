@@ -91,7 +91,7 @@ class VSCodeNodeModuleFactory implements INodeModuleFactory {
 
 	constructor(
 		private readonly _apiFactory: IExtensionApiFactory,
-		private readonly _extensionPaths: TernarySearchTree<IExtensionDescription>,
+		private readonly _extensionPaths: TernarySearchTree<string, IExtensionDescription>,
 		private readonly _extensionRegistry: ExtensionDescriptionRegistry,
 		private readonly _configProvider: ExtHostConfigProvider,
 		private readonly _logService: ILogService,
@@ -230,7 +230,7 @@ class OpenNodeModuleFactory implements INodeModuleFactory {
 	private _mainThreadTelemetry: MainThreadTelemetryShape;
 
 	constructor(
-		private readonly _extensionPaths: TernarySearchTree<IExtensionDescription>,
+		private readonly _extensionPaths: TernarySearchTree<string, IExtensionDescription>,
 		private readonly _appUriScheme: string,
 		@IExtHostRpcService rpcService: IExtHostRpcService,
 	) {

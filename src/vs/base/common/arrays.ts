@@ -472,17 +472,6 @@ export function range(arg: number, to?: number): number[] {
 	return result;
 }
 
-/**
- * @deprecated ES6: use `Array.fill`
- */
-export function fill<T>(num: number, value: T, arr: T[] = []): T[] {
-	for (let i = 0; i < num; i++) {
-		arr[i] = value;
-	}
-
-	return arr;
-}
-
 export function index<T>(array: ReadonlyArray<T>, indexer: (t: T) => string): { [key: string]: T; };
 export function index<T, R>(array: ReadonlyArray<T>, indexer: (t: T) => string, merger?: (t: T, r: R) => R): { [key: string]: R; };
 export function index<T, R>(array: ReadonlyArray<T>, indexer: (t: T) => string, merger: (t: T, r: R) => R = t => t as any): { [key: string]: R; } {
