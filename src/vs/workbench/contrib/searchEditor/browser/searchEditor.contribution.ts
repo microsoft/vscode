@@ -209,7 +209,7 @@ registry.registerWorkbenchAction(SyncActionDescriptor.create(RerunSearchEditorSe
 	'Search Editor: Search Again', category);
 
 registry.registerWorkbenchAction(SyncActionDescriptor.create(FocusQueryEditorWidgetAction, FocusQueryEditorWidgetAction.ID, FocusQueryEditorWidgetAction.LABEL,
-	{ mac: { primary: KeyCode.Escape } }, ContextKeyExpr.and(SearchEditorConstants.InSearchEditor)),
+	{ primary: KeyCode.Escape }, ContextKeyExpr.and(SearchEditorConstants.InSearchEditor)),
 	'Search Editor: Focus Query Editor Widget', category);
 //#endregion
 
