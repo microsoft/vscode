@@ -1145,9 +1145,6 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	openView(id: string, focus?: boolean): IView {
-		if (focus) {
-			this.focus();
-		}
 		let view = this.getView(id);
 		if (!view) {
 			this.toggleViewVisibility(id);
