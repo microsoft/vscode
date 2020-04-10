@@ -345,7 +345,10 @@ export interface ISearchConfigurationProperties {
 	collapseResults: 'auto' | 'alwaysCollapse' | 'alwaysExpand';
 	searchOnType: boolean;
 	searchOnTypeDebouncePeriod: number;
-	searchEditor: { doubleClickBehaviour: 'selectWord' | 'goToLocation' | 'openLocationToSide' };
+	searchEditor: {
+		doubleClickBehaviour: 'selectWord' | 'goToLocation' | 'openLocationToSide',
+		experimental: { reusePriorSearchConfiguration: boolean }
+	};
 	sortOrder: SearchSortOrder;
 }
 

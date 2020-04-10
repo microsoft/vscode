@@ -18,6 +18,8 @@ import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 export interface CustomDocumentBackupData {
 	readonly viewType: string;
 	readonly editorResource: UriComponents;
+	backupId: string;
+
 	readonly extension: undefined | {
 		readonly location: UriComponents;
 		readonly id: string;
@@ -119,7 +121,7 @@ export class CustomEditorInputFactory extends WebviewEditorInputFactory {
 				return webview;
 			});
 
-			const editor = instantiationService.createInstance(CustomEditorInput, URI.revive(backupData.editorResource), backupData.viewType, id, webview, { startsDirty: true });
+			const editor = instantiationService.createInstance(CustomEditorInput, URI.revive(backupData.editorResource), backupData.viewType, id, webview, { startsDirty: true, backupId: backupData.backupId });
 			editor.updateGroup(0);
 			return editor;
 		});

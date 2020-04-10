@@ -30,6 +30,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { Orientation } from 'vs/base/browser/ui/sash/sash';
 
 const FIND_FOCUS_CLASS = 'find-focused';
 
@@ -42,6 +43,7 @@ export class TerminalViewPane extends ViewPane {
 	private _parentDomElement: HTMLElement | undefined;
 	private _terminalContainer: HTMLElement | undefined;
 	private _findWidget: TerminalFindWidget | undefined;
+	private _splitTerminalAction: IAction | undefined;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -120,14 +122,19 @@ export class TerminalViewPane extends ViewPane {
 
 	protected layoutBody(height: number, width: number): void {
 		this._terminalService.terminalTabs.forEach(t => t.layout(width, height));
+		// Update orientation of split button icon
+		if (this._splitTerminalAction) {
+			this._splitTerminalAction.class = this.orientation === Orientation.HORIZONTAL ? SplitTerminalAction.HORIZONTAL_CLASS : SplitTerminalAction.VERTICAL_CLASS;
+		}
 	}
 
 	public getActions(): IAction[] {
 		if (!this._actions) {
+			this._splitTerminalAction = this._instantiationService.createInstance(SplitTerminalAction, SplitTerminalAction.ID, SplitTerminalAction.LABEL);
 			this._actions = [
 				this._instantiationService.createInstance(SwitchTerminalAction, SwitchTerminalAction.ID, SwitchTerminalAction.LABEL),
 				this._instantiationService.createInstance(CreateNewTerminalAction, CreateNewTerminalAction.ID, CreateNewTerminalAction.SHORT_LABEL),
-				this._instantiationService.createInstance(SplitTerminalAction, SplitTerminalAction.ID, SplitTerminalAction.LABEL),
+				this._splitTerminalAction,
 				this._instantiationService.createInstance(KillTerminalAction, KillTerminalAction.ID, KillTerminalAction.PANEL_LABEL)
 			];
 			this._actions.forEach(a => {
@@ -232,6 +239,13 @@ export class TerminalViewPane extends ViewPane {
 					if (!terminal) {
 						return;
 					}
+
+					// copyPaste: Shift+right click should open context menu
+					if (rightClickBehavior === 'copyPaste' && event.shiftKey) {
+						this._openContextMenu(event);
+						return;
+					}
+
 					if (rightClickBehavior === 'copyPaste' && terminal.hasSelection()) {
 						await terminal.copySelection();
 						terminal.clearSelection();
@@ -253,13 +267,7 @@ export class TerminalViewPane extends ViewPane {
 		}));
 		this._register(dom.addDisposableListener(parentDomElement, 'contextmenu', (event: MouseEvent) => {
 			if (!this._cancelContextMenu) {
-				const standardEvent = new StandardMouseEvent(event);
-				const anchor: { x: number, y: number } = { x: standardEvent.posx, y: standardEvent.posy };
-				this._contextMenuService.showContextMenu({
-					getAnchor: () => anchor,
-					getActions: () => this._getContextMenuActions(),
-					getActionsContext: () => this._parentDomElement
-				});
+				this._openContextMenu(event);
 			}
 			event.preventDefault();
 			event.stopImmediatePropagation();
@@ -304,6 +312,16 @@ export class TerminalViewPane extends ViewPane {
 				}
 			}
 		}));
+	}
+
+	private _openContextMenu(event: MouseEvent): void {
+		const standardEvent = new StandardMouseEvent(event);
+		const anchor: { x: number, y: number } = { x: standardEvent.posx, y: standardEvent.posy };
+		this._contextMenuService.showContextMenu({
+			getAnchor: () => anchor,
+			getActions: () => this._getContextMenuActions(),
+			getActionsContext: () => this._parentDomElement
+		});
 	}
 
 	private _updateTheme(theme?: IColorTheme): void {

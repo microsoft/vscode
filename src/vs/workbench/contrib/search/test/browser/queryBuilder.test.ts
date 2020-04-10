@@ -5,17 +5,18 @@
 import * as assert from 'assert';
 import { IExpression } from 'vs/base/common/glob';
 import { join } from 'vs/base/common/path';
+import { isWindows } from 'vs/base/common/platform';
 import { URI as uri } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IFolderQuery, IPatternInfo, QueryType, ITextQuery, IFileQuery } from 'vs/workbench/services/search/common/search';
-import { IWorkspaceContextService, toWorkspaceFolder, Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, toWorkspaceFolder, toWorkspaceFolders, Workspace } from 'vs/platform/workspace/common/workspace';
 import { ISearchPathsInfo, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
-import { TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { isWindows } from 'vs/base/common/platform';
+import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
+import { IFileQuery, IFolderQuery, IPatternInfo, ITextQuery, QueryType } from 'vs/workbench/services/search/common/search';
+import { TestRemotePathService, TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 const DEFAULT_EDITOR_CONFIG = {};
 const DEFAULT_USER_CONFIG = { useRipgrep: true, useIgnoreFiles: true, useGlobalIgnoreFiles: true };
@@ -49,6 +50,7 @@ suite('QueryBuilder', () => {
 
 		instantiationService.stub(IWorkspaceContextService, mockContextService);
 		instantiationService.stub(IEnvironmentService, TestEnvironmentService);
+		instantiationService.stub(IRemotePathService, new TestRemotePathService(TestEnvironmentService));
 
 		queryBuilder = instantiationService.createInstance(QueryBuilder);
 	});

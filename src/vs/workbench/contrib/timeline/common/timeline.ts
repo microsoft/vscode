@@ -24,6 +24,7 @@ export interface TimelineItem {
 	id?: string;
 	timestamp: number;
 	label: string;
+	ariaLabel?: string;
 	icon?: URI,
 	iconDark?: URI,
 	themeIcon?: { id: string },
@@ -38,8 +39,8 @@ export interface TimelineItem {
 
 export interface TimelineChangeEvent {
 	id: string;
-	uri?: URI;
-	reset?: boolean
+	uri: URI | undefined;
+	reset: boolean
 }
 
 export interface TimelineOptions {

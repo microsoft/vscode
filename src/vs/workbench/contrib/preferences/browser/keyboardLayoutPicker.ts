@@ -35,9 +35,12 @@ export class KeyboardLayoutPickerContribution extends Disposable implements IWor
 		let layout = this.keymapService.getCurrentKeyboardLayout();
 		if (layout) {
 			let layoutInfo = parseKeyboardLayoutDescription(layout);
+			const text = nls.localize('keyboardLayout', "Layout: {0}", layoutInfo.label);
+
 			this.pickerElement.value = this.statusbarService.addEntry(
 				{
-					text: nls.localize('keyboardLayout', "Layout: {0}", layoutInfo.label),
+					text,
+					ariaLabel: text,
 					command: KEYBOARD_LAYOUT_OPEN_PICKER
 				},
 				'status.workbench.keyboardLayout',
@@ -51,14 +54,18 @@ export class KeyboardLayoutPickerContribution extends Disposable implements IWor
 			let layoutInfo = parseKeyboardLayoutDescription(layout);
 
 			if (this.pickerElement.value) {
+				const text = nls.localize('keyboardLayout', "Layout: {0}", layoutInfo.label);
 				this.pickerElement.value.update({
-					text: nls.localize('keyboardLayout', "Layout: {0}", layoutInfo.label),
+					text,
+					ariaLabel: text,
 					command: KEYBOARD_LAYOUT_OPEN_PICKER
 				});
 			} else {
+				const text = nls.localize('keyboardLayout', "Layout: {0}", layoutInfo.label);
 				this.pickerElement.value = this.statusbarService.addEntry(
 					{
-						text: nls.localize('keyboardLayout', "Layout: {0}", layoutInfo.label),
+						text,
+						ariaLabel: text,
 						command: KEYBOARD_LAYOUT_OPEN_PICKER
 					},
 					'status.workbench.keyboardLayout',

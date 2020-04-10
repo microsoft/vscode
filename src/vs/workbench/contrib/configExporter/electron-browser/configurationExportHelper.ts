@@ -5,7 +5,8 @@
 
 import { writeFile } from 'vs/base/node/pfs';
 import product from 'vs/platform/product/common/product';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationNode, IConfigurationRegistry, Extensions, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -30,7 +31,7 @@ interface IConfigurationExport {
 export class DefaultConfigurationExportHelper {
 
 	constructor(
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@ICommandService private readonly commandService: ICommandService) {
 		if (environmentService.args['export-default-configuration']) {
@@ -41,7 +42,7 @@ export class DefaultConfigurationExportHelper {
 	private writeConfigModelAndQuit(targetPath: string): Promise<void> {
 		return Promise.resolve(this.extensionService.whenInstalledExtensionsRegistered())
 			.then(() => this.writeConfigModel(targetPath))
-			.then(() => this.commandService.executeCommand('workbench.action.quit'))
+			.finally(() => this.commandService.executeCommand('workbench.action.quit'))
 			.then(() => { });
 	}
 
@@ -56,8 +57,14 @@ export class DefaultConfigurationExportHelper {
 		const configRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 		const configurations = configRegistry.getConfigurations().slice();
 		const settings: IExportedConfigurationNode[] = [];
+		const processedNames = new Set<string>();
 
 		const processProperty = (name: string, prop: IConfigurationPropertySchema) => {
+			if (processedNames.has(name)) {
+				throw new Error('Setting is registered twice: ' + name);
+			}
+
+			processedNames.add(name);
 			const propDetails: IExportedConfigurationNode = {
 				name,
 				description: prop.description || prop.markdownDescription || '',

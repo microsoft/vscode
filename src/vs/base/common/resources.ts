@@ -5,7 +5,7 @@
 
 import * as extpath from 'vs/base/common/extpath';
 import * as paths from 'vs/base/common/path';
-import { URI } from 'vs/base/common/uri';
+import { URI, uriToFsPath } from 'vs/base/common/uri';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
 import { isLinux, isWindows } from 'vs/base/common/platform';
@@ -14,26 +14,7 @@ import { ParsedExpression, IExpression, parse } from 'vs/base/common/glob';
 import { TernarySearchTree } from 'vs/base/common/map';
 
 export function originalFSPath(uri: URI): string {
-	let value: string;
-	const uriPath = uri.path;
-	if (uri.authority && uriPath.length > 1 && uri.scheme === 'file') {
-		// unc path: file://shares/c$/far/boo
-		value = `//${uri.authority}${uriPath}`;
-	} else if (
-		isWindows
-		&& uriPath.charCodeAt(0) === CharCode.Slash
-		&& extpath.isWindowsDriveLetter(uriPath.charCodeAt(1))
-		&& uriPath.charCodeAt(2) === CharCode.Colon
-	) {
-		value = uriPath.substr(1);
-	} else {
-		// other path
-		value = uriPath;
-	}
-	if (isWindows) {
-		value = value.replace(/\//g, '\\');
-	}
-	return value;
+	return uriToFsPath(uri, true);
 }
 
 /**
@@ -336,7 +317,7 @@ export namespace DataUri {
 export class ResourceGlobMatcher {
 
 	private readonly globalExpression: ParsedExpression;
-	private readonly expressionsByRoot: TernarySearchTree<{ root: URI, expression: ParsedExpression }> = TernarySearchTree.forPaths<{ root: URI, expression: ParsedExpression }>();
+	private readonly expressionsByRoot: TernarySearchTree<URI, { root: URI, expression: ParsedExpression }> = TernarySearchTree.forUris<{ root: URI, expression: ParsedExpression }>();
 
 	constructor(
 		globalExpression: IExpression,
@@ -344,12 +325,12 @@ export class ResourceGlobMatcher {
 	) {
 		this.globalExpression = parse(globalExpression);
 		for (const expression of rootExpressions) {
-			this.expressionsByRoot.set(expression.root.toString(), { root: expression.root, expression: parse(expression.expression) });
+			this.expressionsByRoot.set(expression.root, { root: expression.root, expression: parse(expression.expression) });
 		}
 	}
 
 	matches(resource: URI): boolean {
-		const rootExpression = this.expressionsByRoot.findSubstr(resource.toString());
+		const rootExpression = this.expressionsByRoot.findSubstr(resource);
 		if (rootExpression) {
 			const path = relativePath(rootExpression.root, resource);
 			if (path && !!rootExpression.expression(path)) {

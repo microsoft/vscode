@@ -15,6 +15,7 @@ import Severity from 'vs/base/common/severity';
 import { MenuRegistry, MenuId, IMenuItem } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 interface AuthDependent {
 	providerId: string;
@@ -35,7 +36,6 @@ const BUILT_IN_AUTH_DEPENDENTS: AuthDependent[] = [
 interface AllowedExtension {
 	id: string;
 	name: string;
-	sessionIds?: string[];
 }
 
 function readAllowedExtensions(storageService: IStorageService, providerId: string, accountName: string): AllowedExtension[] {
@@ -60,7 +60,8 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		private readonly _proxy: ExtHostAuthenticationShape,
 		public readonly id: string,
 		public readonly displayName: string,
-		public readonly dependents: AuthDependent[]
+		public readonly dependents: AuthDependent[],
+		private readonly notificationService: INotificationService
 	) {
 		super();
 
@@ -86,15 +87,6 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		quickPick.onDidAccept(() => {
 			const updatedAllowedList = quickPick.selectedItems.map(item => item.extension);
 			storageService.store(`${this.id}-${accountName}`, JSON.stringify(updatedAllowedList), StorageScope.GLOBAL);
-
-			// Remove sessions of untrusted extensions
-			const deselectedItems = items.filter(item => !quickPick.selectedItems.includes(item));
-			deselectedItems.forEach(item => {
-				const extensionData = allowedExtensions.find(extension => item.extension.id === extension.id);
-				extensionData?.sessionIds?.forEach(sessionId => {
-					this.logout(sessionId);
-				});
-			});
 
 			quickPick.dispose();
 		});
@@ -246,8 +238,9 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		});
 	}
 
-	logout(sessionId: string): Promise<void> {
-		return this._proxy.$logout(this.id, sessionId);
+	async logout(sessionId: string): Promise<void> {
+		await this._proxy.$logout(this.id, sessionId);
+		this.notificationService.info(nls.localize('signedOut', "Successfully signed out."));
 	}
 
 	dispose(): void {
@@ -265,7 +258,8 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		extHostContext: IExtHostContext,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@IStorageService private readonly storageService: IStorageService
+		@IStorageService private readonly storageService: IStorageService,
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostAuthentication);
@@ -274,7 +268,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	async $registerAuthenticationProvider(id: string, displayName: string): Promise<void> {
 		const dependentBuiltIns = BUILT_IN_AUTH_DEPENDENTS.filter(dependency => dependency.providerId === id);
 
-		const provider = new MainThreadAuthenticationProvider(this._proxy, id, displayName, dependentBuiltIns);
+		const provider = new MainThreadAuthenticationProvider(this._proxy, id, displayName, dependentBuiltIns, this.notificationService);
 		this.authenticationService.registerAuthenticationProvider(id, provider);
 	}
 
@@ -286,19 +280,10 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		this.authenticationService.sessionsUpdate(id, event);
 	}
 
-	async $getSessionsPrompt(providerId: string, accountName: string, sessionId: string, providerName: string, extensionId: string, extensionName: string): Promise<boolean> {
+	async $getSessionsPrompt(providerId: string, accountName: string, providerName: string, extensionId: string, extensionName: string): Promise<boolean> {
 		const allowList = readAllowedExtensions(this.storageService, providerId, accountName);
 		const extensionData = allowList.find(extension => extension.id === extensionId);
 		if (extensionData) {
-			if (!extensionData.sessionIds) {
-				extensionData.sessionIds = [];
-			}
-
-			if (!extensionData.sessionIds.find(id => id === sessionId)) {
-				extensionData.sessionIds.push(sessionId);
-				this.storageService.store(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.GLOBAL);
-			}
-
 			return true;
 		}
 
@@ -313,7 +298,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 		const allow = choice === 1;
 		if (allow) {
-			allowList.push({ id: extensionId, name: extensionName, sessionIds: [sessionId] });
+			allowList.push({ id: extensionId, name: extensionName });
 			this.storageService.store(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.GLOBAL);
 		}
 
@@ -331,13 +316,5 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		);
 
 		return choice === 1;
-	}
-
-	async $setTrustedExtension(providerId: string, accountName: string, extensionId: string, extensionName: string): Promise<void> {
-		const allowList = readAllowedExtensions(this.storageService, providerId, accountName);
-		if (!allowList.find(allowed => allowed.id === extensionId)) {
-			allowList.push({ id: extensionId, name: extensionName, sessionIds: [] });
-			this.storageService.store(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.GLOBAL);
-		}
 	}
 }

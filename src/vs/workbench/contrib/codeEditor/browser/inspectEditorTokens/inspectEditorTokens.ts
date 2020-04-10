@@ -17,7 +17,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { FontStyle, LanguageIdentifier, StandardTokenType, TokenMetadata, DocumentSemanticTokensProviderRegistry, SemanticTokensLegend, SemanticTokens, LanguageId, ColorId } from 'vs/editor/common/modes';
+import { FontStyle, LanguageIdentifier, StandardTokenType, TokenMetadata, DocumentSemanticTokensProviderRegistry, SemanticTokensLegend, SemanticTokens, LanguageId, ColorId, DocumentRangeSemanticTokensProviderRegistry } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -240,7 +240,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 
 	private _beginCompute(position: Position): void {
 		const grammar = this._textMateService.createGrammar(this._model.getLanguageIdentifier().language);
-		const semanticTokens = this._computeSemanticTokens();
+		const semanticTokens = this._computeSemanticTokens(position);
 
 		dom.clearNode(this._domNode);
 		this._domNode.appendChild(document.createTextNode(nls.localize('inspectTMScopesWidget.loading', "Loading...")));
@@ -307,7 +307,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 				const properties: (keyof TokenStyleData)[] = ['foreground', 'bold', 'italic', 'underline'];
 				const propertiesByDefValue: { [rule: string]: string[] } = {};
 				const allDefValues = []; // remember the order
-				// first collect to detect when the same rule is used fro multiple properties
+				// first collect to detect when the same rule is used for multiple properties
 				for (let property of properties) {
 					if (semanticTokenInfo.metadata[property] !== undefined) {
 						const definition = semanticTokenInfo.definitions[property];
@@ -476,7 +476,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		return token && token.data;
 	}
 
-	private async _computeSemanticTokens(): Promise<SemanticTokensResult | null> {
+	private async _computeSemanticTokens(position: Position): Promise<SemanticTokensResult | null> {
 		if (!this._isSemanticColoringEnabled()) {
 			return null;
 		}
@@ -485,6 +485,16 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		if (tokenProviders.length) {
 			const provider = tokenProviders[0];
 			const tokens = await Promise.resolve(provider.provideDocumentSemanticTokens(this._model, null, this._currentRequestCancellationTokenSource.token));
+			if (this.isSemanticTokens(tokens)) {
+				return { tokens, legend: provider.getLegend() };
+			}
+		}
+		const rangeTokenProviders = DocumentRangeSemanticTokensProviderRegistry.ordered(this._model);
+		if (rangeTokenProviders.length) {
+			const provider = rangeTokenProviders[0];
+			const lineNumber = position.lineNumber;
+			const range = new Range(lineNumber, 1, lineNumber, this._model.getLineMaxColumn(lineNumber));
+			const tokens = await Promise.resolve(provider.provideDocumentRangeSemanticTokens(this._model, range, this._currentRequestCancellationTokenSource.token));
 			if (this.isSemanticTokens(tokens)) {
 				return { tokens, legend: provider.getLegend() };
 			}

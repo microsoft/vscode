@@ -5,7 +5,7 @@
 
 import { deepStrictEqual, strictEqual } from 'assert';
 import { EnvironmentVariableMutatorType } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessEnvironment } from 'vs/base/common/platform';
+import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
 import { MergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableCollection';
 import { deserializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
 
@@ -118,6 +118,40 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 				B: 'b',
 				C: 'c'
 			});
+		});
+
+		test('should apply to variable case insensitively on Windows only', () => {
+			const merged = new MergedEnvironmentVariableCollection(new Map([
+				['ext', {
+					map: deserializeEnvironmentVariableCollection([
+						['a', { value: 'a', type: EnvironmentVariableMutatorType.Replace }],
+						['b', { value: 'b', type: EnvironmentVariableMutatorType.Append }],
+						['c', { value: 'c', type: EnvironmentVariableMutatorType.Prepend }]
+					])
+				}]
+			]));
+			const env: IProcessEnvironment = {
+				A: 'A',
+				B: 'B',
+				C: 'C'
+			};
+			merged.applyToProcessEnvironment(env);
+			if (isWindows) {
+				deepStrictEqual(env, {
+					A: 'a',
+					B: 'Bb',
+					C: 'cC'
+				});
+			} else {
+				deepStrictEqual(env, {
+					a: 'a',
+					A: 'A',
+					b: 'b',
+					B: 'B',
+					c: 'c',
+					C: 'C'
+				});
+			}
 		});
 	});
 

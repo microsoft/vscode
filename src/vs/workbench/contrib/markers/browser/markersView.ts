@@ -23,10 +23,10 @@ import { IMarkersWorkbenchService } from 'vs/workbench/contrib/markers/browser/m
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService, ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { Iterator } from 'vs/base/common/iterator';
+import { Iterable } from 'vs/base/common/iterator';
 import { ITreeElement, ITreeNode, ITreeContextMenuEvent, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { Relay, Event, Emitter } from 'vs/base/common/event';
-import { WorkbenchObjectTree, ResourceNavigator, IListService, IWorkbenchObjectTreeOptions } from 'vs/platform/list/browser/listService';
+import { WorkbenchObjectTree, TreeResourceNavigator, IListService, IWorkbenchObjectTreeOptions } from 'vs/platform/list/browser/listService';
 import { FilterOptions } from 'vs/workbench/contrib/markers/browser/markersFilterOptions';
 import { IExpression } from 'vs/base/common/glob';
 import { deepClone } from 'vs/base/common/objects';
@@ -50,16 +50,13 @@ import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/vie
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 
-function createResourceMarkersIterator(resourceMarkers: ResourceMarkers): Iterator<ITreeElement<TreeElement>> {
-	const markersIt = Iterator.fromArray(resourceMarkers.markers);
-
-	return Iterator.map(markersIt, m => {
-		const relatedInformationIt = Iterator.from(m.relatedInformation);
-		const children = Iterator.map(relatedInformationIt, r => ({ element: r }));
+function createResourceMarkersIterator(resourceMarkers: ResourceMarkers): Iterable<ITreeElement<TreeElement>> {
+	return Iterable.map(resourceMarkers.markers, m => {
+		const relatedInformationIt = Iterable.from(m.relatedInformation);
+		const children = Iterable.map(relatedInformationIt, r => ({ element: r }));
 
 		return { element: m, children };
 	});
-
 }
 
 export class MarkersView extends ViewPane implements IMarkerFilterController {
@@ -338,7 +335,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 		} else {
 			resourceMarkers = this.markersWorkbenchService.markersModel.resourceMarkers;
 		}
-		this.tree.setChildren(null, Iterator.map(Iterator.fromArray(resourceMarkers), m => ({ element: m, children: createResourceMarkersIterator(m) })));
+		this.tree.setChildren(null, Iterable.map(resourceMarkers, m => ({ element: m, children: createResourceMarkersIterator(m) })));
 	}
 
 	private updateFilter() {
@@ -432,7 +429,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 			relatedInformationFocusContextKey.set(focus.elements.some(e => e instanceof RelatedInformation));
 		}));
 
-		const markersNavigator = this._register(ResourceNavigator.createTreeResourceNavigator(this.tree, { openOnFocus: true }));
+		const markersNavigator = this._register(new TreeResourceNavigator(this.tree, { openOnFocus: true }));
 		this._register(Event.debounce(markersNavigator.onDidOpenResource, (last, event) => event, 75, true)(options => {
 			this.openFileAtElement(options.element, !!options.editorOptions.preserveFocus, options.sideBySide, !!options.editorOptions.pinned);
 		}));

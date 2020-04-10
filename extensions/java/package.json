@@ -23,7 +23,7 @@
 		}],
 		"snippets": [{
 			"language": "java",
-			"path": "./snippets/java.snippets.json"
+			"path": "./snippets/java.code-snippets"
 		}]
 	}
 }

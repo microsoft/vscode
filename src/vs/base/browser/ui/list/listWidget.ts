@@ -16,8 +16,8 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Event, Emitter, EventBufferer } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
-import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent, IListTouchEvent, IListGestureEvent, IIdentityProvider, IKeyboardNavigationLabelProvider, IListDragAndDrop, IListDragOverReaction, ListAriaRootRole, ListError, IKeyboardNavigationDelegate } from './list';
-import { ListView, IListViewOptions, IListViewDragAndDrop, IAriaProvider } from './listView';
+import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent, IListTouchEvent, IListGestureEvent, IIdentityProvider, IKeyboardNavigationLabelProvider, IListDragAndDrop, IListDragOverReaction, ListError, IKeyboardNavigationDelegate } from './list';
+import { ListView, IListViewOptions, IListViewDragAndDrop, IListViewAccessibilityProvider } from './listView';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
 import { ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
@@ -686,25 +686,9 @@ export interface IStyleController {
 	style(styles: IListStyles): void;
 }
 
-export interface IAccessibilityProvider<T> {
-
-	/**
-	 * Given an element in the tree, return the ARIA label that should be associated with the
-	 * item. This helps screen readers to provide a meaningful label for the currently focused
-	 * tree element.
-	 *
-	 * Returning null will not disable ARIA for the element. Instead it is up to the screen reader
-	 * to compute a meaningful label based on the contents of the element in the DOM
-	 *
-	 * See also: https://www.w3.org/TR/wai-aria/#aria-label
-	 */
+export interface IListAccessibilityProvider<T> extends IListViewAccessibilityProvider<T> {
 	getAriaLabel(element: T): string | null;
-
-	/**
-	 * https://www.w3.org/TR/wai-aria/#aria-level
-	 */
 	getAriaLevel?(element: T): number | undefined;
-
 	onDidChangeActiveDescendant?: Event<void>;
 	getActiveDescendantId?(element: T): string | undefined;
 }
@@ -836,14 +820,14 @@ export interface IListOptions<T> {
 	readonly automaticKeyboardNavigation?: boolean;
 	readonly keyboardNavigationLabelProvider?: IKeyboardNavigationLabelProvider<T>;
 	readonly keyboardNavigationDelegate?: IKeyboardNavigationDelegate;
-	readonly ariaRole?: ListAriaRootRole | string;
+	readonly ariaRole?: string;
 	readonly ariaLabel?: string;
 	readonly keyboardSupport?: boolean;
 	readonly multipleSelectionSupport?: boolean;
 	readonly multipleSelectionController?: IMultipleSelectionController<T>;
 	readonly openController?: IOpenController;
 	readonly styleController?: (suffix: string) => IStyleController;
-	readonly accessibilityProvider?: IAccessibilityProvider<T>;
+	readonly accessibilityProvider?: IListAccessibilityProvider<T>;
 
 	// list view options
 	readonly useShadows?: boolean;
@@ -853,7 +837,6 @@ export interface IListOptions<T> {
 	readonly supportDynamicHeights?: boolean;
 	readonly mouseSupport?: boolean;
 	readonly horizontalScrolling?: boolean;
-	readonly ariaProvider?: IAriaProvider<T>;
 	readonly additionalScrollHeight?: number;
 }
 
@@ -894,7 +877,7 @@ const defaultStyles: IListStyles = {
 	treeIndentGuidesStroke: Color.fromHex('#a9a9a9')
 };
 
-const DefaultOptions = {
+const DefaultOptions: IListOptions<any> = {
 	keyboardSupport: true,
 	mouseSupport: true,
 	multipleSelectionSupport: true,
@@ -903,8 +886,7 @@ const DefaultOptions = {
 		onDragStart(): void { },
 		onDragOver() { return false; },
 		drop() { }
-	},
-	ariaRootRole: ListAriaRootRole.LIST
+	}
 };
 
 // TODO@Joao: move these utils into a SortedArray class
@@ -1036,7 +1018,7 @@ class AccessibiltyRenderer<T> implements IListRenderer<T, HTMLElement> {
 
 	templateId: string = 'a18n';
 
-	constructor(private accessibilityProvider: IAccessibilityProvider<T>) { }
+	constructor(private accessibilityProvider: IListAccessibilityProvider<T>) { }
 
 	renderTemplate(container: HTMLElement): HTMLElement {
 		return container;
@@ -1123,7 +1105,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	private spliceable: ISpliceable<T>;
 	private styleController: IStyleController;
 	private typeLabelController?: TypeLabelController<T>;
-	private accessibilityProvider?: IAccessibilityProvider<T>;
+	private accessibilityProvider?: IListAccessibilityProvider<T>;
 
 	protected readonly disposables = new DisposableStore();
 
@@ -1227,12 +1209,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		};
 
 		this.view = new ListView(container, virtualDelegate, renderers, viewOptions);
-
-		if (typeof _options.ariaRole !== 'string') {
-			this.view.domNode.setAttribute('role', ListAriaRootRole.LIST);
-		} else {
-			this.view.domNode.setAttribute('role', _options.ariaRole);
-		}
+		this.view.domNode.setAttribute('role', _options.ariaRole ?? 'list');
 
 		if (_options.styleController) {
 			this.styleController = _options.styleController(this.view.domId);

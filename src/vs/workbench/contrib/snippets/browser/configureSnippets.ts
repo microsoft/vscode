@@ -23,8 +23,8 @@ import { joinPath, basename } from 'vs/base/common/resources';
 const id = 'workbench.action.openSnippets';
 
 namespace ISnippetPick {
-	export function is(thing: object): thing is ISnippetPick {
-		return thing && URI.isUri((<ISnippetPick>thing).filepath);
+	export function is(thing: object | undefined): thing is ISnippetPick {
+		return !!thing && URI.isUri((<ISnippetPick>thing).filepath);
 	}
 }
 

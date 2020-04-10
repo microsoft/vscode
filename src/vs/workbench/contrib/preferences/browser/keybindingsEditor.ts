@@ -46,6 +46,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Emitter, Event } from 'vs/base/common/event';
 import { MenuRegistry, MenuId, isIMenuItem } from 'vs/platform/actions/common/actions';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 
 const $ = DOM.$;
 
@@ -458,6 +459,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditorP
 			ariaLabel: localize('keybindingsLabel', "Keybindings"),
 			setRowLineHeight: false,
 			horizontalScrolling: false,
+			accessibilityProvider: new AccessibilityProvider(),
 			overrideStyles: {
 				listBackground: editorBackground
 			}
@@ -826,7 +828,6 @@ class KeybindingItemRenderer implements IListRenderer<IKeybindingItemEntry, Keyb
 
 		this.keybindingsEditor.layoutColumns(elements);
 		this.keybindingsEditor.onLayout(() => this.keybindingsEditor.layoutColumns(elements));
-		parent.setAttribute('aria-labelledby', elements.map(e => e.getAttribute('id')).join(' '));
 
 		return {
 			parent,
@@ -933,7 +934,6 @@ class CommandColumn extends Column {
 		const commandIdMatched = !!(keybindingItem.commandLabel && keybindingItemEntry.commandIdMatches);
 		const commandDefaultLabelMatched = !!keybindingItemEntry.commandDefaultLabelMatches;
 		DOM.toggleClass(this.commandColumn, 'vertical-align-column', commandIdMatched || commandDefaultLabelMatched);
-		this.commandColumn.setAttribute('aria-label', this.getAriaLabel(keybindingItemEntry));
 		let commandLabel: HighlightedLabel | undefined;
 		if (keybindingItem.commandLabel) {
 			commandLabel = new HighlightedLabel(this.commandColumn, false);
@@ -950,10 +950,6 @@ class CommandColumn extends Column {
 		if (commandLabel) {
 			commandLabel.element.title = keybindingItem.commandLabel ? localize('title', "{0} ({1})", keybindingItem.commandLabel, keybindingItem.command) : keybindingItem.command;
 		}
-	}
-
-	private getAriaLabel(keybindingItemEntry: IKeybindingItemEntry): string {
-		return keybindingItemEntry.keybindingItem.commandLabel ? keybindingItemEntry.keybindingItem.commandLabel : keybindingItemEntry.keybindingItem.command;
 	}
 }
 
@@ -974,14 +970,9 @@ class KeybindingColumn extends Column {
 
 	render(keybindingItemEntry: IKeybindingItemEntry): void {
 		DOM.clearNode(this.keybindingLabel);
-		this.keybindingLabel.setAttribute('aria-label', this.getAriaLabel(keybindingItemEntry));
 		if (keybindingItemEntry.keybindingItem.keybinding) {
 			new KeybindingLabel(this.keybindingLabel, OS).set(keybindingItemEntry.keybindingItem.keybinding, keybindingItemEntry.keybindingMatches);
 		}
-	}
-
-	private getAriaLabel(keybindingItemEntry: IKeybindingItemEntry): string {
-		return keybindingItemEntry.keybindingItem.keybinding ? localize('keybindingAriaLabel', "Keybinding is {0}.", keybindingItemEntry.keybindingItem.keybinding.getAriaLabel()) : localize('noKeybinding', "No Keybinding assigned.");
 	}
 }
 
@@ -1000,12 +991,7 @@ class SourceColumn extends Column {
 
 	render(keybindingItemEntry: IKeybindingItemEntry): void {
 		DOM.clearNode(this.sourceColumn);
-		this.sourceColumn.setAttribute('aria-label', this.getAriaLabel(keybindingItemEntry));
 		new HighlightedLabel(this.sourceColumn, false).set(keybindingItemEntry.keybindingItem.source, keybindingItemEntry.sourceMatches);
-	}
-
-	private getAriaLabel(keybindingItemEntry: IKeybindingItemEntry): string {
-		return localize('sourceAriaLabel', "Source is {0}.", keybindingItemEntry.keybindingItem.source);
 	}
 }
 
@@ -1096,7 +1082,6 @@ class WhenColumn extends Column {
 			}
 		}, this, this.renderDisposables);
 		this.whenInput.value = keybindingItemEntry.keybindingItem.when || '';
-		this.whenLabel.setAttribute('aria-label', this.getAriaLabel(keybindingItemEntry));
 		DOM.toggleClass(this.whenLabel, 'code', !!keybindingItemEntry.keybindingItem.when);
 		DOM.toggleClass(this.whenLabel, 'empty', !keybindingItemEntry.keybindingItem.when);
 		if (keybindingItemEntry.keybindingItem.when) {
@@ -1117,10 +1102,18 @@ class WhenColumn extends Column {
 			this.keybindingsEditor.selectKeybinding(keybindingItemEntry);
 		}, this, this.renderDisposables);
 	}
+}
 
-	private getAriaLabel(keybindingItemEntry: IKeybindingItemEntry): string {
-		return keybindingItemEntry.keybindingItem.when ? localize('whenAriaLabel', "When is {0}.", keybindingItemEntry.keybindingItem.when) : localize('noWhen', "No when context.");
+class AccessibilityProvider implements IListAccessibilityProvider<IKeybindingItemEntry> {
+
+	getAriaLabel(keybindingItemEntry: IKeybindingItemEntry): string {
+		let ariaLabel = localize('commandAriaLabel', "Command is {0}.", keybindingItemEntry.keybindingItem.commandLabel ? keybindingItemEntry.keybindingItem.commandLabel : keybindingItemEntry.keybindingItem.command);
+		ariaLabel += keybindingItemEntry.keybindingItem.keybinding ? localize('keybindingAriaLabel', "Keybinding is {0}.", keybindingItemEntry.keybindingItem.keybinding.getAriaLabel()) : localize('noKeybinding', "No Keybinding assigned.");
+		ariaLabel += localize('sourceAriaLabel', "Source is {0}.", keybindingItemEntry.keybindingItem.source);
+		ariaLabel += keybindingItemEntry.keybindingItem.when ? localize('whenAriaLabel', "When is {0}.", keybindingItemEntry.keybindingItem.when) : localize('noWhen', "No when context.");
+		return ariaLabel;
 	}
+
 }
 
 registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {

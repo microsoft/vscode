@@ -152,6 +152,7 @@ export class ProgressService extends Disposable implements IProgressService {
 
 			const statusEntryProperties: IStatusbarEntry = {
 				text: `$(sync~spin) ${text}`,
+				ariaLabel: text,
 				tooltip: title,
 				command: progressCommand
 			};
@@ -380,11 +381,25 @@ export class ProgressService extends Disposable implements IProgressService {
 		const listener = progressStateModel.onDidReport(step => updateNotification(step));
 		Event.once(progressStateModel.onDispose)(() => listener.dispose());
 
-		// Show progress for at least 800ms and then hide once done or canceled
-		Promise.all([timeout(800), progressStateModel.promise]).finally(() => {
-			clearTimeout(notificationTimeout);
-			notificationHandle?.close();
-		});
+		// Clean up eventually
+		(async () => {
+			try {
+
+				// with a delay we only wait for the finish of the promise
+				if (typeof options.delay === 'number' && options.delay > 0) {
+					await progressStateModel.promise;
+				}
+
+				// without a delay we show the notification for at least 800ms
+				// to reduce the chance of the notification flashing up and hiding
+				else {
+					await Promise.all([timeout(800), progressStateModel.promise]);
+				}
+			} finally {
+				clearTimeout(notificationTimeout);
+				notificationHandle?.close();
+			}
+		})();
 
 		return progressStateModel.promise;
 	}

@@ -122,6 +122,7 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 		} else {
 			const itemProps: IStatusbarEntry = {
 				text: `$(tools) ${tasks.length}`,
+				ariaLabel: nls.localize('numberOfRunningTasks', "{0} running tasks", tasks.length),
 				tooltip: nls.localize('runningTasks', "Show Running Tasks"),
 				command: 'workbench.action.tasks.showTasks',
 			};

@@ -3275,6 +3275,10 @@ declare namespace monaco.editor {
 		 */
 		autoFindInSelection?: 'never' | 'always' | 'multiline';
 		addExtraSpaceOnTop?: boolean;
+		/**
+		 * Controls whether the search automatically restarts from the beginning (or the end) when no further matches can be found
+		 */
+		loop?: boolean;
 	}
 
 	export type EditorFindOptions = Readonly<Required<IEditorFindOptions>>;

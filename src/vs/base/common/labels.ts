@@ -18,7 +18,7 @@ export interface IWorkspaceFolderProvider {
 }
 
 export interface IUserHomeProvider {
-	userHome: string;
+	userHome?: URI;
 }
 
 /**
@@ -63,8 +63,8 @@ export function getPathLabel(resource: URI | string, userHomeProvider?: IUserHom
 
 	// normalize and tildify (macOS, Linux only)
 	let res = normalize(resource.fsPath);
-	if (!isWindows && userHomeProvider) {
-		res = tildify(res, userHomeProvider.userHome);
+	if (!isWindows && userHomeProvider?.userHome) {
+		res = tildify(res, userHomeProvider.userHome.fsPath);
 	}
 
 	return res;

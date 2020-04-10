@@ -1145,9 +1145,6 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	openView(id: string, focus?: boolean): IView {
-		if (focus) {
-			this.focus();
-		}
 		let view = this.getView(id);
 		if (!view) {
 			this.toggleViewVisibility(id);
@@ -1264,7 +1261,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 							return;
 						}
 
-						overlay = new ViewPaneDropOverlay(pane.dropTargetElement, this.options.orientation ?? Orientation.VERTICAL, this.themeService);
+						overlay = new ViewPaneDropOverlay(pane.dropTargetElement, this.orientation ?? Orientation.VERTICAL, this.themeService);
 					}
 
 					if (dropData.type === 'composite' && dropData.id !== this.viewContainer.id) {
@@ -1274,7 +1271,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 						const viewsToMove = this.viewDescriptorService.getViewDescriptors(container).allViewDescriptors;
 
 						if (viewsToMove.length === 1 && viewsToMove[0].canMoveView) {
-							overlay = new ViewPaneDropOverlay(pane.dropTargetElement, this.options.orientation ?? Orientation.VERTICAL, this.themeService);
+							overlay = new ViewPaneDropOverlay(pane.dropTargetElement, this.orientation ?? Orientation.VERTICAL, this.themeService);
 						}
 					}
 
