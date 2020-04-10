@@ -44,7 +44,7 @@ import { ClearReplAction, Repl } from 'vs/workbench/contrib/debug/browser/repl';
 import { DebugContentProvider } from 'vs/workbench/contrib/debug/common/debugContentProvider';
 import { WelcomeView } from 'vs/workbench/contrib/debug/browser/welcomeView';
 import { ThemeIcon, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { registerColor, foreground } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, foreground, badgeBackground, badgeForeground, listDeemphasizedForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { DebugViewPaneContainer, OpenDebugConsoleAction } from 'vs/workbench/contrib/debug/browser/debugViewlet';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { CallStackEditorContribution } from 'vs/workbench/contrib/debug/browser/callStackEditorContribution';
@@ -597,8 +597,83 @@ const debugTokenExpressionBoolean = registerColor('debugTokenExpression.boolean'
 const debugTokenExpressionNumber = registerColor('debugTokenExpression.number', { dark: '#b5cea8', light: '#098658', hc: '#89d185' }, 'Foreground color for numbers in the debug views (ie. the Variables or Watch view).');
 const debugTokenExpressionError = registerColor('debugTokenExpression.error', { dark: '#f48771', light: '#e51400', hc: '#f48771' }, 'Foreground color for expression errors in the debug views (ie. the Variables or Watch view) and for error logs shown in the debug console.');
 
+const debugViewExceptionLabelForeground = registerColor('debugView.exceptionLabelForeground', { dark: foreground, light: foreground, hc: foreground }, 'Foreground color for a label shown in the CALL STACK view when the debugger breaks on an exception.');
+const debugViewExceptionLabelBackground = registerColor('debugView.exceptionLabelBackground', { dark: '#6C2022', light: '#A31515', hc: '#6C2022' }, 'Background color for a label shown in the CALL STACK view when the debugger breaks on an exception.');
+const debugViewStateLabelForeground = registerColor('debugView.stateLabelForeground', { dark: foreground, light: foreground, hc: foreground }, 'Foreground color for a label in the CALL STACK view showing the current session\'s or thread\'s state.');
+const debugViewStateLabelBackground = registerColor('debugView.stateLabelBackground', { dark: '#88888844', light: '#88888844', hc: '#88888844' }, 'Background color for a label in the CALL STACK view showing the current session\'s or thread\'s state.');
+const debugViewValueChangedHighlight = registerColor('debugView.valueChangedHighlight', { dark: '#569CD6', light: '#569CD6', hc: '#569CD6' }, 'Color used to highlight value changes in the debug views (ie. in the Variables view).');
+
 registerThemingParticipant((theme, collector) => {
 	// All these colours provide a default value so they will never be undefined, hence the `!`
+	const badgeBackgroundColor = theme.getColor(badgeBackground)!;
+	const badgeForegroundColor = theme.getColor(badgeForeground)!;
+	const listDeemphasizedForegroundColor = theme.getColor(listDeemphasizedForeground)!;
+	const debugViewExceptionLabelForegroundColor = theme.getColor(debugViewExceptionLabelForeground)!;
+	const debugViewExceptionLabelBackgroundColor = theme.getColor(debugViewExceptionLabelBackground)!;
+	const debugViewStateLabelForegroundColor = theme.getColor(debugViewStateLabelForeground)!;
+	const debugViewStateLabelBackgroundColor = theme.getColor(debugViewStateLabelBackground)!;
+	const debugViewValueChangedHighlightColor = theme.getColor(debugViewValueChangedHighlight)!;
+
+	collector.addRule(`
+		/* Text colour of the call stack row's filename */
+		.debug-pane .debug-call-stack .monaco-list-row:not(.selected) .stack-frame > .file .file-name {
+			color: ${listDeemphasizedForegroundColor}
+		}
+
+		/* Line & column number "badge" for selected call stack row */
+		.debug-pane .monaco-list-row.selected .line-number {
+			background-color: ${badgeBackgroundColor};
+			color: ${badgeForegroundColor};
+		}
+
+		/* Line & column number "badge" for unselected call stack row (basically all other rows) */
+		.debug-pane .line-number {
+			background-color: ${badgeBackgroundColor.transparent(0.6)};
+			color: ${badgeForegroundColor.transparent(0.6)};
+		}
+
+		/* State "badge" displaying the active session's current state.
+		 * Only visible when there are more active debug sessions/threads running.
+		 */
+		.debug-pane .debug-call-stack .thread > .state > .label,
+		.debug-pane .debug-call-stack .session > .state > .label,
+		.debug-pane .monaco-list-row.selected .thread > .state > .label,
+		.debug-pane .monaco-list-row.selected .session > .state > .label {
+			background-color: ${debugViewStateLabelBackgroundColor};
+			color: ${debugViewStateLabelForegroundColor};
+		}
+
+		/* Info "badge" shown when the debugger pauses due to a thrown exception. */
+		.debug-pane .debug-call-stack-title > .pause-message > .label.exception {
+			background-color: ${debugViewExceptionLabelBackgroundColor};
+			color: ${debugViewExceptionLabelForegroundColor};
+		}
+
+		/* Animation of changed values in Debug viewlet */
+		@keyframes debugViewletValueChanged {
+			0%   { background-color: ${debugViewValueChangedHighlightColor.transparent(0)} }
+			5%   { background-color: ${debugViewValueChangedHighlightColor.transparent(0.9)} }
+			100% { background-color: ${debugViewValueChangedHighlightColor.transparent(0.3)} }
+		}
+
+		.debug-pane .monaco-list-row .expression .value.changed {
+			background-color: ${debugViewValueChangedHighlightColor.transparent(0.3)};
+			animation-name: debugViewletValueChanged;
+			animation-duration: 1s;
+			animation-fill-mode: forwards;
+		}
+	`);
+
+	const contrastBorderColor = theme.getColor(contrastBorder);
+
+	if (contrastBorderColor) {
+		collector.addRule(`
+		.debug-pane .line-number {
+			border: 1px solid ${contrastBorderColor};
+		}
+		`);
+	}
+
 	const tokenNameColor = theme.getColor(debugTokenExpressionName)!;
 	const tokenValueColor = theme.getColor(debugTokenExpressionValue)!;
 	const tokenStringColor = theme.getColor(debugTokenExpressionString)!;
