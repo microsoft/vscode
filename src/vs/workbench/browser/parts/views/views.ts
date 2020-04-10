@@ -536,6 +536,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		@IPanelService private readonly panelService: IPanelService,
 		@IViewletService private readonly viewletService: IViewletService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		super();
 
@@ -737,7 +738,7 @@ export class ViewsService extends Disposable implements IViewsService {
 					if (activeViewPaneContainer.views.length === 1) {
 						const location = this.viewContainersRegistry.getViewContainerLocation(viewContainer);
 						if (location === ViewContainerLocation.Sidebar) {
-							this.viewletService.hideActiveViewlet();
+							this.layoutService.setSideBarHidden(true);
 						} else if (location === ViewContainerLocation.Panel) {
 							this.panelService.hideActivePanel();
 						}
