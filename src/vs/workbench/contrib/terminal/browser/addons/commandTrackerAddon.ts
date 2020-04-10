@@ -50,7 +50,7 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 		if (!this._terminal) {
 			return;
 		}
-		if (this._terminal.buffer.cursorX >= MINIMUM_PROMPT_LENGTH) {
+		if (this._terminal.buffer.active.cursorX >= MINIMUM_PROMPT_LENGTH) {
 			this._terminal.registerMarker(0);
 		}
 	}
@@ -64,8 +64,8 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 		}
 
 		let markerIndex;
-		const currentLineY = Math.min(this._getLine(this._terminal, this._currentMarker), this._terminal.buffer.baseY);
-		const viewportY = this._terminal.buffer.viewportY;
+		const currentLineY = Math.min(this._getLine(this._terminal, this._currentMarker), this._terminal.buffer.active.baseY);
+		const viewportY = this._terminal.buffer.active.viewportY;
 		if (!retainSelection && currentLineY !== viewportY) {
 			// The user has scrolled, find the line based on the current scroll position. This only
 			// works when not retaining selection
@@ -103,8 +103,8 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 		}
 
 		let markerIndex;
-		const currentLineY = Math.min(this._getLine(this._terminal, this._currentMarker), this._terminal.buffer.baseY);
-		const viewportY = this._terminal.buffer.viewportY;
+		const currentLineY = Math.min(this._getLine(this._terminal, this._currentMarker), this._terminal.buffer.active.baseY);
+		const viewportY = this._terminal.buffer.active.viewportY;
 		if (!retainSelection && currentLineY !== viewportY) {
 			// The user has scrolled, find the line based on the current scroll position. This only
 			// works when not retaining selection
@@ -212,7 +212,7 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 	private _getLine(xterm: Terminal, marker: IMarker | Boundary): number {
 		// Use the _second last_ row as the last row is likely the prompt
 		if (marker === Boundary.Bottom) {
-			return xterm.buffer.baseY + xterm.rows - 1;
+			return xterm.buffer.active.baseY + xterm.rows - 1;
 		}
 
 		if (marker === Boundary.Top) {
@@ -272,10 +272,10 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 		if (this._currentMarker === Boundary.Bottom) {
 			return 0;
 		} else if (this._currentMarker === Boundary.Top) {
-			return 0 - (xterm.buffer.baseY + xterm.buffer.cursorY);
+			return 0 - (xterm.buffer.active.baseY + xterm.buffer.active.cursorY);
 		} else {
 			let offset = this._getLine(xterm, this._currentMarker);
-			offset -= xterm.buffer.baseY + xterm.buffer.cursorY;
+			offset -= xterm.buffer.active.baseY + xterm.buffer.active.cursorY;
 			return offset;
 		}
 	}
