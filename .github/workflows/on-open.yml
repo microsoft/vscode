@@ -42,4 +42,4 @@ jobs:
         with:
           label: "invalid"
           mustNotMatch: "^We have written the needed data into your clipboard because it was too large to send\\. Please paste\\.$"
-          comment: "It looks like you're using the VS Code Issue Reporter but did not paste the text generated into the created issue. We've closed this issue, please open a new one contining the text we placed in your clipboard.\n\nHappy Coding!"
+          comment: "It looks like you're using the VS Code Issue Reporter but did not paste the text generated into the created issue. We've closed this issue, please open a new one containing the text we placed in your clipboard.\n\nHappy Coding!"
