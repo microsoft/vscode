@@ -435,15 +435,19 @@ export class Git {
 					const [, letter] = match;
 
 					try {
-						const networkPath = await new Promise<string>(resolve =>
+						let networkPath = await new Promise<string>(resolve =>
 							realpath.native(`${letter}:`, { encoding: 'utf8' }, (err, resolvedPath) =>
 								// eslint-disable-next-line eqeqeq
 								resolve(err != null ? undefined : resolvedPath),
 							),
 						);
 						if (networkPath !== undefined) {
+							networkPath = `${networkPath}\\`;
 							return path.normalize(
-								repoUri.fsPath.replace(networkPath, `${letter.toLowerCase()}:`),
+								repoUri.fsPath.replace(
+									networkPath,
+									`${letter.toLowerCase()}:${networkPath.endsWith('\\') ? '\\' : ''}`
+								),
 							);
 						}
 					} catch { }
