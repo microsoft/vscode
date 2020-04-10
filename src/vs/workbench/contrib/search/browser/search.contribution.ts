@@ -332,21 +332,37 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: Constants.RevealInSideBarForSearchResults,
-	handler: (accessor, fileMatch: FileMatch) => {
+	handler: (accessor, args: any) => {
 		const viewletService = accessor.get(IViewletService);
 		const explorerService = accessor.get(IExplorerService);
 		const contextService = accessor.get(IWorkspaceContextService);
-		const uri = fileMatch.resource;
+
+		const searchView = getSearchView(accessor.get(IViewsService));
+		if (!searchView) {
+			return;
+		}
+
+		let fileMatch: FileMatch;
+		if (!(args instanceof FileMatch)) {
+			args = searchView.getControl().getFocus()[0];
+		}
+		if (args instanceof FileMatch) {
+			fileMatch = args;
+		} else {
+			return;
+		}
 
 		viewletService.openViewlet(VIEWLET_ID_FILES, false).then((viewlet) => {
-			const explorerViewContainer = viewlet?.getViewPaneContainer() as ExplorerViewPaneContainer;
+			if (!viewlet) {
+				return;
+			}
 
+			const explorerViewContainer = viewlet.getViewPaneContainer() as ExplorerViewPaneContainer;
+			const uri = fileMatch.resource;
 			if (uri && contextService.isInsideWorkspace(uri)) {
-				const explorerView = explorerViewContainer?.getExplorerView();
-				if (explorerView) {
-					explorerView.setExpanded(true);
-					explorerService.select(uri, true).then(() => explorerView.focus(), onUnexpectedError);
-				}
+				const explorerView = explorerViewContainer.getExplorerView();
+				explorerView.setExpanded(true);
+				explorerService.select(uri, true).then(() => explorerView.focus(), onUnexpectedError);
 			}
 		});
 	}
