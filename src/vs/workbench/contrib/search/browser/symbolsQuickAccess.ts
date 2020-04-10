@@ -130,15 +130,31 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 
 				const symbolLabel = symbol.name;
 				const symbolLabelWithIcon = `$(symbol-${SymbolKinds.toString(symbol.kind) || 'property'}) ${symbolLabel}`;
-
+				const symbolLabelIconOffset = symbolLabelWithIcon.length - symbolLabel.length;
 
 				// Score by symbol label if searching
 				let symbolScore: number | undefined = undefined;
 				let symbolMatches: IMatch[] | undefined = undefined;
+				let skipContainerQuery = false;
 				if (symbolQuery.original.length > 0) {
-					[symbolScore, symbolMatches] = scoreFuzzy2(symbolLabel, symbolQuery, 0, symbolLabelWithIcon.length - symbolLabel.length /* Readjust matches to account for codicons in label */);
+
+					// First: try to score on the entire query, it is possible that
+					// the symbol matches perfectly (e.g. searching for "change log"
+					// can be a match on a markdown symbol "change log"). In that
+					// case we want to skip the container query altogether.
+					if (symbolQuery !== query) {
+						[symbolScore, symbolMatches] = scoreFuzzy2(symbolLabel, query, 0, symbolLabelIconOffset);
+						if (symbolScore) {
+							skipContainerQuery = true; // since we consumed the query, skip any container matching
+						}
+					}
+
+					// Otherwise: score on the symbol query and match on the container later
 					if (!symbolScore) {
-						continue;
+						[symbolScore, symbolMatches] = scoreFuzzy2(symbolLabel, symbolQuery, 0, symbolLabelIconOffset);
+						if (!symbolScore) {
+							continue;
+						}
 					}
 				}
 
@@ -156,7 +172,7 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 				// Score by container if specified and searching
 				let containerScore: number | undefined = undefined;
 				let containerMatches: IMatch[] | undefined = undefined;
-				if (containerQuery && containerQuery.original.length > 0) {
+				if (!skipContainerQuery && containerQuery && containerQuery.original.length > 0) {
 					if (containerLabel) {
 						[containerScore, containerMatches] = scoreFuzzy2(containerLabel, containerQuery);
 					}
