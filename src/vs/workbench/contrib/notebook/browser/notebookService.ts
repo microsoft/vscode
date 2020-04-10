@@ -17,6 +17,7 @@ import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common
 import { Iterable } from 'vs/base/common/iterator';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { IEditorService, ICustomEditorViewTypesHandler, ICustomEditorInfo } from 'vs/workbench/services/editor/common/editorService';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -76,6 +77,10 @@ export class NotebookProviderInfoStore {
 	getContributedNotebook(resource: URI): readonly NotebookProviderInfo[] {
 		return [...Iterable.filter(this.contributedEditors.values(), customEditor => customEditor.matches(resource))];
 	}
+
+	public [Symbol.iterator](): Iterator<NotebookProviderInfo> {
+		return this.contributedEditors.values();
+	}
 }
 
 export class NotebookOutputRendererInfoStore {
@@ -119,7 +124,7 @@ class ModelData implements IDisposable {
 }
 
 
-export class NotebookService extends Disposable implements INotebookService {
+export class NotebookService extends Disposable implements INotebookService, ICustomEditorViewTypesHandler {
 	_serviceBrand: undefined;
 	private readonly _notebookProviders = new Map<string, { controller: IMainNotebookController, extensionData: NotebookExtensionDescription }>();
 	private readonly _notebookRenderers = new Map<number, { extensionData: NotebookExtensionDescription, type: string, selectors: INotebookMimeTypeSelector, preloads: URI[] }>();
@@ -129,8 +134,12 @@ export class NotebookService extends Disposable implements INotebookService {
 	private _onDidChangeActiveEditor = new Emitter<{ viewType: string, uri: URI }>();
 	onDidChangeActiveEditor: Event<{ viewType: string, uri: URI }> = this._onDidChangeActiveEditor.event;
 
+	private readonly _onDidChangeViewTypes = new Emitter<void>();
+	onDidChangeViewTypes: Event<void> = this._onDidChangeViewTypes.event;
+
 	constructor(
-		@IExtensionService private readonly extensionService: IExtensionService
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super();
 
@@ -166,6 +175,16 @@ export class NotebookService extends Disposable implements INotebookService {
 
 			// console.log(this.notebookRenderersInfoStore);
 		});
+
+		this.editorService.registerCustomEditorViewTypesHandler('Notebook', this);
+	}
+
+	getViewTypes(): ICustomEditorInfo[] {
+		return [...this.notebookProviderInfoStore].map(info => ({
+			id: info.id,
+			displayName: info.displayName,
+			providerDisplayName: info.providerDisplayName
+		}));
 	}
 
 	async canResolve(viewType: string): Promise<boolean> {
@@ -178,10 +197,12 @@ export class NotebookService extends Disposable implements INotebookService {
 
 	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: IMainNotebookController) {
 		this._notebookProviders.set(viewType, { extensionData, controller });
+		this._onDidChangeViewTypes.fire();
 	}
 
 	unregisterNotebookProvider(viewType: string): void {
 		this._notebookProviders.delete(viewType);
+		this._onDidChangeViewTypes.fire();
 	}
 
 	registerNotebookRenderer(handle: number, extensionData: NotebookExtensionDescription, type: string, selectors: INotebookMimeTypeSelector, preloads: URI[]) {
