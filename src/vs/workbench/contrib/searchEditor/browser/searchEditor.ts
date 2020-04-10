@@ -250,8 +250,6 @@ export class SearchEditor extends BaseTextEditor {
 		const viewState = this.loadViewState();
 		if (viewState && viewState.focused === 'editor') {
 			this.queryEditorWidget.searchInput.focus();
-		} else {
-			this.searchResultEditor.focus();
 		}
 	}
 
