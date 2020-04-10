@@ -495,7 +495,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			id,
 			ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [id, `${id}.state`, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
 			name: localize('generatedContainerName', "Custom Views"),
-			icon: undefined,
+			icon: location === ViewContainerLocation.Sidebar ? 'codicon-window' : undefined,
 			hideIfEmpty: true
 		}, location);
 	}

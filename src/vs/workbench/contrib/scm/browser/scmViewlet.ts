@@ -69,6 +69,7 @@ export class EmptyPane extends ViewPane {
 export class EmptyPaneDescriptor implements IViewDescriptor {
 	readonly id = EmptyPane.ID;
 	readonly name = EmptyPane.TITLE;
+	readonly containerIcon = 'codicon-source-control';
 	readonly ctorDescriptor = new SyncDescriptor(EmptyPane);
 	readonly canToggleVisibility = true;
 	readonly hideByDefault = false;

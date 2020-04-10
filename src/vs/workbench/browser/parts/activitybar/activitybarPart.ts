@@ -477,13 +477,15 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private updateActivity(viewlet: ViewletDescriptor, viewDescriptors: IViewDescriptorCollection): void {
 		const viewDescriptor = viewDescriptors.activeViewDescriptors[0];
-		const shouldUseContainerIcon = (viewlet.iconUrl || viewlet.cssClass) && viewDescriptors.activeViewDescriptors.some(v => v.containerIcon === viewlet.iconUrl || v.containerIcon === viewlet.cssClass);
+		const shouldUseViewletIcon = ((viewlet.iconUrl || viewlet.cssClass) && // we have a viewlet icon
+			viewDescriptors.activeViewDescriptors.some(v => v.containerIcon !== undefined && (v.containerIcon === viewlet.iconUrl || v.containerIcon === viewlet.cssClass))) || // we have a view with the same icon
+			!viewDescriptors.activeViewDescriptors.some(v => v.containerIcon !== undefined); // we have no views with icons
 
 		const activity: IActivity = {
 			id: viewlet.id,
-			name: viewDescriptor.name,
-			cssClass: shouldUseContainerIcon ? viewlet.cssClass : (isString(viewDescriptor.containerIcon) ? viewDescriptor.containerIcon : undefined),
-			iconUrl: shouldUseContainerIcon ? viewlet.iconUrl : (viewDescriptor.containerIcon instanceof URI ? viewDescriptor.containerIcon : undefined),
+			name: shouldUseViewletIcon ? viewlet.name : viewDescriptor.name,
+			cssClass: shouldUseViewletIcon ? viewlet.cssClass : (isString(viewDescriptor.containerIcon) ? viewDescriptor.containerIcon : (viewDescriptor.containerIcon === undefined ? 'codicon-window' : undefined)),
+			iconUrl: shouldUseViewletIcon ? viewlet.iconUrl : (viewDescriptor.containerIcon instanceof URI ? viewDescriptor.containerIcon : undefined),
 			keybindingId: viewlet.keybindingId
 		};
 
