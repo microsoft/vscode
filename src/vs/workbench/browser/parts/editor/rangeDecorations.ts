@@ -10,7 +10,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IRange } from 'vs/editor/common/core/range';
 import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { TrackedRangeStickiness, IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
 
 export interface IRangeHighlightDecoration {
@@ -41,9 +41,9 @@ export class RangeHighlightDecorations extends Disposable {
 		this.rangeHighlightDecorationId = null;
 	}
 
-	highlightRange(range: IRangeHighlightDecoration, editor?: ICodeEditor) {
+	highlightRange(range: IRangeHighlightDecoration, editor?: any) {
 		editor = editor ? editor : this.getEditor(range);
-		if (editor) {
+		if (isCodeEditor(editor)) {
 			this.doHighlightRange(editor, range);
 		}
 	}
@@ -60,10 +60,10 @@ export class RangeHighlightDecorations extends Disposable {
 
 	private getEditor(resourceRange: IRangeHighlightDecoration): ICodeEditor | undefined {
 		const activeEditor = this.editorService.activeEditor;
-		const resource = activeEditor && activeEditor.getResource();
+		const resource = activeEditor && activeEditor.resource;
 		if (resource) {
 			if (resource.toString() === resourceRange.resource.toString()) {
-				return this.editorService.activeTextEditorWidget as ICodeEditor;
+				return this.editorService.activeTextEditorControl as ICodeEditor;
 			}
 		}
 

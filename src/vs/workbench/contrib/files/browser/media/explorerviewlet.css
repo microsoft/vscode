@@ -48,7 +48,6 @@
 	flex: 0; /* do not steal space when label is hidden because we are in edit mode */
 }
 
-
 .explorer-viewlet .pane-header .count {
 	min-width: fit-content;
 	min-width: -moz-fit-content;
@@ -56,26 +55,15 @@
 	align-items: center;
 }
 
-.explorer-viewlet .pane-header .monaco-count-badge.hidden {
+.pane-header .dirty-count.monaco-count-badge.hidden {
 	display: none;
 }
 
-.explorer-viewlet .monaco-count-badge {
+.dirty-count.monaco-count-badge {
 	padding: 1px 6px 2px;
 	margin-left: 6px;
 	min-height: auto;
 	border-radius: 0; /* goes better when ellipsis shows up on narrow sidebar */
-}
-
-.explorer-viewlet .explorer-empty-view {
-	padding: 0 20px 0 20px;
-}
-
-.explorer-viewlet .explorer-empty-view .monaco-button {
-	max-width: 260px;
-	margin-left: auto;
-	margin-right: auto;
-	display: block;
 }
 
 .explorer-viewlet .explorer-item.nonexistent-root {

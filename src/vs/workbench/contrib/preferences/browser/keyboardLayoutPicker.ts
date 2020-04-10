@@ -21,7 +21,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IFileService } from 'vs/platform/files/common/files';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { IEditor } from 'vs/workbench/common/editor';
+import { IEditorPane } from 'vs/workbench/common/editor';
 
 export class KeyboardLayoutPickerContribution extends Disposable implements IWorkbenchContribution {
 	private readonly pickerElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
@@ -156,7 +156,7 @@ export class KeyboardLayoutPickerAction extends Action {
 
 			await this.fileService.resolve(file).then(undefined, (error) => {
 				return this.fileService.createFile(file, VSBuffer.fromString(KeyboardLayoutPickerAction.DEFAULT_CONTENT));
-			}).then((stat): Promise<IEditor | undefined> | undefined => {
+			}).then((stat): Promise<IEditorPane | undefined> | undefined => {
 				if (!stat) {
 					return undefined;
 				}

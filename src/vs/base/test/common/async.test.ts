@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import * as async from 'vs/base/common/async';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 suite('Async', () => {
 
@@ -645,5 +646,46 @@ suite('Async', () => {
 		sequentializer.cancelPending();
 
 		assert.ok(pendingCancelled);
+	});
+
+	test('raceCancellation', async () => {
+		const cts = new CancellationTokenSource();
+
+		const now = Date.now();
+
+		const p = async.raceCancellation(async.timeout(100), cts.token);
+		cts.cancel();
+
+		await p;
+
+		assert.ok(Date.now() - now < 100);
+	});
+
+	test('raceTimeout', async () => {
+		const cts = new CancellationTokenSource();
+
+		// timeout wins
+		let now = Date.now();
+		let timedout = false;
+
+		const p1 = async.raceTimeout(async.timeout(100), 1, () => timedout = true);
+		cts.cancel();
+
+		await p1;
+
+		assert.ok(Date.now() - now < 100);
+		assert.equal(timedout, true);
+
+		// promise wins
+		now = Date.now();
+		timedout = false;
+
+		const p2 = async.raceTimeout(async.timeout(1), 100, () => timedout = true);
+		cts.cancel();
+
+		await p2;
+
+		assert.ok(Date.now() - now < 100);
+		assert.equal(timedout, false);
 	});
 });

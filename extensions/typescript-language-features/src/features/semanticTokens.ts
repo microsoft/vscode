@@ -14,11 +14,14 @@ import { TokenType, TokenModifier, TokenEncodingConsts, VersionRequirement } fro
 
 const minTypeScriptVersion = API.fromVersionString(`${VersionRequirement.major}.${VersionRequirement.minor}`);
 
+// as we don't do deltas, for performance reasons, don't compute semantic tokens for documents above that limit
+const CONTENT_LENGTH_LIMIT = 100000;
+
 export function register(selector: vscode.DocumentSelector, client: ITypeScriptServiceClient) {
 	return new VersionDependentRegistration(client, minTypeScriptVersion, () => {
 		const provider = new DocumentSemanticTokensProvider(client);
 		return vscode.Disposable.from(
-			vscode.languages.registerDocumentSemanticTokensProvider(selector, provider, provider.getLegend()),
+			// register only as a range provider
 			vscode.languages.registerDocumentRangeSemanticTokensProvider(selector, provider, provider.getLegend()),
 		);
 	});
@@ -35,18 +38,12 @@ class DocumentSemanticTokensProvider implements vscode.DocumentSemanticTokensPro
 	}
 
 	getLegend(): vscode.SemanticTokensLegend {
-		if (tokenTypes.length !== TokenType._) {
-			console.warn('typescript-vscode-sh-plugin has added new tokens types.');
-		}
-		if (tokenModifiers.length !== TokenModifier._) {
-			console.warn('typescript-vscode-sh-plugin has added new tokens modifiers.');
-		}
 		return new vscode.SemanticTokensLegend(tokenTypes, tokenModifiers);
 	}
 
 	async provideDocumentSemanticTokens(document: vscode.TextDocument, token: vscode.CancellationToken): Promise<vscode.SemanticTokens | null> {
 		const file = this.client.toOpenedFilePath(document);
-		if (!file) {
+		if (!file || document.getText().length > CONTENT_LENGTH_LIMIT) {
 			return null;
 		}
 		return this._provideSemanticTokens(document, { file, start: 0, length: document.getText().length }, token);
@@ -54,9 +51,10 @@ class DocumentSemanticTokensProvider implements vscode.DocumentSemanticTokensPro
 
 	async provideDocumentRangeSemanticTokens(document: vscode.TextDocument, range: vscode.Range, token: vscode.CancellationToken): Promise<vscode.SemanticTokens | null> {
 		const file = this.client.toOpenedFilePath(document);
-		if (!file) {
+		if (!file || (document.offsetAt(range.end) - document.offsetAt(range.start) > CONTENT_LENGTH_LIMIT)) {
 			return null;
 		}
+
 		const start = document.offsetAt(range.start);
 		const length = document.offsetAt(range.end) - start;
 		return this._provideSemanticTokens(document, { file, start, length }, token);
@@ -68,7 +66,7 @@ class DocumentSemanticTokensProvider implements vscode.DocumentSemanticTokensPro
 			return null;
 		}
 
-		const versionBeforeRequest = document.version;
+		let versionBeforeRequest = document.version;
 
 		const response = await (this.client as ExperimentalProtocol.IExtendedTypeScriptServiceClient).execute('encodedSemanticClassifications-full', requestArg, token);
 		if (response.type !== 'response' || !response.body) {
@@ -84,6 +82,10 @@ class DocumentSemanticTokensProvider implements vscode.DocumentSemanticTokensPro
 			// here we cannot return null, because returning null would remove all semantic tokens.
 			// we must throw to indicate that the semantic tokens should not be removed.
 			// using the string busy here because it is not logged to error telemetry if the error text contains busy.
+
+			// as the new request will come in right after our response, we first wait for the document activity to stop
+			await waitForDocumentChangesToEnd(document);
+
 			throw new Error('busy');
 		}
 
@@ -119,9 +121,23 @@ class DocumentSemanticTokensProvider implements vscode.DocumentSemanticTokensPro
 				builder.push(line, startCharacter, endCharacter - startCharacter, tokenType, tokenModifiers);
 			}
 		}
-		return new vscode.SemanticTokens(builder.build());
+		return builder.build();
 	}
 }
+
+function waitForDocumentChangesToEnd(document: vscode.TextDocument) {
+	let version = document.version;
+	return new Promise((s) => {
+		let iv = setInterval(_ => {
+			if (document.version === version) {
+				clearInterval(iv);
+				s();
+			}
+			version = document.version;
+		}, 400);
+	});
+}
+
 
 // typescript-vscode-sh-plugin encodes type and modifiers in the classification:
 // TSClassification = (TokenType + 1) << 8 + TokenModifier
@@ -146,6 +162,7 @@ tokenTypes[TokenType.typeParameter] = 'typeParameter';
 tokenTypes[TokenType.type] = 'type';
 tokenTypes[TokenType.parameter] = 'parameter';
 tokenTypes[TokenType.variable] = 'variable';
+tokenTypes[TokenType.enumMember] = 'enumMember';
 tokenTypes[TokenType.property] = 'property';
 tokenTypes[TokenType.function] = 'function';
 tokenTypes[TokenType.member] = 'member';
@@ -155,6 +172,16 @@ tokenModifiers[TokenModifier.async] = 'async';
 tokenModifiers[TokenModifier.declaration] = 'declaration';
 tokenModifiers[TokenModifier.readonly] = 'readonly';
 tokenModifiers[TokenModifier.static] = 'static';
+tokenModifiers[TokenModifier.local] = 'local';
+tokenModifiers[TokenModifier.defaultLibrary] = 'defaultLibrary';
+
+// make sure token types and modifiers are complete
+if (tokenTypes.filter(t => !!t).length !== TokenType._) {
+	console.warn('typescript-vscode-sh-plugin has added new tokens types.');
+}
+if (tokenModifiers.filter(t => !!t).length !== TokenModifier._) {
+	console.warn('typescript-vscode-sh-plugin has added new tokens modifiers.');
+}
 
 // mapping for the original ExperimentalProtocol.ClassificationType from TypeScript (only used when plugin is not available)
 const tokenTypeMap: number[] = [];

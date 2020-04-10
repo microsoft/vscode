@@ -16,12 +16,12 @@
     "Programming Languages"
   ],
   "dependencies": {
-    "jsonc-parser": "^2.1.1",
+    "jsonc-parser": "^2.2.1",
     "rimraf": "^2.6.3",
     "semver": "5.5.1",
-    "typescript-vscode-sh-plugin": "^0.6.6",
+    "typescript-vscode-sh-plugin": "^0.6.13",
     "vscode-extension-telemetry": "0.1.1",
-    "vscode-nls": "^4.0.0"
+    "vscode-nls": "^4.1.1"
   },
   "devDependencies": {
     "@types/node": "^12.11.7",
@@ -636,6 +636,42 @@
           ],
           "default": "auto",
           "description": "%typescript.preferences.importModuleSpecifier%",
+          "scope": "resource"
+        },
+        "javascript.preferences.importModuleSpecifierEnding": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "minimal",
+            "index",
+            "js"
+          ],
+          "markdownEnumDescriptions": [
+            "%typescript.preferences.importModuleSpecifierEnding.auto%",
+            "%typescript.preferences.importModuleSpecifierEnding.minimal%",
+            "%typescript.preferences.importModuleSpecifierEnding.index%",
+            "%typescript.preferences.importModuleSpecifierEnding.js%"
+          ],
+          "default": "auto",
+          "description": "%typescript.preferences.importModuleSpecifierEnding%",
+          "scope": "resource"
+        },
+        "typescript.preferences.importModuleSpecifierEnding": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "minimal",
+            "index",
+            "js"
+          ],
+          "markdownEnumDescriptions": [
+            "%typescript.preferences.importModuleSpecifierEnding.auto%",
+            "%typescript.preferences.importModuleSpecifierEnding.minimal%",
+            "%typescript.preferences.importModuleSpecifierEnding.index%",
+            "%typescript.preferences.importModuleSpecifierEnding.js%"
+          ],
+          "default": "auto",
+          "description": "%typescript.preferences.importModuleSpecifierEnding%",
           "scope": "resource"
         },
         "javascript.preferences.renameShorthandProperties": {

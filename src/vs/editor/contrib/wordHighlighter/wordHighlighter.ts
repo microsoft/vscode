@@ -401,12 +401,13 @@ class WordHighlighter {
 	private renderDecorations(): void {
 		this.renderDecorationsTimer = -1;
 		let decorations: IModelDeltaDecoration[] = [];
-		for (let i = 0, len = this.workerRequestValue.length; i < len; i++) {
-			let info = this.workerRequestValue[i];
-			decorations.push({
-				range: info.range,
-				options: WordHighlighter._getDecorationOptions(info.kind)
-			});
+		for (const info of this.workerRequestValue) {
+			if (info.range) {
+				decorations.push({
+					range: info.range,
+					options: WordHighlighter._getDecorationOptions(info.kind)
+				});
+			}
 		}
 
 		this._decorationIds = this.editor.deltaDecorations(this._decorationIds, decorations);

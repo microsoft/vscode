@@ -6,7 +6,7 @@
 import { IDiskFileChange, ILogMessage } from 'vs/platform/files/node/watcher/watcher';
 import { OutOfProcessWin32FolderWatcher } from 'vs/platform/files/node/watcher/win32/csharpWatcherService';
 import { posix } from 'vs/base/common/path';
-import { rtrim, endsWith } from 'vs/base/common/strings';
+import { rtrim } from 'vs/base/common/strings';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 export class FileWatcher implements IDisposable {
@@ -16,13 +16,13 @@ export class FileWatcher implements IDisposable {
 
 	constructor(
 		folders: { path: string, excludes: string[] }[],
-		private onFileChanges: (changes: IDiskFileChange[]) => void,
+		private onDidFilesChange: (changes: IDiskFileChange[]) => void,
 		private onLogMessage: (msg: ILogMessage) => void,
 		private verboseLogging: boolean
 	) {
 		this.folder = folders[0];
 
-		if (this.folder.path.indexOf('\\\\') === 0 && endsWith(this.folder.path, posix.sep)) {
+		if (this.folder.path.indexOf('\\\\') === 0 && this.folder.path.endsWith(posix.sep)) {
 			// for some weird reason, node adds a trailing slash to UNC paths
 			// we never ever want trailing slashes as our base path unless
 			// someone opens root ("/").
@@ -62,7 +62,7 @@ export class FileWatcher implements IDisposable {
 
 		// Emit through event emitter
 		if (events.length > 0) {
-			this.onFileChanges(events);
+			this.onDidFilesChange(events);
 		}
 	}
 

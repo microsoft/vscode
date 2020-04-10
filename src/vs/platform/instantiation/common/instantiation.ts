@@ -29,7 +29,7 @@ export interface IConstructorSignature0<T> {
 }
 
 export interface IConstructorSignature1<A1, T> {
-	new(first: A1, ...services: BrandedService[]): T;
+	new <Services extends BrandedService[]>(first: A1, ...services: Services): T;
 }
 
 export interface IConstructorSignature2<A1, A2, T> {
@@ -102,7 +102,6 @@ export interface IInstantiationService {
 	createInstance<A1, A2, A3, A4, A5, A6, A7, A8, T>(descriptor: descriptors.SyncDescriptor8<A1, A2, A3, A4, A5, A6, A7, A8, T>, a1: A1, a2: A2, a3: A3, a4: A4, a5: A5, a6: A6, a7: A7, a8: A8): T;
 
 	createInstance<Ctor extends new (...args: any[]) => any, R extends InstanceType<Ctor>>(t: Ctor, ...args: GetLeadingNonServiceArgs<ConstructorParameters<Ctor>>): R;
-	createInstance<Services extends BrandedService[], Ctor extends new (...services: Services) => any, R extends InstanceType<Ctor>>(t: Ctor): R;
 
 	/**
 	 *
@@ -135,7 +134,7 @@ function storeServiceDependency(id: Function, target: Function, index: number, o
 }
 
 /**
- * A *only* valid way to create a {{ServiceIdentifier}}.
+ * The *only* valid way to create a {{ServiceIdentifier}}.
  */
 export function createDecorator<T>(serviceId: string): ServiceIdentifier<T> {
 

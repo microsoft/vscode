@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 // import { basename } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ITimelineService, TimelineProvider, TimelineItem, TimelineChangeEvent, TimelineProvidersChangeEvent } from './timeline';
+import { ITimelineService, TimelineChangeEvent, TimelineOptions, TimelineProvidersChangeEvent, TimelineProvider, InternalTimelineOptions, TimelinePaneId } from './timeline';
+import { IViewsService } from 'vs/workbench/common/views';
 
 export class TimelineService implements ITimelineService {
 	_serviceBrand: undefined;
@@ -19,107 +20,151 @@ export class TimelineService implements ITimelineService {
 
 	private readonly _onDidChangeTimeline = new Emitter<TimelineChangeEvent>();
 	readonly onDidChangeTimeline: Event<TimelineChangeEvent> = this._onDidChangeTimeline.event;
+	private readonly _onDidChangeUri = new Emitter<URI>();
+	readonly onDidChangeUri: Event<URI> = this._onDidChangeUri.event;
 
-	private readonly _providers = new Map<string, TimelineProvider>();
-	private readonly _providerSubscriptions = new Map<string, IDisposable>();
+	private readonly providers = new Map<string, TimelineProvider>();
+	private readonly providerSubscriptions = new Map<string, IDisposable>();
 
-	constructor(@ILogService private readonly logService: ILogService) {
+	constructor(
+		@ILogService private readonly logService: ILogService,
+		@IViewsService protected viewsService: IViewsService,
+	) {
+		// let source = 'fast-source';
 		// this.registerTimelineProvider({
-		// 	id: 'local-history',
-		// 	label: 'Local History',
-		// 	provideTimeline(uri: URI, token: CancellationToken) {
-		// 		return new Promise(resolve => setTimeout(() => {
-		// 			resolve([
+		// 	scheme: '*',
+		// 	id: source,
+		// 	label: 'Fast Source',
+		// 	provideTimeline(uri: URI, options: TimelineOptions, token: CancellationToken, internalOptions?: { cacheResults?: boolean | undefined; }) {
+		// 		if (options.cursor === undefined) {
+		// 			return Promise.resolve<Timeline>({
+		// 				source: source,
+		// 				items: [
+		// 					{
+		// 						handle: `${source}|1`,
+		// 						id: '1',
+		// 						label: 'Fast Timeline1',
+		// 						description: '',
+		// 						timestamp: Date.now(),
+		// 						source: source
+		// 					},
+		// 					{
+		// 						handle: `${source}|2`,
+		// 						id: '2',
+		// 						label: 'Fast Timeline2',
+		// 						description: '',
+		// 						timestamp: Date.now() - 3000000000,
+		// 						source: source
+		// 					}
+		// 				],
+		// 				paging: {
+		// 					cursor: 'next'
+		// 				}
+		// 			});
+		// 		}
+		// 		return Promise.resolve<Timeline>({
+		// 			source: source,
+		// 			items: [
 		// 				{
-		// 					id: '1',
-		// 					label: 'Slow Timeline1',
-		// 					description: basename(uri.fsPath),
-		// 					timestamp: Date.now(),
-		// 					source: 'local-history'
+		// 					handle: `${source}|3`,
+		// 					id: '3',
+		// 					label: 'Fast Timeline3',
+		// 					description: '',
+		// 					timestamp: Date.now() - 4000000000,
+		// 					source: source
 		// 				},
 		// 				{
-		// 					id: '2',
-		// 					label: 'Slow Timeline2',
-		// 					description: basename(uri.fsPath),
-		// 					timestamp: new Date(0).getTime(),
-		// 					source: 'local-history'
+		// 					handle: `${source}|4`,
+		// 					id: '4',
+		// 					label: 'Fast Timeline4',
+		// 					description: '',
+		// 					timestamp: Date.now() - 300000000000,
+		// 					source: source
 		// 				}
-		// 			]);
-		// 		}, 3000));
+		// 			],
+		// 			paging: {
+		// 				cursor: undefined
+		// 			}
+		// 		});
 		// 	},
 		// 	dispose() { }
 		// });
 
+		// let source = 'slow-source';
 		// this.registerTimelineProvider({
-		// 	id: 'slow-history',
-		// 	label: 'Slow History',
-		// 	provideTimeline(uri: URI, token: CancellationToken) {
-		// 		return new Promise(resolve => setTimeout(() => {
-		// 			resolve([
-		// 				{
-		// 					id: '1',
-		// 					label: 'VERY Slow Timeline1',
-		// 					description: basename(uri.fsPath),
-		// 					timestamp: Date.now(),
-		// 					source: 'slow-history'
-		// 				},
-		// 				{
-		// 					id: '2',
-		// 					label: 'VERY Slow Timeline2',
-		// 					description: basename(uri.fsPath),
-		// 					timestamp: new Date(0).getTime(),
-		// 					source: 'slow-history'
-		// 				}
-		// 			]);
-		// 		}, 6000));
+		// 	scheme: '*',
+		// 	id: source,
+		// 	label: 'Slow Source',
+		// 	provideTimeline(uri: URI, options: TimelineOptions, token: CancellationToken, internalOptions?: { cacheResults?: boolean | undefined; }) {
+		// 		return new Promise<Timeline>(resolve => setTimeout(() => {
+		// 			resolve({
+		// 				source: source,
+		// 				items: [
+		// 					{
+		// 						handle: `${source}|1`,
+		// 						id: '1',
+		// 						label: 'Slow Timeline1',
+		// 						description: basename(uri.fsPath),
+		// 						timestamp: Date.now(),
+		// 						source: source
+		// 					},
+		// 					{
+		// 						handle: `${source}|2`,
+		// 						id: '2',
+		// 						label: 'Slow Timeline2',
+		// 						description: basename(uri.fsPath),
+		// 						timestamp: new Date(0).getTime(),
+		// 						source: source
+		// 					}
+		// 				]
+		// 			});
+		// 		}, 5000));
+		// 	},
+		// 	dispose() { }
+		// });
+
+		// source = 'very-slow-source';
+		// this.registerTimelineProvider({
+		// 	scheme: '*',
+		// 	id: source,
+		// 	label: 'Very Slow Source',
+		// 	provideTimeline(uri: URI, options: TimelineOptions, token: CancellationToken, internalOptions?: { cacheResults?: boolean | undefined; }) {
+		// 		return new Promise<Timeline>(resolve => setTimeout(() => {
+		// 			resolve({
+		// 				source: source,
+		// 				items: [
+		// 					{
+		// 						handle: `${source}|1`,
+		// 						id: '1',
+		// 						label: 'VERY Slow Timeline1',
+		// 						description: basename(uri.fsPath),
+		// 						timestamp: Date.now(),
+		// 						source: source
+		// 					},
+		// 					{
+		// 						handle: `${source}|2`,
+		// 						id: '2',
+		// 						label: 'VERY Slow Timeline2',
+		// 						description: basename(uri.fsPath),
+		// 						timestamp: new Date(0).getTime(),
+		// 						source: source
+		// 					}
+		// 				]
+		// 			});
+		// 		}, 10000));
 		// 	},
 		// 	dispose() { }
 		// });
 	}
 
 	getSources() {
-		return [...this._providers.keys()];
+		return [...this.providers.values()].map(p => ({ id: p.id, label: p.label }));
 	}
 
-	async getTimeline(uri: URI, token: CancellationToken, predicate?: (provider: TimelineProvider) => boolean) {
-		this.logService.trace(`TimelineService#getTimeline(${uri.toString(true)})`);
-
-		const requests: Promise<[string, TimelineItem[]]>[] = [];
-
-		for (const provider of this._providers.values()) {
-			if (typeof provider.scheme === 'string') {
-				if (provider.scheme !== '*' && provider.scheme !== uri.scheme) {
-					continue;
-				}
-			} else if (!provider.scheme.includes(uri.scheme)) {
-				continue;
-			}
-			if (!(predicate?.(provider) ?? true)) {
-				continue;
-			}
-
-			requests.push(provider.provideTimeline(uri, token).then(p => [provider.id, p]));
-		}
-
-		const timelines = await Promise.all(requests);
-
-		const timeline = [];
-		for (const [source, items] of timelines) {
-			if (items.length === 0) {
-				continue;
-			}
-
-			timeline.push(...items.map(item => ({ ...item, source: source })));
-		}
-
-		timeline.sort((a, b) => b.timestamp - a.timestamp);
-		return timeline;
-	}
-
-	getTimelineRequest(id: string, uri: URI, tokenSource: CancellationTokenSource) {
+	getTimeline(id: string, uri: URI, options: TimelineOptions, tokenSource: CancellationTokenSource, internalOptions?: InternalTimelineOptions) {
 		this.logService.trace(`TimelineService#getTimeline(${id}): uri=${uri.toString(true)}`);
 
-		const provider = this._providers.get(id);
+		const provider = this.providers.get(id);
 		if (provider === undefined) {
 			return undefined;
 		}
@@ -133,13 +178,18 @@ export class TimelineService implements ITimelineService {
 		}
 
 		return {
-			items: provider.provideTimeline(uri, tokenSource.token)
-				.then(items => {
-					items = items.map(item => ({ ...item, source: provider.id }));
-					items.sort((a, b) => (b.timestamp - a.timestamp) || b.source.localeCompare(a.source, undefined, { numeric: true, sensitivity: 'base' }));
+			result: provider.provideTimeline(uri, options, tokenSource.token, internalOptions)
+				.then(result => {
+					if (result === undefined) {
+						return undefined;
+					}
 
-					return items;
+					result.items = result.items.map(item => ({ ...item, source: provider.id }));
+					result.items.sort((a, b) => (b.timestamp - a.timestamp) || b.source.localeCompare(a.source, undefined, { numeric: true, sensitivity: 'base' }));
+
+					return result;
 				}),
+			options: options,
 			source: provider.id,
 			tokenSource: tokenSource,
 			uri: uri
@@ -151,10 +201,10 @@ export class TimelineService implements ITimelineService {
 
 		const id = provider.id;
 
-		const existing = this._providers.get(id);
+		const existing = this.providers.get(id);
 		if (existing) {
 			// For now to deal with https://github.com/microsoft/vscode/issues/89553 allow any overwritting here (still will be blocked in the Extension Host)
-			// TODO[ECA]: Ultimately will need to figure out a way to unregister providers when the Extension Host restarts/crashes
+			// TODO@eamodio: Ultimately will need to figure out a way to unregister providers when the Extension Host restarts/crashes
 			// throw new Error(`Timeline Provider ${id} already exists.`);
 			try {
 				existing?.dispose();
@@ -162,15 +212,15 @@ export class TimelineService implements ITimelineService {
 			catch { }
 		}
 
-		this._providers.set(id, provider);
+		this.providers.set(id, provider);
 		if (provider.onDidChange) {
-			this._providerSubscriptions.set(id, provider.onDidChange(e => this._onDidChangeTimeline.fire(e)));
+			this.providerSubscriptions.set(id, provider.onDidChange(e => this._onDidChangeTimeline.fire(e)));
 		}
 		this._onDidChangeProviders.fire({ added: [id] });
 
 		return {
 			dispose: () => {
-				this._providers.delete(id);
+				this.providers.delete(id);
 				this._onDidChangeProviders.fire({ removed: [id] });
 			}
 		};
@@ -179,12 +229,17 @@ export class TimelineService implements ITimelineService {
 	unregisterTimelineProvider(id: string): void {
 		this.logService.trace(`TimelineService#unregisterTimelineProvider: id=${id}`);
 
-		if (!this._providers.has(id)) {
+		if (!this.providers.has(id)) {
 			return;
 		}
 
-		this._providers.delete(id);
-		this._providerSubscriptions.delete(id);
+		this.providers.delete(id);
+		this.providerSubscriptions.delete(id);
 		this._onDidChangeProviders.fire({ removed: [id] });
+	}
+
+	setUri(uri: URI) {
+		this.viewsService.openView(TimelinePaneId, true);
+		this._onDidChangeUri.fire(uri);
 	}
 }

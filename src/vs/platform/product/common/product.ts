@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IProductConfiguration } from 'vs/platform/product/common/productService';
-import { assign } from 'vs/base/common/objects';
 import { isWeb } from 'vs/base/common/platform';
 import * as path from 'vs/base/common/path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
@@ -20,8 +19,8 @@ if (isWeb) {
 
 	// Running out of sources
 	if (Object.keys(product).length === 0) {
-		assign(product, {
-			version: '1.41.0-dev',
+		Object.assign(product, {
+			version: '1.45.0-dev',
 			nameLong: 'Visual Studio Code Web Dev',
 			nameShort: 'VSCode Web Dev',
 			urlProtocol: 'code-oss'
@@ -35,19 +34,19 @@ else if (typeof require !== 'undefined' && typeof require.__$__nodeRequire === '
 	// Obtain values from product.json and package.json
 	const rootPath = path.dirname(getPathFromAmdModule(require, ''));
 
-	product = assign({}, require.__$__nodeRequire(path.join(rootPath, 'product.json')) as IProductConfiguration);
+	product = require.__$__nodeRequire(path.join(rootPath, 'product.json'));
 	const pkg = require.__$__nodeRequire(path.join(rootPath, 'package.json')) as { version: string; };
 
 	// Running out of sources
 	if (env['VSCODE_DEV']) {
-		assign(product, {
+		Object.assign(product, {
 			nameShort: `${product.nameShort} Dev`,
 			nameLong: `${product.nameLong} Dev`,
 			dataFolderName: `${product.dataFolderName}-dev`
 		});
 	}
 
-	assign(product, {
+	Object.assign(product, {
 		version: pkg.version
 	});
 }

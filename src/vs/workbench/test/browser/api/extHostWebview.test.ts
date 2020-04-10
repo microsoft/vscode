@@ -13,18 +13,33 @@ import { ExtHostWebviews } from 'vs/workbench/api/common/extHostWebview';
 import { EditorViewColumn } from 'vs/workbench/api/common/shared/editor';
 import { mock } from 'vs/workbench/test/browser/api/mock';
 import { SingleProxyRPCProtocol } from './testRPCProtocol';
+import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
+import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
+import { NullApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
 
 suite('ExtHostWebview', () => {
+
+	let rpcProtocol: (IExtHostRpcService & IExtHostContext) | undefined;
+	let extHostDocuments: ExtHostDocuments | undefined;
+
+	setup(() => {
+		const shape = createNoopMainThreadWebviews();
+		rpcProtocol = SingleProxyRPCProtocol(shape);
+
+		const extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(rpcProtocol, new NullLogService());
+		extHostDocuments = new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors);
+	});
 
 	test('Cannot register multiple serializers for the same view type', async () => {
 		const viewType = 'view.type';
 
-		const shape = createNoopMainThreadWebviews();
-		const extHostWebviews = new ExtHostWebviews(SingleProxyRPCProtocol(shape), {
+		const extHostWebviews = new ExtHostWebviews(rpcProtocol!, {
 			webviewCspSource: '',
 			webviewResourceRoot: '',
 			isExtensionDevelopmentDebug: false,
-		}, undefined, new NullLogService());
+		}, undefined, new NullLogService(), NullApiDeprecationService, extHostDocuments!);
 
 		let lastInvokedDeserializer: vscode.WebviewPanelSerializer | undefined = undefined;
 
@@ -57,12 +72,11 @@ suite('ExtHostWebview', () => {
 	});
 
 	test('asWebviewUri for desktop vscode-resource scheme', () => {
-		const shape = createNoopMainThreadWebviews();
-		const extHostWebviews = new ExtHostWebviews(SingleProxyRPCProtocol(shape), {
+		const extHostWebviews = new ExtHostWebviews(rpcProtocol!, {
 			webviewCspSource: '',
 			webviewResourceRoot: 'vscode-resource://{{resource}}',
 			isExtensionDevelopmentDebug: false,
-		}, undefined, new NullLogService());
+		}, undefined, new NullLogService(), NullApiDeprecationService, extHostDocuments!);
 		const webview = extHostWebviews.createWebviewPanel({} as any, 'type', 'title', 1, {});
 
 		assert.strictEqual(
@@ -97,13 +111,11 @@ suite('ExtHostWebview', () => {
 	});
 
 	test('asWebviewUri for web endpoint', () => {
-		const shape = createNoopMainThreadWebviews();
-
-		const extHostWebviews = new ExtHostWebviews(SingleProxyRPCProtocol(shape), {
+		const extHostWebviews = new ExtHostWebviews(rpcProtocol!, {
 			webviewCspSource: '',
 			webviewResourceRoot: `https://{{uuid}}.webview.contoso.com/commit/{{resource}}`,
 			isExtensionDevelopmentDebug: false,
-		}, undefined, new NullLogService());
+		}, undefined, new NullLogService(), NullApiDeprecationService, extHostDocuments!);
 		const webview = extHostWebviews.createWebviewPanel({} as any, 'type', 'title', 1, {});
 
 		function stripEndpointUuid(input: string) {

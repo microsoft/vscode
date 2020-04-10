@@ -622,4 +622,29 @@ suite('TypeScript Completions', () => {
 				`Config: ${config}`);
 		});
 	});
+
+	test('Replace should work after this. (#91105)', async () => {
+		await updateConfig(testDocumentUri, { [Config.insertMode]: 'replace' });
+
+		const editor = await createTestEditor(testDocumentUri,
+			`class A {`,
+			`  abc = 1`,
+			`  foo() {`,
+			`    this.$0abc`,
+			`  }`,
+			`}`,
+		);
+
+		await acceptFirstSuggestion(testDocumentUri, _disposables);
+
+		assertEditorContents(editor,
+			joinLines(
+				`class A {`,
+				`  abc = 1`,
+				`  foo() {`,
+				`    this.abc`,
+				`  }`,
+				`}`,
+			));
+	});
 });

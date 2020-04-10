@@ -9,7 +9,7 @@ import * as path from 'vs/base/common/path';
 import * as fs from 'fs';
 
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
+import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
 import * as uuid from 'vs/base/common/uuid';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { testFile } from 'vs/base/test/node/utils';
@@ -22,6 +22,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { Schemas } from 'vs/base/common/network';
 import { IFileService } from 'vs/platform/files/common/files';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 suite('ConfigurationService - Node', () => {
 
@@ -110,10 +111,10 @@ suite('ConfigurationService - Node', () => {
 
 	test('trigger configuration change event when file does not exist', async () => {
 		const res = await testFile('config', 'config.json');
-
-		const service = new ConfigurationService(URI.file(res.testFile), fileService);
+		const settingsFile = URI.file(res.testFile);
+		const service = new ConfigurationService(settingsFile, fileService);
 		await service.initialize();
-		return new Promise((c, e) => {
+		return new Promise(async (c, e) => {
 			const disposable = Event.filter(service.onDidChangeConfiguration, e => e.source === ConfigurationTarget.USER)(async (e) => {
 				disposable.dispose();
 				assert.equal(service.getValue('foo'), 'bar');
@@ -121,7 +122,7 @@ suite('ConfigurationService - Node', () => {
 				await res.cleanUp();
 				c();
 			});
-			fs.writeFileSync(res.testFile, '{ "foo": "bar" }');
+			await fileService.writeFile(settingsFile, VSBuffer.fromString('{ "foo": "bar" }'));
 		});
 
 	});

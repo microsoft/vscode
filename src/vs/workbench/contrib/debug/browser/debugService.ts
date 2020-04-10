@@ -46,6 +46,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { TaskRunResult, DebugTaskRunner } from 'vs/workbench/contrib/debug/browser/debugTaskRunner';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IViewsService } from 'vs/workbench/common/views';
+import { generateUuid } from 'vs/base/common/uuid';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_FUNCTION_BREAKPOINTS_KEY = 'debug.functionbreakpoint';
@@ -73,7 +74,7 @@ export class DebugService implements IDebugService {
 	private breakpointsToSendOnResourceSaved: Set<string>;
 	private initializing = false;
 	private previousState: State | undefined;
-	private initCancellationToken: CancellationTokenSource | undefined;
+	private sessionCancellationTokens = new Map<string, CancellationTokenSource>();
 	private activity: IDisposable | undefined;
 
 	constructor(
@@ -117,7 +118,6 @@ export class DebugService implements IDebugService {
 
 		this.model = new DebugModel(this.loadBreakpoints(), this.loadFunctionBreakpoints(),
 			this.loadExceptionBreakpoints(), this.loadDataBreakpoints(), this.loadWatchExpressions(), this.textFileService);
-		this.toDispose.push(this.model);
 		const setBreakpointsExistContext = () => this.breakpointsExist.set(!!(this.model.getBreakpoints().length || this.model.getDataBreakpoints().length || this.model.getFunctionBreakpoints().length));
 		this.breakpointsExist = CONTEXT_BREAKPOINTS_EXIST.bindTo(contextKeyService);
 		setBreakpointsExistContext();
@@ -125,8 +125,8 @@ export class DebugService implements IDebugService {
 		this.viewModel = new ViewModel(contextKeyService);
 		this.taskRunner = this.instantiationService.createInstance(DebugTaskRunner);
 
-		this.toDispose.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
-		this.lifecycleService.onShutdown(this.dispose, this);
+		this.toDispose.push(this.fileService.onDidFilesChange(e => this.onFileChanges(e)));
+		this.toDispose.push(this.lifecycleService.onShutdown(this.dispose, this));
 
 		this.toDispose.push(this.extensionHostDebugService.onAttachSession(event => {
 			const session = this.model.getSession(event.sessionId, true);
@@ -207,21 +207,30 @@ export class DebugService implements IDebugService {
 		return this.initializing ? State.Initializing : State.Inactive;
 	}
 
-	private startInitializingState() {
+	private startInitializingState(): void {
 		if (!this.initializing) {
 			this.initializing = true;
 			this.onStateChange();
 		}
 	}
 
-	private endInitializingState() {
-		if (this.initCancellationToken) {
-			this.initCancellationToken.cancel();
-			this.initCancellationToken = undefined;
-		}
+	private endInitializingState(): void {
 		if (this.initializing) {
 			this.initializing = false;
 			this.onStateChange();
+		}
+	}
+
+	private cancelTokens(id: string | undefined): void {
+		if (id) {
+			const token = this.sessionCancellationTokens.get(id);
+			if (token) {
+				token.cancel();
+				this.sessionCancellationTokens.delete(id);
+			}
+		} else {
+			this.sessionCancellationTokens.forEach(t => t.cancel());
+			this.sessionCancellationTokens.clear();
 		}
 	}
 
@@ -381,8 +390,11 @@ export class DebugService implements IDebugService {
 			}
 		}
 
-		this.initCancellationToken = new CancellationTokenSource();
-		const configByProviders = await this.configurationManager.resolveConfigurationByProviders(launch && launch.workspace ? launch.workspace.uri : undefined, type, config!, this.initCancellationToken.token);
+		const initCancellationToken = new CancellationTokenSource();
+		const sessionId = generateUuid();
+		this.sessionCancellationTokens.set(sessionId, initCancellationToken);
+
+		const configByProviders = await this.configurationManager.resolveConfigurationByProviders(launch && launch.workspace ? launch.workspace.uri : undefined, type, config!, initCancellationToken.token);
 		// a falsy config indicates an aborted launch
 		if (configByProviders && configByProviders.type) {
 			try {
@@ -392,15 +404,15 @@ export class DebugService implements IDebugService {
 					return false;
 				}
 
-				if (!this.initCancellationToken) {
+				if (initCancellationToken.token.isCancellationRequested) {
 					// User cancelled, silently return
 					return false;
 				}
 
-				const cfg = await this.configurationManager.resolveDebugConfigurationWithSubstitutedVariables(launch && launch.workspace ? launch.workspace.uri : undefined, type, resolvedConfig, this.initCancellationToken.token);
+				const cfg = await this.configurationManager.resolveDebugConfigurationWithSubstitutedVariables(launch && launch.workspace ? launch.workspace.uri : undefined, type, resolvedConfig, initCancellationToken.token);
 				if (!cfg) {
-					if (launch && type && cfg === null && this.initCancellationToken) {	// show launch.json only for "config" being "null".
-						await launch.openConfigFile(false, true, type, this.initCancellationToken.token);
+					if (launch && type && cfg === null && !initCancellationToken.token.isCancellationRequested) {	// show launch.json only for "config" being "null".
+						await launch.openConfigFile(false, true, type, initCancellationToken.token);
 					}
 					return false;
 				}
@@ -424,7 +436,7 @@ export class DebugService implements IDebugService {
 				const workspace = launch?.workspace || this.contextService.getWorkspace();
 				const taskResult = await this.taskRunner.runTaskAndCheckErrors(workspace, resolvedConfig.preLaunchTask, (msg, actions) => this.showError(msg, actions));
 				if (taskResult === TaskRunResult.Success) {
-					return this.doCreateSession(launch?.workspace, { resolved: resolvedConfig, unresolved: unresolvedConfig }, options);
+					return this.doCreateSession(sessionId, launch?.workspace, { resolved: resolvedConfig, unresolved: unresolvedConfig }, options);
 				}
 				return false;
 			} catch (err) {
@@ -433,16 +445,16 @@ export class DebugService implements IDebugService {
 				} else if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 					await this.showError(nls.localize('noFolderWorkspaceDebugError', "The active file can not be debugged. Make sure it is saved and that you have a debug extension installed for that file type."));
 				}
-				if (launch && this.initCancellationToken) {
-					await launch.openConfigFile(false, true, undefined, this.initCancellationToken.token);
+				if (launch && !initCancellationToken.token.isCancellationRequested) {
+					await launch.openConfigFile(false, true, undefined, initCancellationToken.token);
 				}
 
 				return false;
 			}
 		}
 
-		if (launch && type && configByProviders === null && this.initCancellationToken) {	// show launch.json only for "config" being "null".
-			await launch.openConfigFile(false, true, type, this.initCancellationToken.token);
+		if (launch && type && configByProviders === null && !initCancellationToken.token.isCancellationRequested) {	// show launch.json only for "config" being "null".
+			await launch.openConfigFile(false, true, type, initCancellationToken.token);
 		}
 
 		return false;
@@ -451,9 +463,9 @@ export class DebugService implements IDebugService {
 	/**
 	 * instantiates the new session, initializes the session, registers session listeners and reports telemetry
 	 */
-	private async doCreateSession(root: IWorkspaceFolder | undefined, configuration: { resolved: IConfig, unresolved: IConfig | undefined }, options?: IDebugSessionOptions): Promise<boolean> {
+	private async doCreateSession(sessionId: string, root: IWorkspaceFolder | undefined, configuration: { resolved: IConfig, unresolved: IConfig | undefined }, options?: IDebugSessionOptions): Promise<boolean> {
 
-		const session = this.instantiationService.createInstance(DebugSession, configuration, root, this.model, options);
+		const session = this.instantiationService.createInstance(DebugSession, sessionId, configuration, root, this.model, options);
 		this.model.addSession(session);
 		// register listeners as the very first thing!
 		this.registerSessionListeners(session);
@@ -522,7 +534,6 @@ export class DebugService implements IDebugService {
 				await this.focusStackFrame(undefined, undefined, session);
 			}
 		} catch (err) {
-			session.shutdown();
 			if (this.viewModel.focusedSession === session) {
 				await this.focusStackFrame(undefined);
 			}
@@ -567,8 +578,8 @@ export class DebugService implements IDebugService {
 					this.notificationService.error(err);
 				}
 			}
-			session.shutdown();
 			this.endInitializingState();
+			this.cancelTokens(session.getId());
 			this._onDidEndSession.fire(session);
 
 			const focusedSession = this.viewModel.focusedSession;
@@ -659,12 +670,13 @@ export class DebugService implements IDebugService {
 
 				let resolved: IConfig | undefined | null = session.configuration;
 				if (launch && needsToSubstitute && unresolved) {
-					this.initCancellationToken = new CancellationTokenSource();
-					const resolvedByProviders = await this.configurationManager.resolveConfigurationByProviders(launch.workspace ? launch.workspace.uri : undefined, unresolved.type, unresolved, this.initCancellationToken.token);
+					const initCancellationToken = new CancellationTokenSource();
+					this.sessionCancellationTokens.set(session.getId(), initCancellationToken);
+					const resolvedByProviders = await this.configurationManager.resolveConfigurationByProviders(launch.workspace ? launch.workspace.uri : undefined, unresolved.type, unresolved, initCancellationToken.token);
 					if (resolvedByProviders) {
 						resolved = await this.substituteVariables(launch, resolvedByProviders);
-						if (resolved && this.initCancellationToken) {
-							resolved = await this.configurationManager.resolveDebugConfigurationWithSubstitutedVariables(launch && launch.workspace ? launch.workspace.uri : undefined, unresolved.type, resolved, this.initCancellationToken.token);
+						if (resolved && !initCancellationToken.token.isCancellationRequested) {
+							resolved = await this.configurationManager.resolveDebugConfigurationWithSubstitutedVariables(launch && launch.workspace ? launch.workspace.uri : undefined, unresolved.type, resolved, initCancellationToken.token);
 						}
 					} else {
 						resolved = resolvedByProviders;
@@ -698,6 +710,7 @@ export class DebugService implements IDebugService {
 		if (sessions.length === 0) {
 			this.taskRunner.cancel();
 			this.endInitializingState();
+			this.cancelTokens(undefined);
 		}
 
 		return Promise.all(sessions.map(s => s.terminate()));
@@ -747,8 +760,9 @@ export class DebugService implements IDebugService {
 				const control = editor.getControl();
 				if (stackFrame && isCodeEditor(control) && control.hasModel()) {
 					const model = control.getModel();
-					if (stackFrame.range.startLineNumber <= model.getLineCount()) {
-						const lineContent = control.getModel().getLineContent(stackFrame.range.startLineNumber);
+					const lineNumber = stackFrame.range.startLineNumber;
+					if (lineNumber >= 1 && lineNumber <= model.getLineCount()) {
+						const lineContent = control.getModel().getLineContent(lineNumber);
 						aria.alert(nls.localize('debuggingPaused', "Debugging paused {0}, {1} {2} {3}", thread && thread.stoppedDetails ? `, reason ${thread.stoppedDetails.reason}` : '', stackFrame.source ? stackFrame.source.name : '', stackFrame.range.startLineNumber, lineContent));
 					}
 				}

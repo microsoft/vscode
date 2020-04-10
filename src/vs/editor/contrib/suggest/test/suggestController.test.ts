@@ -23,6 +23,7 @@ import { CompletionProviderRegistry, CompletionItemKind, CompletionItemInsertTex
 import { Event } from 'vs/base/common/event';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { IMenuService, IMenu } from 'vs/platform/actions/common/actions';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 suite('SuggestController', function () {
 
@@ -57,7 +58,7 @@ suite('SuggestController', function () {
 			}]
 		);
 
-		model = TextModel.createFromString('', undefined, undefined, URI.from({ scheme: 'test-ctrl', path: '/path.tst' }));
+		model = createTextModel('', undefined, undefined, URI.from({ scheme: 'test-ctrl', path: '/path.tst' }));
 		editor = createTestCodeEditor({
 			model,
 			serviceCollection,

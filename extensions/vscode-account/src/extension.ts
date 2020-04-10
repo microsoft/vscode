@@ -5,31 +5,71 @@
 
 import * as vscode from 'vscode';
 import { AzureActiveDirectoryService, onDidChangeSessions } from './AADHelper';
+import * as nls from 'vscode-nls';
 
-export async function activate(_: vscode.ExtensionContext) {
+const localize = nls.loadMessageBundle();
+
+export const DEFAULT_SCOPES = 'https://management.core.windows.net/.default offline_access';
+
+export async function activate(context: vscode.ExtensionContext) {
 
 	const loginService = new AzureActiveDirectoryService();
 
 	await loginService.initialize();
 
-	vscode.authentication.registerAuthenticationProvider({
-		id: 'MSA',
+	context.subscriptions.push(vscode.authentication.registerAuthenticationProvider({
+		id: 'microsoft',
 		displayName: 'Microsoft',
 		onDidChangeSessions: onDidChangeSessions.event,
 		getSessions: () => Promise.resolve(loginService.sessions),
 		login: async (scopes: string[]) => {
 			try {
 				await loginService.login(scopes.sort().join(' '));
+				const session = loginService.sessions[loginService.sessions.length - 1];
+				onDidChangeSessions.fire({ added: [session.id], removed: [], changed: [] });
 				return loginService.sessions[0]!;
 			} catch (e) {
-				vscode.window.showErrorMessage(`Logging in failed: ${e}`);
 				throw e;
 			}
 		},
 		logout: async (id: string) => {
-			return loginService.logout(id);
+			await loginService.logout(id);
+			onDidChangeSessions.fire({ added: [], removed: [id], changed: [] });
 		}
-	});
+	}));
+
+	context.subscriptions.push(vscode.commands.registerCommand('microsoft.signin', () => {
+		return loginService.login(DEFAULT_SCOPES);
+	}));
+
+	context.subscriptions.push(vscode.commands.registerCommand('microsoft.signout', async () => {
+		const sessions = loginService.sessions;
+		if (sessions.length === 0) {
+			return;
+		}
+
+		if (sessions.length === 1) {
+			const id = loginService.sessions[0].id;
+			await loginService.logout(id);
+			onDidChangeSessions.fire({ added: [], removed: [id], changed: [] });
+			vscode.window.showInformationMessage(localize('signedOut', "Successfully signed out."));
+			return;
+		}
+
+		const selectedSession = await vscode.window.showQuickPick(sessions.map(session => {
+			return {
+				id: session.id,
+				label: session.accountName
+			};
+		}));
+
+		if (selectedSession) {
+			await loginService.logout(selectedSession.id);
+			onDidChangeSessions.fire({ added: [], removed: [selectedSession.id], changed: [] });
+			vscode.window.showInformationMessage(localize('signedOut', "Successfully signed out."));
+			return;
+		}
+	}));
 
 	return;
 }

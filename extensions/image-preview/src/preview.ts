@@ -13,7 +13,7 @@ import { BinarySizeStatusBarEntry } from './binarySizeStatusBarEntry';
 const localize = nls.loadMessageBundle();
 
 
-export class PreviewManager implements vscode.WebviewCustomEditorProvider {
+export class PreviewManager implements vscode.CustomEditorProvider {
 
 	public static readonly viewType = 'imagePreview.previewEditor';
 
@@ -27,11 +27,15 @@ export class PreviewManager implements vscode.WebviewCustomEditorProvider {
 		private readonly zoomStatusBarEntry: ZoomStatusBarEntry,
 	) { }
 
-	public async resolveWebviewEditor(
-		resource: vscode.Uri,
+	public async openCustomDocument(uri: vscode.Uri) {
+		return { uri, dispose: () => { } };
+	}
+
+	public async resolveCustomEditor(
+		document: vscode.CustomDocument,
 		webviewEditor: vscode.WebviewPanel,
 	): Promise<void> {
-		const preview = new Preview(this.extensionRoot, resource, webviewEditor, this.sizeStatusBarEntry, this.binarySizeStatusBarEntry, this.zoomStatusBarEntry);
+		const preview = new Preview(this.extensionRoot, document.uri, webviewEditor, this.sizeStatusBarEntry, this.binarySizeStatusBarEntry, this.zoomStatusBarEntry);
 		this._previews.add(preview);
 		this.setActivePreview(preview);
 

@@ -1,0 +1,34 @@
+{
+  "name": "github-authentication",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "publisher": "vscode",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.41.0"
+  },
+  "enableProposedApi": true,
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "*"
+  ],
+  "main": "./out/extension.js",
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "gulp compile-extension:github-authentication",
+    "watch": "gulp watch-extension:github-authentication",
+    "postinstall": "node build/postinstall.js"
+  },
+  "dependencies": {
+    "uuid": "^3.3.3",
+    "vscode-nls": "^4.1.2"
+  },
+  "devDependencies": {
+    "@types/keytar": "^4.4.2",
+    "@types/node": "^10.12.21",
+    "@types/uuid": "^3.4.6",
+    "typescript": "^3.7.5"
+  }
+}

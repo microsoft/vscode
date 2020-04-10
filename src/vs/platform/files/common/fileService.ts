@@ -18,7 +18,6 @@ import { isReadableStream, transform, ReadableStreamEvents, consumeReadableWithL
 import { Queue } from 'vs/base/common/async';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import { Schemas } from 'vs/base/common/network';
-import { assign } from 'vs/base/common/objects';
 import { createReadStream } from 'vs/platform/files/common/io';
 
 export class FileService extends Disposable implements IFileService {
@@ -55,7 +54,7 @@ export class FileService extends Disposable implements IFileService {
 
 		// Forward events from provider
 		const providerDisposables = new DisposableStore();
-		providerDisposables.add(provider.onDidChangeFile(changes => this._onFileChanges.fire(new FileChangesEvent(changes))));
+		providerDisposables.add(provider.onDidChangeFile(changes => this._onDidFilesChange.fire(new FileChangesEvent(changes))));
 		providerDisposables.add(provider.onDidChangeCapabilities(() => this._onDidChangeFileSystemProviderCapabilities.fire({ provider, scheme })));
 		if (typeof provider.onDidErrorOccur === 'function') {
 			providerDisposables.add(provider.onDidErrorOccur(error => this._onError.fire(new Error(error))));
@@ -147,11 +146,11 @@ export class FileService extends Disposable implements IFileService {
 
 	//#endregion
 
-	private _onAfterOperation: Emitter<FileOperationEvent> = this._register(new Emitter<FileOperationEvent>());
-	readonly onAfterOperation: Event<FileOperationEvent> = this._onAfterOperation.event;
+	private _onDidRunOperation = this._register(new Emitter<FileOperationEvent>());
+	readonly onDidRunOperation = this._onDidRunOperation.event;
 
-	private _onError: Emitter<Error> = this._register(new Emitter<Error>());
-	readonly onError: Event<Error> = this._onError.event;
+	private _onError = this._register(new Emitter<Error>());
+	readonly onError = this._onError.event;
 
 	//#region File Metadata Resolving
 
@@ -183,21 +182,21 @@ export class FileService extends Disposable implements IFileService {
 
 		const stat = await provider.stat(resource);
 
-		let trie: TernarySearchTree<boolean> | undefined;
+		let trie: TernarySearchTree<URI, boolean> | undefined;
 
 		return this.toFileStat(provider, resource, stat, undefined, !!resolveMetadata, (stat, siblings) => {
 
 			// lazy trie to check for recursive resolving
 			if (!trie) {
-				trie = TernarySearchTree.forPaths<true>();
-				trie.set(resource.toString(), true);
+				trie = TernarySearchTree.forUris<true>();
+				trie.set(resource, true);
 				if (isNonEmptyArray(resolveTo)) {
-					resolveTo.forEach(uri => trie!.set(uri.toString(), true));
+					resolveTo.forEach(uri => trie!.set(uri, true));
 				}
 			}
 
 			// check for recursive resolving
-			if (Boolean(trie.findSuperstr(stat.resource.toString()) || trie.get(stat.resource.toString()))) {
+			if (Boolean(trie.findSuperstr(stat.resource) || trie.get(stat.resource))) {
 				return true;
 			}
 
@@ -299,7 +298,7 @@ export class FileService extends Disposable implements IFileService {
 		const fileStat = await this.writeFile(resource, bufferOrReadableOrStream);
 
 		// events
-		this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, fileStat));
+		this._onDidRunOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, fileStat));
 
 		return fileStat;
 	}
@@ -384,14 +383,15 @@ export class FileService extends Disposable implements IFileService {
 	async readFile(resource: URI, options?: IReadFileOptions): Promise<IFileContent> {
 		const provider = await this.withReadProvider(resource);
 
-		const stream = await this.doReadAsFileStream(provider, resource, assign({
+		const stream = await this.doReadAsFileStream(provider, resource, {
+			...options,
 			// optimization: since we know that the caller does not
 			// care about buffering, we indicate this to the reader.
 			// this reduces all the overhead the buffered reading
 			// has (open, read, close) if the provider supports
 			// unbuffered reading.
 			preferUnbuffered: true
-		}, options || Object.create(null)));
+		});
 
 		return {
 			...stream,
@@ -549,7 +549,7 @@ export class FileService extends Disposable implements IFileService {
 
 		// resolve and send events
 		const fileStat = await this.resolve(target, { resolveMetadata: true });
-		this._onAfterOperation.fire(new FileOperationEvent(source, mode === 'move' ? FileOperation.MOVE : FileOperation.COPY, fileStat));
+		this._onDidRunOperation.fire(new FileOperationEvent(source, mode === 'move' ? FileOperation.MOVE : FileOperation.COPY, fileStat));
 
 		return fileStat;
 	}
@@ -563,7 +563,7 @@ export class FileService extends Disposable implements IFileService {
 
 		// resolve and send events
 		const fileStat = await this.resolve(target, { resolveMetadata: true });
-		this._onAfterOperation.fire(new FileOperationEvent(source, mode === 'copy' ? FileOperation.COPY : FileOperation.MOVE, fileStat));
+		this._onDidRunOperation.fire(new FileOperationEvent(source, mode === 'copy' ? FileOperation.COPY : FileOperation.MOVE, fileStat));
 
 		return fileStat;
 	}
@@ -717,7 +717,7 @@ export class FileService extends Disposable implements IFileService {
 
 		// events
 		const fileStat = await this.resolve(resource, { resolveMetadata: true });
-		this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, fileStat));
+		this._onDidRunOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, fileStat));
 
 		return fileStat;
 	}
@@ -799,15 +799,15 @@ export class FileService extends Disposable implements IFileService {
 		await provider.delete(resource, { recursive, useTrash });
 
 		// Events
-		this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
+		this._onDidRunOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
 	}
 
 	//#endregion
 
 	//#region File Watching
 
-	private _onFileChanges: Emitter<FileChangesEvent> = this._register(new Emitter<FileChangesEvent>());
-	readonly onFileChanges: Event<FileChangesEvent> = this._onFileChanges.event;
+	private _onDidFilesChange = this._register(new Emitter<FileChangesEvent>());
+	readonly onDidFilesChange = this._onDidFilesChange.event;
 
 	private activeWatchers = new Map<string, { disposable: IDisposable, count: number }>();
 

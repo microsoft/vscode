@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { createRandomFile, withLogDisabled } from '../utils';
 
-suite('workspace-event', () => {
+suite('vscode API - workspace events', () => {
 
 	const disposables: vscode.Disposable[] = [];
 
@@ -201,9 +201,29 @@ suite('workspace-event', () => {
 		assert.equal(onDidRename?.files[0].newUri.toString(), newUri.toString());
 	});
 
-	test('onWillRename - make changes', async function () {
+	test('onWillRename - make changes (saved file)', function () {
+		return testOnWillRename(false);
+	});
+
+	test('onWillRename - make changes (dirty file)', function () {
+		return testOnWillRename(true);
+	});
+
+	async function testOnWillRename(withDirtyFile: boolean): Promise<void> {
 
 		const oldUri = await createRandomFile('BAR');
+
+		if (withDirtyFile) {
+			const edit = new vscode.WorkspaceEdit();
+			edit.insert(oldUri, new vscode.Position(0, 0), 'BAR');
+
+			const success = await vscode.workspace.applyEdit(edit);
+			assert.ok(success);
+
+			const oldDocument = await vscode.workspace.openTextDocument(oldUri);
+			assert.ok(oldDocument.isDirty);
+		}
+
 		const newUri = oldUri.with({ path: oldUri.path + '-NEW' });
 
 		const anotherFile = await createRandomFile('BAR');
@@ -229,7 +249,13 @@ suite('workspace-event', () => {
 		assert.equal(onWillRename?.files[0].oldUri.toString(), oldUri.toString());
 		assert.equal(onWillRename?.files[0].newUri.toString(), newUri.toString());
 
-		assert.equal((await vscode.workspace.openTextDocument(newUri)).getText(), 'FOOBAR');
-		assert.equal((await vscode.workspace.openTextDocument(anotherFile)).getText(), 'FARBOO');
-	});
+		const newDocument = await vscode.workspace.openTextDocument(newUri);
+		const anotherDocument = await vscode.workspace.openTextDocument(anotherFile);
+
+		assert.equal(newDocument.getText(), withDirtyFile ? 'FOOBARBAR' : 'FOOBAR');
+		assert.equal(anotherDocument.getText(), 'FARBOO');
+
+		assert.ok(newDocument.isDirty);
+		assert.ok(anotherDocument.isDirty);
+	}
 });

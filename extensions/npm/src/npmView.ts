@@ -12,7 +12,7 @@ import {
 import { visit, JSONVisitor } from 'jsonc-parser';
 import {
 	NpmTaskDefinition, getPackageJsonUriFromTask, getScripts,
-	isWorkspaceFolder, getTaskName, createTask, extractDebugArgFromScript, startDebugging
+	isWorkspaceFolder, getTaskName, createTask, extractDebugArgFromScript, startDebugging, isAutoDetectionEnabled
 } from './tasks';
 import * as nls from 'vscode-nls';
 
@@ -73,7 +73,7 @@ class NpmScript extends TreeItem {
 	task: Task;
 	package: PackageJSON;
 
-	constructor(context: ExtensionContext, packageJson: PackageJSON, task: Task) {
+	constructor(_context: ExtensionContext, packageJson: PackageJSON, task: Task) {
 		super(task.name, TreeItemCollapsibleState.None);
 		const command: ExplorerCommands = workspace.getConfiguration('npm').get<ExplorerCommands>('scriptExplorerAction') || 'open';
 
@@ -98,15 +98,9 @@ class NpmScript extends TreeItem {
 		this.command = commandList[command];
 
 		if (task.group && task.group === TaskGroup.Clean) {
-			this.iconPath = {
-				light: context.asAbsolutePath(path.join('resources', 'light', 'prepostscript.svg')),
-				dark: context.asAbsolutePath(path.join('resources', 'dark', 'prepostscript.svg'))
-			};
+			this.iconPath = new ThemeIcon('wrench-subaction');
 		} else {
-			this.iconPath = {
-				light: context.asAbsolutePath(path.join('resources', 'light', 'script.svg')),
-				dark: context.asAbsolutePath(path.join('resources', 'dark', 'script.svg'))
-			};
+			this.iconPath = new ThemeIcon('wrench');
 		}
 		if (task.detail) {
 			this.tooltip = task.detail;
@@ -119,8 +113,8 @@ class NpmScript extends TreeItem {
 }
 
 class NoScripts extends TreeItem {
-	constructor() {
-		super(localize('noScripts', 'No scripts found'), TreeItemCollapsibleState.None);
+	constructor(message: string) {
+		super(message, TreeItemCollapsibleState.None);
 		this.contextValue = 'noscripts';
 	}
 }
@@ -231,7 +225,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 
 	public refresh() {
 		this.taskTree = null;
-		this._onDidChangeTreeData.fire();
+		this._onDidChangeTreeData.fire(null);
 	}
 
 	getTreeItem(element: TreeItem): TreeItem {
@@ -260,7 +254,11 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 			if (taskItems) {
 				this.taskTree = this.buildTaskTree(taskItems);
 				if (this.taskTree.length === 0) {
-					this.taskTree = [new NoScripts()];
+					let message = localize('noScripts', 'No scripts found.');
+					if (!isAutoDetectionEnabled()) {
+						message = localize('autoDetectIsOff', 'The setting "npm.autoDetect" is "off".');
+					}
+					this.taskTree = [new NoScripts(message)];
 				}
 			}
 		}

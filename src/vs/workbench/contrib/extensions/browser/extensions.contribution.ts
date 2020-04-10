@@ -9,12 +9,12 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncActionDescriptor, MenuRegistry, MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionsLabel, ExtensionsChannelId, PreferencesLabel, IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionManagementServerService, IExtensionTipsService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IExtensionManagementServerService, IExtensionRecommendationsService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } from 'vs/workbench/common/actions';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IOutputChannelRegistry, Extensions as OutputExtensions } from 'vs/workbench/services/output/common/output';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { VIEWLET_ID, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
+import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
 import {
 	OpenExtensionsViewletAction, InstallExtensionsAction, ShowOutdatedExtensionsAction, ShowRecommendedExtensionsAction, ShowRecommendedKeymapExtensionsAction, ShowPopularExtensionsAction,
@@ -24,7 +24,6 @@ import {
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { ExtensionEditor } from 'vs/workbench/contrib/extensions/browser/extensionEditor';
 import { StatusUpdater, MaliciousExtensionChecker, ExtensionsViewletViewsContribution, ExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/browser/extensionsViewlet';
-import { IQuickOpenRegistry, Extensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import * as jsonContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { ExtensionsConfigurationSchema, ExtensionsConfigurationSchemaId } from 'vs/workbench/contrib/extensions/common/extensionsFileTemplate';
@@ -32,7 +31,6 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeymapExtensions } from 'vs/workbench/contrib/extensions/common/extensionsUtils';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { GalleryExtensionsHandler, ExtensionsHandler } from 'vs/workbench/contrib/extensions/browser/extensionsQuickOpen';
 import { EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -42,30 +40,31 @@ import { ExtensionDependencyChecker } from 'vs/workbench/contrib/extensions/brow
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { RemoteExtensionsInstaller } from 'vs/workbench/contrib/extensions/browser/remoteExtensionsInstaller';
-import { ExtensionTipsService } from 'vs/workbench/contrib/extensions/browser/extensionTipsService';
 import { IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { CONTEXT_SYNC_ENABLEMENT } from 'vs/platform/userDataSync/common/userDataSync';
+import { IQuickAccessRegistry, Extensions } from 'vs/platform/quickinput/common/quickAccess';
+import { InstallExtensionQuickAccessProvider, ManageExtensionsQuickAccessProvider } from 'vs/workbench/contrib/extensions/browser/extensionsQuickAccess';
+import { ExtensionRecommendationsService } from 'vs/workbench/contrib/extensions/browser/extensionRecommendationsService';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
-registerSingleton(IExtensionTipsService, ExtensionTipsService);
+registerSingleton(IExtensionRecommendationsService, ExtensionRecommendationsService);
 
 Registry.as<IOutputChannelRegistry>(OutputExtensions.OutputChannels)
 	.registerChannel({ id: ExtensionsChannelId, label: ExtensionsLabel, log: false });
 
-// Quickopen
-Registry.as<IQuickOpenRegistry>(Extensions.Quickopen).registerQuickOpenHandler(
-	QuickOpenHandlerDescriptor.create(
-		ExtensionsHandler,
-		ExtensionsHandler.ID,
-		'ext ',
-		undefined,
-		localize('extensionsCommands', "Manage Extensions"),
-		true
-	)
-);
+// Quick Access
+Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessProvider({
+	ctor: ManageExtensionsQuickAccessProvider,
+	prefix: ManageExtensionsQuickAccessProvider.PREFIX,
+	placeholder: localize('manageExtensionsQuickAccessPlaceholder', "Press Enter to manage extensions."),
+	helpEntries: [{ description: localize('manageExtensionsHelp', "Manage Extensions"), needsEditor: false }]
+});
 
 // Editor
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -84,7 +83,8 @@ Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegis
 		name: localize('extensions', "Extensions"),
 		ctorDescriptor: new SyncDescriptor(ExtensionsViewPaneContainer),
 		icon: 'codicon-extensions',
-		order: 4
+		order: 4,
+		rejectAddedViews: true,
 	}, ViewContainerLocation.Sidebar);
 
 
@@ -278,7 +278,7 @@ CommandsRegistry.registerCommand({
 		const installed = await extensionManagementService.getInstalled(ExtensionType.User);
 		const [extensionToUninstall] = installed.filter(e => areSameExtensions(e.identifier, { id }));
 		if (!extensionToUninstall) {
-			throw new Error(localize('notInstalled', "Extension '{0}' is not installed. Make sure you use the full extension ID, including the publisher, e.g.: ms-vscode.csharp.", id));
+			throw new Error(localize('notInstalled', "Extension '{0}' is not installed. Make sure you use the full extension ID, including the publisher, e.g.: ms-dotnettools.csharp.", id));
 		}
 
 		try {
@@ -287,6 +287,30 @@ CommandsRegistry.registerCommand({
 			onUnexpectedError(e);
 			throw e;
 		}
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: 'workbench.extensions.search',
+	description: {
+		description: localize('workbench.extensions.search.description', "Search for a specific extension"),
+		args: [
+			{
+				name: localize('workbench.extensions.search.arg.name', "Query to use in search"),
+				schema: { 'type': 'string' }
+			}
+		]
+	},
+	handler: async (accessor, query: string = '') => {
+		const viewletService = accessor.get(IViewletService);
+		const viewlet = await viewletService.openViewlet(VIEWLET_ID, true);
+
+		if (!viewlet) {
+			return;
+		}
+
+		(viewlet.getViewPaneContainer() as IExtensionsViewPaneContainer).search(query);
+		viewlet.focus();
 	}
 });
 
@@ -410,6 +434,33 @@ registerAction2(class extends Action2 {
 	}
 });
 
+registerAction2(class extends Action2 {
+
+	constructor() {
+		super({
+			id: TOGGLE_IGNORE_EXTENSION_ACTION_ID,
+			title: { value: localize('workbench.extensions.action.toggleIgnoreExtension', "Sync This Extension"), original: `Sync This Extension` },
+			menu: {
+				id: MenuId.ExtensionContext,
+				group: '2_configure',
+				when: CONTEXT_SYNC_ENABLEMENT
+			},
+		});
+	}
+
+	async run(accessor: ServicesAccessor, id: string) {
+		const configurationService = accessor.get(IConfigurationService);
+		const ignoredExtensions = [...configurationService.getValue<string[]>('sync.ignoredExtensions')];
+		const index = ignoredExtensions.findIndex(ignoredExtension => areSameExtensions({ id: ignoredExtension }, { id }));
+		if (index !== -1) {
+			ignoredExtensions.splice(index, 1);
+		} else {
+			ignoredExtensions.push(id);
+		}
+		return configurationService.updateValue('sync.ignoredExtensions', ignoredExtensions.length ? ignoredExtensions : undefined, ConfigurationTarget.USER);
+	}
+});
+
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 
 class ExtensionsContributions implements IWorkbenchContribution {
@@ -421,16 +472,12 @@ class ExtensionsContributions implements IWorkbenchContribution {
 		const canManageExtensions = extensionManagementServerService.localExtensionManagementServer || extensionManagementServerService.remoteExtensionManagementServer;
 
 		if (canManageExtensions) {
-			Registry.as<IQuickOpenRegistry>(Extensions.Quickopen).registerQuickOpenHandler(
-				QuickOpenHandlerDescriptor.create(
-					GalleryExtensionsHandler,
-					GalleryExtensionsHandler.ID,
-					'ext install ',
-					undefined,
-					localize('galleryExtensionsCommands', "Install Gallery Extensions"),
-					true
-				)
-			);
+			Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessProvider({
+				ctor: InstallExtensionQuickAccessProvider,
+				prefix: InstallExtensionQuickAccessProvider.PREFIX,
+				placeholder: localize('installExtensionQuickAccessPlaceholder', "Type the name of an extension to install or search."),
+				helpEntries: [{ description: localize('installExtensionQuickAccessHelp', "Install or Search Extensions"), needsEditor: false }]
+			});
 		}
 	}
 }

@@ -32,6 +32,7 @@ import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/suggestMemory';
 import { ITextModel } from 'vs/editor/common/model';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 export interface Ctor<T> {
 	new(): T;
@@ -124,7 +125,7 @@ suite('SuggestModel - Context', function () {
 	});
 
 	test('Context - shouldAutoTrigger', function () {
-		const model = TextModel.createFromString('Das Pferd frisst keinen Gurkensalat - Philipp Reis 1861.\nWer hat\'s erfunden?');
+		const model = createTextModel('Das Pferd frisst keinen Gurkensalat - Philipp Reis 1861.\nWer hat\'s erfunden?');
 		disposables.push(model);
 
 		assertAutoTrigger(model, 3, true, 'end of word, Das|');
@@ -138,7 +139,7 @@ suite('SuggestModel - Context', function () {
 		const innerMode = new InnerMode();
 		disposables.push(outerMode, innerMode);
 
-		const model = TextModel.createFromString('a<xx>a<x>', undefined, outerMode.getLanguageIdentifier());
+		const model = createTextModel('a<xx>a<x>', undefined, outerMode.getLanguageIdentifier());
 		disposables.push(model);
 
 		assertAutoTrigger(model, 1, true, 'a|<x — should trigger at end of word');
@@ -187,7 +188,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 	setup(function () {
 		disposables = dispose(disposables);
-		model = TextModel.createFromString('abc def', undefined, undefined, URI.parse('test:somefile.ttt'));
+		model = createTextModel('abc def', undefined, undefined, URI.parse('test:somefile.ttt'));
 		disposables.push(model);
 	});
 

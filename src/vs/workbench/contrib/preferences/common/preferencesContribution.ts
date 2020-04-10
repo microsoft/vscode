@@ -58,12 +58,14 @@ export class PreferencesContribution implements IWorkbenchContribution {
 
 		// install editor opening listener unless user has disabled this
 		if (!!this.configurationService.getValue(USE_SPLIT_JSON_SETTING)) {
-			this.editorOpeningListener = this.editorService.overrideOpenEditor((editor, options, group) => this.onEditorOpening(editor, options, group));
+			this.editorOpeningListener = this.editorService.overrideOpenEditor({
+				open: (editor, options, group) => this.onEditorOpening(editor, options, group)
+			});
 		}
 	}
 
 	private onEditorOpening(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): IOpenEditorOverride | undefined {
-		const resource = editor.getResource();
+		const resource = editor.resource;
 		if (
 			!resource ||
 			!endsWith(resource.path, 'settings.json') ||								// resource must end in settings.json

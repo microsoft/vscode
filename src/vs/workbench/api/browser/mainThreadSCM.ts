@@ -71,8 +71,8 @@ class MainThreadSCMResource implements ISCMResource {
 		public decorations: ISCMResourceDecorations
 	) { }
 
-	open(): Promise<void> {
-		return this.proxy.$executeResourceCommand(this.sourceControlHandle, this.groupHandle, this.handle);
+	open(preserveFocus: boolean): Promise<void> {
+		return this.proxy.$executeResourceCommand(this.sourceControlHandle, this.groupHandle, this.handle, preserveFocus);
 	}
 
 	toJSON(): any {

@@ -81,7 +81,7 @@ export interface IWorkspaceFoldersChangeEvent {
 }
 
 export namespace IWorkspace {
-	export function isIWorkspace(thing: any): thing is IWorkspace {
+	export function isIWorkspace(thing: unknown): thing is IWorkspace {
 		return thing && typeof thing === 'object'
 			&& typeof (thing as IWorkspace).id === 'string'
 			&& Array.isArray((thing as IWorkspace).folders);
@@ -115,7 +115,7 @@ export interface IWorkspaceFolderData {
 
 	/**
 	 * The name of this workspace folder. Defaults to
-	 * the basename its [uri-path](#Uri.path)
+	 * the basename of its [uri-path](#Uri.path)
 	 */
 	readonly name: string;
 
@@ -126,7 +126,7 @@ export interface IWorkspaceFolderData {
 }
 
 export namespace IWorkspaceFolder {
-	export function isIWorkspaceFolder(thing: any): thing is IWorkspaceFolder {
+	export function isIWorkspaceFolder(thing: unknown): thing is IWorkspaceFolder {
 		return thing && typeof thing === 'object'
 			&& URI.isUri((thing as IWorkspaceFolder).uri)
 			&& typeof (thing as IWorkspaceFolder).name === 'string'
@@ -144,7 +144,7 @@ export interface IWorkspaceFolder extends IWorkspaceFolderData {
 
 export class Workspace implements IWorkspace {
 
-	private _foldersMap: TernarySearchTree<WorkspaceFolder> = TernarySearchTree.forPaths<WorkspaceFolder>();
+	private _foldersMap: TernarySearchTree<URI, WorkspaceFolder> = TernarySearchTree.forUris<WorkspaceFolder>();
 	private _folders!: WorkspaceFolder[];
 
 	constructor(
@@ -191,13 +191,13 @@ export class Workspace implements IWorkspace {
 			scheme: resource.scheme,
 			authority: resource.authority,
 			path: resource.path
-		}).toString()) || null;
+		})) || null;
 	}
 
 	private updateFoldersMap(): void {
-		this._foldersMap = TernarySearchTree.forPaths<WorkspaceFolder>();
+		this._foldersMap = TernarySearchTree.forUris<WorkspaceFolder>();
 		for (const folder of this.folders) {
-			this._foldersMap.set(folder.uri.toString(), folder);
+			this._foldersMap.set(folder.uri, folder);
 		}
 	}
 

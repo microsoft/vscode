@@ -15,10 +15,16 @@ export function toKey(extension: ExtensionIdentifier | string, source: string) {
 	return `${typeof extension === 'string' ? extension : ExtensionIdentifier.toKey(extension)}|${source}`;
 }
 
+export const TimelinePaneId = 'timeline';
+
 export interface TimelineItem {
+	handle: string;
+	source: string;
+
+	id?: string;
 	timestamp: number;
 	label: string;
-	id?: string;
+	ariaLabel?: string;
 	icon?: URI,
 	iconDark?: URI,
 	themeIcon?: { id: string },
@@ -26,21 +32,45 @@ export interface TimelineItem {
 	detail?: string;
 	command?: Command;
 	contextValue?: string;
-}
 
-export interface TimelineItemWithSource extends TimelineItem {
-	source: string;
+	relativeTime?: string;
+	hideRelativeTime?: boolean;
 }
 
 export interface TimelineChangeEvent {
 	id: string;
-	uri?: URI;
+	uri: URI | undefined;
+	reset: boolean
+}
+
+export interface TimelineOptions {
+	cursor?: string;
+	limit?: number | { timestamp: number; id?: string };
+}
+
+export interface InternalTimelineOptions {
+	cacheResults: boolean;
+	resetCache: boolean;
+}
+
+export interface Timeline {
+	source: string;
+	items: TimelineItem[];
+
+	paging?: {
+		cursor: string | undefined;
+	}
 }
 
 export interface TimelineProvider extends TimelineProviderDescriptor, IDisposable {
 	onDidChange?: Event<TimelineChangeEvent>;
 
-	provideTimeline(uri: URI, token: CancellationToken): Promise<TimelineItemWithSource[]>;
+	provideTimeline(uri: URI, options: TimelineOptions, token: CancellationToken, internalOptions?: InternalTimelineOptions): Promise<Timeline | undefined>;
+}
+
+export interface TimelineSource {
+	id: string;
+	label: string;
 }
 
 export interface TimelineProviderDescriptor {
@@ -55,7 +85,8 @@ export interface TimelineProvidersChangeEvent {
 }
 
 export interface TimelineRequest {
-	readonly items: Promise<TimelineItemWithSource[]>;
+	readonly result: Promise<Timeline | undefined>;
+	readonly options: TimelineOptions;
 	readonly source: string;
 	readonly tokenSource: CancellationTokenSource;
 	readonly uri: URI;
@@ -66,15 +97,16 @@ export interface ITimelineService {
 
 	onDidChangeProviders: Event<TimelineProvidersChangeEvent>;
 	onDidChangeTimeline: Event<TimelineChangeEvent>;
+	onDidChangeUri: Event<URI>;
 
 	registerTimelineProvider(provider: TimelineProvider): IDisposable;
 	unregisterTimelineProvider(id: string): void;
 
-	getSources(): string[];
+	getSources(): TimelineSource[];
 
-	getTimeline(uri: URI, token: CancellationToken): Promise<TimelineItem[]>;
+	getTimeline(id: string, uri: URI, options: TimelineOptions, tokenSource: CancellationTokenSource, internalOptions?: InternalTimelineOptions): TimelineRequest | undefined;
 
-	getTimelineRequest(id: string, uri: URI, tokenSource: CancellationTokenSource): TimelineRequest | undefined;
+	setUri(uri: URI): void;
 }
 
 const TIMELINE_SERVICE_ID = 'timeline';

@@ -78,9 +78,9 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 		this.lastActiveEditorControlDisposable.clear();
 
 		// Listen to focus changes on control for auto save
-		const activeEditorControl = this.editorService.activeControl;
-		if (activeEditor && activeEditorControl) {
-			this.lastActiveEditorControlDisposable.add(activeEditorControl.onDidBlur(() => {
+		const activeEditorPane = this.editorService.activeEditorPane;
+		if (activeEditor && activeEditorPane) {
+			this.lastActiveEditorControlDisposable.add(activeEditorPane.onDidBlur(() => {
 				this.maybeTriggerAutoSave(SaveReason.FOCUS_CHANGE, { groupId: activeGroup.id, editor: activeEditor });
 			}));
 		}
