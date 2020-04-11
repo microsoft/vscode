@@ -317,4 +317,12 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 		return choice === 1;
 	}
+
+	async $setTrustedExtension(providerId: string, accountName: string, extensionId: string, extensionName: string): Promise<void> {
+		const allowList = readAllowedExtensions(this.storageService, providerId, accountName);
+		if (!allowList.find(allowed => allowed.id === extensionId)) {
+			allowList.push({ id: extensionId, name: extensionName });
+			this.storageService.store(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.GLOBAL);
+		}
+	}
 }
