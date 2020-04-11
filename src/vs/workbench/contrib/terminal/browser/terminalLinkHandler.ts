@@ -70,33 +70,11 @@ interface IPath {
 	normalize(path: string): string;
 }
 
-class TerminalLinkAdapter implements ILinkComputerTarget {
-	constructor(
-		private _xterm: Terminal,
-		private _lineStart: number,
-		private _lineEnd: number
-	) { }
-
-	getLineCount(): number {
-		return 1;
-	}
-
-	getLineContent(lineNumber: number): string {
-		let line = '';
-
-		for (let i = this._lineStart; i <= this._lineEnd; i++) {
-			line += this._xterm.buffer.active.getLine(i)?.translateToString();
-		}
-		return line;
-	}
-}
-
 export class TerminalLinkHandler extends DisposableStore {
 	private _widgetManager: TerminalWidgetManager | undefined;
 	private _processCwd: string | undefined;
 	private _gitDiffPreImagePattern: RegExp;
 	private _gitDiffPostImagePattern: RegExp;
-	private readonly _activateCallback: (uri: string) => void;
 	private readonly _tooltipCallback: (event: MouseEvent, uri: string, location: IViewportRange, linkHandler: (url: string) => void) => boolean | void;
 	private readonly _leaveCallback: () => void;
 	private _linkMatchers: number[] = [];
@@ -136,10 +114,6 @@ export class TerminalLinkHandler extends DisposableStore {
 		// Matches '+++ b/src/file1', capturing 'src/file1' in group 1
 		this._gitDiffPostImagePattern = /^\+\+\+ b\/(\S*)/;
 
-		this._activateCallback = (link: string) => {
-			console.log('link provider activate callback', link);
-			this._handleHypertextLink(link);
-		};
 		this._tooltipCallback = (e: MouseEvent, uri: string, location: IViewportRange, linkHandler: (url: string) => void) => {
 			if (!this._widgetManager) {
 				return;
@@ -304,11 +278,10 @@ export class TerminalLinkHandler extends DisposableStore {
 	}
 
 	public registerLinkProvider(): void {
-		const tooltipCallback = (event: MouseEvent, uri: string, location: IViewportRange) => {
-			console.log('link provider tooltip');
-			this._tooltipCallback(event, uri, location, this._activateCallback.bind(this, uri));
+		const tooltipCallback = (event: MouseEvent, link: string, location: IViewportRange) => {
+			this._tooltipCallback(event, link, location, this._handleHypertextLink.bind(this, link));
 		};
-		const wrappedActivateCallback = this._wrapLinkHandler(this._activateCallback.bind(this));
+		const wrappedActivateCallback = this._wrapLinkHandler(this._handleHypertextLink.bind(this));
 		this._linkProvider = this._xterm.registerLinkProvider(new TerminalLinkProvider(this._xterm, wrappedActivateCallback, tooltipCallback, this._leaveCallback));
 	}
 
@@ -671,5 +644,26 @@ class TerminalLinkProvider implements ILinkProvider {
 				y: bufferRange.end.y - this._xterm.buffer.active.viewportY - 1
 			}
 		};
+	}
+}
+
+class TerminalLinkAdapter implements ILinkComputerTarget {
+	constructor(
+		private _xterm: Terminal,
+		private _lineStart: number,
+		private _lineEnd: number
+	) { }
+
+	getLineCount(): number {
+		return 1;
+	}
+
+	getLineContent(lineNumber: number): string {
+		let line = '';
+
+		for (let i = this._lineStart; i <= this._lineEnd; i++) {
+			line += this._xterm.buffer.active.getLine(i)?.translateToString();
+		}
+		return line;
 	}
 }
