@@ -203,13 +203,16 @@ export class SearchService extends Disposable implements ISearchService {
 				this.fileSearchProviders.get(scheme) :
 				this.textSearchProviders.get(scheme);
 
-			if (!provider && scheme === 'file') {
+			if (!provider && scheme === Schemas.file) {
 				diskSearchQueries.push(...schemeFQs);
 			} else {
-				if (!provider) {
-					console.warn(`No search provider registered for scheme: ${scheme}, waiting`);
-					provider = await this.waitForProvider(query.type, scheme);
+				if (!provider && scheme !== Schemas.vscodeRemote) {
+					console.warn(`No search provider registered for scheme: ${scheme}`);
+					return;
 				}
+
+				console.warn(`No search provider registered for scheme: ${scheme}, waiting`);
+				provider = await this.waitForProvider(query.type, scheme);
 
 				const oneSchemeQuery: ISearchQuery = {
 					...query,
