@@ -348,6 +348,10 @@ class SshAgent {
 	}
 
 	async addKey(privateKeyPath: string): Promise<void> {
+		if (await this.hasKey(privateKeyPath)) {
+			return;
+		}
+
 		return this.getCommand('ssh-add').then(sshAddCommand => {
 			let success = false;
 			const env: { [key: string]: string } = {};
@@ -378,6 +382,17 @@ class SshAgent {
 				sshAddProcess.on('exit', () => success ? resolve() : reject());
 			});
 		});
+	}
+
+	async listKeys(): Promise<string> {
+		return this.getCommand('ssh-add')
+			.then(sshAddCommand => exec(cp.spawn(sshAddCommand, ['-l'])))
+			.then(result => result.stdout.toString());
+	}
+
+	async hasKey(privateKeyPath: string): Promise<boolean> {
+		return this.listKeys()
+			.then(list => list.includes(privateKeyPath));
 	}
 
 	private async getCommand(commandName: string): Promise<string> {
