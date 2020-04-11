@@ -138,10 +138,6 @@ export function toDecodeStream(readable: Readable, options: IDecodeStreamOptions
 	});
 }
 
-export function decode(buffer: Buffer, encoding: string): string {
-	return iconv.decode(buffer, toNodeEncoding(encoding));
-}
-
 export function encodingExists(encoding: string): boolean {
 	return iconv.encodingExists(toNodeEncoding(encoding));
 }
@@ -154,7 +150,7 @@ export function encodeStream(encoding: string, options?: { addBOM?: boolean }): 
 	return iconv.encodeStream(toNodeEncoding(encoding), options);
 }
 
-function toNodeEncoding(enc: string | null): string {
+export function toNodeEncoding(enc: string | null): string {
 	if (enc === UTF8_with_bom || enc === null) {
 		return UTF8; // iconv does not distinguish UTF 8 with or without BOM, so we need to help it
 	}

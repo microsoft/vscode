@@ -9,7 +9,6 @@ import { IEditorGroup, GroupDirection, IAddGroupOptions, IMergeGroupOptions, Gro
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Dimension } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
-import { assign } from 'vs/base/common/objects';
 import { IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
 import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -30,6 +29,7 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	highlightModifiedTabs: false,
 	tabCloseButton: 'right',
 	tabSizing: 'fit',
+	titleScrollbarSizing: 'default',
 	focusRecentEditorAfterClose: true,
 	showIcons: true,
 	enablePreview: true,
@@ -46,7 +46,7 @@ export function impactsEditorPartOptions(event: IConfigurationChangeEvent): bool
 }
 
 export function getEditorPartOptions(config: IWorkbenchEditorConfiguration): IEditorPartOptions {
-	const options: IEditorPartOptions = assign(Object.create(null), DEFAULT_EDITOR_PART_OPTIONS);
+	const options = { ...DEFAULT_EDITOR_PART_OPTIONS };
 
 	if (!config || !config.workbench) {
 		return options;
@@ -57,7 +57,7 @@ export function getEditorPartOptions(config: IWorkbenchEditorConfiguration): IEd
 	}
 
 	if (config.workbench.editor) {
-		assign(options, config.workbench.editor);
+		Object.assign(options, config.workbench.editor);
 	}
 
 	return options;

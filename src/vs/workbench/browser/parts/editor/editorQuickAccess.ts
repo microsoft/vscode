@@ -3,20 +3,42 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/editorquickaccess';
 import { localize } from 'vs/nls';
-import { IQuickPickSeparator, quickPickItemScorerAccessor, IQuickPickItemWithResource } from 'vs/platform/quickinput/common/quickInput';
-import { PickerQuickAccessProvider, IPickerQuickAccessItem, TriggerAction } from 'vs/platform/quickinput/common/quickAccess';
+import { IQuickPickSeparator, quickPickItemScorerAccessor, IQuickPickItemWithResource, IQuickPick } from 'vs/platform/quickinput/common/quickInput';
+import { PickerQuickAccessProvider, IPickerQuickAccessItem, TriggerAction } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { IEditorGroupsService, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { EditorsOrder, IEditorIdentifier, toResource, SideBySideEditor } from 'vs/workbench/common/editor';
+import { EditorsOrder, IEditorIdentifier, toResource, SideBySideEditor, GroupIdentifier } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
-import { prepareQuery, scoreItem, compareItemsByScore } from 'vs/base/common/fuzzyScorer';
+import { prepareQuery, scoreItemFuzzy, compareItemsByFuzzyScore, FuzzyScorerCache } from 'vs/base/common/fuzzyScorer';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
-interface IEditorQuickPickItem extends IQuickPickItemWithResource, IEditorIdentifier, IPickerQuickAccessItem { }
+interface IEditorQuickPickItem extends IQuickPickItemWithResource, IPickerQuickAccessItem {
+	groupId: GroupIdentifier;
+}
 
 export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessProvider<IEditorQuickPickItem> {
+
+	private readonly pickState = new class {
+
+		scorerCache: FuzzyScorerCache = Object.create(null);
+		isQuickNavigating: boolean | undefined = undefined;
+
+		reset(isQuickNavigating: boolean): void {
+
+			// Caches
+			if (!isQuickNavigating) {
+				this.scorerCache = Object.create(null);
+			}
+
+			// Other
+			this.isQuickNavigating = isQuickNavigating;
+		}
+	};
 
 	constructor(
 		prefix: string,
@@ -25,19 +47,37 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 		@IModelService private readonly modelService: IModelService,
 		@IModeService private readonly modeService: IModeService
 	) {
-		super(prefix);
+		super(prefix,
+			{
+				canAcceptInBackground: true,
+				noResultsPick: {
+					label: localize('noViewResults', "No matching editors"),
+					groupId: -1
+				}
+			}
+		);
+	}
+
+	provide(picker: IQuickPick<IEditorQuickPickItem>, token: CancellationToken): IDisposable {
+
+		// Reset the pick state for this run
+		this.pickState.reset(!!picker.quickNavigate);
+
+		// Start picker
+		return super.provide(picker, token);
 	}
 
 	protected getPicks(filter: string): Array<IEditorQuickPickItem | IQuickPickSeparator> {
 		const query = prepareQuery(filter);
-		const scorerCache = Object.create(null);
+
+		// Filtering
 		const filteredEditorEntries = this.doGetEditorPickItems().filter(entry => {
-			if (!query.value) {
+			if (!query.normalized) {
 				return true;
 			}
 
 			// Score on label and description
-			const itemScore = scoreItem(entry, query, true, quickPickItemScorerAccessor, scorerCache);
+			const itemScore = scoreItemFuzzy(entry, query, true, quickPickItemScorerAccessor, this.pickState.scorerCache);
 			if (!itemScore.score) {
 				return false;
 			}
@@ -49,14 +89,14 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 		});
 
 		// Sorting
-		if (query.value) {
+		if (query.normalized) {
 			const groups = this.editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE).map(group => group.id);
 			filteredEditorEntries.sort((entryA, entryB) => {
 				if (entryA.groupId !== entryB.groupId) {
 					return groups.indexOf(entryA.groupId) - groups.indexOf(entryB.groupId); // older groups first
 				}
 
-				return compareItemsByScore(entryA, entryB, query, true, quickPickItemScorerAccessor, scorerCache);
+				return compareItemsByFuzzyScore(entryA, entryB, query, true, quickPickItemScorerAccessor, this.pickState.scorerCache);
 			});
 		}
 
@@ -83,32 +123,60 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 	}
 
 	private doGetEditorPickItems(): Array<IEditorQuickPickItem> {
+		const editors = this.doGetEditors();
+
+		const mapGroupIdToGroupAriaLabel = new Map<GroupIdentifier, string>();
+		for (const { groupId } of editors) {
+			if (!mapGroupIdToGroupAriaLabel.has(groupId)) {
+				const group = this.editorGroupService.getGroup(groupId);
+				if (group) {
+					mapGroupIdToGroupAriaLabel.set(groupId, group.ariaLabel);
+				}
+			}
+		}
+
 		return this.doGetEditors().map(({ editor, groupId }): IEditorQuickPickItem => {
 			const resource = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
 			const isDirty = editor.isDirty() && !editor.isSaving();
 
 			return {
-				editor,
 				groupId,
 				resource,
 				label: editor.getName(),
-				ariaLabel: localize('entryAriaLabel', "{0}, editors picker", editor.getName()),
+				ariaLabel: (() => {
+					if (mapGroupIdToGroupAriaLabel.size > 1) {
+						return isDirty ?
+							localize('entryAriaLabelWithGroupDirty', "{0}, dirty, {1}", editor.getName(), mapGroupIdToGroupAriaLabel.get(groupId)) :
+							localize('entryAriaLabelWithGroup', "{0}, {1}", editor.getName(), mapGroupIdToGroupAriaLabel.get(groupId));
+					}
+
+					return isDirty ? localize('entryAriaLabelDirty', "{0}, dirty", editor.getName()) : editor.getName();
+				})(),
 				description: editor.getDescription(),
 				iconClasses: getIconClasses(this.modelService, this.modeService, resource),
 				italic: !this.editorGroupService.getGroup(groupId)?.isPinned(editor),
-				buttonsAlwaysVisible: isDirty,
-				buttons: [
-					{
-						iconClass: isDirty ? 'codicon-circle-filled' : 'codicon-close',
-						tooltip: localize('closeEditor', "Close Editor")
-					}
-				],
+				buttons: (() => {
+					return [
+						{
+							iconClass: isDirty ? 'dirty-editor codicon-circle-filled' : 'codicon-close',
+							tooltip: localize('closeEditor', "Close Editor"),
+							alwaysVisible: isDirty
+						}
+					];
+				})(),
 				trigger: async () => {
-					await this.editorGroupService.getGroup(groupId)?.closeEditor(editor, { preserveFocus: true });
+					const group = this.editorGroupService.getGroup(groupId);
+					if (group) {
+						await group.closeEditor(editor, { preserveFocus: true });
 
-					return TriggerAction.REFRESH_PICKER;
+						if (!group.isOpened(editor)) {
+							return TriggerAction.REMOVE_ITEM;
+						}
+					}
+
+					return TriggerAction.NO_ACTION;
 				},
-				accept: () => this.editorGroupService.getGroup(groupId)?.openEditor(editor),
+				accept: (keyMods, event) => this.editorGroupService.getGroup(groupId)?.openEditor(editor, { preserveFocus: event.inBackground }),
 			};
 		});
 	}

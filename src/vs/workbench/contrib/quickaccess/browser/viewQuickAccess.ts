@@ -5,18 +5,20 @@
 
 import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { IPickerQuickAccessItem, PickerQuickAccessProvider } from 'vs/platform/quickinput/common/quickAccess';
+import { IQuickPickSeparator, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IPickerQuickAccessItem, PickerQuickAccessProvider } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IViewDescriptorService, IViewsService, ViewContainer, IViewsRegistry, Extensions as ViewExtensions, IViewContainersRegistry } from 'vs/workbench/common/views';
+import { IViewDescriptorService, IViewsService, ViewContainer, Extensions as ViewExtensions, IViewContainersRegistry } from 'vs/workbench/common/views';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { IPanelService, IPanelIdentifier } from 'vs/workbench/services/panel/common/panelService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { matchesFuzzy } from 'vs/base/common/filters';
 import { fuzzyContains } from 'vs/base/common/strings';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { Action } from 'vs/base/common/actions';
 
 interface IViewQuickPickItem extends IPickerQuickAccessItem {
 	containerLabel: string;
@@ -35,7 +37,12 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 		@IPanelService private readonly panelService: IPanelService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
-		super(ViewQuickAccessProvider.PREFIX);
+		super(ViewQuickAccessProvider.PREFIX, {
+			noResultsPick: {
+				label: localize('noViewResults', "No matching views"),
+				containerLabel: ''
+			}
+		});
 	}
 
 	protected getPicks(filter: string): Array<IViewQuickPickItem | IQuickPickSeparator> {
@@ -89,13 +96,12 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 		const viewEntries: Array<IViewQuickPickItem> = [];
 
 		const getViewEntriesForViewlet = (viewlet: ViewletDescriptor, viewContainer: ViewContainer): IViewQuickPickItem[] => {
-			const views = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).getViews(viewContainer);
+			const viewDescriptors = this.viewDescriptorService.getViewDescriptors(viewContainer);
 			const result: IViewQuickPickItem[] = [];
-			for (const view of views) {
+			for (const view of viewDescriptors.allViewDescriptors) {
 				if (this.contextKeyService.contextMatchesRules(view.when)) {
 					result.push({
 						label: view.name,
-						ariaLabel: localize('viewPickAriaLabel', "{0}, view picker", view.name),
 						containerLabel: viewlet.name,
 						accept: () => this.viewsService.openView(view.id, true)
 					});
@@ -108,10 +114,9 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 		// Viewlets
 		const viewlets = this.viewletService.getViewlets();
 		for (const viewlet of viewlets) {
-			if (this.includeViewlet(viewlet)) {
+			if (this.includeViewContainer(viewlet)) {
 				viewEntries.push({
 					label: viewlet.name,
-					ariaLabel: localize('viewPickAriaLabel', "{0}, view picker", viewlet.name),
 					containerLabel: localize('views', "Side Bar"),
 					accept: () => this.viewletService.openViewlet(viewlet.id, true)
 				});
@@ -121,12 +126,13 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 		// Panels
 		const panels = this.panelService.getPanels();
 		for (const panel of panels) {
-			viewEntries.push({
-				label: panel.name,
-				ariaLabel: localize('viewPickAriaLabel', "{0}, view picker", panel.name),
-				containerLabel: localize('panels', "Panel"),
-				accept: () => this.panelService.openPanel(panel.id, true)
-			});
+			if (this.includeViewContainer(panel)) {
+				viewEntries.push({
+					label: panel.name,
+					containerLabel: localize('panels', "Panel"),
+					accept: () => this.panelService.openPanel(panel.id, true)
+				});
+			}
 		}
 
 		// Viewlet Views
@@ -143,7 +149,6 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 				const label = localize('terminalTitle', "{0}: {1}", `${tabIndex + 1}.${terminalIndex + 1}`, terminal.title);
 				viewEntries.push({
 					label,
-					ariaLabel: localize('viewPickAriaLabel', "{0}, view picker", label),
 					containerLabel: localize('terminals', "Terminal"),
 					accept: async () => {
 						await this.terminalService.showPanel(true);
@@ -160,20 +165,16 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 			const label = channel.log ? localize('logChannel', "Log ({0})", channel.label) : channel.label;
 			viewEntries.push({
 				label,
-				ariaLabel: localize('viewPickAriaLabel', "{0}, view picker", label),
 				containerLabel: localize('channels', "Output"),
 				accept: () => this.outputService.showChannel(channel.id)
 			});
 		}
 
-		// Add generic ARIA label
-		viewEntries.forEach(entry => entry.ariaLabel = localize('entryAriaLabel', "{0}, view picker", entry.label));
-
 		return viewEntries;
 	}
 
-	private includeViewlet(viewlet: ViewletDescriptor): boolean {
-		const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).get(viewlet.id);
+	private includeViewContainer(container: ViewletDescriptor | IPanelIdentifier): boolean {
+		const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).get(container.id);
 		if (viewContainer?.hideIfEmpty) {
 			return this.viewDescriptorService.getViewDescriptors(viewContainer).activeViewDescriptors.length > 0;
 		}
@@ -181,3 +182,47 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 		return true;
 	}
 }
+
+
+//#region Actions
+
+export class OpenViewPickerAction extends Action {
+
+	static readonly ID = 'workbench.action.openView';
+	static readonly LABEL = localize('openView', "Open View");
+
+	constructor(
+		id: string,
+		label: string,
+		@IQuickInputService private readonly quickInputService: IQuickInputService
+	) {
+		super(id, label);
+	}
+
+	async run(): Promise<void> {
+		this.quickInputService.quickAccess.show(ViewQuickAccessProvider.PREFIX);
+	}
+}
+
+export class QuickAccessViewPickerAction extends Action {
+
+	static readonly ID = 'workbench.action.quickOpenView';
+	static readonly LABEL = localize('quickOpenView', "Quick Open View");
+
+	constructor(
+		id: string,
+		label: string,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService
+	) {
+		super(id, label);
+	}
+
+	async run(): Promise<void> {
+		const keys = this.keybindingService.lookupKeybindings(this.id);
+
+		this.quickInputService.quickAccess.show(ViewQuickAccessProvider.PREFIX, { quickNavigateConfiguration: { keybindings: keys } });
+	}
+}
+
+//#endregion

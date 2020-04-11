@@ -6,14 +6,15 @@
 import { distinct, mergeSort } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
+import { IDisposable, IReference } from 'vs/base/common/lifecycle';
+import { posix } from 'vs/base/common/path';
 import { basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorPane, IEditorInput, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IEditorInput, IEditorPane, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IDisposable, IReference } from 'vs/base/common/lifecycle';
 
 export const ICustomEditorService = createDecorator<ICustomEditorService>('customEditorService');
 
@@ -26,10 +27,11 @@ export interface ICustomEditorService {
 	readonly models: ICustomEditorModelManager;
 
 	getCustomEditor(viewType: string): CustomEditorInfo | undefined;
+	getAllCustomEditors(resource: URI): CustomEditorInfoCollection;
 	getContributedCustomEditors(resource: URI): CustomEditorInfoCollection;
 	getUserConfiguredCustomEditors(resource: URI): CustomEditorInfoCollection;
 
-	createInput(resource: URI, viewType: string, group: IEditorGroup | undefined, options?: { readonly customClasses: string }): IEditorInput;
+	createInput(resource: URI, viewType: string, group: GroupIdentifier | undefined, options?: { readonly customClasses: string }): IEditorInput;
 
 	openWith(resource: URI, customEditorViewType: string, options?: ITextEditorOptions, group?: IEditorGroup): Promise<IEditorPane | undefined>;
 	promptOpenWith(resource: URI, options?: ITextEditorOptions, group?: IEditorGroup): Promise<IEditorPane | undefined>;
@@ -49,13 +51,15 @@ export interface ICustomEditorModel extends IDisposable {
 	readonly viewType: string;
 	readonly resource: URI;
 
+	isReadonly(): boolean;
+
 	isDirty(): boolean;
 	readonly onDidChangeDirty: Event<void>;
 
 	revert(options?: IRevertOptions): Promise<void>;
 
-	save(options?: ISaveOptions): Promise<boolean>;
-	saveAs(resource: URI, targetResource: URI, currentOptions?: ISaveOptions): Promise<boolean>;
+	saveCustomEditor(options?: ISaveOptions): Promise<URI | undefined>;
+	saveCustomEditorAs(resource: URI, targetResource: URI, currentOptions?: ISaveOptions): Promise<boolean>;
 }
 
 export const enum CustomEditorPriority {
@@ -72,17 +76,20 @@ export class CustomEditorInfo {
 
 	public readonly id: string;
 	public readonly displayName: string;
+	public readonly providerDisplayName: string;
 	public readonly priority: CustomEditorPriority;
 	public readonly selector: readonly CustomEditorSelector[];
 
 	constructor(descriptor: {
 		readonly id: string;
 		readonly displayName: string;
+		readonly providerDisplayName: string;
 		readonly priority: CustomEditorPriority;
 		readonly selector: readonly CustomEditorSelector[];
 	}) {
 		this.id = descriptor.id;
 		this.displayName = descriptor.displayName;
+		this.providerDisplayName = descriptor.providerDisplayName;
 		this.priority = descriptor.priority;
 		this.selector = descriptor.selector;
 	}
@@ -93,7 +100,9 @@ export class CustomEditorInfo {
 
 	static selectorMatches(selector: CustomEditorSelector, resource: URI): boolean {
 		if (selector.filenamePattern) {
-			if (glob.match(selector.filenamePattern.toLowerCase(), basename(resource).toLowerCase())) {
+			const matchOnPath = selector.filenamePattern.indexOf(posix.sep) >= 0;
+			const target = matchOnPath ? resource.path : basename(resource);
+			if (glob.match(selector.filenamePattern.toLowerCase(), target.toLowerCase())) {
 				return true;
 			}
 		}

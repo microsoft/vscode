@@ -295,6 +295,10 @@ export class InputBox extends Widget {
 		}
 	}
 
+	public isSelectionAtEnd(): boolean {
+		return this.input.selectionEnd === this.input.value.length && this.input.selectionStart === this.input.selectionEnd;
+	}
+
 	public enable(): void {
 		this.input.removeAttribute('disabled');
 	}
@@ -556,7 +560,7 @@ export class InputBox extends Widget {
 
 		this.element.style.backgroundColor = background;
 		this.element.style.color = foreground;
-		this.input.style.backgroundColor = background;
+		this.input.style.backgroundColor = 'inherit';
 		this.input.style.color = foreground;
 
 		this.element.style.borderWidth = border ? '1px' : '';

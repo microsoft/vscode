@@ -42,6 +42,12 @@
         "filenames": [
           ".npmignore"
         ]
+      },
+      {
+        "id": "properties",
+        "filenames": [
+          ".npmrc"
+        ]
       }
     ],
     "views": {

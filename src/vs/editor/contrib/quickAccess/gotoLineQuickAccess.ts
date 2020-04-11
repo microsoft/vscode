@@ -4,85 +4,51 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IQuickPick, IQuickPickItem, IKeyMods } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore, toDisposable, IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { once } from 'vs/base/common/functional';
-import { IEditor, ScrollType, IDiffEditor } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { isDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { DisposableStore, IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IEditor, ScrollType } from 'vs/editor/common/editorCommon';
 import { IRange } from 'vs/editor/common/core/range';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { AbstractEditorQuickAccessProvider } from 'vs/editor/contrib/quickAccess/quickAccess';
+import { AbstractEditorNavigationQuickAccessProvider } from 'vs/editor/contrib/quickAccess/editorNavigationQuickAccess';
 import { IPosition } from 'vs/editor/common/core/position';
+import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorOption, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 
 interface IGotoLineQuickPickItem extends IQuickPickItem, Partial<IPosition> { }
 
-export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditorQuickAccessProvider {
+export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditorNavigationQuickAccessProvider {
 
 	static PREFIX = ':';
 
-	provide(picker: IQuickPick<IGotoLineQuickPickItem>, token: CancellationToken): IDisposable {
-		const disposables = new DisposableStore();
-
-		// Disable filtering & sorting, we control the results
-		picker.matchOnLabel = picker.matchOnDescription = picker.matchOnDetail = picker.sortByLabel = false;
-
-		// Provide based on current active editor
-		let pickerDisposable = this.doProvide(picker, token);
-		disposables.add(toDisposable(() => pickerDisposable.dispose()));
-
-		// Re-create whenever the active editor changes
-		disposables.add(this.onDidActiveTextEditorControlChange(() => {
-			pickerDisposable.dispose();
-			pickerDisposable = this.doProvide(picker, token);
-		}));
-
-		return disposables;
+	constructor() {
+		super({ canAcceptInBackground: true });
 	}
 
-	private doProvide(picker: IQuickPick<IGotoLineQuickPickItem>, token: CancellationToken): IDisposable {
-
-		// With text control
-		if (this.activeTextEditorControl) {
-			return this.doProvideWithTextEditor(this.activeTextEditorControl, picker, token);
-		}
-
-		// Without text control
-		return this.doProvideWithoutTextEditor(picker);
-	}
-
-	private doProvideWithoutTextEditor(picker: IQuickPick<IGotoLineQuickPickItem>): IDisposable {
+	protected provideWithoutTextEditor(picker: IQuickPick<IGotoLineQuickPickItem>): IDisposable {
 		const label = localize('cannotRunGotoLine', "Open a text editor first to go to a line.");
+
 		picker.items = [{ label }];
 		picker.ariaLabel = label;
 
 		return Disposable.None;
 	}
 
-	private doProvideWithTextEditor(editor: IEditor, picker: IQuickPick<IGotoLineQuickPickItem>, token: CancellationToken): IDisposable {
+	protected provideWithTextEditor(editor: IEditor, picker: IQuickPick<IGotoLineQuickPickItem>, token: CancellationToken): IDisposable {
 		const disposables = new DisposableStore();
 
-		// Restore any view state if this picker was closed
-		// without actually going to a line
-		const lastKnownEditorViewState = withNullAsUndefined(editor.saveViewState());
-		once(token.onCancellationRequested)(() => {
-			if (lastKnownEditorViewState) {
-				editor.restoreViewState(lastKnownEditorViewState);
-			}
-		});
-
 		// Goto line once picked
-		disposables.add(picker.onDidAccept(() => {
+		disposables.add(picker.onDidAccept(event => {
 			const [item] = picker.selectedItems;
 			if (item) {
 				if (!this.isValidLineNumber(editor, item.lineNumber)) {
 					return;
 				}
 
-				this.gotoLine(editor, this.toRange(item.lineNumber, item.column), picker.keyMods);
+				this.gotoLocation(editor, { range: this.toRange(item.lineNumber, item.column), keyMods: picker.keyMods, preserveFocus: event.inBackground });
 
-				picker.hide();
+				if (!event.inBackground) {
+					picker.hide();
+				}
 			}
 		}));
 
@@ -117,8 +83,17 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 		updatePickerAndEditor();
 		disposables.add(picker.onDidChangeValue(() => updatePickerAndEditor()));
 
-		// Clean up decorations on dispose
-		disposables.add(toDisposable(() => this.clearDecorations(editor)));
+		// Adjust line number visibility as needed
+		const codeEditor = getCodeEditor(editor);
+		if (codeEditor) {
+			const options = codeEditor.getOptions();
+			const lineNumbers = options.get(EditorOption.lineNumbers);
+			if (lineNumbers.renderType === RenderLineNumbersType.Relative) {
+				codeEditor.updateOptions({ lineNumbers: 'on' });
+
+				disposables.add(toDisposable(() => codeEditor.updateOptions({ lineNumbers: 'relative' })));
+			}
+		}
 
 		return disposables;
 	}
@@ -159,10 +134,10 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 		const position = editor.getPosition() || { lineNumber: 1, column: 1 };
 		const lineCount = this.lineCount(editor);
 		if (lineCount > 1) {
-			return localize('gotoLineLabelEmptyWithLimit', "Current Line: {0}, Column: {1}. Type a line number between 1 and {2} to navigate to.", position.lineNumber, position.column, lineCount);
+			return localize('gotoLineLabelEmptyWithLimit', "Current Line: {0}, Character: {1}. Type a line number between 1 and {2} to navigate to.", position.lineNumber, position.column, lineCount);
 		}
 
-		return localize('gotoLineLabelEmpty', "Current Line: {0}, Column: {1}. Type a line number to navigate to.", position.lineNumber, position.column);
+		return localize('gotoLineLabelEmpty', "Current Line: {0}, Character: {1}. Type a line number to navigate to.", position.lineNumber, position.column);
 	}
 
 	private isValidLineNumber(editor: IEditor, lineNumber: number | undefined): boolean {
@@ -190,17 +165,5 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 
 	private lineCount(editor: IEditor): number {
 		return this.getModel(editor)?.getLineCount() ?? 0;
-	}
-
-	private getModel(editor: IEditor | IDiffEditor): ITextModel | undefined {
-		return isDiffEditor(editor) ?
-			editor.getModel()?.modified :
-			editor.getModel() as ITextModel;
-	}
-
-	protected gotoLine(editor: IEditor, range: IRange, keyMods: IKeyMods): void {
-		editor.setSelection(range);
-		editor.revealRangeInCenter(range, ScrollType.Smooth);
-		editor.focus();
 	}
 }

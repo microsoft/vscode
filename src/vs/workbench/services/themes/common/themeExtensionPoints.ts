@@ -10,7 +10,7 @@ import * as resources from 'vs/base/common/resources';
 import { ExtensionMessageCollector, IExtensionPoint, ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ExtensionData, IThemeExtensionPoint, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
 
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 
@@ -107,6 +107,7 @@ export function registerProductIconThemeExtensionPoint() {
 export interface ThemeChangeEvent<T> {
 	themes: T[];
 	added: T[];
+	removed: T[];
 }
 
 export interface IThemeData {
@@ -127,7 +128,8 @@ export class ThemeRegistry<T extends IThemeData> {
 		private readonly themesExtPoint: IExtensionPoint<IThemeExtensionPoint[]>,
 		private create: (theme: IThemeExtensionPoint, themeLocation: URI, extensionData: ExtensionData) => T,
 		private idRequired = false,
-		private builtInTheme: T | undefined = undefined
+		private builtInTheme: T | undefined = undefined,
+		private isProposedApi = false
 	) {
 		this.extensionThemes = [];
 		this.initialize();
@@ -135,13 +137,17 @@ export class ThemeRegistry<T extends IThemeData> {
 
 	private initialize() {
 		this.themesExtPoint.setHandler((extensions, delta) => {
-			const previousIds: { [key: string]: boolean } = {};
+			const previousIds: { [key: string]: T } = {};
+
 			const added: T[] = [];
 			for (const theme of this.extensionThemes) {
-				previousIds[theme.id] = true;
+				previousIds[theme.id] = theme;
 			}
 			this.extensionThemes.length = 0;
 			for (let ext of extensions) {
+				if (this.isProposedApi) {
+					checkProposedApiEnabled(ext.description);
+				}
 				let extensionData: ExtensionData = {
 					extensionId: ext.description.identifier.value,
 					extensionPublisher: ext.description.publisher,
@@ -154,9 +160,12 @@ export class ThemeRegistry<T extends IThemeData> {
 			for (const theme of this.extensionThemes) {
 				if (!previousIds[theme.id]) {
 					added.push(theme);
+				} else {
+					delete previousIds[theme.id];
 				}
 			}
-			this.onDidChangeEmitter.fire({ themes: this.extensionThemes, added });
+			const removed = Object.values(previousIds);
+			this.onDidChangeEmitter.fire({ themes: this.extensionThemes, added, removed });
 		});
 	}
 

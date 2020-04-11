@@ -164,8 +164,8 @@ export class ReleaseNotesManager {
 			.then(undefined, onUnexpectedError);
 	}
 
-	private async  addGAParameters(uri: URI, origin: string, experiment = '1'): Promise<URI> {
-		if (this._environmentService.isBuilt && !this._environmentService.isExtensionDevelopment && !this._environmentService.args['disable-telemetry'] && !!this._productService.enableTelemetry) {
+	private async addGAParameters(uri: URI, origin: string, experiment = '1'): Promise<URI> {
+		if (this._environmentService.isBuilt && !this._environmentService.isExtensionDevelopment && !this._environmentService.disableTelemetry && !!this._productService.enableTelemetry) {
 			if (uri.scheme === 'https' && uri.authority === 'code.visualstudio.com') {
 				const info = await this._telemetryService.getTelemetryInfo();
 
@@ -190,7 +190,7 @@ export class ReleaseNotesManager {
 					body {
 						padding: 10px 20px;
 						line-height: 22px;
-						max-width: 780px;
+						max-width: 882px;
 						margin: 0 auto;
 					}
 

@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as  path from 'path';
-import * as  cp from 'child_process';
-import * as  playwright from 'playwright';
-import * as  url from 'url';
-import * as  tmp from 'tmp';
-import * as  rimraf from 'rimraf';
+import * as path from 'path';
+import * as cp from 'child_process';
+import * as playwright from 'playwright';
+import * as url from 'url';
+import * as tmp from 'tmp';
+import * as rimraf from 'rimraf';
 import { URI } from 'vscode-uri';
 import * as kill from 'tree-kill';
 import * as optimistLib from 'optimist';
@@ -44,7 +44,7 @@ async function runTestsInBrowser(browserType: 'chromium' | 'firefox' | 'webkit',
 	const testFilesUri = url.format({ pathname: URI.file(path.resolve(optimist.argv.extensionTestsPath)).path, protocol, host, slashes: true });
 
 	const folderParam = testWorkspaceUri;
-	const payloadParam = `[["extensionDevelopmentPath","${testExtensionUri}"],["extensionTestsPath","${testFilesUri}"]]`;
+	const payloadParam = `[["extensionDevelopmentPath","${testExtensionUri}"],["extensionTestsPath","${testFilesUri}"],["enableProposedApi",""]]`;
 
 	await page.goto(`${endpoint.href}&folder=${folderParam}&payload=${payloadParam}`);
 
@@ -103,7 +103,7 @@ async function launchServer(): Promise<{ endpoint: url.UrlWithStringQuery, serve
 
 	let serverProcess = cp.spawn(
 		serverLocation,
-		['--browser', 'none', '--driver', 'web'],
+		['--browser', 'none', '--driver', 'web', '--enable-proposed-api'],
 		{ env }
 	);
 

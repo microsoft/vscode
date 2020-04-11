@@ -78,11 +78,10 @@ const colorCustomizationsSchema: IConfigurationPropertySchema = {
 		}
 	}]
 };
-
 const fileIconThemeSettingSchema: IConfigurationPropertySchema = {
 	type: ['string', 'null'],
 	default: DEFAULT_FILE_ICON_THEME_SETTING_VALUE,
-	description: nls.localize('iconTheme', "Specifies the icon theme used in the workbench or 'null' to not show any file icons."),
+	description: nls.localize('iconTheme', "Specifies the file icon theme used in the workbench or 'null' to not show any file icons."),
 	enum: [null],
 	enumDescriptions: [nls.localize('noIconThemeDesc', 'No file icons')],
 	errorMessage: nls.localize('iconThemeError', "File icon theme is unknown or not installed.")
@@ -90,10 +89,10 @@ const fileIconThemeSettingSchema: IConfigurationPropertySchema = {
 const productIconThemeSettingSchema: IConfigurationPropertySchema = {
 	type: ['string', 'null'],
 	default: DEFAULT_PRODUCT_ICON_THEME_SETTING_VALUE,
-	description: nls.localize('workbenchIconTheme', "Specifies the workbench icon theme used."),
+	description: nls.localize('productIconTheme', "Specifies the product icon theme used."),
 	enum: [DEFAULT_PRODUCT_ICON_THEME_SETTING_VALUE],
-	enumDescriptions: [nls.localize('defaultWorkbenchIconThemeDesc', 'Default')],
-	errorMessage: nls.localize('workbenchIconThemeError', "Workbench icon theme is unknown or not installed.")
+	enumDescriptions: [nls.localize('defaultProductIconThemeDesc', 'Default')],
+	errorMessage: nls.localize('productIconThemeError', "Product icon theme is unknown or not installed.")
 };
 
 const themeSettingsConfiguration: IConfigurationNode = {
@@ -106,7 +105,7 @@ const themeSettingsConfiguration: IConfigurationNode = {
 		[ThemeSettings.PREFERRED_LIGHT_THEME]: preferredLightThemeSettingSchema,
 		[ThemeSettings.PREFERRED_HC_THEME]: preferredHCThemeSettingSchema,
 		[ThemeSettings.DETECT_COLOR_SCHEME]: detectColorSchemeSettingSchema,
-		[ThemeSettings.ICON_THEME]: fileIconThemeSettingSchema,
+		[ThemeSettings.FILE_ICON_THEME]: fileIconThemeSettingSchema,
 		[ThemeSettings.COLOR_CUSTOMIZATIONS]: colorCustomizationsSchema,
 		[ThemeSettings.PRODUCT_ICON_THEME]: productIconThemeSettingSchema
 	}
@@ -132,6 +131,10 @@ const tokenColorSchema: IJSONSchema = {
 		textMateRules: {
 			description: nls.localize('editorColors.textMateRules', 'Sets colors and styles using textmate theming rules (advanced).'),
 			$ref: textmateColorsSchemaId
+		},
+		semanticHighlighting: {
+			description: nls.localize('editorColors.semanticHighlighting', 'Whether semantic highlighting should be enabled for this theme.'),
+			type: 'boolean'
 		}
 	}
 };
@@ -154,6 +157,7 @@ const tokenColorCustomizationConfiguration: IConfigurationNode = {
 		[ThemeSettings.TOKEN_COLOR_CUSTOMIZATIONS_EXPERIMENTAL]: experimentalTokenStylingCustomizationSchema
 	}
 };
+
 configurationRegistry.registerConfiguration(tokenColorCustomizationConfiguration);
 
 export function updateColorThemeConfigurationSchemas(themes: IWorkbenchColorTheme[]) {
@@ -207,7 +211,7 @@ export class ThemeConfiguration {
 	}
 
 	public get fileIconTheme(): string | null {
-		return this.configurationService.getValue<string | null>(ThemeSettings.ICON_THEME);
+		return this.configurationService.getValue<string | null>(ThemeSettings.FILE_ICON_THEME);
 	}
 
 	public get productIconTheme(): string {
@@ -232,7 +236,7 @@ export class ThemeConfiguration {
 	}
 
 	public async setFileIconTheme(theme: IWorkbenchFileIconTheme, settingsTarget: ConfigurationTarget | undefined | 'auto'): Promise<IWorkbenchFileIconTheme> {
-		await this.writeConfiguration(ThemeSettings.ICON_THEME, theme.settingsId, settingsTarget);
+		await this.writeConfiguration(ThemeSettings.FILE_ICON_THEME, theme.settingsId, settingsTarget);
 		return theme;
 	}
 
@@ -252,6 +256,8 @@ export class ThemeConfiguration {
 				settingsTarget = ConfigurationTarget.WORKSPACE_FOLDER;
 			} else if (!types.isUndefined(settings.workspaceValue)) {
 				settingsTarget = ConfigurationTarget.WORKSPACE;
+			} else if (!types.isUndefined(settings.userRemote)) {
+				settingsTarget = ConfigurationTarget.USER_REMOTE;
 			} else {
 				settingsTarget = ConfigurationTarget.USER;
 			}
@@ -266,12 +272,11 @@ export class ThemeConfiguration {
 				}
 				value = undefined; // remove configuration from user settings
 			}
-		} else if (settingsTarget === ConfigurationTarget.WORKSPACE || settingsTarget === ConfigurationTarget.WORKSPACE_FOLDER) {
+		} else if (settingsTarget === ConfigurationTarget.WORKSPACE || settingsTarget === ConfigurationTarget.WORKSPACE_FOLDER || settingsTarget === ConfigurationTarget.USER_REMOTE) {
 			if (value === settings.value) {
 				return Promise.resolve(undefined); // nothing to do
 			}
 		}
 		return this.configurationService.updateValue(key, value, settingsTarget);
 	}
-
 }

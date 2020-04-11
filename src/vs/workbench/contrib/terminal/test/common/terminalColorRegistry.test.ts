@@ -21,8 +21,8 @@ function getMockTheme(type: ThemeType): IColorTheme {
 		getColor: (colorId: ColorIdentifier): Color | undefined => themingRegistry.resolveDefaultColor(colorId, theme),
 		defines: () => true,
 		getTokenStyleMetadata: () => undefined,
-		tokenColorMap: []
-
+		tokenColorMap: [],
+		semanticHighlighting: false
 	};
 	return theme;
 }

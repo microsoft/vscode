@@ -23,3 +23,8 @@
 	margin-top: 2px;
 	margin-left: 1px;
 }
+
+.suggest-input-container .monaco-editor,
+.suggest-input-container .monaco-editor .lines-content {
+	background: none;
+}

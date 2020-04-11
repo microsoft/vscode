@@ -85,7 +85,7 @@ class TerminalLinkAdapter implements ILinkComputerTarget {
 		let line = '';
 
 		for (let i = this._lineStart; i <= this._lineEnd; i++) {
-			line += this._xterm.buffer.getLine(i)?.translateToString();
+			line += this._xterm.buffer.active.getLine(i)?.translateToString();
 		}
 		return line;
 	}
@@ -96,8 +96,8 @@ export class TerminalLinkHandler extends DisposableStore {
 	private _processCwd: string | undefined;
 	private _gitDiffPreImagePattern: RegExp;
 	private _gitDiffPostImagePattern: RegExp;
-	private readonly _activateCallback: (event: MouseEvent, uri: string) => void;
-	private readonly _tooltipCallback: (event: MouseEvent, uri: string, location: IViewportRange) => boolean | void;
+	private readonly _activateCallback: (uri: string) => void;
+	private readonly _tooltipCallback: (event: MouseEvent, uri: string, location: IViewportRange, linkHandler: (url: string) => void) => boolean | void;
 	private readonly _leaveCallback: () => void;
 	private _linkMatchers: number[] = [];
 	private _webLinksAddon: ITerminalAddon | undefined;
@@ -136,13 +136,11 @@ export class TerminalLinkHandler extends DisposableStore {
 		// Matches '+++ b/src/file1', capturing 'src/file1' in group 1
 		this._gitDiffPostImagePattern = /^\+\+\+ b\/(\S*)/;
 
-		this._activateCallback = (e: MouseEvent, uri: string) => {
-			if (this._isLinkActivationModifierDown(e)) {
-				this._handleHypertextLink(uri);
-			}
+		this._activateCallback = (link: string) => {
+			console.log('link provider activate callback', link);
+			this._handleHypertextLink(link);
 		};
-
-		this._tooltipCallback = (e: MouseEvent, uri: string, location: IViewportRange) => {
+		this._tooltipCallback = (e: MouseEvent, uri: string, location: IViewportRange, linkHandler: (url: string) => void) => {
 			if (!this._widgetManager) {
 				return;
 			}
@@ -169,7 +167,7 @@ export class TerminalLinkHandler extends DisposableStore {
 				const leftPosition = location.start.x * (charWidth! + (font.letterSpacing / window.devicePixelRatio));
 				const bottomPosition = offsetRow * (Math.ceil(charHeight! * window.devicePixelRatio) * font.lineHeight) / window.devicePixelRatio;
 
-				this._widgetManager.showMessage(leftPosition, bottomPosition, this._getLinkHoverString(uri), verticalAlignment);
+				this._widgetManager.showMessage(leftPosition, bottomPosition, this._getLinkHoverString(uri), verticalAlignment, linkHandler);
 			} else {
 				const target = (e.target as HTMLElement);
 				const colWidth = target.offsetWidth / this._xterm.cols;
@@ -177,7 +175,7 @@ export class TerminalLinkHandler extends DisposableStore {
 
 				const leftPosition = location.start.x * colWidth;
 				const bottomPosition = offsetRow * rowHeight;
-				this._widgetManager.showMessage(leftPosition, bottomPosition, this._getLinkHoverString(uri), verticalAlignment);
+				this._widgetManager.showMessage(leftPosition, bottomPosition, this._getLinkHoverString(uri), verticalAlignment, linkHandler);
 			}
 		};
 		this._leaveCallback = () => {
@@ -232,9 +230,12 @@ export class TerminalLinkHandler extends DisposableStore {
 	}
 
 	public registerCustomLinkHandler(regex: RegExp, handler: (uri: string) => void, matchIndex?: number, validationCallback?: XtermLinkMatcherValidationCallback): number {
+		const tooltipCallback = (event: MouseEvent, uri: string, location: IViewportRange) => {
+			this._tooltipCallback(event, uri, location, handler);
+		};
 		const options: ILinkMatcherOptions = {
 			matchIndex,
-			tooltipCallback: this._tooltipCallback,
+			tooltipCallback,
 			leaveCallback: this._leaveCallback,
 			willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e),
 			priority: CUSTOM_LINK_PRIORITY
@@ -250,12 +251,16 @@ export class TerminalLinkHandler extends DisposableStore {
 			if (!this._xterm) {
 				return;
 			}
-			const wrappedHandler = this._wrapLinkHandler(uri => {
-				this._handleHypertextLink(uri);
+			const wrappedHandler = this._wrapLinkHandler(link => {
+				console.log('handle web link', link);
+				this._handleHypertextLink(link);
 			});
+			const tooltipCallback = (event: MouseEvent, uri: string, location: IViewportRange) => {
+				this._tooltipCallback(event, uri, location, this._handleHypertextLink.bind(this));
+			};
 			this._webLinksAddon = new WebLinksAddon(wrappedHandler, {
 				validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateWebLink(uri, callback),
-				tooltipCallback: this._tooltipCallback,
+				tooltipCallback,
 				leaveCallback: this._leaveCallback,
 				willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e)
 			});
@@ -267,9 +272,12 @@ export class TerminalLinkHandler extends DisposableStore {
 		const wrappedHandler = this._wrapLinkHandler(url => {
 			this._handleLocalLink(url);
 		});
+		const tooltipCallback = (event: MouseEvent, uri: string, location: IViewportRange) => {
+			this._tooltipCallback(event, uri, location, this._handleLocalLink.bind(this));
+		};
 		this._linkMatchers.push(this._xterm.registerLinkMatcher(this._localLinkRegex, wrappedHandler, {
 			validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateLocalLink(uri, callback),
-			tooltipCallback: this._tooltipCallback,
+			tooltipCallback,
 			leaveCallback: this._leaveCallback,
 			willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e),
 			priority: LOCAL_LINK_PRIORITY
@@ -280,10 +288,13 @@ export class TerminalLinkHandler extends DisposableStore {
 		const wrappedHandler = this._wrapLinkHandler(url => {
 			this._handleLocalLink(url);
 		});
+		const tooltipCallback = (event: MouseEvent, uri: string, location: IViewportRange) => {
+			this._tooltipCallback(event, uri, location, this._handleLocalLink.bind(this));
+		};
 		const options = {
 			matchIndex: 1,
 			validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateLocalLink(uri, callback),
-			tooltipCallback: this._tooltipCallback,
+			tooltipCallback,
 			leaveCallback: this._leaveCallback,
 			willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e),
 			priority: LOCAL_LINK_PRIORITY
@@ -293,7 +304,12 @@ export class TerminalLinkHandler extends DisposableStore {
 	}
 
 	public registerLinkProvider(): void {
-		this._linkProvider = this._xterm.registerLinkProvider(new TerminalLinkProvider(this._xterm, this._activateCallback, this._tooltipCallback, this._leaveCallback));
+		const tooltipCallback = (event: MouseEvent, uri: string, location: IViewportRange) => {
+			console.log('link provider tooltip');
+			this._tooltipCallback(event, uri, location, this._activateCallback.bind(this, uri));
+		};
+		const wrappedActivateCallback = this._wrapLinkHandler(this._activateCallback.bind(this));
+		this._linkProvider = this._xterm.registerLinkProvider(new TerminalLinkProvider(this._xterm, wrappedActivateCallback, tooltipCallback, this._leaveCallback));
 	}
 
 	protected _wrapLinkHandler(handler: (link: string) => void): XtermLinkMatcherHandler {
@@ -310,7 +326,7 @@ export class TerminalLinkHandler extends DisposableStore {
 				const wasHandled = await new Promise<boolean>(r => {
 					const timeoutId = setTimeout(() => {
 						canceled = true;
-						this._logService.error('An extension intecepted a terminal link but did not return');
+						this._logService.error(`An extension intecepted a terminal link but it timed out after ${TerminalLinkHandler.LINK_INTERCEPT_THRESHOLD / 1000} seconds`);
 						r(false);
 					}, TerminalLinkHandler.LINK_INTERCEPT_THRESHOLD);
 					let canceled = false;
@@ -372,6 +388,7 @@ export class TerminalLinkHandler extends DisposableStore {
 	}
 
 	private _handleHypertextLink(url: string): void {
+		console.log('calling opener service', url);
 		this._openerService.open(url, { allowTunneling: !!(this._processManager && this._processManager.remoteAuthority) });
 	}
 
@@ -401,11 +418,7 @@ export class TerminalLinkHandler extends DisposableStore {
 			}
 		}
 
-		const message: IMarkdownString = new MarkdownString(`[Follow Link](${uri}) (${label})`, true);
-		message.uris = {
-			[uri]: URI.parse(uri).toJSON()
-		};
-		return message;
+		return new MarkdownString(`[Follow Link](${uri}) (${label})`, true);
 	}
 
 	private get osPath(): IPath {
@@ -564,11 +577,11 @@ class TerminalLinkProvider implements ILinkProvider {
 		let startLine = position.y - 1;
 		let endLine = startLine;
 
-		while (this._xterm.buffer.getLine(startLine)?.isWrapped) {
+		while (this._xterm.buffer.active.getLine(startLine)?.isWrapped) {
 			startLine--;
 		}
 
-		while (this._xterm.buffer.getLine(endLine + 1)?.isWrapped) {
+		while (this._xterm.buffer.active.getLine(endLine + 1)?.isWrapped) {
 			endLine++;
 		}
 
@@ -651,11 +664,11 @@ class TerminalLinkProvider implements ILinkProvider {
 		return {
 			start: {
 				x: bufferRange.start.x - 1,
-				y: bufferRange.start.y - this._xterm.buffer.viewportY - 1
+				y: bufferRange.start.y - this._xterm.buffer.active.viewportY - 1
 			},
 			end: {
 				x: bufferRange.end.x - 1,
-				y: bufferRange.end.y - this._xterm.buffer.viewportY - 1
+				y: bufferRange.end.y - this._xterm.buffer.active.viewportY - 1
 			}
 		};
 	}

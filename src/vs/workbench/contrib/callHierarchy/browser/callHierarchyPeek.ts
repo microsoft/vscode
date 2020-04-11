@@ -50,10 +50,10 @@ class ChangeHierarchyDirectionAction extends Action {
 		const update = () => {
 			if (getDirection() === CallHierarchyDirection.CallsFrom) {
 				this.label = localize('toggle.from', "Show Incoming Calls");
-				this.class = 'calls-from';
+				this.class = 'codicon codicon-call-incoming';
 			} else {
 				this.label = localize('toggle.to', "Showing Outgoing Calls");
-				this.class = 'calls-to';
+				this.class = 'codicon codicon-call-outgoing';
 			}
 		};
 		update();
@@ -199,6 +199,7 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 		container.appendChild(treeContainer);
 		const options: IWorkbenchAsyncDataTreeOptions<callHTree.Call, FuzzyScore> = {
 			sorter: new callHTree.Sorter(),
+			accessibilityProvider: new callHTree.AccessibilityProvider(() => this._direction),
 			identityProvider: new callHTree.IdentityProvider(() => this._direction),
 			ariaLabel: localize('tree.aria', "Call Hierarchy"),
 			expandOnlyOnTwistieClick: true,

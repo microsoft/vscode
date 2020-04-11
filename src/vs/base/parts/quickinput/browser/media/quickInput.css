@@ -55,6 +55,12 @@
 	margin-bottom: -2px;
 }
 
+.quick-input-widget.hidden-input .quick-input-header {
+	/* reduce margins and paddings when input box hidden */
+	padding: 0;
+	margin-bottom: 0;
+}
+
 .quick-input-and-message {
 	display: flex;
 	flex-direction: column;
@@ -126,6 +132,10 @@
 	margin-top: 6px;
 }
 
+.quick-input-widget.hidden-input .quick-input-list {
+	margin-top: 0; /* reduce margins when input box hidden */
+}
+
 .quick-input-list .monaco-list {
 	overflow: hidden;
 	max-height: calc(20 * 22px);
@@ -191,7 +201,8 @@
 	flex: 1; /* make sure the icon label grows within the row */
 }
 
-.quick-input-list .quick-input-list-rows > .quick-input-list-row .codicon {
+.quick-input-list .quick-input-list-rows > .quick-input-list-row .codicon[class*='codicon-'] {
+	color: currentColor !important;
 	vertical-align: sub;
 }
 
@@ -220,15 +231,22 @@
 
 .quick-input-list .quick-input-list-entry-action-bar {
 	display: flex;
-	visibility: hidden; /* not using display: none here to not flicker too much */
 	flex: 0;
 	overflow: visible;
 }
 
+.quick-input-list .quick-input-list-entry-action-bar .action-label {
+	/*
+	 * By default, actions in the quick input action bar are hidden
+	 * until hovered over them or selected.
+	 */
+	display: none;
+}
+
 .quick-input-list .quick-input-list-entry-action-bar .action-label.codicon {
 	margin: 0;
-	width: 19px;
 	height: 100%;
+	padding: 0 2px;
 	vertical-align: middle;
 }
 
@@ -244,8 +262,8 @@
 	margin-right: 4px; /* separate actions */
 }
 
-.quick-input-list .quick-input-list-entry.always-visible-actions .quick-input-list-entry-action-bar,
-.quick-input-list .quick-input-list-entry:hover .quick-input-list-entry-action-bar,
-.quick-input-list .monaco-list-row.focused .quick-input-list-entry-action-bar {
-	visibility: visible;
+.quick-input-list .quick-input-list-entry .quick-input-list-entry-action-bar .action-label.always-visible,
+.quick-input-list .quick-input-list-entry:hover .quick-input-list-entry-action-bar .action-label,
+.quick-input-list .monaco-list-row.focused .quick-input-list-entry-action-bar .action-label {
+	display: flex;
 }

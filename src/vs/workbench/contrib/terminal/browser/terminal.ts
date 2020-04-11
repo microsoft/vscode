@@ -112,6 +112,13 @@ export interface ITerminalService {
 	getActiveOrCreateInstance(): ITerminalInstance;
 	splitInstance(instance: ITerminalInstance, shell?: IShellLaunchConfig): ITerminalInstance | null;
 
+	/**
+	 * Perform an action with the active terminal instance, if the terminal does
+	 * not exist the callback will not be called.
+	 * @param callback The callback that fires with the active terminal
+	 */
+	doWithActiveInstance<T>(callback: (terminal: ITerminalInstance) => T): T | void;
+
 	getActiveTab(): ITerminalTab | null;
 	setActiveTabToNext(): void;
 	setActiveTabToPrevious(): void;
@@ -139,7 +146,7 @@ export interface ITerminalService {
 	 */
 	addLinkHandler(key: string, callback: TerminalLinkHandlerCallback): IDisposable;
 
-	selectDefaultWindowsShell(): Promise<void>;
+	selectDefaultShell(): Promise<void>;
 
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 	manageWorkspaceShellPermissions(): void;
@@ -180,10 +187,10 @@ export interface ISearchOptions {
 }
 
 export enum WindowsShellType {
-	CommandPrompt,
-	PowerShell,
-	Wsl,
-	GitBash
+	CommandPrompt = 'cmd',
+	PowerShell = 'pwsh',
+	Wsl = 'wsl',
+	GitBash = 'gitbash'
 }
 export type TerminalShellType = WindowsShellType | undefined;
 

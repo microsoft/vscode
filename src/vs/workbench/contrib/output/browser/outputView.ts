@@ -17,7 +17,7 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { AbstractTextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
 import { OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, IOutputChannel, CONTEXT_ACTIVE_LOG_OUTPUT, CONTEXT_OUTPUT_SCROLL_LOCK } from 'vs/workbench/contrib/output/common/output';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -31,16 +31,18 @@ import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorIn
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IOutputChannelDescriptor, IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
+import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 import { groupBy } from 'vs/base/common/arrays';
+import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { editorBackground, selectBorder } from 'vs/platform/theme/common/colorRegistry';
+import { addClass } from 'vs/base/browser/dom';
 
 export class OutputViewPane extends ViewPane {
 
 	private readonly editor: OutputEditor;
 	private channelId: string | undefined;
 	private editorPromise: Promise<OutputEditor> | null = null;
-	private actions: IAction[] | undefined;
 
 	private readonly scrollLockContextKey: IContextKey<boolean>;
 	get scrollLock(): boolean { return !!this.scrollLockContextKey.get(); }
@@ -87,7 +89,9 @@ export class OutputViewPane extends ViewPane {
 
 	renderBody(container: HTMLElement): void {
 		this.editor.create(container);
+		addClass(container, 'output-view');
 		const codeEditor = <ICodeEditor>this.editor.getControl();
+		codeEditor.setAriaOptions({ role: 'document', activeDescendant: undefined });
 		this._register(codeEditor.onDidChangeModelContent(() => {
 			const activeChannel = this.outputService.getActiveChannel();
 			if (activeChannel && !this.scrollLock) {
@@ -104,7 +108,7 @@ export class OutputViewPane extends ViewPane {
 			}
 
 			const model = codeEditor.getModel();
-			if (model && this.actions) {
+			if (model) {
 				const newPositionLine = e.position.lineNumber;
 				const lastLine = model.getLineCount();
 				this.scrollLock = lastLine !== newPositionLine;
@@ -138,8 +142,8 @@ export class OutputViewPane extends ViewPane {
 
 	private setInput(channel: IOutputChannel): void {
 		this.channelId = channel.id;
-		const descriptor = this.outputService.getChannelDescriptor(channel.id)!;
-		CONTEXT_ACTIVE_LOG_OUTPUT.bindTo(this.contextKeyService).set(!!descriptor.file && descriptor.log);
+		const descriptor = this.outputService.getChannelDescriptor(channel.id);
+		CONTEXT_ACTIVE_LOG_OUTPUT.bindTo(this.contextKeyService).set(!!descriptor?.file && descriptor?.log);
 		this.editorPromise = this.editor.setInput(this.createInput(channel), EditorOptions.create({ preserveFocus: true }), CancellationToken.None)
 			.then(() => this.editor);
 	}
@@ -249,6 +253,8 @@ export class OutputEditor extends AbstractTextResourceEditor {
 
 	protected createEditor(parent: HTMLElement): void {
 
+		parent.setAttribute('role', 'document');
+
 		// First create the scoped instantiation service and only then construct the editor using the scoped service
 		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(parent));
 		this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]));
@@ -269,7 +275,7 @@ class SwitchOutputActionViewItem extends SelectActionViewItem {
 	constructor(
 		action: IAction,
 		@IOutputService private readonly outputService: IOutputService,
-		@IThemeService themeService: IThemeService,
+		@IThemeService private readonly themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService
 	) {
 		super(null, action, [], 0, contextViewService, { ariaLabel: nls.localize('outputChannels', 'Output Channels.') });
@@ -281,6 +287,14 @@ class SwitchOutputActionViewItem extends SelectActionViewItem {
 		this._register(attachSelectBoxStyler(this.selectBox, themeService));
 
 		this.updateOtions();
+	}
+
+	render(container: HTMLElement): void {
+		super.render(container);
+		addClass(container, 'switch-output');
+		this._register(attachStylerCallback(this.themeService, { selectBorder }, colors => {
+			container.style.borderColor = colors.selectBorder ? `${colors.selectBorder}` : '';
+		}));
 	}
 
 	protected getActionContext(option: string, index: number): string {
@@ -316,3 +330,16 @@ class SwitchOutputActionViewItem extends SelectActionViewItem {
 	}
 }
 
+registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
+	// Sidebar background for the output view
+	const sidebarBackground = theme.getColor(SIDE_BAR_BACKGROUND);
+	if (sidebarBackground && sidebarBackground !== theme.getColor(editorBackground)) {
+		collector.addRule(`
+			.monaco-workbench .part.sidebar .output-view .monaco-editor,
+			.monaco-workbench .part.sidebar .output-view .monaco-editor .margin,
+			.monaco-workbench .part.sidebar .output-view .monaco-editor .monaco-editor-background {
+				background-color: ${sidebarBackground};
+			}
+		`);
+	}
+});
