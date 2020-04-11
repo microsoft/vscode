@@ -19,6 +19,9 @@ import FormattingOptionsManager from './fileConfigurationManager';
 
 const localize = nls.loadMessageBundle();
 
+interface RefactorActionInfo extends Proto.RefactorActionInfo {
+	error?: string
+}
 
 class ApplyRefactoringCommand implements Command {
 	public static readonly ID = '_typescript.applyRefactoring';
@@ -280,13 +283,20 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 	}
 
 	private refactorActionToCodeAction(
-		action: Proto.RefactorActionInfo,
+		action: RefactorActionInfo,
 		document: vscode.TextDocument,
 		info: Proto.ApplicableRefactorInfo,
 		rangeOrSelection: vscode.Range | vscode.Selection,
 		allActions: readonly Proto.RefactorActionInfo[],
 	) {
 		const codeAction = new vscode.CodeAction(action.description, TypeScriptRefactorProvider.getKind(action));
+
+		// https://github.com/microsoft/TypeScript/pull/37871
+		if (action.error) {
+			codeAction.disabled = { reason: action.error };
+			return codeAction;
+		}
+
 		codeAction.command = {
 			title: action.description,
 			command: ApplyRefactoringCommand.ID,
