@@ -735,7 +735,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		if (this._xterm) {
 			const buffer = this._xterm.buffer;
-			this._sendLineData(buffer, buffer.baseY + buffer.cursorY);
+			this._sendLineData(buffer.active, buffer.active.baseY + buffer.active.cursorY);
 			this._xterm.dispose();
 		}
 
@@ -813,7 +813,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// change since the number of visible rows decreases.
 			// This can likely be removed after https://github.com/xtermjs/xterm.js/issues/291 is
 			// fixed upstream.
-			this._xtermCore._onScroll.fire(this._xterm.buffer.viewportY);
+			this._xtermCore._onScroll.fire(this._xterm.buffer.active.viewportY);
 			if (this._container && this._container.parentElement) {
 				// Force a layout when the instance becomes invisible. This is particularly important
 				// for ensuring that terminals that are created in the background by an extension will
@@ -1065,15 +1065,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _onLineFeed(): void {
 		const buffer = this._xterm!.buffer;
-		const newLine = buffer.getLine(buffer.baseY + buffer.cursorY);
+		const newLine = buffer.active.getLine(buffer.active.baseY + buffer.active.cursorY);
 		if (newLine && !newLine.isWrapped) {
-			this._sendLineData(buffer, buffer.baseY + buffer.cursorY - 1);
+			this._sendLineData(buffer.active, buffer.active.baseY + buffer.active.cursorY - 1);
 		}
 	}
 
 	private _onCursorMove(): void {
 		const buffer = this._xterm!.buffer;
-		this._sendLineData(buffer, buffer.baseY + buffer.cursorY);
+		this._sendLineData(buffer.active, buffer.active.baseY + buffer.active.cursorY);
 	}
 
 	private _onTitleChange(title: string): void {
