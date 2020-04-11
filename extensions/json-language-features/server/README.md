@@ -14,6 +14,8 @@ The JSON language server supports requests on documents of language id `json` an
 - `json` documents are parsed and validated following the [JSON specification](https://tools.ietf.org/html/rfc7159).
 - `jsonc` documents additionally accept single line (`//`) and multi-line comments (`/* ... */`). JSONC is a VSCode specific file format, intended for VSCode configuration files, without any aspirations to define a new common file format.
 
+The server also handles `jsonld` documents as regular JSON documents. For now it has no contextual/semantic capabilities, but in the future it may have language server features like hover, etc parsed from JSON-LD. In that case it would expect `.jsonld` files to use JSON-LD features like `@context`.
+
 The server implements the following capabilities of the language server protocol:
 
 - [Code completion](https://microsoft.github.io/language-server-protocol/specification#textDocument_completion) for JSON properties and values based on the document's [JSON schema](http://json-schema.org/) or based on existing properties and values used at other places in the document. JSON schemas are configured through the server configuration options.

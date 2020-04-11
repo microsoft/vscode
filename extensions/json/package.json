@@ -28,7 +28,8 @@
           ".webmanifest",
           ".js.map",
           ".css.map",
-          ".har"
+          ".har",
+          ".jsonld"
         ],
         "filenames": [
           "composer.lock",
@@ -37,7 +38,8 @@
         ],
         "mimetypes": [
           "application/json",
-          "application/manifest+json"
+          "application/manifest+json",
+          "application/ld+json"
         ],
         "configuration": "./language-configuration.json"
       },

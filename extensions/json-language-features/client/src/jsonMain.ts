@@ -101,7 +101,7 @@ export function activate(context: ExtensionContext) {
 		debug: { module: serverModule, transport: TransportKind.ipc, options: debugOptions }
 	};
 
-	const documentSelector = ['json', 'jsonc'];
+	const documentSelector = ['json', 'jsonc', 'jsonld'];
 
 	const schemaResolutionErrorStatusBarItem = window.createStatusBarItem({
 		id: 'status.json.resolveError',
