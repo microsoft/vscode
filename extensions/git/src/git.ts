@@ -878,7 +878,7 @@ export class Repository {
 			args.push('--author-date-order');
 		}
 
-		args.push('--', uri.fsPath);
+		args.push('--', '"' + uri.fsPath + '"');
 
 		const result = await this.run(args);
 		if (result.exitCode) {
@@ -952,12 +952,12 @@ export class Repository {
 	}
 
 	async lstree(treeish: string, path: string): Promise<LsTreeElement[]> {
-		const { stdout } = await this.run(['ls-tree', '-l', treeish, '--', sanitizePath(path)]);
+		const { stdout } = await this.run(['ls-tree', '-l', treeish, '--', '"' + sanitizePath(path) + '"']);
 		return parseLsTree(stdout);
 	}
 
 	async lsfiles(path: string): Promise<LsFilesElement[]> {
-		const { stdout } = await this.run(['ls-files', '--stage', '--', sanitizePath(path)]);
+		const { stdout } = await this.run(['ls-files', '--stage', '--', '"' + sanitizePath(path) + '"']);
 		return parseLsFiles(stdout);
 	}
 
@@ -1051,7 +1051,7 @@ export class Repository {
 			return await this.diffFiles(false);
 		}
 
-		const args = ['diff', '--', sanitizePath(path)];
+		const args = ['diff', '--', '"' + sanitizePath(path) + '"'];
 		const result = await this.run(args);
 		return result.stdout;
 	}
@@ -1077,7 +1077,7 @@ export class Repository {
 			return await this.diffFiles(true);
 		}
 
-		const args = ['diff', '--cached', '--', sanitizePath(path)];
+		const args = ['diff', '--cached', '--', '"' + sanitizePath(path) + '"'];
 		const result = await this.run(args);
 		return result.stdout;
 	}
@@ -1090,7 +1090,7 @@ export class Repository {
 			return await this.diffFiles(true, ref);
 		}
 
-		const args = ['diff', '--cached', ref, '--', sanitizePath(path)];
+		const args = ['diff', '--cached', ref, '--', '"' + sanitizePath(path) + '"'];
 		const result = await this.run(args);
 		return result.stdout;
 	}
@@ -1223,7 +1223,7 @@ export class Repository {
 		args.push('--');
 
 		if (paths && paths.length) {
-			args.push.apply(args, paths.map(sanitizePath));
+			args.push.apply(args, paths.map((p: string) => '"' + sanitizePath(p) + '"'));
 		} else {
 			args.push('.');
 		}
@@ -1238,13 +1238,13 @@ export class Repository {
 			return;
 		}
 
-		args.push(...paths.map(sanitizePath));
+		args.push(...paths.map((p: string) => '"' + sanitizePath(p) + '"'));
 
 		await this.run(args);
 	}
 
 	async stage(path: string, data: string): Promise<void> {
-		const child = this.stream(['hash-object', '--stdin', '-w', '--path', sanitizePath(path)], { stdio: [null, null, null] });
+		const child = this.stream(['hash-object', '--stdin', '-w', '--path', '"' + sanitizePath(path) + '"'], { stdio: [null, null, null] });
 		child.stdin!.end(data, 'utf8');
 
 		const { exitCode, stdout } = await exec(child);
@@ -1289,7 +1289,7 @@ export class Repository {
 
 		try {
 			if (paths && paths.length > 0) {
-				for (const chunk of splitInChunks(paths.map(sanitizePath), MAX_CLI_LENGTH)) {
+				for (const chunk of splitInChunks(paths.map((p: string) => '"' + sanitizePath(p) + '"'), MAX_CLI_LENGTH)) {
 					await this.run([...args, '--', ...chunk]);
 				}
 			} else {
@@ -1474,7 +1474,7 @@ export class Repository {
 		}
 
 		if (paths && paths.length) {
-			args.push.apply(args, paths.map(sanitizePath));
+			args.push.apply(args, paths.map((p: string) => '"' + sanitizePath(p) + '"'));
 		} else {
 			args.push('.');
 		}
@@ -1625,7 +1625,7 @@ export class Repository {
 
 	async blame(path: string): Promise<string> {
 		try {
-			const args = ['blame', sanitizePath(path)];
+			const args = ['blame', '"' + sanitizePath(path) + '"'];
 			const result = await this.run(args);
 			return result.stdout.trim();
 		} catch (err) {
