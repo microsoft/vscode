@@ -19,6 +19,8 @@ import { detectEncoding } from './encoding';
 import { Ref, RefType, Branch, Remote, GitErrorCodes, LogOptions, Change, Status, CommitOptions, BranchQuery } from './api/git';
 import * as byline from 'byline';
 import { StringDecoder } from 'string_decoder';
+import * as pty from 'node-pty';
+import stripAnsi = require('strip-ansi');
 
 // https://github.com/microsoft/vscode/issues/65693
 const MAX_CLI_LENGTH = 30000;
@@ -310,6 +312,9 @@ class SshAgent {
 	private _sshAgentPid = '';
 	private _sshAuthSock = '';
 
+	private _sshBinDir: string | undefined;
+	get sshBinDir() { return this._sshBinDir; }
+
 	get env() {
 		return {
 			'SSH_AGENT_PID': this._sshAgentPid,
@@ -319,8 +324,13 @@ class SshAgent {
 
 	async start(): Promise<void> {
 		return this.getCommand('ssh-agent')
-			.then(sshAgentCommand => exec(cp.spawn(sshAgentCommand, ['-s'])))
-			.then(sshAgentResult => sshAgentResult.stdout
+			.then(sshAgentCommand => {
+				const sshAgentBinDir = path.dirname(sshAgentCommand);
+				if (sshAgentBinDir !== '.') {
+					this._sshBinDir = sshAgentBinDir;
+				}
+				return exec(cp.spawn(sshAgentCommand, ['-s']));
+			}).then(sshAgentResult => sshAgentResult.stdout
 				.toString()
 				.split('\n')
 				.forEach(outputLine => {
@@ -339,18 +349,23 @@ class SshAgent {
 
 	async addKey(privateKeyPath: string): Promise<void> {
 		return this.getCommand('ssh-add').then(sshAddCommand => {
-			const sshAddProcess = cp.spawn(sshAddCommand, [privateKeyPath], { env: this.env });
 			let success = false;
+			const env: { [key: string]: string } = {};
+			Object.entries(Object.assign({}, process.env, this.env)).forEach(([key, value]) => env[key] = value || '');
 
-			sshAddProcess.stderr.on('data', data => {
-				const message = data.toString();
+			// It seems that child_process.spawn cannot communicate with Windows OpenSSH ssh-agent,
+			// so pty.spawn is used instead
+			const sshAddProcess = pty.spawn(sshAddCommand, [privateKeyPath], { env });
+
+			sshAddProcess.on('data', data => {
+				const message = stripAnsi(data).replace(/[\x0a\x0d]/g, '');
 
 				if (
-					message.match(/^Enter passphrase for .*: $/) ||
-					message.match(/^Bad passphrase, try again for .*: $/)
+					message.match(/^Enter passphrase for .*:/) ||
+					message.match(/^Bad passphrase, try again for .*:/)
 				) {
 					window.showInputBox({ password: true, prompt: message }).then(password => {
-						sshAddProcess.stdin.write(`${password || ''}\n`);
+						sshAddProcess.write(`${password || ''}\n`);
 					});
 				} else if (message.match(/^Identity added: /)) {
 					success = true;
@@ -360,38 +375,37 @@ class SshAgent {
 			});
 
 			return new Promise((resolve, reject) => {
-				sshAddProcess.once('error', reject);
-				sshAddProcess.once('exit', () => success ? resolve() : reject());
+				sshAddProcess.on('exit', () => success ? resolve() : reject());
 			});
 		});
 	}
 
 	private async getCommand(commandName: string): Promise<string> {
+		if (this.sshBinDir) {
+			return which(path.join(this.sshBinDir, commandName));
+		}
+
 		const gitConfig = workspace.getConfiguration('git');
 		const sshAgentDirectoryConfig = gitConfig.get<string>('sshAgentDirectory');
 
 		const basePromise = sshAgentDirectoryConfig
-			? this.checkIfCommandExists(path.join(sshAgentDirectoryConfig, commandName)).catch(() => this.checkIfCommandExists(commandName))
-			: this.checkIfCommandExists(commandName);
+			? which(path.join(sshAgentDirectoryConfig, commandName)).catch(() => which(commandName))
+			: which(commandName);
 		const directoriesToSearch = isWindows ? [
-			'C:\\Program Files\\Git\\usr\\bin',
 			'C:\\Program Files\\OpenSSH-Win64',
 			'C:\\Program Files\\OpenSSH',
+			'C:\\Program Files\\Git\\usr\\bin',
 		] : [];
 
 		return directoriesToSearch
 			.map(directoryName => path.join(directoryName, commandName))
 			.reduce(
-				(previousPromise: Promise<string>, commandName: string) => previousPromise.catch(() => this.checkIfCommandExists(commandName)),
+				(previousPromise: Promise<string>, commandName: string) => previousPromise.catch(() => which(commandName)),
 				basePromise
 			).catch(reason => {
 				window.showErrorMessage(localize('failed to find command', "Failed to find command '{0}'", commandName));
 				return Promise.reject(reason);
 			});
-	}
-
-	private async checkIfCommandExists(command: string): Promise<string> {
-		return new Promise<string>((c, e) => which(command, (err, path) => err ? e(err) : c(path)));
 	}
 }
 
@@ -449,6 +463,14 @@ export class Git {
 
 	open(repository: string, dotGit: string): Repository {
 		return new Repository(this, repository, dotGit);
+	}
+
+	async startSshAgent(): Promise<void> {
+		return this.sshAgent.start().then(() => {
+			if (this.sshAgent.sshBinDir) {
+				this.env['GIT_SSH'] = path.join(this.sshAgent.sshBinDir, 'ssh');
+			}
+		});
 	}
 
 	async init(repository: string): Promise<void> {
