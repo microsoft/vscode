@@ -1282,7 +1282,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> 
 				'editor.find.moveOnType': {
 					type: 'boolean',
 					default: defaults.moveOnType,
-					description: nls.localize('find.moveOnType', "Controls whether the cursor should move to find matches while typing.")
+					description: nls.localize('find.moveOnType', "Controls whether the cursor should jump to find matches while typing.")
 				},
 				'editor.find.seedSearchStringFromSelection': {
 					type: 'boolean',
