@@ -302,7 +302,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			description: localize('terminal.integrated.unicodeVersion', "Controls what version of unicode to use when evaluating the width of characters in the terminal. If you experience emoji or other wide characters not taking up the right amount of space or backspace either deleting too much or too little then you may want to try tweaking this setting.")
 		},
 		'terminal.integrated.experimentalLinkProvider': {
-			description: localize('terminal.integrated.experimentalLinkProvider', "An experimental setting that will enable the use of VS Code's shared link detection system in the terminal."),
+			description: localize('terminal.integrated.experimentalLinkProvider', "An experimental setting that aims to improve link detection in the terminal by improving when links are detected and by enabling shared link detection with the editor. Currently this only supports web links."),
 			type: 'boolean',
 			default: false
 		}
