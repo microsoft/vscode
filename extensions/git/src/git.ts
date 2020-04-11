@@ -548,6 +548,8 @@ export class Git {
 			options.cwd = sanitizePath(options.cwd);
 		}
 
+		args.unshift('--no-pager');
+
 		if (options.log !== false) {
 			this.log(`> git ${args.join(' ')}\n`);
 		}
