@@ -5,14 +5,14 @@
 
 import * as assert from 'assert';
 import { OperatingSystem } from 'vs/base/common/platform';
-import { TerminalLinkHandler, LineColumnInfo, XtermLinkMatcherHandler } from 'vs/workbench/contrib/terminal/browser/terminalLinkHandler';
+import { TerminalLinkManager, LineColumnInfo, XtermLinkMatcherHandler } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import * as strings from 'vs/base/common/strings';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { Event } from 'vs/base/common/event';
 import { ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
-class TestTerminalLinkHandler extends TerminalLinkHandler {
+class TestTerminalLinkHandler extends TerminalLinkManager {
 	public get localLinkRegex(): RegExp {
 		return this._localLinkRegex;
 	}
@@ -29,7 +29,7 @@ class TestTerminalLinkHandler extends TerminalLinkHandler {
 		return true;
 	}
 	public wrapLinkHandler(handler: (link: string) => void): XtermLinkMatcherHandler {
-		TerminalLinkHandler._LINK_INTERCEPT_THRESHOLD = 0;
+		TerminalLinkManager._LINK_INTERCEPT_THRESHOLD = 0;
 		return this._wrapLinkHandler(handler);
 	}
 }
