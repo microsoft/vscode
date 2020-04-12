@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IViewportRange, IBufferRange, IBufferLine, IBuffer } from 'xterm';
+import { IViewportRange, IBufferRange, IBufferLine, IBuffer, IBufferCellPosition } from 'xterm';
 import { IRange } from 'vs/editor/common/core/range';
 
 export function convertLinkRangeToBuffer(lines: IBufferLine[], bufferWidth: number, range: IRange, startLine: number) {
@@ -94,4 +94,17 @@ export function getXtermLineContent(buffer: IBuffer, lineStart: number, lineEnd:
 		line += buffer.getLine(i)?.translateToString(true);
 	}
 	return line;
+}
+
+export function positionIsInRange(position: IBufferCellPosition, range: IBufferRange): boolean {
+	if (position.y < range.start.y || position.y > range.end.y) {
+		return false;
+	}
+	if (position.y === range.start.y && position.x < range.start.x) {
+		return false;
+	}
+	if (position.y === range.end.y && position.x > range.end.x) {
+		return false;
+	}
+	return true;
 }

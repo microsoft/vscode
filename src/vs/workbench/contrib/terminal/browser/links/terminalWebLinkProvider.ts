@@ -5,7 +5,7 @@
 
 import { Terminal, IViewportRange, ILinkProvider, IBufferCellPosition, ILink, IBufferRange, IBufferLine } from 'xterm';
 import { ILinkComputerTarget, LinkComputer } from 'vs/editor/common/modes/linkComputer';
-import { getXtermLineContent, convertLinkRangeToBuffer, convertBufferRangeToViewport } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
+import { getXtermLineContent, convertLinkRangeToBuffer, convertBufferRangeToViewport, positionIsInRange } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
 
 export class TerminalWebLinkProvider implements ILinkProvider {
 	private _linkComputerTarget: ILinkComputerTarget | undefined;
@@ -44,23 +44,20 @@ export class TerminalWebLinkProvider implements ILinkProvider {
 			const range = convertLinkRangeToBuffer(lines, this._xterm.cols, link.range, startLine);
 
 			// Check if the link if within the mouse position
-			if (this._positionIsInRange(position, range)) {
+			if (positionIsInRange(position, range)) {
 				found = true;
 
 				callback({
 					text: link.url?.toString() || '',
 					range,
-					activate: (event: MouseEvent, text: string) => {
-						this._activateCallback(event, text);
-					},
+					activate: (event: MouseEvent, text: string) => this._activateCallback(event, text),
 					hover: (event: MouseEvent, text: string) => {
+						// TODO: This tooltip timer is currently not totally reliable
 						setTimeout(() => {
 							this._tooltipCallback(event, text, convertBufferRangeToViewport(range, this._xterm.buffer.active.viewportY));
 						}, 200);
 					},
-					leave: () => {
-						this._leaveCallback();
-					}
+					leave: () => this._leaveCallback()
 				});
 			}
 		});
@@ -68,19 +65,6 @@ export class TerminalWebLinkProvider implements ILinkProvider {
 		if (!found) {
 			callback(undefined);
 		}
-	}
-
-	private _positionIsInRange(position: IBufferCellPosition, range: IBufferRange): boolean {
-		if (position.y < range.start.y || position.y > range.end.y) {
-			return false;
-		}
-		if (position.y === range.start.y && position.x < range.start.x) {
-			return false;
-		}
-		if (position.y === range.end.y && position.x > range.end.x) {
-			return false;
-		}
-		return true;
 	}
 }
 

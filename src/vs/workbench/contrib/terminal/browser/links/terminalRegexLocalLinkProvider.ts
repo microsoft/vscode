@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Terminal, ILinkProvider, IViewportRange, IBufferCellPosition, ILink, IBufferLine } from 'xterm';
-import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
-import { getXtermLineContent, convertLinkRangeToBuffer, convertBufferRangeToViewport } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
+import { getXtermLineContent, convertLinkRangeToBuffer, convertBufferRangeToViewport, positionIsInRange } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
 import { OperatingSystem } from 'vs/base/common/platform';
 
 const pathPrefix = '(\\.\\.?|\\~)';
@@ -44,7 +43,7 @@ const lineAndColumnClause = [
 export class TerminalRegexLocalLinkProvider implements ILinkProvider {
 	constructor(
 		private readonly _xterm: Terminal,
-		private readonly _processManager: ITerminalProcessManager | undefined,
+		private readonly _processOperatingSystem: OperatingSystem,
 		private readonly _activateCallback: (event: MouseEvent, uri: string) => void,
 		private readonly _tooltipCallback: (event: MouseEvent, uri: string, location: IViewportRange) => boolean | void,
 		private readonly _leaveCallback: () => void,
@@ -105,26 +104,30 @@ export class TerminalRegexLocalLinkProvider implements ILinkProvider {
 				endLineNumber: 1
 			}, startLine);
 
-			this._validationCallback(uri, isValid => {
-				// TODO: Discard if buffers have changes or if another link was added for this line
-				if (isValid) {
-					callback({
-						text: uri,
-						range: bufferRange,
-						activate: (event: MouseEvent, text: string) => {
-							this._activateCallback(event, text);
-						},
-						hover: (event: MouseEvent, text: string) => {
-							setTimeout(() => {
-								this._tooltipCallback(event, text, convertBufferRangeToViewport(bufferRange, this._xterm.buffer.active.viewportY));
-							}, 200);
-						},
-						leave: () => {
-							this._leaveCallback();
-						}
-					});
-				}
-			});
+			if (positionIsInRange(position, bufferRange)) {
+				this._validationCallback(uri, isValid => {
+					// TODO: Discard if buffers have changes or if another link was added for this line
+					if (isValid) {
+						callback({
+							text: uri,
+							range: bufferRange,
+							activate: (event: MouseEvent, text: string) => this._activateCallback(event, text),
+							hover: (event: MouseEvent, text: string) => {
+								// TODO: This tooltip timer is currently not totally reliable
+								setTimeout(() => {
+									this._tooltipCallback(event, text, convertBufferRangeToViewport(bufferRange, this._xterm.buffer.active.viewportY));
+								}, 200);
+							},
+							leave: () => this._leaveCallback()
+						});
+					} else {
+						// TODO: Support multiple matches from the regexes
+						callback(undefined);
+					}
+				});
+			} else {
+				callback(undefined);
+			}
 			return;
 		}
 
@@ -132,10 +135,7 @@ export class TerminalRegexLocalLinkProvider implements ILinkProvider {
 	}
 
 	protected get _localLinkRegex(): RegExp {
-		if (!this._processManager) {
-			throw new Error('Process manager is required');
-		}
-		const baseLocalLinkClause = this._processManager.os === OperatingSystem.Windows ? winLocalLinkClause : unixLocalLinkClause;
+		const baseLocalLinkClause = this._processOperatingSystem === OperatingSystem.Windows ? winLocalLinkClause : unixLocalLinkClause;
 		// Append line and column number regex
 		return new RegExp(`${baseLocalLinkClause}(${lineAndColumnClause})`);
 	}

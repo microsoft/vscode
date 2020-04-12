@@ -17,7 +17,7 @@ import { Terminal, ILinkMatcherOptions, IViewportRange, ITerminalAddon } from 'x
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { posix, win32 } from 'vs/base/common/path';
 import { ITerminalInstanceService, ITerminalBeforeHandleLinkEvent, LINK_INTERCEPT_THRESHOLD } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { OperatingSystem, isMacintosh } from 'vs/base/common/platform';
+import { OperatingSystem, isMacintosh, OS } from 'vs/base/common/platform';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -101,7 +101,7 @@ export class TerminalLinkManager extends DisposableStore {
 
 	constructor(
 		private _xterm: Terminal,
-		private readonly _processManager: ITerminalProcessManager | undefined,
+		private readonly _processManager: ITerminalProcessManager,
 		private readonly _configHelper: ITerminalConfigHelper,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IEditorService private readonly _editorService: IEditorService,
@@ -292,7 +292,7 @@ export class TerminalLinkManager extends DisposableStore {
 			this._tooltipCallback(event, link, location, this._handleLocalLink.bind(this, link));
 		};
 		const wrappedLinkActivateCallback = this._wrapLinkHandler(this._handleLocalLink.bind(this));
-		this._linkProvider = this._xterm.registerLinkProvider(new TerminalRegexLocalLinkProvider(this._xterm, this._processManager, wrappedLinkActivateCallback, tooltipLinkCallback, this._leaveCallback, this._validateLocalLink.bind(this)));
+		this._linkProvider = this._xterm.registerLinkProvider(new TerminalRegexLocalLinkProvider(this._xterm, this._processManager.os || OS, wrappedLinkActivateCallback, tooltipLinkCallback, this._leaveCallback, this._validateLocalLink.bind(this)));
 	}
 
 	protected _wrapLinkHandler(handler: (link: string) => void): XtermLinkMatcherHandler {
