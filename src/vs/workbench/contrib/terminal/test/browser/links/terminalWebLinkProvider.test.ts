@@ -42,10 +42,8 @@ suite('Workbench - TerminalWebLinkProvider', () => {
 		// Ensure inside positions do detect the link
 		for (let i = 0; i < linkPositions.length; i++) {
 			const link = await new Promise<ILink | undefined>(r => provider.provideLink(linkPositions[i], r));
-
-			assert.ok(link);
-			assert.deepEqual(link!.text, expected.text);
-			assert.deepEqual(link!.range, linkRange);
+			assert.deepEqual(link?.text, expected.text);
+			assert.deepEqual(link?.range, linkRange);
 		}
 	}
 
