@@ -33,14 +33,7 @@ const lineAndColumnClause = [
 	'(([^:\\s\\(\\)<>\'\"\\[\\]]*)(:(\\d+))?(:(\\d+))?)' // (file path):336, (file path):336:9
 ].join('|').replace(/ /g, `[${'\u00A0'} ]`);
 
-// Changing any regex may effect this value, hence changes this as well if required.
-// const winLineAndColumnMatchIndex = 12;
-// const unixLineAndColumnMatchIndex = 11;
-
-// Each line and column clause have 6 groups (ie no. of expressions in round brackets)
-// const lineAndColumnClauseGroupCount = 6;
-
-export class TerminalRegexLocalLinkProvider implements ILinkProvider {
+export class TerminalValidatedLocalLinkProvider implements ILinkProvider {
 	constructor(
 		private readonly _xterm: Terminal,
 		private readonly _processOperatingSystem: OperatingSystem,
@@ -139,17 +132,4 @@ export class TerminalRegexLocalLinkProvider implements ILinkProvider {
 		// Append line and column number regex
 		return new RegExp(`${baseLocalLinkClause}(${lineAndColumnClause})`);
 	}
-
-	// private _positionIsInRange(position: IBufferCellPosition, range: IBufferRange): boolean {
-	// 	if (position.y < range.start.y || position.y > range.end.y) {
-	// 		return false;
-	// 	}
-	// 	if (position.y === range.start.y && position.x < range.start.x) {
-	// 		return false;
-	// 	}
-	// 	if (position.y === range.end.y && position.x > range.end.x) {
-	// 		return false;
-	// 	}
-	// 	return true;
-	// }
 }

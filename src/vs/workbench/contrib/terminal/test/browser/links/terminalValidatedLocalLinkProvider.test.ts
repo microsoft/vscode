@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { TerminalRegexLocalLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalRegexLocalLinkProvider';
+import { TerminalValidatedLocalLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalValidatedLocalLinkProvider';
 import { Terminal, ILink, IBufferRange, IBufferCellPosition } from 'xterm';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { format } from 'vs/base/common/strings';
@@ -63,11 +63,11 @@ const supportedLinkFormats: LinkFormatInfo[] = [
 	{ urlFormat: '{0}",{1}', line: '5' }
 ];
 
-suite('Workbench - TerminalRegexLocalLinkProvider', () => {
+suite('Workbench - TerminalValidatedLocalLinkProvider', () => {
 	async function assertLink(text: string, os: OperatingSystem, expected: { text: string, range: [number, number][] }) {
 		const xterm = new Terminal();
 		// TODO: Test process manager
-		const provider = new TerminalRegexLocalLinkProvider(xterm, os, () => { }, () => { }, () => { }, (_, cb) => { cb(true); });
+		const provider = new TerminalValidatedLocalLinkProvider(xterm, os, () => { }, () => { }, () => { }, (_, cb) => { cb(true); });
 
 		// Write the text and wait for the parser to finish
 		await new Promise<void>(r => xterm.write(text, r));

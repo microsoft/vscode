@@ -22,7 +22,7 @@ import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { TerminalWebLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalWebLinkProvider';
-import { TerminalRegexLocalLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalRegexLocalLinkProvider';
+import { TerminalValidatedLocalLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalValidatedLocalLinkProvider';
 
 const pathPrefix = '(\\.\\.?|\\~)';
 const pathSeparatorClause = '\\/';
@@ -83,6 +83,7 @@ export class TerminalLinkManager extends DisposableStore {
 	private _linkMatchers: number[] = [];
 	private _webLinksAddon: ITerminalAddon | undefined;
 	private _linkProvider: IDisposable | undefined;
+	private _linkProvider2: IDisposable | undefined;
 	private _hasBeforeHandleLinkListeners = false;
 
 	protected static _LINK_INTERCEPT_THRESHOLD = LINK_INTERCEPT_THRESHOLD;
@@ -174,6 +175,7 @@ export class TerminalLinkManager extends DisposableStore {
 					this.registerLinkProvider();
 				} else {
 					this._linkProvider?.dispose();
+					this._linkProvider2?.dispose();
 					this._registerLinkMatchers();
 				}
 			}
@@ -292,7 +294,7 @@ export class TerminalLinkManager extends DisposableStore {
 			this._tooltipCallback(event, link, location, this._handleLocalLink.bind(this, link));
 		};
 		const wrappedLinkActivateCallback = this._wrapLinkHandler(this._handleLocalLink.bind(this));
-		this._linkProvider = this._xterm.registerLinkProvider(new TerminalRegexLocalLinkProvider(this._xterm, this._processManager.os || OS, wrappedLinkActivateCallback, tooltipLinkCallback, this._leaveCallback, this._validateLocalLink.bind(this)));
+		this._linkProvider2 = this._xterm.registerLinkProvider(new TerminalValidatedLocalLinkProvider(this._xterm, this._processManager.os || OS, wrappedLinkActivateCallback, tooltipLinkCallback, this._leaveCallback, this._validateLocalLink.bind(this)));
 	}
 
 	protected _wrapLinkHandler(handler: (link: string) => void): XtermLinkMatcherHandler {
