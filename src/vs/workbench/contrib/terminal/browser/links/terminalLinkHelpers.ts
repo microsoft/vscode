@@ -37,7 +37,7 @@ export function convertLinkRangeToBuffer(lines: IBufferLine[], bufferWidth: numb
 	// Shift end range right for each wide character inside the link
 	let endOffset = 0;
 	const endWrappedLineCount = Math.ceil(range.endColumn / bufferWidth);
-	for (let y = startWrappedLineCount - 1; y < endWrappedLineCount; y++) {
+	for (let y = Math.max(0, startWrappedLineCount - 1); y < endWrappedLineCount; y++) {
 		const start = (y === startWrappedLineCount - 1 ? (range.startColumn + startOffset) % bufferWidth : 0);
 		const lineLength = Math.min(bufferWidth, range.endColumn + startOffset - y * bufferWidth);
 		const startLineOffset = (y === startWrappedLineCount - 1 ? startOffset : 0);
