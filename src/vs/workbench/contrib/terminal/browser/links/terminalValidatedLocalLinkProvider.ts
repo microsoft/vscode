@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Terminal, ILinkProvider, IViewportRange, IBufferCellPosition, ILink, IBufferLine } from 'xterm';
-import { getXtermLineContent, convertLinkRangeToBuffer, convertBufferRangeToViewport, positionIsInRange } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
+import { getXtermLineContent, convertLinkRangeToBuffer, convertBufferRangeToViewport, positionIsInRange, TOOLTIP_HOVER_THRESHOLD } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
 import { OperatingSystem } from 'vs/base/common/platform';
 
 const pathPrefix = '(\\.\\.?|\\~)';
@@ -109,7 +109,7 @@ export class TerminalValidatedLocalLinkProvider implements ILinkProvider {
 								// TODO: This tooltip timer is currently not totally reliable
 								setTimeout(() => {
 									this._tooltipCallback(event, text, convertBufferRangeToViewport(bufferRange, this._xterm.buffer.active.viewportY));
-								}, 200);
+								}, TOOLTIP_HOVER_THRESHOLD);
 							},
 							leave: () => this._leaveCallback()
 						});

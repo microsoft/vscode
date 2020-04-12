@@ -23,6 +23,9 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { TerminalWebLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalWebLinkProvider';
 import { TerminalValidatedLocalLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalValidatedLocalLinkProvider';
+import { TerminalWordLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalWordLinkProvider';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
 const pathPrefix = '(\\.\\.?|\\~)';
 const pathSeparatorClause = '\\/';
@@ -84,6 +87,7 @@ export class TerminalLinkManager extends DisposableStore {
 	private _webLinksAddon: ITerminalAddon | undefined;
 	private _linkProvider: IDisposable | undefined;
 	private _linkProvider2: IDisposable | undefined;
+	private _linkProvider3: IDisposable | undefined;
 	private _hasBeforeHandleLinkListeners = false;
 
 	protected static _LINK_INTERCEPT_THRESHOLD = LINK_INTERCEPT_THRESHOLD;
@@ -109,7 +113,9 @@ export class TerminalLinkManager extends DisposableStore {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 		@IFileService private readonly _fileService: IFileService,
-		@ILogService private readonly _logService: ILogService
+		@ILogService private readonly _logService: ILogService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IQuickInputService private readonly _quickInputService: IQuickInputService
 	) {
 		super();
 
@@ -176,6 +182,7 @@ export class TerminalLinkManager extends DisposableStore {
 				} else {
 					this._linkProvider?.dispose();
 					this._linkProvider2?.dispose();
+					this._linkProvider3?.dispose();
 					this._registerLinkMatchers();
 				}
 			}
@@ -283,18 +290,26 @@ export class TerminalLinkManager extends DisposableStore {
 
 	public registerLinkProvider(): void {
 		// Web links
-		const tooltipCallback = (event: MouseEvent, link: string, location: IViewportRange) => {
+		const tooltipWebCallback = (event: MouseEvent, link: string, location: IViewportRange) => {
 			this._tooltipCallback(event, link, location, this._handleHypertextLink.bind(this, link));
 		};
 		const wrappedActivateCallback = this._wrapLinkHandler(this._handleHypertextLink.bind(this));
-		this._linkProvider = this._xterm.registerLinkProvider(new TerminalWebLinkProvider(this._xterm, wrappedActivateCallback, tooltipCallback, this._leaveCallback));
+		this._linkProvider = this._xterm.registerLinkProvider(new TerminalWebLinkProvider(this._xterm, wrappedActivateCallback, tooltipWebCallback, this._leaveCallback));
 
 		// Local links
-		const tooltipLinkCallback = (event: MouseEvent, link: string, location: IViewportRange) => {
+		const tooltipValidatedLocalCallback = (event: MouseEvent, link: string, location: IViewportRange) => {
 			this._tooltipCallback(event, link, location, this._handleLocalLink.bind(this, link));
 		};
 		const wrappedLinkActivateCallback = this._wrapLinkHandler(this._handleLocalLink.bind(this));
-		this._linkProvider2 = this._xterm.registerLinkProvider(new TerminalValidatedLocalLinkProvider(this._xterm, this._processManager.os || OS, wrappedLinkActivateCallback, tooltipLinkCallback, this._leaveCallback, this._validateLocalLink.bind(this)));
+		this._linkProvider2 = this._xterm.registerLinkProvider(new TerminalValidatedLocalLinkProvider(this._xterm, this._processManager.os || OS, wrappedLinkActivateCallback, tooltipValidatedLocalCallback, this._leaveCallback, this._validateLocalLink.bind(this)));
+
+		const tooltipWordCallback = (event: MouseEvent, link: string, location: IViewportRange) => {
+			this._tooltipCallback(event, link, location, link => this._quickInputService.quickAccess.show(link));
+		};
+		const wrappedWordActivateCallback = this._wrapLinkHandler(link => {
+			this._quickInputService.quickAccess.show(link);
+		});
+		this._linkProvider3 = this._xterm.registerLinkProvider(this._instantiationService.createInstance(TerminalWordLinkProvider, this._xterm, wrappedWordActivateCallback, tooltipWordCallback, this._leaveCallback));
 	}
 
 	protected _wrapLinkHandler(handler: (link: string) => void): XtermLinkMatcherHandler {
