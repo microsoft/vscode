@@ -502,6 +502,9 @@ class TestBufferLine implements IBufferLine {
 			}
 		}
 		return {
+			getChars: () => {
+				return x >= cells.length ? '' : cells.charAt(x);
+			},
 			getWidth: () => {
 				switch (cells.charAt(x)) {
 					case TEST_WIDE_CHAR: return 2;
