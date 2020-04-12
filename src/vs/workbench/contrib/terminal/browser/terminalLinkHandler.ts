@@ -226,7 +226,6 @@ export class TerminalLinkHandler extends DisposableStore {
 				return;
 			}
 			const wrappedHandler = this._wrapLinkHandler(link => {
-				console.log('handle web link', link);
 				this._handleHypertextLink(link);
 			});
 			const tooltipCallback = (event: MouseEvent, uri: string, location: IViewportRange) => {
@@ -361,7 +360,6 @@ export class TerminalLinkHandler extends DisposableStore {
 	}
 
 	private _handleHypertextLink(url: string): void {
-		console.log('calling opener service', url);
 		this._openerService.open(url, { allowTunneling: !!(this._processManager && this._processManager.remoteAuthority) });
 	}
 
