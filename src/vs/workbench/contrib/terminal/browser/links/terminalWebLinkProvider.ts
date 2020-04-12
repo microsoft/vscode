@@ -47,17 +47,22 @@ export class TerminalWebLinkProvider implements ILinkProvider {
 			if (positionIsInRange(position, range)) {
 				found = true;
 
+				let timeout: number | undefined;
 				callback({
 					text: link.url?.toString() || '',
 					range,
 					activate: (event: MouseEvent, text: string) => this._activateCallback(event, text),
 					hover: (event: MouseEvent, text: string) => {
-						// TODO: This tooltip timer is currently not totally reliable
-						setTimeout(() => {
+						timeout = window.setTimeout(() => {
 							this._tooltipCallback(event, text, convertBufferRangeToViewport(range, this._xterm.buffer.active.viewportY));
 						}, TOOLTIP_HOVER_THRESHOLD);
 					},
-					leave: () => this._leaveCallback()
+					leave: () => {
+						if (timeout !== undefined) {
+							window.clearTimeout(timeout);
+						}
+						this._leaveCallback();
+					}
 				});
 			}
 		});

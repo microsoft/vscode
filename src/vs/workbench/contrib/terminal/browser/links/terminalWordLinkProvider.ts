@@ -66,17 +66,22 @@ export class TerminalWordLinkProvider implements ILinkProvider {
 		// TODO: Only show tooltip if no mouse movement has happened; copy how editor works
 
 		const range = { start, end };
+		let timeout: number | undefined;
 		callback({
 			text,
 			range,
 			activate: (event: MouseEvent, text: string) => this._activateCallback(event, text),
 			hover: (event: MouseEvent, text: string) => {
-				// TODO: This tooltip timer is currently not totally reliable
-				setTimeout(() => {
+				timeout = window.setTimeout(() => {
 					this._tooltipCallback(event, text, convertBufferRangeToViewport(range, this._xterm.buffer.active.viewportY));
 				}, TOOLTIP_HOVER_THRESHOLD);
 			},
-			leave: () => this._leaveCallback()
+			leave: () => {
+				if (timeout !== undefined) {
+					window.clearTimeout(timeout);
+				}
+				this._leaveCallback();
+			}
 		});
 	}
 }

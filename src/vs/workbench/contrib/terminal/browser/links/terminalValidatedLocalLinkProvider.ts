@@ -101,17 +101,22 @@ export class TerminalValidatedLocalLinkProvider implements ILinkProvider {
 				this._validationCallback(uri, isValid => {
 					// TODO: Discard if buffers have changes or if another link was added for this line
 					if (isValid) {
+						let timeout: number | undefined;
 						callback({
 							text: uri,
 							range: bufferRange,
 							activate: (event: MouseEvent, text: string) => this._activateCallback(event, text),
 							hover: (event: MouseEvent, text: string) => {
-								// TODO: This tooltip timer is currently not totally reliable
-								setTimeout(() => {
+								timeout = window.setTimeout(() => {
 									this._tooltipCallback(event, text, convertBufferRangeToViewport(bufferRange, this._xterm.buffer.active.viewportY));
 								}, TOOLTIP_HOVER_THRESHOLD);
 							},
-							leave: () => this._leaveCallback()
+							leave: () => {
+								if (timeout !== undefined) {
+									window.clearTimeout(timeout);
+								}
+								this._leaveCallback();
+							}
 						});
 					} else {
 						// TODO: Support multiple matches from the regexes
