@@ -13,7 +13,7 @@ import { ITerminalProcessManager, ITerminalConfigHelper } from 'vs/workbench/con
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IFileService } from 'vs/platform/files/common/files';
-import { Terminal, ILinkMatcherOptions, IViewportRange, ILinkProvider, IBufferCellPosition, ILink, IBufferRange, ITerminalAddon } from 'xterm';
+import { Terminal, ILinkMatcherOptions, IViewportRange, ILinkProvider, IBufferCellPosition, ILink, IBufferRange, ITerminalAddon, IBuffer, IBufferLine } from 'xterm';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { posix, win32 } from 'vs/base/common/path';
 import { ITerminalInstanceService, ITerminalBeforeHandleLinkEvent, LINK_INTERCEPT_THRESHOLD } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -277,11 +277,12 @@ export class TerminalLinkHandler extends DisposableStore {
 	}
 
 	public registerLinkProvider(): void {
+		// Web links
 		const tooltipCallback = (event: MouseEvent, link: string, location: IViewportRange) => {
 			this._tooltipCallback(event, link, location, this._handleHypertextLink.bind(this, link));
 		};
 		const wrappedActivateCallback = this._wrapLinkHandler(this._handleHypertextLink.bind(this));
-		this._linkProvider = this._xterm.registerLinkProvider(new TerminalLinkProvider(this._xterm, wrappedActivateCallback, tooltipCallback, this._leaveCallback));
+		this._linkProvider = this._xterm.registerLinkProvider(new TerminalWebLinkProvider(this._xterm, wrappedActivateCallback, tooltipCallback, this._leaveCallback));
 	}
 
 	protected _wrapLinkHandler(handler: (link: string) => void): XtermLinkMatcherHandler {
@@ -533,7 +534,7 @@ export interface LineColumnInfo {
 	columnNumber: number;
 }
 
-class TerminalLinkProvider implements ILinkProvider {
+class TerminalWebLinkProvider implements ILinkProvider {
 	private _linkComputerTarget: ILinkComputerTarget | undefined;
 
 	constructor(
@@ -548,11 +549,17 @@ class TerminalLinkProvider implements ILinkProvider {
 		let startLine = position.y - 1;
 		let endLine = startLine;
 
+		const lines: IBufferLine[] = [
+			this._xterm.buffer.active.getLine(startLine)!
+		];
+
 		while (this._xterm.buffer.active.getLine(startLine)?.isWrapped) {
+			lines.unshift(this._xterm.buffer.active.getLine(startLine - 1)!);
 			startLine--;
 		}
 
 		while (this._xterm.buffer.active.getLine(endLine + 1)?.isWrapped) {
+			lines.push(this._xterm.buffer.active.getLine(endLine + 1)!);
 			endLine++;
 		}
 
@@ -561,7 +568,7 @@ class TerminalLinkProvider implements ILinkProvider {
 
 		let found = false;
 		links.forEach(link => {
-			const range = this._convertLinkRangeToBuffer(link.range, startLine);
+			const range = convertLinkRangeToBuffer(lines, this._xterm.cols, link.range, startLine);
 
 			// Check if the link if within the mouse position
 			if (this._positionIsInRange(position, range)) {
@@ -575,7 +582,7 @@ class TerminalLinkProvider implements ILinkProvider {
 					},
 					hover: (event: MouseEvent, text: string) => {
 						setTimeout(() => {
-							this._tooltipCallback(event, text, this._convertBufferRangeToViewport(range));
+							this._tooltipCallback(event, text, convertBufferRangeToViewport(range, this._xterm.buffer.active.viewportY));
 						}, 200);
 					},
 					leave: () => {
@@ -590,34 +597,6 @@ class TerminalLinkProvider implements ILinkProvider {
 		}
 	}
 
-	private _convertLinkRangeToBuffer(range: IRange, startLine: number) {
-		const bufferRange: IBufferRange = {
-			start: {
-				x: range.startColumn,
-				y: range.startLineNumber + startLine
-			},
-			end: {
-				x: range.endColumn - 1,
-				y: range.endLineNumber + startLine
-			}
-		};
-
-		const bufferWidth = this._xterm.cols;
-
-		// Convert back to wrapped lines
-		while (bufferRange.start.x > bufferWidth) {
-			bufferRange.start.x -= bufferWidth;
-			bufferRange.start.y++;
-		}
-
-		while (bufferRange.end.x > bufferWidth) {
-			bufferRange.end.x -= bufferWidth;
-			bufferRange.end.y++;
-		}
-
-		return bufferRange;
-	}
-
 	private _positionIsInRange(position: IBufferCellPosition, range: IBufferRange): boolean {
 		if (position.y < range.start.y || position.y > range.end.y) {
 			return false;
@@ -630,19 +609,82 @@ class TerminalLinkProvider implements ILinkProvider {
 		}
 		return true;
 	}
+}
 
-	private _convertBufferRangeToViewport(bufferRange: IBufferRange): IViewportRange {
-		return {
-			start: {
-				x: bufferRange.start.x - 1,
-				y: bufferRange.start.y - this._xterm.buffer.active.viewportY - 1
-			},
-			end: {
-				x: bufferRange.end.x - 1,
-				y: bufferRange.end.y - this._xterm.buffer.active.viewportY - 1
+export function convertLinkRangeToBuffer(lines: IBufferLine[], bufferWidth: number, range: IRange, startLine: number) {
+	const bufferRange: IBufferRange = {
+		start: {
+			x: range.startColumn,
+			y: range.startLineNumber + startLine
+		},
+		end: {
+			x: range.endColumn - 1,
+			y: range.endLineNumber + startLine
+		}
+	};
+
+	// Shift start range right for each wide character before the link
+	let startOffset = 0;
+	const startWrappedLineCount = Math.ceil(range.startColumn / bufferWidth);
+	for (let y = 0; y < startWrappedLineCount; y++) {
+		const lineLength = Math.min(bufferWidth, range.startColumn - y * bufferWidth);
+		let lineOffset = 0;
+		const line = lines[y];
+		for (let x = 0; x < Math.min(bufferWidth, lineLength + lineOffset); x++) {
+			const width = line.getCell(x)?.getWidth();
+			if (width === 2) {
+				lineOffset++;
 			}
-		};
+		}
+		startOffset += lineOffset;
 	}
+
+	// Shift end range right for each wide character inside the link
+	let endOffset = 0;
+	const endWrappedLineCount = Math.ceil(range.endColumn / bufferWidth);
+	for (let y = startWrappedLineCount - 1; y < endWrappedLineCount; y++) {
+		const start = (y === startWrappedLineCount - 1 ? (range.startColumn + startOffset) % bufferWidth : 0);
+		const lineLength = Math.min(bufferWidth, range.endColumn + startOffset - y * bufferWidth);
+		const startLineOffset = (y === startWrappedLineCount - 1 ? startOffset : 0);
+		let lineOffset = 0;
+		const line = lines[y];
+		for (let x = start; x < Math.min(bufferWidth, lineLength + lineOffset + startLineOffset); x++) {
+			const width = line.getCell(x)?.getWidth();
+			if (width === 2) {
+				lineOffset++;
+			}
+		}
+		endOffset += lineOffset;
+	}
+
+	// Apply the width character offsets to the result
+	bufferRange.start.x += startOffset;
+	bufferRange.end.x += startOffset + endOffset;
+
+	// Convert back to wrapped lines
+	while (bufferRange.start.x > bufferWidth) {
+		bufferRange.start.x -= bufferWidth;
+		bufferRange.start.y++;
+	}
+	while (bufferRange.end.x > bufferWidth) {
+		bufferRange.end.x -= bufferWidth;
+		bufferRange.end.y++;
+	}
+
+	return bufferRange;
+}
+
+function convertBufferRangeToViewport(bufferRange: IBufferRange, viewportY: number): IViewportRange {
+	return {
+		start: {
+			x: bufferRange.start.x - 1,
+			y: bufferRange.start.y - viewportY - 1
+		},
+		end: {
+			x: bufferRange.end.x - 1,
+			y: bufferRange.end.y - viewportY - 1
+		}
+	};
 }
 
 class TerminalLinkAdapter implements ILinkComputerTarget {
@@ -656,12 +698,15 @@ class TerminalLinkAdapter implements ILinkComputerTarget {
 		return 1;
 	}
 
-	getLineContent(lineNumber: number): string {
-		let line = '';
-
-		for (let i = this._lineStart; i <= this._lineEnd; i++) {
-			line += this._xterm.buffer.active.getLine(i)?.translateToString();
-		}
-		return line;
+	getLineContent(): string {
+		return getXtermLineContent(this._xterm.buffer.active, this._lineStart, this._lineEnd);
 	}
+}
+
+function getXtermLineContent(buffer: IBuffer, lineStart: number, lineEnd: number): string {
+	let line = '';
+	for (let i = lineStart; i <= lineEnd; i++) {
+		line += buffer.getLine(i)?.translateToString();
+	}
+	return line;
 }
