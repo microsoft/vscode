@@ -292,7 +292,7 @@ export class TerminalLinkManager extends DisposableStore {
 			this._tooltipCallback(event, link, location, this._handleLocalLink.bind(this, link));
 		};
 		const wrappedLinkActivateCallback = this._wrapLinkHandler(this._handleLocalLink.bind(this));
-		this._linkProvider = this._xterm.registerLinkProvider(new TerminalRegexLocalLinkProvider(this._xterm, this._processManager, wrappedLinkActivateCallback, tooltipLinkCallback, this._leaveCallback));
+		this._linkProvider = this._xterm.registerLinkProvider(new TerminalRegexLocalLinkProvider(this._xterm, this._processManager, wrappedLinkActivateCallback, tooltipLinkCallback, this._leaveCallback, this._validateLocalLink.bind(this)));
 	}
 
 	protected _wrapLinkHandler(handler: (link: string) => void): XtermLinkMatcherHandler {

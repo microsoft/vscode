@@ -47,7 +47,8 @@ export class TerminalRegexLocalLinkProvider implements ILinkProvider {
 		private readonly _processManager: ITerminalProcessManager | undefined,
 		private readonly _activateCallback: (event: MouseEvent, uri: string) => void,
 		private readonly _tooltipCallback: (event: MouseEvent, uri: string, location: IViewportRange) => boolean | void,
-		private readonly _leaveCallback: () => void
+		private readonly _leaveCallback: () => void,
+		private readonly _validationCallback: (uri: string, callback: (isValid: boolean) => void) => void
 	) {
 	}
 
@@ -104,82 +105,28 @@ export class TerminalRegexLocalLinkProvider implements ILinkProvider {
 				endLineNumber: 1
 			}, startLine);
 
-			callback({
-				text: uri,
-				range: bufferRange,
-				activate: (event: MouseEvent, text: string) => {
-					this._activateCallback(event, text);
-				},
-				hover: (event: MouseEvent, text: string) => {
-					setTimeout(() => {
-						this._tooltipCallback(event, text, convertBufferRangeToViewport(bufferRange, this._xterm.buffer.active.viewportY));
-					}, 200);
-				},
-				leave: () => {
-					this._leaveCallback();
+			this._validationCallback(uri, isValid => {
+				// TODO: Discard if buffers have changes or if another link was added for this line
+				if (isValid) {
+					callback({
+						text: uri,
+						range: bufferRange,
+						activate: (event: MouseEvent, text: string) => {
+							this._activateCallback(event, text);
+						},
+						hover: (event: MouseEvent, text: string) => {
+							setTimeout(() => {
+								this._tooltipCallback(event, text, convertBufferRangeToViewport(bufferRange, this._xterm.buffer.active.viewportY));
+							}, 200);
+						},
+						leave: () => {
+							this._leaveCallback();
+						}
+					});
 				}
 			});
 			return;
-
-			// get the buffer index as [absolute row, col] for the match
-			// const bufferIndex = this._xterm.buffer.active.stringIndexToBufferIndex(rowIndex, stringIndex);
-			// if (bufferIndex[0] < 0) {
-			// 	// invalid bufferIndex (should not have happened)
-			// 	break;
-			// }
-
-			// const line = this._xterm.buffer.active.getLine(bufferIndex[0]);
-			// if (!line) {
-			// 	break;
-			// }
-
-			//   const attr = line.getFg(bufferIndex[1]);
-			//   const fg = attr ? (attr >> 9) & 0x1ff : undefined;
-
-
-			// if (matcher.validationCallback) {
-			// 	matcher.validationCallback(uri, isValid => {
-			// 		// Discard link if the line has already changed
-			// 		if (this._rowsTimeoutId) {
-			// 			return;
-			// 		}
-			// 		if (isValid) {
-			// 			this._addLink(bufferIndex[1], bufferIndex[0] - this._bufferService.buffer.ydisp, uri, matcher, fg);
-			// 		}
-			// 	});
-			// } else {
-			// 	this._addLink(bufferIndex[1], bufferIndex[0] - this._bufferService.buffer.ydisp, uri, matcher, fg);
-			// }
 		}
-
-		// this._linkComputerTarget = new TerminalLinkAdapter(this._xterm, startLine, endLine);
-		// const links = LinkComputer.computeLinks(this._linkComputerTarget);
-
-		// let found = false;
-		// links.forEach(link => {
-		// 	const range = this._convertLinkRangeToBuffer(link.range, startLine);
-
-		// 	// Check if the link if within the mouse position
-		// 	if (this._positionIsInRange(position, range)) {
-		// 		found = true;
-
-		// 		callback({
-		// 			text: link.url?.toString() || '',
-		// 			range,
-		// 			activate: (event: MouseEvent, text: string) => {
-		// 				this._activateCallback(event, text);
-		// 			},
-		// 			hover: (event: MouseEvent, text: string) => {
-		// 				setTimeout(() => {
-		// 					this._tooltipCallback(event, text, convertBufferRangeToViewport(range, this._xterm.buffer.active.viewportY));
-		// 				}, 200);
-		// 			},
-		// 			leave: () => {
-		// 				this._leaveCallback();
-		// 			}
-		// 		});
-		// 	}
-		// });
 
 		callback(undefined);
 	}
