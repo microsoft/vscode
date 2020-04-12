@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { TerminalWidgetManager, WidgetVerticalAlignment } from 'vs/workbench/contrib/terminal/browser/terminalWidgetManager';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -13,7 +13,7 @@ import { ITerminalProcessManager, ITerminalConfigHelper } from 'vs/workbench/con
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IFileService } from 'vs/platform/files/common/files';
-import { Terminal, ILinkMatcherOptions, IViewportRange } from 'xterm';
+import { Terminal, ILinkMatcherOptions, IViewportRange, ITerminalAddon } from 'xterm';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { posix, win32 } from 'vs/base/common/path';
 import { ITerminalInstanceService, ITerminalBeforeHandleLinkEvent, LINK_INTERCEPT_THRESHOLD } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -21,6 +21,7 @@ import { OperatingSystem, isMacintosh } from 'vs/base/common/platform';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
+import { TerminalWebLinkProvider } from 'vs/workbench/contrib/terminal/browser/terminalWebLinkProvider';
 
 const pathPrefix = '(\\.\\.?|\\~)';
 const pathSeparatorClause = '\\/';
@@ -75,6 +76,9 @@ export class TerminalLinkHandler extends DisposableStore {
 	private _gitDiffPostImagePattern: RegExp;
 	private readonly _tooltipCallback: (event: MouseEvent, uri: string, location: IViewportRange, linkHandler: (url: string) => void) => boolean | void;
 	private readonly _leaveCallback: () => void;
+	private _linkMatchers: number[] = [];
+	private _webLinksAddon: ITerminalAddon | undefined;
+	private _linkProvider: IDisposable | undefined;
 	private _hasBeforeHandleLinkListeners = false;
 
 	protected static _LINK_INTERCEPT_THRESHOLD = LINK_INTERCEPT_THRESHOLD;
@@ -153,6 +157,26 @@ export class TerminalLinkHandler extends DisposableStore {
 			}
 		};
 
+		if (this._configHelper.config.experimentalLinkProvider) {
+			this.registerLinkProvider();
+		} else {
+			this._registerLinkMatchers();
+		}
+
+		this._configurationService?.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('terminal.integrated.experimentalLinkProvider')) {
+				if (this._configHelper.config.experimentalLinkProvider) {
+					this._deregisterLinkMatchers();
+					this.registerLinkProvider();
+				} else {
+					this._linkProvider?.dispose();
+					this._registerLinkMatchers();
+				}
+			}
+		});
+	}
+
+	private _registerLinkMatchers() {
 		this.registerWebLinkHandler();
 		if (this._processManager) {
 			if (this._configHelper.config.enableFileLinks) {
@@ -160,6 +184,14 @@ export class TerminalLinkHandler extends DisposableStore {
 			}
 			this.registerGitDiffLinkHandlers();
 		}
+	}
+
+	private _deregisterLinkMatchers() {
+		this._webLinksAddon?.dispose();
+
+		this._linkMatchers.forEach(matcherId => {
+			this._xterm.deregisterLinkMatcher(matcherId);
+		});
 	}
 
 	public setWidgetManager(widgetManager: TerminalWidgetManager): void {
@@ -192,18 +224,19 @@ export class TerminalLinkHandler extends DisposableStore {
 			if (!this._xterm) {
 				return;
 			}
-			const wrappedHandler = this._wrapLinkHandler(uri => {
-				this._handleHypertextLink(uri);
+			const wrappedHandler = this._wrapLinkHandler(link => {
+				this._handleHypertextLink(link);
 			});
 			const tooltipCallback = (event: MouseEvent, uri: string, location: IViewportRange) => {
 				this._tooltipCallback(event, uri, location, this._handleHypertextLink.bind(this));
 			};
-			this._xterm.loadAddon(new WebLinksAddon(wrappedHandler, {
-				validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateWebLink(uri, callback),
+			this._webLinksAddon = new WebLinksAddon(wrappedHandler, {
+				validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateWebLink(callback),
 				tooltipCallback,
 				leaveCallback: this._leaveCallback,
 				willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e)
-			}));
+			});
+			this._xterm.loadAddon(this._webLinksAddon);
 		});
 	}
 
@@ -214,13 +247,13 @@ export class TerminalLinkHandler extends DisposableStore {
 		const tooltipCallback = (event: MouseEvent, uri: string, location: IViewportRange) => {
 			this._tooltipCallback(event, uri, location, this._handleLocalLink.bind(this));
 		};
-		this._xterm.registerLinkMatcher(this._localLinkRegex, wrappedHandler, {
+		this._linkMatchers.push(this._xterm.registerLinkMatcher(this._localLinkRegex, wrappedHandler, {
 			validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateLocalLink(uri, callback),
 			tooltipCallback,
 			leaveCallback: this._leaveCallback,
 			willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e),
 			priority: LOCAL_LINK_PRIORITY
-		});
+		}));
 	}
 
 	public registerGitDiffLinkHandlers(): void {
@@ -238,8 +271,17 @@ export class TerminalLinkHandler extends DisposableStore {
 			willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e),
 			priority: LOCAL_LINK_PRIORITY
 		};
-		this._xterm.registerLinkMatcher(this._gitDiffPreImagePattern, wrappedHandler, options);
-		this._xterm.registerLinkMatcher(this._gitDiffPostImagePattern, wrappedHandler, options);
+		this._linkMatchers.push(this._xterm.registerLinkMatcher(this._gitDiffPreImagePattern, wrappedHandler, options));
+		this._linkMatchers.push(this._xterm.registerLinkMatcher(this._gitDiffPostImagePattern, wrappedHandler, options));
+	}
+
+	public registerLinkProvider(): void {
+		// Web links
+		const tooltipCallback = (event: MouseEvent, link: string, location: IViewportRange) => {
+			this._tooltipCallback(event, link, location, this._handleHypertextLink.bind(this, link));
+		};
+		const wrappedActivateCallback = this._wrapLinkHandler(this._handleHypertextLink.bind(this));
+		this._linkProvider = this._xterm.registerLinkProvider(new TerminalWebLinkProvider(this._xterm, wrappedActivateCallback, tooltipCallback, this._leaveCallback));
 	}
 
 	protected _wrapLinkHandler(handler: (link: string) => void): XtermLinkMatcherHandler {
@@ -313,7 +355,7 @@ export class TerminalLinkHandler extends DisposableStore {
 		this._resolvePath(link).then(resolvedLink => callback(!!resolvedLink));
 	}
 
-	private _validateWebLink(link: string, callback: (isValid: boolean) => void): void {
+	private _validateWebLink(callback: (isValid: boolean) => void): void {
 		callback(true);
 	}
 
