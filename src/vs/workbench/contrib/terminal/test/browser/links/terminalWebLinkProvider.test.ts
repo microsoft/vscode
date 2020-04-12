@@ -24,7 +24,7 @@ suite('Workbench - TerminalWebLinkProvider', () => {
 		// Ensure outside positions do not detect the link
 		for (let i = 0; i < noLinkPositions.length; i++) {
 			const link = await new Promise<ILink | undefined>(r => provider.provideLink(noLinkPositions[i], r));
-			assert.equal(link, undefined, `Just outside range boundary should not result in link, link found at: (${link?.range.start.x}, ${link?.range.start.y}) to (${link?.range.end.x}, ${link?.range.end.y})`);
+			assert.equal(link, undefined, `Just outside range boundary should not result in link, link found at (${link?.range.start.x}, ${link?.range.start.y}) to (${link?.range.end.x}, ${link?.range.end.y}) while checking (${noLinkPositions[i].x}, ${noLinkPositions[i].y})\nExpected link text=${expected.text}\nActual link text=${link?.text}`);
 		}
 
 		// Convert range from [[startx, starty], [endx, endy]] to an IBufferRange
