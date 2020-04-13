@@ -38,6 +38,25 @@ interface AllowedExtension {
 	name: string;
 }
 
+const accountUsages = new Map<string, { [accountName: string]: string[] }>();
+
+function addAccountUsage(providerId: string, accountName: string, extensionOrFeatureName: string) {
+	const providerAccountUsage = accountUsages.get(providerId);
+	if (!providerAccountUsage) {
+		accountUsages.set(providerId, { [accountName]: [extensionOrFeatureName] });
+	} else {
+		if (providerAccountUsage[accountName]) {
+			if (!providerAccountUsage[accountName].includes(extensionOrFeatureName)) {
+				providerAccountUsage[accountName].push(extensionOrFeatureName);
+			}
+		} else {
+			providerAccountUsage[accountName] = [extensionOrFeatureName];
+		}
+
+		accountUsages.set(providerId, providerAccountUsage);
+	}
+}
+
 function readAllowedExtensions(storageService: IStorageService, providerId: string, accountName: string): AllowedExtension[] {
 	let trustedExtensions: AllowedExtension[] = [];
 	try {
@@ -89,6 +108,24 @@ export class MainThreadAuthenticationProvider extends Disposable {
 			storageService.store(`${this.id}-${accountName}`, JSON.stringify(updatedAllowedList), StorageScope.GLOBAL);
 
 			quickPick.dispose();
+		});
+
+		quickPick.onDidHide(() => {
+			quickPick.dispose();
+		});
+
+		quickPick.show();
+	}
+
+	private showUsage(quickInputService: IQuickInputService, accountName: string) {
+		const quickPick = quickInputService.createQuickPick();
+		const providerUsage = accountUsages.get(this.id);
+		const accountUsage = (providerUsage || {})[accountName] || [];
+
+		quickPick.items = accountUsage.map(extensionOrFeature => {
+			return {
+				label: extensionOrFeature
+			};
 		});
 
 		quickPick.onDidHide(() => {
@@ -153,9 +190,10 @@ export class MainThreadAuthenticationProvider extends Disposable {
 				const storageService = accessor.get(IStorageService);
 
 				const quickPick = quickInputService.createQuickPick();
+				const showUsage = nls.localize('showUsage', "Show Extensions and Features Using This Account");
 				const manage = nls.localize('manageTrustedExtensions', "Manage Trusted Extensions");
 				const signOut = nls.localize('signOut', "Sign Out");
-				const items = ([{ label: manage }, { label: signOut }]);
+				const items = ([{ label: showUsage }, { label: manage }, { label: signOut }]);
 
 				quickPick.items = items;
 
@@ -168,6 +206,10 @@ export class MainThreadAuthenticationProvider extends Disposable {
 
 					if (selected.label === manage) {
 						this.manageTrustedExtensions(quickInputService, storageService, session.accountName);
+					}
+
+					if (selected.label === showUsage) {
+						this.showUsage(quickInputService, session.accountName);
 					}
 
 					quickPick.dispose();
@@ -189,7 +231,10 @@ export class MainThreadAuthenticationProvider extends Disposable {
 			return {
 				id: session.id,
 				accountName: session.accountName,
-				getAccessToken: () => this._proxy.$getSessionAccessToken(this.id, session.id)
+				getAccessToken: () => {
+					addAccountUsage(this.id, session.accountName, nls.localize('sync', "Preferences Sync"));
+					return this._proxy.$getSessionAccessToken(this.id, session.id);
+				}
 			};
 		});
 	}
@@ -281,6 +326,8 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	}
 
 	async $getSessionsPrompt(providerId: string, accountName: string, providerName: string, extensionId: string, extensionName: string): Promise<boolean> {
+		addAccountUsage(providerId, accountName, extensionName);
+
 		const allowList = readAllowedExtensions(this.storageService, providerId, accountName);
 		const extensionData = allowList.find(extension => extension.id === extensionId);
 		if (extensionData) {
