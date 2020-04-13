@@ -50,6 +50,7 @@ export class ContentHoverWidget extends Widget implements IContentWidget {
 
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'monaco-editor-hover-content';
+		this._domNode.setAttribute('role', 'tooltip');
 
 		this.scrollbar = new DomScrollableElement(this._domNode, {});
 		this._register(this.scrollbar);
@@ -178,7 +179,7 @@ export class GlyphHoverWidget extends Widget implements IOverlayWidget {
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'monaco-editor-hover hidden';
 		this._domNode.setAttribute('aria-hidden', 'true');
-		this._domNode.setAttribute('role', 'presentation');
+		this._domNode.setAttribute('role', 'tooltip');
 
 		this._showAtLineNumber = -1;
 
