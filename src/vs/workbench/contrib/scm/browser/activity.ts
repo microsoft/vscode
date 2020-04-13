@@ -160,7 +160,7 @@ export class SCMStatusController implements IWorkbenchContribution {
 
 			disposables.add(this.statusbarService.addEntry({
 				text: c.title,
-				ariaLabel: tooltip,
+				ariaLabel: c.tooltip || label,
 				tooltip,
 				command: c
 			}, 'status.scm', localize('status.scm', "Source Control"), MainThreadStatusBarAlignment.LEFT, 10000));
