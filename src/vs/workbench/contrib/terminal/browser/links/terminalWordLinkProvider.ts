@@ -49,7 +49,7 @@ export class TerminalWordLinkProvider implements ILinkProvider {
 
 		// Expand to the right until a word separator is hit
 		// end.x++; // The hovered cell is considered first
-		for (let x = position.x + 1; x < line.length; x++) {
+		for (let x = position.x + 1; x <= line.length; x++) {
 			const char = line.getCell(x - 1)?.getChars();
 			if (!char) {
 				break;
