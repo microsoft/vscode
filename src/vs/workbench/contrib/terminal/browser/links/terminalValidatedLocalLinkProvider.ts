@@ -99,7 +99,6 @@ export class TerminalValidatedLocalLinkProvider implements ILinkProvider {
 
 			if (positionIsInRange(position, bufferRange)) {
 				this._validationCallback(uri, isValid => {
-					// TODO: Discard if buffers have changes or if another link was added for this line
 					if (isValid) {
 						let timeout: number | undefined;
 						callback({
@@ -119,7 +118,6 @@ export class TerminalValidatedLocalLinkProvider implements ILinkProvider {
 							}
 						});
 					} else {
-						// TODO: Support multiple matches from the regexes
 						callback(undefined);
 					}
 				});

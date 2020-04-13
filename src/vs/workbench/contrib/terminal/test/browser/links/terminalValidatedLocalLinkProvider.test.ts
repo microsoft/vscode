@@ -66,7 +66,6 @@ const supportedLinkFormats: LinkFormatInfo[] = [
 suite('Workbench - TerminalValidatedLocalLinkProvider', () => {
 	async function assertLink(text: string, os: OperatingSystem, expected: { text: string, range: [number, number][] }) {
 		const xterm = new Terminal();
-		// TODO: Test process manager
 		const provider = new TerminalValidatedLocalLinkProvider(xterm, os, () => { }, () => { }, () => { }, (_, cb) => { cb(true); });
 
 		// Write the text and wait for the parser to finish

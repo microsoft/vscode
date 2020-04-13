@@ -62,9 +62,6 @@ export class TerminalWordLinkProvider implements ILinkProvider {
 			text += char;
 		}
 
-		// TODO: Only show word links when modifier is down?
-		// TODO: Only show tooltip if no mouse movement has happened; copy how editor works
-
 		const range = { start, end };
 		let timeout: number | undefined;
 		callback({
