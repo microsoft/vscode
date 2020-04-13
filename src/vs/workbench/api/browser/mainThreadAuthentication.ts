@@ -17,22 +17,6 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 
-interface AuthDependent {
-	providerId: string;
-	label: string;
-	scopes: string[];
-	scopeDescriptions?: string;
-}
-
-const BUILT_IN_AUTH_DEPENDENTS: AuthDependent[] = [
-	{
-		providerId: 'microsoft',
-		label: 'Settings sync',
-		scopes: ['https://management.core.windows.net/.default', 'offline_access'],
-		scopeDescriptions: 'Read user email'
-	}
-];
-
 interface AllowedExtension {
 	id: string;
 	name: string;
@@ -74,12 +58,13 @@ export class MainThreadAuthenticationProvider extends Disposable {
 	private _accounts = new Map<string, string[]>(); // Map account name to session ids
 	private _sessions = new Map<string, string>(); // Map account id to name
 	private _signInMenuItem: IMenuItem | undefined;
+	private _signInMenuDisposables: IDisposable[] = [];
 
 	constructor(
 		private readonly _proxy: ExtHostAuthenticationShape,
 		public readonly id: string,
 		public readonly displayName: string,
-		public readonly dependents: AuthDependent[],
+		private readonly supportsMultipleAccounts: boolean,
 		private readonly notificationService: INotificationService
 	) {
 		super();
@@ -135,29 +120,33 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		quickPick.show();
 	}
 
+	private createSignInMenu(hasSessions: boolean): void {
+		this._signInMenuDisposables.push(CommandsRegistry.registerCommand({
+			id: `signIn${this.id}`,
+			handler: (accessor, args) => {
+				this.login();
+			},
+		}));
+
+		this._signInMenuItem = {
+			group: '2_providers',
+			command: {
+				id: `signIn${this.id}`,
+				title: hasSessions
+					? nls.localize('addAnotherAccount', "Sign in to another {0} account", this.displayName)
+					: nls.localize('addAccount', "Sign in to {0}", this.displayName)
+			},
+			order: 3
+		};
+
+		this._signInMenuDisposables.push(MenuRegistry.appendMenuItem(MenuId.AccountsContext, this._signInMenuItem));
+	}
+
 	private async registerCommandsAndContextMenuItems(): Promise<void> {
 		const sessions = await this._proxy.$getSessions(this.id);
 
-		if (this.dependents.length) {
-			this._register(CommandsRegistry.registerCommand({
-				id: `signIn${this.id}`,
-				handler: (accessor, args) => {
-					this.login(this.dependents.reduce((previous: string[], current) => previous.concat(current.scopes), []));
-				},
-			}));
-
-			this._signInMenuItem = {
-				group: '2_providers',
-				command: {
-					id: `signIn${this.id}`,
-					title: sessions.length
-						? nls.localize('addAnotherAccount', "Sign in to another {0} account", this.displayName)
-						: nls.localize('addAccount', "Sign in to {0}", this.displayName)
-				},
-				order: 3
-			};
-
-			this._register(MenuRegistry.appendMenuItem(MenuId.AccountsContext, this._signInMenuItem));
+		if (!sessions.length || (sessions.length && this.supportsMultipleAccounts)) {
+			this.createSignInMenu(!!sessions.length);
 		}
 
 		sessions.forEach(session => this.registerSession(session));
@@ -261,6 +250,8 @@ export class MainThreadAuthenticationProvider extends Disposable {
 
 					if (this._signInMenuItem) {
 						this._signInMenuItem.command.title = nls.localize('addAccount', "Sign in to {0}", this.displayName);
+					} else {
+						this.createSignInMenu(false);
 					}
 				}
 			}
@@ -269,11 +260,16 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		addedSessions.forEach(session => this.registerSession(session));
 
 		if (addedSessions.length && this._signInMenuItem) {
-			this._signInMenuItem.command.title = nls.localize('addAnotherAccount', "Sign in to another {0} account", this.displayName);
+			if (this.supportsMultipleAccounts) {
+				this._signInMenuItem.command.title = nls.localize('addAnotherAccount', "Sign in to another {0} account", this.displayName);
+			} else {
+				this._signInMenuDisposables.forEach(item => item.dispose());
+				this._signInMenuItem = undefined;
+			}
 		}
 	}
 
-	login(scopes: string[]): Promise<modes.AuthenticationSession> {
+	login(scopes?: string[]): Promise<modes.AuthenticationSession> {
 		return this._proxy.$login(this.id, scopes).then(session => {
 			return {
 				id: session.id,
@@ -292,6 +288,7 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		super.dispose();
 		this._sessionMenuItems.forEach(item => item.forEach(d => d.dispose()));
 		this._sessionMenuItems.clear();
+		this._signInMenuDisposables.forEach(item => item.dispose());
 	}
 }
 
@@ -310,10 +307,8 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostAuthentication);
 	}
 
-	async $registerAuthenticationProvider(id: string, displayName: string): Promise<void> {
-		const dependentBuiltIns = BUILT_IN_AUTH_DEPENDENTS.filter(dependency => dependency.providerId === id);
-
-		const provider = new MainThreadAuthenticationProvider(this._proxy, id, displayName, dependentBuiltIns, this.notificationService);
+	async $registerAuthenticationProvider(id: string, displayName: string, supportsMultipleAccounts: boolean): Promise<void> {
+		const provider = new MainThreadAuthenticationProvider(this._proxy, id, displayName, supportsMultipleAccounts, this.notificationService);
 		this.authenticationService.registerAuthenticationProvider(id, provider);
 	}
 
