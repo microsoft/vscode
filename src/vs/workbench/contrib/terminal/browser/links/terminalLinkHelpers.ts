@@ -28,9 +28,14 @@ export function convertLinkRangeToBuffer(lines: IBufferLine[], bufferWidth: numb
 		let lineOffset = 0;
 		const line = lines[y];
 		for (let x = 0; x < Math.min(bufferWidth, lineLength + lineOffset); x++) {
-			const width = line.getCell(x)?.getWidth();
+			const cell = line.getCell(x)!;
+			const width = cell.getWidth();
 			if (width === 2) {
 				lineOffset++;
+			}
+			const char = cell.getChars();
+			if (char.length > 1) {
+				lineOffset -= char.length - 1;
 			}
 		}
 		startOffset += lineOffset;
