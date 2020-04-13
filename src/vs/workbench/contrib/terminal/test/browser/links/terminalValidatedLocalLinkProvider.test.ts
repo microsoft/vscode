@@ -103,33 +103,35 @@ suite('Workbench - TerminalValidatedLocalLinkProvider', () => {
 		}
 	}
 
-	[{ name: 'Linux', os: OperatingSystem.Linux }, { name: 'macOS', os: OperatingSystem.Macintosh }].forEach(config => {
-		suite(config.name, () => {
-			unixLinks.forEach(baseLink => {
-				test(`Link "${baseLink}"`, async () => {
-					for (let i = 0; i < supportedLinkFormats.length; i++) {
-						const linkFormat = supportedLinkFormats[i];
+	suite('Linux/macOS', () => {
+		unixLinks.forEach(baseLink => {
+			suite(`Link: ${baseLink}`, () => {
+				for (let i = 0; i < supportedLinkFormats.length; i++) {
+					const linkFormat = supportedLinkFormats[i];
+					test(`Format: ${linkFormat.urlFormat}`, async () => {
 						const formattedLink = format(linkFormat.urlFormat, baseLink, linkFormat.line, linkFormat.column);
-						await assertLink(formattedLink, config.os, { text: formattedLink, range: [[1, 1], [formattedLink.length, 1]] });
-						await assertLink(` ${formattedLink} `, config.os, { text: formattedLink, range: [[2, 1], [formattedLink.length + 1, 1]] });
-						await assertLink(`(${formattedLink})`, config.os, { text: formattedLink, range: [[2, 1], [formattedLink.length + 1, 1]] });
-						await assertLink(`[${formattedLink}]`, config.os, { text: formattedLink, range: [[2, 1], [formattedLink.length + 1, 1]] });
-					}
-				});
+						await assertLink(formattedLink, OperatingSystem.Linux, { text: formattedLink, range: [[1, 1], [formattedLink.length, 1]] });
+						await assertLink(` ${formattedLink} `, OperatingSystem.Linux, { text: formattedLink, range: [[2, 1], [formattedLink.length + 1, 1]] });
+						await assertLink(`(${formattedLink})`, OperatingSystem.Linux, { text: formattedLink, range: [[2, 1], [formattedLink.length + 1, 1]] });
+						await assertLink(`[${formattedLink}]`, OperatingSystem.Linux, { text: formattedLink, range: [[2, 1], [formattedLink.length + 1, 1]] });
+					});
+				}
 			});
 		});
 	});
 
 	suite('Windows', () => {
 		windowsLinks.forEach(baseLink => {
-			test(`Link "${baseLink}"`, async () => {
+			suite(`Link "${baseLink}"`, () => {
 				for (let i = 0; i < supportedLinkFormats.length; i++) {
 					const linkFormat = supportedLinkFormats[i];
-					const formattedLink = format(linkFormat.urlFormat, baseLink, linkFormat.line, linkFormat.column);
-					await assertLink(formattedLink, OperatingSystem.Windows, { text: formattedLink, range: [[1, 1], [formattedLink.length, 1]] });
-					await assertLink(` ${formattedLink} `, OperatingSystem.Windows, { text: formattedLink, range: [[2, 1], [formattedLink.length + 1, 1]] });
-					await assertLink(`(${formattedLink})`, OperatingSystem.Windows, { text: formattedLink, range: [[2, 1], [formattedLink.length + 1, 1]] });
-					await assertLink(`[${formattedLink}]`, OperatingSystem.Windows, { text: formattedLink, range: [[2, 1], [formattedLink.length + 1, 1]] });
+					test(`Format: ${linkFormat.urlFormat}`, async () => {
+						const formattedLink = format(linkFormat.urlFormat, baseLink, linkFormat.line, linkFormat.column);
+						await assertLink(formattedLink, OperatingSystem.Windows, { text: formattedLink, range: [[1, 1], [formattedLink.length, 1]] });
+						await assertLink(` ${formattedLink} `, OperatingSystem.Windows, { text: formattedLink, range: [[2, 1], [formattedLink.length + 1, 1]] });
+						await assertLink(`(${formattedLink})`, OperatingSystem.Windows, { text: formattedLink, range: [[2, 1], [formattedLink.length + 1, 1]] });
+						await assertLink(`[${formattedLink}]`, OperatingSystem.Windows, { text: formattedLink, range: [[2, 1], [formattedLink.length + 1, 1]] });
+					});
 				}
 			});
 		});
