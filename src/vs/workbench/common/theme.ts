@@ -216,7 +216,7 @@ export const EDITOR_GROUP_HEADER_TABS_BACKGROUND = registerColor('editorGroupHea
 export const EDITOR_GROUP_HEADER_TABS_BORDER = registerColor('editorGroupHeader.tabsBorder', {
 	dark: null,
 	light: null,
-	hc: contrastBorder
+	hc: null
 }, nls.localize('tabsContainerBorder', "Border color of the editor group title header when tabs are enabled. Editor groups are the containers of editors."));
 
 export const EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND = registerColor('editorGroupHeader.noTabsBackground', {
@@ -224,6 +224,12 @@ export const EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND = registerColor('editorGroup
 	light: editorBackground,
 	hc: editorBackground
 }, nls.localize('editorGroupHeaderBackground', "Background color of the editor group title header when tabs are disabled (`\"workbench.editor.showTabs\": false`). Editor groups are the containers of editors."));
+
+export const EDITOR_GROUP_HEADER_BORDER = registerColor('editorGroupHeader.border', {
+	dark: null,
+	light: null,
+	hc: contrastBorder
+}, nls.localize('editorTitleContainerBorder', "Border color of the editor group title header. Editor groups are the containers of editors."));
 
 export const EDITOR_GROUP_BORDER = registerColor('editorGroup.border', {
 	dark: '#444444',
