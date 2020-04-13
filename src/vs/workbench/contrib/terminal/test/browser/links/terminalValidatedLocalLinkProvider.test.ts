@@ -20,6 +20,7 @@ const unixLinks = [
 
 const windowsLinks = [
 	'c:\\foo',
+	'\\\\?\\c:\\foo',
 	'c:/foo',
 	'.\\foo',
 	'./foo',

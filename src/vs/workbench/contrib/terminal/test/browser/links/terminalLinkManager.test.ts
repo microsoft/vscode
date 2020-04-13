@@ -109,6 +109,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 			function generateAndTestLinks() {
 				const linkUrls = [
 					'c:\\foo',
+					'\\\\?\\c:\\foo',
 					'c:/foo',
 					'.\\foo',
 					'./foo',
