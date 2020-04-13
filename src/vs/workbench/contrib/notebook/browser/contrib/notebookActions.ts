@@ -33,6 +33,7 @@ const MOVE_CELL_DOWN_COMMAND_ID = 'workbench.notebook.cell.moveDown';
 const COPY_CELL_COMMAND_ID = 'workbench.notebook.cell.copy';
 const CUT_CELL_COMMAND_ID = 'workbench.notebook.cell.cut';
 const PASTE_CELL_COMMAND_ID = 'workbench.notebook.cell.paste';
+const PASTE_CELL_ABOVE_COMMAND_ID = 'workbench.notebook.cell.pasteAbove';
 const COPY_CELL_UP_COMMAND_ID = 'workbench.notebook.cell.copyUp';
 const COPY_CELL_DOWN_COMMAND_ID = 'workbench.notebook.cell.copyDown';
 
@@ -864,6 +865,47 @@ registerAction2(class extends Action2 {
 	}
 });
 
+registerAction2(class extends Action2 {
+	constructor() {
+		super(
+			{
+				id: PASTE_CELL_ABOVE_COMMAND_ID,
+				title: localize('notebookActions.pasteAbove', "Paste Cell Above"),
+				category: NOTEBOOK_ACTIONS_CATEGORY,
+				f1: true,
+				keybinding: {
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
+					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_V,
+					weight: EDITOR_WIDGET_ACTION_WEIGHT
+				},
+			});
+	}
+
+	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext) {
+		if (!isCellActionContext(context)) {
+			context = getActiveCellContext(accessor);
+			if (!context) {
+				return;
+			}
+		}
+
+		const notebookService = accessor.get<INotebookService>(INotebookService);
+		const pasteCells = notebookService.getToCopy() || [];
+
+		const viewModel = context.notebookEditor.viewModel;
+
+		if (!viewModel) {
+			return;
+		}
+
+		const currCellIndex = viewModel.getViewCellIndex(context!.cell);
+
+		pasteCells.reverse().forEach(pasteCell => {
+			viewModel.insertCell(currCellIndex, pasteCell, true);
+			return;
+		});
+	}
+});
 registerAction2(class extends Action2 {
 	constructor() {
 		super(
