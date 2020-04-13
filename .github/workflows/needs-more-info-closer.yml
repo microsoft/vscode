@@ -13,7 +13,7 @@ jobs:
         with:
           repository: 'microsoft/vscode-github-triage-actions'
           path: ./actions
-          ref: v3
+          ref: v4
       - name: Install Actions
         run: npm install --production --prefix ./actions
       - name: Run Needs More Info Closer
@@ -22,5 +22,5 @@ jobs:
           label: needs more info
           closeDays: 7
           closeComment: "This issue has been closed automatically because it needs more information and has not had recent activity. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines.\n\nHappy Coding!"
-          pingDays: 300
+          pingDays: 200
           pingComment: "Hey @${assignee}, this issue might need further attention.\n\n@${author}, you can help us out by closing this issue if the problem no longer exists, or adding more information."

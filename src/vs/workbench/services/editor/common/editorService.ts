@@ -67,6 +67,18 @@ export interface ISaveAllEditorsOptions extends ISaveEditorsOptions, IBaseSaveRe
 
 export interface IRevertAllEditorsOptions extends IRevertOptions, IBaseSaveRevertAllEditorOptions { }
 
+export interface ICustomEditorInfo {
+
+	readonly id: string;
+	readonly displayName: string;
+	readonly providerDisplayName: string;
+}
+
+export interface ICustomEditorViewTypesHandler {
+	readonly onDidChangeViewTypes: Event<void>;
+	getViewTypes(): ICustomEditorInfo[];
+}
+
 export interface IEditorService {
 
 	_serviceBrand: undefined;
@@ -220,6 +232,8 @@ export interface IEditorService {
 	 * operation to open a different editor.
 	 */
 	overrideOpenEditor(handler: IOpenEditorOverrideHandler): IDisposable;
+
+	registerCustomEditorViewTypesHandler(source: string, handler: ICustomEditorViewTypesHandler): IDisposable;
 
 	/**
 	 * Invoke a function in the context of the services of the active editor.

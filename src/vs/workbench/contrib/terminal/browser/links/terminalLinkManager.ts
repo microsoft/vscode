@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { TerminalWidgetManager, WidgetVerticalAlignment } from 'vs/workbench/contrib/terminal/browser/terminalWidgetManager';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -13,14 +13,19 @@ import { ITerminalProcessManager, ITerminalConfigHelper } from 'vs/workbench/con
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IFileService } from 'vs/platform/files/common/files';
-import { Terminal, ILinkMatcherOptions, IViewportRange } from 'xterm';
+import { Terminal, ILinkMatcherOptions, IViewportRange, ITerminalAddon } from 'xterm';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { posix, win32 } from 'vs/base/common/path';
 import { ITerminalInstanceService, ITerminalBeforeHandleLinkEvent, LINK_INTERCEPT_THRESHOLD } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { OperatingSystem, isMacintosh } from 'vs/base/common/platform';
+import { OperatingSystem, isMacintosh, OS } from 'vs/base/common/platform';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
+import { TerminalWebLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalWebLinkProvider';
+import { TerminalValidatedLocalLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalValidatedLocalLinkProvider';
+import { TerminalWordLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalWordLinkProvider';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
 const pathPrefix = '(\\.\\.?|\\~)';
 const pathSeparatorClause = '\\/';
@@ -68,17 +73,23 @@ interface IPath {
 	normalize(path: string): string;
 }
 
-export class TerminalLinkHandler extends DisposableStore {
+/**
+ * An object responsible for managing registration of link matchers and link providers.
+ */
+export class TerminalLinkManager extends DisposableStore {
 	private _widgetManager: TerminalWidgetManager | undefined;
 	private _processCwd: string | undefined;
 	private _gitDiffPreImagePattern: RegExp;
 	private _gitDiffPostImagePattern: RegExp;
 	private readonly _tooltipCallback: (event: MouseEvent, uri: string, location: IViewportRange, linkHandler: (url: string) => void) => boolean | void;
 	private readonly _leaveCallback: () => void;
+	private _linkMatchers: number[] = [];
+	private _webLinksAddon: ITerminalAddon | undefined;
+	private _linkProviders: IDisposable[] = [];
 	private _hasBeforeHandleLinkListeners = false;
 
 	protected static _LINK_INTERCEPT_THRESHOLD = LINK_INTERCEPT_THRESHOLD;
-	public static readonly LINK_INTERCEPT_THRESHOLD = TerminalLinkHandler._LINK_INTERCEPT_THRESHOLD;
+	public static readonly LINK_INTERCEPT_THRESHOLD = TerminalLinkManager._LINK_INTERCEPT_THRESHOLD;
 
 	private readonly _onBeforeHandleLink = this.add(new Emitter<ITerminalBeforeHandleLinkEvent>({
 		onFirstListenerAdd: () => this._hasBeforeHandleLinkListeners = true,
@@ -93,14 +104,16 @@ export class TerminalLinkHandler extends DisposableStore {
 
 	constructor(
 		private _xterm: Terminal,
-		private readonly _processManager: ITerminalProcessManager | undefined,
+		private readonly _processManager: ITerminalProcessManager,
 		private readonly _configHelper: ITerminalConfigHelper,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 		@IFileService private readonly _fileService: IFileService,
-		@ILogService private readonly _logService: ILogService
+		@ILogService private readonly _logService: ILogService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IQuickInputService private readonly _quickInputService: IQuickInputService
 	) {
 		super();
 
@@ -153,6 +166,27 @@ export class TerminalLinkHandler extends DisposableStore {
 			}
 		};
 
+		if (this._configHelper.config.experimentalLinkProvider) {
+			this.registerLinkProvider();
+		} else {
+			this._registerLinkMatchers();
+		}
+
+		this._configurationService?.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('terminal.integrated.experimentalLinkProvider')) {
+				if (this._configHelper.config.experimentalLinkProvider) {
+					this._deregisterLinkMatchers();
+					this.registerLinkProvider();
+				} else {
+					dispose(this._linkProviders);
+					this._linkProviders.length = 0;
+					this._registerLinkMatchers();
+				}
+			}
+		});
+	}
+
+	private _registerLinkMatchers() {
 		this.registerWebLinkHandler();
 		if (this._processManager) {
 			if (this._configHelper.config.enableFileLinks) {
@@ -160,6 +194,14 @@ export class TerminalLinkHandler extends DisposableStore {
 			}
 			this.registerGitDiffLinkHandlers();
 		}
+	}
+
+	private _deregisterLinkMatchers() {
+		this._webLinksAddon?.dispose();
+
+		this._linkMatchers.forEach(matcherId => {
+			this._xterm.deregisterLinkMatcher(matcherId);
+		});
 	}
 
 	public setWidgetManager(widgetManager: TerminalWidgetManager): void {
@@ -192,18 +234,19 @@ export class TerminalLinkHandler extends DisposableStore {
 			if (!this._xterm) {
 				return;
 			}
-			const wrappedHandler = this._wrapLinkHandler(uri => {
-				this._handleHypertextLink(uri);
+			const wrappedHandler = this._wrapLinkHandler(link => {
+				this._handleHypertextLink(link);
 			});
 			const tooltipCallback = (event: MouseEvent, uri: string, location: IViewportRange) => {
 				this._tooltipCallback(event, uri, location, this._handleHypertextLink.bind(this));
 			};
-			this._xterm.loadAddon(new WebLinksAddon(wrappedHandler, {
-				validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateWebLink(uri, callback),
+			this._webLinksAddon = new WebLinksAddon(wrappedHandler, {
+				validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateWebLink(callback),
 				tooltipCallback,
 				leaveCallback: this._leaveCallback,
 				willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e)
-			}));
+			});
+			this._xterm.loadAddon(this._webLinksAddon);
 		});
 	}
 
@@ -214,13 +257,13 @@ export class TerminalLinkHandler extends DisposableStore {
 		const tooltipCallback = (event: MouseEvent, uri: string, location: IViewportRange) => {
 			this._tooltipCallback(event, uri, location, this._handleLocalLink.bind(this));
 		};
-		this._xterm.registerLinkMatcher(this._localLinkRegex, wrappedHandler, {
+		this._linkMatchers.push(this._xterm.registerLinkMatcher(this._localLinkRegex, wrappedHandler, {
 			validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateLocalLink(uri, callback),
 			tooltipCallback,
 			leaveCallback: this._leaveCallback,
 			willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e),
 			priority: LOCAL_LINK_PRIORITY
-		});
+		}));
 	}
 
 	public registerGitDiffLinkHandlers(): void {
@@ -238,8 +281,37 @@ export class TerminalLinkHandler extends DisposableStore {
 			willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e),
 			priority: LOCAL_LINK_PRIORITY
 		};
-		this._xterm.registerLinkMatcher(this._gitDiffPreImagePattern, wrappedHandler, options);
-		this._xterm.registerLinkMatcher(this._gitDiffPostImagePattern, wrappedHandler, options);
+		this._linkMatchers.push(this._xterm.registerLinkMatcher(this._gitDiffPreImagePattern, wrappedHandler, options));
+		this._linkMatchers.push(this._xterm.registerLinkMatcher(this._gitDiffPostImagePattern, wrappedHandler, options));
+	}
+
+	public registerLinkProvider(): void {
+		// Web links
+		const tooltipWebCallback = (event: MouseEvent, link: string, location: IViewportRange) => {
+			this._tooltipCallback(event, link, location, this._handleHypertextLink.bind(this, link));
+		};
+		const wrappedActivateCallback = this._wrapLinkHandler(this._handleHypertextLink.bind(this));
+		this._linkProviders.push(this._xterm.registerLinkProvider(
+			new TerminalWebLinkProvider(this._xterm, wrappedActivateCallback, tooltipWebCallback, this._leaveCallback)
+		));
+
+		// Validated local links
+		const tooltipValidatedLocalCallback = (event: MouseEvent, link: string, location: IViewportRange) => {
+			this._tooltipCallback(event, link, location, this._handleLocalLink.bind(this, link));
+		};
+		const wrappedLinkActivateCallback = this._wrapLinkHandler(this._handleLocalLink.bind(this));
+		this._linkProviders.push(this._xterm.registerLinkProvider(
+			new TerminalValidatedLocalLinkProvider(this._xterm, this._processManager.os || OS, wrappedLinkActivateCallback, tooltipValidatedLocalCallback, this._leaveCallback, this._validateLocalLink.bind(this))
+		));
+
+		// Word links
+		const tooltipWordCallback = (event: MouseEvent, link: string, location: IViewportRange) => {
+			this._tooltipCallback(event, link, location, link => this._quickInputService.quickAccess.show(link));
+		};
+		const wrappedWordActivateCallback = this._wrapLinkHandler(link => this._quickInputService.quickAccess.show(link));
+		this._linkProviders.push(this._xterm.registerLinkProvider(
+			this._instantiationService.createInstance(TerminalWordLinkProvider, this._xterm, wrappedWordActivateCallback, tooltipWordCallback, this._leaveCallback)
+		));
 	}
 
 	protected _wrapLinkHandler(handler: (link: string) => void): XtermLinkMatcherHandler {
@@ -256,9 +328,9 @@ export class TerminalLinkHandler extends DisposableStore {
 				const wasHandled = await new Promise<boolean>(r => {
 					const timeoutId = setTimeout(() => {
 						canceled = true;
-						this._logService.error(`An extension intecepted a terminal link but it timed out after ${TerminalLinkHandler.LINK_INTERCEPT_THRESHOLD / 1000} seconds`);
+						this._logService.error(`An extension intecepted a terminal link but it timed out after ${TerminalLinkManager.LINK_INTERCEPT_THRESHOLD / 1000} seconds`);
 						r(false);
-					}, TerminalLinkHandler.LINK_INTERCEPT_THRESHOLD);
+					}, TerminalLinkManager.LINK_INTERCEPT_THRESHOLD);
 					let canceled = false;
 					const resolve = (handled: boolean) => {
 						if (!canceled) {
@@ -313,7 +385,7 @@ export class TerminalLinkHandler extends DisposableStore {
 		this._resolvePath(link).then(resolvedLink => callback(!!resolvedLink));
 	}
 
-	private _validateWebLink(link: string, callback: (isValid: boolean) => void): void {
+	private _validateWebLink(callback: (isValid: boolean) => void): void {
 		callback(true);
 	}
 

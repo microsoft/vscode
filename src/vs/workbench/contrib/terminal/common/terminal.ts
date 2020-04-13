@@ -131,6 +131,7 @@ export interface ITerminalConfiguration {
 	experimentalUseTitleEvent: boolean;
 	enableFileLinks: boolean;
 	unicodeVersion: '6' | '11';
+	experimentalLinkProvider: boolean;
 }
 
 export interface ITerminalConfigHelper {

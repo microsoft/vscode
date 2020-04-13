@@ -97,14 +97,14 @@ export class UserDataSyncAuthentication extends Disposable implements IUserDataS
 	}
 
 	async initializeActiveAccount(): Promise<void> {
-		if (!this.userDataSyncEnablementService.isEnabled()) {
-			return;
-		}
-
 		const sessions = await this.authenticationService.getSessions(this._authenticationProviderId);
 		// Auth provider has not yet been registered
 		if (!sessions) {
 			return;
+		}
+
+		if (!this.userDataSyncEnablementService.isEnabled()) {
+			this.setActiveAccount(undefined);
 		}
 
 		if (sessions.length === 0) {

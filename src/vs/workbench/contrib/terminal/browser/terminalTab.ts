@@ -218,6 +218,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 	private _terminalLocation: ViewContainerLocation = ViewContainerLocation.Panel;
 
 	private _activeInstanceIndex: number;
+	private _isVisible: boolean = false;
 
 	public get terminalInstances(): ITerminalInstance[] { return this._terminalInstances; }
 
@@ -356,6 +357,8 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 			this._splitPaneContainer = newLocal;
 			this.terminalInstances.forEach(instance => this._splitPaneContainer!.split(instance));
 		}
+
+		this.setVisible(this._isVisible);
 	}
 
 	public get title(): string {
@@ -369,6 +372,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 	}
 
 	public setVisible(visible: boolean): void {
+		this._isVisible = visible;
 		if (this._tabElement) {
 			this._tabElement.style.display = visible ? '' : 'none';
 		}

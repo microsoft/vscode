@@ -224,8 +224,6 @@ export class SearchEditor extends BaseTextEditor {
 
 		this._register(this.onDidBlur(() => this.saveViewState()));
 
-		this._register(this.searchResultEditor.onKeyDown(e => e.keyCode === KeyCode.Escape && this.queryEditorWidget.searchInput.focus()));
-
 		this._register(this.searchResultEditor.onDidChangeModelContent(() => this.getInput()?.setDirty(true)));
 
 		[this.queryEditorWidget.searchInputFocusTracker, this.queryEditorWidget.replaceInputFocusTracker, this.inputPatternExcludes.inputFocusTracker, this.inputPatternIncludes.inputFocusTracker]
@@ -245,6 +243,13 @@ export class SearchEditor extends BaseTextEditor {
 			this.searchResultEditor.focus();
 		} else {
 			this.queryEditorWidget.focus();
+		}
+	}
+
+	focusSearchInput() {
+		const viewState = this.loadViewState();
+		if (viewState && viewState.focused === 'editor') {
+			this.queryEditorWidget.searchInput.focus();
 		}
 	}
 

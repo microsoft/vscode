@@ -59,7 +59,7 @@ registerAction2(class extends Action2 {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext),
 				primary: KeyMod.WinCtrl | KeyCode.Enter,
 				win: {
-					primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.Enter
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter
 				},
 				weight: EDITOR_WIDGET_ACTION_WEIGHT
 			},

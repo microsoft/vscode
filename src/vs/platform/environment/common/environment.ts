@@ -39,7 +39,7 @@ export interface IEnvironmentService {
 	// --- settings sync
 	userDataSyncLogResource: URI;
 	userDataSyncHome: URI;
-	sync: 'on' | 'off';
+	sync: 'on' | 'off' | undefined;
 
 	// --- extension development
 	debugExtensionHost: IExtensionHostDebugParams;

@@ -138,9 +138,9 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			// userHomeSync is needed here as remote resolvers can launch local terminals before
 			// they're connected to the remote.
 			this.userHome = this._remotePathService.userHomeSync?.fsPath;
-			const userHomeUri = await this._remotePathService.userHome;
 			this.os = platform.OS;
 			if (launchRemotely) {
+				const userHomeUri = await this._remotePathService.userHome;
 				this.userHome = userHomeUri.path;
 				if (hasRemoteAuthority) {
 					const remoteEnv = await this._remoteAgentService.getEnvironment();

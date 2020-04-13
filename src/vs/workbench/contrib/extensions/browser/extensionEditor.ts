@@ -314,10 +314,10 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	async setInput(input: ExtensionsInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
+		await super.setInput(input, options, token);
 		if (this.template) {
 			await this.updateTemplate(input, this.template, !!options?.preserveFocus);
 		}
-		return super.setInput(input, options, token);
 	}
 
 	private async updateTemplate(input: ExtensionsInput, template: IExtensionEditorTemplate, preserveFocus: boolean): Promise<void> {

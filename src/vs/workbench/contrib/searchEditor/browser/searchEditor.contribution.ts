@@ -26,7 +26,7 @@ import { Extensions as EditorInputExtensions, IEditorInputFactory, IEditorInputF
 import * as SearchConstants from 'vs/workbench/contrib/search/common/constants';
 import * as SearchEditorConstants from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditor';
-import { modifySearchEditorContextLinesCommand, OpenResultsInEditorAction, OpenSearchEditorAction, OpenSearchEditorToSideAction, RerunSearchEditorSearchAction, selectAllSearchEditorMatchesCommand, toggleSearchEditorCaseSensitiveCommand, toggleSearchEditorContextLinesCommand, toggleSearchEditorRegexCommand, toggleSearchEditorWholeWordCommand } from 'vs/workbench/contrib/searchEditor/browser/searchEditorActions';
+import { modifySearchEditorContextLinesCommand, OpenResultsInEditorAction, OpenSearchEditorAction, OpenSearchEditorToSideAction, RerunSearchEditorSearchAction, selectAllSearchEditorMatchesCommand, toggleSearchEditorCaseSensitiveCommand, toggleSearchEditorContextLinesCommand, toggleSearchEditorRegexCommand, toggleSearchEditorWholeWordCommand, FocusQueryEditorWidgetAction } from 'vs/workbench/contrib/searchEditor/browser/searchEditorActions';
 import { getOrMakeSearchEditorInput, SearchEditorInput, SearchConfiguration } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { parseSavedSearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
@@ -209,6 +209,10 @@ registry.registerWorkbenchAction(
 registry.registerWorkbenchAction(SyncActionDescriptor.create(RerunSearchEditorSearchAction, RerunSearchEditorSearchAction.ID, RerunSearchEditorSearchAction.LABEL,
 	{ mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_R } }, ContextKeyExpr.and(SearchEditorConstants.InSearchEditor)),
 	'Search Editor: Search Again', category);
+
+registry.registerWorkbenchAction(SyncActionDescriptor.create(FocusQueryEditorWidgetAction, FocusQueryEditorWidgetAction.ID, FocusQueryEditorWidgetAction.LABEL,
+	{ primary: KeyCode.Escape }, ContextKeyExpr.and(SearchEditorConstants.InSearchEditor)),
+	'Search Editor: Focus Query Editor Widget', category);
 //#endregion
 
 

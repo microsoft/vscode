@@ -80,6 +80,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		}
 
 		const session = await provider.login(scopes);
+		await this._proxy.$setTrustedExtension(provider.id, session.accountName, ExtensionIdentifier.toKey(requestingExtension.identifier), extensionName);
 		return {
 			id: session.id,
 			accountName: session.accountName,

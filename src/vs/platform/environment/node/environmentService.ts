@@ -92,7 +92,7 @@ export class EnvironmentService implements INativeEnvironmentService {
 	get userDataSyncLogResource(): URI { return URI.file(path.join(this.logsPath, 'userDataSync.log')); }
 
 	@memoize
-	get sync(): 'on' | 'off' { return this.args.sync === 'off' ? 'off' : 'on'; }
+	get sync(): 'on' | 'off' | undefined { return this.args.sync; }
 
 	@memoize
 	get machineSettingsResource(): URI { return resources.joinPath(URI.file(path.join(this.userDataPath, 'Machine')), 'settings.json'); }

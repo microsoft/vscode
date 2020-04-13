@@ -158,6 +158,24 @@ export class RerunSearchEditorSearchAction extends Action {
 	}
 }
 
+export class FocusQueryEditorWidgetAction extends Action {
+	static readonly ID: string = Constants.FocusQueryEditorWidgetCommandId;
+	static readonly LABEL = localize('search.action.focusQueryEditorWidget', "Focus Query Editor Widget");
+
+	constructor(id: string, label: string,
+		@IEditorService private readonly editorService: IEditorService,
+	) {
+		super(id, label);
+	}
+
+	async run() {
+		const input = this.editorService.activeEditor;
+		if (input instanceof SearchEditorInput) {
+			(this.editorService.activeEditorPane as SearchEditor).focusSearchInput();
+		}
+	}
+}
+
 const openNewSearchEditor =
 	async (accessor: ServicesAccessor, toSide = false) => {
 		const editorService = accessor.get(IEditorService);
