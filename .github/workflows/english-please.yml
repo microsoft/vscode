@@ -13,7 +13,7 @@ jobs:
         uses: actions/checkout@v2
         with:
           repository: 'microsoft/vscode-github-triage-actions'
-          ref: master
+          ref: v5
           path: ./actions
       - name: Install Actions
         if: contains(github.event.issue.labels.*.name, '*english-please')
@@ -22,6 +22,7 @@ jobs:
         if: contains(github.event.issue.labels.*.name, '*english-please')
         uses: ./actions/english-please
         with:
+          token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
           cognitiveServicesAPIKey: ${{secrets.AZURE_TEXT_TRANSLATOR_KEY}}
           nonEnglishLabel: "*english-please"
           needsMoreInfoLabel: "needs more info"
