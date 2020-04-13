@@ -820,9 +820,7 @@ export class RepositoryPane extends ViewPane {
 		const onDidChangeContentHeight = Event.filter(this.inputEditor.onDidContentSizeChange, e => e.contentHeightChanged);
 		this._register(onDidChangeContentHeight(() => this.layoutBody()));
 
-		if (this.repository.provider.onDidChangeCommitTemplate) {
-			this._register(this.repository.provider.onDidChangeCommitTemplate(this.onDidChangeCommitTemplate, this));
-		}
+		this._register(this.repository.provider.onDidChangeCommitTemplate(this.onDidChangeCommitTemplate, this));
 
 		this.onDidChangeCommitTemplate();
 
