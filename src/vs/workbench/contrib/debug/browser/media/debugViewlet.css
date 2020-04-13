@@ -243,7 +243,7 @@
 }
 
 .debug-pane .debug-call-stack .show-more {
-	opacity: 0.35;
+	opacity: 0.5;
 	text-align: center;
 }
 
