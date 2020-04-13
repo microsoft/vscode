@@ -79,7 +79,7 @@ export class CustomEditorInputFactory extends WebviewEditorInputFactory {
 	): CustomEditorInput {
 		const data = this.fromJson(JSON.parse(serializedEditorInput));
 		const webview = CustomEditorInputFactory.reviveWebview(data, this._webviewService);
-		const customInput = this._instantiationService.createInstance(CustomEditorInput, data.editorResource, data.viewType, data.id, webview, { startsDirty: (data as any).dirty });
+		const customInput = this._instantiationService.createInstance(CustomEditorInput, URI.from(data.editorResource), data.viewType, data.id, webview, { startsDirty: (data as any).dirty });
 		if (typeof data.group === 'number') {
 			customInput.updateGroup(data.group);
 		}
