@@ -31,6 +31,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { Constants } from 'vs/base/common/uint';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 const DIFF_LINES_PADDING = 3;
 
@@ -38,6 +39,11 @@ const enum DiffEntryType {
 	Equal = 0,
 	Insert = 1,
 	Delete = 2
+}
+
+const enum DiffReviewState {
+	Review = 0,
+	Cursor = 1
 }
 
 class DiffEntry {
@@ -84,10 +90,12 @@ export class DiffReview extends Disposable {
 	private readonly scrollbar: DomScrollableElement;
 	private _diffs: Diff[];
 	private _currentDiff: Diff | null;
+	private _state: DiffReviewState;
 
 	constructor(diffEditor: DiffEditorWidget) {
 		super();
 		this._diffEditor = diffEditor;
+		this._state = DiffReviewState.Review;
 		this._isVisible = false;
 
 		this.shadow = createFastDomNode(document.createElement('div'));
@@ -125,6 +133,18 @@ export class DiffReview extends Disposable {
 			}
 			this._render();
 		}));
+		this._register(dom.addStandardDisposableListener(this.domNode.domNode, 'click', (e) => {
+			if (this._state !== DiffReviewState.Review) {
+				return;
+			}
+			e.preventDefault();
+
+			let row = dom.findParentWithClass(e.target, 'diff-review-row');
+			if (row) {
+				this._goToRow(row);
+			}
+
+		}));
 		this._register(dom.addStandardDisposableListener(this.domNode.domNode, 'paste', (e) => {
 			e.preventDefault();
 		}));
@@ -149,30 +169,82 @@ export class DiffReview extends Disposable {
 				e.preventDefault();
 				this.accept();
 			}
-			if (!(e.equals(KeyCode.UpArrow)		// Navigation
-				|| e.equals(KeyCode.DownArrow)
-				|| e.equals(KeyCode.LeftArrow)
-				|| e.equals(KeyCode.RightArrow)
-				|| e.equals(KeyCode.Home)
-				|| e.equals(KeyCode.End)
-				|| e.equals(KeyMod.Shift | KeyCode.UpArrow) // Selection
-				|| e.equals(KeyMod.Shift | KeyCode.DownArrow)
-				|| e.equals(KeyMod.Shift | KeyCode.LeftArrow)
-				|| e.equals(KeyMod.Shift | KeyCode.RightArrow)
-				|| e.equals(KeyMod.CtrlCmd | KeyCode.UpArrow) // Navigation
-				|| e.equals(KeyMod.CtrlCmd | KeyCode.DownArrow)
-				|| e.equals(KeyMod.CtrlCmd | KeyCode.LeftArrow) // Next/Previous word
-				|| e.equals(KeyMod.CtrlCmd | KeyCode.RightArrow)
-				|| e.equals(KeyMod.CtrlCmd | KeyCode.Home) // Jump to start of diff
-				|| e.equals(KeyMod.CtrlCmd | KeyCode.End) // Jump to end of diff
-				|| e.equals(KeyMod.CtrlCmd | KeyCode.KEY_A) // Select all
-				|| e.equals(KeyMod.CtrlCmd | KeyCode.KEY_C) // Copy
-			)) {
-				e.preventDefault(); // Block the other keys
+
+			if (
+				e.equals(KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_S)
+			) {
+				e.preventDefault();
+				this._toggleState();
+			}
+
+			if (this._state === DiffReviewState.Review) {
+				this._handleReviewStateKeys(e);
+			}
+			if (this._state === DiffReviewState.Cursor) {
+				this._handleCursorStateKeys(e);
 			}
 		}));
 		this._diffs = [];
 		this._currentDiff = null;
+	}
+
+
+	private _handleReviewStateKeys(e: IKeyboardEvent): void {
+		if (
+			e.equals(KeyCode.DownArrow)
+			|| e.equals(KeyMod.CtrlCmd | KeyCode.DownArrow)
+			|| e.equals(KeyMod.Alt | KeyCode.DownArrow)
+		) {
+			e.preventDefault();
+			this._goToRow(this._getNextRow());
+		}
+
+		if (
+			e.equals(KeyCode.UpArrow)
+			|| e.equals(KeyMod.CtrlCmd | KeyCode.UpArrow)
+			|| e.equals(KeyMod.Alt | KeyCode.UpArrow)
+		) {
+			e.preventDefault();
+			this._goToRow(this._getPrevRow());
+		}
+	}
+
+	private _handleCursorStateKeys(e: IKeyboardEvent): void {
+		if (!(e.equals(KeyCode.UpArrow)		// Navigation
+			|| e.equals(KeyCode.DownArrow)
+			|| e.equals(KeyCode.LeftArrow)
+			|| e.equals(KeyCode.RightArrow)
+			|| e.equals(KeyCode.Home)
+			|| e.equals(KeyCode.End)
+			|| e.equals(KeyMod.Shift | KeyCode.UpArrow) // Selection
+			|| e.equals(KeyMod.Shift | KeyCode.DownArrow)
+			|| e.equals(KeyMod.Shift | KeyCode.LeftArrow)
+			|| e.equals(KeyMod.Shift | KeyCode.RightArrow)
+			|| e.equals(KeyMod.CtrlCmd | KeyCode.UpArrow) // Navigation
+			|| e.equals(KeyMod.CtrlCmd | KeyCode.DownArrow)
+			|| e.equals(KeyMod.CtrlCmd | KeyCode.LeftArrow) // Next/Previous word
+			|| e.equals(KeyMod.CtrlCmd | KeyCode.RightArrow)
+			|| e.equals(KeyMod.CtrlCmd | KeyCode.Home) // Jump to start of diff
+			|| e.equals(KeyMod.CtrlCmd | KeyCode.End) // Jump to end of diff
+			|| e.equals(KeyMod.CtrlCmd | KeyCode.KEY_A) // Select all
+			|| e.equals(KeyMod.CtrlCmd | KeyCode.KEY_C) // Copy
+		)) {
+			e.preventDefault(); // Block the other keys
+		}
+	}
+
+	private _toggleState() {
+		if (this._state === DiffReviewState.Review) {
+			this._state = DiffReviewState.Cursor;
+
+			this._getTable().setAttribute('contentEditable', 'true');
+			this._showCarret();
+		}
+		else {
+			this._state = DiffReviewState.Review;
+			this._getTable().setAttribute('contentEditable', 'false');
+			this._goToRow(this._getFirstRow());
+		}
 	}
 
 	public prev(): void {
@@ -207,7 +279,7 @@ export class DiffReview extends Disposable {
 		this._isVisible = true;
 		this._diffEditor.doLayout();
 		this._render();
-		this._showCarret();
+		this._goToRow(this._getNextRow());
 	}
 
 	public next(): void {
@@ -242,7 +314,7 @@ export class DiffReview extends Disposable {
 		this._isVisible = true;
 		this._diffEditor.doLayout();
 		this._render();
-		this._showCarret();
+		this._goToRow(this._getNextRow());
 	}
 
 	private accept(): void {
@@ -269,6 +341,37 @@ export class DiffReview extends Disposable {
 		this._render();
 	}
 
+	private _getPrevRow(): HTMLElement {
+		let current = this._getCurrentFocusedRow();
+		if (!current) {
+			return this._getFirstRow();
+		}
+		if (current.previousElementSibling) {
+			return <HTMLElement>current.previousElementSibling;
+		}
+		return current;
+	}
+
+	private _getNextRow(): HTMLElement {
+		let current = this._getCurrentFocusedRow();
+		if (!current) {
+			return this._getFirstRow();
+		}
+		if (current.nextElementSibling) {
+			return <HTMLElement>current.nextElementSibling;
+		}
+		return current;
+	}
+
+	private _getFirstRow(): HTMLElement {
+		return <HTMLElement>this.domNode.domNode.querySelector('.diff-review-row');
+	}
+
+	private _getTable(): HTMLElement {
+		return <HTMLElement>this.domNode.domNode.querySelector('.diff-review-table');
+	}
+
+
 	private _getCurrentFocusedRow(): HTMLElement | null {
 		let result = <HTMLElement>document.activeElement;
 		if (result && /diff-review-row/.test(result.className)) {
@@ -277,9 +380,18 @@ export class DiffReview extends Disposable {
 		return null;
 	}
 
+	private _goToRow(row: HTMLElement): void {
+		let prev = this._getCurrentFocusedRow();
+		row.tabIndex = 0;
+		row.focus();
+		if (prev && prev !== row) {
+			prev.tabIndex = -1;
+		}
+		this.scrollbar.scanDomNode();
+	}
+
 	private _showCarret(): void {
-		let element = <HTMLElement>document.getElementsByClassName('diff-review-table')[0];
-		element.focus();
+		this._getTable().focus();
 	}
 
 	public isVisible(): boolean {
@@ -504,7 +616,7 @@ export class DiffReview extends Disposable {
 			this.scrollbar.scanDomNode();
 			return;
 		}
-
+		this._state = DiffReviewState.Review;
 		const diffIndex = this._findDiffIndex(this._diffEditor.getPosition()!);
 
 		if (this._diffs[diffIndex] === this._currentDiff) {
@@ -516,7 +628,6 @@ export class DiffReview extends Disposable {
 		let container = document.createElement('div');
 		container.className = 'diff-review-table';
 		container.setAttribute('role', 'list');
-		container.setAttribute('contentEditable', 'true');
 		container.setAttribute('aria-label', 'Difference review. Use "Stage | Unstage | Revert Selected Ranges" commands');
 		Configuration.applyFontInfoSlow(container, modifiedOptions.get(EditorOption.fontInfo));
 
@@ -695,6 +806,10 @@ export class DiffReview extends Disposable {
 				spacer.innerHTML = '&#160;&#160;';
 			}
 
+
+			originalLineNumber.setAttribute('aria-hidden', 'true');
+			modifiedLineNumber.setAttribute('aria-hidden', 'true');
+			spacer.setAttribute('aria-hidden', 'true');
 			lineNumbers.appendChild(originalLineNumber);
 			lineNumbers.appendChild(modifiedLineNumber);
 			lineNumbers.appendChild(spacer);
