@@ -7,23 +7,22 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import * as nls from 'vs/nls';
 import { IConfigurationNode, IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
-import { CustomEditorSelector } from 'vs/workbench/contrib/customEditor/common/customEditor';
-import { ContributedCustomEditors, defaultCustomEditor } from 'vs/workbench/contrib/customEditor/common/contributedCustomEditors';
-import { Disposable } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { ICustomEditorInfo } from 'vs/workbench/services/editor/common/editorService';
 
 export const customEditorsAssociationsSettingId = 'workbench.editorAssociations';
 
-export type CustomEditorAssociation = CustomEditorSelector & {
-	readonly viewType: string;
-};
-
-export type CustomEditorsAssociations = readonly CustomEditorAssociation[];
-
-const viewTypeSchamaAddition: IJSONSchema = {
+export const viewTypeSchamaAddition: IJSONSchema = {
 	type: 'string',
 	enum: []
 };
+
+export type CustomEditorAssociation = {
+	readonly viewType: string;
+	readonly filenamePattern?: string;
+};
+
+export type CustomEditorsAssociations = readonly CustomEditorAssociation[];
 
 export const editorAssociationsConfigurationNode: IConfigurationNode = {
 	...workbenchConfigurationNodeBase,
@@ -59,30 +58,19 @@ export const editorAssociationsConfigurationNode: IConfigurationNode = {
 	}
 };
 
-export class CustomEditorAssociationsSettingIntelliSense extends Disposable {
 
-	constructor(
-		private readonly _contributedCustomEditors: ContributedCustomEditors,
-	) {
-		super();
+const builtinProviderDisplayName = nls.localize('builtinProviderDisplayName', "Built-in");
 
-		this._register(_contributedCustomEditors.onChange(() => {
-			this.updateSchema();
-		}));
-		this.updateSchema();
-	}
+export const DEFAULT_CUSTOM_EDITOR: ICustomEditorInfo = {
+	id: 'default',
+	displayName: nls.localize('promptOpenWith.defaultEditor.displayName', "Text Editor"),
+	providerDisplayName: builtinProviderDisplayName
+};
 
-	private updateSchema() {
-		const enumValues: string[] = [];
-		const enumDescriptions: string[] = [];
-		for (const info of [defaultCustomEditor, ...this._contributedCustomEditors]) {
-			enumValues.push(info.id);
-			enumDescriptions.push(nls.localize('editorAssociations.viewType.sourceDescription', "Source: {0}", info.providerDisplayName));
-		}
-		viewTypeSchamaAddition.enum = enumValues;
-		viewTypeSchamaAddition.enumDescriptions = enumDescriptions;
+export function updateViewTypeSchema(enumValues: string[], enumDescriptions: string[]): void {
+	viewTypeSchamaAddition.enum = enumValues;
+	viewTypeSchamaAddition.enumDescriptions = enumDescriptions;
 
-		Registry.as<IConfigurationRegistry>(Extensions.Configuration)
-			.notifyConfigurationSchemaUpdated(editorAssociationsConfigurationNode);
-	}
+	Registry.as<IConfigurationRegistry>(Extensions.Configuration)
+		.notifyConfigurationSchemaUpdated(editorAssociationsConfigurationNode);
 }
