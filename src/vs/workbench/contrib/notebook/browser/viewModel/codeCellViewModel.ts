@@ -67,13 +67,11 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		@ITextModelService private readonly _modelService: ITextModelService,
 	) {
 		super(viewType, notebookHandle, model, UUID.generateUuid());
-		if (this.model.onDidChangeOutputs) {
-			this._register(this.model.onDidChangeOutputs((splices) => {
-				this._outputCollection = new Array(this.model.outputs.length);
-				this._outputsTop = null;
-				this._onDidChangeOutputs.fire(splices);
-			}));
-		}
+		this._register(this.model.onDidChangeOutputs((splices) => {
+			this._outputCollection = new Array(this.model.outputs.length);
+			this._outputsTop = null;
+			this._onDidChangeOutputs.fire(splices);
+		}));
 
 		this._register(this.model.onDidChangeMetadata(() => {
 			this._onDidChangeMetadata.fire();
