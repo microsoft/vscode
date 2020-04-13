@@ -870,8 +870,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 					tooltip: openSideBySideDirection === 'right' ? localize('openToSide', "Open to the Side") : localize('openToBottom', "Open to the Bottom")
 				});
 
-				// Remove from History (unless quick navigating)
-				if (!this.pickState.isQuickNavigating && isEditorHistoryEntry) {
+				// Remove from History
+				if (isEditorHistoryEntry) {
 					buttons.push({
 						iconClass: isDirty ? 'dirty-anything codicon-circle-filled' : 'codicon-close',
 						tooltip: localize('closeEditor', "Remove from Recently Opened"),
