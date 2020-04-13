@@ -845,7 +845,7 @@ export class TabsTitleControl extends TitleControl {
 			name: editor.getName(),
 			description: editor.getDescription(verbosity),
 			title: withNullAsUndefined(editor.getTitle(Verbosity.LONG)),
-			ariaLabel: editor.getTitle(Verbosity.SHORT)
+			ariaLabel: editor.isReadonly() ? localize('readonlyEditor', "{0} readonly", editor.getTitle(Verbosity.SHORT)) : editor.getTitle(Verbosity.SHORT)
 		}));
 
 		// Shorten labels as needed
