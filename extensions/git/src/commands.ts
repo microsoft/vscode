@@ -236,6 +236,7 @@ interface PushOptions {
 export class CommandCenter {
 
 	private disposables: Disposable[];
+	private lastCommandErrorOutput = '';
 
 	constructor(
 		private git: Git,
@@ -252,6 +253,13 @@ export class CommandCenter {
 				return commands.registerCommand(commandId, command);
 			}
 		});
+		this.disposables.push(
+			workspace.registerTextDocumentContentProvider('git-output', this)
+		);
+	}
+
+	async provideTextDocumentContent(): Promise<string> {
+		return this.lastCommandErrorOutput;
 	}
 
 	@command('git.setLogLevel')
@@ -2435,6 +2443,16 @@ export class CommandCenter {
 				const openOutputChannelChoice = localize('open git log', "Open Git Log");
 				const outputChannel = this.outputChannel as OutputChannel;
 				choices.set(openOutputChannelChoice, () => outputChannel.show());
+				const showCommandOutputChoice = localize('show command output', 'Show Command Output');
+				if (err.stderr) {
+					choices.set(showCommandOutputChoice, () => {
+						this.lastCommandErrorOutput = err.stderr;
+						const uri = Uri.parse(`git-output://command-error/${err.gitCommand}-${Math.random().toString(16).slice(2, 10)}`);
+						workspace.openTextDocument(uri).then(doc => {
+							return window.showTextDocument(doc);
+						});
+					});
+				}
 
 				switch (err.gitErrorCode) {
 					case GitErrorCodes.DirtyWorkTree:
