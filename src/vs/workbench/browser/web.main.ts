@@ -33,7 +33,7 @@ import { WorkspaceService } from 'vs/workbench/services/configuration/browser/co
 import { ConfigurationCache } from 'vs/workbench/services/configuration/browser/configurationCache';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/browser/signService';
-import { IWorkbenchConstructionOptions, IWorkspace } from 'vs/workbench/workbench.web.api';
+import { IWorkbenchConstructionOptions, IWorkspace, IWorkbench } from 'vs/workbench/workbench.web.api';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { BACKUPS } from 'vs/platform/environment/common/environment';
 import { joinPath } from 'vs/base/common/resources';
@@ -51,6 +51,7 @@ import { getWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser
 import { coalesce } from 'vs/base/common/arrays';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { WebResourceIdentityService, IResourceIdentityService } from 'vs/platform/resource/common/resourceIdentityService';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 class BrowserMain extends Disposable {
 
@@ -61,7 +62,7 @@ class BrowserMain extends Disposable {
 		super();
 	}
 
-	async open(): Promise<void> {
+	async open(): Promise<IWorkbench> {
 		const services = await this.initServices();
 
 		await domContentLoaded();
@@ -86,7 +87,18 @@ class BrowserMain extends Disposable {
 		}
 
 		// Startup
-		workbench.startup();
+		const instantiationService = workbench.startup();
+
+		// Return API Facade
+		return instantiationService.invokeFunction(accessor => {
+			const commandService = accessor.get(ICommandService);
+
+			return {
+				commands: {
+					executeCommand: (command, ...args) => commandService.executeCommand(command, ...args)
+				}
+			};
+		});
 	}
 
 	private registerListeners(workbench: Workbench, storageService: BrowserStorageService): void {
@@ -335,8 +347,8 @@ class BrowserMain extends Disposable {
 	}
 }
 
-export function main(domElement: HTMLElement, options: IWorkbenchConstructionOptions): Promise<void> {
-	const renderer = new BrowserMain(domElement, options);
+export function main(domElement: HTMLElement, options: IWorkbenchConstructionOptions): Promise<IWorkbench> {
+	const workbench = new BrowserMain(domElement, options);
 
-	return renderer.open();
+	return workbench.open();
 }
