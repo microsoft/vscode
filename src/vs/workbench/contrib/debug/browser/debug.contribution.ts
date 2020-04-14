@@ -686,24 +686,29 @@ registerThemingParticipant((theme, collector) => {
 			color: ${tokenNameColor};
 		}
 
-		.monaco-workbench .monaco-list-row .expression .value {
+		.monaco-workbench .monaco-list-row .expression .value,
+		.monaco-workbench .debug-hover-widget .value {
 			color: ${tokenValueColor};
 		}
 
-		.monaco-workbench .monaco-list-row .expression .value.string {
+		.monaco-workbench .monaco-list-row .expression .value.string,
+		.monaco-workbench .debug-hover-widget .value.string {
 			color: ${tokenStringColor};
 		}
 
-		.monaco-workbench .monaco-list-row .expression .value.boolean {
+		.monaco-workbench .monaco-list-row .expression .value.boolean,
+		.monaco-workbench .debug-hover-widget .value.boolean {
 			color: ${tokenBooleanColor};
 		}
 
 		.monaco-workbench .monaco-list-row .expression .error,
+		.monaco-workbench .debug-hover-widget .error,
 		.monaco-workbench .debug-pane .debug-variables .scope .error {
 			color: ${tokenErrorColor};
 		}
 
-		.monaco-workbench .monaco-list-row .expression .value.number {
+		.monaco-workbench .monaco-list-row .expression .value.number,
+		.monaco-workbench .debug-hover-widget .value.number {
 			color: ${tokenNumberColor};
 		}
 	`);
