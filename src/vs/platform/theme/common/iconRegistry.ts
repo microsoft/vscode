@@ -99,6 +99,7 @@ class IconRegistry implements IIconRegistry {
 		if (deprecationMessage) {
 			propertySchema.deprecationMessage = deprecationMessage;
 		}
+		propertySchema.markdownDescription = localize('iconPreview', "Current icon: {0}", `$(${id})`);
 		this.iconSchema.properties[id] = propertySchema;
 		this.iconReferenceSchema.enum.push(id);
 		this.iconReferenceSchema.enumDescriptions.push(description);
