@@ -667,7 +667,13 @@ export class ExplorerView extends ViewPane {
 			item = first(values(item.children), i => isEqualOrParent(resource, i.resource));
 		}
 
-		if (item && item.parent) {
+		if (item) {
+			if (item === this.tree.getInput()) {
+				this.tree.setFocus([]);
+				this.tree.setSelection([]);
+				return;
+			}
+
 			try {
 				if (reveal) {
 					if (item.isDisposed) {
