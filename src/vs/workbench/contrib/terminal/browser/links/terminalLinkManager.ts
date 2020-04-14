@@ -30,6 +30,8 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { isEqualOrParent } from 'vs/base/common/resources';
+import { ISearchService } from 'vs/workbench/services/search/common/search';
+import { QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
 
 const pathPrefix = '(\\.\\.?|\\~)';
 const pathSeparatorClause = '\\/';
@@ -91,6 +93,7 @@ export class TerminalLinkManager extends DisposableStore {
 	private _webLinksAddon: ITerminalAddon | undefined;
 	private _linkProviders: IDisposable[] = [];
 	private _hasBeforeHandleLinkListeners = false;
+	private readonly _fileQueryBuilder = this._instantiationService.createInstance(QueryBuilder);
 
 	protected static _LINK_INTERCEPT_THRESHOLD = LINK_INTERCEPT_THRESHOLD;
 	public static readonly LINK_INTERCEPT_THRESHOLD = TerminalLinkManager._LINK_INTERCEPT_THRESHOLD;
@@ -120,7 +123,8 @@ export class TerminalLinkManager extends DisposableStore {
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
-		@IHostService private readonly _hostService: IHostService
+		@IHostService private readonly _hostService: IHostService,
+		@ISearchService private readonly _searchService: ISearchService
 	) {
 		super();
 
@@ -322,7 +326,24 @@ export class TerminalLinkManager extends DisposableStore {
 		const tooltipWordCallback = (event: MouseEvent, link: string, location: IViewportRange) => {
 			this._tooltipCallback(event, link, location, link => this._quickInputService.quickAccess.show(link));
 		};
-		const wrappedWordActivateCallback = this._wrapLinkHandler(link => this._quickInputService.quickAccess.show(link));
+		const wrappedWordActivateCallback = this._wrapLinkHandler(async link => {
+			const results = await this._searchService.fileSearch(
+				this._fileQueryBuilder.file(this._workspaceContextService.getWorkspace().folders, {
+					filePattern: link,
+					maxResults: 2
+				})
+			);
+
+			// If there was exactly one match, open it
+			if (results.results.length === 1) {
+				const match = results.results[0];
+				await this._editorService.openEditor({ resource: match.resource, options: { pinned: true } });
+				return;
+			}
+
+			// Fallback to searching quick access
+			this._quickInputService.quickAccess.show(link);
+		});
 		this._linkProviders.push(this._xterm.registerLinkProvider(
 			this._instantiationService.createInstance(TerminalWordLinkProvider, this._xterm, wrappedWordActivateCallback, tooltipWordCallback, this._leaveCallback)
 		));
