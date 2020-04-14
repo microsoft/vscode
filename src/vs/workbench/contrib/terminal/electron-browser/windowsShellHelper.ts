@@ -151,9 +151,8 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 			case 'cmd.exe':
 				return WindowsShellType.CommandPrompt;
 			case 'powershell.exe':
-				return WindowsShellType.PowerShell;
 			case 'pwsh.exe':
-				return WindowsShellType.Pwsh;
+				return WindowsShellType.PowerShell;
 			case 'bash.exe':
 				return WindowsShellType.GitBash;
 			case 'wsl.exe':

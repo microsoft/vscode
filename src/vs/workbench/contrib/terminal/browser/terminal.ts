@@ -188,8 +188,7 @@ export interface ISearchOptions {
 
 export enum WindowsShellType {
 	CommandPrompt = 'cmd',
-	PowerShell = 'powershell',
-	Pwsh = 'pwsh',
+	PowerShell = 'pwsh',
 	Wsl = 'wsl',
 	GitBash = 'gitbash'
 }
