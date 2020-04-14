@@ -23,8 +23,9 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { IEnvironmentVariableService, IMergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
+import { IEnvironmentVariableService, IMergedEnvironmentVariableCollection, IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
+import { EnvironmentVariableInfoStale } from 'vs/workbench/contrib/terminal/common/environmentVariableInfo';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -77,6 +78,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	public get onProcessOverrideDimensions(): Event<ITerminalDimensions | undefined> { return this._onProcessOverrideDimensions.event; }
 	private readonly _onProcessOverrideShellLaunchConfig = this._register(new Emitter<IShellLaunchConfig>());
 	public get onProcessResolvedShellLaunchConfig(): Event<IShellLaunchConfig> { return this._onProcessOverrideShellLaunchConfig.event; }
+	private readonly _onEnvironmentVariableInfoChange = this._register(new Emitter<IEnvironmentVariableInfo>());
+	public get onEnvironmentVariableInfoChanged(): Event<IEnvironmentVariableInfo> { return this._onEnvironmentVariableInfoChange.event; }
 
 	constructor(
 		private readonly _terminalId: number,
@@ -320,10 +323,13 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 	private _onEnvironmentVariableCollectionChange(newCollection: IMergedEnvironmentVariableCollection): void {
 		// TODO: React to changes in environment variable collections
-		// const newAdditions = this._extEnvironmentVariableCollection!.getNewAdditions(newCollection);
-		// if (newAdditions === undefined) {
-		// 	return;
-		// }
+		const diff = this._extEnvironmentVariableCollection!.diff(newCollection);
+		if (diff === undefined) {
+			return;
+		}
+		console.log('environments differ', diff);
+		const info = new EnvironmentVariableInfoStale();
+		this._onEnvironmentVariableInfoChange.fire(info);
 		// const promptChoices: IPromptChoice[] = [
 		// 	{
 		// 		label: nls.localize('apply', "Apply"),
