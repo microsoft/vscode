@@ -42,7 +42,7 @@ steps:
     ./scripts/test.sh --tfs "Unit Tests"
   displayName: Run Unit Tests (Electron)
 - script: |
-    yarn test-browser --browser chromium --browser webkit
+    yarn test-browser --browser chromium --browser webkit --browser firefox
   displayName: Run Unit Tests (Browser)
 - script: |
     ./scripts/test-integration.sh --tfs "Integration Tests"

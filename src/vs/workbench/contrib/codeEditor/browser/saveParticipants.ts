@@ -305,19 +305,19 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 	private async applyOnSaveActions(model: ITextModel, codeActionsOnSave: readonly CodeActionKind[], excludes: readonly CodeActionKind[], progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
 
 		const getActionProgress = new class implements IProgress<CodeActionProvider> {
-			private _names: string[] = [];
+			private _names = new Set<string>();
 			private _report(): void {
 				progress.report({
 					message: localize(
 						'codeaction.get',
 						"Getting code actions from '{0}' ([configure](command:workbench.action.openSettings?%5B%22editor.codeActionsOnSave%22%5D)).",
-						this._names.map(name => `'${name}'`).join(', ')
+						[...this._names].map(name => `'${name}'`).join(', ')
 					)
 				});
 			}
 			report(provider: CodeActionProvider) {
-				if (provider.displayName) {
-					this._names.push(provider.displayName);
+				if (provider.displayName && !this._names.has(provider.displayName)) {
+					this._names.add(provider.displayName);
 					this._report();
 				}
 			}
