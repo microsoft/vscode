@@ -25,7 +25,6 @@ const cp = require('child_process');
 const REPO_ROOT = path.dirname(__dirname);
 
 const BUILD_TARGETS = [
-	{ platform: 'win32', arch: 'arm64', pkgTarget: 'node8-win-arm64' },
 	{ platform: 'win32', arch: 'ia32', pkgTarget: 'node8-win-x86' },
 	{ platform: 'win32', arch: 'x64', pkgTarget: 'node8-win-x64' },
 	{ platform: 'darwin', arch: null, pkgTarget: 'node8-macos-x64' },

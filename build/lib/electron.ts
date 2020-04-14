@@ -107,7 +107,7 @@ function getElectron(arch: string): () => NodeJS.ReadWriteStream {
 	};
 }
 
-async function main(arch = process.env["npm_config_arch"] || process.arch): Promise<void> {
+async function main(arch = process.arch): Promise<void> {
 	const version = getElectronVersion();
 	const electronPath = path.join(root, '.build', 'electron');
 	const versionFile = path.join(electronPath, 'version');

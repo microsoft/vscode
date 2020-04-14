@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.config = exports.getElectronVersion = void 0;
 const fs = require("fs");
 const path = require("path");
 const vfs = require("vinyl-fs");
@@ -98,7 +99,7 @@ function getElectron(arch) {
             .pipe(vfs.dest('.build/electron'));
     };
 }
-async function main(arch = process.env["npm_config_arch"] || process.arch) {
+async function main(arch = process.arch) {
     const version = getElectronVersion();
     const electronPath = path.join(root, '.build', 'electron');
     const versionFile = path.join(electronPath, 'version');
