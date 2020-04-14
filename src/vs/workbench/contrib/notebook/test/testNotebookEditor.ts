@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { PieceTreeTextBufferFactory } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
-import { CellKind, ICell, IOutput, NotebookCellOutputsSplice, CellUri, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, IOutput, CellUri, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookViewModel, IModelDecorationsChangeAccessor, CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
@@ -22,47 +21,16 @@ import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/mode
 import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 
-export class TestCell implements ICell {
-	uri: URI;
-	private _onDidChangeContent = new Emitter<void>();
-	onDidChangeContent: Event<void> = this._onDidChangeContent.event;
-
-	private _onDidChangeOutputs = new Emitter<NotebookCellOutputsSplice[]>();
-	onDidChangeOutputs: Event<NotebookCellOutputsSplice[]> = this._onDidChangeOutputs.event;
-	private _onDidChangeLanguage = new Emitter<string>();
-	onDidChangeLanguage: Event<string> = this._onDidChangeLanguage.event;
-	private _onDidChangeMetadata = new Emitter<void>();
-	onDidChangeMetadata: Event<void> = this._onDidChangeMetadata.event;
-	private _isDirty: boolean = false;
-	private _outputs: IOutput[];
-
-	get metadata(): NotebookCellMetadata {
-		return { editable: true };
-	}
-
-	get outputs(): IOutput[] {
-		return this._outputs;
-	}
-
-	get isDirty() {
-		return this._isDirty;
-	}
-
-	set isDirty(newState: boolean) {
-		this._isDirty = newState;
-
-	}
-
+export class TestCell extends NotebookCellTextModel {
 	constructor(
 		public viewType: string,
-		public handle: number,
-		public source: string[],
-		public language: string,
-		public cellKind: CellKind,
+		handle: number,
+		source: string[],
+		language: string,
+		cellKind: CellKind,
 		outputs: IOutput[]
 	) {
-		this._outputs = outputs;
-		this.uri = CellUri.generate(URI.parse('test:///fake/notebook'), handle);
+		super(CellUri.generate(URI.parse('test:///fake/notebook'), handle), handle, source, language, cellKind, outputs, undefined);
 	}
 	contentChange(): void {
 		// throw new Error('Method not implemented.');

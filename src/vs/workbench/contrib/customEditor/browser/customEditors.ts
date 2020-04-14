@@ -416,6 +416,10 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 		// when the user switches back to it.
 		const existingEditorForResource = group.editors.find(editor => isEqual(resource, editor.resource));
 		if (existingEditorForResource) {
+			if (editor === existingEditorForResource) {
+				return;
+			}
+
 			return {
 				override: this.editorService.openEditor(existingEditorForResource, {
 					...options,

@@ -60,7 +60,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		this._authenticationProviders.set(id, authenticationProvider);
 		this._onDidRegisterAuthenticationProvider.fire(id);
 
-		if (authenticationProvider.dependents.length && this._placeholderMenuItem) {
+		if (this._placeholderMenuItem) {
 			this._placeholderMenuItem.dispose();
 			this._placeholderMenuItem = undefined;
 		}

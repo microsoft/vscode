@@ -81,16 +81,11 @@
 .repl .repl-input-wrapper {
 	display: flex;
 	align-items: center;
-	border-top: 1px solid rgba(128, 128, 128, 0.35);
 }
 
 /* Only show 'stale expansion' info when the element gets expanded. */
 .repl .repl-tree .evaluation-result > .annotation::before  {
 	content: '';
-}
-
-.hc-black .repl .repl-input-wrapper {
-	border-top-color: #6FC3DF;
 }
 
 .repl .repl-input-wrapper .repl-input-chevron {
@@ -108,18 +103,6 @@
 	font-style: italic;
 }
 
-.vs .repl .repl-tree .output.expression > .warn {
-	color: #cd9731;
-}
-
-.vs-dark .repl .repl-tree .output.expression > .warn {
-	color: #cd9731;
-}
-
-.hc-black .repl .repl-tree .output.expression > .warn {
-	color: #008000;
-}
-
 .vs .repl .repl-tree .output.expression > .annotation {
 	color: #007ACC;
 }
@@ -130,6 +113,18 @@
 
 .hc-black .repl .repl-tree .output.expression > .annotation {
 	color: #0000FF;
+}
+
+.vs .repl .repl-tree .output.expression > .warn {
+	color: #cd9731;
+}
+
+.vs-dark .repl .repl-tree .output.expression > .warn {
+	color: #cd9731;
+}
+
+.hc-black .repl .repl-tree .output.expression > .warn {
+	color: #008000;
 }
 
 /* ANSI Codes */

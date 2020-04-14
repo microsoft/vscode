@@ -50,7 +50,7 @@ export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQ
 		const taskPicks: Array<IPickerQuickAccessItem | IQuickPickSeparator> = [];
 
 		for (const entry of topLevelPicks.entries) {
-			const highlights = matchesFuzzy(filter, entry.label!, true);
+			const highlights = matchesFuzzy(filter, entry.label!);
 			if (!highlights) {
 				continue;
 			}

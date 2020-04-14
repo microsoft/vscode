@@ -126,6 +126,9 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 			ctorDescriptor: new SyncDescriptor(EmptyView),
 			order: 1,
 			canToggleVisibility: true,
+			focusCommand: {
+				id: 'workbench.explorer.fileView.focus'
+			}
 		};
 	}
 
@@ -135,7 +138,10 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 			name: localize('folders', "Folders"),
 			ctorDescriptor: new SyncDescriptor(ExplorerView),
 			order: 1,
-			canToggleVisibility: false
+			canToggleVisibility: false,
+			focusCommand: {
+				id: 'workbench.explorer.fileView.focus'
+			}
 		};
 	}
 

@@ -44,7 +44,12 @@ configurationRegistry.registerConfiguration({
 	properties: {
 		'timeline.excludeSources': {
 			type: 'array',
-			description: localize('timeline.excludeSources', "Experimental: An array of Timeline sources that should be excluded from the Timeline view"),
+			description: localize('timeline.excludeSources', "An array of Timeline sources that should be excluded from the Timeline view"),
+			default: null
+		},
+		'timeline.pageSize': {
+			type: 'number',
+			markdownDescription: localize('timeline.pageSize', "The number of items to show in the Timeline view by default and when loading more items. Setting to `null` (the default) will automatically choose a page size based on the visible area of the Timeline view"),
 			default: null
 		},
 	}

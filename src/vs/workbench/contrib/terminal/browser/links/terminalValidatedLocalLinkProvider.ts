@@ -6,6 +6,7 @@
 import { Terminal, ILinkProvider, IViewportRange, IBufferCellPosition, ILink, IBufferLine } from 'xterm';
 import { getXtermLineContent, convertLinkRangeToBuffer, convertBufferRangeToViewport, positionIsInRange, TOOLTIP_HOVER_THRESHOLD } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
 import { OperatingSystem } from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
 
 const pathPrefix = '(\\.\\.?|\\~)';
 const pathSeparatorClause = '\\/';
@@ -37,10 +38,11 @@ export class TerminalValidatedLocalLinkProvider implements ILinkProvider {
 	constructor(
 		private readonly _xterm: Terminal,
 		private readonly _processOperatingSystem: OperatingSystem,
-		private readonly _activateCallback: (event: MouseEvent, uri: string) => void,
-		private readonly _tooltipCallback: (event: MouseEvent, uri: string, location: IViewportRange) => boolean | void,
+		private readonly _activateFileCallback: (event: MouseEvent, link: string) => void,
+		private readonly _activateDirectoryCallback: (event: MouseEvent, link: string, uri: URI) => void,
+		private readonly _tooltipCallback: (event: MouseEvent, link: string, location: IViewportRange) => boolean | void,
 		private readonly _leaveCallback: () => void,
-		private readonly _validationCallback: (uri: string, callback: (isValid: boolean) => void) => void
+		private readonly _validationCallback: (link: string, callback: (result: { uri: URI, isDirectory: boolean } | undefined) => void) => void
 	) {
 	}
 
@@ -69,9 +71,9 @@ export class TerminalValidatedLocalLinkProvider implements ILinkProvider {
 		let match;
 		let stringIndex = -1;
 		while ((match = rex.exec(text)) !== null) {
-			// const uri = match[typeof matcher.matchIndex !== 'number' ? 0 : matcher.matchIndex];
-			const uri = match[0];
-			if (!uri) {
+			// const link = match[typeof matcher.matchIndex !== 'number' ? 0 : matcher.matchIndex];
+			const link = match[0];
+			if (!link) {
 				// something matched but does not comply with the given matchIndex
 				// since this is most likely a bug the regex itself we simply do nothing here
 				// this._logService.debug('match found without corresponding matchIndex', match, matcher);
@@ -82,8 +84,8 @@ export class TerminalValidatedLocalLinkProvider implements ILinkProvider {
 			// therefore we cannot use match.index directly, instead we search the position
 			// of the match group in text again
 			// also correct regex and string search offsets for the next loop run
-			stringIndex = text.indexOf(uri, stringIndex + 1);
-			rex.lastIndex = stringIndex + uri.length;
+			stringIndex = text.indexOf(link, stringIndex + 1);
+			rex.lastIndex = stringIndex + link.length;
 			if (stringIndex < 0) {
 				// invalid stringIndex (should not have happened)
 				break;
@@ -93,18 +95,24 @@ export class TerminalValidatedLocalLinkProvider implements ILinkProvider {
 			const bufferRange = convertLinkRangeToBuffer(lines, this._xterm.cols, {
 				startColumn: stringIndex + 1,
 				startLineNumber: 1,
-				endColumn: stringIndex + uri.length + 1,
+				endColumn: stringIndex + link.length + 1,
 				endLineNumber: 1
 			}, startLine);
 
 			if (positionIsInRange(position, bufferRange)) {
-				this._validationCallback(uri, isValid => {
-					if (isValid) {
+				this._validationCallback(link, (result) => {
+					if (result) {
 						let timeout: number | undefined;
 						callback({
-							text: uri,
+							text: link,
 							range: bufferRange,
-							activate: (event: MouseEvent, text: string) => this._activateCallback(event, text),
+							activate: (event: MouseEvent, text: string) => {
+								if (result.isDirectory) {
+									this._activateDirectoryCallback(event, text, result.uri);
+								} else {
+									this._activateFileCallback(event, text);
+								}
+							},
 							hover: (event: MouseEvent, text: string) => {
 								timeout = window.setTimeout(() => {
 									this._tooltipCallback(event, text, convertBufferRangeToViewport(bufferRange, this._xterm.buffer.active.viewportY));

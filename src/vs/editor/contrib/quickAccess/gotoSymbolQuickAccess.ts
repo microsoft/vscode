@@ -13,10 +13,10 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { AbstractEditorNavigationQuickAccessProvider, IEditorNavigationQuickAccessOptions } from 'vs/editor/contrib/quickAccess/editorNavigationQuickAccess';
 import { DocumentSymbol, SymbolKinds, SymbolTag, DocumentSymbolProviderRegistry, SymbolKind } from 'vs/editor/common/modes';
 import { OutlineModel, OutlineElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
-import { values } from 'vs/base/common/collections';
 import { trim, format } from 'vs/base/common/strings';
 import { prepareQuery, IPreparedQuery, pieceToQuery, scoreFuzzy2 } from 'vs/base/common/fuzzyScorer';
 import { IMatch } from 'vs/base/common/filters';
+import { Iterable } from 'vs/base/common/iterator';
 
 export interface IGotoSymbolQuickPickItem extends IQuickPickItem {
 	kind: SymbolKind,
@@ -413,11 +413,11 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 		}
 
 		const roots: DocumentSymbol[] = [];
-		for (const child of values(model.children)) {
+		for (const child of model.children.values()) {
 			if (child instanceof OutlineElement) {
 				roots.push(child.symbol);
 			} else {
-				roots.push(...values(child.children).map(child => child.symbol));
+				roots.push(...Iterable.map(child.children.values(), child => child.symbol));
 			}
 		}
 
