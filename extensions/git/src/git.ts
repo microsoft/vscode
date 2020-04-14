@@ -313,24 +313,23 @@ class SshAgent {
 	private _sshAuthSock = '';
 
 	private _sshBinDir: string | undefined;
-	get sshBinDir() { return this._sshBinDir; }
 
 	get env() {
-		return {
+		return Object.assign(this._sshBinDir ? { 'GIT_SSH': path.join(this._sshBinDir, 'ssh') } : {}, {
 			'SSH_AGENT_PID': this._sshAgentPid,
 			'SSH_AUTH_SOCK': this._sshAuthSock
-		};
+		});
 	}
 
 	async start(): Promise<void> {
+		if ('SSH_AUTH_SOCK' in process.env && process.env['SSH_AUTH_SOCK']) {
+			this._sshAuthSock = process.env['SSH_AUTH_SOCK'];
+			return Promise.resolve();
+		}
+
 		return this.getCommand('ssh-agent')
-			.then(sshAgentCommand => {
-				const sshAgentBinDir = path.dirname(sshAgentCommand);
-				if (sshAgentBinDir !== '.') {
-					this._sshBinDir = sshAgentBinDir;
-				}
-				return exec(cp.spawn(sshAgentCommand, ['-s']));
-			}).then(sshAgentResult => sshAgentResult.stdout
+			.then(sshAgentCommand => exec(cp.spawn(sshAgentCommand, ['-s'])))
+			.then(sshAgentResult => sshAgentResult.stdout
 				.toString()
 				.split('\n')
 				.forEach(outputLine => {
@@ -357,8 +356,7 @@ class SshAgent {
 			const env: { [key: string]: string } = {};
 			Object.entries(Object.assign({}, process.env, this.env)).forEach(([key, value]) => env[key] = value || '');
 
-			// It seems that child_process.spawn cannot communicate with Windows OpenSSH ssh-agent,
-			// so pty.spawn is used instead
+			// ssh-add requires a TTY, so child_process.spawn is not enough here
 			const sshAddProcess = pty.spawn(sshAddCommand, [privateKeyPath], { env });
 
 			sshAddProcess.on('data', data => {
@@ -396,8 +394,8 @@ class SshAgent {
 	}
 
 	private async getCommand(commandName: string): Promise<string> {
-		if (this.sshBinDir) {
-			return which(path.join(this.sshBinDir, commandName));
+		if (this._sshBinDir) {
+			return which(path.join(this._sshBinDir, commandName));
 		}
 
 		const gitConfig = workspace.getConfiguration('git');
@@ -417,7 +415,13 @@ class SshAgent {
 			.reduce(
 				(previousPromise: Promise<string>, commandName: string) => previousPromise.catch(() => which(commandName)),
 				basePromise
-			).catch(reason => {
+			).then(commandPath => {
+				const commandDir = path.dirname(commandPath);
+				if (commandDir !== '.') {
+					this._sshBinDir = commandDir;
+				}
+				return commandPath;
+			}).catch(reason => {
 				window.showErrorMessage(localize('failed to find command', "Failed to find command '{0}'", commandName));
 				return Promise.reject(reason);
 			});
@@ -478,14 +482,6 @@ export class Git {
 
 	open(repository: string, dotGit: string): Repository {
 		return new Repository(this, repository, dotGit);
-	}
-
-	async startSshAgent(): Promise<void> {
-		return this.sshAgent.start().then(() => {
-			if (this.sshAgent.sshBinDir) {
-				this.env['GIT_SSH'] = path.join(this.sshAgent.sshBinDir, 'ssh');
-			}
-		});
 	}
 
 	async init(repository: string): Promise<void> {
