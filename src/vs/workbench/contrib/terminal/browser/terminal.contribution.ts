@@ -153,7 +153,7 @@ if (BrowserFeatures.clipboard.readText) {
 	// shell, this gets handled by PSReadLine which properly handles multi-line pastes
 	if (platform.isWindows) {
 		registerSendSequenceKeybinding(String.fromCharCode('V'.charCodeAt(0) - 64), { // ctrl+v
-			when: ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_FOCUS, ContextKeyExpr.equals(KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE_KEY, WindowsShellType.PowerShell)),
+			when: ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_FOCUS, ContextKeyExpr.equals(KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE_KEY, WindowsShellType.Pwsh)),
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_V
 		});
 	}
