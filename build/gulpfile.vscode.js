@@ -324,9 +324,9 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 const buildRoot = path.dirname(root);
 
 const BUILD_TARGETS = [
-	{ platform: 'win32', arch: 'arm64' },
 	{ platform: 'win32', arch: 'ia32' },
 	{ platform: 'win32', arch: 'x64' },
+	{ platform: 'win32', arch: 'arm64' },
 	{ platform: 'darwin', arch: null, opts: { stats: true } },
 	{ platform: 'linux', arch: 'ia32' },
 	{ platform: 'linux', arch: 'x64' },
