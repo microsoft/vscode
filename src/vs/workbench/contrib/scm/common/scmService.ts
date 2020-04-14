@@ -6,6 +6,7 @@
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ISCMService, ISCMProvider, ISCMInput, ISCMRepository, IInputValidator } from './scm';
+import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
 import { equals } from 'vs/base/common/arrays';
 
@@ -88,6 +89,7 @@ class SCMRepository implements ISCMRepository {
 	readonly input: ISCMInput = new SCMInput();
 
 	constructor(
+		public readonly name: string,
 		public readonly provider: ISCMProvider,
 		private disposable: IDisposable
 	) { }
@@ -131,7 +133,10 @@ export class SCMService implements ISCMService {
 	private readonly _onDidRemoveProvider = new Emitter<ISCMRepository>();
 	readonly onDidRemoveRepository: Event<ISCMRepository> = this._onDidRemoveProvider.event;
 
-	constructor(@ILogService private readonly logService: ILogService) { }
+	constructor(
+		@ILogService private readonly logService: ILogService,
+		@ILabelService private readonly labelService: ILabelService
+	) { }
 
 	registerSCMProvider(provider: ISCMProvider): ISCMRepository {
 		this.logService.trace('SCMService#registerSCMProvider');
@@ -156,7 +161,14 @@ export class SCMService implements ISCMService {
 			this.onDidChangeSelection();
 		});
 
-		const repository = new SCMRepository(provider, disposable);
+		let name: string;
+		if (provider.rootUri) {
+			name = this.labelService.getUriLabel(provider.rootUri, { relative: true });
+		} else {
+			name = provider.label;
+		}
+
+		const repository = new SCMRepository(name, provider, disposable);
 		const selectedDisposable = repository.onDidChangeSelection(this.onDidChangeSelection, this);
 
 		this._repositories.push(repository);
