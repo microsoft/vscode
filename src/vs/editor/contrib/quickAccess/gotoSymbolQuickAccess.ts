@@ -247,7 +247,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 				// case we want to skip the container query altogether.
 				let skipContainerQuery = false;
 				if (symbolQuery !== query) {
-					[symbolScore, symbolMatches] = scoreFuzzy2(symbolLabel, query, filterPos, symbolLabelIconOffset);
+					[symbolScore, symbolMatches] = scoreFuzzy2(symbolLabel, query, filterPos, symbolLabelIconOffset, true /* skip multi matching */);
 					if (symbolScore) {
 						skipContainerQuery = true; // since we consumed the query, skip any container matching
 					}

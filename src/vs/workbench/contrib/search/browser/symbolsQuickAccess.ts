@@ -143,7 +143,7 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 					// can be a match on a markdown symbol "change log"). In that
 					// case we want to skip the container query altogether.
 					if (symbolQuery !== query) {
-						[symbolScore, symbolMatches] = scoreFuzzy2(symbolLabel, query, 0, symbolLabelIconOffset);
+						[symbolScore, symbolMatches] = scoreFuzzy2(symbolLabel, query, 0, symbolLabelIconOffset, true /* skip multi matching */);
 						if (symbolScore) {
 							skipContainerQuery = true; // since we consumed the query, skip any container matching
 						}
