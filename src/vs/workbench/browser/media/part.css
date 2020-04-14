@@ -21,7 +21,7 @@
 	backdrop-filter: brightness(97%) blur(2px);
 	pointer-events: none;
 	visibility: hidden;
-    	opacity: 0;
+	opacity: 0;
 	transition: opacity .5s, visibility .5s;
 	z-index: 10;
 }
