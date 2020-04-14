@@ -263,6 +263,8 @@ export class QuickInputList {
 	onChangedCheckedElements: Event<IQuickPickItem[]> = this._onChangedCheckedElements.event;
 	private readonly _onButtonTriggered = new Emitter<IQuickPickItemButtonEvent<IQuickPickItem>>();
 	onButtonTriggered = this._onButtonTriggered.event;
+	private readonly _onKeyDown = new Emitter<StandardKeyboardEvent>();
+	onKeyDown: Event<StandardKeyboardEvent> = this._onKeyDown.event;
 	private readonly _onLeave = new Emitter<void>();
 	onLeave: Event<void> = this._onLeave.event;
 	private _fireCheckedEvents = true;
@@ -313,6 +315,8 @@ export class QuickInputList {
 					}
 					break;
 			}
+
+			this._onKeyDown.fire(event);
 		}));
 		this.disposables.push(this.list.onMouseDown(e => {
 			if (e.browserEvent.button !== 2) {
@@ -347,6 +351,7 @@ export class QuickInputList {
 			this._onChangedCheckedElements,
 			this._onButtonTriggered,
 			this._onLeave,
+			this._onKeyDown
 		);
 	}
 

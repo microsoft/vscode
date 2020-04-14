@@ -41,11 +41,11 @@ const excludedPathCharactersClause = '[^\\0\\s!$`&*()\\[\\]+\'":;\\\\]';
 /** A regex that matches paths in the form /foo, ~/foo, ./foo, ../foo, foo/bar */
 const unixLocalLinkClause = '((' + pathPrefix + '|(' + excludedPathCharactersClause + ')+)?(' + pathSeparatorClause + '(' + excludedPathCharactersClause + ')+)+)';
 
-const winDrivePrefix = '[a-zA-Z]:';
+const winDrivePrefix = '(?:\\\\\\\\\\?\\\\)?[a-zA-Z]:';
 const winPathPrefix = '(' + winDrivePrefix + '|\\.\\.?|\\~)';
 const winPathSeparatorClause = '(\\\\|\\/)';
 const winExcludedPathCharactersClause = '[^\\0<>\\?\\|\\/\\s!$`&*()\\[\\]+\'":;]';
-/** A regex that matches paths in the form c:\foo, ~\foo, .\foo, ..\foo, foo\bar */
+/** A regex that matches paths in the form \\?\c:\foo c:\foo, ~\foo, .\foo, ..\foo, foo\bar */
 const winLocalLinkClause = '((' + winPathPrefix + '|(' + winExcludedPathCharactersClause + ')+)?(' + winPathSeparatorClause + '(' + winExcludedPathCharactersClause + ')+)+)';
 
 /** As xterm reads from DOM, space in that case is nonbreaking char ASCII code - 160,
@@ -323,10 +323,7 @@ export class TerminalLinkManager extends DisposableStore {
 		));
 
 		// Word links
-		const tooltipWordCallback = (event: MouseEvent, link: string, location: IViewportRange) => {
-			this._tooltipCallback(event, link, location, link => this._quickInputService.quickAccess.show(link));
-		};
-		const wrappedWordActivateCallback = this._wrapLinkHandler(async link => {
+		const wordHandler = async (link: string) => {
 			const results = await this._searchService.fileSearch(
 				this._fileQueryBuilder.file(this._workspaceContextService.getWorkspace().folders, {
 					filePattern: link,
@@ -343,7 +340,11 @@ export class TerminalLinkManager extends DisposableStore {
 
 			// Fallback to searching quick access
 			this._quickInputService.quickAccess.show(link);
-		});
+		};
+		const tooltipWordCallback = (event: MouseEvent, link: string, location: IViewportRange) => {
+			this._tooltipCallback(event, link, location, wordHandler);
+		};
+		const wrappedWordActivateCallback = this._wrapLinkHandler(wordHandler);
 		this._linkProviders.push(this._xterm.registerLinkProvider(
 			this._instantiationService.createInstance(TerminalWordLinkProvider, this._xterm, wrappedWordActivateCallback, tooltipWordCallback, this._leaveCallback)
 		));

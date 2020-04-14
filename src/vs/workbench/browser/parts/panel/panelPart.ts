@@ -39,6 +39,7 @@ import { ViewMenuActions } from 'vs/workbench/browser/parts/views/viewMenuAction
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { Before2D } from 'vs/workbench/browser/dnd';
+import { IActivity } from 'vs/workbench/common/activity';
 
 interface ICachedPanel {
 	id: string;
@@ -238,9 +239,27 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		}
 	}
 
+	private updateActivity(panel: PanelDescriptor, viewDescriptors: IViewDescriptorCollection): void {
+		const viewDescriptor = viewDescriptors.activeViewDescriptors[0];
+
+		const activity: IActivity = {
+			id: panel.id,
+			name: viewDescriptor.name,
+			keybindingId: panel.keybindingId
+		};
+
+		const { activityAction, pinnedAction } = this.getCompositeActions(panel.id);
+		activityAction.setActivity(activity);
+
+		if (pinnedAction instanceof PlaceHolderToggleCompositePinnedAction) {
+			pinnedAction.setActivity(activity);
+		}
+	}
+
 	private onDidChangeActiveViews(panel: PanelDescriptor, viewDescriptors: IViewDescriptorCollection): void {
 		if (viewDescriptors.activeViewDescriptors.length) {
 			this.compositeBar.addComposite(panel);
+			this.updateActivity(panel, viewDescriptors);
 		} else {
 			this.hideComposite(panel.id);
 		}
