@@ -276,7 +276,6 @@ export class TimelinePane extends ViewPane {
 
 	get pageSize() {
 		const pageSize = this.configurationService.getValue<number | null | undefined>('timeline.pageSize') ?? Math.max(20, Math.floor((this.tree.renderHeight / 22) - 1));
-		console.log(pageSize);
 		return pageSize;
 	}
 
