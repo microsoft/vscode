@@ -477,9 +477,9 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private updateActivity(viewlet: ViewletDescriptor, viewDescriptors: IViewDescriptorCollection): void {
 		const viewDescriptor = viewDescriptors.activeViewDescriptors[0];
-		const shouldUseViewletIcon = ((viewlet.iconUrl || viewlet.cssClass) && // we have a viewlet icon
-			viewDescriptors.activeViewDescriptors.some(v => v.containerIcon !== undefined && (v.containerIcon === viewlet.iconUrl || v.containerIcon === viewlet.cssClass))) || // we have a view with the same icon
-			!viewDescriptors.activeViewDescriptors.some(v => v.containerIcon !== undefined); // we have no views with icons
+
+		// Use the viewlet icon if any view inside belongs to it statically
+		const shouldUseViewletIcon = viewDescriptors.allViewDescriptors.some(v => this.viewDescriptorService.getDefaultContainer(v.id)?.id === viewlet.id);
 
 		const activity: IActivity = {
 			id: viewlet.id,
