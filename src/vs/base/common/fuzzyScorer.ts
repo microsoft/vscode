@@ -268,10 +268,10 @@ export type FuzzyScore2 = [number /* score*/, IMatch[]];
 
 const NO_SCORE2: FuzzyScore2 = [NO_MATCH, []];
 
-export function scoreFuzzy2(target: string, query: IPreparedQuery, patternStart = 0, matchOffset = 0): FuzzyScore2 {
+export function scoreFuzzy2(target: string, query: IPreparedQuery, patternStart = 0, matchOffset = 0, skipMultiMatching = false): FuzzyScore2 {
 
-	// Score: multiple inputs
-	if (query.values && query.values.length > 1) {
+	// Score: multiple inputs (unless disabled)
+	if (!skipMultiMatching && query.values && query.values.length > 1) {
 		return doScoreFuzzy2Multiple(target, query.values, patternStart, matchOffset);
 	}
 
