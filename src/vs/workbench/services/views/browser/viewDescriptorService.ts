@@ -17,7 +17,6 @@ import { firstIndex } from 'vs/base/common/arrays';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { generateUuid } from 'vs/base/common/uuid';
-import { localize } from 'vs/nls';
 
 class CounterSet<T> implements IReadableSet<T> {
 
@@ -494,7 +493,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		return this.viewContainersRegistry.registerViewContainer({
 			id,
 			ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [id, `${id}.state`, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
-			name: localize('generatedContainerName', "Custom Views"),
+			name: 'Custom Views', // we don't want to see this, so no need to localize
 			icon: location === ViewContainerLocation.Sidebar ? 'codicon-window' : undefined,
 			hideIfEmpty: true
 		}, location);
