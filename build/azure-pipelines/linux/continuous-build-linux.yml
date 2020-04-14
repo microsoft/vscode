@@ -50,7 +50,7 @@ steps:
     DISPLAY=:10 ./scripts/test.sh --tfs "Unit Tests"
   displayName: Run Unit Tests (Electron)
 - script: |
-    DISPLAY=:10 yarn test-browser --browser chromium
+    DISPLAY=:10 yarn test-browser --browser chromium --browser firefox
   displayName: Run Unit Tests (Browser)
 - script: |
     DISPLAY=:10 ./scripts/test-integration.sh --tfs "Integration Tests"

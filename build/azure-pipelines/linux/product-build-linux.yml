@@ -123,7 +123,7 @@ steps:
 
 - script: |
     set -e
-    DISPLAY=:10 yarn test-browser --build --browser chromium
+    DISPLAY=:10 yarn test-browser --build --browser chromium --browser firefox
   displayName: Run unit tests (Browser)
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
