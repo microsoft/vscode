@@ -63,22 +63,10 @@
 /* Debug viewlet trees */
 
 .debug-pane .line-number {
-	background: rgba(136, 136, 136, 0.3);
 	border-radius: 2px;
 	font-size: 0.9em;
 	padding: 0 3px;
 	line-height: 20px;
-}
-
-.debug-pane .monaco-list-row.selected .line-number,
-.debug-pane .monaco-list-row.selected .thread > .state > .label,
-.debug-pane .monaco-list-row.selected .session > .state > .label {
-	background-color: #ffffff;
-	color: #666;
-}
-
-.debug-pane .monaco-list:focus .monaco-list-row.selected.focused .codicon {
-	color: inherit !important;
 }
 
 .debug-pane .disabled {
@@ -106,21 +94,6 @@
 	border-radius: 3px;
 	padding: 1px 2px;
 	font-size: 9px;
-}
-
-.debug-pane .debug-call-stack-title > .pause-message > .label.exception {
-	background-color: #A31515;
-	color: rgb(255, 255, 255);
-}
-
-.vs-dark .debug-pane .debug-call-stack-title > .pause-message > .label.exception {
-	background-color: #6C2022;
-	color: inherit;
-}
-
-.hc-black .debug-pane .debug-call-stack-title > .pause-message > .label.exception {
-	background-color: #6C2022;
-	color: inherit;
 }
 
 .debug-pane .debug-call-stack .thread,
@@ -176,7 +149,6 @@
 
 .debug-pane .debug-call-stack .thread > .state > .label,
 .debug-pane .debug-call-stack .session > .state > .label {
-	background: rgba(136, 136, 136, 0.3);
 	border-radius: 2px;
 	font-size: 0.8em;
 	padding: 0 3px;
@@ -220,18 +192,10 @@
 	display: none;
 }
 
-.debug-pane .debug-call-stack .monaco-list-row:not(.selected) .stack-frame > .file {
-	color: rgba(108, 108, 108, 0.8);
-}
-
 .debug-pane .debug-call-stack .stack-frame > .file > .file-name {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	margin-right: 0.8em;
-}
-
-.vs-dark .debug-pane .debug-call-stack .monaco-list-row:not(.selected) .stack-frame > .file {
-	color: rgba(204, 204, 204, 0.6);
 }
 
 .debug-pane .debug-call-stack .stack-frame > .file:not(:first-child) {
@@ -253,10 +217,6 @@
 	overflow: hidden;
 }
 
-.debug-pane .debug-call-stack .monaco-list:focus .monaco-list-row.selected .codicon {
-	color: inherit !important;
-}
-
 /* Variables & Expression view */
 
 .debug-pane .scope {
@@ -264,27 +224,10 @@
 	font-size: 11px;
 }
 
-/* Animation of changed values in Debug viewlet */
-@keyframes debugViewletValueChanged {
-	0% { background-color: rgba(86, 156, 214, 0) }
-	5% { background-color: rgba(86, 156, 214, .75) }
-	100% { background-color: rgba(86, 156, 214, .3) }
-}
-
-@keyframes debugViewletValueChangedDark {
-	0% { background-color: rgba(86, 156, 214, 0) }
-	5% { background-color: rgba(86, 156, 214, .5) }
-	100% { background-color: rgba(86, 156, 214, .2) }
-}
-
 .debug-pane .monaco-list-row .expression .value.changed {
 	padding: 2px;
 	margin: 4px;
 	border-radius: 4px;
-	background-color: rgba(86, 156, 214, .5);
-	animation-name: debugViewletValueChanged;
-	animation-duration: .75s;
-	animation-fill-mode: forwards;
 }
 
 .debug-pane .monaco-inputbox {
@@ -316,10 +259,6 @@
 
 .debug-pane .watch-expression .expression {
 	flex : 1;
-}
-
-.vs-dark .debug-pane .monaco-list-row .expression .value.changed {
-	animation-name: debugViewletValueChanged;
 }
 
 .debug-pane .debug-variables .scope .error {

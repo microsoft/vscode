@@ -18,6 +18,7 @@ import { Iterable } from 'vs/base/common/iterator';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IEditorService, ICustomEditorViewTypesHandler, ICustomEditorInfo } from 'vs/workbench/services/editor/common/editorService';
+import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -53,6 +54,8 @@ export interface INotebookService {
 	updateActiveNotebookDocument(viewType: string, resource: URI): void;
 	save(viewType: string, resource: URI): Promise<boolean>;
 	onDidReceiveMessage(viewType: string, uri: URI, message: any): void;
+	setToCopy(items: NotebookCellTextModel[]): void;
+	getToCopy(): NotebookCellTextModel[] | undefined;
 }
 
 export class NotebookProviderInfoStore {
@@ -136,6 +139,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 	private readonly _onDidChangeViewTypes = new Emitter<void>();
 	onDidChangeViewTypes: Event<void> = this._onDidChangeViewTypes.event;
+	private cutItems: NotebookCellTextModel[] | undefined;
 
 	constructor(
 		@IExtensionService private readonly extensionService: IExtensionService,
@@ -292,6 +296,14 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 	updateActiveNotebookDocument(viewType: string, resource: URI): void {
 		this._onDidChangeActiveEditor.fire({ viewType, uri: resource });
+	}
+
+	setToCopy(items: NotebookCellTextModel[]) {
+		this.cutItems = items;
+	}
+
+	getToCopy(): NotebookCellTextModel[] | undefined {
+		return this.cutItems;
 	}
 
 	async save(viewType: string, resource: URI): Promise<boolean> {

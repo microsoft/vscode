@@ -230,7 +230,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		});
 	}
 
-	private installRegistryListeners() {
+	private installRegistryListeners(): Promise<any> {
 
 		let prevColorId: string | undefined = undefined;
 
@@ -288,6 +288,12 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 				prevProductIconId = this.currentProductIconTheme.id;
 				this.setProductIconTheme(DEFAULT_PRODUCT_ICON_THEME_ID, 'auto');
 			}
+		});
+
+		return Promise.all([this.getColorThemes(), this.getFileIconThemes(), this.getProductIconThemes()]).then(([ct, fit, pit]) => {
+			updateColorThemeConfigurationSchemas(ct);
+			updateFileIconThemeConfigurationSchemas(fit);
+			updateProductIconThemeConfigurationSchemas(pit);
 		});
 	}
 

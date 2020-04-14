@@ -7,7 +7,6 @@ import * as dom from 'vs/base/browser/dom';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IDataSource, ITreeNode, ITreeRenderer, ITreeSorter, ITreeFilter } from 'vs/base/browser/ui/tree/tree';
-import { values } from 'vs/base/common/collections';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import 'vs/css!./media/outlineTree';
 import 'vs/css!./media/symbol-icons';
@@ -25,6 +24,7 @@ import { IdleValue } from 'vs/base/common/async';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { URI } from 'vs/base/common/uri';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { Iterable } from 'vs/base/common/iterator';
 
 export type OutlineItem = OutlineGroup | OutlineElement;
 
@@ -341,11 +341,11 @@ export class OutlineItemComparator implements ITreeSorter<OutlineItem> {
 
 export class OutlineDataSource implements IDataSource<OutlineModel, OutlineItem> {
 
-	getChildren(element: undefined | OutlineModel | OutlineGroup | OutlineElement): OutlineItem[] {
+	getChildren(element: undefined | OutlineModel | OutlineGroup | OutlineElement) {
 		if (!element) {
-			return [];
+			return Iterable.empty();
 		}
-		return values(element.children);
+		return element.children.values();
 	}
 }
 

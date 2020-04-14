@@ -156,6 +156,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		const checksums = computeChecksums(out, [
 			'vs/workbench/workbench.desktop.main.js',
 			'vs/workbench/workbench.desktop.main.css',
+			'vs/workbench/services/extensions/node/extensionHostProcess.js',
 			'vs/code/electron-browser/workbench/workbench.html',
 			'vs/code/electron-browser/workbench/workbench.js'
 		]);
@@ -323,6 +324,7 @@ const buildRoot = path.dirname(root);
 const BUILD_TARGETS = [
 	{ platform: 'win32', arch: 'ia32' },
 	{ platform: 'win32', arch: 'x64' },
+	{ platform: 'win32', arch: 'arm64' },
 	{ platform: 'darwin', arch: null, opts: { stats: true } },
 	{ platform: 'linux', arch: 'ia32' },
 	{ platform: 'linux', arch: 'x64' },
@@ -492,13 +494,15 @@ gulp.task(task.define(
 	'upload-vscode-configuration',
 	task.series(
 		generateVSCodeConfigurationTask,
-		() => {
+		async () => {
 			if (!shouldSetupSettingsSearch()) {
 				const branch = process.env.BUILD_SOURCEBRANCH;
 				console.log(`Only runs on master and release branches, not ${branch}`);
 				return;
 			}
 
+			// Sometimes the file is claimed to not exist for a few milliseconds after the vscode process exits
+			await new Promise(resolve => setTimeout(resolve, 500));
 			if (!fs.existsSync(allConfigDetailsPath)) {
 				throw new Error(`configuration file at ${allConfigDetailsPath} does not exist`);
 			}

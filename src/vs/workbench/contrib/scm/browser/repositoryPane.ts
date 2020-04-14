@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/scmViewlet';
 import { Event, Emitter } from 'vs/base/common/event';
-import { basename, isEqual } from 'vs/base/common/resources';
+import { basename, dirname, isEqual } from 'vs/base/common/resources';
 import { IDisposable, Disposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { append, $, addClass, toggleClass, trackFocus, removeClass } from 'vs/base/browser/dom';
@@ -73,6 +73,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 type TreeElement = ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -392,13 +393,29 @@ class SCMResourceIdentityProvider implements IIdentityProvider<TreeElement> {
 
 export class SCMAccessibilityProvider implements IListAccessibilityProvider<TreeElement> {
 
+	constructor(@ILabelService private readonly labelService: ILabelService) { }
+
 	getAriaLabel(element: TreeElement): string {
 		if (ResourceTree.isResourceNode(element)) {
-			return element.name;
+			return this.labelService.getUriLabel(element.uri, { relative: true, noPrefix: true }) || element.name;
 		} else if (isSCMResourceGroup(element)) {
 			return element.label;
 		} else {
-			return `${basename(element.sourceUri)}, ${element.decorations.tooltip || ''}`;
+			const result: string[] = [];
+
+			if (element.decorations.tooltip) {
+				result.push(element.decorations.tooltip);
+			}
+
+			result.push(basename(element.sourceUri));
+
+			const path = this.labelService.getUriLabel(dirname(element.sourceUri), { relative: true, noPrefix: true });
+
+			if (path) {
+				result.push(path);
+			}
+
+			return result.join(', ');
 		}
 	}
 }
@@ -820,9 +837,7 @@ export class RepositoryPane extends ViewPane {
 		const onDidChangeContentHeight = Event.filter(this.inputEditor.onDidContentSizeChange, e => e.contentHeightChanged);
 		this._register(onDidChangeContentHeight(() => this.layoutBody()));
 
-		if (this.repository.provider.onDidChangeCommitTemplate) {
-			this._register(this.repository.provider.onDidChangeCommitTemplate(this.onDidChangeCommitTemplate, this));
-		}
+		this._register(this.repository.provider.onDidChangeCommitTemplate(this.onDidChangeCommitTemplate, this));
 
 		this.onDidChangeCommitTemplate();
 
@@ -879,7 +894,7 @@ export class RepositoryPane extends ViewPane {
 				overrideStyles: {
 					listBackground: SIDE_BAR_BACKGROUND
 				},
-				accessibilityProvider: new SCMAccessibilityProvider()
+				accessibilityProvider: this.instantiationService.createInstance(SCMAccessibilityProvider)
 			}) as WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>;
 
 		const navigator = this._register(new TreeResourceNavigator(this.tree, { openOnSelection: false }));

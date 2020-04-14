@@ -202,7 +202,6 @@
 }
 
 .quick-input-list .quick-input-list-rows > .quick-input-list-row .codicon[class*='codicon-'] {
-	color: currentColor !important;
 	vertical-align: sub;
 }
 

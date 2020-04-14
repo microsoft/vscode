@@ -79,7 +79,7 @@ export class TaskQuickPick extends Disposable {
 		types.forEach(type => {
 			entries.push({ label: `$(folder) ${type}`, task: type });
 		});
-		entries.push({ label: SHOW_ALL, task: SHOW_ALL });
+		entries.push({ label: SHOW_ALL, task: SHOW_ALL, alwaysShow: true });
 	}
 
 	private handleFolderTaskResult(result: Map<string, WorkspaceFolderTaskResult>): (Task | ConfiguringTask)[] {
@@ -244,12 +244,14 @@ export class TaskQuickPick extends Disposable {
 				type: 'separator'
 			}, {
 				label: nls.localize('TaskQuickPick.goBack', 'Go back ↩'),
-				task: null
+				task: null,
+				alwaysShow: true
 			});
 		} else {
 			taskQuickPickEntries = [{
 				label: nls.localize('TaskQuickPick.noTasksForType', 'No {0} tasks found. Go back ↩', type),
-				task: null
+				task: null,
+				alwaysShow: true
 			}];
 		}
 		return taskQuickPickEntries;

@@ -266,7 +266,10 @@ export class ExplorerView extends ViewPane {
 			const isEditing = !!this.explorerService.getEditableData(e);
 
 			if (isEditing) {
-				await this.tree.expand(e.parent!);
+				if (e.parent !== this.tree.getInput()) {
+					await this.tree.expand(e.parent!);
+					this.tree.reveal(e.parent!);
+				}
 			} else {
 				DOM.removeClass(treeContainer, 'highlight');
 			}
@@ -667,7 +670,13 @@ export class ExplorerView extends ViewPane {
 			item = first(values(item.children), i => isEqualOrParent(resource, i.resource));
 		}
 
-		if (item && item.parent) {
+		if (item) {
+			if (item === this.tree.getInput()) {
+				this.tree.setFocus([]);
+				this.tree.setSelection([]);
+				return;
+			}
+
 			try {
 				if (reveal) {
 					if (item.isDisposed) {
