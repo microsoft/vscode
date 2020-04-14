@@ -13,7 +13,7 @@ const localize = nls.loadMessageBundle();
 import {
 	workspace, window, languages, commands, ExtensionContext, extensions, Uri, LanguageConfiguration,
 	Diagnostic, StatusBarAlignment, TextEditor, TextDocument, FormattingOptions, CancellationToken,
-	ProviderResult, TextEdit, Range, Position, Disposable, CompletionItem, CompletionList, CompletionContext, Hover, MarkdownString, MarkedString
+	ProviderResult, TextEdit, Range, Position, Disposable, CompletionItem, CompletionList, CompletionContext, Hover, MarkdownString,
 } from 'vscode';
 import {
 	LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType,
