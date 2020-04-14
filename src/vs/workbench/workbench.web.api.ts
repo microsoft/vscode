@@ -209,7 +209,7 @@ interface IWorkbench {
 		 * @param rest Parameters passed to the command function.
 		 * @return A promise that resolves to the returned value of the given command.
 		 */
-		executeCommand<T>(command: string, ...rest: any[]): Promise<T | undefined>;
+		executeCommand(command: string, ...args: any[]): Promise<unknown>;
 	}
 }
 
