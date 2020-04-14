@@ -83,13 +83,13 @@ node-pty/deps/**
 !node-pty/build/Release/*.dll
 !node-pty/build/Release/*.node
 
-nsfw/binding.gyp
-nsfw/build/**
-nsfw/src/**
-nsfw/openpa/**
-nsfw/includes/**
-!nsfw/build/Release/*.node
-!nsfw/**/*.a
+vscode-nsfw/binding.gyp
+vscode-nsfw/build/**
+vscode-nsfw/src/**
+vscode-nsfw/openpa/**
+vscode-nsfw/includes/**
+!vscode-nsfw/build/Release/*.node
+!vscode-nsfw/**/*.a
 
 vsda/build/**
 vsda/ci/**
