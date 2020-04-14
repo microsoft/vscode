@@ -11,7 +11,7 @@ import { IWorkspaceIdentifier, IResolvedWorkspace, ISingleFolderWorkspaceIdentif
 import { isEqual, isEqualOrParent } from 'vs/base/common/resources';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { ExportData } from 'vs/base/common/performance';
-import { ParsedArgs } from 'vs/platform/environment/node/argv';
+import { ParsedArgs } from 'vs/platform/environment/common/argv';
 
 export interface IOpenedWindow {
 	id: number;

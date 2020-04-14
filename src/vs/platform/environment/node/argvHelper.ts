@@ -7,7 +7,8 @@ import * as assert from 'assert';
 import { firstIndex } from 'vs/base/common/arrays';
 import { localize } from 'vs/nls';
 import { MIN_MAX_MEMORY_SIZE_MB } from 'vs/platform/files/node/files';
-import { parseArgs, ErrorReporter, OPTIONS, ParsedArgs } from 'vs/platform/environment/node/argv';
+import { parseArgs, ErrorReporter, OPTIONS } from 'vs/platform/environment/node/argv';
+import { ParsedArgs } from 'vs/platform/environment/common/argv';
 
 function parseAndValidate(cmdLineArgs: string[], reportWarnings: boolean): ParsedArgs {
 	const errorReporter: ErrorReporter = {

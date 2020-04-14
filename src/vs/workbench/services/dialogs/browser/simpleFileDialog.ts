@@ -36,6 +36,8 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environmentService';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export namespace OpenLocalFileCommand {
 	export const ID = 'workbench.action.files.openLocalFile';
@@ -133,13 +135,14 @@ export class SimpleFileDialog {
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IModelService private readonly modelService: IModelService,
 		@IModeService private readonly modeService: IModeService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 		@IRemotePathService private readonly remotePathService: IRemotePathService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IEnvironmentService private readonly nativeEnvironmentService: INativeEnvironmentService
 	) {
-		this.remoteAuthority = this.environmentService.configuration.remoteAuthority;
+		this.remoteAuthority = environmentService.configuration.remoteAuthority;
 		this.contextKey = RemoteFileDialogContext.bindTo(contextKeyService);
 	}
 
@@ -235,7 +238,7 @@ export class SimpleFileDialog {
 		if (this.scheme !== Schemas.file) {
 			return this.remotePathService.userHome;
 		}
-		return this.environmentService.userHome!;
+		return this.nativeEnvironmentService.userHome;
 	}
 
 	private async pickResource(isSave: boolean = false): Promise<URI | undefined> {

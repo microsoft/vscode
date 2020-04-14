@@ -6,7 +6,8 @@
 import * as os from 'os';
 import * as fs from 'fs';
 import { spawn, ChildProcess, SpawnOptions } from 'child_process';
-import { buildHelpMessage, buildVersionMessage, OPTIONS, ParsedArgs } from 'vs/platform/environment/node/argv';
+import { buildHelpMessage, buildVersionMessage, OPTIONS } from 'vs/platform/environment/node/argv';
+import { ParsedArgs } from 'vs/platform/environment/common/argv';
 import { parseCLIProcessArgv, addArg } from 'vs/platform/environment/node/argvHelper';
 import { createWaitMarkerFile } from 'vs/platform/environment/node/waitMarkerFile';
 import product from 'vs/platform/product/common/product';

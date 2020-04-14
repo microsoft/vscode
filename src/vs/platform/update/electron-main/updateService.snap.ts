@@ -8,7 +8,7 @@ import { timeout } from 'vs/base/common/async';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IUpdateService, State, StateType, AvailableForDownload, UpdateType } from 'vs/platform/update/common/update';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environmentService';
 import { ILogService } from 'vs/platform/log/common/log';
 import * as path from 'vs/base/common/path';
 import { realpath, watch } from 'fs';

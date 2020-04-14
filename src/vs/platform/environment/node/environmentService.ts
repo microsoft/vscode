@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEnvironmentService, IDebugParams, IExtensionHostDebugParams, BACKUPS } from 'vs/platform/environment/common/environment';
-import { ParsedArgs } from 'vs/platform/environment/node/argv';
+import { IDebugParams, IExtensionHostDebugParams, BACKUPS } from 'vs/platform/environment/common/environment';
+import { ParsedArgs } from 'vs/platform/environment/common/argv';
 import * as crypto from 'crypto';
 import * as paths from 'vs/base/node/paths';
 import * as os from 'os';
@@ -16,36 +16,7 @@ import { toLocalISOString } from 'vs/base/common/date';
 import { isWindows, isLinux, Platform, platform } from 'vs/base/common/platform';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { URI } from 'vs/base/common/uri';
-
-export interface INativeEnvironmentService extends IEnvironmentService {
-	args: ParsedArgs;
-
-	appRoot: string;
-	execPath: string;
-
-	appSettingsHome: URI;
-	userDataPath: string;
-	userHome: URI;
-	machineSettingsResource: URI;
-	backupWorkspacesPath: string;
-	nodeCachedDataDir?: string;
-
-	mainIPCHandle: string;
-	sharedIPCHandle: string;
-
-	installSourcePath: string;
-
-	extensionsPath?: string;
-	builtinExtensionsPath: string;
-
-	globalStorageHome: string;
-	workspaceStorageHome: string;
-
-	driverHandle?: string;
-	driverVerbose: boolean;
-
-	disableUpdates: boolean;
-}
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environmentService';
 
 export class EnvironmentService implements INativeEnvironmentService {
 
