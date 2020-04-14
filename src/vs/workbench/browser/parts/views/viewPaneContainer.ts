@@ -906,15 +906,19 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	getTitle(): string {
+		// use registered title if any of our panes are statically registered to this container
+		const allViewDescriptors = this.viewDescriptorService.getViewDescriptors(this.viewContainer).allViewDescriptors;
+		const containerTitle = allViewDescriptors.some(v => this.viewDescriptorService.getDefaultContainer(v.id) === this.viewContainer) ? this.viewContainer.name : allViewDescriptors[0].name;
+
 		if (this.isViewMergedWithContainer()) {
 			const paneItemTitle = this.paneItems[0].pane.title;
-			if (this.options.donotShowContainerTitleWhenMergedWithContainer || this.viewContainer.name === paneItemTitle) {
+			if (this.options.donotShowContainerTitleWhenMergedWithContainer || containerTitle === paneItemTitle) {
 				return this.paneItems[0].pane.title;
 			}
-			return paneItemTitle ? `${this.viewContainer.name}: ${paneItemTitle}` : this.viewContainer.name;
+			return paneItemTitle ? `${containerTitle}: ${paneItemTitle}` : containerTitle;
 		}
 
-		return this.viewContainer.name;
+		return containerTitle;
 	}
 
 	private showContextMenu(event: StandardMouseEvent): void {

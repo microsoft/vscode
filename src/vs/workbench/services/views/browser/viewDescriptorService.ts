@@ -16,6 +16,8 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { firstIndex } from 'vs/base/common/arrays';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { generateUuid } from 'vs/base/common/uuid';
+import { localize } from 'vs/nls';
 
 class CounterSet<T> implements IReadableSet<T> {
 
@@ -173,7 +175,6 @@ class ViewDescriptorCollection extends Disposable implements IViewDescriptorColl
 interface ICachedViewContainerInfo {
 	containerId: string;
 	location?: ViewContainerLocation;
-	sourceViewId?: string;
 }
 
 export class ViewDescriptorService extends Disposable implements IViewDescriptorService {
@@ -198,7 +199,6 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	private readonly viewContainersRegistry: IViewContainersRegistry;
 
 	private cachedViewInfo: Map<string, ICachedViewContainerInfo>;
-	private generatedContainerSourceViewIds: Map<string, string>;
 
 	private _cachedViewPositionsValue: string | undefined;
 	private get cachedViewPositionsValue(): string {
@@ -233,7 +233,6 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 		this.viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
 		this.viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
-		this.generatedContainerSourceViewIds = new Map<string, string>();
 
 		this.cachedViewInfo = this.getCachedViewPositions();
 
@@ -271,9 +270,8 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 				if (containerData.cachedContainerInfo && this.shouldGenerateContainer(containerData.cachedContainerInfo)) {
 					const containerInfo = containerData.cachedContainerInfo;
 
-					const sourceViewDescriptor = this.viewsRegistry.getView(containerInfo.sourceViewId!);
-					if (sourceViewDescriptor && !this.viewContainersRegistry.get(containerId)) {
-						this.registerViewContainerForSingleView(sourceViewDescriptor, containerInfo.location!);
+					if (!this.viewContainersRegistry.get(containerId)) {
+						this.registerGeneratedViewContainer(containerInfo.location!, containerId);
 					}
 				}
 
@@ -309,12 +307,8 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 			// check if we should generate this container
 			if (this.shouldGenerateContainer(containerInfo)) {
-				const sourceView = this.getViewDescriptor(containerInfo.sourceViewId!);
-
-				if (sourceView) {
-					this.registerViewContainerForSingleView(sourceView, containerInfo.location!);
-					continue;
-				}
+				this.registerGeneratedViewContainer(containerInfo.location!, containerId);
+				continue;
 			}
 
 			if (fallbackToDefault) {
@@ -354,7 +348,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	private shouldGenerateContainer(containerInfo: ICachedViewContainerInfo): boolean {
-		return !!containerInfo.sourceViewId && containerInfo.location !== undefined;
+		return containerInfo.containerId.startsWith(ViewDescriptorService.COMMON_CONTAINER_ID_PREFIX) && containerInfo.location !== undefined;
 	}
 
 	private onDidDeregisterViews(views: IViewDescriptor[], viewContainer: ViewContainer): void {
@@ -422,7 +416,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	moveViewToLocation(view: IViewDescriptor, location: ViewContainerLocation): void {
-		let container = this.registerViewContainerForSingleView(view, location);
+		let container = this.registerGeneratedViewContainer(location);
 		this.moveViewsToContainer([view], container);
 	}
 
@@ -494,14 +488,14 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		}
 	}
 
-	private registerViewContainerForSingleView(sourceView: IViewDescriptor, location: ViewContainerLocation): ViewContainer {
-		const id = this.generateContainerIdFromSourceViewId(sourceView.id, location);
+	private registerGeneratedViewContainer(location: ViewContainerLocation, existingId?: string): ViewContainer {
+		const id = existingId || this.generateContainerId(location);
 
 		return this.viewContainersRegistry.registerViewContainer({
 			id,
-			ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [id, `${id}.state`, { mergeViewWithContainerWhenSingleView: true }]),
-			name: sourceView.name,
-			icon: location === ViewContainerLocation.Sidebar ? sourceView.containerIcon || 'codicon-window' : undefined,
+			ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [id, `${id}.state`, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
+			name: localize('generatedContainerName', "Custom Views"),
+			icon: location === ViewContainerLocation.Sidebar ? 'codicon-window' : undefined,
 			hideIfEmpty: true
 		}, location);
 	}
@@ -535,12 +529,8 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 				const prevViewContainer = this.getViewContainer(viewId);
 				const newViewContainerInfo = newCachedPositions.get(viewId)!;
 				// Verify if we need to create the destination container
-				if (newViewContainerInfo.sourceViewId) {
-					const sourceViewDescriptor = this.getViewDescriptor(newViewContainerInfo.sourceViewId);
-
-					if (!this.viewContainersRegistry.get(newViewContainerInfo.containerId) && sourceViewDescriptor) {
-						this.registerViewContainerForSingleView(sourceViewDescriptor, newViewContainerInfo.location!);
-					}
+				if (!this.viewContainersRegistry.get(newViewContainerInfo.containerId)) {
+					this.registerGeneratedViewContainer(newViewContainerInfo.location!, newViewContainerInfo.containerId);
 				}
 
 				// Try moving to the new container
@@ -574,11 +564,11 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	// Generated Container Id Format
+	// {Common Prefix}.{Location}.{Uniqueness Id}
+	// Old Format (deprecated)
 	// {Common Prefix}.{Uniqueness Id}.{Source View Id}
-	private generateContainerIdFromSourceViewId(viewId: string, location: ViewContainerLocation): string {
-		const result = `${ViewDescriptorService.COMMON_CONTAINER_ID_PREFIX}.${location === ViewContainerLocation.Panel ? 'panel' : 'sidebar'}.${viewId}`;
-		this.generatedContainerSourceViewIds.set(result, viewId);
-		return result;
+	private generateContainerId(location: ViewContainerLocation): string {
+		return `${ViewDescriptorService.COMMON_CONTAINER_ID_PREFIX}.${location === ViewContainerLocation.Panel ? 'panel' : 'sidebar'}.${generateUuid()}`;
 	}
 
 	private getStoredCachedViewPositionsValue(): string {
@@ -593,12 +583,10 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		this.viewContainersRegistry.all.forEach(viewContainer => {
 			const viewDescriptorCollection = this.getViewDescriptors(viewContainer);
 			viewDescriptorCollection.allViewDescriptors.forEach(viewDescriptor => {
-				const sourceViewId = this.generatedContainerSourceViewIds.get(viewContainer.id);
 				const containerLocation = this.getViewContainerLocation(viewContainer);
 				this.cachedViewInfo.set(viewDescriptor.id, {
 					containerId: viewContainer.id,
-					location: containerLocation,
-					sourceViewId: sourceViewId
+					location: containerLocation
 				});
 			});
 		});
@@ -682,9 +670,8 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	private addViews(container: ViewContainer, views: IViewDescriptor[]): void {
 		// Update in memory cache
 		const location = this.getViewContainerLocation(container);
-		const sourceViewId = this.generatedContainerSourceViewIds.get(container.id);
 		views.forEach(view => {
-			this.cachedViewInfo.set(view.id, { containerId: container.id, location, sourceViewId });
+			this.cachedViewInfo.set(view.id, { containerId: container.id, location });
 			this.getOrCreateDefaultViewLocationContextKey(view).set(this.getDefaultContainer(view.id) === container);
 		});
 
