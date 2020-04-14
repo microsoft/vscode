@@ -379,7 +379,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 					// remove output in the webview
 					for (let i = diff[0]; i < diff[0] + diff[1]; i++) {
 						const cell = this.list?.element(i);
-						cell?.cell.outputs.forEach(output => {
+						cell?.model.outputs.forEach(output => {
 							this.removeInset(output);
 						});
 					}
@@ -392,7 +392,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 						// remove output in the webview
 						for (let i = diff[0]; i < diff[0] + diff[1]; i++) {
 							const cell = this.list?.element(i);
-							cell?.cell.outputs.forEach(output => {
+							cell?.model.outputs.forEach(output => {
 								this.removeInset(output);
 							});
 						}

@@ -209,7 +209,7 @@ export class TabsTitleControl extends TitleControl {
 		this._register(addDisposableListener(tabsContainer, EventType.SCROLL, () => {
 			if (hasClass(tabsContainer, 'scroll')) {
 				tabsScrollbar.setScrollPosition({
-					scrollLeft: tabsContainer.scrollLeft // during DND the  container gets scrolled so we need to update the custom scrollbar
+					scrollLeft: tabsContainer.scrollLeft // during DND the container gets scrolled so we need to update the custom scrollbar
 				});
 			}
 		}));
@@ -319,6 +319,42 @@ export class TabsTitleControl extends TitleControl {
 					this.onDrop(e, this.group.count, tabsContainer);
 				}
 			}
+		}));
+
+		// Mouse-wheel support to switch to tabs optionally
+		this._register(addDisposableListener(tabsContainer, EventType.MOUSE_WHEEL, (e: MouseWheelEvent) => {
+			const activeEditor = this.group.activeEditor;
+			if (!activeEditor || this.group.count < 2) {
+				return;  // need at least 2 open editors
+			}
+
+			// Shift-key enables or disables this behaviour depending on the setting
+			if (this.accessor.partOptions.scrollToSwitchTabs === 'off') {
+				if (!e.shiftKey) {
+					return; // 'off': only enable this when Shift-key is pressed
+				}
+			} else {
+				if (e.shiftKey) {
+					return; // 'on': only enable this when Shift-key is not pressed
+				}
+			}
+
+			// Figure out scrolling direction
+			let scrollingUp = e.deltaX < 0 || e.deltaY < 0;
+			if (this.accessor.partOptions.scrollToSwitchTabs === 'reverse') {
+				scrollingUp = !scrollingUp;
+			}
+
+			const nextEditor = this.group.getEditorByIndex(this.group.getIndexOfEditor(activeEditor) + (scrollingUp ? -1 : 1));
+			if (!nextEditor) {
+				return;
+			}
+
+			// Open it
+			this.group.openEditor(nextEditor);
+
+			// Disable normal scrolling, opening the editor will already reveal it properly
+			EventHelper.stop(e, true);
 		}));
 	}
 
@@ -845,7 +881,7 @@ export class TabsTitleControl extends TitleControl {
 			name: editor.getName(),
 			description: editor.getDescription(verbosity),
 			title: withNullAsUndefined(editor.getTitle(Verbosity.LONG)),
-			ariaLabel: editor.getTitle(Verbosity.SHORT)
+			ariaLabel: editor.isReadonly() ? localize('readonlyEditor', "{0} readonly", editor.getTitle(Verbosity.SHORT)) : editor.getTitle(Verbosity.SHORT)
 		}));
 
 		// Shorten labels as needed

@@ -13,7 +13,8 @@ import * as model from 'vs/editor/common/model';
 import { SearchParams } from 'vs/editor/common/model/textModelSearch';
 import { EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_MARGIN } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CellEditState, CellFocusMode, CellRunState, CursorAtBoundary, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellKind, ICell, NotebookCellMetadata, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NotebookCellMetadata, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 
 export const NotebookCellMetadataDefaults = {
 	editable: true,
@@ -38,16 +39,16 @@ export abstract class BaseCellViewModel extends Disposable implements ICellViewM
 	protected readonly _onDidChangeLanguage: Emitter<string> = this._register(new Emitter<string>());
 	public readonly onDidChangeLanguage: Event<string> = this._onDidChangeLanguage.event;
 	get handle() {
-		return this.cell.handle;
+		return this.model.handle;
 	}
 	get uri() {
-		return this.cell.uri;
+		return this.model.uri;
 	}
 	get lineCount() {
-		return this.cell.source.length;
+		return this.model.source.length;
 	}
 	get metadata() {
-		return this.cell.metadata;
+		return this.model.metadata;
 	}
 
 	abstract cellKind: CellKind;
@@ -103,14 +104,14 @@ export abstract class BaseCellViewModel extends Disposable implements ICellViewM
 	private _lastDecorationId: number = 0;
 	protected _textModel?: model.ITextModel;
 
-	constructor(readonly viewType: string, readonly notebookHandle: number, readonly cell: ICell, public id: string) {
+	constructor(readonly viewType: string, readonly notebookHandle: number, readonly model: NotebookCellTextModel, public id: string) {
 		super();
 
-		this._register(cell.onDidChangeLanguage((e) => {
+		this._register(model.onDidChangeLanguage((e) => {
 			this._onDidChangeLanguage.fire(e);
 		}));
 
-		this._register(cell.onDidChangeMetadata(() => {
+		this._register(model.onDidChangeMetadata(() => {
 			this._onDidChangeMetadata.fire();
 		}));
 	}
@@ -185,7 +186,7 @@ export abstract class BaseCellViewModel extends Disposable implements ICellViewM
 			return this._textModel.getValue();
 		}
 
-		return this.cell.source.join('\n');
+		return this.model.source.join('\n');
 	}
 
 	private saveViewState(): editorCommon.ICodeEditorViewState | null {
@@ -308,7 +309,7 @@ export abstract class BaseCellViewModel extends Disposable implements ICellViewM
 			cellMatches = this._textModel!.findMatches(value, false, false, false, null, false);
 		} else {
 			if (!this._buffer) {
-				this._buffer = this.cell.resolveTextBufferFactory().create(model.DefaultEndOfLine.LF);
+				this._buffer = this.model.resolveTextBufferFactory().create(model.DefaultEndOfLine.LF);
 			}
 
 			const lineCount = this._buffer.getLineCount();

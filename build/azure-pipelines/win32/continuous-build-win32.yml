@@ -47,7 +47,7 @@ steps:
     .\scripts\test.bat --tfs "Unit Tests"
   displayName: Run Unit Tests (Electron)
 - powershell: |
-    yarn test-browser --browser chromium
+    yarn test-browser --browser chromium --browser firefox
   displayName: Run Unit Tests (Browser)
 - powershell: |
     .\scripts\test-integration.bat --tfs "Integration Tests"

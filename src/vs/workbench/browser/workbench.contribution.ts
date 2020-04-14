@@ -32,6 +32,17 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 				'description': nls.localize('showEditorTabs', "Controls whether opened editors should show in tabs or not."),
 				'default': true
 			},
+			'workbench.editor.scrollToSwitchTabs': {
+				'type': 'string',
+				'enum': ['off', 'natural', 'reverse'],
+				'enumDescriptions': [
+					nls.localize('workbench.editor.scrollToSwitchTabs.off', "Tabs will reveal when scrolling with the mouse but not open. You can press and hold the Shift-key to switch tabs while scrolling."),
+					nls.localize('workbench.editor.scrollToSwitchTabs.natural', "Tabs will open when scrolling with the mouse in natural scrolling direction (scroll up to switch to the tab on the left and down for the tab on the right). You can press and hold the Shift-key to disable this behaviour for that duration."),
+					nls.localize('workbench.editor.scrollToSwitchTabs.reverse', "Tabs will open when scrolling with the mouse in reverse scrolling direction (scroll down to switch to the tab on the left and up for the tab on the right). You can press and hold the Shift-key to disable this behaviour for that duration."),
+				],
+				'default': 'off',
+				'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'scrollToSwitchTabs' }, "Controls wether scrolling over tabs will open them or not. By default tabs will only reveal upon scrolling, but not open. You can press and hold the Shift-key while scrolling to change this behaviour for that duration.")
+			},
 			'workbench.editor.highlightModifiedTabs': {
 				'type': 'boolean',
 				'description': nls.localize('highlightModifiedTabs', "Controls whether a top border is drawn on modified (dirty) editor tabs or not."),

@@ -1063,7 +1063,7 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 	}
 
 	protected getAriaLabel(): string {
-		return nls.localize('preferencesAriaLabel', "Default preferences. Readonly editor.");
+		return nls.localize('preferencesAriaLabel', "Default preferences. Readonly.");
 	}
 }
 

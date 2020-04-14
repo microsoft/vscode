@@ -589,10 +589,13 @@ namespace HotExitState {
 class MainThreadCustomEditorModel extends Disposable implements ICustomEditorModel, IWorkingCopy {
 
 	private _hotExitState: HotExitState.State = HotExitState.Allowed;
+	private _fromBackup: boolean = false;
+
 	private _currentEditIndex: number = -1;
 	private _savePoint: number = -1;
 	private readonly _edits: Array<number> = [];
-	private _fromBackup: boolean = false;
+
+	private _ongoingSave?: CancelablePromise<void>;
 
 	public static async create(
 		instantiationService: IInstantiationService,
@@ -788,11 +791,22 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 			return undefined;
 		}
 		// TODO: handle save untitled case
-		// TODO: handle cancellation
-		await createCancelablePromise(token => this._proxy.$onSave(this._editorResource, this.viewType, token));
+
+		const savePromise = createCancelablePromise(token => this._proxy.$onSave(this._editorResource, this.viewType, token));
+		this._ongoingSave?.cancel();
+		this._ongoingSave = savePromise;
+
 		this.change(() => {
 			this._savePoint = this._currentEditIndex;
 		});
+
+		try {
+			await savePromise;
+		} finally {
+			if (this._ongoingSave === savePromise) {
+				this._ongoingSave = undefined;
+			}
+		}
 		return this._editorResource;
 	}
 

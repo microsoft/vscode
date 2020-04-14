@@ -269,6 +269,10 @@ export namespace CellUri {
 			return undefined;
 		}
 	}
+
+	export function equal(a: URI, b: URI): boolean {
+		return a.path === b.path && a.query === b.query && a.scheme === b.scheme;
+	}
 }
 
 export function mimeTypeSupportedByCore(mimeType: string) {

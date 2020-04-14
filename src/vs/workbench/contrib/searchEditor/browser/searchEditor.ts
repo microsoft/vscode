@@ -621,7 +621,7 @@ export class SearchEditor extends BaseTextEditor {
 	}
 
 	getAriaLabel() {
-		return this.getInput()?.getName() ?? localize('searchEditor', "Search Editor");
+		return this.getInput()?.getName() ?? localize('searchEditor', "Search");
 	}
 }
 
