@@ -22,7 +22,6 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 
 export class NativeSimpleFileDialog extends SimpleFileDialog {
-
 	constructor(
 		@IFileService fileService: IFileService,
 		@IQuickInputService quickInputService: IQuickInputService,
@@ -43,7 +42,7 @@ export class NativeSimpleFileDialog extends SimpleFileDialog {
 
 	protected async getUserHome(): Promise<URI> {
 		if (this.scheme !== Schemas.file) {
-			return this.remotePathService.userHome;
+			return super.getUserHome();
 		}
 		return this.environmentService.userHome;
 	}

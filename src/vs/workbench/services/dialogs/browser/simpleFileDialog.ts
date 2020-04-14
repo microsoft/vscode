@@ -232,10 +232,7 @@ export class SimpleFileDialog {
 	}
 
 	protected async getUserHome(): Promise<URI> {
-		if (this.scheme !== Schemas.file) {
-			return this.remotePathService.userHome;
-		}
-		return this.environmentService.userHome!;
+		return (await this.remotePathService.userHome) ?? URI.from({ scheme: this.scheme, authority: this.remoteAuthority, path: '/' });
 	}
 
 	private async pickResource(isSave: boolean = false): Promise<URI | undefined> {
