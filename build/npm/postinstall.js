@@ -25,6 +25,7 @@ function yarnInstall(location, opts) {
 	console.log(`Installing dependencies in ${location}...`);
 	console.log(`$ yarn ${args.join(' ')}`);
 	const result = cp.spawnSync(yarn, args, opts);
+
 	if (result.error || result.status !== 0) {
 		process.exit(1);
 	}
