@@ -299,9 +299,9 @@ export class TerminalLinkManager extends DisposableStore {
 	public registerLinkProvider(): void {
 		// Web links
 		const tooltipWebCallback = (event: MouseEvent, link: string, location: IViewportRange) => {
-			this._tooltipCallback(event, link, location, this._handleHypertextLink.bind(this, link));
+			this._tooltipCallback(event, link, location, this._handleProtocolLink.bind(this, link));
 		};
-		const wrappedActivateCallback = this._wrapLinkHandler(this._handleHypertextLink.bind(this));
+		const wrappedActivateCallback = this._wrapLinkHandler(this._handleProtocolLink.bind(this));
 		this._linkProviders.push(this._xterm.registerLinkProvider(
 			new TerminalWebLinkProvider(this._xterm, wrappedActivateCallback, tooltipWebCallback, this._leaveCallback)
 		));
@@ -470,6 +470,19 @@ export class TerminalLinkManager extends DisposableStore {
 
 	private _handleHypertextLink(url: string): void {
 		this._openerService.open(url, { allowTunneling: !!(this._processManager && this._processManager.remoteAuthority) });
+	}
+
+	private async _handleProtocolLink(link: string): Promise<void> {
+		// Check if it's a file:/// link, hand off to local link handler so to open an editor and
+		// respect line/col attachment
+		const uri = URI.parse(link);
+		if (uri.scheme === 'file') {
+			this._handleLocalLink(uri.fsPath);
+			return;
+		}
+
+		// Open as a web link if it's not a file
+		this._handleHypertextLink(link);
 	}
 
 	protected _isLinkActivationModifierDown(event: MouseEvent): boolean {
