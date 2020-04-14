@@ -26,6 +26,10 @@ import { TerminalValidatedLocalLinkProvider } from 'vs/workbench/contrib/termina
 import { TerminalWordLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalWordLinkProvider';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { isEqualOrParent } from 'vs/base/common/resources';
 
 const pathPrefix = '(\\.\\.?|\\~)';
 const pathSeparatorClause = '\\/';
@@ -113,7 +117,10 @@ export class TerminalLinkManager extends DisposableStore {
 		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IQuickInputService private readonly _quickInputService: IQuickInputService
+		@IQuickInputService private readonly _quickInputService: IQuickInputService,
+		@ICommandService private readonly _commandService: ICommandService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IHostService private readonly _hostService: IHostService
 	) {
 		super();
 
@@ -299,9 +306,16 @@ export class TerminalLinkManager extends DisposableStore {
 		const tooltipValidatedLocalCallback = (event: MouseEvent, link: string, location: IViewportRange) => {
 			this._tooltipCallback(event, link, location, this._handleLocalLink.bind(this, link));
 		};
-		const wrappedLinkActivateCallback = this._wrapLinkHandler(this._handleLocalLink.bind(this));
+		const wrappedTextLinkActivateCallback = this._wrapLinkHandler(this._handleLocalLink.bind(this));
+		const wrappedDirectoryLinkActivateCallback = this._wrapLinkHandler2(this._handleLocalFolderLink.bind(this));
 		this._linkProviders.push(this._xterm.registerLinkProvider(
-			new TerminalValidatedLocalLinkProvider(this._xterm, this._processManager.os || OS, wrappedLinkActivateCallback, tooltipValidatedLocalCallback, this._leaveCallback, this._validateLocalLink.bind(this))
+			new TerminalValidatedLocalLinkProvider(
+				this._xterm, this._processManager.os || OS,
+				wrappedTextLinkActivateCallback,
+				wrappedDirectoryLinkActivateCallback,
+				tooltipValidatedLocalCallback,
+				this._leaveCallback,
+				async (link, cb) => cb(await this._resolvePath(link)))
 		));
 
 		// Word links
@@ -318,6 +332,7 @@ export class TerminalLinkManager extends DisposableStore {
 		return async (event: MouseEvent, link: string) => {
 			// Prevent default electron link handling so Alt+Click mode works normally
 			event.preventDefault();
+
 			// Require correct modifier on click
 			if (!this._isLinkActivationModifierDown(event)) {
 				return;
@@ -325,21 +340,7 @@ export class TerminalLinkManager extends DisposableStore {
 
 			// Allow the link to be intercepted if there are listeners
 			if (this._hasBeforeHandleLinkListeners) {
-				const wasHandled = await new Promise<boolean>(r => {
-					const timeoutId = setTimeout(() => {
-						canceled = true;
-						this._logService.error(`An extension intecepted a terminal link but it timed out after ${TerminalLinkManager.LINK_INTERCEPT_THRESHOLD / 1000} seconds`);
-						r(false);
-					}, TerminalLinkManager.LINK_INTERCEPT_THRESHOLD);
-					let canceled = false;
-					const resolve = (handled: boolean) => {
-						if (!canceled) {
-							clearTimeout(timeoutId);
-							r(handled);
-						}
-					};
-					this._onBeforeHandleLink.fire({ link, resolve });
-				});
+				const wasHandled = await this._triggerBeforeHandleLinkListeners(link);
 				if (!wasHandled) {
 					handler(link);
 				}
@@ -349,6 +350,48 @@ export class TerminalLinkManager extends DisposableStore {
 			// Just call the handler if there is no before listener
 			handler(link);
 		};
+	}
+
+	protected _wrapLinkHandler2(handler: (uri: URI) => void): (event: MouseEvent, link: string, uri: URI) => Promise<void> {
+		return async (event: MouseEvent, link: string, uri: URI) => {
+			// Prevent default electron link handling so Alt+Click mode works normally
+			event.preventDefault();
+
+			// Require correct modifier on click
+			if (!this._isLinkActivationModifierDown(event)) {
+				return;
+			}
+
+			// Allow the link to be intercepted if there are listeners
+			if (this._hasBeforeHandleLinkListeners) {
+				const wasHandled = await this._triggerBeforeHandleLinkListeners(link);
+				if (!wasHandled) {
+					handler(uri);
+				}
+				return;
+			}
+
+			// Just call the handler if there is no before listener
+			handler(uri);
+		};
+	}
+
+	private async _triggerBeforeHandleLinkListeners(link: string): Promise<boolean> {
+		return new Promise<boolean>(r => {
+			const timeoutId = setTimeout(() => {
+				canceled = true;
+				this._logService.error(`An extension intecepted a terminal link but it timed out after ${TerminalLinkManager.LINK_INTERCEPT_THRESHOLD / 1000} seconds`);
+				r(false);
+			}, TerminalLinkManager.LINK_INTERCEPT_THRESHOLD);
+			let canceled = false;
+			const resolve = (handled: boolean) => {
+				if (!canceled) {
+					clearTimeout(timeoutId);
+					r(handled);
+				}
+			};
+			this._onBeforeHandleLink.fire({ link, resolve });
+		});
 	}
 
 	protected get _localLinkRegex(): RegExp {
@@ -369,6 +412,7 @@ export class TerminalLinkManager extends DisposableStore {
 	}
 
 	private async _handleLocalLink(link: string): Promise<void> {
+		// TODO: This gets resolved again but doesn't need to as it's already validated
 		const resolvedLink = await this._resolvePath(link);
 		if (!resolvedLink) {
 			return;
@@ -378,7 +422,21 @@ export class TerminalLinkManager extends DisposableStore {
 			startLineNumber: lineColumnInfo.lineNumber,
 			startColumn: lineColumnInfo.columnNumber
 		};
-		await this._editorService.openEditor({ resource: resolvedLink, options: { pinned: true, selection } });
+		await this._editorService.openEditor({ resource: resolvedLink.uri, options: { pinned: true, selection } });
+	}
+
+	private async _handleLocalFolderLink(uri: URI): Promise<void> {
+		// If the folder is within one of the window's workspaces, focus it in the explorer
+		const folders = this._workspaceContextService.getWorkspace().folders;
+		for (let i = 0; i < folders.length; i++) {
+			if (isEqualOrParent(uri, folders[0].uri)) {
+				await this._commandService.executeCommand('revealInExplorer', uri);
+				return;
+			}
+		}
+
+		// Open a new window for the folder
+		this._hostService.openWindow([{ folderUri: uri }], { forceNewWindow: true });
 	}
 
 	private _validateLocalLink(link: string, callback: (isValid: boolean) => void): void {
@@ -465,7 +523,7 @@ export class TerminalLinkManager extends DisposableStore {
 		return link;
 	}
 
-	private async _resolvePath(link: string): Promise<URI | undefined> {
+	private async _resolvePath(link: string): Promise<{ uri: URI, isDirectory: boolean } | undefined> {
 		if (!this._processManager) {
 			throw new Error('Process manager is required');
 		}
@@ -494,10 +552,7 @@ export class TerminalLinkManager extends DisposableStore {
 
 			try {
 				const stat = await this._fileService.resolve(uri);
-				if (stat.isDirectory) {
-					return undefined;
-				}
-				return uri;
+				return { uri, isDirectory: stat.isDirectory };
 			}
 			catch (e) {
 				// Does not exist
