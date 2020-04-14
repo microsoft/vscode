@@ -323,10 +323,7 @@ export class TerminalLinkManager extends DisposableStore {
 		));
 
 		// Word links
-		const tooltipWordCallback = (event: MouseEvent, link: string, location: IViewportRange) => {
-			this._tooltipCallback(event, link, location, link => this._quickInputService.quickAccess.show(link));
-		};
-		const wrappedWordActivateCallback = this._wrapLinkHandler(async link => {
+		const wordHandler = async (link: string) => {
 			const results = await this._searchService.fileSearch(
 				this._fileQueryBuilder.file(this._workspaceContextService.getWorkspace().folders, {
 					filePattern: link,
@@ -343,7 +340,11 @@ export class TerminalLinkManager extends DisposableStore {
 
 			// Fallback to searching quick access
 			this._quickInputService.quickAccess.show(link);
-		});
+		};
+		const tooltipWordCallback = (event: MouseEvent, link: string, location: IViewportRange) => {
+			this._tooltipCallback(event, link, location, wordHandler);
+		};
+		const wrappedWordActivateCallback = this._wrapLinkHandler(wordHandler);
 		this._linkProviders.push(this._xterm.registerLinkProvider(
 			this._instantiationService.createInstance(TerminalWordLinkProvider, this._xterm, wrappedWordActivateCallback, tooltipWordCallback, this._leaveCallback)
 		));
