@@ -855,10 +855,11 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			isDirty = this.workingCopyService.isDirty(resource) && !configuration.shortAutoSaveDelay;
 		}
 
+		const labelAndDescription = description ? `${label} ${description}` : label;
 		return {
 			resource,
 			label,
-			ariaLabel: isDirty ? localize('filePickAriaLabelDirty', "{0}, dirty", label) : label,
+			ariaLabel: isDirty ? localize('filePickAriaLabelDirty', "{0} dirty", labelAndDescription) : labelAndDescription,
 			description,
 			iconClasses: getIconClasses(this.modelService, this.modeService, resource),
 			buttons: (() => {
