@@ -14,12 +14,13 @@ import { IListService, IWorkbenchListOptions, WorkbenchList } from 'vs/platform/
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { isMacintosh } from 'vs/base/common/platform';
-import { NOTEBOOK_EDITOR_CURSOR_BOUNDARY, IOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NOTEBOOK_EDITOR_CURSOR_BOUNDARY, IOutput, diff } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Range } from 'vs/editor/common/core/range';
-import { CellRevealType, CellRevealPosition, CursorAtBoundary, ICellViewModel, INotebookCellList } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellRevealType, CellRevealPosition, CursorAtBoundary, ICellViewModel, INotebookCellList, ICellRange, reduceCellRanges, getVisibleCells } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { IStyleController, IListStyles } from 'vs/base/browser/ui/list/listWidget';
+import { TrackedRangeStickiness } from 'vs/editor/common/model';
 
 export class NotebookCellList extends WorkbenchList<CellViewModel> implements IDisposable, IStyleController, INotebookCellList {
 	get onWillScroll(): Event<ScrollEvent> { return this.view.onWillScroll; }
@@ -36,6 +37,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	readonly onDidRemoveOutput: Event<IOutput> = this._onDidRemoveOutput.event;
 
 	private _viewModel: NotebookViewModel | null = null;
+	private _hiddenRangeIds: string[] = [];
 
 	constructor(
 		private listUser: string,
@@ -132,7 +134,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 						});
 					}
 
-					this.splice(diff[0], diff[1], diff[2]);
+					this.splice2(diff[0], diff[1], diff[2]);
 				});
 			} else {
 				DOM.scheduleAtNextAnimationFrame(() => {
@@ -145,17 +147,78 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 							});
 						}
 
-						this.splice(diff[0], diff[1], diff[2]);
+						this.splice2(diff[0], diff[1], diff[2]);
 					});
 				});
 			}
 		}));
 
-		this.splice(0, 0, model.viewCells as CellViewModel[]);
+		this.splice2(0, 0, model.viewCells as CellViewModel[]);
 	}
 
 	clear() {
-		this.splice(0, this.length);
+		super.splice(0, this.length);
+	}
+
+	setHiddenAreas(_ranges: ICellRange[]): boolean {
+		const newRanges = reduceCellRanges(_ranges);
+		// delete old tracking ranges
+		const oldRanges = this._hiddenRangeIds.map(id => this._viewModel!.getTrackedRange(id)).filter(range => range !== null) as ICellRange[];
+		if (newRanges.length === oldRanges.length) {
+			let hasDifference = false;
+			for (let i = 0; i < newRanges.length; i++) {
+				if (!(newRanges[i].start === oldRanges[i].start && newRanges[i].length === oldRanges[i].length)) {
+					hasDifference = true;
+					break;
+				}
+			}
+
+			if (!hasDifference) {
+				return false;
+			}
+		}
+
+		this._hiddenRangeIds.forEach(id => this._viewModel!.setTrackedRange(id, null, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter));
+		const hiddenAreaIds = newRanges.map(range => this._viewModel!.setTrackedRange(null, range, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter)).filter(id => id !== null) as string[];
+
+		this._hiddenRangeIds = hiddenAreaIds;
+
+		this.updateHiddenAreasInView(oldRanges, newRanges);
+		return true;
+	}
+
+	/**
+	 * oldRanges and newRanges are all reduced and sorted.
+	 */
+	updateHiddenAreasInView(oldRanges: ICellRange[], newRanges: ICellRange[]) {
+		const oldViewCellEntries: CellViewModel[] = getVisibleCells(this._viewModel!.viewCells as CellViewModel[], oldRanges);
+		const oldViewCellMapping = new Set<string>();
+		oldViewCellEntries.forEach(cell => {
+			oldViewCellMapping.add(cell.uri.toString());
+		});
+
+		const newViewCellEntries: CellViewModel[] = getVisibleCells(this._viewModel!.viewCells as CellViewModel[], newRanges);
+
+		const viewDiffs = diff<CellViewModel>(oldViewCellEntries, newViewCellEntries, a => {
+			return oldViewCellMapping.has(a.uri.toString());
+		});
+
+		viewDiffs.reverse().forEach((diff) => {
+			// remove output in the webview
+			for (let i = diff.start; i < diff.start + diff.deleteCount; i++) {
+				const cell = this.element(i);
+				cell?.model.outputs.forEach(output => {
+					this._onDidRemoveOutput.fire(output);
+				});
+			}
+
+			this.splice2(diff.start, diff.deleteCount, diff.toInsert);
+		});
+	}
+
+	splice2(start: number, deleteCount: number, elements: CellViewModel[] = []): void {
+		// we need to convert start and delete count based on hidden ranges
+		super.splice(start, deleteCount, elements);
 	}
 
 	getViewIndex(cell: ICellViewModel) {

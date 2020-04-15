@@ -8,12 +8,14 @@ import { URI } from 'vs/base/common/uri';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, diff } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { withTestNotebook, TestCell } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
+import { TrackedRangeStickiness } from 'vs/editor/common/model';
+import { reduceCellRanges, ICellRange } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 suite('NotebookViewModel', () => {
 	const instantiationService = new TestInstantiationService();
@@ -159,5 +161,150 @@ suite('NotebookViewModel', () => {
 				});
 			}
 		);
+	});
+});
+
+function getVisibleCells(cells: any[], hiddenRanges: ICellRange[]) {
+	if (!hiddenRanges.length) {
+		return cells;
+	}
+
+	let start = 0;
+	let hiddenRangeIndex = 0;
+	let result: any[] = [];
+
+	while (start < cells.length && hiddenRangeIndex < hiddenRanges.length) {
+		if (start < hiddenRanges[hiddenRangeIndex].start) {
+			result.push(...cells.slice(start, hiddenRanges[hiddenRangeIndex].start));
+		}
+
+		start = hiddenRanges[hiddenRangeIndex].start + hiddenRanges[hiddenRangeIndex].length;
+		hiddenRangeIndex++;
+	}
+
+	if (start < cells.length) {
+		result.push(...cells.slice(start));
+	}
+
+	return result;
+}
+
+suite('NotebookViewModel Decorations', () => {
+	const instantiationService = new TestInstantiationService();
+	const blukEditService = instantiationService.get(IBulkEditService);
+	const undoRedoService = instantiationService.stub(IUndoRedoService, () => { });
+	instantiationService.spy(IUndoRedoService, 'pushElement');
+
+	test('tracking range', function () {
+		withTestNotebook(
+			instantiationService,
+			blukEditService,
+			undoRedoService,
+			[
+				[['var a = 1;'], 'javascript', CellKind.Code, [], {}],
+				[['var b = 2;'], 'javascript', CellKind.Code, [], { editable: true, runnable: true }],
+				[['var c = 3;'], 'javascript', CellKind.Code, [], { editable: true, runnable: false }],
+				[['var d = 4;'], 'javascript', CellKind.Code, [], { editable: false, runnable: true }],
+				[['var e = 5;'], 'javascript', CellKind.Code, [], { editable: false, runnable: false }],
+			],
+			(editor, viewModel) => {
+				const trackedId = viewModel.setTrackedRange('test', { start: 1, length: 2 }, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter);
+				assert.deepEqual(viewModel.getTrackedRange(trackedId!), {
+					start: 1,
+					length: 2
+				});
+
+				viewModel.insertCell(0, new TestCell(viewModel.viewType, 5, ['var d = 6;'], 'javascript', CellKind.Code, []), true);
+				assert.deepEqual(viewModel.getTrackedRange(trackedId!), {
+					start: 2,
+					length: 2
+				});
+
+				viewModel.deleteCell(0, true);
+				assert.deepEqual(viewModel.getTrackedRange(trackedId!), {
+					start: 1,
+					length: 2
+				});
+
+				viewModel.insertCell(3, new TestCell(viewModel.viewType, 6, ['var d = 7;'], 'javascript', CellKind.Code, []), true);
+				assert.deepEqual(viewModel.getTrackedRange(trackedId!), {
+					start: 1,
+					length: 3
+				});
+
+				viewModel.deleteCell(3, true);
+				assert.deepEqual(viewModel.getTrackedRange(trackedId!), {
+					start: 1,
+					length: 2
+				});
+
+				viewModel.deleteCell(1, true);
+				assert.deepEqual(viewModel.getTrackedRange(trackedId!), {
+					start: 0,
+					length: 2
+				});
+			}
+		);
+	});
+
+	test('reduce range', function () {
+		assert.deepEqual(reduceCellRanges([
+			{ start: 0, length: 2 },
+			{ start: 1, length: 2 },
+			{ start: 4, length: 2 }
+		]), [
+			{ start: 0, length: 3 },
+			{ start: 4, length: 2 }
+		]);
+
+		assert.deepEqual(reduceCellRanges([
+			{ start: 0, length: 2 },
+			{ start: 1, length: 2 },
+			{ start: 3, length: 2 }
+		]), [
+			{ start: 0, length: 5 }
+		]);
+	});
+
+	test('diff hidden ranges', function () {
+		assert.deepEqual(getVisibleCells([1, 2, 3, 4, 5], []), [1, 2, 3, 4, 5]);
+
+		assert.deepEqual(
+			getVisibleCells(
+				[1, 2, 3, 4, 5],
+				[{ start: 1, length: 2 }]
+			),
+			[1, 4, 5]
+		);
+
+		assert.deepEqual(
+			getVisibleCells(
+				[1, 2, 3, 4, 5, 6, 7, 8, 9],
+				[
+					{ start: 1, length: 2 },
+					{ start: 4, length: 2 }
+				]
+			),
+			[1, 4, 7, 8, 9]
+		);
+
+		const original = getVisibleCells(
+			[1, 2, 3, 4, 5, 6, 7, 8, 9],
+			[
+				{ start: 1, length: 2 },
+				{ start: 4, length: 2 }
+			]
+		);
+
+		const modified = getVisibleCells(
+			[1, 2, 3, 4, 5, 6, 7, 8, 9],
+			[
+				{ start: 2, length: 3 }
+			]
+		);
+
+		assert.deepEqual(diff<number>(original, modified, (a) => {
+			return original.indexOf(a) >= 0;
+		}), [{ start: 1, deleteCount: 1, toInsert: [2, 6] }]);
 	});
 });

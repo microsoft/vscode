@@ -253,6 +253,11 @@ export interface INotebookEditor {
 	 */
 	revealRangeInCenterIfOutsideViewport(cell: ICellViewModel, range: Range): void;
 
+	/**
+	 * Set hidden areas on cell text models.
+	 */
+	setHiddenAreas(_ranges: ICellRange[]): boolean;
+
 	setCellSelection(cell: ICellViewModel, selection: Range): void;
 
 	/**
@@ -299,6 +304,7 @@ export interface INotebookCellList {
 	revealElementRangeInView(element: ICellViewModel, range: Range): void;
 	revealElementRangeInCenter(element: ICellViewModel, range: Range): void;
 	revealElementRangeInCenterIfOutsideViewport(element: ICellViewModel, range: Range): void;
+	setHiddenAreas(_ranges: ICellRange[]): boolean;
 	domElementOfElement(element: ICellViewModel): HTMLElement | null;
 	focusView(): void;
 	getAbsoluteTopOfElement(element: ICellViewModel): number;
@@ -390,4 +396,67 @@ export enum CursorAtBoundary {
 	Top,
 	Bottom,
 	Both
+}
+
+/**
+ * [start, start + length]
+ */
+export interface ICellRange {
+	start: number;
+	length: number;
+}
+
+
+/**
+ * @param _ranges
+ */
+export function reduceCellRanges(_ranges: ICellRange[]): ICellRange[] {
+	if (!_ranges.length) {
+		return [];
+	}
+
+	let ranges = _ranges.sort((a, b) => a.start - b.start);
+	let result: ICellRange[] = [];
+	let currentRangeStart = ranges[0].start;
+	let currentRangeEnd = ranges[0].start + ranges[0].length;
+
+	for (let i = 0, len = ranges.length; i < len; i++) {
+		let range = ranges[i];
+
+		if (range.start > currentRangeEnd) {
+			result.push({ start: currentRangeStart, length: currentRangeEnd - currentRangeStart });
+			currentRangeStart = range.start;
+			currentRangeEnd = range.start + range.length;
+		} else if (range.start + range.length > currentRangeEnd) {
+			currentRangeEnd = range.start + range.length;
+		}
+	}
+
+	result.push({ start: currentRangeStart, length: currentRangeEnd - currentRangeStart });
+	return result;
+}
+
+export function getVisibleCells(cells: CellViewModel[], hiddenRanges: ICellRange[]) {
+	if (!hiddenRanges.length) {
+		return cells;
+	}
+
+	let start = 0;
+	let hiddenRangeIndex = 0;
+	let result: any[] = [];
+
+	while (start < cells.length && hiddenRangeIndex < hiddenRanges.length) {
+		if (start < hiddenRanges[hiddenRangeIndex].start) {
+			result.push(...cells.slice(start, hiddenRanges[hiddenRangeIndex].start));
+		}
+
+		start = hiddenRanges[hiddenRangeIndex].start + hiddenRanges[hiddenRangeIndex].length;
+		hiddenRangeIndex++;
+	}
+
+	if (start < cells.length) {
+		result.push(...cells.slice(start));
+	}
+
+	return result;
 }
