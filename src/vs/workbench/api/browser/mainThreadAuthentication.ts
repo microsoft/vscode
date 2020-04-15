@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import * as modes from 'vs/editor/common/modes';
 import * as nls from 'vs/nls';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
@@ -12,14 +12,10 @@ import { ExtHostAuthenticationShape, ExtHostContext, IExtHostContext, MainContex
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import Severity from 'vs/base/common/severity';
-import { MenuRegistry, MenuId, IMenuItem, IMenuService } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
+import { MenuRegistry, MenuId, IMenuItem } from 'vs/platform/actions/common/actions';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IAction } from 'vs/base/common/actions';
-import { Event } from 'vs/base/common/event';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 interface AllowedExtension {
 	id: string;
@@ -69,11 +65,7 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		public readonly id: string,
 		public readonly displayName: string,
 		private readonly supportsMultipleAccounts: boolean,
-		@IMenuService private readonly menuService: IMenuService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@ICommandService private readonly commandService: ICommandService,
-		@IDialogService private readonly dialogService: IDialogService,
+		private readonly notificationService: INotificationService
 	) {
 		super();
 
@@ -131,10 +123,8 @@ export class MainThreadAuthenticationProvider extends Disposable {
 	private createSignInMenu(hasSessions: boolean): void {
 		this._signInMenuDisposables.push(CommandsRegistry.registerCommand({
 			id: `signIn${this.id}`,
-			handler: async (accessor, args) => {
-				const features = await this.enableFeatures();
-				const session = await this.login();
-				await Promise.all(features.map(feature => this.commandService.executeCommand(feature, session)));
+			handler: (accessor, args) => {
+				this.login();
 			},
 		}));
 
@@ -150,46 +140,6 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		};
 
 		this._signInMenuDisposables.push(MenuRegistry.appendMenuItem(MenuId.AccountsContext, this._signInMenuItem));
-	}
-
-	private async enableFeatures(): Promise<string[]> {
-		const scopedContextKeyService = this.contextKeyService.createScoped();
-		scopedContextKeyService.createKey('account.providerId', this.id);
-		const accountsMenu = this.menuService.createMenu(MenuId.AccountSignInContext, scopedContextKeyService);
-		const featuressActions: IAction[] = [];
-		const actionsDisposable = createAndFillInActionBarActions(accountsMenu, undefined, { primary: [], secondary: featuressActions });
-		let result: string[] = [];
-		if (featuressActions.length) {
-			result = await new Promise<string[]>(async (c, e) => {
-				const disposables: DisposableStore = new DisposableStore();
-				const quickPick = this.quickInputService.createQuickPick<{ label: string, id: string, detail?: string }>();
-				disposables.add(quickPick);
-
-				quickPick.title = nls.localize('enable title', "Turn on Features");
-				quickPick.ok = false;
-				quickPick.customButton = true;
-				quickPick.customLabel = nls.localize('sign in and enable', "Sign in & Turn on");
-				quickPick.canSelectMany = true;
-				quickPick.placeholder = nls.localize('enable placeholder', "Please select features to turn on");
-				quickPick.ignoreFocusOut = true;
-				const items = featuressActions.map(a => ({
-					label: a.label,
-					id: a.id,
-					detail: a.tooltip
-				}));
-				quickPick.items = items;
-				quickPick.selectedItems = items;
-				disposables.add(Event.any(quickPick.onDidAccept, quickPick.onDidCustom)(async () => {
-					const selected = quickPick.selectedItems.map(item => item.id);
-					quickPick.hide();
-					c(selected);
-				}));
-				disposables.add(quickPick.onDidHide(() => disposables.dispose()));
-				quickPick.show();
-			});
-		}
-		actionsDisposable.dispose();
-		return result;
 	}
 
 	private async registerCommandsAndContextMenuItems(): Promise<void> {
@@ -236,36 +186,9 @@ export class MainThreadAuthenticationProvider extends Disposable {
 
 				quickPick.items = items;
 
-				quickPick.onDidAccept(async e => {
+				quickPick.onDidAccept(e => {
 					const selected = quickPick.selectedItems[0];
 					if (selected.label === signOut) {
-						quickPick.hide();
-						const scopedContextKeyService = this.contextKeyService.createScoped();
-						scopedContextKeyService.createKey('account.providerId', this.id);
-						scopedContextKeyService.createKey('account.name', session.accountName);
-						const accountsMenu = this.menuService.createMenu(MenuId.AccountSignOutContext, scopedContextKeyService);
-						const featuressActions: IAction[] = [];
-						const actionsDisposable = createAndFillInActionBarActions(accountsMenu, undefined, { primary: [], secondary: featuressActions });
-
-						if (featuressActions.length) {
-							let detail = '';
-							for (const feature of featuressActions) {
-								detail += `- ${feature.label}\n`;
-							}
-							const result = await this.dialogService.confirm({
-								title: nls.localize('Sign out title', "Sign out: {0}", session.accountName),
-								message: nls.localize('disabled', "Following features will be turned off "),
-								detail,
-								primaryButton: nls.localize('sign out', "Turn off & Sign Out")
-							});
-							if (!result.confirmed) {
-								return;
-							}
-							await Promise.all(featuressActions.map(feature => this.commandService.executeCommand(feature.id, session)));
-						}
-
-						actionsDisposable.dispose();
-
 						const sessionsForAccount = this._accounts.get(session.accountName);
 						sessionsForAccount?.forEach(sessionId => this.logout(sessionId));
 					}
@@ -358,6 +281,7 @@ export class MainThreadAuthenticationProvider extends Disposable {
 
 	async logout(sessionId: string): Promise<void> {
 		await this._proxy.$logout(this.id, sessionId);
+		this.notificationService.info(nls.localize('signedOut', "Successfully signed out."));
 	}
 
 	dispose(): void {
@@ -377,14 +301,14 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostAuthentication);
 	}
 
 	async $registerAuthenticationProvider(id: string, displayName: string, supportsMultipleAccounts: boolean): Promise<void> {
-		const provider = this.instantiationService.createInstance(MainThreadAuthenticationProvider, this._proxy, id, displayName, supportsMultipleAccounts);
+		const provider = new MainThreadAuthenticationProvider(this._proxy, id, displayName, supportsMultipleAccounts, this.notificationService);
 		this.authenticationService.registerAuthenticationProvider(id, provider);
 	}
 
