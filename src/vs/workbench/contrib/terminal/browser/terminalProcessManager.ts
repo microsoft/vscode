@@ -25,7 +25,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IEnvironmentVariableService, IMergedEnvironmentVariableCollection, IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
-import { EnvironmentVariableInfoStale } from 'vs/workbench/contrib/terminal/common/environmentVariableInfo';
+import { EnvironmentVariableInfoStale, EnvironmentVariableInfoChangesActive } from 'vs/workbench/contrib/terminal/common/environmentVariableInfo';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -245,6 +245,11 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		this._extEnvironmentVariableCollection = this._environmentVariableService.mergedCollection;
 		this._register(this._environmentVariableService.onDidChangeCollections(newCollection => this._onEnvironmentVariableCollectionChange(newCollection)));
 		this._extEnvironmentVariableCollection.applyToProcessEnvironment(env);
+		if (this._extEnvironmentVariableCollection.map.size > 0) {
+			const info = new EnvironmentVariableInfoChangesActive();
+			this._onEnvironmentVariableInfoChange.fire(info);
+		}
+
 
 		const useConpty = this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled;
 		return this._terminalInstanceService.createTerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, useConpty);
