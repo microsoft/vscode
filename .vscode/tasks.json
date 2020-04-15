@@ -3,7 +3,7 @@
 	"tasks": [
 		{
 			"type": "npm",
-			"script": "watch",
+			"script": "watchd",
 			"label": "Build VS Code",
 			"group": {
 				"kind": "build",
