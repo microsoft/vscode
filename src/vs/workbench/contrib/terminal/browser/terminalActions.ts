@@ -27,7 +27,7 @@ import { isWindows } from 'vs/base/common/platform';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { ITerminalInstance, ITerminalService, Direction } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalsQuickAccess';
+import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
 import { ToggleViewAction } from 'vs/workbench/browser/actions/layoutActions';
 import { IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';

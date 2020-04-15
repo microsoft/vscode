@@ -33,7 +33,7 @@ import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
-import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalsQuickAccess';
+import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
 import { terminalConfiguration, getTerminalShellConfiguration } from 'vs/workbench/contrib/terminal/common/terminalConfiguration';
 
 // Register services
