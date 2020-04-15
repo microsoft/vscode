@@ -6,7 +6,7 @@
 import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, OutputChannel } from 'vscode';
 import { Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
-import { dispose, anyEvent, filterEvent, isDescendant, firstIndex, pathEquals } from './util';
+import { dispose, anyEvent, filterEvent, isDescendant, firstIndex, pathEquals, toDisposable } from './util';
 import { Git } from './git';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -44,6 +44,17 @@ interface OpenRepository extends Disposable {
 	repository: Repository;
 }
 
+export interface Remote {
+	readonly name: string;
+	readonly url: string;
+}
+
+export interface RemoteProvider {
+	readonly name: string;
+	readonly searchSupport?: boolean;
+	getRemotes(query?: string): Remote[] | Promise<Remote[]>;
+}
+
 export class Model {
 
 	private _onDidOpenRepository = new EventEmitter<Repository>();
@@ -73,6 +84,8 @@ export class Model {
 		this._state = state;
 		this._onDidChangeState.fire(state);
 	}
+
+	private remoteProviders = new Set<RemoteProvider>();
 
 	private disposables: Disposable[] = [];
 
@@ -445,6 +458,15 @@ export class Model {
 		}
 
 		return undefined;
+	}
+
+	registerRemoteProvider(provider: RemoteProvider): Disposable {
+		this.remoteProviders.add(provider);
+		return toDisposable(() => this.remoteProviders.delete(provider));
+	}
+
+	getRemoteProviders(): RemoteProvider[] {
+		return [...this.remoteProviders.values()];
 	}
 
 	dispose(): void {
