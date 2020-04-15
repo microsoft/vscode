@@ -87,10 +87,11 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 		}
 		this.workspaceConfiguration = this._register(new WorkspaceConfiguration(configurationCache, fileService));
 		this._register(this.workspaceConfiguration.onDidUpdateConfiguration(() => {
-			this.onWorkspaceConfigurationChanged();
-			if (this.workspaceConfiguration.loaded) {
-				this.releaseWorkspaceBarrier();
-			}
+			this.onWorkspaceConfigurationChanged().then(() => {
+				if (this.workspaceConfiguration.loaded) {
+					this.releaseWorkspaceBarrier();
+				}
+			});
 		}));
 
 		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidSchemaChange(e => this.registerConfigurationSchemas()));
