@@ -3279,6 +3279,10 @@ declare namespace monaco.editor {
 		 * Controls whether the search automatically restarts from the beginning (or the end) when no further matches can be found
 		 */
 		loop?: boolean;
+		/**
+		 * Controls whether the search with selection automatically focus the search input
+		 */
+		withSelectionFocus?: boolean;
 	}
 
 	export type EditorFindOptions = Readonly<Required<IEditorFindOptions>>;

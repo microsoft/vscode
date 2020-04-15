@@ -507,12 +507,16 @@ export class StartFindWithSelectionAction extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		let controller = CommonFindController.get(editor);
+		const shouldFocus = editor.getOption(EditorOption.find).withSelectionFocus
+			? FindStartFocusAction.FocusFindInput
+			: FindStartFocusAction.NoFocusChange;
+
 		if (controller) {
 			controller.start({
 				forceRevealReplace: false,
 				seedSearchStringFromSelection: true,
 				seedSearchStringFromGlobalClipboard: false,
-				shouldFocus: FindStartFocusAction.NoFocusChange,
+				shouldFocus: shouldFocus,
 				shouldAnimate: true,
 				updateSearchScope: false,
 				loop: editor.getOption(EditorOption.find).loop

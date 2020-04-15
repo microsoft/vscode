@@ -1257,6 +1257,10 @@ export interface IEditorFindOptions {
 	 * Controls whether the search automatically restarts from the beginning (or the end) when no further matches can be found
 	 */
 	loop?: boolean;
+	/**
+	 * Controls whether the search with selection automatically focus the search input
+	 */
+	withSelectionFocus?: boolean;
 }
 
 export type EditorFindOptions = Readonly<Required<IEditorFindOptions>>;
@@ -1269,7 +1273,8 @@ class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> 
 			autoFindInSelection: 'never',
 			globalFindClipboard: false,
 			addExtraSpaceOnTop: true,
-			loop: true
+			loop: true,
+			withSelectionFocus: false,
 		};
 		super(
 			EditorOption.find, 'find', defaults,
@@ -1306,6 +1311,11 @@ class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> 
 					default: defaults.loop,
 					description: nls.localize('find.loop', "Controls whether the search automatically restarts from the beginning (or the end) when no further matches can be found.")
 				},
+				'editor.find.withSelectionFocus': {
+					type: 'boolean',
+					default: defaults.withSelectionFocus,
+					description: nls.localize('find.withSelectionFocus', "Controls whether the search with selection automatically focus the search input.")
+				},
 
 			}
 		);
@@ -1324,6 +1334,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> 
 			globalFindClipboard: EditorBooleanOption.boolean(input.globalFindClipboard, this.defaultValue.globalFindClipboard),
 			addExtraSpaceOnTop: EditorBooleanOption.boolean(input.addExtraSpaceOnTop, this.defaultValue.addExtraSpaceOnTop),
 			loop: EditorBooleanOption.boolean(input.loop, this.defaultValue.loop),
+			withSelectionFocus: EditorBooleanOption.boolean(input.withSelectionFocus, this.defaultValue.withSelectionFocus),
 		};
 	}
 }
