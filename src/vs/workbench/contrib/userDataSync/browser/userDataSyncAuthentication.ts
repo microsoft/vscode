@@ -274,14 +274,14 @@ export class UserDataSyncAuthentication extends Disposable implements IUserDataS
 
 	private async onDidChangeSessions(e: { providerId: string, event: AuthenticationSessionsChangeEvent }): Promise<void> {
 		const { providerId, event } = e;
-		if (!this.userDataSyncEnablementService.isEnabled()) {
-			if (event.added) {
-				this._onAccountsAvailable.fire();
-			}
-			return;
-		}
-
 		if (providerId === this._authenticationProviderId) {
+			if (!this.userDataSyncEnablementService.isEnabled()) {
+				if (event.added.length) {
+					this._onAccountsAvailable.fire();
+				}
+				return;
+			}
+
 			if (this.loginInProgress) {
 				return;
 			}
