@@ -475,7 +475,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		} else if (metadata.runState === NotebookCellRunState.Running) {
 			// TODO should extensions be able to customize the status message while running to show progress?
 			templateData.cellStatusMessageContainer.textContent = nls.localize('cellRunningStatus', "Running");
-			templateData.cellRunStatusContainer.innerHTML = renderCodicons('$(vm-running)');
+			templateData.cellRunStatusContainer.innerHTML = renderCodicons('$(sync~spin)');
 		} else {
 			templateData.cellRunStatusContainer.innerHTML = '';
 		}
