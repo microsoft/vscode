@@ -8197,6 +8197,8 @@ declare module 'vscode' {
 		/**
 		 * Handles a link that is activated within the terminal.
 		 *
+		 * @param terminal The terminal the link was activated on.
+		 * @param link The text of the link activated.
 		 * @return Whether the link was handled, if the link was handled this link will not be
 		 * considered by any other extension or by the default built-in link handler.
 		 */
