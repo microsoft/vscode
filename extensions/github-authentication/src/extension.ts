@@ -18,12 +18,15 @@ export async function activate(context: vscode.ExtensionContext) {
 	vscode.authentication.registerAuthenticationProvider({
 		id: 'github',
 		displayName: 'GitHub',
+		supportsMultipleAccounts: false,
 		onDidChangeSessions: onDidChangeSessions.event,
 		getSessions: () => Promise.resolve(loginService.sessions),
-		login: async (scopes: string[]) => {
+		login: async (scopeList: string[] | undefined) => {
 			try {
-				const session = await loginService.login(scopes.join(' '));
+				const loginScopes = scopeList ? scopeList.sort().join(' ') : 'user:email';
+				const session = await loginService.login(loginScopes);
 				Logger.info('Login success!');
+				onDidChangeSessions.fire({ added: [session.id], removed: [], changed: [] });
 				return session;
 			} catch (e) {
 				vscode.window.showErrorMessage(`Sign in failed: ${e}`);
@@ -32,7 +35,8 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 		},
 		logout: async (id: string) => {
-			return loginService.logout(id);
+			await loginService.logout(id);
+			onDidChangeSessions.fire({ added: [], removed: [id], changed: [] });
 		}
 	});
 

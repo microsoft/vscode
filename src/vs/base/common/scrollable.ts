@@ -33,6 +33,9 @@ export interface ScrollEvent {
 export class ScrollState implements IScrollDimensions, IScrollPosition {
 	_scrollStateBrand: void;
 
+	public readonly rawScrollLeft: number;
+	public readonly rawScrollTop: number;
+
 	public readonly width: number;
 	public readonly scrollWidth: number;
 	public readonly scrollLeft: number;
@@ -54,6 +57,9 @@ export class ScrollState implements IScrollDimensions, IScrollPosition {
 		height = height | 0;
 		scrollHeight = scrollHeight | 0;
 		scrollTop = scrollTop | 0;
+
+		this.rawScrollLeft = scrollLeft; // before validation
+		this.rawScrollTop = scrollTop; // before validation
 
 		if (width < 0) {
 			width = 0;
@@ -85,7 +91,9 @@ export class ScrollState implements IScrollDimensions, IScrollPosition {
 
 	public equals(other: ScrollState): boolean {
 		return (
-			this.width === other.width
+			this.rawScrollLeft === other.rawScrollLeft
+			&& this.rawScrollTop === other.rawScrollTop
+			&& this.width === other.width
 			&& this.scrollWidth === other.scrollWidth
 			&& this.scrollLeft === other.scrollLeft
 			&& this.height === other.height
@@ -98,10 +106,10 @@ export class ScrollState implements IScrollDimensions, IScrollPosition {
 		return new ScrollState(
 			(typeof update.width !== 'undefined' ? update.width : this.width),
 			(typeof update.scrollWidth !== 'undefined' ? update.scrollWidth : this.scrollWidth),
-			this.scrollLeft,
+			this.rawScrollLeft,
 			(typeof update.height !== 'undefined' ? update.height : this.height),
 			(typeof update.scrollHeight !== 'undefined' ? update.scrollHeight : this.scrollHeight),
-			this.scrollTop
+			this.rawScrollTop
 		);
 	}
 
@@ -109,10 +117,10 @@ export class ScrollState implements IScrollDimensions, IScrollPosition {
 		return new ScrollState(
 			this.width,
 			this.scrollWidth,
-			(typeof update.scrollLeft !== 'undefined' ? update.scrollLeft : this.scrollLeft),
+			(typeof update.scrollLeft !== 'undefined' ? update.scrollLeft : this.rawScrollLeft),
 			this.height,
 			this.scrollHeight,
-			(typeof update.scrollTop !== 'undefined' ? update.scrollTop : this.scrollTop)
+			(typeof update.scrollTop !== 'undefined' ? update.scrollTop : this.rawScrollTop)
 		);
 	}
 

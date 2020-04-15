@@ -21,7 +21,7 @@ export class Kind {
 	public static readonly let = 'let';
 	public static readonly localFunction = 'local function';
 	public static readonly localVariable = 'local var';
-	public static readonly memberFunction = 'method';
+	public static readonly method = 'method';
 	public static readonly memberGetAccessor = 'getter';
 	public static readonly memberSetAccessor = 'setter';
 	public static readonly memberVariable = 'property';

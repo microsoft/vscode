@@ -8,11 +8,11 @@ import * as path from 'path';
 import { Editor } from './editor';
 import { Editors } from './editors';
 import { Code } from './code';
-import { QuickOpen } from './quickopen';
+import { QuickAccess } from './quickaccess';
 
 export class SettingsEditor {
 
-	constructor(private code: Code, private userDataPath: string, private editors: Editors, private editor: Editor, private quickopen: QuickOpen) { }
+	constructor(private code: Code, private userDataPath: string, private editors: Editors, private editor: Editor, private quickaccess: QuickAccess) { }
 
 	async addUserSetting(setting: string, value: string): Promise<void> {
 		await this.openSettings();
@@ -32,6 +32,6 @@ export class SettingsEditor {
 	}
 
 	private async openSettings(): Promise<void> {
-		await this.quickopen.runCommand('Preferences: Open Settings (JSON)');
+		await this.quickaccess.runCommand('workbench.action.openSettingsJson');
 	}
 }

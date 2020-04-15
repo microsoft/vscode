@@ -36,6 +36,7 @@ import { ContextScopedFindInput, ContextScopedReplaceInput } from 'vs/platform/b
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
 export interface IFindController {
 	replace(): void;
@@ -152,6 +153,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		themeService: IThemeService,
 		storageService: IStorageService,
 		notificationService: INotificationService,
+		storageKeysSyncRegistryService: IStorageKeysSyncRegistryService
 	) {
 		super();
 		this._codeEditor = codeEditor;
@@ -163,6 +165,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		this._storageService = storageService;
 		this._notificationService = notificationService;
 
+		storageKeysSyncRegistryService.registerStorageKey({ key: ctrlEnterReplaceAllWarningPromptedKey, version: 1 });
 		this._ctrlEnterReplaceAllWarningPrompted = !!storageService.getBoolean(ctrlEnterReplaceAllWarningPromptedKey, StorageScope.GLOBAL);
 
 		this._isVisible = false;
@@ -360,6 +363,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		if (e.updateHistory) {
 			this._delayedUpdateHistory();
 		}
+		if (e.loop) {
+			this._updateButtons();
+		}
 	}
 
 	private _delayedUpdateHistory() {
@@ -455,8 +461,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 		let findInputIsNonEmpty = (this._state.searchString.length > 0);
 		let matchesCount = this._state.matchesCount ? true : false;
-		this._prevBtn.setEnabled(this._isVisible && findInputIsNonEmpty && matchesCount);
-		this._nextBtn.setEnabled(this._isVisible && findInputIsNonEmpty && matchesCount);
+		this._prevBtn.setEnabled(this._isVisible && findInputIsNonEmpty && matchesCount && this._state.canNavigateBack());
+		this._nextBtn.setEnabled(this._isVisible && findInputIsNonEmpty && matchesCount && this._state.canNavigateForward());
 		this._replaceBtn.setEnabled(this._isVisible && this._isReplaceVisible && findInputIsNonEmpty);
 		this._replaceAllBtn.setEnabled(this._isVisible && this._isReplaceVisible && findInputIsNonEmpty);
 
@@ -924,7 +930,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 					return null;
 				}
 				try {
-					new RegExp(value);
+					// use `g` and `u` which are also used by the TextModel search
+					new RegExp(value, 'gu');
 					return null;
 				} catch (e) {
 					return { content: e.message };

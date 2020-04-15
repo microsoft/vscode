@@ -132,10 +132,12 @@ suite('Disk File Service', function () {
 	const disposables = new DisposableStore();
 
 	// Given issues such as https://github.com/microsoft/vscode/issues/78602
-	// we see random test failures when accessing the native file system. To
-	// diagnose further, we retry node.js file access tests up to 3 times to
-	// rule out any random disk issue.
+	// and https://github.com/microsoft/vscode/issues/92334 we see random test
+	// failures when accessing the native file system. To diagnose further, we
+	// retry node.js file access tests up to 3 times to rule out any random disk
+	// issue and increase the timeout.
 	this.retries(3);
+	this.timeout(1000 * 10);
 
 	setup(async () => {
 		const logService = new NullLogService();
@@ -414,11 +416,7 @@ suite('Disk File Service', function () {
 		assert.equal(r2.name, 'deep');
 	});
 
-	test('resolve - folder symbolic link', async () => {
-		if (isWindows) {
-			return; // not reliable on windows
-		}
-
+	(isWindows /* not reliable on windows */ ? test.skip : test)('resolve - folder symbolic link', async () => {
 		const link = URI.file(join(testDir, 'deep-link'));
 		await symlink(join(testDir, 'deep'), link.fsPath);
 
@@ -428,11 +426,7 @@ suite('Disk File Service', function () {
 		assert.equal(resolved.isSymbolicLink, true);
 	});
 
-	test('resolve - file symbolic link', async () => {
-		if (isWindows) {
-			return; // not reliable on windows
-		}
-
+	(isWindows /* not reliable on windows */ ? test.skip : test)('resolve - file symbolic link', async () => {
 		const link = URI.file(join(testDir, 'lorem.txt-linked'));
 		await symlink(join(testDir, 'lorem.txt'), link.fsPath);
 
@@ -441,11 +435,7 @@ suite('Disk File Service', function () {
 		assert.equal(resolved.isSymbolicLink, true);
 	});
 
-	test('resolve - symbolic link pointing to non-existing file does not break', async () => {
-		if (isWindows) {
-			return; // not reliable on windows
-		}
-
+	(isWindows /* not reliable on windows */ ? test.skip : test)('resolve - symbolic link pointing to non-existing file does not break', async () => {
 		await symlink(join(testDir, 'foo'), join(testDir, 'bar'));
 
 		const resolved = await service.resolve(URI.file(testDir));
@@ -493,11 +483,7 @@ suite('Disk File Service', function () {
 		assert.equal((<FileOperationError>error).fileOperationResult, FileOperationResult.FILE_NOT_FOUND);
 	}
 
-	test('deleteFile - symbolic link (exists)', async () => {
-		if (isWindows) {
-			return; // not reliable on windows
-		}
-
+	(isWindows /* not reliable on windows */ ? test.skip : test)('deleteFile - symbolic link (exists)', async () => {
 		const target = URI.file(join(testDir, 'lorem.txt'));
 		const link = URI.file(join(testDir, 'lorem.txt-linked'));
 		await symlink(target.fsPath, link.fsPath);
@@ -518,11 +504,7 @@ suite('Disk File Service', function () {
 		assert.equal(existsSync(target.fsPath), true); // target the link pointed to is never deleted
 	});
 
-	test('deleteFile - symbolic link (pointing to non-existing file)', async () => {
-		if (isWindows) {
-			return; // not reliable on windows
-		}
-
+	(isWindows /* not reliable on windows */ ? test.skip : test)('deleteFile - symbolic link (pointing to non-existing file)', async () => {
 		const target = URI.file(join(testDir, 'foo'));
 		const link = URI.file(join(testDir, 'bar'));
 		await symlink(target.fsPath, link.fsPath);
@@ -1407,6 +1389,20 @@ suite('Disk File Service', function () {
 		assert.equal(error!.fileOperationResult, FileOperationResult.FILE_IS_DIRECTORY);
 	});
 
+	(isWindows /* error code does not seem to be supported on windows */ ? test.skip : test)('readFile - FILE_NOT_DIRECTORY', async () => {
+		const resource = URI.file(join(testDir, 'lorem.txt', 'file.txt'));
+
+		let error: FileOperationError | undefined = undefined;
+		try {
+			await service.readFile(resource);
+		} catch (err) {
+			error = err;
+		}
+
+		assert.ok(error);
+		assert.equal(error!.fileOperationResult, FileOperationResult.FILE_NOT_DIRECTORY);
+	});
+
 	test('readFile - FILE_NOT_FOUND', async () => {
 		const resource = URI.file(join(testDir, '404.html'));
 
@@ -1542,7 +1538,7 @@ suite('Disk File Service', function () {
 		return testFileTooLarge();
 	});
 
-	test('readFile - FILE_TOO_LARGE - streamed', async () => {
+	(isWindows /* not reliable on windows */ ? test.skip : test)('readFile - FILE_TOO_LARGE - streamed', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadStream);
 
 		return testFileTooLarge();

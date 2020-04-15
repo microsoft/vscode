@@ -81,6 +81,27 @@ suite('Strings', () => {
 		assertCompareIgnoreCase('O', '/');
 	});
 
+	test('compareIgnoreCase (substring)', () => {
+
+		function assertCompareIgnoreCase(a: string, b: string, aStart: number, aEnd: number, bStart: number, bEnd: number, recurse = true): void {
+			let actual = strings.compareSubstringIgnoreCase(a, b, aStart, aEnd, bStart, bEnd);
+			actual = actual > 0 ? 1 : actual < 0 ? -1 : actual;
+
+			let expected = strings.compare(a.toLowerCase().substring(aStart, aEnd), b.toLowerCase().substring(bStart, bEnd));
+			expected = expected > 0 ? 1 : expected < 0 ? -1 : expected;
+			assert.equal(actual, expected, `${a} <> ${b}`);
+
+			if (recurse) {
+				assertCompareIgnoreCase(b, a, bStart, bEnd, aStart, aEnd, false);
+			}
+		}
+
+		assertCompareIgnoreCase('', '', 0, 0, 0, 0);
+		assertCompareIgnoreCase('abc', 'ABC', 0, 1, 0, 1);
+		assertCompareIgnoreCase('abc', 'Aabc', 0, 3, 1, 4);
+		assertCompareIgnoreCase('abcABc', 'ABcd', 3, 6, 0, 4);
+	});
+
 	test('format', () => {
 		assert.strictEqual(strings.format('Foo Bar'), 'Foo Bar');
 		assert.strictEqual(strings.format('Foo {0} Bar'), 'Foo {0} Bar');
@@ -92,15 +113,6 @@ suite('Strings', () => {
 		assert.strictEqual(strings.format('Foo {0} Bar. {1}', '(foo)', '.test'), 'Foo (foo) Bar. .test');
 	});
 
-	test('overlap', () => {
-		assert.equal(strings.overlap('foobar', 'arr, I am a priate'), 2);
-		assert.equal(strings.overlap('no', 'overlap'), 1);
-		assert.equal(strings.overlap('no', '0verlap'), 0);
-		assert.equal(strings.overlap('nothing', ''), 0);
-		assert.equal(strings.overlap('', 'nothing'), 0);
-		assert.equal(strings.overlap('full', 'full'), 4);
-		assert.equal(strings.overlap('full', 'fulloverlap'), 4);
-	});
 	test('lcut', () => {
 		assert.strictEqual(strings.lcut('foo bar', 0), '');
 		assert.strictEqual(strings.lcut('foo bar', 1), 'bar');

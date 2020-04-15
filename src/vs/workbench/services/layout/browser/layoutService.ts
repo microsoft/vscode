@@ -114,11 +114,6 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	setActivityBarHidden(hidden: boolean): void;
 
 	/**
-	 * Number of pixels (adjusted for zooming) that the title bar (if visible) pushes down the workbench contents.
-	 */
-	getTitleBarOffset(): number;
-
-	/**
 	 *
 	 * Set editor area hidden or not
 	 */
@@ -186,11 +181,6 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	getWorkbenchContainer(): HTMLElement;
 
 	/**
-	 * Returns the element that contains the workbench.
-	 */
-	getWorkbenchElement(): HTMLElement;
-
-	/**
 	 * Toggles the workbench in and out of zen mode - parts get hidden and window goes fullscreen.
 	 */
 	toggleZenMode(): void;
@@ -214,7 +204,6 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Register a part to participate in the layout.
 	 */
 	registerPart(part: Part): void;
-
 
 	/**
 	 * Returns whether the window is maximized.

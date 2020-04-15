@@ -113,7 +113,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 
 		} else if (args.kind === 'external') {
 
-			runInExternalTerminal(args, await this._configurationService.getConfigProvider());
+			return runInExternalTerminal(args, await this._configurationService.getConfigProvider());
 		}
 		return super.$runInTerminal(args);
 	}

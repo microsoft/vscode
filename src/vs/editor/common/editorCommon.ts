@@ -5,6 +5,7 @@
 
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { Event } from 'vs/base/common/event';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ConfigurationChangedEvent, IComputedEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
@@ -528,6 +529,24 @@ export interface IDiffEditor extends IEditor {
 	 */
 	getModifiedEditor(): IEditor;
 }
+
+/**
+ * @internal
+ */
+export interface ICompositeCodeEditor {
+
+	/**
+	 * An event that signals that the active editor has changed
+	 */
+	readonly onDidChangeActiveEditor: Event<ICompositeCodeEditor>;
+
+	/**
+	 * The active code editor iff any
+	 */
+	readonly activeCodeEditor: IEditor | undefined;
+	// readonly editors: readonly ICodeEditor[] maybe supported with uris
+}
+
 
 /**
  * An editor contribution that gets created every time a new editor gets created and gets disposed when the editor gets disposed.

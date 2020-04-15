@@ -19,7 +19,11 @@ import {
 } from 'vs/workbench/contrib/url/common/trustedDomains';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
+type TrustedDomainsDialogActionClassification = {
+	action: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+};
 
 export class OpenerValidatorContributions implements IWorkbenchContribution {
 	constructor(
@@ -29,7 +33,8 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 		@IProductService private readonly _productService: IProductService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IClipboardService private readonly _clipboardService: IClipboardService
+		@IClipboardService private readonly _clipboardService: IClipboardService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
 		this._openerService.registerValidator({ shouldOpen: r => this.validateLink(r) });
 	}
@@ -88,20 +93,34 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 
 			// Open Link
 			if (choice === 0) {
+				this._telemetryService.publicLog2<{ action: string }, TrustedDomainsDialogActionClassification>(
+					'trustedDomains.dialogAction',
+					{ action: 'open' }
+				);
 				return true;
 			}
 			// Copy Link
 			else if (choice === 1) {
+				this._telemetryService.publicLog2<{ action: string }, TrustedDomainsDialogActionClassification>(
+					'trustedDomains.dialogAction',
+					{ action: 'copy' }
+				);
 				this._clipboardService.writeText(resource.toString(true));
 			}
 			// Configure Trusted Domains
 			else if (choice === 3) {
+				this._telemetryService.publicLog2<{ action: string }, TrustedDomainsDialogActionClassification>(
+					'trustedDomains.dialogAction',
+					{ action: 'configure' }
+				);
+
 				const pickedDomains = await configureOpenerTrustedDomainsHandler(
 					trustedDomains,
 					domainToOpen,
 					this._quickInputService,
 					this._storageService,
-					this._editorService
+					this._editorService,
+					this._telemetryService
 				);
 				// Trust all domains
 				if (pickedDomains.indexOf('*') !== -1) {
@@ -113,6 +132,11 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 				}
 				return false;
 			}
+
+			this._telemetryService.publicLog2<{ action: string }, TrustedDomainsDialogActionClassification>(
+				'trustedDomains.dialogAction',
+				{ action: 'cancel' }
+			);
 
 			return false;
 		}

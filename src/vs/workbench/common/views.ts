@@ -20,6 +20,8 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { flatten, mergeSort } from 'vs/base/common/arrays';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { SetMap } from 'vs/base/common/collections';
+import { IProgressIndicator } from 'vs/platform/progress/common/progress';
+import Severity from 'vs/base/common/severity';
 
 export const TEST_VIEW_CONTAINER_ID = 'workbench.view.extension.test';
 
@@ -402,6 +404,7 @@ export interface IView {
 
 	setExpanded(expanded: boolean): boolean;
 
+	getProgressIndicator(): IProgressIndicator | undefined;
 }
 
 export interface IViewsViewlet extends IViewlet {
@@ -426,6 +429,7 @@ export interface IViewsService {
 
 	closeView(id: string): void;
 
+	getProgressIndicator(id: string): IProgressIndicator | undefined;
 }
 
 /**
@@ -488,6 +492,8 @@ export interface ITreeView extends IDisposable {
 
 	readonly onDidChangeTitle: Event<string>;
 
+	readonly onDidChangeWelcomeState: Event<void>;
+
 	refresh(treeItems?: ITreeItem[]): Promise<void>;
 
 	setVisibility(visible: boolean): void;
@@ -506,9 +512,6 @@ export interface ITreeView extends IDisposable {
 
 	setFocus(item: ITreeItem): void;
 
-	getPrimaryActions(): IAction[];
-
-	getSecondaryActions(): IAction[];
 }
 
 export interface IRevealOptions {
@@ -574,13 +577,14 @@ export interface ITreeItem {
 }
 
 export interface ITreeViewDataProvider {
-
+	readonly isTreeEmpty?: boolean;
+	onDidChangeEmpty?: Event<void>;
 	getChildren(element?: ITreeItem): Promise<ITreeItem[]>;
 
 }
 
 export interface IEditableData {
-	validationMessage: (value: string) => string | null;
+	validationMessage: (value: string) => { content: string, severity: Severity } | null;
 	placeholder?: string | null;
 	startingValue?: string | null;
 	onFinish: (value: string, success: boolean) => void;

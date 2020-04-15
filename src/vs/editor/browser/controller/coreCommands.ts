@@ -856,18 +856,13 @@ export namespace CoreNavigationCommands {
 		}
 	}));
 
-	export const CursorLineStart: CoreEditorCommand = registerEditorCommand(new class extends CoreEditorCommand {
-		constructor() {
-			super({
-				id: 'cursorLineStart',
-				precondition: undefined,
-				kbOpts: {
-					weight: CORE_WEIGHT,
-					kbExpr: EditorContextKeys.textInputFocus,
-					primary: 0,
-					mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_A }
-				}
-			});
+	class LineStartCommand extends CoreEditorCommand {
+
+		private readonly _inSelectionMode: boolean;
+
+		constructor(opts: ICommandOptions & { inSelectionMode: boolean; }) {
+			super(opts);
+			this._inSelectionMode = opts.inSelectionMode;
 		}
 
 		public runCoreEditorCommand(cursors: ICursors, args: any): void {
@@ -885,11 +880,35 @@ export namespace CoreNavigationCommands {
 			for (let i = 0, len = cursors.length; i < len; i++) {
 				const cursor = cursors[i];
 				const lineNumber = cursor.modelState.position.lineNumber;
-				result[i] = CursorState.fromModelState(cursor.modelState.move(false, lineNumber, 1, 0));
+				result[i] = CursorState.fromModelState(cursor.modelState.move(this._inSelectionMode, lineNumber, 1, 0));
 			}
 			return result;
 		}
-	});
+	}
+
+	export const CursorLineStart: CoreEditorCommand = registerEditorCommand(new LineStartCommand({
+		inSelectionMode: false,
+		id: 'cursorLineStart',
+		precondition: undefined,
+		kbOpts: {
+			weight: CORE_WEIGHT,
+			kbExpr: EditorContextKeys.textInputFocus,
+			primary: 0,
+			mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_A }
+		}
+	}));
+
+	export const CursorLineStartSelect: CoreEditorCommand = registerEditorCommand(new LineStartCommand({
+		inSelectionMode: true,
+		id: 'cursorLineStartSelect',
+		precondition: undefined,
+		kbOpts: {
+			weight: CORE_WEIGHT,
+			kbExpr: EditorContextKeys.textInputFocus,
+			primary: 0,
+			mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_A }
+		}
+	}));
 
 	class EndCommand extends CoreEditorCommand {
 
@@ -935,18 +954,13 @@ export namespace CoreNavigationCommands {
 		}
 	}));
 
-	export const CursorLineEnd: CoreEditorCommand = registerEditorCommand(new class extends CoreEditorCommand {
-		constructor() {
-			super({
-				id: 'cursorLineEnd',
-				precondition: undefined,
-				kbOpts: {
-					weight: CORE_WEIGHT,
-					kbExpr: EditorContextKeys.textInputFocus,
-					primary: 0,
-					mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_E }
-				}
-			});
+	class LineEndCommand extends CoreEditorCommand {
+
+		private readonly _inSelectionMode: boolean;
+
+		constructor(opts: ICommandOptions & { inSelectionMode: boolean; }) {
+			super(opts);
+			this._inSelectionMode = opts.inSelectionMode;
 		}
 
 		public runCoreEditorCommand(cursors: ICursors, args: any): void {
@@ -965,11 +979,35 @@ export namespace CoreNavigationCommands {
 				const cursor = cursors[i];
 				const lineNumber = cursor.modelState.position.lineNumber;
 				const maxColumn = context.model.getLineMaxColumn(lineNumber);
-				result[i] = CursorState.fromModelState(cursor.modelState.move(false, lineNumber, maxColumn, 0));
+				result[i] = CursorState.fromModelState(cursor.modelState.move(this._inSelectionMode, lineNumber, maxColumn, 0));
 			}
 			return result;
 		}
-	});
+	}
+
+	export const CursorLineEnd: CoreEditorCommand = registerEditorCommand(new LineEndCommand({
+		inSelectionMode: false,
+		id: 'cursorLineEnd',
+		precondition: undefined,
+		kbOpts: {
+			weight: CORE_WEIGHT,
+			kbExpr: EditorContextKeys.textInputFocus,
+			primary: 0,
+			mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_E }
+		}
+	}));
+
+	export const CursorLineEndSelect: CoreEditorCommand = registerEditorCommand(new LineEndCommand({
+		inSelectionMode: true,
+		id: 'cursorLineEndSelect',
+		precondition: undefined,
+		kbOpts: {
+			weight: CORE_WEIGHT,
+			kbExpr: EditorContextKeys.textInputFocus,
+			primary: 0,
+			mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_E }
+		}
+	}));
 
 	class TopCommand extends CoreEditorCommand {
 

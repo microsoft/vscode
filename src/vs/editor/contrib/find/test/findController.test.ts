@@ -276,7 +276,8 @@ suite('FindController', () => {
 				seedSearchStringFromGlobalClipboard: false,
 				shouldFocus: FindStartFocusAction.FocusFindInput,
 				shouldAnimate: false,
-				updateSearchScope: false
+				updateSearchScope: false,
+				loop: true
 			});
 			nextMatchFindAction.run(null, editor);
 			startFindReplaceAction.run(null, editor);
@@ -301,7 +302,8 @@ suite('FindController', () => {
 				seedSearchStringFromGlobalClipboard: false,
 				shouldFocus: FindStartFocusAction.NoFocusChange,
 				shouldAnimate: false,
-				updateSearchScope: false
+				updateSearchScope: false,
+				loop: true
 			});
 
 			assert.equal(findController.getState().searchScope, null);
@@ -530,7 +532,8 @@ suite('FindController query options persistence', () => {
 				seedSearchStringFromGlobalClipboard: false,
 				shouldFocus: FindStartFocusAction.NoFocusChange,
 				shouldAnimate: false,
-				updateSearchScope: true
+				updateSearchScope: true,
+				loop: true
 			});
 
 			assert.deepEqual(findController.getState().searchScope, new Selection(1, 1, 2, 1));
@@ -553,7 +556,8 @@ suite('FindController query options persistence', () => {
 				seedSearchStringFromGlobalClipboard: false,
 				shouldFocus: FindStartFocusAction.NoFocusChange,
 				shouldAnimate: false,
-				updateSearchScope: true
+				updateSearchScope: true,
+				loop: true
 			});
 
 			assert.deepEqual(findController.getState().searchScope, null);
@@ -576,7 +580,8 @@ suite('FindController query options persistence', () => {
 				seedSearchStringFromGlobalClipboard: false,
 				shouldFocus: FindStartFocusAction.NoFocusChange,
 				shouldAnimate: false,
-				updateSearchScope: true
+				updateSearchScope: true,
+				loop: true
 			});
 
 			assert.deepEqual(findController.getState().searchScope, new Selection(1, 2, 1, 3));
@@ -600,7 +605,8 @@ suite('FindController query options persistence', () => {
 				seedSearchStringFromGlobalClipboard: false,
 				shouldFocus: FindStartFocusAction.NoFocusChange,
 				shouldAnimate: false,
-				updateSearchScope: true
+				updateSearchScope: true,
+				loop: true
 			});
 
 			assert.deepEqual(findController.getState().searchScope, new Selection(1, 6, 2, 1));

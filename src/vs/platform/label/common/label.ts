@@ -11,7 +11,6 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 import { localize } from 'vs/nls';
 import { isEqualOrParent, basename } from 'vs/base/common/resources';
-import { endsWith } from 'vs/base/common/strings';
 
 export interface ILabelService {
 	_serviceBrand: undefined;
@@ -61,7 +60,7 @@ export function getSimpleWorkspaceLabel(workspace: IWorkspaceIdentifier | URI, w
 	}
 
 	let filename = basename(workspace.configPath);
-	if (endsWith(filename, WORKSPACE_EXTENSION)) {
+	if (filename.endsWith(WORKSPACE_EXTENSION)) {
 		filename = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
 	}
 	return localize('workspaceName', "{0} (Workspace)", filename);

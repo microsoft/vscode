@@ -10,8 +10,8 @@ import { ITextBufferFactory, ITextSnapshot } from 'vs/editor/common/model';
 export const IBackupFileService = createDecorator<IBackupFileService>('backupFileService');
 
 export interface IResolvedBackup<T extends object> {
-	value: ITextBufferFactory;
-	meta?: T;
+	readonly value: ITextBufferFactory;
+	readonly meta?: T;
 }
 
 /**
@@ -63,9 +63,14 @@ export interface IBackupFileService {
 	backup<T extends object>(resource: URI, content?: ITextSnapshot, versionId?: number, meta?: T): Promise<void>;
 
 	/**
-	 * Discards the backup associated with a resource if it exists..
+	 * Discards the backup associated with a resource if it exists.
 	 *
 	 * @param resource The resource whose backup is being discarded discard to back up.
 	 */
 	discardBackup(resource: URI): Promise<void>;
+
+	/**
+	 * Discards all backups.
+	 */
+	discardBackups(): Promise<void>;
 }

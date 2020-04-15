@@ -24,9 +24,11 @@ export class TestColorTheme implements IColorTheme {
 		throw new Error('Method not implemented.');
 	}
 
-	getTokenStyleMetadata(type: string, modifiers: string[]): ITokenStyle | undefined {
+	getTokenStyleMetadata(type: string, modifiers: string[], modelLanguage: string): ITokenStyle | undefined {
 		return undefined;
 	}
+
+	readonly semanticHighlighting = false;
 
 	get tokenColorMap(): string[] {
 		return [];

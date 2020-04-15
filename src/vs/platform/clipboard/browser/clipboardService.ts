@@ -54,7 +54,7 @@ export class BrowserClipboardService implements IClipboardService {
 	}
 
 	readFindText(): string {
-		// @ts-ignore
+		// @ts-expect-error
 		return undefined;
 	}
 

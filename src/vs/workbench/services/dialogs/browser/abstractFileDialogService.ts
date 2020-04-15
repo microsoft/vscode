@@ -88,8 +88,8 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 	}
 
 	async showSaveConfirm(fileNamesOrResources: (string | URI)[]): Promise<ConfirmResult> {
-		if (this.environmentService.isExtensionDevelopment) {
-			return ConfirmResult.DONT_SAVE; // no veto when we are in extension dev mode because we cannot assume we run interactive (e.g. tests)
+		if (this.environmentService.isExtensionDevelopment && this.environmentService.extensionTestsLocationURI) {
+			return ConfirmResult.DONT_SAVE; // no veto when we are in extension dev testing mode because we cannot assume we run interactive
 		}
 
 		return this.doShowSaveConfirm(fileNamesOrResources);
@@ -218,15 +218,19 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 	}
 
 	private pickResource(options: IOpenDialogOptions): Promise<URI | undefined> {
-		const simpleFileDialog = this.instantiationService.createInstance(SimpleFileDialog);
+		const simpleFileDialog = this.createSimpleFileDialog();
 
 		return simpleFileDialog.showOpenDialog(options);
 	}
 
 	private saveRemoteResource(options: ISaveDialogOptions): Promise<URI | undefined> {
-		const remoteFileDialog = this.instantiationService.createInstance(SimpleFileDialog);
+		const remoteFileDialog = this.createSimpleFileDialog();
 
 		return remoteFileDialog.showSaveDialog(options);
+	}
+
+	protected createSimpleFileDialog(): SimpleFileDialog {
+		return this.instantiationService.createInstance(SimpleFileDialog);
 	}
 
 	protected getSchemeFilterForWindow(): string {

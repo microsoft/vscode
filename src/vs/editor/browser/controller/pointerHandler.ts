@@ -42,8 +42,8 @@ class MsPointerHandler extends MouseHandler implements IDisposable {
 	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
 		super(context, viewController, viewHelper);
 
-		this.viewHelper.linesContentDomNode.style.msTouchAction = 'none';
-		this.viewHelper.linesContentDomNode.style.msContentZooming = 'none';
+		(this.viewHelper.linesContentDomNode.style as any).msTouchAction = 'none';
+		(this.viewHelper.linesContentDomNode.style as any).msContentZooming = 'none';
 
 		// TODO@Alex -> this expects that the view is added in 100 ms, might not be the case
 		// This handler should be added when the dom node is in the dom tree

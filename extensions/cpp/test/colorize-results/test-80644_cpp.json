@@ -375,7 +375,7 @@
 	},
 	{
 		"c": "1",
-		"t": "source.cpp meta.function.definition.special.constructor.cpp meta.head.function.definition.special.constructor.cpp meta.parameter.initialization constant.numeric.decimal.cpp",
+		"t": "source.cpp meta.function.definition.special.constructor.cpp meta.head.function.definition.special.constructor.cpp meta.parameter.initialization.cpp constant.numeric.decimal.cpp",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -474,7 +474,7 @@
 	},
 	{
 		"c": "3",
-		"t": "source.cpp meta.function.definition.special.constructor.cpp meta.head.function.definition.special.constructor.cpp meta.parameter.initialization constant.numeric.decimal.cpp",
+		"t": "source.cpp meta.function.definition.special.constructor.cpp meta.head.function.definition.special.constructor.cpp meta.parameter.initialization.cpp constant.numeric.decimal.cpp",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",

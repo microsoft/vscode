@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SyncStatus, SyncSource, IUserDataSyncService, UserDataSyncError } from 'vs/platform/userDataSync/common/userDataSync';
+import { SyncStatus, SyncResource, IUserDataSyncService, UserDataSyncError, SyncResourceConflicts, ISyncResourceHandle } from 'vs/platform/userDataSync/common/userDataSync';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { URI } from 'vs/base/common/uri';
 
 export class UserDataSyncService extends Disposable implements IUserDataSyncService {
 
@@ -22,20 +23,20 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	private _onDidChangeStatus: Emitter<SyncStatus> = this._register(new Emitter<SyncStatus>());
 	readonly onDidChangeStatus: Event<SyncStatus> = this._onDidChangeStatus.event;
 
-	get onDidChangeLocal(): Event<SyncSource> { return this.channel.listen<SyncSource>('onDidChangeLocal'); }
+	get onDidChangeLocal(): Event<SyncResource> { return this.channel.listen<SyncResource>('onDidChangeLocal'); }
 
-	private _conflictsSources: SyncSource[] = [];
-	get conflictsSources(): SyncSource[] { return this._conflictsSources; }
-	private _onDidChangeConflicts: Emitter<SyncSource[]> = this._register(new Emitter<SyncSource[]>());
-	readonly onDidChangeConflicts: Event<SyncSource[]> = this._onDidChangeConflicts.event;
+	private _conflicts: SyncResourceConflicts[] = [];
+	get conflicts(): SyncResourceConflicts[] { return this._conflicts; }
+	private _onDidChangeConflicts: Emitter<SyncResourceConflicts[]> = this._register(new Emitter<SyncResourceConflicts[]>());
+	readonly onDidChangeConflicts: Event<SyncResourceConflicts[]> = this._onDidChangeConflicts.event;
 
 	private _lastSyncTime: number | undefined = undefined;
 	get lastSyncTime(): number | undefined { return this._lastSyncTime; }
 	private _onDidChangeLastSyncTime: Emitter<number> = this._register(new Emitter<number>());
 	readonly onDidChangeLastSyncTime: Event<number> = this._onDidChangeLastSyncTime.event;
 
-	private _onSyncErrors: Emitter<[SyncSource, UserDataSyncError][]> = this._register(new Emitter<[SyncSource, UserDataSyncError][]>());
-	readonly onSyncErrors: Event<[SyncSource, UserDataSyncError][]> = this._onSyncErrors.event;
+	private _onSyncErrors: Emitter<[SyncResource, UserDataSyncError][]> = this._register(new Emitter<[SyncResource, UserDataSyncError][]>());
+	readonly onSyncErrors: Event<[SyncResource, UserDataSyncError][]> = this._onSyncErrors.event;
 
 	constructor(
 		@ISharedProcessService sharedProcessService: ISharedProcessService
@@ -51,7 +52,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				return userDataSyncChannel.listen(event, arg);
 			}
 		};
-		this.channel.call<[SyncStatus, SyncSource[], number | undefined]>('_getInitialData').then(([status, conflicts, lastSyncTime]) => {
+		this.channel.call<[SyncStatus, SyncResourceConflicts[], number | undefined]>('_getInitialData').then(([status, conflicts, lastSyncTime]) => {
 			this.updateStatus(status);
 			this.updateConflicts(conflicts);
 			if (lastSyncTime) {
@@ -60,8 +61,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			this._register(this.channel.listen<SyncStatus>('onDidChangeStatus')(status => this.updateStatus(status)));
 			this._register(this.channel.listen<number>('onDidChangeLastSyncTime')(lastSyncTime => this.updateLastSyncTime(lastSyncTime)));
 		});
-		this._register(this.channel.listen<SyncSource[]>('onDidChangeConflicts')(conflicts => this.updateConflicts(conflicts)));
-		this._register(this.channel.listen<[SyncSource, Error][]>('onSyncErrors')(errors => this._onSyncErrors.fire(errors.map(([source, error]) => ([source, UserDataSyncError.toUserDataSyncError(error)])))));
+		this._register(this.channel.listen<SyncResourceConflicts[]>('onDidChangeConflicts')(conflicts => this.updateConflicts(conflicts)));
+		this._register(this.channel.listen<[SyncResource, Error][]>('onSyncErrors')(errors => this._onSyncErrors.fire(errors.map(([source, error]) => ([source, UserDataSyncError.toUserDataSyncError(error)])))));
 	}
 
 	pull(): Promise<void> {
@@ -72,8 +73,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return this.channel.call('sync');
 	}
 
-	accept(source: SyncSource, content: string): Promise<void> {
-		return this.channel.call('accept', [source, content]);
+	stop(): Promise<void> {
+		return this.channel.call('stop');
 	}
 
 	reset(): Promise<void> {
@@ -84,16 +85,31 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return this.channel.call('resetLocal');
 	}
 
-	stop(): Promise<void> {
-		return this.channel.call('stop');
-	}
-
-	getRemoteContent(source: SyncSource, preview: boolean): Promise<string | null> {
-		return this.channel.call('getRemoteContent', [source, preview]);
-	}
-
 	isFirstTimeSyncWithMerge(): Promise<boolean> {
 		return this.channel.call('isFirstTimeSyncWithMerge');
+	}
+
+	acceptConflict(conflict: URI, content: string): Promise<void> {
+		return this.channel.call('acceptConflict', [conflict, content]);
+	}
+
+	resolveContent(resource: URI): Promise<string | null> {
+		return this.channel.call('resolveContent', [resource]);
+	}
+
+	async getLocalSyncResourceHandles(resource: SyncResource): Promise<ISyncResourceHandle[]> {
+		const handles = await this.channel.call<ISyncResourceHandle[]>('getLocalSyncResourceHandles', [resource]);
+		return handles.map(({ created, uri }) => ({ created, uri: URI.revive(uri) }));
+	}
+
+	async getRemoteSyncResourceHandles(resource: SyncResource): Promise<ISyncResourceHandle[]> {
+		const handles = await this.channel.call<ISyncResourceHandle[]>('getRemoteSyncResourceHandles', [resource]);
+		return handles.map(({ created, uri }) => ({ created, uri: URI.revive(uri) }));
+	}
+
+	async getAssociatedResources(resource: SyncResource, syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI, comparableResource?: URI }[]> {
+		const result = await this.channel.call<{ resource: URI, comparableResource?: URI }[]>('getAssociatedResources', [resource, syncResourceHandle]);
+		return result.map(({ resource, comparableResource }) => ({ resource: URI.revive(resource), comparableResource: URI.revive(comparableResource) }));
 	}
 
 	private async updateStatus(status: SyncStatus): Promise<void> {
@@ -101,8 +117,14 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		this._onDidChangeStatus.fire(status);
 	}
 
-	private async updateConflicts(conflicts: SyncSource[]): Promise<void> {
-		this._conflictsSources = conflicts;
+	private async updateConflicts(conflicts: SyncResourceConflicts[]): Promise<void> {
+		// Revive URIs
+		this._conflicts = conflicts.map(c =>
+			({
+				syncResource: c.syncResource,
+				conflicts: c.conflicts.map(({ local, remote }) =>
+					({ local: URI.revive(local), remote: URI.revive(remote) }))
+			}));
 		this._onDidChangeConflicts.fire(conflicts);
 	}
 

@@ -14,9 +14,9 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, Themable } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { Themable, EDITOR_GROUP_HEADER_TABS_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_EMPTY_BACKGROUND, EDITOR_GROUP_FOCUSED_EMPTY_BORDER } from 'vs/workbench/common/theme';
+import { EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_EMPTY_BACKGROUND, EDITOR_GROUP_FOCUSED_EMPTY_BORDER, EDITOR_GROUP_HEADER_BORDER } from 'vs/workbench/common/theme';
 import { IMoveEditorOptions, ICopyEditorOptions, ICloseEditorsFilter, IGroupChangeEvent, GroupChangeKind, GroupsOrder, ICloseEditorOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { TabsTitleControl } from 'vs/workbench/browser/parts/editor/tabsTitleControl';
 import { EditorControl } from 'vs/workbench/browser/parts/editor/editorControl';
@@ -292,11 +292,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			localize('closeGroupAction', "Close"),
 			'codicon-close',
 			true,
-			() => {
-				this.accessor.removeGroup(this);
-
-				return Promise.resolve(true);
-			}));
+			async () => this.accessor.removeGroup(this)));
 
 		const keybinding = this.keybindingService.lookupKeybinding(removeGroupAction.id);
 		containerToolbar.push(removeGroupAction, { icon: true, label: false, keybinding: keybinding ? keybinding.getLabel() : undefined });
@@ -807,7 +803,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Guard against invalid inputs
 		if (!editor) {
-			return Promise.resolve(null);
+			return null;
 		}
 
 		// Editor opening event allows for prevention
@@ -822,13 +818,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return withUndefinedAsNull(await this.doOpenEditor(editor, options));
 	}
 
-	private doOpenEditor(editor: EditorInput, options?: EditorOptions): Promise<IEditorPane | undefined> {
+	private async doOpenEditor(editor: EditorInput, options?: EditorOptions): Promise<IEditorPane | undefined> {
 
 		// Guard against invalid inputs. Disposed inputs
 		// should never open because they emit no events
 		// e.g. to indicate dirty changes.
 		if (editor.isDisposed()) {
-			return Promise.resolve(undefined);
+			return;
 		}
 
 		// Determine options
@@ -898,7 +894,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private async doShowEditor(editor: EditorInput, active: boolean, options?: EditorOptions): Promise<IEditorPane | undefined> {
 
 		// Show in editor control if the active editor changed
-		let openEditorPromise: Promise<IEditorPane | undefined>;
+		let openEditorPromise: Promise<IEditorPane | undefined> | undefined;
 		if (active) {
 			openEditorPromise = (async () => {
 				try {
@@ -919,7 +915,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				}
 			})();
 		} else {
-			openEditorPromise = Promise.resolve(undefined); // inactive: return undefined as result to signal this
+			openEditorPromise = undefined; // inactive: return undefined as result to signal this
 		}
 
 		// Show in title control after editor control because some actions depend on it
@@ -1553,10 +1549,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		// Title control
-		const { showTabs } = this.accessor.partOptions;
-		const borderColor = this.getColor(EDITOR_GROUP_HEADER_TABS_BORDER) || this.getColor(contrastBorder);
-
-		if (!isEmpty && showTabs && borderColor) {
+		const borderColor = this.getColor(EDITOR_GROUP_HEADER_BORDER) || this.getColor(contrastBorder);
+		if (!isEmpty && borderColor) {
 			addClass(this.titleContainer, 'title-border-bottom');
 			this.titleContainer.style.setProperty('--title-border-bottom-color', borderColor.toString());
 		} else {
@@ -1564,6 +1558,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			this.titleContainer.style.removeProperty('--title-border-bottom-color');
 		}
 
+		const { showTabs } = this.accessor.partOptions;
 		this.titleContainer.style.backgroundColor = this.getColor(showTabs ? EDITOR_GROUP_HEADER_TABS_BACKGROUND : EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND) || '';
 
 		// Editor container

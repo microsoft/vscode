@@ -779,7 +779,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 	}
 
 	private _type(source: string, text: string): void {
-		if (!this._isDoingComposition && source === 'keyboard') {
+		if (source === 'keyboard') {
 			// If this event is coming straight from the keyboard, look for electric characters and enter
 
 			const len = text.length;
@@ -790,7 +790,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
 				// Here we must interpret each typed character individually
 				const autoClosedCharacters = AutoClosedAction.getAllAutoClosedCharacters(this._autoClosedActions);
-				this._executeEditOperation(TypeOperations.typeWithInterceptors(this._prevEditOperationType, this.context.config, this.context.model, this.getSelections(), autoClosedCharacters, chr));
+				this._executeEditOperation(TypeOperations.typeWithInterceptors(this._isDoingComposition, this._prevEditOperationType, this.context.config, this.context.model, this.getSelections(), autoClosedCharacters, chr));
 
 				offset += charLength;
 			}

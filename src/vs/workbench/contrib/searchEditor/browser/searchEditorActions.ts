@@ -19,7 +19,7 @@ import * as Constants from 'vs/workbench/contrib/searchEditor/browser/constants'
 import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditor';
 import { getOrMakeSearchEditorInput, SearchEditorInput } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
 import { serializeSearchResultForEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
 
 export const toggleSearchEditorCaseSensitiveCommand = (accessor: ServicesAccessor) => {
@@ -54,6 +54,14 @@ export const toggleSearchEditorContextLinesCommand = (accessor: ServicesAccessor
 	}
 };
 
+export const modifySearchEditorContextLinesCommand = (accessor: ServicesAccessor, increase: boolean) => {
+	const editorService = accessor.get(IEditorService);
+	const input = editorService.activeEditor;
+	if (input instanceof SearchEditorInput) {
+		(editorService.activeEditorPane as SearchEditor).modifyContextLines(increase);
+	}
+};
+
 export const selectAllSearchEditorMatchesCommand = (accessor: ServicesAccessor) => {
 	const editorService = accessor.get(IEditorService);
 	const input = editorService.activeEditor;
@@ -84,6 +92,22 @@ export class OpenSearchEditorAction extends Action {
 
 	async run() {
 		await this.instantiationService.invokeFunction(openNewSearchEditor);
+	}
+}
+
+export class OpenSearchEditorToSideAction extends Action {
+
+	static readonly ID: string = Constants.OpenNewEditorToSideCommandId;
+	static readonly LABEL = localize('search.openNewEditorToSide', "Open New Search Editor to Side");
+
+	constructor(id: string, label: string,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	) {
+		super(id, label, 'codicon-new-file');
+	}
+
+	async run() {
+		await this.instantiationService.invokeFunction(openNewSearchEditor, true);
 	}
 }
 
@@ -134,8 +158,26 @@ export class RerunSearchEditorSearchAction extends Action {
 	}
 }
 
+export class FocusQueryEditorWidgetAction extends Action {
+	static readonly ID: string = Constants.FocusQueryEditorWidgetCommandId;
+	static readonly LABEL = localize('search.action.focusQueryEditorWidget', "Focus Query Editor Widget");
+
+	constructor(id: string, label: string,
+		@IEditorService private readonly editorService: IEditorService,
+	) {
+		super(id, label);
+	}
+
+	async run() {
+		const input = this.editorService.activeEditor;
+		if (input instanceof SearchEditorInput) {
+			(this.editorService.activeEditorPane as SearchEditor).focusSearchInput();
+		}
+	}
+}
+
 const openNewSearchEditor =
-	async (accessor: ServicesAccessor) => {
+	async (accessor: ServicesAccessor, toSide = false) => {
 		const editorService = accessor.get(IEditorService);
 		const telemetryService = accessor.get(ITelemetryService);
 		const instantiationService = accessor.get(IInstantiationService);
@@ -165,8 +207,8 @@ const openNewSearchEditor =
 
 		telemetryService.publicLog2('searchEditor/openNewSearchEditor');
 
-		const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { config: { query: selected } });
-		const editor = await editorService.openEditor(input, { pinned: true }) as SearchEditor;
+		const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { config: { query: selected }, text: '' });
+		const editor = await editorService.openEditor(input, { pinned: true }, toSide ? SIDE_GROUP : ACTIVE_GROUP) as SearchEditor;
 
 		if (selected && configurationService.getValue<ISearchConfigurationProperties>('search').searchOnType) {
 			editor.triggerSearch();
@@ -190,9 +232,9 @@ export const createEditorFromSearchResult =
 
 		const labelFormatter = (uri: URI): string => labelService.getUriLabel(uri, { relative: true });
 
-		const { text, matchRanges } = serializeSearchResultForEditor(searchResult, rawIncludePattern, rawExcludePattern, 0, labelFormatter, true);
+		const { text, matchRanges, config } = serializeSearchResultForEditor(searchResult, rawIncludePattern, rawExcludePattern, 0, labelFormatter);
 
-		const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { text });
+		const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { text, config });
 		await editorService.openEditor(input, { pinned: true });
 		input.setMatchRanges(matchRanges);
 	};

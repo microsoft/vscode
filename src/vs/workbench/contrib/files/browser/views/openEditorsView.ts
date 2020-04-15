@@ -34,7 +34,7 @@ import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions'
 import { DirtyEditorContext, OpenEditorsGroupContext, ReadonlyEditorContext } from 'vs/workbench/contrib/files/browser/fileCommands';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { ResourcesDropHandler, fillResourceDataTransfers, CodeDataTransfers, containsDragType } from 'vs/workbench/browser/dnd';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
 import { memoize } from 'vs/base/common/decorators';
@@ -46,6 +46,8 @@ import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities } from 'vs/w
 import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 
 const $ = dom.$;
 
@@ -84,10 +86,7 @@ export class OpenEditorsView extends ViewPane {
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@IOpenerService openerService: IOpenerService,
 	) {
-		super({
-			...(options as IViewPaneOptions),
-			ariaHeaderLabel: nls.localize({ key: 'openEditosrSection', comment: ['Open is an adjective'] }, "Open Editors Section"),
-		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
 		this.structuralRefreshDelay = 0;
 		this.listRefreshScheduler = new RunOnceScheduler(() => {
@@ -226,7 +225,8 @@ export class OpenEditorsView extends ViewPane {
 			dnd: new OpenEditorsDragAndDrop(this.instantiationService, this.editorGroupService),
 			overrideStyles: {
 				listBackground: this.getBackgroundColor()
-			}
+			},
+			accessibilityProvider: new OpenEditorsAccessibilityProvider()
 		});
 		this._register(this.list);
 		this._register(this.listLabels);
@@ -418,8 +418,8 @@ export class OpenEditorsView extends ViewPane {
 
 	private updateSize(): void {
 		// Adjust expanded body size
-		this.minimumBodySize = this.getMinExpandedBodySize();
-		this.maximumBodySize = this.getMaxExpandedBodySize();
+		this.minimumBodySize = this.orientation === Orientation.VERTICAL ? this.getMinExpandedBodySize() : 170;
+		this.maximumBodySize = this.orientation === Orientation.VERTICAL ? this.getMaxExpandedBodySize() : Number.POSITIVE_INFINITY;
 	}
 
 	private updateDirtyIndicator(workingCopy?: IWorkingCopy): void {
@@ -595,7 +595,7 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 		templateData.actionRunner.editor = openedEditor;
 		editor.isDirty() && !editor.isSaving() ? dom.addClass(templateData.container, 'dirty') : dom.removeClass(templateData.container, 'dirty');
 		templateData.root.setResource({
-			resource: toResource(editor, { supportSideBySide: SideBySideEditor.MASTER }),
+			resource: toResource(editor, { supportSideBySide: SideBySideEditor.BOTH }),
 			name: editor.getName(),
 			description: editor.getDescription(Verbosity.MEDIUM)
 		}, {
@@ -688,5 +688,15 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 		} else {
 			this.dropHandler.handleDrop(originalEvent, () => group, () => group.focus(), index);
 		}
+	}
+}
+
+class OpenEditorsAccessibilityProvider implements IListAccessibilityProvider<OpenEditor | IEditorGroup> {
+	getAriaLabel(element: OpenEditor | IEditorGroup): string | null {
+		if (element instanceof OpenEditor) {
+			return `${element.editor.getName()} ${element.editor.getDescription()}`;
+		}
+
+		return element.ariaLabel;
 	}
 }

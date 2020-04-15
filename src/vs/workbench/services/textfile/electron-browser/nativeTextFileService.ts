@@ -33,13 +33,13 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { assign } from 'vs/base/common/objects';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class NativeTextFileService extends AbstractTextFileService {
 
@@ -58,7 +58,8 @@ export class NativeTextFileService extends AbstractTextFileService {
 		@ITextModelService textModelService: ITextModelService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IRemotePathService remotePathService: IRemotePathService,
-		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService
+		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super(fileService, untitledTextEditorService, lifecycleService, instantiationService, modelService, environmentService, dialogService, fileDialogService, textResourceConfigurationService, filesConfigurationService, textModelService, codeEditorService, remotePathService, workingCopyFileService);
 	}
@@ -73,16 +74,15 @@ export class NativeTextFileService extends AbstractTextFileService {
 	}
 
 	async read(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileContent> {
-		const [bufferStream, decoder] = await this.doRead(resource,
-			assign({
-				// optimization: since we know that the caller does not
-				// care about buffering, we indicate this to the reader.
-				// this reduces all the overhead the buffered reading
-				// has (open, read, close) if the provider supports
-				// unbuffered reading.
-				preferUnbuffered: true
-			}, options || Object.create(null))
-		);
+		const [bufferStream, decoder] = await this.doRead(resource, {
+			...options,
+			// optimization: since we know that the caller does not
+			// care about buffering, we indicate this to the reader.
+			// this reduces all the overhead the buffered reading
+			// has (open, read, close) if the provider supports
+			// unbuffered reading.
+			preferUnbuffered: true
+		});
 
 		return {
 			...bufferStream,
@@ -298,8 +298,16 @@ export class NativeTextFileService extends AbstractTextFileService {
 			sudoCommand.push('--file-write', `"${source}"`, `"${target}"`);
 
 			sudoPrompt.exec(sudoCommand.join(' '), promptOptions, (error: string, stdout: string, stderr: string) => {
-				if (error || stderr) {
-					reject(error || stderr);
+				if (stdout) {
+					this.logService.trace(`[sudo-prompt] received stdout: ${stdout}`);
+				}
+
+				if (stderr) {
+					this.logService.trace(`[sudo-prompt] received stderr: ${stderr}`);
+				}
+
+				if (error) {
+					reject(error);
 				} else {
 					resolve(undefined);
 				}

@@ -535,8 +535,8 @@ suite('ViewDescriptorService', () => {
 		sidebarViews = viewDescriptorService.getViewDescriptors(sidebarContainer);
 		panelViews = viewDescriptorService.getViewDescriptors(panelContainer);
 
-		assert.equal(sidebarViews.activeViewDescriptors.length, 2, 'Sidebar should have 2 views');
-		assert.equal(panelViews.activeViewDescriptors.length, 1, 'Panel should have 1 view');
+		assert.equal(sidebarViews.activeViewDescriptors.length, 1, 'Sidebar should have 2 views');
+		assert.equal(panelViews.activeViewDescriptors.length, 0, 'Panel should have 1 view');
 
 		assert.equal(viewDescriptorService.getViewLocation(viewDescriptors[0].id), ViewContainerLocation.Sidebar, 'View should be located in the sidebar');
 		assert.equal(viewDescriptorService.getViewLocation(viewDescriptors[2].id), ViewContainerLocation.Panel, 'View should be located in the panel');
@@ -602,11 +602,11 @@ suite('ViewDescriptorService', () => {
 
 		expectedSequence += locationMoveString(viewDescriptors[0], ViewContainerLocation.Panel, ViewContainerLocation.Sidebar);
 		expectedSequence += containerMoveString(viewDescriptors[0], viewDescriptorService.getViewContainer(viewDescriptors[0].id)!, sidebarContainer);
-		viewDescriptorService.moveViewToLocation(viewDescriptors[0], ViewContainerLocation.Sidebar);
+		viewDescriptorService.moveViewsToContainer([viewDescriptors[0]], sidebarContainer);
 
 		expectedSequence += locationMoveString(viewDescriptors[2], ViewContainerLocation.Sidebar, ViewContainerLocation.Panel);
 		expectedSequence += containerMoveString(viewDescriptors[2], viewDescriptorService.getViewContainer(viewDescriptors[2].id)!, panelContainer);
-		viewDescriptorService.moveViewToLocation(viewDescriptors[2], ViewContainerLocation.Panel);
+		viewDescriptorService.moveViewsToContainer([viewDescriptors[2]], panelContainer);
 
 		expectedSequence += locationMoveString(viewDescriptors[0], ViewContainerLocation.Sidebar, ViewContainerLocation.Panel);
 		expectedSequence += containerMoveString(viewDescriptors[0], sidebarContainer, panelContainer);

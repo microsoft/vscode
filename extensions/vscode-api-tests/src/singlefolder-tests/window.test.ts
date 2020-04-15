@@ -8,7 +8,7 @@ import { workspace, window, commands, ViewColumn, TextEditorViewColumnChangeEven
 import { join } from 'path';
 import { closeAllEditors, pathEquals, createRandomFile } from '../utils';
 
-suite('window namespace tests', () => {
+suite('vscode API - window', () => {
 
 	teardown(closeAllEditors);
 

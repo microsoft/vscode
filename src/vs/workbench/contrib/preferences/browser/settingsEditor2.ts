@@ -6,34 +6,41 @@
 import * as DOM from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { Button } from 'vs/base/browser/ui/button/button';
 import { ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { Action } from 'vs/base/common/actions';
 import * as arrays from 'vs/base/common/arrays';
-import { Delayer, ThrottledDelayer, timeout } from 'vs/base/common/async';
+import { Delayer, ThrottledDelayer, timeout, IntervalTimer } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as collections from 'vs/base/common/collections';
 import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
-import { Iterator } from 'vs/base/common/iterator';
+import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { Disposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { isArray, withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/settingsEditor2';
 import { localize } from 'vs/nls';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationOverrides, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { badgeBackground, badgeForeground, contrastBorder, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
+import { getUserDataSyncStore, IUserDataSyncService, SyncStatus, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IEditorPane, IEditorMemento } from 'vs/workbench/common/editor';
+import { IEditorMemento, IEditorPane } from 'vs/workbench/common/editor';
 import { attachSuggestEnabledInputBoxStyler, SuggestEnabledInput } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
 import { SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { commonlyUsedData, tocData } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
@@ -46,12 +53,11 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IPreferencesService, ISearchResult, ISettingsEditorModel, ISettingsEditorOptions, SettingsEditorOptions, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
-import { IEditorModel } from 'vs/platform/editor/common/editor';
+import { fromNow } from 'vs/base/common/date';
+import { Emitter } from 'vs/base/common/event';
 
-function createGroupIterator(group: SettingsTreeGroupElement): Iterator<ITreeElement<SettingsTreeGroupChild>> {
-	const groupsIt = Iterator.fromArray(group.children);
-
-	return Iterator.map(groupsIt, g => {
+function createGroupIterator(group: SettingsTreeGroupElement): Iterable<ITreeElement<SettingsTreeGroupChild>> {
+	return Iterable.map(group.children, g => {
 		return {
 			element: g,
 			children: g instanceof SettingsTreeGroupElement ?
@@ -67,6 +73,9 @@ interface IFocusEventFromScroll extends KeyboardEvent {
 	fromScroll: true;
 }
 
+const searchBoxLabel = localize('SearchSettings.AriaLabel', "Search settings");
+
+const SETTINGS_AUTOSAVE_NOTIFIED_KEY = 'hasNotifiedOfSettingsAutosave';
 const SETTINGS_EDITOR_STATE_KEY = 'settingsEditorState';
 export class SettingsEditor2 extends BaseEditor {
 
@@ -157,7 +166,9 @@ export class SettingsEditor2 extends BaseEditor {
 		@IStorageService private readonly storageService: IStorageService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IEditorGroupsService protected editorGroupService: IEditorGroupsService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super(SettingsEditor2.ID, telemetryService, themeService, storageService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
@@ -183,6 +194,8 @@ export class SettingsEditor2 extends BaseEditor {
 				this.onConfigUpdate(e.affectedKeys);
 			}
 		}));
+
+		storageKeysSyncRegistryService.registerStorageKey({ key: SETTINGS_AUTOSAVE_NOTIFIED_KEY, version: 1 });
 	}
 
 	get minimumWidth(): number { return 375; }
@@ -346,6 +359,10 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 	}
 
+	focusTOC(): void {
+		this.tocTree.domFocus();
+	}
+
 	showContextMenu(): void {
 		const activeElement = this.getActiveElementInSettingsTree();
 		if (!activeElement) {
@@ -391,6 +408,13 @@ export class SettingsEditor2 extends BaseEditor {
 		this.searchWidget.setValue(query.trim());
 	}
 
+	private updateInputAriaLabel(lastSyncedLabel: string) {
+		const label = lastSyncedLabel ?
+			`${searchBoxLabel}. ${lastSyncedLabel}` :
+			searchBoxLabel;
+		this.searchWidget.updateAriaLabel(label);
+	}
+
 	private createHeader(parent: HTMLElement): void {
 		this.headerContainer = DOM.append(parent, $('.settings-header'));
 
@@ -398,7 +422,6 @@ export class SettingsEditor2 extends BaseEditor {
 
 		const clearInputAction = new Action(SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, localize('clearInput', "Clear Settings Search Input"), 'codicon-clear-all', false, () => { this.clearSearchResults(); return Promise.resolve(null); });
 
-		const searchBoxLabel = localize('SearchSettings.AriaLabel', "Search settings");
 		this.searchWidget = this._register(this.instantiationService.createInstance(SuggestEnabledInput, `${SettingsEditor2.ID}.searchbox`, searchContainer, {
 			triggerCharacters: ['@'],
 			provideResults: (query: string) => {
@@ -444,6 +467,11 @@ export class SettingsEditor2 extends BaseEditor {
 		this.settingsTargetsWidget = this._register(this.instantiationService.createInstance(SettingsTargetsWidget, targetWidgetContainer, { enableRemoteSettings: true }));
 		this.settingsTargetsWidget.settingsTarget = ConfigurationTarget.USER_LOCAL;
 		this.settingsTargetsWidget.onDidTargetChange(target => this.onDidSettingsTargetChange(target));
+
+		if (syncAllowed(this.productService, this.configurationService)) {
+			const syncControls = this._register(this.instantiationService.createInstance(SyncControls, headerControlsContainer));
+			this._register(syncControls.onDidChangeLastSyncedLabel(lastSyncedLabel => this.updateInputAriaLabel(lastSyncedLabel)));
+		}
 
 		this.controlsElement = DOM.append(searchContainer, DOM.$('.settings-clear-widget'));
 
@@ -700,8 +728,8 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private notifyNoSaveNeeded() {
-		if (!this.storageService.getBoolean('hasNotifiedOfSettingsAutosave', StorageScope.GLOBAL, false)) {
-			this.storageService.store('hasNotifiedOfSettingsAutosave', true, StorageScope.GLOBAL);
+		if (!this.storageService.getBoolean(SETTINGS_AUTOSAVE_NOTIFIED_KEY, StorageScope.GLOBAL, false)) {
+			this.storageService.store(SETTINGS_AUTOSAVE_NOTIFIED_KEY, true, StorageScope.GLOBAL);
 			this.notificationService.info(localize('settingsNoSaveNeeded', "Your changes are automatically saved as you edit."));
 		}
 	}
@@ -1330,7 +1358,7 @@ export class SettingsEditor2 extends BaseEditor {
 					const message = getErrorMessage(err).trim();
 					if (message && message !== 'Error') {
 						// "Error" = any generic network error
-						this.telemetryService.publicLog('settingsEditor.searchError', { message });
+						this.telemetryService.publicLog('settingsEditor.searchError', { message }, true);
 						this.logService.info('Setting search error: ' + message);
 					}
 					return null;
@@ -1362,7 +1390,87 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 }
 
+class SyncControls extends Disposable {
+	private readonly lastSyncedLabel!: HTMLElement;
+	private readonly turnOnSyncButton!: Button;
+
+	private readonly _onDidChangeLastSyncedLabel = this._register(new Emitter<string>());
+	public readonly onDidChangeLastSyncedLabel = this._onDidChangeLastSyncedLabel.event;
+
+	constructor(
+		container: HTMLElement,
+		@ICommandService private readonly commandService: ICommandService,
+		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
+		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService
+	) {
+		super();
+
+		const headerRightControlsContainer = DOM.append(container, $('.settings-right-controls'));
+		const turnOnSyncButtonContainer = DOM.append(headerRightControlsContainer, $('.turn-on-sync'));
+		this.turnOnSyncButton = this._register(new Button(turnOnSyncButtonContainer, { title: true }));
+		this.lastSyncedLabel = DOM.append(headerRightControlsContainer, $('.last-synced-label'));
+		DOM.hide(this.lastSyncedLabel);
+
+		this.turnOnSyncButton.enabled = true;
+		this.turnOnSyncButton.label = localize('turnOnSyncButton', "Turn on Preferences Sync");
+		DOM.hide(this.turnOnSyncButton.element);
+
+		this._register(this.turnOnSyncButton.onDidClick(async () => {
+			await this.commandService.executeCommand('workbench.userData.actions.syncStart');
+		}));
+
+		this.updateLastSyncedTime();
+		this._register(this.userDataSyncService.onDidChangeLastSyncTime(() => {
+			this.updateLastSyncedTime();
+		}));
+
+		const updateLastSyncedTimer = this._register(new IntervalTimer());
+		updateLastSyncedTimer.cancelAndSet(() => this.updateLastSyncedTime(), 60 * 1000);
+
+		this.update();
+		this._register(this.userDataSyncService.onDidChangeStatus(() => {
+			this.update();
+		}));
+
+		this._register(this.userDataSyncEnablementService.onDidChangeEnablement(() => {
+			this.update();
+		}));
+	}
+
+	private updateLastSyncedTime(): void {
+		const last = this.userDataSyncService.lastSyncTime;
+		let label: string;
+		if (typeof last === 'number') {
+			const d = fromNow(last, true);
+			label = localize('lastSyncedLabel', "Last synced: {0}", d);
+		} else {
+			label = '';
+		}
+
+		this.lastSyncedLabel.textContent = label;
+		this._onDidChangeLastSyncedLabel.fire(label);
+	}
+
+	private update(): void {
+		if (this.userDataSyncService.status === SyncStatus.Uninitialized) {
+			return;
+		}
+
+		if (this.userDataSyncEnablementService.isEnabled()) {
+			DOM.show(this.lastSyncedLabel);
+			DOM.hide(this.turnOnSyncButton.element);
+		} else {
+			DOM.hide(this.lastSyncedLabel);
+			DOM.show(this.turnOnSyncButton.element);
+		}
+	}
+}
+
 interface ISettingsEditor2State {
 	searchQuery: string;
 	target: SettingsTarget;
+}
+
+function syncAllowed(productService: IProductService, configService: IConfigurationService): boolean {
+	return !!getUserDataSyncStore(productService, configService);
 }

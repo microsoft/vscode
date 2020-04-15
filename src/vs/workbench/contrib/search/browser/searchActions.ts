@@ -145,7 +145,7 @@ export abstract class FindOrReplaceInFilesAction extends Action {
 				const searchAndReplaceWidget = openedView.searchAndReplaceWidget;
 				searchAndReplaceWidget.toggleReplace(this.expandSearchReplaceWidget);
 
-				const updatedText = openedView.updateTextFromSelection(!this.expandSearchReplaceWidget);
+				const updatedText = openedView.updateTextFromSelection({ allowUnselectedWord: !this.expandSearchReplaceWidget });
 				openedView.searchAndReplaceWidget.focus(undefined, updatedText, updatedText);
 			}
 		});
@@ -172,7 +172,7 @@ export const FindInFilesCommand: ICommandHandler = (accessor, args: IFindInFiles
 			if (typeof args.query === 'string') {
 				openedView.setSearchParameters(args);
 			} else {
-				updatedText = openedView.updateTextFromSelection((typeof args.replace !== 'string'));
+				updatedText = openedView.updateTextFromSelection({ allowUnselectedWord: typeof args.replace !== 'string' });
 			}
 			openedView.searchAndReplaceWidget.focus(undefined, updatedText, updatedText);
 		}

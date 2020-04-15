@@ -50,7 +50,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
-const COLLAPSE_ACTION_CLASS = 'expand-review-action';
+const COLLAPSE_ACTION_CLASS = 'expand-review-action codicon-chevron-up';
 const COMMENT_SCHEME = 'comment';
 
 
@@ -328,6 +328,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 		let lastCommentElement: HTMLElement | null = null;
 		let newCommentNodeList: CommentNode[] = [];
+		let newCommentsInEditMode: CommentNode[] = [];
 		for (let i = newCommentsLen - 1; i >= 0; i--) {
 			let currentComment = commentThread.comments![i];
 			let oldCommentNode = this._commentElements.filter(commentNode => commentNode.comment.uniqueIdInThread === currentComment.uniqueIdInThread);
@@ -344,6 +345,11 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 				} else {
 					this._commentsElement.appendChild(newElement.domNode);
 					lastCommentElement = newElement.domNode;
+				}
+
+				if (currentComment.mode === modes.CommentMode.Editing) {
+					newElement.switchToEditMode();
+					newCommentsInEditMode.push(newElement);
 				}
 			}
 		}
@@ -384,6 +390,11 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			this._commentThreadContextValue.set(this._commentThread.contextValue);
 		} else {
 			this._commentThreadContextValue.reset();
+		}
+
+		if (newCommentsInEditMode.length) {
+			const lastIndex = this._commentElements.indexOf(newCommentsInEditMode[newCommentsInEditMode.length - 1]);
+			this._focusedComment = lastIndex;
 		}
 
 		this.setFocusedComment(this._focusedComment);
@@ -432,6 +443,9 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 				this._commentElements.push(newCommentNode);
 				this._commentsElement.appendChild(newCommentNode.domNode);
+				if (comment.mode === modes.CommentMode.Editing) {
+					newCommentNode.switchToEditMode();
+				}
 			}
 		}
 
@@ -496,7 +510,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 		// If there are no existing comments, place focus on the text area. This must be done after show, which also moves focus.
 		// if this._commentThread.comments is undefined, it doesn't finish initialization yet, so we don't focus the editor immediately.
-		if (this._commentThread.comments && !this._commentThread.comments.length) {
+		if (!this._commentThread.comments || !this._commentThread.comments.length) {
 			this._commentEditor.focus();
 		} else if (this._commentEditor.getModel()!.getValueLength() > 0) {
 			this.expandReplyArea();
@@ -728,10 +742,18 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 			const computedLinesNumber = Math.ceil((headHeight + dimensions.height + arrowHeight + frameThickness + 8 /** margin bottom to avoid margin collapse */) / lineHeight);
 
+			if (this._viewZone?.heightInLines === computedLinesNumber) {
+				return;
+			}
+
 			let currentPosition = this.getPosition();
 
 			if (this._viewZone && currentPosition && currentPosition.lineNumber !== this._viewZone.afterLineNumber) {
 				this._viewZone.afterLineNumber = currentPosition.lineNumber;
+			}
+
+			if (!this._commentThread.comments || !this._commentThread.comments.length) {
+				this._commentEditor.focus();
 			}
 
 			this._relayout(computedLinesNumber);

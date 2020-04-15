@@ -14,27 +14,24 @@ export function registerFileProtocol(
 	extensionLocation: URI | undefined,
 	getRoots: () => ReadonlyArray<URI>
 ) {
-	return new Promise((resolve, reject) =>
-		contents.session.protocol.registerBufferProtocol(protocol, async (request, callback: any) => {
-			try {
-				const result = await loadLocalResource(URI.parse(request.url), fileService, extensionLocation, getRoots);
-				if (result.type === WebviewResourceResponse.Type.Success) {
-					return callback({
-						data: Buffer.from(result.data.buffer),
-						mimeType: result.mimeType
-					});
-				}
-				if (result.type === WebviewResourceResponse.Type.AccessDenied) {
-					console.error('Webview: Cannot load resource outside of protocol root');
-					return callback({ error: -10 /* ACCESS_DENIED: https://cs.chromium.org/chromium/src/net/base/net_error_list.h */ });
-				}
-			} catch  {
-				// noop
+	contents.session.protocol.registerBufferProtocol(protocol, async (request, callback: any) => {
+		try {
+			const result = await loadLocalResource(URI.parse(request.url), fileService, extensionLocation, getRoots);
+			if (result.type === WebviewResourceResponse.Type.Success) {
+				return callback({
+					data: Buffer.from(result.data.buffer),
+					mimeType: result.mimeType
+				});
 			}
+			if (result.type === WebviewResourceResponse.Type.AccessDenied) {
+				console.error('Webview: Cannot load resource outside of protocol root');
+				return callback({ error: -10 /* ACCESS_DENIED: https://cs.chromium.org/chromium/src/net/base/net_error_list.h */ });
+			}
+		} catch  {
+			// noop
+		}
 
-			return callback({ error: -2 /* FAILED: https://cs.chromium.org/chromium/src/net/base/net_error_list.h */ });
-		}, (err) => {
-			err ? reject(err) : resolve();
-		}));
+		return callback({ error: -2 /* FAILED: https://cs.chromium.org/chromium/src/net/base/net_error_list.h */ });
+	});
 }
 

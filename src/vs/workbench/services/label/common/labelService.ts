@@ -14,13 +14,14 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { isEqual, basenameOrAuthority, basename, joinPath, dirname } from 'vs/base/common/resources';
 import { tildify, getPathLabel } from 'vs/base/common/labels';
-import { ltrim, endsWith } from 'vs/base/common/strings';
+import { ltrim } from 'vs/base/common/strings';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, WORKSPACE_EXTENSION, toWorkspaceIdentifier, isWorkspaceIdentifier, isUntitledWorkspace } from 'vs/platform/workspaces/common/workspaces';
 import { ILabelService, ResourceLabelFormatter, ResourceLabelFormatting, IFormatterChangeEvent } from 'vs/platform/label/common/label';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { match } from 'vs/base/common/glob';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
 
 const resourceLabelFormattersExtPoint = ExtensionsRegistry.registerExtensionPoint<ResourceLabelFormatter[]>({
 	extensionPoint: 'resourceLabelFormatters',
@@ -101,6 +102,7 @@ export class LabelService extends Disposable implements ILabelService {
 	constructor(
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IRemotePathService private readonly remotePathService: IRemotePathService
 	) {
 		super();
 	}
@@ -200,7 +202,7 @@ export class LabelService extends Disposable implements ILabelService {
 
 			// Workspace: Saved
 			let filename = basename(workspace.configPath);
-			if (endsWith(filename, WORKSPACE_EXTENSION)) {
+			if (filename.endsWith(WORKSPACE_EXTENSION)) {
 				filename = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
 			}
 			let label;
@@ -264,7 +266,10 @@ export class LabelService extends Disposable implements ILabelService {
 		}
 
 		if (formatting.tildify && !forceNoTildify) {
-			label = tildify(label, this.environmentService.userHome);
+			const userHome = this.remotePathService.userHomeSync;
+			if (userHome) {
+				label = tildify(label, userHome.fsPath);
+			}
 		}
 		if (formatting.authorityPrefix && resource.authority) {
 			label = formatting.authorityPrefix + label;
@@ -275,7 +280,7 @@ export class LabelService extends Disposable implements ILabelService {
 
 	private appendSeparatorIfMissing(label: string, formatting: ResourceLabelFormatting): string {
 		let appendedLabel = label;
-		if (!endsWith(label, formatting.separator)) {
+		if (!label.endsWith(formatting.separator)) {
 			appendedLabel += formatting.separator;
 		}
 		return appendedLabel;

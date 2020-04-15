@@ -32,3 +32,15 @@ export function getUriForLinkWithKnownExternalScheme(link: string): vscode.Uri |
 export function isOfScheme(scheme: string, link: string): boolean {
 	return link.toLowerCase().startsWith(scheme);
 }
+
+export const MarkdownFileExtensions: readonly string[] = [
+	'.md',
+	'.mkd',
+	'.mdwn',
+	'.mdown',
+	'.markdown',
+	'.markdn',
+	'.mdtxt',
+	'.mdtext',
+	'.workbook',
+];

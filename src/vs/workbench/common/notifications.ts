@@ -697,15 +697,13 @@ export class ChoiceAction extends Action {
 	private readonly _keepOpen: boolean;
 
 	constructor(id: string, choice: IPromptChoice) {
-		super(id, choice.label, undefined, true, () => {
+		super(id, choice.label, undefined, true, async () => {
 
 			// Pass to runner
 			choice.run();
 
 			// Emit Event
 			this._onDidRun.fire();
-
-			return Promise.resolve();
 		});
 
 		this._keepOpen = !!choice.keepOpen;

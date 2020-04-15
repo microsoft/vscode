@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IUserDataSyncStoreService, IUserDataSyncService, SyncSource, UserDataSyncError, UserDataSyncErrorCode } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncStoreService, IUserDataSyncService, SyncResource, UserDataSyncError, UserDataSyncErrorCode } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { SettingsSynchroniser, ISettingsSyncContent } from 'vs/platform/userDataSync/common/settingsSync';
@@ -44,7 +44,7 @@ suite('SettingsSync', () => {
 	setup(async () => {
 		client = disposableStore.add(new UserDataSyncClient(server));
 		await client.setUp();
-		testObject = (client.instantiationService.get(IUserDataSyncService) as UserDataSyncService).getSynchroniser(SyncSource.Settings) as SettingsSynchroniser;
+		testObject = (client.instantiationService.get(IUserDataSyncService) as UserDataSyncService).getSynchroniser(SyncResource.Settings) as SettingsSynchroniser;
 		disposableStore.add(toDisposable(() => client.instantiationService.get(IUserDataSyncStoreService).clear()));
 	});
 
@@ -77,7 +77,7 @@ suite('SettingsSync', () => {
 		await updateSettings(expected);
 		await testObject.sync();
 
-		const { content } = await client.read(testObject.resourceKey);
+		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
 		const actual = parseSettings(content!);
 		assert.deepEqual(actual, expected);
@@ -101,7 +101,7 @@ suite('SettingsSync', () => {
 
 		await testObject.sync();
 
-		const { content } = await client.read(testObject.resourceKey);
+		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
 		const actual = parseSettings(content!);
 		assert.deepEqual(actual, `{
@@ -132,7 +132,7 @@ suite('SettingsSync', () => {
 
 		await testObject.sync();
 
-		const { content } = await client.read(testObject.resourceKey);
+		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
 		const actual = parseSettings(content!);
 		assert.deepEqual(actual, `{
@@ -163,7 +163,7 @@ suite('SettingsSync', () => {
 
 		await testObject.sync();
 
-		const { content } = await client.read(testObject.resourceKey);
+		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
 		const actual = parseSettings(content!);
 		assert.deepEqual(actual, `{
@@ -187,7 +187,7 @@ suite('SettingsSync', () => {
 
 		await testObject.sync();
 
-		const { content } = await client.read(testObject.resourceKey);
+		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
 		const actual = parseSettings(content!);
 		assert.deepEqual(actual, `{
@@ -205,7 +205,7 @@ suite('SettingsSync', () => {
 
 		await testObject.sync();
 
-		const { content } = await client.read(testObject.resourceKey);
+		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
 		const actual = parseSettings(content!);
 		assert.deepEqual(actual, `{
@@ -239,7 +239,7 @@ suite('SettingsSync', () => {
 
 		await testObject.sync();
 
-		const { content } = await client.read(testObject.resourceKey);
+		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
 		const actual = parseSettings(content!);
 		assert.deepEqual(actual, `{
@@ -287,7 +287,7 @@ suite('SettingsSync', () => {
 
 		await testObject.sync();
 
-		const { content } = await client.read(testObject.resourceKey);
+		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
 		const actual = parseSettings(content!);
 		assert.deepEqual(actual, `{

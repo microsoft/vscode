@@ -23,8 +23,13 @@ interface ISchemaAssociations {
 	[pattern: string]: string[];
 }
 
+interface ISchemaAssociation {
+	fileMatch: string[];
+	uri: string;
+}
+
 namespace SchemaAssociationNotification {
-	export const type: NotificationType<ISchemaAssociations, any> = new NotificationType('json/schemaAssociations');
+	export const type: NotificationType<ISchemaAssociations | ISchemaAssociation[], any> = new NotificationType('json/schemaAssociations');
 }
 
 namespace VSCodeContentRequest {
@@ -230,7 +235,7 @@ namespace LimitExceededWarnings {
 }
 
 let jsonConfigurationSettings: JSONSchemaSettings[] | undefined = undefined;
-let schemaAssociations: ISchemaAssociations | undefined = undefined;
+let schemaAssociations: ISchemaAssociations | ISchemaAssociation[] | undefined = undefined;
 let formatterRegistration: Thenable<Disposable> | null = null;
 
 // The settings have changed. Is send on server activation as well.
@@ -291,12 +296,16 @@ function updateConfiguration() {
 		schemas: new Array<SchemaConfiguration>()
 	};
 	if (schemaAssociations) {
-		for (const pattern in schemaAssociations) {
-			const association = schemaAssociations[pattern];
-			if (Array.isArray(association)) {
-				association.forEach(uri => {
-					languageSettings.schemas.push({ uri, fileMatch: [pattern] });
-				});
+		if (Array.isArray(schemaAssociations)) {
+			Array.prototype.push.apply(languageSettings.schemas, schemaAssociations);
+		} else {
+			for (const pattern in schemaAssociations) {
+				const association = schemaAssociations[pattern];
+				if (Array.isArray(association)) {
+					association.forEach(uri => {
+						languageSettings.schemas.push({ uri, fileMatch: [pattern] });
+					});
+				}
 			}
 		}
 	}

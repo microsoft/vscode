@@ -417,7 +417,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 						extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 						extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
 						globalStorageHome: URI.file(this._environmentService.globalStorageHome),
-						userHome: URI.file(this._environmentService.userHome),
+						userHome: this._environmentService.userHome,
 						webviewResourceRoot: this._environmentService.webviewResourceRoot,
 						webviewCspSource: this._environmentService.webviewCspSource,
 					},

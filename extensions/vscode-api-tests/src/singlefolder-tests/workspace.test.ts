@@ -9,7 +9,7 @@ import { createRandomFile, deleteFile, closeAllEditors, pathEquals, rndName, dis
 import { join, posix, basename } from 'path';
 import * as fs from 'fs';
 
-suite('workspace-namespace', () => {
+suite('vscode API - workspace', () => {
 
 	teardown(closeAllEditors);
 

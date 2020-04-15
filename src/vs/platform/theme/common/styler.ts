@@ -154,7 +154,7 @@ export function attachFindReplaceInputBoxStyler(widget: IThemable, themeService:
 	} as IInputBoxStyleOverrides, widget);
 }
 
-export interface IQuickOpenStyleOverrides extends IListStyleOverrides, IInputBoxStyleOverrides, IProgressBarStyleOverrides {
+export interface IQuickInputStyleOverrides extends IListStyleOverrides, IInputBoxStyleOverrides, IProgressBarStyleOverrides {
 	foreground?: ColorIdentifier;
 	background?: ColorIdentifier;
 	borderColor?: ColorIdentifier;
@@ -163,7 +163,7 @@ export interface IQuickOpenStyleOverrides extends IListStyleOverrides, IInputBox
 	pickerGroupBorder?: ColorIdentifier;
 }
 
-export function attachQuickOpenStyler(widget: IThemable, themeService: IThemeService, style?: IQuickOpenStyleOverrides): IDisposable {
+export function attachQuickInputStyler(widget: IThemable, themeService: IThemeService, style?: IQuickInputStyleOverrides): IDisposable {
 	return attachStyler(themeService, {
 		foreground: (style && style.foreground) || foreground,
 		background: (style && style.background) || editorBackground,
@@ -199,7 +199,7 @@ export function attachQuickOpenStyler(widget: IThemable, themeService: IThemeSer
 		listFocusOutline: (style && style.listFocusOutline) || activeContrastBorder,
 		listSelectionOutline: (style && style.listSelectionOutline) || activeContrastBorder,
 		listHoverOutline: (style && style.listHoverOutline) || activeContrastBorder
-	} as IQuickOpenStyleOverrides, widget);
+	} as IQuickInputStyleOverrides, widget);
 }
 
 export interface IListStyleOverrides extends IStyleOverrides {

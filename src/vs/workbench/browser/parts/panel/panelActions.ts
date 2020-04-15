@@ -74,7 +74,6 @@ class FocusPanelAction extends Action {
 		// Show panel
 		if (!this.layoutService.isVisible(Parts.PANEL_PART)) {
 			this.layoutService.setPanelHidden(false);
-			return;
 		}
 
 		// Focus into active panel

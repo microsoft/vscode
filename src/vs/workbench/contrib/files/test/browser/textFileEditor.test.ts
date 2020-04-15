@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { toResource } from 'vs/base/test/common/utils';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { workbenchInstantiationService, TestServiceAccessor, TestFilesConfigurationService, TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService, TestServiceAccessor, TestFilesConfigurationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
@@ -56,8 +56,7 @@ suite('Files - TextFileEditor', () => {
 
 		instantiationService.stub(IFilesConfigurationService, new TestFilesConfigurationService(
 			<IContextKeyService>instantiationService.createInstance(MockContextKeyService),
-			configurationService,
-			TestEnvironmentService
+			configurationService
 		));
 
 		const part = instantiationService.createInstance(EditorPart);

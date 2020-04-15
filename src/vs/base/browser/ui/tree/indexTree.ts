@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/tree';
-import { Iterator, ISequence } from 'vs/base/common/iterator';
+import { Iterable } from 'vs/base/common/iterator';
 import { AbstractTree, IAbstractTreeOptions } from 'vs/base/browser/ui/tree/abstractTree';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { IndexTreeModel } from 'vs/base/browser/ui/tree/indexTreeModel';
@@ -28,7 +28,7 @@ export class IndexTree<T, TFilterData = void> extends AbstractTree<T, TFilterDat
 		super(user, container, delegate, renderers, options);
 	}
 
-	splice(location: number[], deleteCount: number, toInsert: ISequence<ITreeElement<T>> = Iterator.empty()): void {
+	splice(location: number[], deleteCount: number, toInsert: Iterable<ITreeElement<T>> = Iterable.empty()): void {
 		this.model.splice(location, deleteCount, toInsert);
 	}
 

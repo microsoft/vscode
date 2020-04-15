@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IExtensionManagementService, ILocalExtension, InstallExtensionEvent, DidInstallExtensionEvent, IGalleryExtension, DidUninstallExtensionEvent, IExtensionIdentifier, IGalleryMetadata, IReportedExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, ILocalExtension, InstallExtensionEvent, DidInstallExtensionEvent, IGalleryExtension, DidUninstallExtensionEvent, IExtensionIdentifier, IGalleryMetadata, IReportedExtension, IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { Event } from 'vs/base/common/event';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IURITransformer, DefaultURITransformer, transformAndReviveIncomingURIs } from 'vs/base/common/uriIpc';
@@ -128,5 +128,25 @@ export class ExtensionManagementChannelClient implements IExtensionManagementSer
 
 	getExtensionsReport(): Promise<IReportedExtension[]> {
 		return Promise.resolve(this.channel.call('getExtensionsReport'));
+	}
+}
+
+export class ExtensionTipsChannel implements IServerChannel {
+
+	constructor(private service: IExtensionTipsService) {
+	}
+
+	listen(context: any, event: string): Event<any> {
+		throw new Error('Invalid listen');
+	}
+
+	call(context: any, command: string, args?: any): Promise<any> {
+		switch (command) {
+			case 'getImportantExecutableBasedTips': return this.service.getImportantExecutableBasedTips();
+			case 'getOtherExecutableBasedTips': return this.service.getOtherExecutableBasedTips();
+			case 'getAllWorkspacesTips': return this.service.getAllWorkspacesTips();
+		}
+
+		throw new Error('Invalid call');
 	}
 }

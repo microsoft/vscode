@@ -159,6 +159,11 @@ export let addStandardDisposableGenericMouseDownListner = function addStandardDi
 	return addDisposableGenericMouseDownListner(node, wrapHandler, useCapture);
 };
 
+export let addStandardDisposableGenericMouseUpListner = function addStandardDisposableListener(node: HTMLElement, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+	let wrapHandler = _wrapAsStandardMouseEvent(handler);
+
+	return addDisposableGenericMouseUpListner(node, wrapHandler, useCapture);
+};
 export function addDisposableGenericMouseDownListner(node: EventTarget, handler: (event: any) => void, useCapture?: boolean): IDisposable {
 	return addDisposableListener(node, platform.isIOS && BrowserFeatures.pointerEvents ? EventType.POINTER_DOWN : EventType.MOUSE_DOWN, handler, useCapture);
 }
@@ -492,7 +497,12 @@ class SizeUtils {
 // ----------------------------------------------------------------------------------------
 // Position & Dimension
 
-export class Dimension {
+export interface IDimension {
+	readonly width: number;
+	readonly height: number;
+}
+
+export class Dimension implements IDimension {
 
 	constructor(
 		public readonly width: number,
@@ -812,6 +822,7 @@ export const EventType = {
 	MOUSE_OUT: 'mouseout',
 	MOUSE_ENTER: 'mouseenter',
 	MOUSE_LEAVE: 'mouseleave',
+	MOUSE_WHEEL: browser.isEdge ? 'mousewheel' : 'wheel',
 	POINTER_UP: 'pointerup',
 	POINTER_DOWN: 'pointerdown',
 	POINTER_MOVE: 'pointermove',

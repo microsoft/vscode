@@ -20,13 +20,16 @@ export interface ILocalizedString {
 	original: string;
 }
 
+export type Icon = { dark?: URI; light?: URI; } | ThemeIcon;
+
 export interface ICommandAction {
 	id: string;
 	title: string | ILocalizedString;
 	category?: string | ILocalizedString;
-	icon?: { dark?: URI; light?: URI; } | ThemeIcon;
+	tooltip?: string | ILocalizedString;
+	icon?: Icon;
 	precondition?: ContextKeyExpression;
-	toggled?: ContextKeyExpression;
+	toggled?: ContextKeyExpression | { condition: ContextKeyExpression, icon?: Icon, tooltip?: string | ILocalizedString };
 }
 
 export type ISerializableCommandAction = UriDto<ICommandAction>;
@@ -89,6 +92,7 @@ export class MenuId {
 	static readonly MenubarSwitchGroupMenu = new MenuId('MenubarSwitchGroupMenu');
 	static readonly MenubarTerminalMenu = new MenuId('MenubarTerminalMenu');
 	static readonly MenubarViewMenu = new MenuId('MenubarViewMenu');
+	static readonly MenubarWebNavigationMenu = new MenuId('MenubarWebNavigationMenu');
 	static readonly OpenEditorsContext = new MenuId('OpenEditorsContext');
 	static readonly ProblemsPanelContext = new MenuId('ProblemsPanelContext');
 	static readonly SCMChangeContext = new MenuId('SCMChangeContext');
@@ -111,11 +115,13 @@ export class MenuId {
 	static readonly CommentThreadActions = new MenuId('CommentThreadActions');
 	static readonly CommentTitle = new MenuId('CommentTitle');
 	static readonly CommentActions = new MenuId('CommentActions');
+	static readonly NotebookCellTitle = new MenuId('NotebookCellTitle');
 	static readonly BulkEditTitle = new MenuId('BulkEditTitle');
 	static readonly BulkEditContext = new MenuId('BulkEditContext');
 	static readonly TimelineItemContext = new MenuId('TimelineItemContext');
 	static readonly TimelineTitle = new MenuId('TimelineTitle');
 	static readonly TimelineTitleContext = new MenuId('TimelineTitleContext');
+	static readonly AccountsContext = new MenuId('AccountsContext');
 
 	readonly id: number;
 	readonly _debugName: string;
@@ -275,9 +281,20 @@ export class MenuItemAction extends ExecuteCommandAction {
 		@ICommandService commandService: ICommandService
 	) {
 		typeof item.title === 'string' ? super(item.id, item.title, commandService) : super(item.id, item.title.value, commandService);
+
 		this._cssClass = undefined;
 		this._enabled = !item.precondition || contextKeyService.contextMatchesRules(item.precondition);
-		this._checked = Boolean(item.toggled && contextKeyService.contextMatchesRules(item.toggled));
+		this._tooltip = item.tooltip ? typeof item.tooltip === 'string' ? item.tooltip : item.tooltip.value : undefined;
+
+		if (item.toggled) {
+			const toggled = ((item.toggled as { condition: ContextKeyExpression }).condition ? item.toggled : { condition: item.toggled }) as {
+				condition: ContextKeyExpression, icon?: Icon, tooltip?: string | ILocalizedString
+			};
+			this._checked = contextKeyService.contextMatchesRules(toggled.condition);
+			if (this._checked && toggled.tooltip) {
+				this._tooltip = typeof toggled.tooltip === 'string' ? toggled.tooltip : toggled.tooltip.value;
+			}
+		}
 
 		this._options = options || {};
 
@@ -396,39 +413,41 @@ export function registerAction2(ctor: { new(): Action2 }): IDisposable {
 	const disposables = new DisposableStore();
 	const action = new ctor();
 
+	const { f1, menu, keybinding, description, ...command } = action.desc;
+
 	// command
 	disposables.add(CommandsRegistry.registerCommand({
-		id: action.desc.id,
+		id: command.id,
 		handler: (accessor, ...args) => action.run(accessor, ...args),
-		description: action.desc.description,
+		description: description,
 	}));
 
 	// menu
-	if (Array.isArray(action.desc.menu)) {
-		for (let item of action.desc.menu) {
-			disposables.add(MenuRegistry.appendMenuItem(item.id, { command: action.desc, ...item }));
+	if (Array.isArray(menu)) {
+		for (let item of menu) {
+			disposables.add(MenuRegistry.appendMenuItem(item.id, { command: { ...command }, ...item }));
 		}
-	} else if (action.desc.menu) {
-		disposables.add(MenuRegistry.appendMenuItem(action.desc.menu.id, { command: action.desc, ...action.desc.menu }));
+	} else if (menu) {
+		disposables.add(MenuRegistry.appendMenuItem(menu.id, { command: { ...command }, ...menu }));
 	}
-	if (action.desc.f1) {
-		disposables.add(MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: action.desc, ...action.desc }));
+	if (f1) {
+		disposables.add(MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: command }));
 	}
 
 	// keybinding
-	if (Array.isArray(action.desc.keybinding)) {
-		for (let item of action.desc.keybinding) {
+	if (Array.isArray(keybinding)) {
+		for (let item of keybinding) {
 			KeybindingsRegistry.registerKeybindingRule({
 				...item,
-				id: action.desc.id,
-				when: ContextKeyExpr.and(action.desc.precondition, item.when)
+				id: command.id,
+				when: command.precondition ? ContextKeyExpr.and(command.precondition, item.when) : item.when
 			});
 		}
-	} else if (action.desc.keybinding) {
+	} else if (keybinding) {
 		KeybindingsRegistry.registerKeybindingRule({
-			...action.desc.keybinding,
-			id: action.desc.id,
-			when: ContextKeyExpr.and(action.desc.precondition, action.desc.keybinding.when)
+			...keybinding,
+			id: command.id,
+			when: command.precondition ? ContextKeyExpr.and(command.precondition, keybinding.when) : keybinding.when
 		});
 	}
 

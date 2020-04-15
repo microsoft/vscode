@@ -219,14 +219,14 @@ export class TitlebarPart extends BrowserTitleBarPart {
 					}
 				}
 			} else {
-				this.title.style.zoom = null;
+				this.title.style.zoom = '';
 				if (isWindows || isLinux) {
 					if (this.appIcon) {
-						this.appIcon.style.zoom = null;
+						this.appIcon.style.zoom = '';
 					}
 
 					if (this.windowControls) {
-						this.windowControls.style.zoom = null;
+						this.windowControls.style.zoom = '';
 					}
 				}
 			}

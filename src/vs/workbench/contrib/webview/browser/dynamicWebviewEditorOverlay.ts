@@ -11,7 +11,7 @@ import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/l
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IWebviewService, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, Webview, WebviewContentOptions, WebviewElement, WebviewExtensionDescription, WebviewOptions, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 
 /**
  * Webview editor overlay that creates and destroys the underlying webview as needed.
@@ -42,9 +42,9 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 		private readonly id: string,
 		initialOptions: WebviewOptions,
 		initialContentOptions: WebviewContentOptions,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
+		@ILayoutService private readonly _layoutService: ILayoutService,
 		@IWebviewService private readonly _webviewService: IWebviewService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super();
 
@@ -71,7 +71,7 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 
 		// Webviews cannot be reparented in the dom as it will destory their contents.
 		// Mount them to a high level node to avoid this.
-		this._layoutService.getWorkbenchElement().appendChild(container);
+		this._layoutService.container.appendChild(container);
 
 		return container;
 	}

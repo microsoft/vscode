@@ -21,9 +21,10 @@ import {
 	INSTALL_ERROR_MALICIOUS,
 	INSTALL_ERROR_INCOMPATIBLE
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { areSameExtensions, getGalleryExtensionId, groupByExtension, getMaliciousExtensionsSet, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, ExtensionIdentifierWithVersion, parseBuiltInExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { areSameExtensions, getGalleryExtensionId, groupByExtension, getMaliciousExtensionsSet, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, ExtensionIdentifierWithVersion } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { localizeManifest } from '../common/extensionNls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { Limiter, createCancelablePromise, CancelablePromise, Queue } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as semver from 'semver-umd';
@@ -45,7 +46,6 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { getManifest } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { IExtensionManifest, ExtensionType } from 'vs/platform/extensions/common/extensions';
-import { IProductService } from 'vs/platform/product/common/productService';
 
 const ERROR_SCANNING_SYS_EXTENSIONS = 'scanningSystem';
 const ERROR_SCANNING_USER_EXTENSIONS = 'scanningUser';
@@ -86,7 +86,7 @@ function readManifest(extensionPath: string): Promise<{ manifest: IExtensionMani
 			.then(raw => JSON.parse(raw))
 	];
 
-	return Promise.all<any>(promises).then(([{ manifest, metadata }, translations]) => {
+	return Promise.all(promises).then(([{ manifest, metadata }, translations]) => {
 		return {
 			manifest: localizeManifest(manifest, translations),
 			metadata
@@ -128,12 +128,11 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	onDidUninstallExtension: Event<DidUninstallExtensionEvent> = this._onDidUninstallExtension.event;
 
 	constructor(
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 		@ILogService private readonly logService: ILogService,
 		@optional(IDownloadService) private downloadService: IDownloadService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IProductService private readonly productService: IProductService,
 	) {
 		super();
 		this.systemExtensionsPath = environmentService.builtinExtensionsPath;
@@ -331,7 +330,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 
 				this.downloadInstallableExtension(extension, operation)
 					.then(installableExtension => this.installExtension(installableExtension, ExtensionType.User, cancellationToken)
-						.then(local => pfs.rimraf(installableExtension.zipPath).finally(() => null).then(() => local)))
+						.then(local => pfs.rimraf(installableExtension.zipPath).finally(() => { }).then(() => local)))
 					.then(local => this.installDependenciesAndPackExtensions(local, existingExtension)
 						.then(() => local, error => this.uninstall(local, true).then(() => Promise.reject(error), () => Promise.reject(error))))
 					.then(
@@ -486,7 +485,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 					() => this.logService.info('Renamed to', renamePath),
 					e => {
 						this.logService.info('Rename failed. Deleting from extracted location', extractPath);
-						return pfs.rimraf(extractPath).finally(() => null).then(() => Promise.reject(e));
+						return pfs.rimraf(extractPath).finally(() => { }).then(() => Promise.reject(e));
 					}));
 	}
 
@@ -497,7 +496,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 				() => extract(zipPath, extractPath, { sourcePath: 'extension', overwrite: true }, token)
 					.then(
 						() => this.logService.info(`Extracted extension to ${extractPath}:`, identifier.id),
-						e => pfs.rimraf(extractPath).finally(() => null)
+						e => pfs.rimraf(extractPath).finally(() => { })
 							.then(() => Promise.reject(new ExtensionManagementError(e.message, e instanceof ExtractError && e.type ? e.type : INSTALL_ERROR_EXTRACTING)))),
 				e => Promise.reject(new ExtensionManagementError(this.joinErrors(e).message, INSTALL_ERROR_DELETING)));
 	}
@@ -755,6 +754,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		// Scan other system extensions during development
 		const devSystemExtensionsPromise = this.getDevSystemExtensionsList()
 			.then(devSystemExtensionsList => {
+				console.log(devSystemExtensionsList);
 				if (devSystemExtensionsList.length) {
 					return this.scanExtensions(this.devSystemExtensionsPath, ExtensionType.System)
 						.then(result => {
@@ -946,17 +946,8 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		return this._devSystemExtensionsPath;
 	}
 
-	private _devSystemExtensionsFilePath: string | null = null;
-	private get devSystemExtensionsFilePath(): string {
-		if (!this._devSystemExtensionsFilePath) {
-			this._devSystemExtensionsFilePath = path.normalize(path.join(getPathFromAmdModule(require, ''), '..', 'build', 'builtInExtensions.json'));
-		}
-		return this._devSystemExtensionsFilePath;
-	}
-
 	private getDevSystemExtensionsList(): Promise<string[]> {
-		return pfs.readFile(this.devSystemExtensionsFilePath, 'utf8')
-			.then(data => parseBuiltInExtensions(data, this.productService.quality).map(ext => ext.name));
+		return Promise.resolve(product.builtInExtensions ? product.builtInExtensions.map(e => e.name) : []);
 	}
 
 	private toNonCancellablePromise<T>(promise: Promise<T>): Promise<T> {

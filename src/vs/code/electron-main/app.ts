@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing, protocol, powerMonitor, IpcMainEvent, BrowserWindow } from 'electron';
+import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing, protocol, powerMonitor, IpcMainEvent, BrowserWindow, dialog } from 'electron';
 import { IProcessEnvironment, isWindows, isMacintosh } from 'vs/base/common/platform';
 import { WindowsMainService } from 'vs/platform/windows/electron-main/windowsMainService';
-import { OpenContext, IWindowOpenable } from 'vs/platform/windows/common/windows';
+import { IWindowOpenable } from 'vs/platform/windows/common/windows';
+import { OpenContext } from 'vs/platform/windows/node/window';
 import { ActiveWindowManager } from 'vs/code/node/activeWindowTracker';
 import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { getShellEnvironment } from 'vs/code/node/shellEnv';
@@ -26,7 +27,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IURLService } from 'vs/platform/url/common/url';
 import { URLHandlerChannelClient, URLHandlerRouter } from 'vs/platform/url/common/urlIpc';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, machineIdKey, trueMachineIdKey } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService, combinedAppender, LogAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
@@ -61,7 +62,6 @@ import { Schemas } from 'vs/base/common/network';
 import { SnapUpdateService } from 'vs/platform/update/electron-main/updateService.snap';
 import { IStorageMainService, StorageMainService } from 'vs/platform/storage/node/storageMainService';
 import { GlobalStorageDatabaseChannel } from 'vs/platform/storage/node/storageIpc';
-import { startsWith } from 'vs/base/common/strings';
 import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainService';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { WorkspacesHistoryMainService, IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
@@ -77,12 +77,12 @@ import { IDialogMainService, DialogMainService } from 'vs/platform/dialogs/elect
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { coalesce } from 'vs/base/common/arrays';
+import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
+import { StorageKeysSyncRegistryChannel } from 'vs/platform/userDataSync/common/userDataSyncIpc';
+import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { mnemonicButtonLabel, getPathLabel } from 'vs/base/common/labels';
 
 export class CodeApplication extends Disposable {
-
-	private static readonly MACHINE_ID_KEY = 'telemetry.machineId';
-	private static readonly TRUE_MACHINE_ID_KEY = 'telemetry.trueMachineId';
-
 	private windowsMainService: IWindowsMainService | undefined;
 	private dialogMainService: IDialogMainService | undefined;
 
@@ -91,7 +91,7 @@ export class CodeApplication extends Disposable {
 		private readonly userEnv: IProcessEnvironment,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStateService private readonly stateService: IStateService
@@ -173,14 +173,14 @@ export class CodeApplication extends Disposable {
 						return false;
 					}
 
-					if (source === 'data:text/html;charset=utf-8,%3C%21DOCTYPE%20html%3E%0D%0A%3Chtml%20lang%3D%22en%22%20style%3D%22width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3Chead%3E%0D%0A%09%3Ctitle%3EVirtual%20Document%3C%2Ftitle%3E%0D%0A%3C%2Fhead%3E%0D%0A%3Cbody%20style%3D%22margin%3A%200%3B%20overflow%3A%20hidden%3B%20width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3C%2Fbody%3E%0D%0A%3C%2Fhtml%3E') {
+					if (source === 'data:text/html;charset=utf-8,%3C%21DOCTYPE%20html%3E%0D%0A%3Chtml%20lang%3D%22en%22%20style%3D%22width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3Chead%3E%0D%0A%3Ctitle%3EVirtual%20Document%3C%2Ftitle%3E%0D%0A%3C%2Fhead%3E%0D%0A%3Cbody%20style%3D%22margin%3A%200%3B%20overflow%3A%20hidden%3B%20width%3A%20100%25%3B%20height%3A%20100%25%22%20role%3D%22document%22%3E%0D%0A%3C%2Fbody%3E%0D%0A%3C%2Fhtml%3E') {
 						return true;
 					}
 
 					const srcUri = URI.parse(source).fsPath.toLowerCase();
 					const rootUri = URI.file(this.environmentService.appRoot).fsPath.toLowerCase();
 
-					return startsWith(srcUri, rootUri + sep);
+					return srcUri.startsWith(rootUri + sep);
 				};
 
 				// Ensure defaults
@@ -407,21 +407,21 @@ export class CodeApplication extends Disposable {
 
 		// We cache the machineId for faster lookups on startup
 		// and resolve it only once initially if not cached
-		let machineId = this.stateService.getItem<string>(CodeApplication.MACHINE_ID_KEY);
+		let machineId = this.stateService.getItem<string>(machineIdKey);
 		if (!machineId) {
 			machineId = await getMachineId();
 
-			this.stateService.setItem(CodeApplication.MACHINE_ID_KEY, machineId);
+			this.stateService.setItem(machineIdKey, machineId);
 		}
 
 		// Check if machineId is hashed iBridge Device
 		let trueMachineId: string | undefined;
 		if (isMacintosh && machineId === '6c9d2bc8f91b89624add29c0abeae7fb42bf539fa1cdb2e3e57cd668fa9bcead') {
-			trueMachineId = this.stateService.getItem<string>(CodeApplication.TRUE_MACHINE_ID_KEY);
+			trueMachineId = this.stateService.getItem<string>(trueMachineIdKey);
 			if (!trueMachineId) {
 				trueMachineId = await getMachineId();
 
-				this.stateService.setItem(CodeApplication.TRUE_MACHINE_ID_KEY, trueMachineId);
+				this.stateService.setItem(trueMachineIdKey, trueMachineId);
 			}
 		}
 
@@ -571,6 +571,11 @@ export class CodeApplication extends Disposable {
 		electronIpcServer.registerChannel('storage', storageChannel);
 		sharedProcessClient.then(client => client.registerChannel('storage', storageChannel));
 
+		const storageKeysSyncRegistryService = accessor.get(IStorageKeysSyncRegistryService);
+		const storageKeysSyncChannel = new StorageKeysSyncRegistryChannel(storageKeysSyncRegistryService);
+		electronIpcServer.registerChannel('storageKeysSyncRegistryService', storageKeysSyncChannel);
+		sharedProcessClient.then(client => client.registerChannel('storageKeysSyncRegistryService', storageKeysSyncChannel));
+
 		const loggerChannel = new LoggerChannel(accessor.get(ILogService));
 		electronIpcServer.registerChannel('logger', loggerChannel);
 		sharedProcessClient.then(client => client.registerChannel('logger', loggerChannel));
@@ -586,12 +591,11 @@ export class CodeApplication extends Disposable {
 		this.dialogMainService = accessor.get(IDialogMainService);
 
 		// Check for initial URLs to handle from protocol link invocations
-		const environmentService = accessor.get(IEnvironmentService);
 		const pendingWindowOpenablesFromProtocolLinks: IWindowOpenable[] = [];
 		const pendingProtocolLinksToHandle = coalesce([
 
 			// Windows/Linux: protocol handler invokes CLI with --open-url
-			...environmentService.args['open-url'] ? environmentService.args._urls || [] : [],
+			...this.environmentService.args['open-url'] ? this.environmentService.args._urls || [] : [],
 
 			// macOS: open-url events
 			...((<any>global).getOpenUrls() || []) as string[]
@@ -602,6 +606,11 @@ export class CodeApplication extends Disposable {
 				return undefined;
 			}
 		})).filter(pendingUriToHandle => {
+			// if URI should be blocked, filter it out
+			if (this.shouldBlockURI(pendingUriToHandle)) {
+				return false;
+			}
+
 			// filter out any protocol link that wants to open as window so that
 			// we open the right set of windows on startup and not restore the
 			// previous workspace too.
@@ -617,8 +626,13 @@ export class CodeApplication extends Disposable {
 
 		// Create a URL handler to open file URIs in the active window
 		const app = this;
+		const environmentService = this.environmentService;
 		urlService.registerHandler({
 			async handleURL(uri: URI): Promise<boolean> {
+				// if URI should be blocked, behave as if it's handled
+				if (app.shouldBlockURI(uri)) {
+					return true;
+				}
 
 				// Check for URIs to open in window
 				const windowOpenableFromProtocolLink = app.getWindowOpenableFromProtocolLink(uri);
@@ -721,6 +735,29 @@ export class CodeApplication extends Disposable {
 			gotoLineMode: args.goto,
 			initialStartup: true
 		});
+	}
+
+	private shouldBlockURI(uri: URI): boolean {
+		if (uri.authority === Schemas.file && isWindows) {
+			const res = dialog.showMessageBoxSync({
+				title: product.nameLong,
+				type: 'question',
+				buttons: [
+					mnemonicButtonLabel(localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, "&&Yes")),
+					mnemonicButtonLabel(localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&No")),
+				],
+				cancelId: 1,
+				message: localize('confirmOpenMessage', "An external application wants to open '{0}' in {1}. Do you want to open this file or folder?", getPathLabel(uri.fsPath), product.nameShort),
+				detail: localize('confirmOpenDetail', "If you did not initiate this request, it may represent an attempted attack on your system. Unless you took an explicit action to initiate this request, you should press 'No'"),
+				noLink: true
+			});
+
+			if (res === 1) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	private getWindowOpenableFromProtocolLink(uri: URI): IWindowOpenable | undefined {

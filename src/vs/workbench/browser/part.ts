@@ -6,9 +6,8 @@
 import 'vs/css!./media/part';
 import { Component } from 'vs/workbench/common/component';
 import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
-import { Dimension, size } from 'vs/base/browser/dom';
+import { Dimension, size, IDimension } from 'vs/base/browser/dom';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IDimension } from 'vs/platform/layout/browser/layoutService';
 import { ISerializableView, IViewSize } from 'vs/base/browser/ui/grid/grid';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';

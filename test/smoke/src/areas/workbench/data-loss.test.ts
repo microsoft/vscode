@@ -17,7 +17,7 @@ export function setup() {
 
 			const readmeMd = 'readme.md';
 			const textToType = 'Hello, Code';
-			await app.workbench.quickopen.openFile(readmeMd);
+			await app.workbench.quickaccess.openFile(readmeMd);
 			await app.workbench.editor.waitForTypeInEditor(readmeMd, textToType);
 
 			await app.reload();

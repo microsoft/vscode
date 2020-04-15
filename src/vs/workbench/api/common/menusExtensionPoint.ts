@@ -38,12 +38,13 @@ namespace schema {
 			case 'debug/toolbar': return MenuId.DebugToolBar;
 			case 'debug/toolBar': return MenuId.DebugToolBar;
 			case 'menuBar/file': return MenuId.MenubarFileMenu;
+			case 'menuBar/webNavigation': return MenuId.MenubarWebNavigationMenu;
 			case 'scm/title': return MenuId.SCMTitle;
 			case 'scm/sourceControl': return MenuId.SCMSourceControl;
-			case 'scm/resourceState/context': return MenuId.SCMResourceContext;
+			case 'scm/resourceState/context': return MenuId.SCMResourceContext;//
 			case 'scm/resourceFolder/context': return MenuId.SCMResourceFolderContext;
 			case 'scm/resourceGroup/context': return MenuId.SCMResourceGroupContext;
-			case 'scm/change/title': return MenuId.SCMChangeContext;
+			case 'scm/change/title': return MenuId.SCMChangeContext;//
 			case 'statusBar/windowIndicator': return MenuId.StatusBarWindowIndicatorMenu;
 			case 'view/title': return MenuId.ViewTitle;
 			case 'view/item/context': return MenuId.ViewItemContext;
@@ -51,6 +52,7 @@ namespace schema {
 			case 'comments/commentThread/context': return MenuId.CommentThreadActions;
 			case 'comments/comment/title': return MenuId.CommentTitle;
 			case 'comments/comment/context': return MenuId.CommentActions;
+			case 'notebook/cell/title': return MenuId.NotebookCellTitle;
 			case 'extension/context': return MenuId.ExtensionContext;
 			case 'timeline/title': return MenuId.TimelineTitle;
 			case 'timeline/item/context': return MenuId.TimelineItemContext;
@@ -63,6 +65,7 @@ namespace schema {
 		switch (menuId) {
 			case MenuId.StatusBarWindowIndicatorMenu:
 			case MenuId.MenubarFileMenu:
+			case MenuId.MenubarWebNavigationMenu:
 				return true;
 		}
 		return false;
@@ -162,6 +165,11 @@ namespace schema {
 				type: 'array',
 				items: menuItem
 			},
+			'menuBar/webNavigation': {
+				description: localize('menus.webNavigation', "The top level navigational menu (web only)"),
+				type: 'array',
+				items: menuItem
+			},
 			'scm/title': {
 				description: localize('menus.scmTitle', "The Source Control title menu"),
 				type: 'array',
@@ -179,6 +187,16 @@ namespace schema {
 			},
 			'scm/resourceState/context': {
 				description: localize('menus.resourceStateContext', "The Source Control resource state context menu"),
+				type: 'array',
+				items: menuItem
+			},
+			'scm/resourceFolder/context': {
+				description: localize('menus.resourceFolderContext', "The Source Control resource folder context menu"),
+				type: 'array',
+				items: menuItem
+			},
+			'scm/change/title': {
+				description: localize('menus.changeTitle', "The Source Control inline change menu"),
 				type: 'array',
 				items: menuItem
 			},
@@ -209,6 +227,11 @@ namespace schema {
 			},
 			'comments/comment/context': {
 				description: localize('comment.actions', "The contributed comment context menu, rendered as buttons below the comment editor"),
+				type: 'array',
+				items: menuItem
+			},
+			'notebook/cell/title': {
+				description: localize('notebook.cell.title', "The contributed notebook cell title menu"),
 				type: 'array',
 				items: menuItem
 			},

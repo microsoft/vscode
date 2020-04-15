@@ -11,7 +11,7 @@ import { Schemas } from 'vs/base/common/network';
 import { normalizePath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IOpener, IOpenerService, IValidator, IExternalUriResolver, OpenOptions, ResolveExternalUriOptions, IResolvedExternalUri, IExternalOpener, matchesScheme } from 'vs/platform/opener/common/opener';
 import { EditorOpenContext } from 'vs/platform/editor/common/editor';
 
@@ -27,9 +27,6 @@ class CommandOpener implements IOpener {
 		// run command or bail out if command isn't known
 		if (typeof target === 'string') {
 			target = URI.parse(target);
-		}
-		if (!CommandsRegistry.getCommand(target.path)) {
-			throw new Error(`command '${target.path}' NOT known`);
 		}
 		// execute as command
 		let args: any = [];
