@@ -2713,6 +2713,13 @@ export enum CellOutputKind {
 	Rich = 3
 }
 
+export enum NotebookCellRunState {
+	Running = 1,
+	Idle = 2,
+	Success = 3,
+	Error = 4
+}
+
 //#endregion
 
 //#region Timeline

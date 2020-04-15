@@ -68,6 +68,7 @@ export abstract class BaseCellViewModel extends Disposable implements ICellViewM
 		this._onDidChangeCellEditState.fire();
 	}
 
+	// TODO - move any "run"/"status" concept to Code-specific places
 	private _currentTokenSource: CancellationTokenSource | undefined;
 	public set currentTokenSource(v: CancellationTokenSource | undefined) {
 		this._currentTokenSource = v;
@@ -338,7 +339,10 @@ export abstract class BaseCellViewModel extends Disposable implements ICellViewM
 
 		return {
 			editable,
-			runnable
+			runnable,
+			executionOrder: this.metadata?.executionOrder,
+			runState: this.metadata?.runState,
+			statusMessage: this.metadata?.statusMessage
 		};
 	}
 

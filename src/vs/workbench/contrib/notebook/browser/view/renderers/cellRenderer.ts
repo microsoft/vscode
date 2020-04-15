@@ -15,6 +15,7 @@ import { escape } from 'vs/base/common/strings';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { deepClone } from 'vs/base/common/objects';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import * as nls from 'vs/nls';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
@@ -35,7 +36,7 @@ import { StatefullMarkdownCell } from 'vs/workbench/contrib/notebook/browser/vie
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NotebookCellRunState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { renderCodicons } from 'vs/base/common/codicons';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -397,10 +398,10 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const runToolbar = this.createToolbar(runButtonContainer);
 		disposables.add(runToolbar);
 
-
 		const executionOrderLabel = DOM.append(runButtonContainer, $('div.execution-count-label'));
 
-		const editorContainer = DOM.append(cellContainer, $('.cell-editor-container'));
+		const editorPart = DOM.append(cellContainer, $('.cell-editor-part'));
+		const editorContainer = DOM.append(editorPart, $('.cell-editor-container'));
 		const editor = this.instantiationService.createInstance(CodeEditorWidget, editorContainer, {
 			...this.editorOptions,
 			dimension: {
@@ -409,22 +410,26 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			}
 		}, {});
 
-		const focusIndicator = DOM.append(container, DOM.$('.notebook-cell-focus-indicator'));
-
-		const outputContainer = document.createElement('div');
-		DOM.addClasses(outputContainer, 'output');
-		container.appendChild(outputContainer);
-
-		const progressBar = new ProgressBar(editorContainer);
+		const progressBar = new ProgressBar(editorPart);
 		progressBar.hide();
 		disposables.add(progressBar);
 
+		const statusBarContainer = DOM.append(editorPart, $('.cell-statusbar-container'));
+		const cellRunStatusContainer = DOM.append(statusBarContainer, $('.cell-run-status'));
+		const cellStatusMessageContainer = DOM.append(statusBarContainer, $('.cell-status-message'));
+		const cellStatusPlaceholderContainer = DOM.append(statusBarContainer, $('.cell-status-placeholder'));
+
+		const focusIndicator = DOM.append(container, DOM.$('.notebook-cell-focus-indicator'));
+		const outputContainer = DOM.append(container, $('.output'));
 		const bottomCellContainer = DOM.append(container, $('.cell-bottom-toolbar-container'));
 
 		return {
 			container,
 			cellContainer,
-			editorContainer,
+			statusBarContainer,
+			cellRunStatusContainer,
+			cellStatusMessageContainer,
+			cellStatusPlaceholderContainer,
 			progressBar,
 			focusIndicator,
 			toolbar,
@@ -456,6 +461,43 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		}
 	}
 
+	private updateForMetadata(element: CodeCellViewModel, templateData: CodeCellRenderTemplate, cellEditableKey: IContextKey<boolean>): void {
+		const metadata = element.getEvaluatedMetadata(this.notebookEditor.viewModel!.notebookDocument.metadata);
+		DOM.toggleClass(templateData.cellContainer, 'runnable', !!metadata.runnable);
+		this.renderExecutionOrder(element, templateData);
+		cellEditableKey.set(!!metadata.editable);
+		templateData.cellStatusMessageContainer.textContent = metadata?.statusMessage || '';
+
+		if (metadata.runState === NotebookCellRunState.Success) {
+			templateData.cellRunStatusContainer.innerHTML = renderCodicons('$(check)');
+		} else if (metadata.runState === NotebookCellRunState.Error) {
+			templateData.cellRunStatusContainer.innerHTML = renderCodicons('$(error)');
+		} else if (metadata.runState === NotebookCellRunState.Running) {
+			// TODO should extensions be able to customize the status message while running to show progress?
+			templateData.cellStatusMessageContainer.textContent = nls.localize('cellRunningStatus', "Running");
+			templateData.cellRunStatusContainer.innerHTML = renderCodicons('$(sync~spin)');
+		} else {
+			templateData.cellRunStatusContainer.innerHTML = '';
+		}
+
+		if (!metadata.statusMessage && (typeof metadata.runState === 'undefined' || metadata.runState === NotebookCellRunState.Idle)) {
+			templateData.cellStatusPlaceholderContainer.textContent = 'Ctrl + Enter to run';
+		} else {
+			templateData.cellStatusPlaceholderContainer.textContent = '';
+		}
+	}
+
+	private renderExecutionOrder(element: CodeCellViewModel, templateData: CodeCellRenderTemplate): void {
+		const hasExecutionOrder = this.notebookEditor.viewModel!.notebookDocument.metadata?.hasExecutionOrder;
+		if (hasExecutionOrder) {
+			const executionOrdeerLabel = typeof element.metadata?.executionOrder === 'number' ? `[ ${element.metadata.executionOrder} ]` :
+				'[   ]';
+			templateData.executionOrderLabel.innerText = executionOrdeerLabel;
+		} else {
+			templateData.executionOrderLabel.innerText = '';
+		}
+	}
+
 	renderElement(element: CodeCellViewModel, index: number, templateData: CodeCellRenderTemplate, height: number | undefined): void {
 		if (height === undefined) {
 			return;
@@ -483,28 +525,11 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		this.updateForRunState(element, templateData, runStateKey);
 		elementDisposable.add(element.onDidChangeCellRunState(() => this.updateForRunState(element, templateData, runStateKey)));
 
-		const renderExecutionOrder = () => {
-			const hasExecutionOrder = this.notebookEditor.viewModel!.notebookDocument.metadata?.hasExecutionOrder;
-			if (hasExecutionOrder) {
-				const executionOrdeerLabel = typeof element.metadata?.executionOrder === 'number' ? `[ ${element.metadata.executionOrder} ]` :
-					'[   ]';
-				templateData.executionOrderLabel.innerText = executionOrdeerLabel;
-			} else {
-				templateData.executionOrderLabel.innerText = '';
-			}
-		};
-
 		contextKeyService.createKey(NOTEBOOK_CELL_TYPE_CONTEXT_KEY, 'code');
 		contextKeyService.createKey(NOTEBOOK_VIEW_TYPE, element.viewType);
 		const cellEditableKey = contextKeyService.createKey(NOTEBOOK_CELL_EDITABLE_CONTEXT_KEY, !!(element.metadata?.editable));
-		const updateForMetadata = () => {
-			const metadata = element.getEvaluatedMetadata(this.notebookEditor.viewModel!.notebookDocument.metadata);
-			DOM.toggleClass(templateData.cellContainer, 'runnable', !!metadata.runnable);
-			renderExecutionOrder();
-			cellEditableKey.set(!!metadata.editable);
-		};
-		updateForMetadata();
-		elementDisposable.add(element.onDidChangeMetadata(() => updateForMetadata()));
+		this.updateForMetadata(element, templateData, cellEditableKey);
+		elementDisposable.add(element.onDidChangeMetadata(() => this.updateForMetadata(element, templateData, cellEditableKey)));
 
 		this.setupCellToolbarActions(contextKeyService, templateData, elementDisposable);
 

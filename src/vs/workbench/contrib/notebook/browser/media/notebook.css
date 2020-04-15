@@ -140,6 +140,42 @@
 	margin-right: 24px;
 }
 
+.monaco-workbench .part.editor > .content .notebook-editor .cell-statusbar-container {
+	height: 28px;
+	display: flex;
+	position: relative;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .cell-statusbar-container .cell-status-message {
+	display: flex;
+	align-items: center;
+	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .cell-statusbar-container .cell-run-status {
+	height: 100%;
+	display: flex;
+	align-items: center;
+	margin-left: 18px;
+	width: 18px;
+	margin-right: 2px;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .cell-statusbar-container .cell-run-status .codicon-check {
+	color: #73C991;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .cell-status-placeholder {
+	position: absolute;
+	left: 18px;
+	opacity: 0.7;
+	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+	display: flex;
+	align-items: center;
+	bottom: 0px;
+	top: 0px;
+}
+
 .monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell .run-button-container {
 	position: relative;
 }
@@ -175,7 +211,7 @@
 	visibility: hidden;
 }
 
-.monaco-workbench .part.editor > .content .notebook-editor .cell .cell-editor-container {
+.monaco-workbench .part.editor > .content .notebook-editor .cell .cell-editor-part {
 	position: relative;
 }
 
