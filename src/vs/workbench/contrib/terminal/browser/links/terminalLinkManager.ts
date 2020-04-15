@@ -544,6 +544,8 @@ export class TerminalLinkManager extends DisposableStore {
 						return null;
 					}
 					link = this.osPath.join(this._processCwd, link);
+				} else {
+					link = link.replace(/^\\\\\?\\/, '');
 				}
 			} else {
 				if (!this._processCwd) {
