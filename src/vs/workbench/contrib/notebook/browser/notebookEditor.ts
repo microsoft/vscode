@@ -768,7 +768,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		}
 	}
 
-	async _executeNotebookCell(cell: ICellViewModel, tokenSource: CancellationTokenSource): Promise<void> {
+	private async _executeNotebookCell(cell: ICellViewModel, tokenSource: CancellationTokenSource): Promise<void> {
 		try {
 			cell.currentTokenSource = tokenSource;
 			const provider = this.notebookService.getContributedNotebookProviders(this.viewModel!.uri)[0];
@@ -903,7 +903,8 @@ registerThemingParticipant((theme, collector) => {
 	const color = getExtraColor(theme, embeddedEditorBackground, { dark: 'rgba(0, 0, 0, .4)', extra_dark: 'rgba(200, 235, 255, .064)', light: '#f4f4f4', hc: null });
 	if (color) {
 		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell .monaco-editor-background,
-			.monaco-workbench .part.editor > .content .notebook-editor .cell .margin-view-overlays { background: ${color}; }`);
+			.monaco-workbench .part.editor > .content .notebook-editor .cell .margin-view-overlays,
+			.monaco-workbench .part.editor > .content .notebook-editor .cell .cell-statusbar-container { background: ${color}; }`);
 	}
 	const link = theme.getColor(textLinkForeground);
 	if (link) {
@@ -933,9 +934,13 @@ registerThemingParticipant((theme, collector) => {
 	}
 
 	const containerBackground = theme.getColor(notebookOutputContainerColor);
-
 	if (containerBackground) {
 		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .output { background-color: ${containerBackground}; }`);
+	}
+
+	const editorBackgroundColor = theme.getColor(editorBackground);
+	if (editorBackgroundColor) {
+		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell-statusbar-container { border-top: solid 1px ${editorBackgroundColor}; }`);
 	}
 
 	const focusedCellIndicatorColor = theme.getColor(focusedCellIndicator);
