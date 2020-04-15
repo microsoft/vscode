@@ -272,6 +272,8 @@ export class TimelinePane extends ViewPane {
 		this._followActiveEditor = value;
 		this.followActiveEditorContext.set(value);
 
+		this.titleDescription = this.titleDescription;
+
 		if (value) {
 			this.onActiveEditorChanged();
 		}
@@ -409,7 +411,11 @@ export class TimelinePane extends ViewPane {
 
 	set titleDescription(description: string | undefined) {
 		this._titleDescription = description;
-		this.$titleDescription.textContent = description ?? '';
+		if (this.followActiveEditor || !description) {
+			this.$titleDescription.textContent = description ?? '';
+		} else {
+			this.$titleDescription.textContent = `${description} (pinned)`;
+		}
 	}
 
 	private _message: string | undefined;
@@ -1180,8 +1186,8 @@ class TimelinePaneCommands extends Disposable {
 		this._register(MenuRegistry.appendMenuItem(MenuId.TimelineTitle, ({
 			command: {
 				id: 'timeline.toggleFollowActiveEditor',
-				title: { value: localize('timeline.toggleFollowActiveEditorCommand.follow', "Automatically Follows the Active Editor"), original: 'Automatically Follows the Active Editor' },
-				icon: { id: 'codicon/eye' },
+				title: { value: localize('timeline.toggleFollowActiveEditorCommand.follow', "Pin the Current Timeline"), original: 'Pin the Current Timeline' },
+				icon: { id: 'codicon/pin' },
 				category: { value: localize('timeline', "Timeline"), original: 'Timeline' },
 			},
 			group: 'navigation',
@@ -1192,8 +1198,8 @@ class TimelinePaneCommands extends Disposable {
 		this._register(MenuRegistry.appendMenuItem(MenuId.TimelineTitle, ({
 			command: {
 				id: 'timeline.toggleFollowActiveEditor',
-				title: { value: localize('timeline.toggleFollowActiveEditorCommand.unfollow', "Not Following Active Editor"), original: 'Not Following Active Editor' },
-				icon: { id: 'codicon/eye-closed' },
+				title: { value: localize('timeline.toggleFollowActiveEditorCommand.unfollow', "Unpin the Current Timeline"), original: 'Unpin the Current Timeline' },
+				icon: { id: 'codicon/pinned' },
 				category: { value: localize('timeline', "Timeline"), original: 'Timeline' },
 			},
 			group: 'navigation',
