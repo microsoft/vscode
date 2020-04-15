@@ -35,7 +35,7 @@ import { ICommandHandler } from 'vs/platform/commands/common/commands';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { SaveReason } from 'vs/workbench/common/editor';
-import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 export namespace OpenLocalFileCommand {
 	export const ID = 'workbench.action.files.openLocalFile';
@@ -135,7 +135,7 @@ export class SimpleFileDialog {
 		@IModeService private readonly modeService: IModeService,
 		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
-		@IRemotePathService protected readonly remotePathService: IRemotePathService,
+		@IPathService protected readonly pathService: IPathService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
@@ -232,7 +232,7 @@ export class SimpleFileDialog {
 	}
 
 	protected async getUserHome(): Promise<URI> {
-		return (await this.remotePathService.userHome) ?? URI.from({ scheme: this.scheme, authority: this.remoteAuthority, path: '/' });
+		return (await this.pathService.userHome) ?? URI.from({ scheme: this.scheme, authority: this.remoteAuthority, path: '/' });
 	}
 
 	private async pickResource(isSave: boolean = false): Promise<URI | undefined> {

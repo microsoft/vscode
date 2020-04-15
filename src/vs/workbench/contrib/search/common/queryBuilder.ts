@@ -17,7 +17,7 @@ import { isMultilineRegexSource } from 'vs/editor/common/model/textModelSearch';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceContextService, IWorkspaceFolderData, toWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { getExcludes, ICommonQueryProps, IFileQuery, IFolderQuery, IPatternInfo, ISearchConfiguration, ITextQuery, ITextSearchPreviewOptions, pathIncludedInQuery, QueryType } from 'vs/workbench/services/search/common/search';
 
 /**
@@ -82,7 +82,7 @@ export class QueryBuilder {
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IRemotePathService private readonly remotePathService: IRemotePathService
+		@IPathService private readonly pathService: IPathService
 	) {
 	}
 
@@ -239,7 +239,7 @@ export class QueryBuilder {
 
 		const segments = splitGlobPattern(pattern)
 			.map(segment => {
-				const userHome = this.remotePathService.resolvedUserHome;
+				const userHome = this.pathService.resolvedUserHome;
 				if (userHome) {
 					return untildify(segment, userHome.scheme === Schemas.file ? userHome.fsPath : userHome.path);
 				}

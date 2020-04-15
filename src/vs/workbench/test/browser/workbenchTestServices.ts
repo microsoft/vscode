@@ -83,7 +83,7 @@ import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/enviro
 import { BrowserTextFileService } from 'vs/workbench/services/textfile/browser/browserTextFileService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
-import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { Direction } from 'vs/base/browser/ui/grid/grid';
 import { IProgressService, IProgressOptions, IProgressWindowOptions, IProgressNotificationOptions, IProgressCompositeOptions, IProgress, IProgressStep, Progress } from 'vs/platform/progress/common/progress';
 import { IWorkingCopyFileService, WorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
@@ -117,7 +117,7 @@ export interface ITestInstantiationService extends IInstantiationService {
 
 export function workbenchInstantiationService(overrides?: {
 	textFileService?: (instantiationService: IInstantiationService) => ITextFileService
-	remotePathService?: (instantiationService: IInstantiationService) => IRemotePathService
+	pathService?: (instantiationService: IInstantiationService) => IPathService
 }): ITestInstantiationService {
 	const instantiationService = new TestInstantiationService(new ServiceCollection([ILifecycleService, new TestLifecycleService()]));
 
@@ -134,7 +134,7 @@ export function workbenchInstantiationService(overrides?: {
 	instantiationService.stub(ITextResourceConfigurationService, new TestTextResourceConfigurationService(configService));
 	instantiationService.stub(IUntitledTextEditorService, instantiationService.createInstance(UntitledTextEditorService));
 	instantiationService.stub(IStorageService, new TestStorageService());
-	instantiationService.stub(IRemotePathService, overrides?.remotePathService ? overrides.remotePathService(instantiationService) : new TestRemotePathService());
+	instantiationService.stub(IPathService, overrides?.pathService ? overrides.pathService(instantiationService) : new TestPathService());
 	const layoutService = new TestLayoutService();
 	instantiationService.stub(IWorkbenchLayoutService, layoutService);
 	instantiationService.stub(IDialogService, new TestDialogService());
@@ -217,7 +217,7 @@ export class TestTextFileService extends BrowserTextFileService {
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
 		@ITextModelService textModelService: ITextModelService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@IRemotePathService remotePathService: IRemotePathService,
+		@IPathService pathService: IPathService,
 		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService
 	) {
 		super(
@@ -233,7 +233,7 @@ export class TestTextFileService extends BrowserTextFileService {
 			filesConfigurationService,
 			textModelService,
 			codeEditorService,
-			remotePathService,
+			pathService,
 			workingCopyFileService
 		);
 	}
@@ -1107,7 +1107,7 @@ export class TestListService implements IListService {
 	}
 }
 
-export class TestRemotePathService implements IRemotePathService {
+export class TestPathService implements IPathService {
 
 	_serviceBrand: undefined;
 

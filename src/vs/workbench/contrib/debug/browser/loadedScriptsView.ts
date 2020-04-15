@@ -39,7 +39,7 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 const NEW_STYLE_COMPRESS = true;
 
@@ -241,12 +241,12 @@ class RootFolderTreeItem extends BaseTreeItem {
 
 class RootTreeItem extends BaseTreeItem {
 
-	constructor(private _remotePathService: IRemotePathService, private _contextService: IWorkspaceContextService, private _labelService: ILabelService) {
+	constructor(private _pathService: IPathService, private _contextService: IWorkspaceContextService, private _labelService: ILabelService) {
 		super(undefined, 'Root');
 	}
 
 	add(session: IDebugSession): SessionTreeItem {
-		return this.createIfNeeded(session.getId(), () => new SessionTreeItem(this._labelService, this, session, this._remotePathService, this._contextService));
+		return this.createIfNeeded(session.getId(), () => new SessionTreeItem(this._labelService, this, session, this._pathService, this._contextService));
 	}
 
 	find(session: IDebugSession): SessionTreeItem {
@@ -262,7 +262,7 @@ class SessionTreeItem extends BaseTreeItem {
 	private _map = new Map<string, BaseTreeItem>();
 	private _labelService: ILabelService;
 
-	constructor(labelService: ILabelService, parent: BaseTreeItem, session: IDebugSession, private _remotePathService: IRemotePathService, private rootProvider: IWorkspaceContextService) {
+	constructor(labelService: ILabelService, parent: BaseTreeItem, session: IDebugSession, private _pathService: IPathService, private rootProvider: IWorkspaceContextService) {
 		super(parent, session.getLabel(), true);
 		this._labelService = labelService;
 		this._session = session;
@@ -347,7 +347,7 @@ class SessionTreeItem extends BaseTreeItem {
 				} else {
 					// on unix try to tildify absolute paths
 					path = normalize(path);
-					const userHome = this._remotePathService.resolvedUserHome;
+					const userHome = this._pathService.resolvedUserHome;
 					if (userHome && !isWindows) {
 						path = tildify(path, userHome.fsPath);
 					}
@@ -426,7 +426,7 @@ export class LoadedScriptsView extends ViewPane {
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IDebugService private readonly debugService: IDebugService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IRemotePathService private readonly remotePathService: IRemotePathService,
+		@IPathService private readonly pathService: IPathService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -446,7 +446,7 @@ export class LoadedScriptsView extends ViewPane {
 
 		this.filter = new LoadedScriptsFilter();
 
-		const root = new RootTreeItem(this.remotePathService, this.contextService, this.labelService);
+		const root = new RootTreeItem(this.pathService, this.contextService, this.labelService);
 
 		this.treeLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
 		this._register(this.treeLabels);

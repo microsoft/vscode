@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { TestEnvironmentService, TestRemotePathService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestEnvironmentService, TestPathService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { URI } from 'vs/base/common/uri';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
@@ -14,7 +14,7 @@ suite('URI Label', () => {
 	let labelService: LabelService;
 
 	setup(() => {
-		labelService = new LabelService(TestEnvironmentService, new TestContextService(), new TestRemotePathService());
+		labelService = new LabelService(TestEnvironmentService, new TestContextService(), new TestPathService());
 	});
 
 	test('custom scheme', function () {

@@ -10,14 +10,14 @@ import { sep } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
-import { TestNativeRemotePathService, TestEnvironmentService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
+import { TestNativePathService, TestEnvironmentService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 
 suite('URI Label', () => {
 
 	let labelService: LabelService;
 
 	setup(() => {
-		labelService = new LabelService(TestEnvironmentService, new TestContextService(), new TestNativeRemotePathService(TestEnvironmentService));
+		labelService = new LabelService(TestEnvironmentService, new TestContextService(), new TestNativePathService(TestEnvironmentService));
 	});
 
 	test('file scheme', function () {

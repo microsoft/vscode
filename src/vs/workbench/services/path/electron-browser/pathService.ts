@@ -6,10 +6,10 @@
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IRemotePathService, AbstractRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
+import { IPathService, AbstractPathService } from 'vs/workbench/services/path/common/pathService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 
-export class NativeRemotePathService extends AbstractRemotePathService {
+export class NativePathService extends AbstractPathService {
 
 	constructor(
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
@@ -19,4 +19,4 @@ export class NativeRemotePathService extends AbstractRemotePathService {
 	}
 }
 
-registerSingleton(IRemotePathService, NativeRemotePathService, true);
+registerSingleton(IPathService, NativePathService, true);

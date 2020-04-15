@@ -12,9 +12,9 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IWorkspaceContextService, toWorkspaceFolder, toWorkspaceFolders, Workspace } from 'vs/platform/workspace/common/workspace';
 import { ISearchPathsInfo, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
-import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IFileQuery, IFolderQuery, IPatternInfo, ITextQuery, QueryType } from 'vs/workbench/services/search/common/search';
-import { TestRemotePathService, TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestPathService, TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
@@ -50,7 +50,7 @@ suite('QueryBuilder', () => {
 
 		instantiationService.stub(IWorkspaceContextService, mockContextService);
 		instantiationService.stub(IEnvironmentService, TestEnvironmentService);
-		instantiationService.stub(IRemotePathService, new TestRemotePathService());
+		instantiationService.stub(IPathService, new TestPathService());
 
 		queryBuilder = instantiationService.createInstance(QueryBuilder);
 	});

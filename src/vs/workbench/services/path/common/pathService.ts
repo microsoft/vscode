@@ -9,40 +9,49 @@ import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
-const REMOTE_PATH_SERVICE_ID = 'remotePath';
-export const IRemotePathService = createDecorator<IRemotePathService>(REMOTE_PATH_SERVICE_ID);
+export const IPathService = createDecorator<IPathService>('path');
 
-export interface IRemotePathService {
+/**
+ * Provides access to path related properties that will match the
+ * environment. If the environment is connected to a remote, the
+ * path properties will match that of the remotes operating system.
+ */
+export interface IPathService {
 
 	_serviceBrand: undefined;
 
 	/**
-	 * The path library to use for the target remote environment.
+	 * The correct path library to use for the target environment. If
+	 * the environment is connected to a remote, this will be the
+	 * path library of the remote file system. Otherwise it will be
+	 * the local file system's path library depending on the OS.
 	 */
 	readonly path: Promise<IPath>;
 
 	/**
-	 * Converts the given path to a file URI in the remote environment.
+	 * Converts the given path to a file URI to use for the target
+	 * environment. If the environment is connected to a remote, it
+	 * will use the path separators according to the remote file
+	 * system. Otherwise it will use the local file system's path
+	 * separators.
 	 */
 	fileURI(path: string): Promise<URI>;
 
 	/**
-	 * Resolves the user home of the remote environment if defined.
+	 * Resolves the user-home directory for the target environment.
+	 * If the envrionment is connected to a remote, this will be the
+	 * remote's user home directory, otherwise the local one.
 	 */
 	readonly userHome: Promise<URI>;
 
 	/**
-	 * Provides access to the user home of the remote environment
-	 * if defined. The variable will be `undefined` as long as the
-	 * remote environment has not been resolved yet.
+	 * Access to `userHome` in a sync fashion. This may be `undefined`
+	 * as long as the remote environment was not resolved.
 	 */
 	readonly resolvedUserHome: URI | undefined;
 }
 
-/**
- * Provides the correct IPath implementation for dealing with paths that refer to locations in the extension host
- */
-export abstract class AbstractRemotePathService implements IRemotePathService {
+export abstract class AbstractPathService implements IPathService {
 
 	_serviceBrand: undefined;
 

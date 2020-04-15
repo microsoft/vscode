@@ -13,7 +13,7 @@ import { getOutOfWorkspaceEditorResources, extractRangeFromFilter, IWorkbenchSea
 import { ISearchService, ISearchComplete } from 'vs/workbench/services/search/common/search';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { untildify } from 'vs/base/common/labels';
-import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { URI } from 'vs/base/common/uri';
 import { toLocalResource, dirname, basenameOrAuthority, isEqual } from 'vs/base/common/resources';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -158,7 +158,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ISearchService private readonly searchService: ISearchService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IRemotePathService private readonly remotePathService: IRemotePathService,
+		@IPathService private readonly pathService: IPathService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IFileService private readonly fileService: IFileService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -631,20 +631,20 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			return;
 		}
 
-		const userHome = await this.remotePathService.userHome;
+		const userHome = await this.pathService.userHome;
 		const detildifiedQuery = untildify(query.original, userHome.scheme === Schemas.file ? userHome.fsPath : userHome.path);
 		if (token.isCancellationRequested) {
 			return;
 		}
 
-		const isAbsolutePathQuery = (await this.remotePathService.path).isAbsolute(detildifiedQuery);
+		const isAbsolutePathQuery = (await this.pathService.path).isAbsolute(detildifiedQuery);
 		if (token.isCancellationRequested) {
 			return;
 		}
 
 		if (isAbsolutePathQuery) {
 			const resource = toLocalResource(
-				await this.remotePathService.fileURI(detildifiedQuery),
+				await this.pathService.fileURI(detildifiedQuery),
 				this.environmentService.configuration.remoteAuthority
 			);
 
@@ -671,7 +671,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		// Convert relative paths to absolute paths over all folders of the workspace
 		// and return them as results if the absolute paths exist
-		const isAbsolutePathQuery = (await this.remotePathService.path).isAbsolute(query.original);
+		const isAbsolutePathQuery = (await this.pathService.path).isAbsolute(query.original);
 		if (!isAbsolutePathQuery) {
 			const resources: URI[] = [];
 			for (const folder of this.contextService.getWorkspace().folders) {
