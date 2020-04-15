@@ -45,6 +45,7 @@ interface CompletionContext {
 }
 
 class MyCompletionItem extends vscode.CompletionItem {
+
 	public readonly useCodeSnippet: boolean;
 
 	constructor(
@@ -64,25 +65,10 @@ class MyCompletionItem extends vscode.CompletionItem {
 			this.sortText = tsEntry.sortText;
 		}
 
-		if (tsEntry.isRecommended) {
-			this.preselect = true;
-		}
-
+		this.preselect = tsEntry.isRecommended;
 		this.position = position;
 		this.useCodeSnippet = completionContext.useCodeSnippetsOnMethodSuggest && (this.kind === vscode.CompletionItemKind.Function || this.kind === vscode.CompletionItemKind.Method);
-
-		if (tsEntry.replacementSpan) {
-			let replaceRange = typeConverters.Range.fromTextSpan(tsEntry.replacementSpan);
-			// Make sure we only replace a single line at most
-			if (!replaceRange.isSingleLine) {
-				replaceRange = new vscode.Range(replaceRange.start.line, replaceRange.start.character, replaceRange.start.line, completionContext.line.length);
-			}
-			this.range = {
-				inserting: new vscode.Range(replaceRange.start, position),
-				replacing: replaceRange,
-			};
-		}
-
+		this.range = this.getRangeFromReplacementSpan(tsEntry, completionContext, position);
 		this.insertText = tsEntry.insertText;
 		this.filterText = this.getFilterText(completionContext.line, tsEntry.insertText);
 
@@ -103,8 +89,8 @@ class MyCompletionItem extends vscode.CompletionItem {
 		}
 
 		if (tsEntry.kindModifiers) {
-			const kindModifiers = new Set(tsEntry.kindModifiers.split(/,|\s+/g));
-			if (kindModifiers.has(PConst.KindModifiers.optional)) {
+			const kindModifiers = tsEntry.kindModifiers.split(/,|\s+/g);
+			if (kindModifiers.includes(PConst.KindModifiers.optional)) {
 				if (!this.insertText) {
 					this.insertText = this.label;
 				}
@@ -115,13 +101,13 @@ class MyCompletionItem extends vscode.CompletionItem {
 				this.label += '?';
 			}
 
-			if (kindModifiers.has(PConst.KindModifiers.color)) {
+			if (kindModifiers.includes(PConst.KindModifiers.color)) {
 				this.kind = vscode.CompletionItemKind.Color;
 			}
 
 			if (tsEntry.kind === PConst.Kind.script) {
 				for (const extModifier of PConst.KindModifiers.fileExtensionKindModifiers) {
-					if (kindModifiers.has(extModifier)) {
+					if (kindModifiers.includes(extModifier)) {
 						if (tsEntry.name.toLowerCase().endsWith(extModifier)) {
 							this.detail = tsEntry.name;
 						} else {
@@ -132,7 +118,24 @@ class MyCompletionItem extends vscode.CompletionItem {
 				}
 			}
 		}
+
 		this.resolveRange();
+	}
+
+	private getRangeFromReplacementSpan(tsEntry: Proto.CompletionEntry, completionContext: CompletionContext, position: vscode.Position) {
+		if (!tsEntry.replacementSpan) {
+			return;
+		}
+
+		let replaceRange = typeConverters.Range.fromTextSpan(tsEntry.replacementSpan);
+		// Make sure we only replace a single line at most
+		if (!replaceRange.isSingleLine) {
+			replaceRange = new vscode.Range(replaceRange.start.line, replaceRange.start.character, replaceRange.start.line, completionContext.line.length);
+		}
+		return {
+			inserting: new vscode.Range(replaceRange.start, position),
+			replacing: replaceRange,
+		};
 	}
 
 	private getFilterText(line: string, insertText: string | undefined): string | undefined {
@@ -155,6 +158,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 		if (insertText?.startsWith('this.')) {
 			return undefined;
 		}
+
 		// Handle the case:
 		// ```
 		// const xyz = { 'ab c': 1 };
@@ -206,6 +210,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 			case PConst.Kind.primitiveType:
 			case PConst.Kind.keyword:
 				return vscode.CompletionItemKind.Keyword;
+
 			case PConst.Kind.const:
 			case PConst.Kind.let:
 			case PConst.Kind.variable:
@@ -213,40 +218,54 @@ class MyCompletionItem extends vscode.CompletionItem {
 			case PConst.Kind.alias:
 			case PConst.Kind.parameter:
 				return vscode.CompletionItemKind.Variable;
+
 			case PConst.Kind.memberVariable:
 			case PConst.Kind.memberGetAccessor:
 			case PConst.Kind.memberSetAccessor:
 				return vscode.CompletionItemKind.Field;
+
 			case PConst.Kind.function:
 			case PConst.Kind.localFunction:
 				return vscode.CompletionItemKind.Function;
+
 			case PConst.Kind.method:
 			case PConst.Kind.constructSignature:
 			case PConst.Kind.callSignature:
 			case PConst.Kind.indexSignature:
 				return vscode.CompletionItemKind.Method;
+
 			case PConst.Kind.enum:
 				return vscode.CompletionItemKind.Enum;
+
 			case PConst.Kind.enumMember:
 				return vscode.CompletionItemKind.EnumMember;
+
 			case PConst.Kind.module:
 			case PConst.Kind.externalModuleName:
 				return vscode.CompletionItemKind.Module;
+
 			case PConst.Kind.class:
 			case PConst.Kind.type:
 				return vscode.CompletionItemKind.Class;
+
 			case PConst.Kind.interface:
 				return vscode.CompletionItemKind.Interface;
+
 			case PConst.Kind.warning:
 				return vscode.CompletionItemKind.Text;
+
 			case PConst.Kind.script:
 				return vscode.CompletionItemKind.File;
+
 			case PConst.Kind.directory:
 				return vscode.CompletionItemKind.Folder;
+
 			case PConst.Kind.string:
 				return vscode.CompletionItemKind.Constant;
+
+			default:
+				return vscode.CompletionItemKind.Property;
 		}
-		return vscode.CompletionItemKind.Property;
 	}
 
 	@memoize
@@ -433,6 +452,8 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 			return null;
 		}
 
+		const wordRange = document.getWordRangeAtPosition(position);
+
 		await this.client.interruptGetErr(() => this.fileConfigurationManager.ensureConfigurationForDocument(document, token));
 
 		const args: Proto.CompletionsRequestArgs & { includeAutomaticOptionalChainCompletions?: boolean } = {
@@ -502,21 +523,21 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 			metadata = response.metadata;
 		}
 
-		const wordRange = document.getWordRangeAtPosition(position);
-		const isInValidCommitCharacterContext = this.isInValidCommitCharacterContext(document, position);
+		const completionContext = {
+			isNewIdentifierLocation,
+			isMemberCompletion,
+			dotAccessorContext,
+			isInValidCommitCharacterContext: this.isInValidCommitCharacterContext(document, position),
+			enableCallCompletions: !completionConfiguration.useCodeSnippetsOnMethodSuggest,
+			wordRange,
+			line: line.text,
+			useCodeSnippetsOnMethodSuggest: completionConfiguration.useCodeSnippetsOnMethodSuggest,
+			useFuzzyWordRangeLogic: this.client.apiVersion.lt(API.v390),
+		};
+
 		const items = entries
 			.filter(entry => !shouldExcludeCompletionEntry(entry, completionConfiguration))
-			.map(entry => new MyCompletionItem(position, document, entry, {
-				isNewIdentifierLocation,
-				isMemberCompletion,
-				dotAccessorContext,
-				isInValidCommitCharacterContext,
-				enableCallCompletions: !completionConfiguration.useCodeSnippetsOnMethodSuggest,
-				wordRange,
-				line: line.text,
-				useCodeSnippetsOnMethodSuggest: completionConfiguration.useCodeSnippetsOnMethodSuggest,
-				useFuzzyWordRangeLogic: this.client.apiVersion.lt(API.v390),
-			}, metadata));
+			.map(entry => new MyCompletionItem(position, document, entry, completionContext, metadata));
 		return new vscode.CompletionList(items, isIncomplete);
 	}
 

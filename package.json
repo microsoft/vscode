@@ -41,7 +41,7 @@
     "https-proxy-agent": "^2.2.3",
     "iconv-lite": "0.5.0",
     "jschardet": "2.1.1",
-    "keytar": "github:rmacfarlane/node-keytar#334424bd26414923782f144110f4beda19168d24",
+    "keytar": "^5.5.0",
     "minimist": "^1.2.5",
     "native-is-elevated": "0.4.1",
     "native-keymap": "2.1.1",
