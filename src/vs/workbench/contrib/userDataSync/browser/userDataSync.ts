@@ -695,6 +695,14 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			},
 			when: turnOnSyncWhenContext,
 		});
+		MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
+			group: '1_sync',
+			command: {
+				id: turnOnSyncCommand.id,
+				title: localize('global activity turn on sync', "Turn on Preferences Sync...")
+			},
+			when: turnOnSyncWhenContext,
+		});
 	}
 
 	private registerSignInAction(): void {
@@ -826,6 +834,11 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 							group: '5_sync',
 							when,
 							order: 3,
+						},
+						{
+							id: MenuId.AccountsContext,
+							group: '1_sync',
+							when,
 						}
 					],
 				});

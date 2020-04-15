@@ -120,35 +120,8 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		quickPick.show();
 	}
 
-	private createSignInMenu(hasSessions: boolean): void {
-		this._signInMenuDisposables.push(CommandsRegistry.registerCommand({
-			id: `signIn${this.id}`,
-			handler: (accessor, args) => {
-				this.login();
-			},
-		}));
-
-		this._signInMenuItem = {
-			group: '2_providers',
-			command: {
-				id: `signIn${this.id}`,
-				title: hasSessions
-					? nls.localize('addAnotherAccount', "Sign in to another {0} account", this.displayName)
-					: nls.localize('addAccount', "Sign in to {0}", this.displayName)
-			},
-			order: 3
-		};
-
-		this._signInMenuDisposables.push(MenuRegistry.appendMenuItem(MenuId.AccountsContext, this._signInMenuItem));
-	}
-
 	private async registerCommandsAndContextMenuItems(): Promise<void> {
 		const sessions = await this._proxy.$getSessions(this.id);
-
-		if (!sessions.length || (sessions.length && this.supportsMultipleAccounts)) {
-			this.createSignInMenu(!!sessions.length);
-		}
-
 		sessions.forEach(session => this.registerSession(session));
 	}
 
@@ -250,8 +223,6 @@ export class MainThreadAuthenticationProvider extends Disposable {
 
 					if (this._signInMenuItem) {
 						this._signInMenuItem.command.title = nls.localize('addAccount', "Sign in to {0}", this.displayName);
-					} else {
-						this.createSignInMenu(false);
 					}
 				}
 			}
