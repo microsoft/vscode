@@ -201,14 +201,6 @@ interface IWorkbenchConstructionOptions {
 
 interface IWorkbench {
 	commands: {
-
-		/**
-		 * Allows to execute any command if known with the provided arguments.
-		 *
-		 * @param command Identifier of the command to execute.
-		 * @param rest Parameters passed to the command function.
-		 * @return A promise that resolves to the returned value of the given command.
-		 */
 		executeCommand(command: string, ...args: any[]): Promise<unknown>;
 	}
 }
@@ -218,11 +210,11 @@ interface IWorkbench {
  *
  * @param domElement the container to create the workbench in
  * @param options for setting up the workbench
- *
- * @returns the workbench API facade.
  */
 let created = false;
-async function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions): Promise<IWorkbench> {
+let workbenchPromiseResolve: Function;
+const workbenchPromise = new Promise<IWorkbench>(resolve => workbenchPromiseResolve = resolve);
+async function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions): Promise<void> {
 
 	// Assert that the workbench is not created more than once. We currently
 	// do not support this and require a full context switch to clean-up.
@@ -232,8 +224,9 @@ async function create(domElement: HTMLElement, options: IWorkbenchConstructionOp
 		created = true;
 	}
 
-	// Startup workbench
+	// Startup workbench and resolve waiters
 	const workbench = await main(domElement, options);
+	workbenchPromiseResolve(workbench);
 
 	// Register commands if any
 	if (Array.isArray(options.commands)) {
@@ -245,8 +238,25 @@ async function create(domElement: HTMLElement, options: IWorkbenchConstructionOp
 			});
 		}
 	}
+}
 
-	return workbench;
+
+//#region API Facade
+
+namespace commands {
+
+	/**
+	* Allows to execute any command if known with the provided arguments.
+	*
+	* @param command Identifier of the command to execute.
+	* @param rest Parameters passed to the command function.
+	* @return A promise that resolves to the returned value of the given command.
+	*/
+	export async function executeCommand(command: string, ...args: any[]): Promise<unknown> {
+		const workbench = await workbenchPromise;
+
+		return workbench.commands.executeCommand(command, ...args);
+	}
 }
 
 export {
@@ -313,5 +323,8 @@ export {
 	IShowPortCandidate,
 
 	// Commands
-	ICommand
+	ICommand,
+	commands
 };
+
+//#endregion
