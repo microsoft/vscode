@@ -158,19 +158,19 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		this.splice(0, this.length);
 	}
 
-	getViewCellIndex(cell: ICellViewModel) {
+	getViewIndex(cell: ICellViewModel) {
 		return this._viewModel?.getViewCellIndex(cell);
 	}
 
 	focusElement(cell: ICellViewModel) {
-		const index = this.getViewCellIndex(cell);
+		const index = this.getViewIndex(cell);
 
 		if (index !== undefined) {
 			this.setFocus([index]);
 		}
 	}
 	selectElement(cell: ICellViewModel) {
-		const index = this.getViewCellIndex(cell);
+		const index = this.getViewIndex(cell);
 
 		if (index !== undefined) {
 			this.setSelection([index]);
@@ -179,7 +179,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	revealElementInView(cell: ICellViewModel) {
-		const index = this.getViewCellIndex(cell);
+		const index = this.getViewIndex(cell);
 
 		if (index !== undefined) {
 			this._revealInView(index);
@@ -187,7 +187,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	revealElementInCenterIfOutsideViewport(cell: ICellViewModel) {
-		const index = this.getViewCellIndex(cell);
+		const index = this.getViewIndex(cell);
 
 		if (index !== undefined) {
 			this._revealInCenterIfOutsideViewport(index);
@@ -195,7 +195,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	revealElementInCenter(cell: ICellViewModel) {
-		const index = this.getViewCellIndex(cell);
+		const index = this.getViewIndex(cell);
 
 		if (index !== undefined) {
 			this._revealInCenter(index);
@@ -203,7 +203,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	revealElementLineInView(cell: ICellViewModel, line: number): void {
-		const index = this.getViewCellIndex(cell);
+		const index = this.getViewIndex(cell);
 
 		if (index !== undefined) {
 			this._revealLineInView(index, line);
@@ -211,7 +211,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	revealElementLineInCenter(cell: ICellViewModel, line: number) {
-		const index = this.getViewCellIndex(cell);
+		const index = this.getViewIndex(cell);
 
 		if (index !== undefined) {
 			this._revealLineInCenter(index, line);
@@ -219,7 +219,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	revealElementLineInCenterIfOutsideViewport(cell: ICellViewModel, line: number) {
-		const index = this.getViewCellIndex(cell);
+		const index = this.getViewIndex(cell);
 
 		if (index !== undefined) {
 			this._revealLineInCenterIfOutsideViewport(index, line);
@@ -227,7 +227,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	revealElementRangeInView(cell: ICellViewModel, range: Range): void {
-		const index = this.getViewCellIndex(cell);
+		const index = this.getViewIndex(cell);
 
 		if (index !== undefined) {
 			this._revealRangeInView(index, range);
@@ -235,7 +235,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	revealElementRangeInCenter(cell: ICellViewModel, range: Range): void {
-		const index = this.getViewCellIndex(cell);
+		const index = this.getViewIndex(cell);
 
 		if (index !== undefined) {
 			this._revealRangeInCenter(index, range);
@@ -243,7 +243,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	revealElementRangeInCenterIfOutsideViewport(cell: ICellViewModel, range: Range): void {
-		const index = this.getViewCellIndex(cell);
+		const index = this.getViewIndex(cell);
 
 		if (index !== undefined) {
 			this._revealRangeInCenterIfOutsideViewport(index, range);
@@ -251,7 +251,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	domElementOfElement(element: ICellViewModel): HTMLElement | null {
-		const index = this.getViewCellIndex(element);
+		const index = this.getViewIndex(element);
 		if (index !== undefined) {
 			return this.view.domElement(index);
 		}
@@ -297,13 +297,13 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		super.domFocus();
 	}
 
-	private _revealRange(index: number, range: Range, revealType: CellRevealType, newlyCreated: boolean, alignToBottom: boolean) {
-		const element = this.view.element(index);
+	private _revealRange(viewIndex: number, range: Range, revealType: CellRevealType, newlyCreated: boolean, alignToBottom: boolean) {
+		const element = this.view.element(viewIndex);
 		const scrollTop = this.view.getScrollTop();
 		const wrapperBottom = scrollTop + this.view.renderHeight;
 		const startLineNumber = range.startLineNumber;
 		const lineOffset = element.getLineScrollTopOffset(startLineNumber);
-		const elementTop = this.view.elementTop(index);
+		const elementTop = this.view.elementTop(viewIndex);
 		const lineTop = elementTop + lineOffset;
 
 		// TODO@rebornix 30 ---> line height * 1.5
@@ -331,16 +331,16 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	// List items have real dynamic heights, which means after we set `scrollTop` based on the `elementTop(index)`, the element at `index` might still be removed from the view once all relayouting tasks are done.
 	// For example, we scroll item 10 into the view upwards, in the first round, items 7, 8, 9, 10 are all in the viewport. Then item 7 and 8 resize themselves to be larger and finally item 10 is removed from the view.
 	// To ensure that item 10 is always there, we need to scroll item 10 to the top edge of the viewport.
-	private _revealRangeInternal(index: number, range: Range, revealType: CellRevealType) {
+	private _revealRangeInternal(viewIndex: number, range: Range, revealType: CellRevealType) {
 		const scrollTop = this.view.getScrollTop();
 		const wrapperBottom = scrollTop + this.view.renderHeight;
-		const elementTop = this.view.elementTop(index);
-		const element = this.view.element(index);
+		const elementTop = this.view.elementTop(viewIndex);
+		const element = this.view.element(viewIndex);
 
 		if (element.editorAttached) {
-			this._revealRange(index, range, revealType, false, false);
+			this._revealRange(viewIndex, range, revealType, false, false);
 		} else {
-			const elementHeight = this.view.elementHeight(index);
+			const elementHeight = this.view.elementHeight(viewIndex);
 			let upwards = false;
 
 			if (elementTop + elementHeight < scrollTop) {
@@ -358,24 +358,24 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			});
 
 			editorAttachedPromise.then(() => {
-				this._revealRange(index, range, revealType, true, upwards);
+				this._revealRange(viewIndex, range, revealType, true, upwards);
 			});
 		}
 	}
 
-	private _revealLineInView(index: number, line: number) {
-		this._revealRangeInternal(index, new Range(line, 1, line, 1), CellRevealType.Line);
+	private _revealLineInView(viewIndex: number, line: number) {
+		this._revealRangeInternal(viewIndex, new Range(line, 1, line, 1), CellRevealType.Line);
 	}
 
-	private _revealRangeInView(index: number, range: Range): void {
-		this._revealRangeInternal(index, range, CellRevealType.Range);
+	private _revealRangeInView(viewIndex: number, range: Range): void {
+		this._revealRangeInternal(viewIndex, range, CellRevealType.Range);
 	}
 
-	private _revealRangeInCenterInternal(index: number, range: Range, revealType: CellRevealType) {
-		const reveal = (index: number, range: Range, revealType: CellRevealType) => {
-			const element = this.view.element(index);
+	private _revealRangeInCenterInternal(viewIndex: number, range: Range, revealType: CellRevealType) {
+		const reveal = (viewIndex: number, range: Range, revealType: CellRevealType) => {
+			const element = this.view.element(viewIndex);
 			let lineOffset = element.getLineScrollTopOffset(range.startLineNumber);
-			let lineOffsetInView = this.view.elementTop(index) + lineOffset;
+			let lineOffsetInView = this.view.elementTop(viewIndex) + lineOffset;
 			this.view.setScrollTop(lineOffsetInView - this.view.renderHeight / 2);
 
 			if (revealType === CellRevealType.Range) {
@@ -383,31 +383,31 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			}
 		};
 
-		const elementTop = this.view.elementTop(index);
+		const elementTop = this.view.elementTop(viewIndex);
 		const viewItemOffset = elementTop;
 		this.view.setScrollTop(viewItemOffset - this.view.renderHeight / 2);
-		const element = this.view.element(index);
+		const element = this.view.element(viewIndex);
 
 		if (!element.editorAttached) {
-			getEditorAttachedPromise(element).then(() => reveal(index, range, revealType));
+			getEditorAttachedPromise(element).then(() => reveal(viewIndex, range, revealType));
 		} else {
-			reveal(index, range, revealType);
+			reveal(viewIndex, range, revealType);
 		}
 	}
 
-	private _revealLineInCenter(index: number, line: number) {
-		this._revealRangeInCenterInternal(index, new Range(line, 1, line, 1), CellRevealType.Line);
+	private _revealLineInCenter(viewIndex: number, line: number) {
+		this._revealRangeInCenterInternal(viewIndex, new Range(line, 1, line, 1), CellRevealType.Line);
 	}
 
-	private _revealRangeInCenter(index: number, range: Range): void {
-		this._revealRangeInCenterInternal(index, range, CellRevealType.Range);
+	private _revealRangeInCenter(viewIndex: number, range: Range): void {
+		this._revealRangeInCenterInternal(viewIndex, range, CellRevealType.Range);
 	}
 
-	private _revealRangeInCenterIfOutsideViewportInternal(index: number, range: Range, revealType: CellRevealType) {
-		const reveal = (index: number, range: Range, revealType: CellRevealType) => {
-			const element = this.view.element(index);
+	private _revealRangeInCenterIfOutsideViewportInternal(viewIndex: number, range: Range, revealType: CellRevealType) {
+		const reveal = (viewIndex: number, range: Range, revealType: CellRevealType) => {
+			const element = this.view.element(viewIndex);
 			let lineOffset = element.getLineScrollTopOffset(range.startLineNumber);
-			let lineOffsetInView = this.view.elementTop(index) + lineOffset;
+			let lineOffsetInView = this.view.elementTop(viewIndex) + lineOffset;
 			this.view.setScrollTop(lineOffsetInView - this.view.renderHeight / 2);
 
 			if (revealType === CellRevealType.Range) {
@@ -417,21 +417,21 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 		const scrollTop = this.view.getScrollTop();
 		const wrapperBottom = scrollTop + this.view.renderHeight;
-		const elementTop = this.view.elementTop(index);
+		const elementTop = this.view.elementTop(viewIndex);
 		const viewItemOffset = elementTop;
-		const element = this.view.element(index);
+		const element = this.view.element(viewIndex);
 
 		if (viewItemOffset < scrollTop || viewItemOffset > wrapperBottom) {
 			// let it render
 			this.view.setScrollTop(viewItemOffset - this.view.renderHeight / 2);
 
 			// after rendering, it might be pushed down due to markdown cell dynamic height
-			const elementTop = this.view.elementTop(index);
+			const elementTop = this.view.elementTop(viewIndex);
 			this.view.setScrollTop(elementTop - this.view.renderHeight / 2);
 
 			// reveal editor
 			if (!element.editorAttached) {
-				getEditorAttachedPromise(element).then(() => reveal(index, range, revealType));
+				getEditorAttachedPromise(element).then(() => reveal(viewIndex, range, revealType));
 			} else {
 				// for example markdown
 			}
@@ -440,27 +440,27 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 				element.revealRangeInCenter(range);
 			} else {
 				// for example, markdown cell in preview mode
-				getEditorAttachedPromise(element).then(() => reveal(index, range, revealType));
+				getEditorAttachedPromise(element).then(() => reveal(viewIndex, range, revealType));
 			}
 		}
 	}
 
-	private _revealLineInCenterIfOutsideViewport(index: number, line: number) {
-		this._revealRangeInCenterIfOutsideViewportInternal(index, new Range(line, 1, line, 1), CellRevealType.Line);
+	private _revealLineInCenterIfOutsideViewport(viewIndex: number, line: number) {
+		this._revealRangeInCenterIfOutsideViewportInternal(viewIndex, new Range(line, 1, line, 1), CellRevealType.Line);
 	}
 
-	private _revealRangeInCenterIfOutsideViewport(index: number, range: Range): void {
-		this._revealRangeInCenterIfOutsideViewportInternal(index, range, CellRevealType.Range);
+	private _revealRangeInCenterIfOutsideViewport(viewIndex: number, range: Range): void {
+		this._revealRangeInCenterIfOutsideViewportInternal(viewIndex, range, CellRevealType.Range);
 	}
 
-	private _revealInternal(index: number, ignoreIfInsideViewport: boolean, revealPosition: CellRevealPosition) {
-		if (index >= this.view.length) {
+	private _revealInternal(viewIndex: number, ignoreIfInsideViewport: boolean, revealPosition: CellRevealPosition) {
+		if (viewIndex >= this.view.length) {
 			return;
 		}
 
 		const scrollTop = this.view.getScrollTop();
 		const wrapperBottom = scrollTop + this.view.renderHeight;
-		const elementTop = this.view.elementTop(index);
+		const elementTop = this.view.elementTop(viewIndex);
 
 		if (ignoreIfInsideViewport && elementTop >= scrollTop && elementTop < wrapperBottom) {
 			// inside the viewport
@@ -472,21 +472,21 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		this.view.setScrollTop(viewItemOffset);
 
 		// second scroll as markdown cell is dynamic
-		const newElementTop = this.view.elementTop(index);
+		const newElementTop = this.view.elementTop(viewIndex);
 		const newViewItemOffset = revealPosition === CellRevealPosition.Top ? newElementTop : (newElementTop - this.view.renderHeight / 2);
 		this.view.setScrollTop(newViewItemOffset);
 	}
 
-	private _revealInView(index: number) {
-		this._revealInternal(index, true, CellRevealPosition.Top);
+	private _revealInView(viewIndex: number) {
+		this._revealInternal(viewIndex, true, CellRevealPosition.Top);
 	}
 
-	private _revealInCenter(index: number) {
-		this._revealInternal(index, false, CellRevealPosition.Center);
+	private _revealInCenter(viewIndex: number) {
+		this._revealInternal(viewIndex, false, CellRevealPosition.Center);
 	}
 
-	private _revealInCenterIfOutsideViewport(index: number) {
-		this._revealInternal(index, true, CellRevealPosition.Center);
+	private _revealInCenterIfOutsideViewport(viewIndex: number) {
+		this._revealInternal(viewIndex, true, CellRevealPosition.Center);
 	}
 
 	setCellSelection(cell: ICellViewModel, range: Range) {
