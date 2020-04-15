@@ -894,6 +894,16 @@
         "command": "typescript.restartTsServer",
         "title": "%typescript.restartTsServer%",
         "category": "TypeScript"
+      },
+      {
+        "command": "typescript.fixMissingImport",
+        "title": "%typescript.fixMissingImport%",
+        "category": "TypeScript"
+      },
+      {
+        "command": "typescript.fixUnusedIdentifier",
+        "title": "%typescript.fixUnusedIdentifier%",
+        "category": "TypeScript"
       }
     ],
     "menus": {

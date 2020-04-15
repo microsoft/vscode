@@ -8,6 +8,8 @@ import { CommandManager } from '../utils/commandManager';
 import { Lazy } from '../utils/lazy';
 import { PluginManager } from '../utils/plugins';
 import { ConfigurePluginCommand } from './configurePlugin';
+import { FixMissingImportCommand } from './fixMissingImport';
+import { FixUnusedIdentifierCommand } from './fixUnusedIdentifier';
 import { JavaScriptGoToProjectConfigCommand, TypeScriptGoToProjectConfigCommand } from './goToProjectConfiguration';
 import { OpenTsServerLogCommand } from './openTsServerLog';
 import { ReloadJavaScriptProjectsCommand, ReloadTypeScriptProjectsCommand } from './reloadProject';
@@ -28,5 +30,7 @@ export function registerCommands(
 	commandManager.register(new TypeScriptGoToProjectConfigCommand(lazyClientHost));
 	commandManager.register(new JavaScriptGoToProjectConfigCommand(lazyClientHost));
 	commandManager.register(new ConfigurePluginCommand(pluginManager));
+	commandManager.register(new FixMissingImportCommand(lazyClientHost));
+	commandManager.register(new FixUnusedIdentifierCommand(lazyClientHost));
 	commandManager.register(new LearnMoreAboutRefactoringsCommand());
 }

@@ -43,6 +43,8 @@
 	"typescript.implementationsCodeLens.enabled": "Enable/disable implementations CodeLens. This CodeLens shows the implementers of an interface.",
 	"typescript.openTsServerLog.title": "Open TS Server log",
 	"typescript.restartTsServer": "Restart TS server",
+	"typescript.fixMissingImport": "Add all missing imports",
+	"typescript.fixUnusedIdentifier": "Delete all unused declarations",
 	"typescript.selectTypeScriptVersion.title": "Select TypeScript Version...",
 	"typescript.reportStyleChecksAsWarnings": "Report style checks as warnings.",
 	"javascript.implicitProjectConfig.checkJs": "Enable/disable semantic checking of JavaScript files. Existing jsconfig.json or tsconfig.json files override this setting. Requires using TypeScript 2.3.1 or newer in the workspace.",
