@@ -158,15 +158,19 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		this.splice(0, this.length);
 	}
 
+	getViewCellIndex(cell: ICellViewModel) {
+		return this._viewModel?.getViewCellIndex(cell);
+	}
+
 	focusElement(cell: ICellViewModel) {
-		const index = this._viewModel?.getViewCellIndex(cell);
+		const index = this.getViewCellIndex(cell);
 
 		if (index !== undefined) {
 			this.setFocus([index]);
 		}
 	}
 	selectElement(cell: ICellViewModel) {
-		const index = this._viewModel?.getViewCellIndex(cell);
+		const index = this.getViewCellIndex(cell);
 
 		if (index !== undefined) {
 			this.setSelection([index]);
@@ -175,7 +179,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	revealElementInView(cell: ICellViewModel) {
-		const index = this._viewModel?.getViewCellIndex(cell);
+		const index = this.getViewCellIndex(cell);
 
 		if (index !== undefined) {
 			this._revealInView(index);
@@ -183,7 +187,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	revealElementInCenterIfOutsideViewport(cell: ICellViewModel) {
-		const index = this._viewModel?.getViewCellIndex(cell);
+		const index = this.getViewCellIndex(cell);
 
 		if (index !== undefined) {
 			this._revealInCenterIfOutsideViewport(index);
@@ -191,7 +195,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	revealElementInCenter(cell: ICellViewModel) {
-		const index = this._viewModel?.getViewCellIndex(cell);
+		const index = this.getViewCellIndex(cell);
 
 		if (index !== undefined) {
 			this._revealInCenter(index);
@@ -199,7 +203,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	revealElementLineInView(cell: ICellViewModel, line: number): void {
-		const index = this._viewModel?.getViewCellIndex(cell);
+		const index = this.getViewCellIndex(cell);
 
 		if (index !== undefined) {
 			this._revealLineInView(index, line);
@@ -207,7 +211,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	revealElementLineInCenter(cell: ICellViewModel, line: number) {
-		const index = this._viewModel?.getViewCellIndex(cell);
+		const index = this.getViewCellIndex(cell);
 
 		if (index !== undefined) {
 			this._revealLineInCenter(index, line);
@@ -215,7 +219,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	revealElementLineInCenterIfOutsideViewport(cell: ICellViewModel, line: number) {
-		const index = this._viewModel?.getViewCellIndex(cell);
+		const index = this.getViewCellIndex(cell);
 
 		if (index !== undefined) {
 			this._revealLineInCenterIfOutsideViewport(index, line);
@@ -223,7 +227,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	revealElementRangeInView(cell: ICellViewModel, range: Range): void {
-		const index = this._viewModel?.getViewCellIndex(cell);
+		const index = this.getViewCellIndex(cell);
 
 		if (index !== undefined) {
 			this._revealRangeInView(index, range);
@@ -231,7 +235,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	revealElementRangeInCenter(cell: ICellViewModel, range: Range): void {
-		const index = this._viewModel?.getViewCellIndex(cell);
+		const index = this.getViewCellIndex(cell);
 
 		if (index !== undefined) {
 			this._revealRangeInCenter(index, range);
@@ -239,7 +243,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	revealElementRangeInCenterIfOutsideViewport(cell: ICellViewModel, range: Range): void {
-		const index = this._viewModel?.getViewCellIndex(cell);
+		const index = this.getViewCellIndex(cell);
 
 		if (index !== undefined) {
 			this._revealRangeInCenterIfOutsideViewport(index, range);
@@ -247,8 +251,12 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	domElementOfElement(element: ICellViewModel): HTMLElement | null {
-		const index = this._viewModel!.getViewCellIndex(element);
-		return this.view.domElement(index);
+		const index = this.getViewCellIndex(element);
+		if (index !== undefined) {
+			return this.view.domElement(index);
+		}
+
+		return null;
 	}
 
 	focusView() {
