@@ -53,7 +53,7 @@ import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyId
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import * as vscode from 'vscode';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { originalFSPath, joinPath } from 'vs/base/common/resources';
+import { originalFSPath } from 'vs/base/common/resources';
 import { values } from 'vs/base/common/collections';
 import { ExtHostEditorInsets } from 'vs/workbench/api/common/extHostCodeInsets';
 import { ExtHostLabelService } from 'vs/workbench/api/common/extHostLabelService';
@@ -1063,11 +1063,6 @@ class Extension<T> implements vscode.Extension<T> {
 		this.extensionPath = path.normalize(originalFSPath(description.extensionLocation));
 		this.packageJSON = description;
 		this.extensionKind = kind;
-	}
-
-	asExtensionUri(relativePath: string): URI {
-		checkProposedApiEnabled(this.packageJSON);
-		return joinPath(this.packageJSON.extensionLocation, relativePath);
 	}
 
 	get isActive(): boolean {
