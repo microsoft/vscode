@@ -7,6 +7,7 @@ import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle'
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
+import { Widget } from 'vs/base/browser/ui/widget';
 
 export enum WidgetVerticalAlignment {
 	Bottom,
@@ -66,16 +67,22 @@ export class TerminalWidgetManager implements IDisposable {
 		};
 	}
 
-	public showMessage(left: number, y: number, text: IMarkdownString, verticalAlignment: WidgetVerticalAlignment = WidgetVerticalAlignment.Bottom, linkHandler: (url: string) => void): void {
+	public showHover(
+		left: number,
+		row: number,
+		text: IMarkdownString,
+		verticalAlignment: WidgetVerticalAlignment = WidgetVerticalAlignment.Bottom,
+		linkHandler: (url: string) => void
+	): void {
 		if (!this._container || this._messageWidget?.mouseOver) {
 			return;
 		}
 		dispose(this._messageWidget);
 		this._messageListeners.clear();
-		this._messageWidget = new MessageWidget(this._container, left, y, text, verticalAlignment, linkHandler);
+		this._messageWidget = new MessageWidget(this._container, left, row, text, verticalAlignment, linkHandler);
 	}
 
-	public closeMessage(): void {
+	public closeHover(): void {
 		this._messageListeners.clear();
 		const currentWidget = this._messageWidget;
 		setTimeout(() => {
@@ -93,7 +100,7 @@ export class TerminalWidgetManager implements IDisposable {
 	}
 }
 
-class MessageWidget {
+class MessageWidget extends Widget {
 	private _domNode: HTMLElement;
 	private _mouseOver = false;
 	private readonly _messageListeners = new DisposableStore();
@@ -126,6 +133,7 @@ class MessageWidget {
 		private _verticalAlignment: WidgetVerticalAlignment,
 		private _linkHandler: (url: string) => void
 	) {
+		super();
 		this._domNode = renderMarkdown(this._text, {
 			actionHandler: {
 				callback: this._linkHandler,
@@ -144,11 +152,9 @@ class MessageWidget {
 		}
 
 		this._domNode.classList.add('terminal-message-widget', 'fadeIn');
-		this._domNode.addEventListener('mouseenter', () => {
-			this._mouseOver = true;
-		});
 
-		this._domNode.addEventListener('mouseleave', () => {
+		this.onmouseover(this._domNode, () => this._mouseOver = true);
+		this.onnonbubblingmouseout(this._domNode, () => {
 			this._mouseOver = false;
 			this._messageListeners.add(MessageWidget.fadeOut(this));
 		});

@@ -160,7 +160,7 @@ export class TerminalLinkManager extends DisposableStore {
 				const leftPosition = location.start.x * (charWidth! + (font.letterSpacing / window.devicePixelRatio));
 				const bottomPosition = offsetRow * (Math.ceil(charHeight! * window.devicePixelRatio) * font.lineHeight) / window.devicePixelRatio;
 
-				this._widgetManager.showMessage(leftPosition, bottomPosition, this._getLinkHoverString(uri), verticalAlignment, linkHandler);
+				this._widgetManager.showHover(leftPosition, bottomPosition, this._getLinkHoverString(uri), verticalAlignment, linkHandler);
 			} else {
 				const target = (e.target as HTMLElement);
 				const colWidth = target.offsetWidth / this._xterm.cols;
@@ -168,12 +168,12 @@ export class TerminalLinkManager extends DisposableStore {
 
 				const leftPosition = location.start.x * colWidth;
 				const bottomPosition = offsetRow * rowHeight;
-				this._widgetManager.showMessage(leftPosition, bottomPosition, this._getLinkHoverString(uri), verticalAlignment, linkHandler);
+				this._widgetManager.showHover(leftPosition, bottomPosition, this._getLinkHoverString(uri), verticalAlignment, linkHandler);
 			}
 		};
 		this._leaveCallback = () => {
 			if (this._widgetManager) {
-				this._widgetManager.closeMessage();
+				this._widgetManager.closeHover();
 			}
 		};
 

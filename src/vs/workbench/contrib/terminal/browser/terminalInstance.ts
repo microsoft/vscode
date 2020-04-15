@@ -912,7 +912,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _onProcessData(data: string): void {
-		this._widgetManager?.closeMessage();
+		this._widgetManager?.closeHover();
 		this._xterm?.write(data);
 	}
 
