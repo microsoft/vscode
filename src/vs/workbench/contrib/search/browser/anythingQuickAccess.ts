@@ -631,7 +631,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			return;
 		}
 
-		const detildifiedQuery = untildify(query.original, (await this.remotePathService.userHome).path);
+		const userHome = await this.remotePathService.userHome;
+		const detildifiedQuery = untildify(query.original, userHome.scheme === Schemas.file ? userHome.fsPath : userHome.path);
 		if (token.isCancellationRequested) {
 			return;
 		}

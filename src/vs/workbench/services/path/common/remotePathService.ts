@@ -3,13 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'vs/base/common/path';
-import * as platform from 'vs/base/common/platform';
+import { IPath, win32, posix } from 'vs/base/common/path';
+import { OperatingSystem, OS } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 const REMOTE_PATH_SERVICE_ID = 'remotePath';
 export const IRemotePathService = createDecorator<IRemotePathService>(REMOTE_PATH_SERVICE_ID);
@@ -21,7 +19,7 @@ export interface IRemotePathService {
 	/**
 	 * The path library to use for the target remote environment.
 	 */
-	readonly path: Promise<path.IPath>;
+	readonly path: Promise<IPath>;
 
 	/**
 	 * Converts the given path to a file URI in the remote environment.
@@ -35,36 +33,50 @@ export interface IRemotePathService {
 
 	/**
 	 * Provides access to the user home of the remote environment
-	 * if defined.
+	 * if defined. The variable will be `undefined` as long as the
+	 * remote environment has not been resolved yet.
 	 */
-	readonly userHomeSync: URI | undefined;
+	readonly resolvedUserHome: URI | undefined;
 }
 
 /**
  * Provides the correct IPath implementation for dealing with paths that refer to locations in the extension host
  */
-export class RemotePathService implements IRemotePathService {
+export abstract class AbstractRemotePathService implements IRemotePathService {
+
 	_serviceBrand: undefined;
 
-	private _extHostOS: Promise<platform.OperatingSystem>;
-	private _userHomeSync: URI | undefined;
+	private remoteOS: Promise<OperatingSystem>;
+
+	private resolveUserHome: Promise<URI>;
+	private maybeUnresolvedUserHome: URI | undefined;
 
 	constructor(
-		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+		fallbackUserHome: () => URI,
+		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService
 	) {
-		this._extHostOS = remoteAgentService.getEnvironment().then(remoteEnvironment => {
-			this._userHomeSync = remoteEnvironment?.userHome;
+		this.remoteOS = this.remoteAgentService.getEnvironment().then(env => env?.os || OS);
 
-			return remoteEnvironment ? remoteEnvironment.os : platform.OS;
+		this.resolveUserHome = this.remoteAgentService.getEnvironment().then(env => {
+			const userHome = this.maybeUnresolvedUserHome = env?.userHome || fallbackUserHome();
+
+			return userHome;
 		});
 	}
 
-	get path(): Promise<path.IPath> {
-		return this._extHostOS.then(os => {
-			return os === platform.OperatingSystem.Windows ?
-				path.win32 :
-				path.posix;
+	get userHome(): Promise<URI> {
+		return this.resolveUserHome;
+	}
+
+	get resolvedUserHome(): URI | undefined {
+		return this.maybeUnresolvedUserHome;
+	}
+
+	get path(): Promise<IPath> {
+		return this.remoteOS.then(os => {
+			return os === OperatingSystem.Windows ?
+				win32 :
+				posix;
 		});
 	}
 
@@ -74,7 +86,7 @@ export class RemotePathService implements IRemotePathService {
 		// normalize to fwd-slashes on windows,
 		// on other systems bwd-slashes are valid
 		// filename character, eg /f\oo/ba\r.txt
-		if ((await this._extHostOS) === platform.OperatingSystem.Windows) {
+		if ((await this.remoteOS) === OperatingSystem.Windows) {
 			_path = _path.replace(/\\/g, '/');
 		}
 
@@ -100,23 +112,4 @@ export class RemotePathService implements IRemotePathService {
 			fragment: ''
 		});
 	}
-
-	get userHome(): Promise<URI> {
-		return this.remoteAgentService.getEnvironment().then(env => {
-
-			// remote: use remote environment userHome
-			if (env) {
-				return env.userHome;
-			}
-
-			// local: use the userHome from environment
-			return this.environmentService.userHome!;
-		});
-	}
-
-	get userHomeSync(): URI | undefined {
-		return this._userHomeSync || this.environmentService.userHome;
-	}
 }
-
-registerSingleton(IRemotePathService, RemotePathService, true);

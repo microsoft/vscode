@@ -120,7 +120,7 @@ export class LinkDetector {
 		}
 
 		if (path[0] === '~') {
-			const userHome = this.remotePathService.userHomeSync;
+			const userHome = this.remotePathService.resolvedUserHome;
 			if (userHome) {
 				path = osPath.join(userHome.fsPath, path.substring(1));
 			}

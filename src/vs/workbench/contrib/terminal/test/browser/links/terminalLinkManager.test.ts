@@ -93,7 +93,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 	setup(() => {
 		instantiationService = new TestInstantiationService();
 		instantiationService.stub(IEnvironmentService, TestEnvironmentService);
-		instantiationService.stub(IRemotePathService, new TestRemotePathService(TestEnvironmentService));
+		instantiationService.stub(IRemotePathService, new TestRemotePathService());
 	});
 
 	suite('localLinkRegex', () => {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workbenchInstantiationService as browserWorkbenchInstantiationService, ITestInstantiationService, TestLifecycleService, TestFilesConfigurationService, TestFileService, TestFileDialogService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService as browserWorkbenchInstantiationService, ITestInstantiationService, TestLifecycleService, TestFilesConfigurationService, TestFileService, TestFileDialogService, TestRemotePathService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { Event } from 'vs/base/common/event';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { NativeWorkbenchEnvironmentService, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
@@ -219,7 +219,8 @@ export class TestElectronService implements IElectronService {
 
 export function workbenchInstantiationService(): ITestInstantiationService {
 	const instantiationService = browserWorkbenchInstantiationService({
-		textFileService: insta => <ITextFileService>insta.createInstance(TestTextFileService)
+		textFileService: insta => <ITextFileService>insta.createInstance(TestTextFileService),
+		remotePathService: insta => <IRemotePathService>insta.createInstance(TestNativeRemotePathService)
 	});
 
 	instantiationService.stub(IElectronService, new TestElectronService());
@@ -241,5 +242,14 @@ export class TestServiceAccessor {
 		@IWorkingCopyService public workingCopyService: IWorkingCopyService,
 		@IEditorService public editorService: IEditorService
 	) {
+	}
+}
+
+export class TestNativeRemotePathService extends TestRemotePathService {
+
+	_serviceBrand: undefined;
+
+	constructor(@IWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService) {
+		super(environmentService.userHome);
 	}
 }

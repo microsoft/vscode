@@ -115,7 +115,10 @@ export interface ITestInstantiationService extends IInstantiationService {
 	stub<T>(service: ServiceIdentifier<T>, ctor: any): T;
 }
 
-export function workbenchInstantiationService(overrides?: { textFileService?: (instantiationService: IInstantiationService) => ITextFileService }): ITestInstantiationService {
+export function workbenchInstantiationService(overrides?: {
+	textFileService?: (instantiationService: IInstantiationService) => ITextFileService
+	remotePathService?: (instantiationService: IInstantiationService) => IRemotePathService
+}): ITestInstantiationService {
 	const instantiationService = new TestInstantiationService(new ServiceCollection([ILifecycleService, new TestLifecycleService()]));
 
 	instantiationService.stub(IWorkingCopyService, new TestWorkingCopyService());
@@ -131,7 +134,7 @@ export function workbenchInstantiationService(overrides?: { textFileService?: (i
 	instantiationService.stub(ITextResourceConfigurationService, new TestTextResourceConfigurationService(configService));
 	instantiationService.stub(IUntitledTextEditorService, instantiationService.createInstance(UntitledTextEditorService));
 	instantiationService.stub(IStorageService, new TestStorageService());
-	instantiationService.stub(IRemotePathService, new TestRemotePathService(TestEnvironmentService));
+	instantiationService.stub(IRemotePathService, overrides?.remotePathService ? overrides.remotePathService(instantiationService) : new TestRemotePathService());
 	const layoutService = new TestLayoutService();
 	instantiationService.stub(IWorkbenchLayoutService, layoutService);
 	instantiationService.stub(IDialogService, new TestDialogService());
@@ -1108,12 +1111,12 @@ export class TestRemotePathService implements IRemotePathService {
 
 	_serviceBrand: undefined;
 
-	constructor(@IWorkbenchEnvironmentService private readonly environmentService: IEnvironmentService) { }
+	constructor(private readonly fallbackUserHome: URI = URI.from({ scheme: Schemas.vscodeRemote, path: '/' })) { }
 
 	get path() { return Promise.resolve(isWindows ? win32 : posix); }
 
-	get userHome() { return Promise.resolve(this.environmentService.userHome!); }
-	get userHomeSync() { return this.environmentService.userHome; }
+	get userHome() { return Promise.resolve(this.fallbackUserHome); }
+	get resolvedUserHome() { return this.fallbackUserHome; }
 
 	async fileURI(path: string): Promise<URI> {
 		return URI.file(path);

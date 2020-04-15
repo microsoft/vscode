@@ -12,7 +12,7 @@ import { Schemas } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
 import { isEqual } from 'vs/base/common/resources';
 import * as strings from 'vs/base/common/strings';
-import { URI as uri, URI } from 'vs/base/common/uri';
+import { URI as uri } from 'vs/base/common/uri';
 import { isMultilineRegexSource } from 'vs/editor/common/model/textModelSearch';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -84,12 +84,7 @@ export class QueryBuilder {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IRemotePathService private readonly remotePathService: IRemotePathService
 	) {
-		this.remotePathService.userHome.then(userHome => {
-			this._userHome = userHome;
-		});
 	}
-
-	private _userHome: URI | undefined;
 
 	text(contentPattern: IPatternInfo, folderResources?: uri[], options: ITextQueryBuilderOptions = {}): ITextQuery {
 		contentPattern = this.getContentPattern(contentPattern, options);
@@ -244,8 +239,9 @@ export class QueryBuilder {
 
 		const segments = splitGlobPattern(pattern)
 			.map(segment => {
-				if (this._userHome) {
-					return untildify(segment, this._userHome.fsPath);
+				const userHome = this.remotePathService.resolvedUserHome;
+				if (userHome) {
+					return untildify(segment, userHome.scheme === Schemas.file ? userHome.fsPath : userHome.path);
 				}
 
 				return segment;

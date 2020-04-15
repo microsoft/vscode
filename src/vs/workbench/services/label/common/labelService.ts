@@ -135,7 +135,7 @@ export class LabelService extends Disposable implements ILabelService {
 
 	private doGetUriLabel(resource: URI, formatting?: ResourceLabelFormatting, options: { relative?: boolean, noPrefix?: boolean, endWithSeparator?: boolean } = {}): string {
 		if (!formatting) {
-			return getPathLabel(resource.path, this.environmentService, options.relative ? this.contextService : undefined);
+			return getPathLabel(resource.path, { userHome: this.remotePathService.resolvedUserHome }, options.relative ? this.contextService : undefined);
 		}
 
 		let label: string | undefined;
@@ -266,7 +266,7 @@ export class LabelService extends Disposable implements ILabelService {
 		}
 
 		if (formatting.tildify && !forceNoTildify) {
-			const userHome = this.remotePathService.userHomeSync;
+			const userHome = this.remotePathService.resolvedUserHome;
 			if (userHome) {
 				label = tildify(label, userHome.fsPath);
 			}
