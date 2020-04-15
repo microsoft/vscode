@@ -15,6 +15,7 @@ import { escape } from 'vs/base/common/strings';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { deepClone } from 'vs/base/common/objects';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import * as nls from 'vs/nls';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
@@ -471,6 +472,10 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			templateData.cellRunStatusContainer.innerHTML = renderCodicons('$(check)');
 		} else if (metadata.runState === NotebookCellRunState.Error) {
 			templateData.cellRunStatusContainer.innerHTML = renderCodicons('$(error)');
+		} else if (metadata.runState === NotebookCellRunState.Running) {
+			// TODO should extensions be able to customize the status message while running to show progress?
+			templateData.cellStatusMessageContainer.textContent = nls.localize('cellRunningStatus', "Running");
+			templateData.cellRunStatusContainer.innerHTML = renderCodicons('$(vm-running)');
 		} else {
 			templateData.cellRunStatusContainer.innerHTML = '';
 		}
