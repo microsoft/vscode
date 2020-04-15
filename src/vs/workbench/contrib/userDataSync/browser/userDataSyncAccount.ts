@@ -57,18 +57,22 @@ export class UserDataSyncAccountManager extends Disposable {
 		super();
 		this.userDataSyncAccountProvider = getUserDataSyncStore(productService, configurationService)?.authenticationProviderId;
 		if (this.userDataSyncAccountProvider) {
-			this.update();
-			this._register(
-				Event.any(
-					Event.filter(
-						Event.any(
-							this.authenticationService.onDidRegisterAuthenticationProvider,
-							this.authenticationService.onDidUnregisterAuthenticationProvider,
-							Event.map(this.authenticationService.onDidChangeSessions, e => e.providerId)
-						), providerId => providerId === this.userDataSyncAccountProvider),
-					authenticationTokenService.onTokenFailed)
-					(() => this.update()));
+			this._register(Event.once(Event.filter(this.authenticationService.onDidRegisterAuthenticationProvider, providerId => providerId === this.userDataSyncAccountProvider))(() => this.initialize()));
 		}
+	}
+
+	private async initialize(): Promise<void> {
+		await this.update();
+		this._register(
+			Event.any(
+				Event.filter(
+					Event.any(
+						this.authenticationService.onDidRegisterAuthenticationProvider,
+						this.authenticationService.onDidUnregisterAuthenticationProvider,
+						Event.map(this.authenticationService.onDidChangeSessions, e => e.providerId)
+					), providerId => providerId === this.userDataSyncAccountProvider),
+				this.authenticationTokenService.onTokenFailed)
+				(() => this.update()));
 	}
 
 	private async update(): Promise<void> {
