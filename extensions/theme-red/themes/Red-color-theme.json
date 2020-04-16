@@ -37,6 +37,15 @@
 		"peekViewEditor.background": "#300000",
 		// UI
 		"debugToolBar.background": "#660000",
+		"debugView.stateLabelBackground": "#833",
+		"debugView.exceptionLabelBackground": "#550000",
+		"debugTokenExpression.name": "#fb9a4b",
+		"debugTokenExpression.value": "#e7c0c0",
+		"debugTokenExpression.number": "#994646",
+		"debugTokenExpression.string": "#cd8d8d",
+		"debugTokenExpression.error": "#cc3333",
+		"debugTokenExpression.boolean": "#994646",
+		"debugView.valueChangedHighlight": "#ff6262",
 		"focusBorder": "#ff6666aa",
 		"button.background": "#833",
 		"dropdown.background": "#580000",
@@ -192,7 +201,10 @@
 		},
 		{
 			"name": "Support.constant",
-			"scope": [ "support.constant", "support.variable"],
+			"scope": [
+				"support.constant",
+				"support.variable"
+			],
 			"settings": {
 				"fontStyle": "",
 				"foreground": "#eb939aff"
