@@ -106,15 +106,13 @@ export class UserDataSyncAccounts extends Disposable {
 			let currentAccount: IUserDataSyncAccount | null = null;
 			let currentSession: AuthenticationSession | undefined = undefined;
 
-			if (this.currentSessionId) {
-				const sessions = await this.authenticationService.getSessions(this.accountProviderId) || [];
-				for (const session of sessions) {
-					const account: IUserDataSyncAccount = { providerId: this.accountProviderId, sessionId: session.id, accountName: session.accountName };
-					allAccounts.set(account.accountName, account);
-					if (session.id === this.currentSessionId) {
-						currentSession = session;
-						currentAccount = account;
-					}
+			const sessions = await this.authenticationService.getSessions(this.accountProviderId) || [];
+			for (const session of sessions) {
+				const account: IUserDataSyncAccount = { providerId: this.accountProviderId, sessionId: session.id, accountName: session.accountName };
+				allAccounts.set(account.accountName, account);
+				if (session.id === this.currentSessionId) {
+					currentSession = session;
+					currentAccount = account;
 				}
 			}
 
@@ -192,10 +190,12 @@ export class UserDataSyncAccounts extends Disposable {
 						await this.login();
 					}
 					quickPick.hide();
-					c();
 				}
 			}));
-			disposables.add(quickPick.onDidHide(() => disposables.dispose()));
+			disposables.add(quickPick.onDidHide(() => {
+				disposables.dispose();
+				c();
+			}));
 			quickPick.show();
 		});
 	}
