@@ -40,7 +40,13 @@ export class HoverWidget extends Widget {
 	private readonly _messageListeners = new DisposableStore();
 	private readonly _mouseTracker: CompositeMouseTracker;
 
-	public get domNode(): HTMLElement { return this._domNode; }
+	private _isDisposed: boolean = false;
+
+	get isDisposed(): boolean { return this._isDisposed; }
+	get domNode(): HTMLElement { return this._domNode; }
+
+	private readonly _onDispose = new Emitter<void>();
+	get onDispose(): Event<void> { return this._onDispose.event; }
 
 	constructor(
 		private _container: HTMLElement,
@@ -69,6 +75,7 @@ export class HoverWidget extends Widget {
 
 	public layout(): void {
 		const anchor = this._target.proposeIdealAnchor();
+		console.log('anchor', anchor);
 		this._domNode.style.maxWidth = `${document.documentElement.clientWidth - anchor.x - 1}px`;
 		if (anchor.horizontalAlignment === HorizontalAlignment.Left) {
 			this._domNode.style.left = `${anchor.x}px`;
@@ -84,12 +91,16 @@ export class HoverWidget extends Widget {
 	}
 
 	public dispose(): void {
-		if (this.domNode.parentElement === this._container) {
-			this._container.removeChild(this.domNode);
+		if (!this._isDisposed) {
+			this._onDispose.fire();
+			if (this.domNode.parentElement === this._container) {
+				this._container.removeChild(this.domNode);
+			}
+			this._messageListeners.dispose();
+			this._target.dispose();
+			super.dispose();
 		}
-		this._messageListeners.dispose();
-		this._target.dispose();
-		super.dispose();
+		this._isDisposed = true;
 	}
 }
 

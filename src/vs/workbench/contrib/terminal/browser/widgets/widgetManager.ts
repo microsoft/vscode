@@ -95,7 +95,9 @@ export class TerminalWidgetManager implements IDisposable {
 			return;
 		}
 		const computed = window.getComputedStyle(this._xtermViewport);
+		console.log('computed', computed);
 		const marginRight = parseInt(computed.marginRight.replace('px', ''));
-		this._container.style.width = `${this._xtermViewport.clientWidth - marginRight}px`;
+		const width = parseInt(computed.width.replace('px', ''));
+		this._container.style.width = `${width - marginRight}px`;
 	}
 }

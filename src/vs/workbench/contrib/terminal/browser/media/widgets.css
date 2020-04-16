@@ -43,8 +43,16 @@
 }
 
 .monaco-workbench .terminal-env-var-info {
-	width: 32px;
-	height: 32px;
+	position: absolute;
+	right: 12px;
+	top: 0;
+	width: 28px;
+	height: 28px;
+	text-align: center;
 	background-color: red;
 	z-index: 25;
+}
+
+.monaco-workbench .terminal-env-var-info.codicon {
+	line-height: 28px;
 }

@@ -14,6 +14,7 @@ export class EnvironmentVariableInfoWidget extends Widget implements ITerminalWi
 	readonly id = 'env-var-info';
 
 	private _domNode: HTMLElement | undefined;
+	private _hoverWidget: HoverWidget | undefined;
 
 	constructor(
 		private _info: IEnvironmentVariableInfo
@@ -23,7 +24,7 @@ export class EnvironmentVariableInfoWidget extends Widget implements ITerminalWi
 
 	attach(container: HTMLElement): void {
 		this._domNode = document.createElement('div');
-		this._domNode.classList.add('terminal-env-var-info', 'codicon', `codicon-${this._info.getInfo()}`);
+		this._domNode.classList.add('terminal-env-var-info', 'codicon', `codicon-${this._info.getIcon()}`);
 		container.appendChild(this._domNode);
 		this.onmouseover(this._domNode, () => {
 			this._showHover();
@@ -36,11 +37,13 @@ export class EnvironmentVariableInfoWidget extends Widget implements ITerminalWi
 	}
 
 	private _showHover() {
-		if (!this._domNode) {
+		if (!this._domNode || this._hoverWidget) {
 			return;
 		}
 		const target = new ElementHoverTarget(this._domNode);
-		this._register(new HoverWidget(this._domNode, target, new MarkdownString(this._info.getInfo()), () => { }));
+		this._hoverWidget = new HoverWidget(this._domNode, target, new MarkdownString(this._info.getInfo()), () => { });
+		this._register(this._hoverWidget);
+		this._register(this._hoverWidget.onDispose(() => this._hoverWidget = undefined));
 	}
 }
 
@@ -48,17 +51,17 @@ class ElementHoverTarget implements IHoverTarget {
 	readonly targetElements: readonly HTMLElement[];
 
 	constructor(
-		element: HTMLElement
+		private _element: HTMLElement
 	) {
-		this.targetElements = [element];
+		this.targetElements = [this._element];
 	}
 
 	proposeIdealAnchor(): IProposedAnchor {
-		const firstPosition = getDomNodePagePosition(this.targetElements[0]);
+		const position = getDomNodePagePosition(this._element);
 		return {
-			x: firstPosition.left + firstPosition.width,
+			x: document.documentElement.clientWidth - position.left - position.width,
 			horizontalAlignment: HorizontalAlignment.Right,
-			y: document.documentElement.clientHeight - firstPosition.top - 1,
+			y: document.documentElement.clientHeight - position.top - 1,
 			verticalAlignment: VerticalAlignment.Bottom
 		};
 	}
@@ -68,6 +71,5 @@ class ElementHoverTarget implements IHoverTarget {
 	}
 
 	dispose(): void {
-		throw new Error('Method not implemented.');
 	}
 }
