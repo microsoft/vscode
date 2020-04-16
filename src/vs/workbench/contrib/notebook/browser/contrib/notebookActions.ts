@@ -522,7 +522,8 @@ registerAction2(class extends InsertCellCommand {
 		super(
 			{
 				id: INSERT_CODE_CELL_ABOVE_COMMAND_ID,
-				title: localize('notebookActions.insertCodeCellAbove', "Insert Code Cell Above")
+				title: localize('notebookActions.insertCodeCellAbove', "Insert Code Cell Above"),
+				f1: true
 			},
 			CellKind.Code,
 			'above');
@@ -578,6 +579,7 @@ registerAction2(class extends InsertCellCommand {
 			{
 				id: INSERT_MARKDOWN_CELL_ABOVE_COMMAND_ID,
 				title: localize('notebookActions.insertMarkdownCellAbove', "Insert Markdown Cell Above"),
+				f1: true
 			},
 			CellKind.Markdown,
 			'above');
