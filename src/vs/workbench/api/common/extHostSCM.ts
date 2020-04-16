@@ -194,6 +194,11 @@ export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 
 	set visible(visible: boolean) {
 		visible = !!visible;
+
+		if (this._visible === visible) {
+			return;
+		}
+
 		this._visible = visible;
 		this._proxy.$setInputBoxVisibility(this._sourceControlHandle, visible);
 	}
