@@ -11,6 +11,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { MainThreadAuthenticationProvider } from 'vs/workbench/api/browser/mainThreadAuthentication';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 export const IAuthenticationService = createDecorator<IAuthenticationService>('IAuthenticationService');
 
@@ -53,7 +54,8 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		this._placeholderMenuItem = MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
 			command: {
 				id: 'noAuthenticationProviders',
-				title: nls.localize('loading', "Loading...")
+				title: nls.localize('loading', "Loading..."),
+				precondition: ContextKeyExpr.false()
 			},
 		});
 	}
@@ -78,7 +80,8 @@ export class AuthenticationService extends Disposable implements IAuthentication
 				group: '0_accounts',
 				command: {
 					id: 'noAccounts',
-					title: nls.localize('noAccounts', "You are not signed in to any accounts")
+					title: nls.localize('noAccounts', "You are not signed in to any accounts"),
+					precondition: ContextKeyExpr.false()
 				},
 			});
 		}
@@ -109,7 +112,8 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			this._placeholderMenuItem = MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
 				command: {
 					id: 'noAuthenticationProviders',
-					title: nls.localize('loading', "Loading...")
+					title: nls.localize('loading', "Loading..."),
+					precondition: ContextKeyExpr.false()
 				},
 			});
 		}
