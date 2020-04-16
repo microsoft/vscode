@@ -69,13 +69,13 @@ export class HoverWidget extends Widget {
 
 	public layout(): void {
 		const anchor = this._target.proposeIdealAnchor();
-		// TODO: go to secondary anchor if vertical gets clipped
 		this._domNode.style.maxWidth = `${document.documentElement.clientWidth - anchor.x - 1}px`;
 		if (anchor.horizontalAlignment === HorizontalAlignment.Left) {
 			this._domNode.style.left = `${anchor.x}px`;
 		} else {
 			this._domNode.style.right = `${anchor.x}px`;
 		}
+		// TODO: Go to secondary anchor if vertical gets clipped
 		if (anchor.verticalAlignment === VerticalAlignment.Bottom) {
 			this._domNode.style.bottom = `${anchor.y}px`;
 		} else {

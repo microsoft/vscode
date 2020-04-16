@@ -3,92 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { IViewportRange } from 'xterm';
 import { getDomNodePagePosition } from 'vs/base/browser/dom';
 import { HoverWidget, HorizontalAlignment, VerticalAlignment, IProposedAnchor, IHoverTarget } from 'vs/workbench/contrib/terminal/browser/widgets/hoverWidget';
+import { ITerminalWidget } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
 
-export class TerminalWidgetManager implements IDisposable {
-	private _container: HTMLElement | undefined;
-	private _xtermViewport: HTMLElement | undefined;
+export class TerminalHover extends Disposable implements ITerminalWidget {
+	readonly id = 'hover';
 
-	private _hoverWidget: HoverWidget | undefined;
-	private readonly _hoverListeners = new DisposableStore();
-
-	private _environmentVariableInfo: IEnvironmentVariableInfo | undefined;
-
-	constructor() {
+	constructor(
+		private _viewportRange: IViewportRange,
+		private _cellDimensions: { width: number, height: number },
+		private _terminalDimensions: { width: number, height: number },
+		private _text: IMarkdownString,
+		private _linkHandler: (url: string) => void
+	) {
+		super();
 	}
 
-	public attachToElement(terminalWrapper: HTMLElement) {
-		if (!this._container) {
-			this._container = document.createElement('div');
-			this._container.classList.add('terminal-widget-container');
-			terminalWrapper.appendChild(this._container);
-			this._initTerminalHeightWatcher(terminalWrapper);
-		}
-	}
-
-	public dispose(): void {
-		if (this._container && this._container.parentElement) {
-			this._container.parentElement.removeChild(this._container);
-			this._container = undefined;
-		}
-		this._xtermViewport = undefined;
-		this._hoverListeners.dispose();
-	}
-
-	private _initTerminalHeightWatcher(terminalWrapper: HTMLElement) {
-		// Watch the xterm.js viewport for style changes and do a layout if it changes
-		this._xtermViewport = <HTMLElement>terminalWrapper.querySelector('.xterm-viewport');
-		if (!this._xtermViewport) {
-			return;
-		}
-		const mutationObserver = new MutationObserver(() => this._refreshHeight());
-		mutationObserver.observe(this._xtermViewport, { attributes: true, attributeFilter: ['style'] });
-	}
-
-	public showEnvironmentVariableInfo(info: IEnvironmentVariableInfo): IDisposable {
-		this._environmentVariableInfo = info;
-		return {
-			dispose: () => {
-				if (this._environmentVariableInfo === info) {
-					this._environmentVariableInfo = undefined;
-				}
-			}
-		};
-	}
-
-	public showHover(
-		viewportRange: IViewportRange,
-		cellDimensions: { width: number, height: number },
-		terminalDimensions: { width: number, height: number },
-		text: IMarkdownString,
-		linkHandler: (url: string) => void
-	): void {
-		if (!this._container) {
-			return;
-		}
-		dispose(this._hoverWidget);
-		this._hoverListeners.clear();
-
-		const hoverTarget = new CellHoverTarget(this._container, viewportRange, cellDimensions, terminalDimensions);
-		this._hoverWidget = new HoverWidget(this._container, hoverTarget, text, linkHandler);
-	}
-
-	public closeHover(): void {
-		this._hoverListeners.clear();
-		this._hoverWidget?.dispose();
-	}
-
-	private _refreshHeight(): void {
-		if (!this._container || !this._xtermViewport) {
-			return;
-		}
-		this._container.style.height = this._xtermViewport.style.height;
+	attach(container: HTMLElement): void {
+		const target = new CellHoverTarget(container, this._viewportRange, this._cellDimensions, this._terminalDimensions);
+		this._register(new HoverWidget(container, target, this._text, this._linkHandler));
 	}
 }
 

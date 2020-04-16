@@ -53,7 +53,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		setTimeout(() => {
 			const c = this.getEnvironmentVariableCollection({ identifier: { value: 'test' } } as any);
 			c.replace('FOO', 'BAR');
-		}, 5000);
+		}, 2000);
 	}
 
 	public createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
