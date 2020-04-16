@@ -236,6 +236,7 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		removed.forEach(sessionId => {
 			const accountName = this._sessions.get(sessionId);
 			if (accountName) {
+				this._sessions.delete(sessionId);
 				let sessionsForAccount = this._accounts.get(accountName) || [];
 				const sessionIndex = sessionsForAccount.indexOf(sessionId);
 				sessionsForAccount.splice(sessionIndex);

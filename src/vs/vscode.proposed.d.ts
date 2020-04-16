@@ -1991,4 +1991,18 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region https://github.com/microsoft/vscode/issues/94637
+
+	export interface SignatureInformation {
+
+		/**
+		 * The index of the active parameter.
+		 *
+		 * If provided, this is used in place of `SignatureHelp.activeSignature`.
+		 */
+		activeParameter?: number;
+	}
+
+	//#endregion
+
 }

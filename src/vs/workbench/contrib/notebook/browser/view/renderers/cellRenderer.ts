@@ -214,8 +214,6 @@ abstract class AbstractCellRenderer {
 			}
 		});
 
-		toolbar.getContainer().style.height = `${EDITOR_TOOLBAR_HEIGHT}px`;
-
 		return toolbar;
 	}
 
@@ -274,21 +272,15 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 	}
 
 	renderTemplate(container: HTMLElement): MarkdownCellRenderTemplate {
-		const codeInnerContent = document.createElement('div');
-		DOM.addClasses(codeInnerContent, 'cell', 'code');
-		const editingContainer = DOM.append(codeInnerContent, $('.markdown-editor-container'));
+		const disposables = new DisposableStore();
+		const toolbar = disposables.add(this.createToolbar(container));
+
+		const codeInnerContent = DOM.append(container, $('.cell.code'));
+		const cellEditorPart = DOM.append(codeInnerContent, $('.cell-editor-part'));
+		const editingContainer = DOM.append(cellEditorPart, $('.markdown-editor-container'));
 		editingContainer.style.display = 'none';
 
-		const disposables = new DisposableStore();
-		const toolbar = this.createToolbar(container);
-		disposables.add(toolbar);
-
-		container.appendChild(codeInnerContent);
-
-		const innerContent = document.createElement('div');
-		DOM.addClasses(innerContent, 'cell', 'markdown');
-		container.appendChild(innerContent);
-
+		const innerContent = DOM.append(container, $('.cell.markdown'));
 		const focusIndicator = DOM.append(container, DOM.$('.notebook-cell-focus-indicator'));
 		const bottomCellContainer = DOM.append(container, $('.cell-bottom-toolbar-container'));
 
@@ -299,7 +291,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 			focusIndicator,
 			disposables,
 			toolbar,
-			bottomCellContainer: bottomCellContainer,
+			bottomCellContainer,
 			toJSON: () => { return {}; }
 		};
 	}
@@ -390,8 +382,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 	renderTemplate(container: HTMLElement): CodeCellRenderTemplate {
 		const disposables = new DisposableStore();
-		const toolbar = this.createToolbar(container);
-		disposables.add(toolbar);
+		const toolbar = disposables.add(this.createToolbar(container));
 
 		const cellContainer = DOM.append(container, $('.cell.code'));
 		const runButtonContainer = DOM.append(cellContainer, $('.run-button-container'));

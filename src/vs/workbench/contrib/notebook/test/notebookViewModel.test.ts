@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { withTestNotebook, TestCell } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
@@ -99,63 +99,80 @@ suite('NotebookViewModel', () => {
 			(editor, viewModel) => {
 				viewModel.notebookDocument.metadata = { editable: true, cellRunnable: true, cellEditable: true, hasExecutionOrder: true };
 
-				assert.deepEqual(viewModel.viewCells[0].getEvaluatedMetadata(viewModel.metadata), {
+				const defaults = {
+					runState: undefined,
+					statusMessage: undefined,
+					executionOrder: undefined
+				};
+
+				assert.deepEqual(viewModel.viewCells[0].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: true,
-					runnable: true
+					runnable: true,
+					...defaults
 				});
 
-				assert.deepEqual(viewModel.viewCells[1].getEvaluatedMetadata(viewModel.metadata), {
+				assert.deepEqual(viewModel.viewCells[1].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: true,
-					runnable: true
+					runnable: true,
+					...defaults
 				});
 
-				assert.deepEqual(viewModel.viewCells[2].getEvaluatedMetadata(viewModel.metadata), {
+				assert.deepEqual(viewModel.viewCells[2].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: true,
-					runnable: false
+					runnable: false,
+					...defaults
 				});
 
-				assert.deepEqual(viewModel.viewCells[3].getEvaluatedMetadata(viewModel.metadata), {
+				assert.deepEqual(viewModel.viewCells[3].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: false,
-					runnable: true
+					runnable: true,
+					...defaults
 				});
 
-				assert.deepEqual(viewModel.viewCells[4].getEvaluatedMetadata(viewModel.metadata), {
+				assert.deepEqual(viewModel.viewCells[4].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: false,
-					runnable: false
+					runnable: false,
+					...defaults
 				});
 
 				viewModel.notebookDocument.metadata = { editable: true, cellRunnable: false, cellEditable: true, hasExecutionOrder: true };
 
-				assert.deepEqual(viewModel.viewCells[0].getEvaluatedMetadata(viewModel.metadata), {
+				assert.deepEqual(viewModel.viewCells[0].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: true,
-					runnable: false
+					runnable: false,
+					...defaults
 				});
 
-				assert.deepEqual(viewModel.viewCells[1].getEvaluatedMetadata(viewModel.metadata), {
+				assert.deepEqual(viewModel.viewCells[1].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: true,
-					runnable: true
+					runnable: true,
+					...defaults
 				});
 
-				assert.deepEqual(viewModel.viewCells[2].getEvaluatedMetadata(viewModel.metadata), {
+				assert.deepEqual(viewModel.viewCells[2].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: true,
-					runnable: false
+					runnable: false,
+					...defaults
 				});
 
-				assert.deepEqual(viewModel.viewCells[3].getEvaluatedMetadata(viewModel.metadata), {
+				assert.deepEqual(viewModel.viewCells[3].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: false,
-					runnable: true
+					runnable: true,
+					...defaults
 				});
 
-				assert.deepEqual(viewModel.viewCells[4].getEvaluatedMetadata(viewModel.metadata), {
+				assert.deepEqual(viewModel.viewCells[4].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: false,
-					runnable: false
+					runnable: false,
+					...defaults
 				});
 
 				viewModel.notebookDocument.metadata = { editable: true, cellRunnable: false, cellEditable: false, hasExecutionOrder: true };
 
-				assert.deepEqual(viewModel.viewCells[0].getEvaluatedMetadata(viewModel.metadata), {
+				assert.deepEqual(viewModel.viewCells[0].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: false,
-					runnable: false
+					runnable: false,
+					...defaults
 				});
 			}
 		);

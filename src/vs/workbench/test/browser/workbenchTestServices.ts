@@ -387,6 +387,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 
 	isRestored(): boolean { return true; }
 	hasFocus(_part: Parts): boolean { return false; }
+	focusPart(_part: Parts): void { }
 	hasWindowBorder(): boolean { return false; }
 	getWindowBorderRadius(): string | undefined { return undefined; }
 	isVisible(_part: Parts): boolean { return true; }
