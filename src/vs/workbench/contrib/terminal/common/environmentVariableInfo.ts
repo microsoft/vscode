@@ -24,31 +24,23 @@ export class EnvironmentVariableInfoStale implements IEnvironmentVariableInfo {
 	}
 
 	private _summarizeDiff(): string {
-		let summary: string[] = [];
+		const summary: string[] = [];
 		this._diff.added.forEach((mutators, variable) => {
 			mutators.forEach(mutator => {
-				summary.push(`- ${format(this._mutatorTypeLabel(mutator.type), mutator.value, variable)}`);
+				summary.push(`- ${format(mutatorTypeLabel(mutator.type), mutator.value, variable)}`);
 			});
 		});
 		this._diff.changed.forEach((mutators, variable) => {
 			mutators.forEach(mutator => {
-				summary.push(`- "${format(this._mutatorTypeLabel(mutator.type), mutator.value, variable)}"`);
+				summary.push(`- "${format(mutatorTypeLabel(mutator.type), mutator.value, variable)}"`);
 			});
 		});
 		this._diff.removed.forEach((mutators, variable) => {
 			mutators.forEach(mutator => {
-				summary.push(`- Remove the change "${format(this._mutatorTypeLabel(mutator.type), mutator.value, variable)}"`);
+				summary.push(`- Remove the change "${format(mutatorTypeLabel(mutator.type), mutator.value, variable)}"`);
 			});
 		});
 		return summary.join('\n');
-	}
-
-	private _mutatorTypeLabel(type: EnvironmentVariableMutatorType): string {
-		switch (type) {
-			case EnvironmentVariableMutatorType.Prepend: return 'Add `{0}` to the beginning of `{1}`';
-			case EnvironmentVariableMutatorType.Append: return 'Add `{0}` to the end of `{1}`';
-			default: return 'Replace `{1}`\'s value with `{0}`';
-		}
 	}
 }
 
@@ -60,10 +52,24 @@ export class EnvironmentVariableInfoChangesActive implements IEnvironmentVariabl
 
 	getInfo(): string {
 		// TODO: Localize
-		return 'Extensions have made changes to this terminal\'s environment';
+		const info: string[] = ['Extensions have made changes to this terminal\'s environment:', ''];
+		this._collection.map.forEach((mutators, variable) => {
+			mutators.forEach(mutator => {
+				info.push(`- ${format(mutatorTypeLabel(mutator.type), mutator.value, variable)}`);
+			});
+		});
+		return info.join('\n');
 	}
 
 	getIcon(): string {
 		return 'info';
+	}
+}
+
+function mutatorTypeLabel(type: EnvironmentVariableMutatorType): string {
+	switch (type) {
+		case EnvironmentVariableMutatorType.Prepend: return 'Add `{0}` to the beginning of `{1}`';
+		case EnvironmentVariableMutatorType.Append: return 'Add `{0}` to the end of `{1}`';
+		default: return 'Replace `{1}`\'s value with `{0}`';
 	}
 }
