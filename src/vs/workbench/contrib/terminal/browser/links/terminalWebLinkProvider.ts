@@ -6,6 +6,8 @@
 import { Terminal, IViewportRange, ILinkProvider, IBufferCellPosition, ILink, IBufferLine } from 'xterm';
 import { ILinkComputerTarget, LinkComputer } from 'vs/editor/common/modes/linkComputer';
 import { getXtermLineContent, convertLinkRangeToBuffer, convertBufferRangeToViewport, positionIsInRange, TOOLTIP_HOVER_THRESHOLD } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
+import { addDisposableListener, EventType } from 'vs/base/browser/dom';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export class TerminalWebLinkProvider implements ILinkProvider {
 	private _linkComputerTarget: ILinkComputerTarget | undefined;
@@ -47,20 +49,24 @@ export class TerminalWebLinkProvider implements ILinkProvider {
 				found = true;
 
 				let timeout: number | undefined;
+				let documentMouseOutListener: IDisposable | undefined;
+				const cancelHover = () => {
+					if (timeout !== undefined) {
+						window.clearTimeout(timeout);
+					}
+					documentMouseOutListener?.dispose();
+				};
 				callback({
 					text: link.url?.toString() || '',
 					range,
 					activate: (event: MouseEvent, text: string) => this._activateCallback(event, text),
 					hover: (event: MouseEvent, text: string) => {
+						documentMouseOutListener = addDisposableListener(document, EventType.MOUSE_OVER, () => cancelHover());
 						timeout = window.setTimeout(() => {
 							this._tooltipCallback(event, text, convertBufferRangeToViewport(range, this._xterm.buffer.active.viewportY));
 						}, TOOLTIP_HOVER_THRESHOLD);
 					},
-					leave: () => {
-						if (timeout !== undefined) {
-							window.clearTimeout(timeout);
-						}
-					}
+					leave: () => cancelHover()
 				});
 			}
 		});
