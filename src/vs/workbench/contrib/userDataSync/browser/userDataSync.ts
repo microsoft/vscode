@@ -172,7 +172,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private onDidChangeAccountStatus(status: AccountStatus): void {
 		this.accountStatusContext.set(status);
-		if (status === AccountStatus.Unavailable) {
+		if (status === AccountStatus.Unavailable && this.userDataSyncEnablementService.isEnabled()) {
 			this.doTurnOff(false);
 		}
 	}
