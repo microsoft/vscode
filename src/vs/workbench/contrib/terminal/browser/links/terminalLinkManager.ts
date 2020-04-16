@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { DisposableStore, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { TerminalWidgetManager, WidgetVerticalAlignment } from 'vs/workbench/contrib/terminal/browser/terminalWidgetManager';
+import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/terminalWidgetManager';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITerminalProcessManager, ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
@@ -32,6 +32,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { isEqualOrParent } from 'vs/base/common/resources';
 import { ISearchService } from 'vs/workbench/services/search/common/search';
 import { QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
+import { XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 
 const pathPrefix = '(\\.\\.?|\\~)';
 const pathSeparatorClause = '\\/';
@@ -139,39 +140,43 @@ export class TerminalLinkManager extends DisposableStore {
 			}
 
 			// Get the row bottom up
-			let offsetRow = this._xterm.rows - location.start.y;
-			let verticalAlignment = WidgetVerticalAlignment.Bottom;
+			// let offsetRow = this._xterm.rows - location.start.y;
+			// let verticalAlignment = WidgetVerticalAlignment.Bottom;
 
+			// TODO: Calculate this within the widget itself
 			// Show the tooltip on the top of the next row to avoid obscuring the first row
-			if (location.start.y <= 0) {
-				offsetRow = this._xterm.rows - 1;
-				verticalAlignment = WidgetVerticalAlignment.Top;
-				// The start of the wrapped line is above the viewport, move to start of the line
-				if (location.start.y < 0) {
-					location.start.x = 0;
-				}
-			}
+			// if (location.start.y <= 0) {
+			// 	offsetRow = this._xterm.rows - 1;
+			// 	verticalAlignment = WidgetVerticalAlignment.Top;
+			// 	// The start of the wrapped line is above the viewport, move to start of the line
+			// 	if (location.start.y < 0) {
+			// 		location.start.x = 0;
+			// 	}
+			// }
 
-			if (this._configHelper.config.rendererType === 'dom') {
-				const font = this._configHelper.getFont();
-				const charWidth = font.charWidth;
-				const charHeight = font.charHeight;
+			const core = (this._xterm as any)._core as XTermCore;
+			const cellDimensions = {
+				width: core._renderService.dimensions.actualCellWidth,
+				height: core._renderService.dimensions.actualCellHeight
+			};
+			const terminalDimensions = {
+				width: this._xterm.cols,
+				height: this._xterm.rows
+			};
 
-				const leftPosition = location.start.x * (charWidth! + (font.letterSpacing / window.devicePixelRatio));
-				const bottomPosition = offsetRow * (Math.ceil(charHeight! * window.devicePixelRatio) * font.lineHeight) / window.devicePixelRatio;
-
-				this._widgetManager.showHover(leftPosition, bottomPosition, this._getLinkHoverString(uri), verticalAlignment, linkHandler);
-			} else {
-				const target = (e.target as HTMLElement);
-				const colWidth = target.offsetWidth / this._xterm.cols;
-				const rowHeight = target.offsetHeight / this._xterm.rows;
-
-				const leftPosition = location.start.x * colWidth;
-				const bottomPosition = offsetRow * rowHeight;
-				this._widgetManager.showHover(leftPosition, bottomPosition, this._getLinkHoverString(uri), verticalAlignment, linkHandler);
-			}
+			this._widgetManager.showHover(
+				location,
+				cellDimensions,
+				terminalDimensions,
+				// location.start.x * core._renderService.dimensions.actualCellWidth,
+				// offsetRow * core._renderService.dimensions.actualCellHeight,
+				this._getLinkHoverString(uri),
+				// verticalAlignment,
+				linkHandler
+			);
 		};
 		this._leaveCallback = () => {
+			console.log('leaveCallback');
 			if (this._widgetManager) {
 				this._widgetManager.closeHover();
 			}

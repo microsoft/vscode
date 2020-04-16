@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .terminal-widget-overlay {
+.monaco-workbench .terminal-widget-container {
 	position: absolute;
 	left: 0;
 	right: 0;
 	bottom: 0;
+	overflow: visible;
 }
 
 .monaco-workbench .terminal-message-widget {
@@ -25,5 +26,10 @@
 }
 
 .monaco-workbench .terminal-message-widget a {
+	color: #3794ff;
+}
+
+.monaco-workbench .terminal-overlay-widget {
+	position: absolute;
 	color: #3794ff;
 }
