@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from 'vs/base/common/event';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
@@ -20,6 +21,9 @@ import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } fro
 import { CellKind, IOutput, IRenderOutput, NotebookCellMetadata, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
+import { ScrollEvent } from 'vs/base/common/scrollable';
+import { IListStyles, IListOptions } from 'vs/base/browser/ui/list/listWidget';
+import { IListEvent } from 'vs/base/browser/ui/list/list';
 
 export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('notebookFindWidgetFocused', false);
 
@@ -249,6 +253,11 @@ export interface INotebookEditor {
 	 */
 	revealRangeInCenterIfOutsideViewport(cell: ICellViewModel, range: Range): void;
 
+	/**
+	 * Set hidden areas on cell text models.
+	 */
+	setHiddenAreas(_ranges: ICellRange[]): boolean;
+
 	setCellSelection(cell: ICellViewModel, selection: Range): void;
 
 	/**
@@ -268,6 +277,45 @@ export interface INotebookEditor {
 	 * Hide Find Widget
 	 */
 	hideFind(): void;
+}
+
+export interface INotebookCellList {
+	onWillScroll: Event<ScrollEvent>;
+	onDidChangeFocus: Event<IListEvent<ICellViewModel>>;
+	onDidChangeContentHeight: Event<number>;
+	scrollTop: number;
+	scrollHeight: number;
+	scrollLeft: number;
+	length: number;
+	rowsContainer: HTMLElement;
+	readonly onDidRemoveOutput: Event<IOutput>;
+	detachViewModel(): void;
+	attachViewModel(viewModel: NotebookViewModel): void;
+	clear(): void;
+	focusElement(element: ICellViewModel): void;
+	selectElement(element: ICellViewModel): void;
+	getFocusedElements(): ICellViewModel[];
+	revealElementInView(element: ICellViewModel): void;
+	revealElementInCenterIfOutsideViewport(element: ICellViewModel): void;
+	revealElementInCenter(element: ICellViewModel): void;
+	revealElementLineInView(element: ICellViewModel, line: number): void;
+	revealElementLineInCenter(element: ICellViewModel, line: number): void;
+	revealElementLineInCenterIfOutsideViewport(element: ICellViewModel, line: number): void;
+	revealElementRangeInView(element: ICellViewModel, range: Range): void;
+	revealElementRangeInCenter(element: ICellViewModel, range: Range): void;
+	revealElementRangeInCenterIfOutsideViewport(element: ICellViewModel, range: Range): void;
+	setHiddenAreas(_ranges: ICellRange[]): boolean;
+	domElementOfElement(element: ICellViewModel): HTMLElement | null;
+	focusView(): void;
+	getAbsoluteTopOfElement(element: ICellViewModel): number;
+	triggerScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent): void;
+	updateElementHeight2(element: ICellViewModel, size: number): void;
+	domFocus(): void;
+	setCellSelection(element: ICellViewModel, range: Range): void;
+	style(styles: IListStyles): void;
+	updateOptions(options: IListOptions<ICellViewModel>): void;
+	layout(height?: number, width?: number): void;
+	dispose(): void;
 }
 
 export interface BaseCellRenderTemplate {
@@ -351,4 +399,67 @@ export enum CursorAtBoundary {
 	Top,
 	Bottom,
 	Both
+}
+
+/**
+ * [start, start + length]
+ */
+export interface ICellRange {
+	start: number;
+	length: number;
+}
+
+
+/**
+ * @param _ranges
+ */
+export function reduceCellRanges(_ranges: ICellRange[]): ICellRange[] {
+	if (!_ranges.length) {
+		return [];
+	}
+
+	let ranges = _ranges.sort((a, b) => a.start - b.start);
+	let result: ICellRange[] = [];
+	let currentRangeStart = ranges[0].start;
+	let currentRangeEnd = ranges[0].start + ranges[0].length;
+
+	for (let i = 0, len = ranges.length; i < len; i++) {
+		let range = ranges[i];
+
+		if (range.start > currentRangeEnd) {
+			result.push({ start: currentRangeStart, length: currentRangeEnd - currentRangeStart });
+			currentRangeStart = range.start;
+			currentRangeEnd = range.start + range.length;
+		} else if (range.start + range.length > currentRangeEnd) {
+			currentRangeEnd = range.start + range.length;
+		}
+	}
+
+	result.push({ start: currentRangeStart, length: currentRangeEnd - currentRangeStart });
+	return result;
+}
+
+export function getVisibleCells(cells: CellViewModel[], hiddenRanges: ICellRange[]) {
+	if (!hiddenRanges.length) {
+		return cells;
+	}
+
+	let start = 0;
+	let hiddenRangeIndex = 0;
+	let result: any[] = [];
+
+	while (start < cells.length && hiddenRangeIndex < hiddenRanges.length) {
+		if (start < hiddenRanges[hiddenRangeIndex].start) {
+			result.push(...cells.slice(start, hiddenRanges[hiddenRangeIndex].start));
+		}
+
+		start = hiddenRanges[hiddenRangeIndex].start + hiddenRanges[hiddenRangeIndex].length;
+		hiddenRangeIndex++;
+	}
+
+	if (start < cells.length) {
+		result.push(...cells.slice(start));
+	}
+
+	return result;
 }

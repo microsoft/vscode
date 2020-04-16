@@ -173,6 +173,7 @@ export interface INotebookTextModel {
 	viewType: string;
 	// metadata: IMetadata;
 	readonly uri: URI;
+	readonly versionId: number;
 	languages: string[];
 	cells: ICell[];
 	renderers: Set<number>;

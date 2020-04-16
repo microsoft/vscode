@@ -10,11 +10,11 @@ import { URI } from 'vs/base/common/uri';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IModelDeltaDecoration } from 'vs/editor/common/model';
+import { IModelDeltaDecoration, TrackedRangeStickiness, IModelDecorationOptions } from 'vs/editor/common/model';
 import { WorkspaceTextEdit } from 'vs/editor/common/modes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { CellFindMatch, CellEditState, ICellViewModel, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellFindMatch, CellEditState, ICellViewModel, NotebookLayoutInfo, ICellRange } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { DeleteCellEdit, InsertCellEdit, MoveCellEdit } from 'vs/workbench/contrib/notebook/browser/viewModel/cellEdit';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
@@ -23,6 +23,7 @@ import { CellKind, ICell } from 'vs/workbench/contrib/notebook/common/notebookCo
 import { NotebookEventDispatcher, NotebookMetadataChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
+import * as strings from 'vs/base/common/strings';
 
 export interface INotebookEditorViewState {
 	editingCells: { [key: number]: boolean };
@@ -58,6 +59,70 @@ export interface INotebookViewCellsUpdateEvent {
 	synchronous: boolean;
 	splices: NotebookViewCellsSplice[];
 }
+
+import { IntervalTree, IntervalNode } from 'vs/editor/common/model/intervalTree';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+
+class DecorationsTree {
+	private readonly _decorationsTree: IntervalTree;
+
+	constructor() {
+		this._decorationsTree = new IntervalTree();
+	}
+
+	public intervalSearch(start: number, end: number, filterOwnerId: number, filterOutValidation: boolean, cachedVersionId: number): IntervalNode[] {
+		const r1 = this._decorationsTree.intervalSearch(start, end, filterOwnerId, filterOutValidation, cachedVersionId);
+		return r1;
+	}
+
+	public search(filterOwnerId: number, filterOutValidation: boolean, overviewRulerOnly: boolean, cachedVersionId: number): IntervalNode[] {
+		return this._decorationsTree.search(filterOwnerId, filterOutValidation, cachedVersionId);
+
+	}
+
+	public collectNodesFromOwner(ownerId: number): IntervalNode[] {
+		const r1 = this._decorationsTree.collectNodesFromOwner(ownerId);
+		return r1;
+	}
+
+	public collectNodesPostOrder(): IntervalNode[] {
+		const r1 = this._decorationsTree.collectNodesPostOrder();
+		return r1;
+	}
+
+	public insert(node: IntervalNode): void {
+		this._decorationsTree.insert(node);
+	}
+
+	public delete(node: IntervalNode): void {
+		this._decorationsTree.delete(node);
+	}
+
+	public resolveNode(node: IntervalNode, cachedVersionId: number): void {
+		this._decorationsTree.resolveNode(node, cachedVersionId);
+	}
+
+	public acceptReplace(offset: number, length: number, textLength: number, forceMoveMarkers: boolean): void {
+		this._decorationsTree.acceptReplace(offset, length, textLength, forceMoveMarkers);
+	}
+}
+
+const TRACKED_RANGE_OPTIONS = [
+	ModelDecorationOptions.register({ stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges }),
+	ModelDecorationOptions.register({ stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges }),
+	ModelDecorationOptions.register({ stickiness: TrackedRangeStickiness.GrowsOnlyWhenTypingBefore }),
+	ModelDecorationOptions.register({ stickiness: TrackedRangeStickiness.GrowsOnlyWhenTypingAfter }),
+];
+
+function _normalizeOptions(options: IModelDecorationOptions): ModelDecorationOptions {
+	if (options instanceof ModelDecorationOptions) {
+		return options;
+	}
+	return ModelDecorationOptions.createDynamic(options);
+}
+
+let MODEL_ID = 0;
+
 
 export class NotebookViewModel extends Disposable {
 	private _localStore: DisposableStore = this._register(new DisposableStore());
@@ -117,6 +182,12 @@ export class NotebookViewModel extends Disposable {
 		return this._layoutInfo;
 	}
 
+	private _decorationsTree = new DecorationsTree();
+	private _decorations: { [decorationId: string]: IntervalNode; } = Object.create(null);
+	private _lastDecorationId: number = 0;
+	private readonly _instanceId: string;
+	public readonly id: string;
+
 	constructor(
 		public viewType: string,
 		private _model: NotebookEditorModel,
@@ -127,6 +198,10 @@ export class NotebookViewModel extends Disposable {
 		@IUndoRedoService private readonly undoService: IUndoRedoService
 	) {
 		super();
+
+		MODEL_ID++;
+		this.id = '$notebookViewModel' + MODEL_ID;
+		this._instanceId = strings.singleLetterHash(MODEL_ID);
 
 		// this._register(this._model.onDidChangeCells(e => {
 		// 	this._onDidChangeViewCells.fire({
@@ -164,8 +239,121 @@ export class NotebookViewModel extends Disposable {
 		});
 	}
 
-	getViewCellIndex(cell: ICellViewModel) {
+	getCellIndex(cell: ICellViewModel) {
 		return this._viewCells.indexOf(cell as CellViewModel);
+	}
+
+	getVersionId() {
+		return this._model.notebook.versionId;
+	}
+
+	getTrackedRange(id: string): ICellRange | null {
+		return this.getDecorationRange(id);
+	}
+
+	getDecorationRange(decorationId: string): ICellRange | null {
+		const node = this._decorations[decorationId];
+		if (!node) {
+			return null;
+		}
+		const versionId = this.getVersionId();
+		if (node.cachedVersionId !== versionId) {
+			this._decorationsTree.resolveNode(node, versionId);
+		}
+		if (node.range === null) {
+			return { start: node.cachedAbsoluteStart - 1, length: node.cachedAbsoluteEnd - node.cachedAbsoluteStart + 1 };
+		}
+
+		return { start: node.range.startLineNumber - 1, length: node.range.endLineNumber - node.range.startLineNumber + 1 };
+	}
+
+	setTrackedRange(id: string | null, newRange: ICellRange | null, newStickiness: TrackedRangeStickiness): string | null {
+		const node = (id ? this._decorations[id] : null);
+
+		if (!node) {
+			if (!newRange) {
+				return null;
+			}
+
+			return this._deltaCellDecorationsImpl(0, [], [{ range: new Range(newRange.start + 1, 1, newRange.start + newRange.length, 1), options: TRACKED_RANGE_OPTIONS[newStickiness] }])[0];
+		}
+
+		if (!newRange) {
+			// node exists, the request is to delete => delete node
+			this._decorationsTree.delete(node);
+			delete this._decorations[node.id];
+			return null;
+		}
+
+		this._decorationsTree.delete(node);
+		node.reset(this.getVersionId(), newRange.start, newRange.start + newRange.length, new Range(newRange.start + 1, 1, newRange.start + newRange.length, 1));
+		node.setOptions(TRACKED_RANGE_OPTIONS[newStickiness]);
+		this._decorationsTree.insert(node);
+		return node.id;
+	}
+
+	private _deltaCellDecorationsImpl(ownerId: number, oldDecorationsIds: string[], newDecorations: IModelDeltaDecoration[]): string[] {
+		const versionId = this.getVersionId();
+
+		const oldDecorationsLen = oldDecorationsIds.length;
+		let oldDecorationIndex = 0;
+
+		const newDecorationsLen = newDecorations.length;
+		let newDecorationIndex = 0;
+
+		let result = new Array<string>(newDecorationsLen);
+		while (oldDecorationIndex < oldDecorationsLen || newDecorationIndex < newDecorationsLen) {
+
+			let node: IntervalNode | null = null;
+
+			if (oldDecorationIndex < oldDecorationsLen) {
+				// (1) get ourselves an old node
+				do {
+					node = this._decorations[oldDecorationsIds[oldDecorationIndex++]];
+				} while (!node && oldDecorationIndex < oldDecorationsLen);
+
+				// (2) remove the node from the tree (if it exists)
+				if (node) {
+					this._decorationsTree.delete(node);
+					// this._onDidChangeDecorations.checkAffectedAndFire(node.options);
+				}
+			}
+
+			if (newDecorationIndex < newDecorationsLen) {
+				// (3) create a new node if necessary
+				if (!node) {
+					const internalDecorationId = (++this._lastDecorationId);
+					const decorationId = `${this._instanceId};${internalDecorationId}`;
+					node = new IntervalNode(decorationId, 0, 0);
+					this._decorations[decorationId] = node;
+				}
+
+				// (4) initialize node
+				const newDecoration = newDecorations[newDecorationIndex];
+				// const range = this._validateRangeRelaxedNoAllocations(newDecoration.range);
+				const range = newDecoration.range;
+				const options = _normalizeOptions(newDecoration.options);
+				// const startOffset = this._buffer.getOffsetAt(range.startLineNumber, range.startColumn);
+				// const endOffset = this._buffer.getOffsetAt(range.endLineNumber, range.endColumn);
+
+				node.ownerId = ownerId;
+				node.reset(versionId, range.startLineNumber, range.endLineNumber, Range.lift(range));
+				node.setOptions(options);
+				// this._onDidChangeDecorations.checkAffectedAndFire(options);
+
+				this._decorationsTree.insert(node);
+
+				result[newDecorationIndex] = node.id;
+
+				newDecorationIndex++;
+			} else {
+				if (node) {
+					delete this._decorations[node.id];
+				}
+			}
+		}
+
+		return result;
 	}
 
 	private _insertCellDelegate(insertIndex: number, insertCell: CellViewModel) {
@@ -192,6 +380,7 @@ export class NotebookViewModel extends Disposable {
 			deleteCell: this._deleteCellDelegate.bind(this)
 		}));
 
+		this._decorationsTree.acceptReplace(index, 0, 1, true);
 		this._onDidChangeViewCells.fire({ synchronous: synchronous, splices: [[index, 0, [newCell]]] });
 		return newCell;
 	}
@@ -206,6 +395,7 @@ export class NotebookViewModel extends Disposable {
 			deleteCell: this._deleteCellDelegate.bind(this)
 		}));
 
+		this._decorationsTree.acceptReplace(index, 0, 1, true);
 		this._onDidChangeViewCells.fire({ synchronous: synchronous, splices: [[index, 0, [newCell]]] });
 		return newCell;
 	}
@@ -222,6 +412,9 @@ export class NotebookViewModel extends Disposable {
 				return createCellViewModel(this.instantiationService, this, cell);
 			}
 		}));
+
+
+		this._decorationsTree.acceptReplace(index, 1, 0, true);
 
 		this._onDidChangeViewCells.fire({ synchronous: synchronous, splices: [[index, 1, []]] });
 		viewCell.dispose();
